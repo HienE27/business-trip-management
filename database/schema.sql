@@ -165,7 +165,16 @@ CREATE TABLE algorithm_config (
     param_value DOUBLE
     NOT NULL,
 
-    description VARCHAR(255)
+    description VARCHAR(255),
+
+    updated_by INT,
+
+    updated_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (updated_by)
+    REFERENCES staff(id)
+    ON DELETE SET NULL
 );
 
 -- =====================================================
@@ -176,8 +185,7 @@ CREATE TABLE system_log (
 
     id INT AUTO_INCREMENT PRIMARY KEY,
 
-    action_user VARCHAR(50)
-    NOT NULL,
+    staff_id INT,
 
     action_type VARCHAR(50)
     NOT NULL,
@@ -185,7 +193,11 @@ CREATE TABLE system_log (
     description TEXT,
 
     created_at TIMESTAMP
-    DEFAULT CURRENT_TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (staff_id)
+    REFERENCES staff(id)
+    ON DELETE SET NULL
 );
 
 -- =====================================================
