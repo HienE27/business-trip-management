@@ -1,0 +1,63 @@
+---
+description: Project context and business rules for Quản lý Lịch Công Tác system
+alwaysApply: true
+---
+
+# Project Context - Quản lý Lịch Công Tác
+
+## System Overview
+
+This is a **Schedule Management Website** for a department with 20 staff members.
+
+### Key Features
+- 4 types of schedules: Lịch trực 24/24, Lịch thông tầm, Lịch phòng khám dịch vụ, Lịch phòng khám chuyên gia
+- Automatic conflict detection
+- Automatic schedule assignment algorithm
+- Leave compensation calculation
+
+### Important Business Rules
+
+**CRITICAL CONSTRAINTS (must enforce in all code):**
+
+1. **Lịch trực 24/24 vs Lịch thông tầm**: Same staff, same day => CANNOT have both
+2. **Lịch phòng khám dịch vụ vs Lịch phòng khám chuyên gia**: Same staff, same day => CANNOT have both
+3. **Leave compensation days**: No schedule allowed on compensation days
+
+**Leave Compensation Rules:**
+
+| If on-duty on | Compensation day |
+|---------------|------------------|
+| Monday | Tuesday |
+| Tuesday | Wednesday |
+| Wednesday | Thursday |
+| Thursday | Friday |
+| Friday | Next week's Tuesday (skip Mon & Fri) |
+| Saturday | Next week's Tuesday (skip Mon & Fri) |
+| Sunday | Next Monday |
+
+**Schedule Time Rules:**
+- Lịch trực 24/24: 7h30 day N to 7h30 day N+1
+- All schedules: Only require DATE selection, no time/ca selection needed
+
+## Module Structure
+
+| Module | Purpose |
+|--------|---------|
+| M01 | Staff management (CRUD, roles) |
+| M02 | Lịch trực 24/24 management |
+| M03 | Lịch thông tầm management |
+| M04 | Lịch phòng khám dịch vụ |
+| M05 | Lịch phòng khám chuyên gia |
+| M06 | Dashboard & calendar view |
+| M07 | Auto-scheduling algorithm |
+
+## Architecture Guidelines
+
+1. **Reusable constraint checking**: Create shared service/function for all conflict detection logic
+2. **Database**: Track all schedules by date, staff, and type
+3. **Auto-compute compensation**: Calculate and lock compensation days automatically when scheduling 24/24
+4. **Audit logging**: Log all create/update/delete operations
+
+## Full Documentation
+
+See `SPEC.md` in project root for complete functional specifications.
