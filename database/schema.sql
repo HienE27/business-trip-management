@@ -125,7 +125,7 @@ CREATE TABLE schedule (
  FOREIGN KEY (period_id) REFERENCES schedule_period(id) ON DELETE CASCADE,
  FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
  FOREIGN KEY (shift_type_id) REFERENCES shift_type(id),
- UNIQUE KEY uk_sched_unique (period_id, staff_id, work_date)
+ UNIQUE KEY uk_sched_unique (period_id, staff_id, shift_type_id, work_date)
 );
 
 -- =====================================================
