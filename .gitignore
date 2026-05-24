@@ -141,3 +141,11 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Cursor IDE config (private - not for git)
+.cursor/
+
+# Documentation (private - not for git)
+SPEC.md
+QuanLyLichCongTac_v5.txt
+QuanLyLichCongTac_v5.docx
