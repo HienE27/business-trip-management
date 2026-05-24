@@ -43,38 +43,16 @@ CREATE TABLE schedule (
 );
 ```
 
-### Ngày nghỉ bù
-```sql
-CREATE TABLE compensation_day (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    schedule_id INT NOT NULL,
-    staff_id INT NOT NULL,
-    period_id INT NOT NULL,
-    shift_date DATE NOT NULL,
-    compensation_date DATE NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_compensation_staff_date (staff_id, compensation_date)
-);
-```
-
 ## Index Strategy
 
 ```sql
 -- Cho tìm kiếm nhanh theo ngày
 CREATE INDEX idx_schedule_date ON schedule(work_date);
 CREATE INDEX idx_schedule_staff_date ON schedule(staff_id, work_date);
-
--- Cho xung đột
-CREATE INDEX idx_schedule_conflict ON schedule(has_conflict);
-
--- Cho compensation
-CREATE INDEX idx_compensation_date ON compensation_day(compensation_date);
-CREATE INDEX idx_compensation_staff ON compensation_day(staff_id);
 ```
 
 ## Migration Checklist
-- [ ] Tạo bảng với đúng charset utf8mb4
+- [ ] Tạo bảng với charset utf8mb4
 - [ ] Thêm tất cả foreign keys
 - [ ] Thêm indexes cho các truy vấn thường dùng
 - [ ] Seed data cho app_role, app_permission
-- [ ] Test với sample data

@@ -37,24 +37,7 @@ public class Schedule {
 }
 ```
 
-### 3. Tạo Repository
-```java
-public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
-    
-    // Find by period and date
-    List<Schedule> findByPeriodIdAndWorkDate(Long periodId, LocalDate date);
-    
-    // Find by staff and date
-    Optional<Schedule> findByStaffIdAndWorkDateAndShiftTypeId(
-        Long staffId, LocalDate date, String shiftTypeId);
-    
-    // Check conflict
-    boolean existsByStaffIdAndWorkDateAndShiftTypeId(
-        Long staffId, LocalDate date, String shiftTypeId);
-}
-```
-
-### 4. Tạo Service với Conflict Detection
+### 3. Tạo Service với Conflict Detection
 ```java
 @Service
 public class ScheduleService {
@@ -72,26 +55,6 @@ public class ScheduleService {
         // T6-T7: +3 ngày (tuần sau, bỏ T2, T6)
         // CN: +1 ngày (T2 tuần sau)
     }
-}
-```
-
-### 5. Tạo Controller
-```java
-@RestController
-@RequestMapping("/api/v1/schedules")
-public class ScheduleController {
-    
-    @PostMapping
-    public ResponseEntity<ApiResponse<ScheduleDTO>> create(
-            @Valid @RequestBody ScheduleRequest request);
-    
-    @GetMapping("/by-period/{periodId}")
-    public ResponseEntity<ApiResponse<List<ScheduleDTO>>> getByPeriod(
-            @PathVariable Long periodId);
-    
-    @GetMapping("/conflicts/check")
-    public ResponseEntity<ApiResponse<List<ConflictDTO>>> checkConflicts(
-            @RequestParam Long periodId);
 }
 ```
 

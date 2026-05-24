@@ -1,6 +1,5 @@
-#!/bin/bash
 # Command: /gen-api
-# Mô tả: Tạo REST API Controller
+## Mô tả: Tạo REST API Controller
 
 Tạo REST API Controller theo chuẩn Spring Boot:
 

@@ -1,6 +1,5 @@
-#!/bin/bash
 # Command: /gen-entity
-# Mô tả: Tạo JPA Entity
+## Mô tả: Tạo JPA Entity
 
 Tạo JPA Entity theo chuẩn Spring Boot:
 
@@ -51,15 +50,6 @@ private Staff staff;
 // One-to-Many
 @OneToMany(mappedBy = "{fieldName}", cascade = CascadeType.ALL)
 private List<Schedule> schedules;
-
-// Many-to-Many
-@ManyToMany
-@JoinTable(
-    name = "role_permission",
-    joinColumns = @JoinColumn(name = "role_id"),
-    inverseJoinColumns = @JoinColumn(name = "permission_id")
-)
-private Set<Permission> permissions;
 ```
 
 ## Ví dụ:

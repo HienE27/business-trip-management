@@ -39,24 +39,9 @@ com.hospital.scheduler
 - Controller: PascalCase + Controller (vd: `StaffController`)
 - DTO: PascalCase + DTO (vd: `StaffDTO`)
 
-### Response format
-```java
-public class ApiResponse<T> {
-    private boolean success;
-    private String message;
-    private T data;
-    private LocalDateTime timestamp;
-}
-```
-
 ## Khi nào sử dụng agent này
 - Tạo REST API endpoints
 - Viết business logic cho services
 - Thiết kế database queries
 - Xử lý validation
 - Implement security
-
-## Ví dụ task
-- "Tạo API CRUD cho Staff"
-- "Viết service kiểm tra xung đột lịch"
-- "Implement authentication với JWT"

@@ -13,7 +13,6 @@ Chuyên gia quản trị MySQL database
 - Query optimization
 - Index strategy
 - Stored procedures
-- Backup & recovery
 - Performance tuning
 
 ## Khi nào sử dụng agent này
@@ -30,9 +29,6 @@ Chuyên gia quản trị MySQL database
 -- Luôn index foreign keys
 CREATE INDEX idx_schedule_staff ON schedule(staff_id);
 
--- Index cho WHERE clauses thường dùng
-CREATE INDEX idx_schedule_date ON schedule(work_date);
-
 -- Composite index cho multi-column queries
 CREATE INDEX idx_schedule_staff_date ON schedule(staff_id, work_date);
 ```
@@ -41,14 +37,3 @@ CREATE INDEX idx_schedule_staff_date ON schedule(staff_id, work_date);
 - Tránh SELECT *
 - Sử dụng EXPLAIN để phân tích query
 - Batch inserts thay vì single inserts
-- Sử dụng LIMIT cho pagination
-
-### Normalization
-- 3NF minimum
-- Tách bảng khi có nhiều NULL values
-- Sử dụng junction tables cho many-to-many
-
-## Ví dụ task
-- "Phân tích và tối ưu query lấy lịch theo tháng"
-- "Thiết kế index cho bảng schedule"
-- "Viết stored procedure tính ngày nghỉ bù"
