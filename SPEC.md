@@ -8,7 +8,8 @@
 | Ngày lập | 05/2026 |
 | Người hướng dẫn | ThS. Văn Minh Hoàng Quân |
 | Nhóm thực hiện | Nhóm 4 |
-| Công nghệ | Web App |
+| Công nghệ | Java Spring Boot + MySQL + REST API |
+| Database | hospital_scheduler (utf8mb4) |
 
 ## 1. Tổng quan hệ thống
 
@@ -140,7 +141,67 @@ Xây dựng website quản lý lịch công tác cho phòng gồm 20 nhân sự.
 
 ---
 
-## 3. Lưu ý quan trọng
+## 3. Database Schema
+
+Database file: `hospital_scheduler_business_final.sql`
+
+### 3.1 Tổng quan các bảng
+
+| Bảng | Mục đích | Mapping Module |
+|------|----------|----------------|
+| `specialty` | Chuyên môn (Bác sĩ, Điều dưỡng...) | M01 |
+| `staff` | Nhân sự (20 người) | M01 |
+| `app_role` | Vai trò (ADMIN, MANAGER, STAFF) | M01-F05 |
+| `app_permission` | Quyền chi tiết | M01-F05 |
+| `role_permission` | Mapping role ↔ permission | M01-F05 |
+| `staff_role` | Mapping staff ↔ role | M01-F05 |
+| `shift_type` | Loại ca (L01, L02, L03, L04) | M02-M05 |
+| `schedule_period` | Kỳ lập lịch (DRAFT→PUBLISHED→ARCHIVED) | M02-M07 |
+| `shift_requirement` | Nhu cầu nhân sự cho từng ngày/ca | M07 |
+| `leave_request` | Xin nghỉ phép | M01 |
+| `schedule` | Lịch phân công thực tế | M02-M05 |
+| `compensation_day` | Ngày nghỉ bù sau L01 | M02 |
+| `schedule_exchange` | Đổi ca giữa nhân sự | M02-F04 |
+| `algorithm_config` | Cấu hình thuật toán | M07 |
+| `algorithm_metrics` | Kết quả chạy thuật toán | M07 |
+| `schedule_conflict` | Chi tiết xung đột lịch | M02-M05 |
+| `notification` | Thông báo cho nhân sự | M06 |
+| `audit_history` | Lịch sử thay đổi dữ liệu | M01, M06-F05 |
+| `system_log` | Log hành động hệ thống | M06-F05 |
+| `file_attachment` | File đính kèm | M01, M02 |
+
+### 3.2 Mapping Shift Type (Loại ca)
+
+| shift_type_id | Tên | is_overnight | Mapping |
+|---------------|-----|--------------|---------|
+| L01 | Lịch trực 24/24 | TRUE | M02 |
+| L02 | Lịch thông tầm | FALSE | M03 |
+| L03 | Lịch phòng khám dịch vụ | FALSE | M04 |
+| L04 | Lịch phòng khám chuyên gia | FALSE | M05 |
+
+### 3.3 Ràng buộc Database quan trọng
+
+1. **UNIQUE**: `schedule(period_id, staff_id, shift_type_id, work_date)` - Mỗi nhân sự chỉ 1 lịch/ngày/loại
+2. **UNIQUE**: `compensation_day(staff_id, compensation_date)` - 1 ngày nghỉ bù chỉ cho 1 nhân sự
+3. **Composite FK**: `compensation_day` references `schedule` để đảm bảo consistency
+4. **schedule_period.status**: DRAFT → PUBLISHED → ARCHIVED (workflow bắt buộc)
+
+### 3.4 Conflict Types trong schedule_conflict
+
+| conflict_type | Mô tả |
+|---------------|-------|
+| LEAVE_CONFLICT | Trùng ngày nghỉ phép |
+| MAX_SHIFT_EXCEEDED | Vượt số ca tối đa/tháng |
+| BACK_TO_BACK_SHIFT | Ca liên tiếp không nghỉ |
+| SPECIALTY_MISMATCH | Chuyên môn không phù hợp |
+| REQUIREMENT_NOT_MET | Không đủ nhân sự |
+| DUPLICATE_ASSIGNMENT | Trùng phân công |
+| COMPENSATION_CONFLICT | Trùng ngày nghỉ bù |
+| OTHER | Khác |
+
+---
+
+## 4. Lưu ý quan trọng
 
 1. **Logic kiểm tra ràng buộc phải được tách thành hàm/service dùng chung** cho toàn hệ thống (sử dụng cho cả thủ công và tự động).
 
