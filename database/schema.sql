@@ -1,116 +1,240 @@
 -- =====================================================
--- DATABASE: Hospital Scheduler
+-- DATABASE: Hospital Scheduler - Final Business Schema
+-- Purpose: Backend Java Spring Boot + MySQL + REST API
+-- Charset: utf8mb4 for Vietnamese text
 -- =====================================================
-CREATE DATABASE IF NOT EXISTS hospital_scheduler;
+
+CREATE DATABASE IF NOT EXISTS hospital_scheduler
+ CHARACTER SET utf8mb4
+ COLLATE utf8mb4_unicode_ci;
+
 USE hospital_scheduler;
 
 -- =====================================================
+-- Re-runnable setup: drop tables in dependency order
+-- =====================================================
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS algorithm_metrics;
+DROP TABLE IF EXISTS audit_history;
+DROP TABLE IF EXISTS file_attachment;
+DROP TABLE IF EXISTS schedule_conflict;
+DROP TABLE IF EXISTS notification;
+DROP TABLE IF EXISTS system_log;
+DROP TABLE IF EXISTS algorithm_config;
+DROP TABLE IF EXISTS schedule_exchange;
+DROP TABLE IF EXISTS compensation_day;
+DROP TABLE IF EXISTS schedule;
+DROP TABLE IF EXISTS leave_request;
+DROP TABLE IF EXISTS shift_requirement;
+DROP TABLE IF EXISTS schedule_period;
+DROP TABLE IF EXISTS shift_type;
+DROP TABLE IF EXISTS staff_role;
+DROP TABLE IF EXISTS role_permission;
+DROP TABLE IF EXISTS app_permission;
+DROP TABLE IF EXISTS app_role;
+DROP TABLE IF EXISTS staff;
+DROP TABLE IF EXISTS specialty;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- =====================================================
 -- 1. SPECIALTY
+-- Quản lý chuyên môn chuẩn hóa: Bác sĩ, Điều dưỡng, Kỹ thuật viên...
 -- =====================================================
 CREATE TABLE specialty (
  id INT AUTO_INCREMENT PRIMARY KEY,
- name VARCHAR(50) UNIQUE NOT NULL,
- description TEXT
-);
+ name VARCHAR(50) NOT NULL UNIQUE,
+ description TEXT,
+ is_active BOOLEAN NOT NULL DEFAULT TRUE,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
 
 -- =====================================================
 -- 2. STAFF
+-- Nhân sự tham gia hệ thống. Không lưu role trực tiếp tại đây.
+-- Phân quyền đi qua staff_role.
 -- =====================================================
 CREATE TABLE staff (
  id INT AUTO_INCREMENT PRIMARY KEY,
+ employee_code VARCHAR(20) NOT NULL UNIQUE COMMENT 'Mã nhân viên (VD: NV001)',
  username VARCHAR(50) NOT NULL UNIQUE,
  password_hash VARCHAR(255) NOT NULL,
  full_name VARCHAR(100) NOT NULL,
  phone VARCHAR(20),
- email VARCHAR(100),
- specialty_id INT,
- max_shifts_per_month INT DEFAULT 5,
- is_active BOOLEAN DEFAULT TRUE,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- FOREIGN KEY (specialty_id) REFERENCES specialty(id)
-);
+ email VARCHAR(100) UNIQUE,
+ specialty_id INT NULL,
+ max_shifts_per_month INT NOT NULL DEFAULT 5,
+ is_active BOOLEAN NOT NULL DEFAULT TRUE,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_staff_specialty
+ FOREIGN KEY (specialty_id) REFERENCES specialty(id) ON DELETE SET NULL,
+ CONSTRAINT chk_staff_max_shifts
+ CHECK (max_shifts_per_month >= 0)
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 3. ROLE
+-- 3. APP_ROLE
+-- Tránh đặt tên bảng là role vì dễ gây nhầm với cơ chế ROLE của MySQL/Spring Security.
 -- =====================================================
-CREATE TABLE role (
+CREATE TABLE app_role (
  id INT AUTO_INCREMENT PRIMARY KEY,
- name VARCHAR(50) UNIQUE NOT NULL,
- description TEXT
-);
+ name VARCHAR(50) NOT NULL UNIQUE,
+ description TEXT,
+ is_active BOOLEAN NOT NULL DEFAULT TRUE,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 4. PERMISSION
+-- 4. APP_PERMISSION
+-- Quyền chi tiết theo chức năng/API.
 -- =====================================================
-CREATE TABLE permission (
+CREATE TABLE app_permission (
  id INT AUTO_INCREMENT PRIMARY KEY,
- name VARCHAR(50) UNIQUE NOT NULL,
- description TEXT
-);
+ name VARCHAR(100) NOT NULL UNIQUE,
+ description TEXT,
+ is_active BOOLEAN NOT NULL DEFAULT TRUE,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
 
 -- =====================================================
 -- 5. ROLE_PERMISSION
+-- 1 role có nhiều permission, 1 permission có thể thuộc nhiều role.
 -- =====================================================
 CREATE TABLE role_permission (
  role_id INT NOT NULL,
  permission_id INT NOT NULL,
  PRIMARY KEY (role_id, permission_id),
- FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE,
- FOREIGN KEY (permission_id) REFERENCES permission(id) ON DELETE CASCADE
-);
+
+ CONSTRAINT fk_role_permission_role
+ FOREIGN KEY (role_id) REFERENCES app_role(id) ON DELETE CASCADE,
+ CONSTRAINT fk_role_permission_permission
+ FOREIGN KEY (permission_id) REFERENCES app_permission(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
 
 -- =====================================================
 -- 6. STAFF_ROLE
+-- 1 nhân sự có thể có nhiều role.
 -- =====================================================
 CREATE TABLE staff_role (
  staff_id INT NOT NULL,
  role_id INT NOT NULL,
  PRIMARY KEY (staff_id, role_id),
+
+ CONSTRAINT fk_staff_role_staff
  FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
- FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE
-);
+ CONSTRAINT fk_staff_role_role
+ FOREIGN KEY (role_id) REFERENCES app_role(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 7. SHIFT TYPE
+-- 7. SHIFT_TYPE
+-- Danh mục loại ca trực. is_overnight xử lý ca qua ngày, ví dụ 17:00 - 08:00 hôm sau.
 -- =====================================================
 CREATE TABLE shift_type (
  id VARCHAR(10) PRIMARY KEY,
  name VARCHAR(50) NOT NULL,
  description TEXT,
- start_time TIME,
- end_time TIME,
- fatigue_score INT DEFAULT 1
-);
+ start_time TIME NULL,
+ end_time TIME NULL,
+ is_overnight BOOLEAN NOT NULL DEFAULT FALSE,
+ fatigue_score INT NOT NULL DEFAULT 1,
+ is_active BOOLEAN NOT NULL DEFAULT TRUE,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+ CONSTRAINT chk_shift_fatigue_score
+ CHECK (fatigue_score >= 0)
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 8. LEAVE REQUEST
+-- 8. SCHEDULE_PERIOD
+-- Kỳ lập lịch: tháng/tuần/khoảng ngày.
+-- Quy tắc trạng thái xử lý ở backend: DRAFT -> PUBLISHED -> ARCHIVED.
+-- =====================================================
+CREATE TABLE schedule_period (
+ id INT AUTO_INCREMENT PRIMARY KEY,
+ period_name VARCHAR(50) NOT NULL,
+ start_date DATE NOT NULL,
+ end_date DATE NOT NULL,
+ status ENUM('DRAFT', 'PUBLISHED', 'ARCHIVED') NOT NULL DEFAULT 'DRAFT',
+ generated_by INT NULL,
+ generated_at TIMESTAMP NULL,
+ published_at TIMESTAMP NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_schedule_period_generated_by
+ FOREIGN KEY (generated_by) REFERENCES staff(id) ON DELETE SET NULL,
+ CONSTRAINT chk_schedule_period_range
+ CHECK (start_date <= end_date),
+ UNIQUE KEY uk_schedule_period_range (start_date, end_date)
+) ENGINE=InnoDB;
+
+-- =====================================================
+-- 9. SHIFT_REQUIREMENT
+-- Nhu cầu nhân sự cho từng ngày/ca/chuyên môn.
+-- Rất quan trọng cho thuật toán lập lịch tự động.
+-- Ví dụ: ngày X, ca đêm, cần 2 bác sĩ và 3 điều dưỡng.
+-- =====================================================
+CREATE TABLE shift_requirement (
+ id INT AUTO_INCREMENT PRIMARY KEY,
+ period_id INT NOT NULL,
+ work_date DATE NOT NULL,
+ shift_type_id VARCHAR(10) NOT NULL,
+ specialty_id INT NOT NULL,
+ required_staff_count INT NOT NULL,
+ note TEXT,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_requirement_period
+ FOREIGN KEY (period_id) REFERENCES schedule_period(id) ON DELETE CASCADE,
+ CONSTRAINT fk_requirement_shift_type
+ FOREIGN KEY (shift_type_id) REFERENCES shift_type(id),
+ CONSTRAINT fk_requirement_specialty
+ FOREIGN KEY (specialty_id) REFERENCES specialty(id),
+ CONSTRAINT chk_requirement_staff_count
+ CHECK (required_staff_count > 0),
+ UNIQUE KEY uk_requirement_unique (period_id, work_date, shift_type_id, specialty_id)
+) ENGINE=InnoDB;
+
+-- =====================================================
+-- 10. LEAVE_REQUEST
+-- Xin nghỉ theo khoảng ngày thay vì chỉ 1 ngày.
+-- Nếu nghỉ 1 ngày: start_date = end_date.
 -- =====================================================
 CREATE TABLE leave_request (
  id INT AUTO_INCREMENT PRIMARY KEY,
  staff_id INT NOT NULL,
- request_date DATE NOT NULL,
+ start_date DATE NOT NULL,
+ end_date DATE NOT NULL,
  reason TEXT,
- status ENUM('PENDING', 'APPROVED', 'REJECTED') DEFAULT 'PENDING',
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE
-);
+ status ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
+ reviewed_by INT NULL,
+ reviewed_at TIMESTAMP NULL,
+ review_note TEXT,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_leave_staff
+ FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
+ CONSTRAINT fk_leave_reviewed_by
+ FOREIGN KEY (reviewed_by) REFERENCES staff(id) ON DELETE SET NULL,
+ CONSTRAINT chk_leave_date_range
+ CHECK (start_date <= end_date)
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 9. SCHEDULE PERIOD
--- =====================================================
-CREATE TABLE schedule_period (
- id INT AUTO_INCREMENT PRIMARY KEY,
- period_name VARCHAR(20) NOT NULL,
- status ENUM('DRAFT', 'PUBLISHED') DEFAULT 'DRAFT',
- generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- generated_by INT NULL,
- FOREIGN KEY (generated_by) REFERENCES staff(id) ON DELETE SET NULL
-);
-
--- =====================================================
--- 10. SCHEDULE
+-- 11. SCHEDULE
+-- Lịch phân công thực tế.
+-- requirement_id cho biết dòng lịch này đang đáp ứng nhu cầu nào.
+-- has_conflict dùng để lọc nhanh; chi tiết conflict nằm ở schedule_conflict.
 -- =====================================================
 CREATE TABLE schedule (
  id INT AUTO_INCREMENT PRIMARY KEY,
@@ -118,154 +242,420 @@ CREATE TABLE schedule (
  work_date DATE NOT NULL,
  staff_id INT NOT NULL,
  shift_type_id VARCHAR(10) NOT NULL,
- has_conflict BOOLEAN DEFAULT FALSE,
- conflict_note TEXT,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ requirement_id INT NULL,
+ has_conflict BOOLEAN NOT NULL DEFAULT FALSE,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_schedule_period
  FOREIGN KEY (period_id) REFERENCES schedule_period(id) ON DELETE CASCADE,
+ CONSTRAINT fk_schedule_staff
  FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
+ CONSTRAINT fk_schedule_shift_type
  FOREIGN KEY (shift_type_id) REFERENCES shift_type(id),
- UNIQUE KEY uk_sched_unique (period_id, staff_id, shift_type_id, work_date)
-);
+ CONSTRAINT fk_schedule_requirement
+ FOREIGN KEY (requirement_id, period_id, work_date, shift_type_id)
+ REFERENCES shift_requirement(id, period_id, work_date, shift_type_id),
+
+ UNIQUE KEY uk_schedule_unique (period_id, staff_id, shift_type_id, work_date)
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 11. COMPENSATION DAY
+-- 12. COMPENSATION_DAY
+-- Ngày nghỉ bù sau ca trực đặc biệt, ví dụ L01.
+-- Composite FK đảm bảo staff_id/period_id/shift_date khớp với schedule_id.
 -- =====================================================
 CREATE TABLE compensation_day (
  id INT AUTO_INCREMENT PRIMARY KEY,
+ schedule_id INT NOT NULL,
  staff_id INT NOT NULL,
+ period_id INT NOT NULL,
  shift_date DATE NOT NULL,
  compensation_date DATE NOT NULL,
- period_id INT NOT NULL,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
- FOREIGN KEY (period_id) REFERENCES schedule_period(id) ON DELETE CASCADE,
- UNIQUE KEY unique_compensation (staff_id, compensation_date)
-);
+ note TEXT,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_compensation_schedule_consistency
+ FOREIGN KEY (schedule_id, staff_id, period_id, shift_date)
+ REFERENCES schedule(id, staff_id, period_id, work_date)
+ ON DELETE CASCADE,
+ CONSTRAINT chk_compensation_not_same_day
+ CHECK (compensation_date <> shift_date),
+ UNIQUE KEY uk_compensation_schedule (schedule_id),
+ UNIQUE KEY uk_compensation_staff_date (staff_id, compensation_date)
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 12. SCHEDULE EXCHANGE
+-- 13. SCHEDULE_EXCHANGE
+-- Đổi ca giữa 2 nhân sự.
+-- period_id + composite FK đảm bảo 2 ca đổi thuộc cùng kỳ và đúng người sở hữu ca.
 -- =====================================================
 CREATE TABLE schedule_exchange (
  id INT AUTO_INCREMENT PRIMARY KEY,
+ period_id INT NOT NULL,
  requester_id INT NOT NULL,
  target_id INT NOT NULL,
- requester_shift_date DATE NOT NULL,
- target_shift_date DATE NOT NULL,
+ requester_schedule_id INT NOT NULL,
+ target_schedule_id INT NOT NULL,
  reason TEXT,
- status ENUM('PENDING', 'APPROVED', 'REJECTED') DEFAULT 'PENDING',
- reviewed_by INT,
- reviewed_at TIMESTAMP,
+ status ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
+ reviewed_by INT NULL,
+ reviewed_at TIMESTAMP NULL,
  review_note TEXT,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_exchange_period
+ FOREIGN KEY (period_id) REFERENCES schedule_period(id) ON DELETE CASCADE,
+ CONSTRAINT fk_exchange_requester
  FOREIGN KEY (requester_id) REFERENCES staff(id) ON DELETE CASCADE,
+ CONSTRAINT fk_exchange_target
  FOREIGN KEY (target_id) REFERENCES staff(id) ON DELETE CASCADE,
- FOREIGN KEY (reviewed_by) REFERENCES staff(id) ON DELETE SET NULL
-);
+ CONSTRAINT fk_exchange_requester_schedule_consistency
+ FOREIGN KEY (requester_schedule_id, requester_id, period_id)
+ REFERENCES schedule(id, staff_id, period_id)
+ ON DELETE CASCADE,
+ CONSTRAINT fk_exchange_target_schedule_consistency
+ FOREIGN KEY (target_schedule_id, target_id, period_id)
+ REFERENCES schedule(id, staff_id, period_id)
+ ON DELETE CASCADE,
+ CONSTRAINT fk_exchange_reviewed_by
+ FOREIGN KEY (reviewed_by) REFERENCES staff(id) ON DELETE SET NULL,
+ CONSTRAINT chk_exchange_different_staff
+ CHECK (requester_id <> target_id),
+ CONSTRAINT chk_exchange_different_schedule
+ CHECK (requester_schedule_id <> target_schedule_id)
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 13. ALGORITHM CONFIG (FIX: VARCHAR thay vì DOUBLE)
+-- 14. ALGORITHM_CONFIG
+-- Cấu hình thuật toán. value_type giúp backend validate param_value.
 -- =====================================================
 CREATE TABLE algorithm_config (
  param_key VARCHAR(50) PRIMARY KEY,
  param_value VARCHAR(500) NOT NULL,
+ value_type ENUM('STRING', 'NUMBER', 'BOOLEAN', 'JSON') NOT NULL DEFAULT 'STRING',
  description VARCHAR(255),
- updated_by INT,
- updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ updated_by INT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_algorithm_config_updated_by
  FOREIGN KEY (updated_by) REFERENCES staff(id) ON DELETE SET NULL
-);
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 14. SYSTEM LOG
+-- 15. SYSTEM_LOG
+-- Log hành động hệ thống ở mức tổng quát.
 -- =====================================================
 CREATE TABLE system_log (
  id INT AUTO_INCREMENT PRIMARY KEY,
- staff_id INT,
+ staff_id INT NULL,
  action_type VARCHAR(50) NOT NULL,
  description TEXT,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ ip_address VARCHAR(45),
+ user_agent VARCHAR(255),
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_system_log_staff
  FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE SET NULL
-);
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 15. NOTIFICATION
+-- 16. NOTIFICATION
+-- Thông báo cho nhân sự.
+-- read_at lưu thời điểm đọc.
 -- =====================================================
 CREATE TABLE notification (
  id INT AUTO_INCREMENT PRIMARY KEY,
  staff_id INT NOT NULL,
  title VARCHAR(100) NOT NULL,
  message TEXT NOT NULL,
- is_read BOOLEAN DEFAULT FALSE,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ is_read BOOLEAN NOT NULL DEFAULT FALSE,
+ read_at TIMESTAMP NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_notification_staff
  FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 16. SCHEDULE CONFLICT
+-- 17. SCHEDULE_CONFLICT
+-- Chi tiết xung đột lịch: trùng ca, vượt giới hạn, nghỉ phép, thiếu chuyên môn...
+-- Khi tất cả conflict được resolved, backend cần cập nhật schedule.has_conflict = FALSE.
 -- =====================================================
 CREATE TABLE schedule_conflict (
  id INT AUTO_INCREMENT PRIMARY KEY,
  schedule_id INT NOT NULL,
- conflict_type VARCHAR(50),
+ conflict_type ENUM(
+ 'LEAVE_CONFLICT',
+ 'MAX_SHIFT_EXCEEDED',
+ 'BACK_TO_BACK_SHIFT',
+ 'SPECIALTY_MISMATCH',
+ 'REQUIREMENT_NOT_MET',
+ 'DUPLICATE_ASSIGNMENT',
+ 'COMPENSATION_CONFLICT',
+ 'OTHER'
+ ) NOT NULL DEFAULT 'OTHER',
  description TEXT,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (schedule_id) REFERENCES schedule(id) ON DELETE CASCADE
-);
+ is_resolved BOOLEAN NOT NULL DEFAULT FALSE,
+ resolved_by INT NULL,
+ resolved_at TIMESTAMP NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_conflict_schedule
+ FOREIGN KEY (schedule_id) REFERENCES schedule(id) ON DELETE CASCADE,
+ CONSTRAINT fk_conflict_resolved_by
+ FOREIGN KEY (resolved_by) REFERENCES staff(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 17. FILE ATTACHMENT
+-- 18. FILE_ATTACHMENT
+-- Lưu file đính kèm theo nghiệp vụ. ref_id vẫn cần backend kiểm tra tồn tại theo ref_type.
 -- =====================================================
 CREATE TABLE file_attachment (
  id INT AUTO_INCREMENT PRIMARY KEY,
- ref_table VARCHAR(50) NOT NULL,
+ ref_type ENUM('STAFF', 'LEAVE_REQUEST', 'SCHEDULE', 'SCHEDULE_EXCHANGE', 'SCHEDULE_CONFLICT') NOT NULL,
  ref_id INT NOT NULL,
- filename VARCHAR(255) NOT NULL,
- filepath VARCHAR(255) NOT NULL,
- uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- uploaded_by INT,
- FOREIGN KEY (uploaded_by) REFERENCES staff(id) ON DELETE SET NULL
-);
+ original_filename VARCHAR(255) NOT NULL,
+ stored_filename VARCHAR(255) NOT NULL,
+ filepath VARCHAR(500) NOT NULL,
+ content_type VARCHAR(100),
+ file_size BIGINT NULL,
+ uploaded_by INT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_file_uploaded_by
+ FOREIGN KEY (uploaded_by) REFERENCES staff(id) ON DELETE SET NULL,
+ CONSTRAINT chk_file_size
+ CHECK (file_size IS NULL OR file_size >= 0)
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 18. AUDIT HISTORY
+-- 19. AUDIT_HISTORY
+-- Lưu lịch sử thay đổi dữ liệu quan trọng.
+-- table_name dùng VARCHAR để linh hoạt cho nhiều bảng.
 -- =====================================================
 CREATE TABLE audit_history (
  id INT AUTO_INCREMENT PRIMARY KEY,
  table_name VARCHAR(50) NOT NULL,
  record_id INT NOT NULL,
  action_type ENUM('INSERT', 'UPDATE', 'DELETE') NOT NULL,
- changed_by INT,
+ changed_by INT NULL,
  old_data JSON,
  new_data JSON,
- action_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ ip_address VARCHAR(45),
+ user_agent VARCHAR(255),
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_audit_changed_by
  FOREIGN KEY (changed_by) REFERENCES staff(id) ON DELETE SET NULL
-);
+) ENGINE=InnoDB;
 
 -- =====================================================
--- 19. ALGORITHM METRICS
+-- 20. ALGORITHM_METRICS
+-- Kết quả chạy thuật toán theo kỳ lịch.
 -- =====================================================
 CREATE TABLE algorithm_metrics (
  id INT AUTO_INCREMENT PRIMARY KEY,
- algorithm_type VARCHAR(20),
- execution_time_ms INT,
- coverage_rate DECIMAL(5,2),
- balance_score DECIMAL(5,2),
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+ period_id INT NULL,
+ algorithm_type VARCHAR(50) NOT NULL,
+ execution_time_ms INT NULL,
+ coverage_rate DECIMAL(5,2) NULL,
+ balance_score DECIMAL(5,2) NULL,
+ conflict_count INT NOT NULL DEFAULT 0,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+ CONSTRAINT fk_algorithm_metrics_period
+ FOREIGN KEY (period_id) REFERENCES schedule_period(id) ON DELETE SET NULL,
+ CONSTRAINT chk_algorithm_execution_time
+ CHECK (execution_time_ms IS NULL OR execution_time_ms >= 0),
+ CONSTRAINT chk_algorithm_coverage_rate
+ CHECK (coverage_rate IS NULL OR (coverage_rate >= 0 AND coverage_rate <= 100)),
+ CONSTRAINT chk_algorithm_balance_score
+ CHECK (balance_score IS NULL OR (balance_score >= 0 AND balance_score <= 100)),
+ CONSTRAINT chk_algorithm_conflict_count
+ CHECK (conflict_count >= 0)
+) ENGINE=InnoDB;
 
 -- =====================================================
--- Indexes
+-- INDEXES
 -- =====================================================
+CREATE INDEX idx_staff_employee_code ON staff(employee_code);
+CREATE INDEX idx_staff_specialty ON staff(specialty_id);
+CREATE INDEX idx_staff_active ON staff(is_active);
+CREATE INDEX idx_staff_full_name ON staff(full_name);
+
+CREATE INDEX idx_shift_type_active ON shift_type(is_active);
+
+CREATE INDEX idx_period_status ON schedule_period(status);
+CREATE INDEX idx_period_range ON schedule_period(start_date, end_date);
+
+CREATE INDEX idx_requirement_period_date ON shift_requirement(period_id, work_date);
+CREATE INDEX idx_requirement_shift_specialty ON shift_requirement(shift_type_id, specialty_id);
+
+CREATE INDEX idx_leave_status ON leave_request(status);
+CREATE INDEX idx_leave_staff_range ON leave_request(staff_id, start_date, end_date);
+CREATE INDEX idx_leave_reviewed_by ON leave_request(reviewed_by);
+
 CREATE INDEX idx_schedule_date ON schedule(work_date);
 CREATE INDEX idx_schedule_staff ON schedule(staff_id);
 CREATE INDEX idx_schedule_period ON schedule(period_id);
+CREATE INDEX idx_schedule_period_date ON schedule(period_id, work_date);
+CREATE INDEX idx_schedule_staff_date ON schedule(staff_id, work_date);
+CREATE INDEX idx_schedule_requirement ON schedule(requirement_id);
+CREATE INDEX idx_schedule_conflict_flag ON schedule(has_conflict);
+
 CREATE INDEX idx_compensation_date ON compensation_day(compensation_date);
 CREATE INDEX idx_compensation_staff ON compensation_day(staff_id);
+CREATE INDEX idx_compensation_period ON compensation_day(period_id);
+CREATE INDEX idx_compensation_schedule ON compensation_day(schedule_id);
+
 CREATE INDEX idx_exchange_status ON schedule_exchange(status);
-CREATE INDEX idx_audit_table ON audit_history(table_name);
-CREATE INDEX idx_audit_record ON audit_history(record_id);
-CREATE INDEX idx_leave_staff_date ON leave_request(staff_id, request_date);
+CREATE INDEX idx_exchange_period_status ON schedule_exchange(period_id, status);
+CREATE INDEX idx_exchange_requester_status ON schedule_exchange(requester_id, status);
+CREATE INDEX idx_exchange_target_status ON schedule_exchange(target_id, status);
+CREATE INDEX idx_exchange_reviewed_by ON schedule_exchange(reviewed_by);
+
+CREATE INDEX idx_algorithm_config_updated_by ON algorithm_config(updated_by);
+
+CREATE INDEX idx_system_log_staff ON system_log(staff_id);
+CREATE INDEX idx_system_log_created ON system_log(created_at);
+CREATE INDEX idx_system_log_action ON system_log(action_type);
+
+CREATE INDEX idx_notification_staff_read ON notification(staff_id, is_read);
+CREATE INDEX idx_notification_created ON notification(created_at);
+
 CREATE INDEX idx_conflict_schedule ON schedule_conflict(schedule_id);
-CREATE INDEX idx_file_ref ON file_attachment(ref_table, ref_id);
+CREATE INDEX idx_conflict_type ON schedule_conflict(conflict_type);
+CREATE INDEX idx_conflict_resolved ON schedule_conflict(is_resolved);
+CREATE INDEX idx_conflict_resolved_by ON schedule_conflict(resolved_by);
+
+CREATE INDEX idx_file_ref ON file_attachment(ref_type, ref_id);
+CREATE INDEX idx_file_uploaded_by ON file_attachment(uploaded_by);
+
+CREATE INDEX idx_audit_table_record ON audit_history(table_name, record_id);
+CREATE INDEX idx_audit_changed_by ON audit_history(changed_by);
+CREATE INDEX idx_audit_created ON audit_history(created_at);
+
+CREATE INDEX idx_algorithm_metrics_period ON algorithm_metrics(period_id);
+CREATE INDEX idx_algorithm_metrics_type ON algorithm_metrics(algorithm_type);
+
+-- =====================================================
+-- BASIC SEED DATA
+-- Có thể sửa/xóa theo nhu cầu thực tế.
+-- =====================================================
+INSERT INTO specialty (name, description) VALUES
+('Bác sĩ', 'Bác sĩ chuyên khoa'),
+('Điều dưỡng', 'Điều dưỡng viên'),
+('Kỹ thuật viên', 'Kỹ thuật viên');
+
+INSERT INTO app_role (name, description) VALUES
+('ADMIN', 'Quản trị hệ thống'),
+('MANAGER', 'Quản lý và duyệt lịch'),
+('STAFF', 'Nhân viên sử dụng hệ thống');
+
+INSERT INTO app_permission (name, description) VALUES
+('STAFF_READ', 'Xem danh sách nhân sự'),
+('STAFF_WRITE', 'Thêm/sửa/xóa nhân sự'),
+('SCHEDULE_READ', 'Xem lịch trực'),
+('SCHEDULE_WRITE', 'Tạo/sửa/xóa lịch trực'),
+('SCHEDULE_PUBLISH', 'Công bố lịch trực'),
+('LEAVE_REQUEST_CREATE', 'Tạo yêu cầu nghỉ'),
+('LEAVE_REQUEST_REVIEW', 'Duyệt/từ chối yêu cầu nghỉ'),
+('SCHEDULE_EXCHANGE_CREATE', 'Tạo yêu cầu đổi ca'),
+('SCHEDULE_EXCHANGE_REVIEW', 'Duyệt/từ chối yêu cầu đổi ca'),
+('CONFIG_MANAGE', 'Quản lý cấu hình thuật toán'),
+('AUDIT_READ', 'Xem lịch sử thay đổi');
+
+INSERT INTO role_permission (role_id, permission_id)
+SELECT r.id, p.id
+FROM app_role r
+JOIN app_permission p
+WHERE r.name = 'ADMIN';
+
+INSERT INTO role_permission (role_id, permission_id)
+SELECT r.id, p.id
+FROM app_role r
+JOIN app_permission p ON p.name IN (
+ 'STAFF_READ',
+ 'SCHEDULE_READ',
+ 'SCHEDULE_WRITE',
+ 'SCHEDULE_PUBLISH',
+ 'LEAVE_REQUEST_REVIEW',
+ 'SCHEDULE_EXCHANGE_REVIEW',
+ 'CONFIG_MANAGE'
+)
+WHERE r.name = 'MANAGER';
+
+INSERT INTO role_permission (role_id, permission_id)
+SELECT r.id, p.id
+FROM app_role r
+JOIN app_permission p ON p.name IN (
+ 'SCHEDULE_READ',
+ 'LEAVE_REQUEST_CREATE',
+ 'SCHEDULE_EXCHANGE_CREATE'
+)
+WHERE r.name = 'STAFF';
+
+INSERT INTO shift_type (id, name, description, start_time, end_time, is_overnight, fatigue_score) VALUES
+('L01', 'Lịch trực 24/24', 'Nhân sự trực liên tục từ 7h30 ngày N đến 7h30 ngày N+1', '07:30:00', '07:30:00', TRUE, 3),
+('L02', 'Lịch thông tầm', 'Nhân sự làm ca liên tục không nghỉ trưa trong ngày', '07:30:00', '17:30:00', FALSE, 2),
+('L03', 'Lịch phòng khám dịch vụ', 'Nhân sự phụ trách ca khám dịch vụ trong ngày', '08:00:00', '17:00:00', FALSE, 1),
+('L04', 'Lịch phòng khám chuyên gia', 'Chuyên gia phụ trách ca khám chuyên sâu trong ngày', '08:00:00', '17:00:00', FALSE, 1);
+
+INSERT INTO staff (employee_code, username, password_hash, full_name, phone, email, specialty_id, max_shifts_per_month) VALUES
+-- Bác sĩ (specialty_id = 1)
+('NV001', 'nv.an', '$2b$10$...', 'Nguyễn Văn An', '0901000001', 'an@hospital.vn', 1, 5),
+('NV002', 'tt.binh', '$2b$10$...', 'Trần Thị Bình', '0901000002', 'binh@hospital.vn', 1, 5),
+('NV003', 'lh.nam', '$2b$10$...', 'Lê Hồng Nam', '0901000003', 'nam@hospital.vn', 1, 5),
+('NV004', 'pt.ha', '$2b$10$...', 'Phạm Thu Hà', '0901000004', 'ha@hospital.vn', 1, 5),
+('NV005', 'hd.minh', '$2b$10$...', 'Hoàng Đức Minh', '0901000005', 'minh@hospital.vn', 1, 5),
+('NV006', 'vt.lan', '$2b$10$...', 'Vũ Thị Lan', '0901000006', 'lan@hospital.vn', 1, 5),
+('NV007', 'dq.khanh', '$2b$10$...', 'Đặng Quốc Khánh', '0901000007', 'khanh@hospital.vn', 1, 5),
+('NV008', 'bt.mai', '$2b$10$...', 'Bùi Thị Mai', '0901000008', 'mai@hospital.vn', 1, 5),
+('NV009', 'nm.tuan', '$2b$10$...', 'Ngô Minh Tuấn', '0901000009', 'tuan@hospital.vn', 1, 5),
+('NV010', 'tt.ngoc', '$2b$10$...', 'Trịnh Thị Ngọc', '0901000010', 'ngoc@hospital.vn', 1, 5),
+-- Điều dưỡng (specialty_id = 2)
+('NV011', 'dt.huong', '$2b$10$...', 'Đỗ Thị Hương', '0901000011', 'huong@hospital.vn', 2, 6),
+('NV012', 'lv.hung', '$2b$10$...', 'Lương Văn Hùng', '0901000012', 'hung@hospital.vn', 2, 6),
+('NV013', 'ht.thanh', '$2b$10$...', 'Hà Thị Thanh', '0901000013', 'thanh@hospital.vn', 2, 6),
+('NV014', 'cv.duc', '$2b$10$...', 'Cao Văn Đức', '0901000014', 'duc@hospital.vn', 2, 6),
+('NV015', 'pt.hong', '$2b$10$...', 'Phan Thị Hồng', '0901000015', 'hong@hospital.vn', 2, 6),
+('NV016', 'vtko.anh', '$2b$10$...', 'Võ Thị Kim Oanh', '0901000016', 'oanh@hospital.vn', 2, 6),
+-- Kỹ thuật viên (specialty_id = 3)
+('NV017', 'tv.toan', '$2b$10$...', 'Trần Văn Toàn', '0901000017', 'toan@hospital.vn', 3, 4),
+('NV018', 'nt.ha', '$2b$10$...', 'Nguyễn Thị Hà', '0901000018', 'hantt@hospital.vn', 3, 4),
+('NV019', 'lv.son', '$2b$10$...', 'Lê Văn Sơn', '0901000019', 'son@hospital.vn', 3, 4),
+('NV020', 'ht.linh', '$2b$10$...', 'Hoàng Thị Linh', '0901000020', 'linh@hospital.vn', 3, 4);
+
+-- Gán tất cả nhân viên là STAFF
+INSERT INTO staff_role (staff_id, role_id)
+SELECT id, (SELECT id FROM app_role WHERE name = 'STAFF') FROM staff;
+
+-- NV001 (id=1) là ADMIN
+INSERT INTO staff_role (staff_id, role_id)
+SELECT id, (SELECT id FROM app_role WHERE name = 'ADMIN') FROM staff WHERE username = 'nv.an';
+
+-- NV002 (id=2) là MANAGER
+INSERT INTO staff_role (staff_id, role_id)
+SELECT id, (SELECT id FROM app_role WHERE name = 'MANAGER') FROM staff WHERE username = 'tt.binh';
+
+INSERT INTO algorithm_config (param_key, param_value, value_type, description) VALUES
+('MAX_SHIFTS_PER_MONTH_DEFAULT', '5', 'NUMBER', 'Số ca tối đa mặc định mỗi tháng'),
+('AVOID_BACK_TO_BACK_SHIFT', 'true', 'BOOLEAN', 'Hạn chế phân công ca liên tiếp'),
+('ENABLE_COMPENSATION_AFTER_L01', 'true', 'BOOLEAN', 'Tự động tính nghỉ bù sau ca L01');
+
+-- =====================================================
+-- BACKEND BUSINESS RULES THAT MUST BE VALIDATED IN SERVICE LAYER
+-- =====================================================
+-- 1. schedule.work_date phải nằm trong schedule_period.start_date/end_date.
+-- 2. shift_requirement.work_date phải nằm trong schedule_period.start_date/end_date.
+-- 3. schedule.staff_id phải có specialty phù hợp với shift_requirement.specialty_id nếu requirement_id khác NULL.
+-- 4. Khi duyệt leave_request, cần kiểm tra lịch đã phân công trùng khoảng nghỉ.
+-- 5. Khi duyệt schedule_exchange, cần swap staff_id hoặc swap schedule assignment theo quy tắc nghiệp vụ và ghi audit_history.
+-- 6. Khi tất cả schedule_conflict của một schedule đã resolved, cập nhật schedule.has_conflict = FALSE.
+-- 7. file_attachment.ref_id phải được backend kiểm tra tồn tại theo ref_type trước khi lưu.
