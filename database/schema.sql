@@ -201,7 +201,9 @@ CREATE TABLE shift_requirement (
  FOREIGN KEY (specialty_id) REFERENCES specialty(id),
  CONSTRAINT chk_requirement_staff_count
  CHECK (required_staff_count > 0),
- UNIQUE KEY uk_requirement_unique (period_id, work_date, shift_type_id, specialty_id)
+ -- Index cho composite FK từ schedule table
+ UNIQUE KEY uk_requirement_unique (period_id, work_date, shift_type_id, specialty_id),
+ UNIQUE KEY uk_requirement_for_fk (id, period_id, work_date, shift_type_id)
 ) ENGINE=InnoDB;
 
 -- =====================================================
@@ -257,7 +259,11 @@ CREATE TABLE schedule (
  FOREIGN KEY (requirement_id, period_id, work_date, shift_type_id)
  REFERENCES shift_requirement(id, period_id, work_date, shift_type_id),
 
- UNIQUE KEY uk_schedule_unique (period_id, staff_id, shift_type_id, work_date)
+ UNIQUE KEY uk_schedule_unique (period_id, staff_id, shift_type_id, work_date),
+ -- Index cần thiết cho FK từ compensation_day: (id, staff_id, period_id, work_date)
+ UNIQUE KEY uk_schedule_comp_fk (id, staff_id, period_id, work_date),
+ -- Index cần thiết cho FK từ schedule_exchange: (id, staff_id, period_id)
+ UNIQUE KEY uk_schedule_exchange_fk (id, staff_id, period_id)
 ) ENGINE=InnoDB;
 
 -- =====================================================
