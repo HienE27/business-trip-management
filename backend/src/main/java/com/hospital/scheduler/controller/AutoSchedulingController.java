@@ -29,7 +29,7 @@ public class AutoSchedulingController {
     private final AlgorithmMetricsRepository metricsRepository;
 
     @PostMapping("/preview")
-    @Operation(summary = "Xem trước lịch trước khi xác nhận")
+    @Operation(summary = "M07-F07: Xem trước lịch trước khi xác nhận")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<AutoScheduleResponse>> previewSchedule(
             @Valid @RequestBody AutoScheduleRequestDTO request) {
@@ -38,13 +38,37 @@ public class AutoSchedulingController {
     }
 
     @PostMapping
-    @Operation(summary = "Chạy thuật toán xếp lịch tự động")
+    @Operation(summary = "M07-F01-F05: Chạy thuật toán xếp lịch tự động (GREEDY/ROUND_ROBIN/BACKTRACKING)")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<AutoScheduleResponse>> autoSchedule(
             @Valid @RequestBody AutoScheduleRequestDTO request) {
         AutoScheduleResponse result = autoSchedulingService.autoSchedule(request);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.success(result, "Xếp lịch tự động hoàn tất"));
+    }
+
+    @GetMapping("/unassigned/{periodId}")
+    @Operation(summary = "M07-F06: Báo cáo ngày chưa phân công được")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getUnassignedDaysReport(@PathVariable Integer periodId) {
+        Map<String, Object> report = autoSchedulingService.getUnassignedDaysReport(periodId);
+        return ResponseEntity.ok(ApiResponse.success(report));
+    }
+
+    @GetMapping("/suggest-replacements/{scheduleId}")
+    @Operation(summary = "M07-F08: Đề xuất người thay thế khi có thay đổi đột xuất")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> suggestReplacements(@PathVariable Integer scheduleId) {
+        Map<String, Object> suggestions = autoSchedulingService.suggestReplacements(scheduleId);
+        return ResponseEntity.ok(ApiResponse.success(suggestions));
+    }
+
+    @GetMapping("/workload-chart/{periodId}")
+    @Operation(summary = "M07-F09: Data biểu đồ cân bằng tải nhân sự")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getWorkloadChartData(@PathVariable Integer periodId) {
+        Map<String, Object> chartData = autoSchedulingService.getWorkloadChartData(periodId);
+        return ResponseEntity.ok(ApiResponse.success(chartData));
     }
 
     @GetMapping("/metrics/period/{periodId}")

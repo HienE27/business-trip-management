@@ -2,7 +2,9 @@ package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.response.AuditHistoryResponse;
 import com.hospital.scheduler.entity.AuditHistory;
+import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.AuditHistoryRepository;
+import com.hospital.scheduler.repository.StaffRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 public class AuditHistoryService {
 
     private final AuditHistoryRepository auditHistoryRepository;
+    private final StaffRepository staffRepository;
     private final ObjectMapper objectMapper;
 
     public List<AuditHistoryResponse> getAllAuditHistory() {
@@ -48,10 +51,16 @@ public class AuditHistoryService {
     @Transactional
     public AuditHistory logAction(String tableName, Integer recordId, AuditHistory.ActionType actionType,
                                   Object oldData, Object newData, Integer changedById) {
+        Staff changedBy = null;
+        if (changedById != null) {
+            changedBy = staffRepository.findById(changedById).orElse(null);
+        }
+
         AuditHistory auditHistory = AuditHistory.builder()
                 .tableName(tableName)
                 .recordId(recordId)
                 .actionType(actionType)
+                .changedBy(changedBy)
                 .oldData(convertToJson(oldData))
                 .newData(convertToJson(newData))
                 .build();

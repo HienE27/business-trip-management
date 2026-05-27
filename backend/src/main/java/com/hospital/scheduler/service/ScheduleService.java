@@ -183,9 +183,8 @@ public class ScheduleService {
         }
 
         if (wasL01 && shiftTypeChanged) {
-            compensationDayRepository.findByScheduleId(id).ifPresent(compDay -> {
-                compensationDayRepository.delete(compDay);
-            });
+            List<CompensationDay> compDays = compensationDayRepository.findByScheduleId(id);
+            compensationDayRepository.deleteAll(compDays);
         }
 
         if (!request.getWorkDate().equals(schedule.getWorkDate()) &&
@@ -227,6 +226,11 @@ public class ScheduleService {
         SchedulePeriod period = schedule.getPeriod();
         if (period.getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
             throw new BadRequestException("Chỉ có thể xóa lịch khi kỳ lịch ở trạng thái DRAFT");
+        }
+
+        // If L01, delete related compensation days first
+        if ("L01".equals(schedule.getShiftType().getId())) {
+            compensationDayRepository.deleteAll(compensationDayRepository.findByScheduleId(id));
         }
 
         auditHistoryService.logAction("schedule", id, AuditHistory.ActionType.DELETE, schedule, null, null);
@@ -278,9 +282,7 @@ public class ScheduleService {
                                                  Integer originalStaffId, Integer requiredCount) {
         List<Staff> replacements = conflictDetectionService.findReplacements(
                 periodId, workDate, shiftTypeId, originalStaffId, requiredCount);
-        return replacements.stream().map(s -> {
-            long currentCount = scheduleRepository.countByStaffIdAndPeriodId(s.getId(), periodId);
-            return StaffResponse.builder()
+        return replacements.stream().map(s -> StaffResponse.builder()
                     .id(s.getId())
                     .fullName(s.getFullName())
                     .phone(s.getPhone())
@@ -290,8 +292,8 @@ public class ScheduleService {
                             .build() : null)
                     .maxShiftsPerMonth(s.getMaxShiftsPerMonth())
                     .isActive(s.getIsActive())
-                    .build();
-        }).collect(Collectors.toList());
+                    .build())
+                .collect(Collectors.toList());
     }
 
     private void createCompensationDay(Schedule schedule) {

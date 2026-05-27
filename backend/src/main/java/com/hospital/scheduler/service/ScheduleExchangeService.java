@@ -5,6 +5,7 @@ import com.hospital.scheduler.dto.response.ScheduleExchangeResponse;
 import com.hospital.scheduler.entity.Schedule;
 import com.hospital.scheduler.entity.ScheduleExchange;
 import com.hospital.scheduler.entity.Staff;
+import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.*;
@@ -24,7 +25,6 @@ public class ScheduleExchangeService {
     private final ScheduleExchangeRepository exchangeRepository;
     private final ScheduleRepository scheduleRepository;
     private final StaffRepository staffRepository;
-    private final SchedulePeriodRepository periodRepository;
     private final LeaveRequestRepository leaveRequestRepository;
     private final CompensationDayRepository compensationDayRepository;
 
@@ -119,6 +119,35 @@ public class ScheduleExchangeService {
         if (requesterSchedule.getPeriod().getStatus().name().equals("PUBLISHED")) {
             throw new BadRequestException("Không thể duyệt đổi ca khi kỳ lịch đã được công bố");
         }
+
+        // Check if target staff has approved leave on the day they would receive
+        List<LeaveRequest> targetLeaves = leaveRequestRepository.findByStaffIdAndDateRange(
+                targetSchedule.getStaff().getId(), targetSchedule.getWorkDate(), targetSchedule.getWorkDate());
+        boolean targetHasApprovedLeave = targetLeaves.stream()
+                .anyMatch(l -> l.getStatus() == LeaveRequest.LeaveStatus.APPROVED);
+        if (targetHasApprovedLeave) {
+            throw new BadRequestException("Nhân sự được đổi (" + targetSchedule.getStaff().getFullName() + ") có ngày nghỉ phép được duyệt vào ngày " + targetSchedule.getWorkDate());
+        }
+
+        // Check if requester staff has approved leave on the day they would receive
+        List<LeaveRequest> requesterLeaves = leaveRequestRepository.findByStaffIdAndDateRange(
+                requesterSchedule.getStaff().getId(), requesterSchedule.getWorkDate(), requesterSchedule.getWorkDate());
+        boolean requesterHasApprovedLeave = requesterLeaves.stream()
+                .anyMatch(l -> l.getStatus() == LeaveRequest.LeaveStatus.APPROVED);
+        if (requesterHasApprovedLeave) {
+            throw new BadRequestException("Nhân sự yêu cầu (" + requesterSchedule.getStaff().getFullName() + ") có ngày nghỉ phép được duyệt vào ngày " + requesterSchedule.getWorkDate());
+        }
+
+        // Check compensation day conflicts for both staff after swap
+        compensationDayRepository.findByStaffIdAndCompensationDate(targetSchedule.getStaff().getId(), targetSchedule.getWorkDate())
+                .ifPresent(cd -> {
+                    throw new BadRequestException("Nhân sự được đổi (" + targetSchedule.getStaff().getFullName() + ") có ngày nghỉ bù vào ngày " + targetSchedule.getWorkDate());
+                });
+
+        compensationDayRepository.findByStaffIdAndCompensationDate(requesterSchedule.getStaff().getId(), requesterSchedule.getWorkDate())
+                .ifPresent(cd -> {
+                    throw new BadRequestException("Nhân sự yêu cầu (" + requesterSchedule.getStaff().getFullName() + ") có ngày nghỉ bù vào ngày " + requesterSchedule.getWorkDate());
+                });
 
         Staff tempStaff = requesterSchedule.getStaff();
         requesterSchedule.setStaff(targetSchedule.getStaff());

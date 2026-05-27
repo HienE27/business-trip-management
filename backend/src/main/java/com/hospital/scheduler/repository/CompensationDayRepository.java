@@ -17,4 +17,6 @@ public interface CompensationDayRepository extends JpaRepository<CompensationDay
     Optional<CompensationDay> findByStaffIdAndCompensationDate(Integer staffId, LocalDate compensationDate);
     @Query("SELECT cd FROM CompensationDay cd WHERE cd.staff.id = :staffId AND cd.period.id = :periodId")
     List<CompensationDay> findByStaffIdAndPeriodId(@Param("staffId") Integer staffId, @Param("periodId") Integer periodId);
+    @Query("SELECT cd FROM CompensationDay cd WHERE cd.schedule.id = :scheduleId")
+    List<CompensationDay> findByScheduleId(@Param("scheduleId") Integer scheduleId);
 }
