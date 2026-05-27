@@ -4,7 +4,6 @@ import com.hospital.scheduler.dto.response.DashboardResponse;
 import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.entity.Schedule;
 import com.hospital.scheduler.entity.ScheduleExchange;
-import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +24,6 @@ public class DashboardService {
     private final SchedulePeriodRepository periodRepository;
     private final LeaveRequestRepository leaveRequestRepository;
     private final ScheduleExchangeRepository exchangeRepository;
-    private final ShiftTypeRepository shiftTypeRepository;
-    private final CompensationDayRepository compensationDayRepository;
 
     public DashboardResponse getDashboardSummary() {
         DashboardResponse.DashboardSummary summary = DashboardResponse.DashboardSummary.builder()
@@ -127,7 +124,7 @@ public class DashboardService {
 
                     return DashboardResponse.PeriodSummary.builder()
                             .periodId(period.getId())
-                            .periodName(period.getName())
+                            .periodName(period.getPeriodName())
                             .startDate(period.getStartDate())
                             .endDate(period.getEndDate())
                             .status(period.getStatus().name())

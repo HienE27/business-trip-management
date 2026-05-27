@@ -29,7 +29,7 @@ public class ShiftRequirementResponse {
     @AllArgsConstructor
     @Builder
     public static class ShiftTypeSummary {
-        private Integer id;
+        private String id;
         private String name;
     }
 

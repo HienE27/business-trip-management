@@ -200,7 +200,7 @@ public class AutoSchedulingService {
 
         double avg = (double) schedules.size() / totalStaff;
         double variance = staffScheduleCount.values().stream()
-                .mapToLong(Long::longValue)
+                .mapToDouble(Long::doubleValue)
                 .map(count -> (count - avg) * (count - avg))
                 .average()
                 .orElse(0);

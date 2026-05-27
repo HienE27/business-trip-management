@@ -21,7 +21,7 @@ public class ShiftRequirementDTO {
     private LocalDate workDate;
 
     @NotNull(message = "ID loại ca không được để trống")
-    private Integer shiftTypeId;
+    private String shiftTypeId;
 
     @NotNull(message = "ID chuyên môn không được để trống")
     private Integer specialtyId;
