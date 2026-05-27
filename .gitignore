@@ -149,3 +149,8 @@ vite.config.ts.timestamp-*
 SPEC.md
 QuanLyLichCongTac_v5.txt
 QuanLyLichCongTac_v5.docx
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/

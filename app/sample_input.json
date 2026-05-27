@@ -1,0 +1,31 @@
+{
+  "month": "2026-05",
+
+  "staffs": [
+    {
+      "id": 1,
+      "name": "Dr. An",
+      "specialty": "NOI",
+      "max_shifts": 5
+    },
+    {
+      "id": 2,
+      "name": "Dr. Binh",
+      "specialty": "NGOAI",
+      "max_shifts": 6
+    },
+    {
+      "id": 3,
+      "name": "Dr. Cuong",
+      "specialty": "ICU",
+      "max_shifts": 4
+    }
+  ],
+
+  "leave_requests": [
+    {
+      "staff_id": 1,
+      "date": "2026-05-05"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: hospital-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DB_URL=jdbc:mysql://db:3306/hospital_scheduler?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh&characterEncoding=UTF-8
+      - DB_USERNAME=root
+      - DB_PASSWORD=rootpassword
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: hospital-frontend
+    ports:
+      - "3001:3000"
+    depends_on:
+      - backend
+
+  scheduler-engine:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    container_name: hospital-scheduler-engine
+    profiles:
+      - tools
+    working_dir: /workspace
+    environment:
+      - PYTHONPATH=/workspace
+    volumes:
+      - ./app:/workspace/app
+      - ./tests:/workspace/tests
+    command: ["python", "-m", "app.engine", "app/sample_engine_input.json", "app/sample_engine_output.json", "--algorithm", "ortools", "--pretty"]
+
+  db:
+    image: mysql:8.0
+    container_name: hospital-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=hospital_scheduler
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./hospital_scheduler_business_final.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mysql_data:
