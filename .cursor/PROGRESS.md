@@ -49,7 +49,14 @@ http://localhost:8080/api/v1
 http://localhost:8080/swagger-ui/index.html
 ```
 
+## MCP Setup
+| Tool | Trạng thái | Ghi chú |
+|------|------------|---------|
+| GitHub | ✅ Sẵn sàng | Quản lý PR, issues |
+| Stitch | ⏳ Chờ MCP | https://stitch.withgoogle.com - AI design tool, chưa có MCP |
+
 ## TODO
+- [ ] Setup GitHub MCP
 - [ ] Setup frontend Next.js project
 - [ ] Backend: Leave Request API
 - [ ] Backend: Schedule Exchange API
