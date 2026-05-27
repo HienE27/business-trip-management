@@ -136,6 +136,84 @@ public class ScheduleService {
         return toResponse(saved);
     }
 
+    public ScheduleResponse updateSchedule(Integer id, ScheduleRequest request) {
+        Schedule schedule = scheduleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + id));
+
+        SchedulePeriod period = schedule.getPeriod();
+        if (period.getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
+            throw new BadRequestException("Chỉ có thể cập nhật lịch khi kỳ lịch ở trạng thái DRAFT");
+        }
+
+        String oldShiftTypeId = schedule.getShiftType().getId();
+        boolean wasL01 = "L01".equals(oldShiftTypeId);
+        boolean willBeL01 = "L01".equals(request.getShiftTypeId());
+        boolean shiftTypeChanged = !oldShiftTypeId.equals(request.getShiftTypeId());
+
+        if (!schedule.getStaff().getId().equals(request.getStaffId()) || shiftTypeChanged) {
+            Integer staffId = request.getStaffId();
+            LocalDate workDate = request.getWorkDate();
+
+            if (!schedule.getStaff().getId().equals(staffId)) {
+                Staff newStaff = staffRepository.findById(staffId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + staffId));
+                schedule.setStaff(newStaff);
+            }
+
+            scheduleRepository.findByStaffIdAndWorkDate(staffId, workDate)
+                    .stream()
+                    .filter(s -> !s.getId().equals(id))
+                    .filter(s -> {
+                        String sId = s.getShiftType().getId();
+                        return ("L01".equals(request.getShiftTypeId()) && "L02".equals(sId)) ||
+                               ("L02".equals(request.getShiftTypeId()) && "L01".equals(sId)) ||
+                               ("L03".equals(request.getShiftTypeId()) && "L04".equals(sId)) ||
+                               ("L04".equals(request.getShiftTypeId()) && "L03".equals(sId));
+                    })
+                    .findFirst()
+                    .ifPresent(s -> {
+                        throw new ConflictException("Nhân sự đã được phân công ca '" + s.getShiftType().getId() + "' trong ngày này");
+                    });
+        }
+
+        if (wasL01 && shiftTypeChanged) {
+            compensationDayRepository.findByScheduleId(id).ifPresent(compDay -> {
+                compensationDayRepository.delete(compDay);
+            });
+        }
+
+        if (!request.getWorkDate().equals(schedule.getWorkDate()) &&
+                compensationDayRepository.findByStaffIdAndCompensationDate(schedule.getStaff().getId(), request.getWorkDate()).isPresent()) {
+            throw new ConflictException("Nhân sự đang có ngày nghỉ bù trong ngày này");
+        }
+
+        schedule.setWorkDate(request.getWorkDate());
+
+        ShiftType newShiftType = shiftTypeRepository.findById(request.getShiftTypeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + request.getShiftTypeId()));
+        schedule.setShiftType(newShiftType);
+
+        if (!request.getPeriodId().equals(period.getId())) {
+            SchedulePeriod newPeriod = periodRepository.findById(request.getPeriodId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + request.getPeriodId()));
+            schedule.setPeriod(newPeriod);
+            period = newPeriod;
+        }
+
+        if (request.getRequirementId() != null) {
+            ShiftRequirement req = requirementRepository.findById(request.getRequirementId()).orElse(null);
+            schedule.setRequirement(req);
+        }
+
+        Schedule updated = scheduleRepository.save(schedule);
+
+        if (!wasL01 && willBeL01) {
+            createCompensationDay(updated);
+        }
+
+        return toResponse(updated);
+    }
+
     public void deleteSchedule(Integer id) {
         Schedule schedule = scheduleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + id));
@@ -182,7 +260,8 @@ public class ScheduleService {
             case TUESDAY -> shiftDate.plusDays(1);   // T3 -> T4
             case WEDNESDAY -> shiftDate.plusDays(1); // T4 -> T5
             case THURSDAY -> shiftDate.plusDays(1);  // T5 -> T6
-            case FRIDAY, SATURDAY -> shiftDate.plusDays(4); // T6, T7 -> T3 tuần sau
+            case FRIDAY -> shiftDate.plusDays(4); // T6 -> T3 tuần sau (T6→T7→CN→T2→T3)
+            case SATURDAY -> shiftDate.plusDays(3); // T7 -> T3 tuần sau (T7→CN→T2→T3)
             case SUNDAY -> shiftDate.plusDays(1);   // CN -> T2
         };
     }

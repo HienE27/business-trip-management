@@ -26,7 +26,6 @@ public class AutoSchedulingService {
     private final ScheduleRepository scheduleRepository;
     private final SchedulePeriodRepository periodRepository;
     private final StaffRepository staffRepository;
-    private final ShiftTypeRepository shiftTypeRepository;
     private final ShiftRequirementRepository requirementRepository;
     private final LeaveRequestRepository leaveRequestRepository;
     private final CompensationDayRepository compensationDayRepository;
@@ -42,7 +41,6 @@ public class AutoSchedulingService {
             throw new BadRequestException("Chỉ có thể xếp lịch tự động khi kỳ lịch ở trạng thái DRAFT");
         }
 
-        List<ShiftType> shiftTypes = shiftTypeRepository.findByIsActiveTrue();
         List<Staff> activeStaff = staffRepository.findByIsActiveTrue();
         List<ShiftRequirement> requirements = requirementRepository.findByPeriodId(period.getId());
 
@@ -57,7 +55,6 @@ public class AutoSchedulingService {
         while (!currentDate.isAfter(period.getEndDate())) {
             for (ShiftRequirement req : requirements) {
                 if (!req.getWorkDate().equals(currentDate)) continue;
-                if (!req.getShiftType().getId().equals(shiftTypes.get(0).getId())) continue;
 
                 List<Staff> availableStaff = getAvailableStaff(activeStaff, currentDate, req.getShiftType().getId(), period.getId());
                 availableStaff = filterBySpecialty(availableStaff, req.getSpecialty().getId());

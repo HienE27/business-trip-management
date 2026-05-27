@@ -61,6 +61,15 @@ public class ScheduleController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(created, "Tạo lịch thành công"));
     }
 
+    @PutMapping("/{id}")
+    @Operation(summary = "Cập nhật lịch")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<ScheduleResponse>> updateSchedule(
+            @PathVariable Integer id,
+            @Valid @RequestBody ScheduleRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(scheduleService.updateSchedule(id, request), "Cập nhật lịch thành công"));
+    }
+
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa lịch")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")

@@ -3,6 +3,8 @@ package com.hospital.scheduler.controller;
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.StaffRequest;
 import com.hospital.scheduler.dto.response.StaffResponse;
+import com.hospital.scheduler.exception.ResourceNotFoundException;
+import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.service.StaffService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,6 +24,7 @@ import java.util.List;
 public class StaffController {
 
     private final StaffService staffService;
+    private final StaffRepository staffRepository;
 
     @GetMapping
     @Operation(summary = "Lấy danh sách nhân sự")
@@ -46,8 +49,10 @@ public class StaffController {
 
     @GetMapping("/me")
     @Operation(summary = "Lấy thông tin nhân sự hiện tại")
-    public ResponseEntity<ApiResponse<StaffResponse>> getCurrentStaff() {
-        return ResponseEntity.ok(ApiResponse.success(staffService.getStaffById(1))); // placeholder
+    public ResponseEntity<ApiResponse<StaffResponse>> getCurrentStaff(@AuthenticationPrincipal String username) {
+        Staff staff = staffRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự: " + username));
+        return ResponseEntity.ok(ApiResponse.success(staffService.toResponse(staff)));
     }
 
     @PostMapping
