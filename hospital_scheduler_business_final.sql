@@ -486,6 +486,34 @@ CREATE TABLE algorithm_metrics (
 ) ENGINE=InnoDB;
 
 -- =====================================================
+-- SCHEDULE TEMPLATE (M07-F10: Luu & tai su dung mau lich)
+-- =====================================================
+DROP TABLE IF EXISTS schedule_template;
+
+CREATE TABLE schedule_template (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT NULL,
+    day_of_week INT NOT NULL COMMENT '1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun',
+    shift_type_id VARCHAR(10) NOT NULL,
+    specialty_id INT NULL,
+    required_staff_count INT NOT NULL DEFAULT 1,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_schedule_template_shift_type
+        FOREIGN KEY (shift_type_id) REFERENCES shift_type(id),
+    CONSTRAINT fk_schedule_template_specialty
+        FOREIGN KEY (specialty_id) REFERENCES specialty(id) ON DELETE SET NULL,
+    CONSTRAINT chk_template_day_of_week
+        CHECK (day_of_week BETWEEN 1 AND 7),
+    CONSTRAINT chk_template_required_staff
+        CHECK (required_staff_count >= 1)
+) ENGINE=InnoDB;
+
+-- =====================================================
 -- INDEXES
 -- =====================================================
 CREATE INDEX idx_staff_specialty ON staff(specialty_id);
@@ -524,6 +552,10 @@ CREATE INDEX idx_exchange_target_status ON schedule_exchange(target_id, status);
 CREATE INDEX idx_exchange_reviewed_by ON schedule_exchange(reviewed_by);
 
 CREATE INDEX idx_algorithm_config_updated_by ON algorithm_config(updated_by);
+
+CREATE INDEX idx_template_active ON schedule_template(is_active);
+CREATE INDEX idx_template_day ON schedule_template(day_of_week);
+CREATE INDEX idx_template_specialty ON schedule_template(specialty_id);
 
 CREATE INDEX idx_system_log_staff ON system_log(staff_id);
 CREATE INDEX idx_system_log_created ON system_log(created_at);
