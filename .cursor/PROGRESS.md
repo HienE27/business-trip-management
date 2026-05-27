@@ -49,36 +49,37 @@ http://localhost:8080/api/v1
 http://localhost:8080/swagger-ui/index.html
 ```
 
-## MCP Setup
-| Tool | Trạng thái | Ghi chú |
-|------|------------|---------|
-| Figma | ✅ Hoạt động | Thiết kế UI |
-| GitLens | ✅ Hoạt động | Git history |
-| GitHub | ⚠️ Cần token | PR, issues, repo management |
-| Filesystem | ⚠️ Cần npx | File operations |
-| Git | ⚠️ Cần uvx | Git operations |
-| Fetch | ⚠️ Cần npx | Web fetching |
-| Memory | ⚠️ Cần npx | Knowledge graph |
-| Time | ⚠️ Cần npx | Time utilities |
-| Stitch | ⏳ Chờ MCP | https://stitch.withgoogle.com - chưa có MCP |
+## MCP Setup - Cursor (KHÔNG dùng .mcp.json)
 
-## MCP Config
-```json
-// .mcp.json - nằm trong project root
-{
-  "mcpServers": {
-    "github": { "command": "npx", "args": ["@modelcontextprotocol/server-github"] },
-    "filesystem": { "command": "npx", "args": ["@modelcontextprotocol/server-filesystem"] },
-    "git": { "command": "uvx", "args": ["mcp-server-git"] },
-    "fetch": { "command": "npx", "args": ["@modelcontextprotocol/server-fetch"] },
-    "memory": { "command": "npx", "args": ["@modelcontextprotocol/server-memory"] },
-    "time": { "command": "npx", "args": ["@modelcontextprotocol/server-time"] }
-  }
-}
-```
+### Cách thêm MCP trong Cursor
+1. Mở **Cursor Settings** → tìm **MCP Servers**
+2. Hoặc **Ctrl + Shift + P** → gõ `MCP Servers`
+
+### MCP Servers khả dụng
+| MCP | Package | Cài qua |
+|-----|---------|---------|
+| GitHub | `@modelcontextprotocol/server-github` | Settings → MCP Servers |
+| Filesystem | `@modelcontextprotocol/server-filesystem` | Settings → MCP Servers |
+| Git | `mcp-server-git` (uvx) | Settings → MCP Servers |
+| Fetch | `@modelcontextprotocol/server-fetch` | Settings → MCP Servers |
+| Memory | `@modelcontextprotocol/server-memory` | Settings → MCP Servers |
+| Time | `@modelcontextprotocol/server-time` | Settings → MCP Servers |
+
+### MCP có sẵn trong project
+| MCP | Trạng thái |
+|-----|------------|
+| Figma | ✅ Extension |
+| GitLens | ✅ Extension |
+| Browser | ✅ Built-in |
+
+### Stitch
+| Tool | Trạng thái |
+|------|------------|
+| Stitch | ⏳ Chưa có MCP | https://stitch.withgoogle.com |
 
 ## TODO
-- [x] Setup MCP servers config (.mcp.json)
+- [x] Document MCP setup guide
+- [ ] Setup GitHub MCP (cần token)
 - [ ] Setup frontend Next.js project
 - [ ] Backend: Leave Request API
 - [ ] Backend: Schedule Exchange API
