@@ -14,7 +14,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -30,8 +29,18 @@ public class AutoSchedulingService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final CompensationDayRepository compensationDayRepository;
     private final AlgorithmMetricsRepository metricsRepository;
+    private final ConflictDetectionService conflictDetectionService;
+    private final AuditHistoryService auditHistoryService;
+
+    public AutoScheduleResponse previewSchedule(AutoScheduleRequestDTO request) {
+        return runScheduling(request, false);
+    }
 
     public AutoScheduleResponse autoSchedule(AutoScheduleRequestDTO request) {
+        return runScheduling(request, true);
+    }
+
+    private AutoScheduleResponse runScheduling(AutoScheduleRequestDTO request, boolean save) {
         long startTime = System.currentTimeMillis();
 
         SchedulePeriod period = periodRepository.findById(request.getPeriodId())
@@ -56,7 +65,9 @@ public class AutoSchedulingService {
             for (ShiftRequirement req : requirements) {
                 if (!req.getWorkDate().equals(currentDate)) continue;
 
-                List<Staff> availableStaff = getAvailableStaff(activeStaff, currentDate, req.getShiftType().getId(), period.getId());
+                List<Staff> availableStaff = conflictDetectionService.findReplacements(
+                        period.getId(), currentDate, req.getShiftType().getId(), null, req.getRequiredStaffCount());
+
                 availableStaff = filterBySpecialty(availableStaff, req.getSpecialty().getId());
 
                 int staffToAssign = Math.min(req.getRequiredStaffCount(), availableStaff.size());
@@ -65,8 +76,18 @@ public class AutoSchedulingService {
                     Staff staff = selectStaffByWorkload(availableStaff, period.getId(), req.getShiftType().getId());
                     if (staff == null) break;
 
-                    Schedule schedule = createSchedule(period, staff, req.getShiftType(), currentDate, req);
-                    if (schedule != null) {
+                    Schedule schedule = buildSchedule(period, staff, req.getShiftType(), currentDate, req);
+
+                    if (save) {
+                        Schedule saved = scheduleRepository.save(schedule);
+                        createdSchedules.add(saved);
+
+                        if ("L01".equals(req.getShiftType().getId())) {
+                            createCompensationDayForAuto(saved);
+                        }
+                        auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+                    } else {
+                        schedule.setId(null);
                         createdSchedules.add(schedule);
                     }
                     availableStaff.remove(staff);
@@ -88,7 +109,9 @@ public class AutoSchedulingService {
                 : BigDecimal.ZERO;
         BigDecimal balanceScore = calculateBalanceScore(createdSchedules, activeStaff.size());
 
-        saveMetrics(period, request.getAlgorithmType(), (int) executionTime, coverageRate, balanceScore, conflicts.size());
+        if (save) {
+            saveMetrics(period, request.getAlgorithmType(), (int) executionTime, coverageRate, balanceScore, conflicts.size());
+        }
 
         List<AutoScheduleResponse.ScheduleSummary> scheduleSummaries = createdSchedules.stream()
                 .map(s -> AutoScheduleResponse.ScheduleSummary.builder()
@@ -101,9 +124,11 @@ public class AutoSchedulingService {
                         .build())
                 .collect(Collectors.toList());
 
+        String actionType = save ? "Xếp lịch tự động thành công" : "Xem trước lịch";
+
         return AutoScheduleResponse.builder()
                 .success(true)
-                .message(conflicts.isEmpty() ? "Xếp lịch tự động thành công" : "Xếp lịch hoàn thành với " + conflicts.size() + " cảnh báo")
+                .message(conflicts.isEmpty() ? actionType : actionType + " với " + conflicts.size() + " cảnh báo")
                 .periodId(period.getId())
                 .algorithmType(request.getAlgorithmType())
                 .executionTimeMs((int) executionTime)
@@ -114,37 +139,6 @@ public class AutoSchedulingService {
                 .schedules(scheduleSummaries)
                 .executedAt(LocalDateTime.now())
                 .build();
-    }
-
-    private List<Staff> getAvailableStaff(List<Staff> allStaff, LocalDate date, String shiftTypeId, Integer periodId) {
-        List<Staff> available = new ArrayList<>();
-
-        for (Staff staff : allStaff) {
-            if (isStaffAvailable(staff, date, shiftTypeId, periodId)) {
-                available.add(staff);
-            }
-        }
-
-        return available;
-    }
-
-    private boolean isStaffAvailable(Staff staff, LocalDate date, String shiftTypeId, Integer periodId) {
-        List<LeaveRequest> leaves = leaveRequestRepository.findByStaffIdAndDateRange(staff.getId(), date, date);
-        boolean hasApprovedLeave = leaves.stream().anyMatch(l -> l.getStatus() == LeaveRequest.LeaveStatus.APPROVED);
-        if (hasApprovedLeave) return false;
-
-        var compensationDays = compensationDayRepository.findByStaffIdAndCompensationDate(staff.getId(), date);
-        if (compensationDays.isPresent()) return false;
-
-        List<Schedule> existingSchedules = scheduleRepository.findByStaffIdAndWorkDate(staff.getId(), date);
-        for (Schedule s : existingSchedules) {
-            if ("L01".equals(shiftTypeId) && "L02".equals(s.getShiftType().getId())) return false;
-            if ("L02".equals(shiftTypeId) && "L01".equals(s.getShiftType().getId())) return false;
-            if ("L03".equals(shiftTypeId) && "L04".equals(s.getShiftType().getId())) return false;
-            if ("L04".equals(shiftTypeId) && "L03".equals(s.getShiftType().getId())) return false;
-        }
-
-        return true;
     }
 
     private List<Staff> filterBySpecialty(List<Staff> staffList, Integer specialtyId) {
@@ -169,13 +163,13 @@ public class AutoSchedulingService {
         return selected;
     }
 
-    private Schedule createSchedule(SchedulePeriod period, Staff staff, ShiftType shiftType,
+    private Schedule buildSchedule(SchedulePeriod period, Staff staff, ShiftType shiftType,
                                    LocalDate workDate, ShiftRequirement requirement) {
         Optional<Schedule> existing = scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
                 period.getId(), staff.getId(), shiftType.getId(), workDate);
         if (existing.isPresent()) return null;
 
-        Schedule schedule = Schedule.builder()
+        return Schedule.builder()
                 .period(period)
                 .staff(staff)
                 .shiftType(shiftType)
@@ -183,8 +177,39 @@ public class AutoSchedulingService {
                 .requirement(requirement)
                 .hasConflict(false)
                 .build();
+    }
 
-        return scheduleRepository.save(schedule);
+    private void createCompensationDayForAuto(Schedule schedule) {
+        LocalDate shiftDate = schedule.getWorkDate();
+        LocalDate compensationDate = calculateCompensationDate(shiftDate);
+
+        if (compensationDayRepository.findByStaffIdAndCompensationDate(schedule.getStaff().getId(), compensationDate).isPresent()) {
+            return;
+        }
+
+        CompensationDay compDay = CompensationDay.builder()
+                .schedule(schedule)
+                .staff(schedule.getStaff())
+                .period(schedule.getPeriod())
+                .shiftDate(shiftDate)
+                .compensationDate(compensationDate)
+                .note("Ngày nghỉ bù tự động từ ca L01")
+                .build();
+
+        compensationDayRepository.save(compDay);
+    }
+
+    private LocalDate calculateCompensationDate(LocalDate shiftDate) {
+        DayOfWeek dow = shiftDate.getDayOfWeek();
+        return switch (dow) {
+            case MONDAY -> shiftDate.plusDays(1);
+            case TUESDAY -> shiftDate.plusDays(1);
+            case WEDNESDAY -> shiftDate.plusDays(1);
+            case THURSDAY -> shiftDate.plusDays(1);
+            case FRIDAY -> shiftDate.plusDays(4);
+            case SATURDAY -> shiftDate.plusDays(3);
+            case SUNDAY -> shiftDate.plusDays(1);
+        };
     }
 
     private BigDecimal calculateBalanceScore(List<Schedule> schedules, int totalStaff) {

@@ -2,7 +2,10 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.ScheduleRequest;
+import com.hospital.scheduler.dto.response.ConflictCheckResponse;
 import com.hospital.scheduler.dto.response.ScheduleResponse;
+import com.hospital.scheduler.dto.response.StaffResponse;
+import com.hospital.scheduler.service.ConflictDetectionService;
 import com.hospital.scheduler.service.ScheduleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +27,27 @@ import java.util.List;
 public class ScheduleController {
 
     private final ScheduleService scheduleService;
+    private final ConflictDetectionService conflictDetectionService;
+
+    @GetMapping("/conflicts/check/{periodId}")
+    @Operation(summary = "Kiểm tra xung đột lịch trong kỳ")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<ConflictCheckResponse>> checkConflicts(@PathVariable Integer periodId) {
+        return ResponseEntity.ok(ApiResponse.success(scheduleService.checkConflictsInPeriod(periodId)));
+    }
+
+    @GetMapping("/replacements/{periodId}")
+    @Operation(summary = "Đề xuất người thay thế cho một ca")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<List<StaffResponse>>> findReplacements(
+            @PathVariable Integer periodId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workDate,
+            @RequestParam String shiftTypeId,
+            @RequestParam Integer originalStaffId,
+            @RequestParam(required = false, defaultValue = "1") Integer requiredCount) {
+        return ResponseEntity.ok(ApiResponse.success(
+                scheduleService.findReplacements(periodId, workDate, shiftTypeId, originalStaffId, requiredCount)));
+    }
 
     @GetMapping("/period/{periodId}")
     @Operation(summary = "Lấy danh sách lịch theo kỳ")

@@ -1,0 +1,33 @@
+package com.hospital.scheduler.dto.response;
+
+import lombok.*;
+
+import java.time.LocalDate;
+import java.util.List;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ConflictCheckResponse {
+
+    private Integer periodId;
+    private boolean hasConflicts;
+    private int totalConflicts;
+    private List<ConflictDetail> conflicts;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ConflictDetail {
+        private Integer scheduleId;
+        private String staffName;
+        private LocalDate workDate;
+        private String shiftTypeId;
+        private String shiftTypeName;
+        private List<String> conflictReasons;
+    }
+}

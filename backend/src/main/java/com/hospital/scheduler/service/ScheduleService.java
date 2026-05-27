@@ -1,7 +1,9 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.ScheduleRequest;
+import com.hospital.scheduler.dto.response.ConflictCheckResponse;
 import com.hospital.scheduler.dto.response.ScheduleResponse;
+import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ConflictException;
@@ -28,6 +30,8 @@ public class ScheduleService {
     private final ShiftRequirementRepository requirementRepository;
     private final CompensationDayRepository compensationDayRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final ConflictDetectionService conflictDetectionService;
+    private final AuditHistoryService auditHistoryService;
 
     public List<ScheduleResponse> getSchedulesByPeriod(Integer periodId) {
         return scheduleRepository.findByPeriodId(periodId).stream()
@@ -133,6 +137,8 @@ public class ScheduleService {
             createCompensationDay(saved);
         }
 
+        auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+
         return toResponse(saved);
     }
 
@@ -223,6 +229,7 @@ public class ScheduleService {
             throw new BadRequestException("Chỉ có thể xóa lịch khi kỳ lịch ở trạng thái DRAFT");
         }
 
+        auditHistoryService.logAction("schedule", id, AuditHistory.ActionType.DELETE, schedule, null, null);
         scheduleRepository.delete(schedule);
     }
 
@@ -230,6 +237,61 @@ public class ScheduleService {
         return scheduleRepository.findByPeriodIdAndWorkDate(periodId, date).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    public ConflictCheckResponse checkConflictsInPeriod(Integer periodId) {
+        List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
+        List<ConflictCheckResponse.ConflictDetail> conflictDetails = new java.util.ArrayList<>();
+
+        for (Schedule schedule : schedules) {
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    schedule.getStaff().getId(),
+                    schedule.getWorkDate(),
+                    schedule.getShiftType().getId(),
+                    schedule.getId()
+            );
+
+            if (!conflicts.isEmpty()) {
+                schedule.setHasConflict(true);
+                scheduleRepository.save(schedule);
+
+                conflictDetails.add(ConflictCheckResponse.ConflictDetail.builder()
+                        .scheduleId(schedule.getId())
+                        .staffName(schedule.getStaff().getFullName())
+                        .workDate(schedule.getWorkDate())
+                        .shiftTypeId(schedule.getShiftType().getId())
+                        .shiftTypeName(schedule.getShiftType().getName())
+                        .conflictReasons(conflicts)
+                        .build());
+            }
+        }
+
+        return ConflictCheckResponse.builder()
+                .periodId(periodId)
+                .hasConflicts(!conflictDetails.isEmpty())
+                .totalConflicts(conflictDetails.size())
+                .conflicts(conflictDetails)
+                .build();
+    }
+
+    public List<StaffResponse> findReplacements(Integer periodId, LocalDate workDate, String shiftTypeId,
+                                                 Integer originalStaffId, Integer requiredCount) {
+        List<Staff> replacements = conflictDetectionService.findReplacements(
+                periodId, workDate, shiftTypeId, originalStaffId, requiredCount);
+        return replacements.stream().map(s -> {
+            long currentCount = scheduleRepository.countByStaffIdAndPeriodId(s.getId(), periodId);
+            return StaffResponse.builder()
+                    .id(s.getId())
+                    .fullName(s.getFullName())
+                    .phone(s.getPhone())
+                    .specialty(s.getSpecialty() != null ? StaffResponse.SpecialtyResponse.builder()
+                            .id(s.getSpecialty().getId())
+                            .name(s.getSpecialty().getName())
+                            .build() : null)
+                    .maxShiftsPerMonth(s.getMaxShiftsPerMonth())
+                    .isActive(s.getIsActive())
+                    .build();
+        }).collect(Collectors.toList());
     }
 
     private void createCompensationDay(Schedule schedule) {

@@ -2,6 +2,7 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.StaffRequest;
+import com.hospital.scheduler.dto.request.StaffSearchRequest;
 import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.StaffRepository;
@@ -38,6 +39,21 @@ public class StaffController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<StaffResponse>>> getActiveStaff() {
         return ResponseEntity.ok(ApiResponse.success(staffService.getActiveStaff()));
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "Tìm kiếm và lọc nhân sự")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<List<StaffResponse>>> searchStaffs(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer specialtyId,
+            @RequestParam(required = false) String status) {
+        StaffSearchRequest request = StaffSearchRequest.builder()
+                .keyword(keyword)
+                .specialtyId(specialtyId)
+                .status(status)
+                .build();
+        return ResponseEntity.ok(ApiResponse.success(staffService.searchStaffs(request)));
     }
 
     @GetMapping("/{id}")

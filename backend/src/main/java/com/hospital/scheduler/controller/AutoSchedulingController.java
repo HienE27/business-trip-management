@@ -28,6 +28,15 @@ public class AutoSchedulingController {
     private final AutoSchedulingService autoSchedulingService;
     private final AlgorithmMetricsRepository metricsRepository;
 
+    @PostMapping("/preview")
+    @Operation(summary = "Xem trước lịch trước khi xác nhận")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<AutoScheduleResponse>> previewSchedule(
+            @Valid @RequestBody AutoScheduleRequestDTO request) {
+        AutoScheduleResponse result = autoSchedulingService.previewSchedule(request);
+        return ResponseEntity.ok(ApiResponse.success(result, "Xem trước lịch"));
+    }
+
     @PostMapping
     @Operation(summary = "Chạy thuật toán xếp lịch tự động")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
