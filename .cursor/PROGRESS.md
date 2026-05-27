@@ -52,11 +52,33 @@ http://localhost:8080/swagger-ui/index.html
 ## MCP Setup
 | Tool | Trạng thái | Ghi chú |
 |------|------------|---------|
-| GitHub | ✅ Sẵn sàng | Quản lý PR, issues |
-| Stitch | ⏳ Chờ MCP | https://stitch.withgoogle.com - AI design tool, chưa có MCP |
+| Figma | ✅ Hoạt động | Thiết kế UI |
+| GitLens | ✅ Hoạt động | Git history |
+| GitHub | ⚠️ Cần token | PR, issues, repo management |
+| Filesystem | ⚠️ Cần npx | File operations |
+| Git | ⚠️ Cần uvx | Git operations |
+| Fetch | ⚠️ Cần npx | Web fetching |
+| Memory | ⚠️ Cần npx | Knowledge graph |
+| Time | ⚠️ Cần npx | Time utilities |
+| Stitch | ⏳ Chờ MCP | https://stitch.withgoogle.com - chưa có MCP |
+
+## MCP Config
+```json
+// .mcp.json - nằm trong project root
+{
+  "mcpServers": {
+    "github": { "command": "npx", "args": ["@modelcontextprotocol/server-github"] },
+    "filesystem": { "command": "npx", "args": ["@modelcontextprotocol/server-filesystem"] },
+    "git": { "command": "uvx", "args": ["mcp-server-git"] },
+    "fetch": { "command": "npx", "args": ["@modelcontextprotocol/server-fetch"] },
+    "memory": { "command": "npx", "args": ["@modelcontextprotocol/server-memory"] },
+    "time": { "command": "npx", "args": ["@modelcontextprotocol/server-time"] }
+  }
+}
+```
 
 ## TODO
-- [ ] Setup GitHub MCP
+- [x] Setup MCP servers config (.mcp.json)
 - [ ] Setup frontend Next.js project
 - [ ] Backend: Leave Request API
 - [ ] Backend: Schedule Exchange API
