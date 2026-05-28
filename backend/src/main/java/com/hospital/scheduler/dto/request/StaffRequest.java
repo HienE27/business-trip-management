@@ -3,7 +3,6 @@ package com.hospital.scheduler.dto.request;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
-import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -31,5 +30,6 @@ public class StaffRequest {
     private String email;
 
     private Integer specialtyId;
+    @Builder.Default
     private Integer maxShiftsPerMonth = 5;
 }

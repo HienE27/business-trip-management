@@ -1,12 +1,13 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.StaffRequest;
+import com.hospital.scheduler.dto.request.StaffSearchRequest;
 import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.entity.AppRole;
+import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.entity.StaffRole;
-import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.AppRoleRepository;
@@ -19,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,6 +30,7 @@ public class StaffService {
     private final StaffRepository staffRepository;
     private final SpecialtyRepository specialtyRepository;
     private final AppRoleRepository appRoleRepository;
+    private final AuditHistoryService auditHistoryService;
     private final PasswordEncoder passwordEncoder;
 
     public List<StaffResponse> getAllStaff() {
@@ -48,6 +49,20 @@ public class StaffService {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
         return toResponse(staff);
+    }
+
+    public List<StaffResponse> searchStaffs(StaffSearchRequest request) {
+        String keyword = (request.getKeyword() != null && !request.getKeyword().isBlank()) ? request.getKeyword() : null;
+        Boolean isActive = null;
+        if ("active".equalsIgnoreCase(request.getStatus())) {
+            isActive = true;
+        } else if ("inactive".equalsIgnoreCase(request.getStatus())) {
+            isActive = false;
+        }
+
+        return staffRepository.searchStaffs(keyword, request.getSpecialtyId(), isActive).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
     public StaffResponse createStaff(StaffRequest request, List<String> roles) {
@@ -112,6 +127,15 @@ public class StaffService {
                     });
         }
 
+        Staff oldStaff = Staff.builder()
+                .username(staff.getUsername())
+                .fullName(staff.getFullName())
+                .phone(staff.getPhone())
+                .email(staff.getEmail())
+                .maxShiftsPerMonth(staff.getMaxShiftsPerMonth())
+                .specialty(staff.getSpecialty())
+                .build();
+
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             staff.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
@@ -127,14 +151,27 @@ public class StaffService {
             staff.setSpecialty(specialty);
         }
 
-        return toResponse(staffRepository.save(staff));
+        Staff saved = staffRepository.save(staff);
+
+        auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, saved, null);
+
+        return toResponse(saved);
     }
 
     public void deleteStaff(Integer id) {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
+
+        Staff oldStaff = Staff.builder()
+                .username(staff.getUsername())
+                .fullName(staff.getFullName())
+                .isActive(staff.getIsActive())
+                .build();
+
         staff.setIsActive(false);
         staffRepository.save(staff);
+
+        auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, staff, null);
     }
 
     public StaffResponse getStaffByUsername(String username) {

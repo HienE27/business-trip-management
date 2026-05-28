@@ -2,6 +2,7 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.StaffRequest;
+import com.hospital.scheduler.dto.request.StaffSearchRequest;
 import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.service.StaffService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -37,6 +39,21 @@ public class StaffController {
         return ResponseEntity.ok(ApiResponse.success(staffService.getActiveStaff()));
     }
 
+    @GetMapping("/search")
+    @Operation(summary = "Tìm kiếm và lọc nhân sự")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<List<StaffResponse>>> searchStaffs(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer specialtyId,
+            @RequestParam(required = false) String status) {
+        StaffSearchRequest request = StaffSearchRequest.builder()
+                .keyword(keyword)
+                .specialtyId(specialtyId)
+                .status(status)
+                .build();
+        return ResponseEntity.ok(ApiResponse.success(staffService.searchStaffs(request)));
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết nhân sự")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
@@ -46,8 +63,9 @@ public class StaffController {
 
     @GetMapping("/me")
     @Operation(summary = "Lấy thông tin nhân sự hiện tại")
-    public ResponseEntity<ApiResponse<StaffResponse>> getCurrentStaff() {
-        return ResponseEntity.ok(ApiResponse.success(staffService.getStaffById(1))); // placeholder
+    public ResponseEntity<ApiResponse<StaffResponse>> getCurrentStaff(
+            @AuthenticationPrincipal String username) {
+        return ResponseEntity.ok(ApiResponse.success(staffService.getStaffByUsername(username)));
     }
 
     @PostMapping

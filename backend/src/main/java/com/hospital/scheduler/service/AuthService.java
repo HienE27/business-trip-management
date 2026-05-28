@@ -3,7 +3,6 @@ package com.hospital.scheduler.service;
 import com.hospital.scheduler.dto.AuthResponse;
 import com.hospital.scheduler.dto.LoginRequest;
 import com.hospital.scheduler.entity.Staff;
-import com.hospital.scheduler.entity.StaffRole;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.JwtService;
 import lombok.RequiredArgsConstructor;
