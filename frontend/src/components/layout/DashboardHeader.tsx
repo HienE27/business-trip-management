@@ -1,3 +1,5 @@
+import { AuthStatus } from "@/components/auth/AuthStatus";
+
 type DashboardHeaderProps = {
   title: string;
   description: string;
@@ -24,6 +26,7 @@ export function DashboardHeader({
         <button className="h-9 rounded-md bg-slate-950 px-3 text-sm font-medium text-white shadow-sm max-sm:flex-1">
           {primaryAction}
         </button>
+        <AuthStatus />
       </div>
     </header>
   );
