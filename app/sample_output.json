@@ -1,0 +1,119 @@
+{
+    "assignments": [
+        {
+            "staff_id": 1,
+            "day": 1,
+            "shift": "L01"
+        },
+        {
+            "staff_id": 1,
+            "day": 2,
+            "shift": "OFF"
+        },
+        {
+            "staff_id": 1,
+            "day": 3,
+            "shift": "L02"
+        },
+        {
+            "staff_id": 1,
+            "day": 4,
+            "shift": "L01"
+        },
+        {
+            "staff_id": 1,
+            "day": 5,
+            "shift": "OFF"
+        },
+        {
+            "staff_id": 1,
+            "day": 6,
+            "shift": "L02"
+        },
+        {
+            "staff_id": 1,
+            "day": 7,
+            "shift": "L01"
+        },
+        {
+            "staff_id": 2,
+            "day": 1,
+            "shift": "L02"
+        },
+        {
+            "staff_id": 2,
+            "day": 2,
+            "shift": "L02"
+        },
+        {
+            "staff_id": 2,
+            "day": 3,
+            "shift": "L01"
+        },
+        {
+            "staff_id": 2,
+            "day": 4,
+            "shift": "OFF"
+        },
+        {
+            "staff_id": 2,
+            "day": 5,
+            "shift": "L02"
+        },
+        {
+            "staff_id": 2,
+            "day": 6,
+            "shift": "L01"
+        },
+        {
+            "staff_id": 2,
+            "day": 7,
+            "shift": "OFF"
+        },
+        {
+            "staff_id": 3,
+            "day": 1,
+            "shift": "OFF"
+        },
+        {
+            "staff_id": 3,
+            "day": 2,
+            "shift": "L01"
+        },
+        {
+            "staff_id": 3,
+            "day": 3,
+            "shift": "OFF"
+        },
+        {
+            "staff_id": 3,
+            "day": 4,
+            "shift": "L02"
+        },
+        {
+            "staff_id": 3,
+            "day": 5,
+            "shift": "L01"
+        },
+        {
+            "staff_id": 3,
+            "day": 6,
+            "shift": "OFF"
+        },
+        {
+            "staff_id": 3,
+            "day": 7,
+            "shift": "L02"
+        }
+    ],
+    "statistics": {
+        "fairness_score": 90.57,
+        "fatigue_score": 60,
+        "valid_schedule": false,
+        "workload_distribution": {
+            "1": 7,
+            "2": 7,
+            "3": 7
+        }
+    }
+}

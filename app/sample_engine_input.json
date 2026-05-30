@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "algorithm": "ortools",
+  "start_date": "2026-06-01",
+  "end_date": "2026-06-07",
+  "min_staff_per_day": {
+    "L01": 1,
+    "L02": 1
+  },
+  "max_time_seconds": 10,
+  "staffs": [
+    {"id": 1, "name": "Dr. An", "specialty": "NOI", "max_shifts": 5},
+    {"id": 2, "name": "Dr. Binh", "specialty": "NGOAI", "max_shifts": 5},
+    {"id": 3, "name": "Dr. Cuong", "specialty": "ICU", "max_shifts": 5},
+    {"id": 4, "name": "Dr. Dung", "specialty": "SAN", "max_shifts": 5},
+    {"id": 5, "name": "Dr. Hoa", "specialty": "NHI", "max_shifts": 5},
+    {"id": 6, "name": "Dr. Lan", "specialty": "NHI", "max_shifts": 5}
+  ],
+  "leave_requests": [
+    {"staff_id": 1, "date": "2026-06-03", "status": "APPROVED", "reason": "Nghi phep"}
+  ]
+}

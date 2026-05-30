@@ -1,0 +1,171 @@
+{
+    "schema_version": "1.0",
+    "algorithm": "ortools",
+    "period": {
+        "label": "2026-06-01..2026-06-07",
+        "start_date": "2026-06-01",
+        "end_date": "2026-06-07",
+        "num_days": 7
+    },
+    "status": "success",
+    "valid": true,
+    "assignments": [
+        {
+            "staff_id": 3,
+            "work_date": "2026-06-01",
+            "shift_type": "L01"
+        },
+        {
+            "staff_id": 5,
+            "work_date": "2026-06-01",
+            "shift_type": "L02"
+        },
+        {
+            "staff_id": 1,
+            "work_date": "2026-06-02",
+            "shift_type": "L02"
+        },
+        {
+            "staff_id": 5,
+            "work_date": "2026-06-02",
+            "shift_type": "L01"
+        },
+        {
+            "staff_id": 2,
+            "work_date": "2026-06-03",
+            "shift_type": "L02"
+        },
+        {
+            "staff_id": 6,
+            "work_date": "2026-06-03",
+            "shift_type": "L01"
+        },
+        {
+            "staff_id": 1,
+            "work_date": "2026-06-04",
+            "shift_type": "L01"
+        },
+        {
+            "staff_id": 4,
+            "work_date": "2026-06-04",
+            "shift_type": "L02"
+        },
+        {
+            "staff_id": 3,
+            "work_date": "2026-06-05",
+            "shift_type": "L02"
+        },
+        {
+            "staff_id": 5,
+            "work_date": "2026-06-05",
+            "shift_type": "L01"
+        },
+        {
+            "staff_id": 1,
+            "work_date": "2026-06-06",
+            "shift_type": "L02"
+        },
+        {
+            "staff_id": 4,
+            "work_date": "2026-06-06",
+            "shift_type": "L01"
+        },
+        {
+            "staff_id": 2,
+            "work_date": "2026-06-07",
+            "shift_type": "L01"
+        },
+        {
+            "staff_id": 6,
+            "work_date": "2026-06-07",
+            "shift_type": "L02"
+        }
+    ],
+    "compensation_days": [
+        {
+            "staff_id": 3,
+            "compensation_date": "2026-06-02"
+        },
+        {
+            "staff_id": 5,
+            "compensation_date": "2026-06-03"
+        },
+        {
+            "staff_id": 6,
+            "compensation_date": "2026-06-04"
+        },
+        {
+            "staff_id": 1,
+            "compensation_date": "2026-06-05"
+        },
+        {
+            "staff_id": 2,
+            "compensation_date": "2026-06-08"
+        },
+        {
+            "staff_id": 4,
+            "compensation_date": "2026-06-09"
+        },
+        {
+            "staff_id": 5,
+            "compensation_date": "2026-06-09"
+        }
+    ],
+    "conflicts": [],
+    "metrics": {
+        "score": {
+            "fairness": 95.29,
+            "fatigue": 80,
+            "coverage": 100.0,
+            "compensation": 100,
+            "preference": 100.0,
+            "total": 92.12
+        },
+        "workload": {
+            "1": {
+                "L01": 1,
+                "L02": 2,
+                "L03": 0,
+                "L04": 0,
+                "total": 3
+            },
+            "2": {
+                "L01": 1,
+                "L02": 1,
+                "L03": 0,
+                "L04": 0,
+                "total": 2
+            },
+            "3": {
+                "L01": 1,
+                "L02": 1,
+                "L03": 0,
+                "L04": 0,
+                "total": 2
+            },
+            "4": {
+                "L01": 1,
+                "L02": 1,
+                "L03": 0,
+                "L04": 0,
+                "total": 2
+            },
+            "5": {
+                "L01": 2,
+                "L02": 1,
+                "L03": 0,
+                "L04": 0,
+                "total": 3
+            },
+            "6": {
+                "L01": 1,
+                "L02": 1,
+                "L03": 0,
+                "L04": 0,
+                "total": 2
+            }
+        },
+        "uncovered": []
+    },
+    "errors": []
+}
