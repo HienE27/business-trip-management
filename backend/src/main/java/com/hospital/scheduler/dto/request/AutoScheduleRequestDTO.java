@@ -13,9 +13,12 @@ public class AutoScheduleRequestDTO {
     @NotNull(message = "ID kỳ lịch không được để trống")
     private Integer periodId;
 
+    @Builder.Default
     private String algorithmType = "GREEDY";
 
+    @Builder.Default
     private Integer maxIterations = 1000;
 
+    @Builder.Default
     private Boolean autoAssign = true;
 }

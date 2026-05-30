@@ -16,7 +16,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -51,7 +50,7 @@ public class ScheduleTemplateService {
     }
 
     public ScheduleTemplateResponse createTemplate(ScheduleTemplateRequest request) {
-        ShiftType shiftType = shiftTypeRepository.findById(request.getShiftTypeId())
+        shiftTypeRepository.findById(request.getShiftTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + request.getShiftTypeId()));
 
         Specialty specialty = null;
@@ -77,7 +76,7 @@ public class ScheduleTemplateService {
         ScheduleTemplate template = templateRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mẫu lịch với ID: " + id));
 
-        ShiftType shiftType = shiftTypeRepository.findById(request.getShiftTypeId())
+        shiftTypeRepository.findById(request.getShiftTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + request.getShiftTypeId()));
 
         Specialty specialty = null;

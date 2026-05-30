@@ -1,7 +1,6 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.entity.Schedule;
-import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +23,6 @@ public class ReportExportService {
 
     public byte[] exportScheduleToExcel(Integer periodId) throws IOException {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
-        SchedulePeriod period = schedules.isEmpty() ? null : schedules.get(0).getPeriod();
 
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
@@ -87,7 +85,6 @@ public class ReportExportService {
 
     public byte[] exportWorkloadReportToExcel(Integer periodId) throws IOException {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
-        SchedulePeriod period = schedules.isEmpty() ? null : schedules.get(0).getPeriod();
 
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream baos = new ByteArrayOutputStream()) {

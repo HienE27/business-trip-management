@@ -29,5 +29,6 @@ public class ScheduleTemplateRequest {
     private Integer specialtyId;
 
     @Min(value = 1, message = "Số nhân sự tối thiểu là 1")
+    @Builder.Default
     private Integer requiredStaffCount = 1;
 }

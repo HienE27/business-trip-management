@@ -23,6 +23,8 @@ public class ShiftTypeRequest {
     private String description;
     private LocalTime startTime;
     private LocalTime endTime;
+    @Builder.Default
     private Boolean isOvernight = false;
+    @Builder.Default
     private Integer fatigueScore = 1;
 }
