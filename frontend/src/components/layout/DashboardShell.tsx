@@ -21,10 +21,10 @@ export function DashboardShell({
   children,
 }: DashboardShellProps) {
   return (
-    <main className="min-h-screen bg-[#f6f7f9] text-slate-950">
-      <div className="grid min-h-screen grid-cols-[248px_1fr] max-lg:grid-cols-1">
+    <main className="min-h-screen bg-[#f6f7f9] text-[#111418]">
+      <div className="grid min-h-screen grid-cols-[256px_minmax(0,1fr)] max-lg:grid-cols-1">
         <AppSidebar items={getNavigationItems(activeCode)} />
-        <section className="flex min-w-0 flex-col">
+        <section className="flex min-w-0 flex-col bg-[#f6f7f9]">
           <DashboardHeader
             description={description}
             primaryAction={primaryAction}

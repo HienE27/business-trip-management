@@ -28,8 +28,8 @@ export function SimpleDataTable({ headers, rows, statusColumn }: SimpleDataTable
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] border-collapse text-sm">
-        <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
-          <tr className="h-11 border-b border-slate-200">
+        <thead className="bg-[#f8fafc] text-left text-xs font-medium uppercase text-[#667085]">
+          <tr className="h-11 border-b border-[#dfe4ea]">
             {headers.map((header) => (
               <th className="px-4" key={header}>
                 {header}
@@ -39,9 +39,9 @@ export function SimpleDataTable({ headers, rows, statusColumn }: SimpleDataTable
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr className="h-12 border-b border-slate-100 last:border-0 hover:bg-slate-50" key={row.join("-")}>
+            <tr className="h-12 border-b border-[#edf1f5] last:border-0 hover:bg-[#f8fafc]" key={row.join("-")}>
               {row.map((cell, index) => (
-                <td className="px-4 text-slate-700" key={`${cell}-${index}`}>
+                <td className="px-4 text-[#364152]" key={`${cell}-${index}`}>
                   {statusColumn === index ? (
                     <StatusBadge tone={badgeTone(cell)}>{cell}</StatusBadge>
                   ) : (

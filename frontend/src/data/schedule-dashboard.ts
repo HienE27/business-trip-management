@@ -12,9 +12,14 @@ const baseNavigationItems: NavigationItem[] = [
   { label: "Tổng quan", code: "M06", href: "/" },
   { label: "Nhân sự", code: "M01", href: "/staff" },
   { label: "Trực 24/24", code: "M02", href: "/duty-24" },
+  { label: "Đổi trực", code: "M02-F04", href: "/swap-requests" },
   { label: "Thông tầm", code: "M03", href: "/all-day" },
   { label: "PK dịch vụ", code: "M04", href: "/service-clinic" },
   { label: "PK chuyên gia", code: "M05", href: "/expert-clinic" },
+  { label: "Xung đột", code: "M06-F03", href: "/conflict-check" },
+  { label: "Báo cáo", code: "M06-F04", href: "/reports" },
+  { label: "Nhật ký", code: "M06-F05", href: "/audit-log" },
+  { label: "Phân quyền", code: "M01-F05", href: "/roles" },
   { label: "Tự động xếp", code: "M07", href: "/auto-scheduling" },
 ];
 

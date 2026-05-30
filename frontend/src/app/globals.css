@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f7f9;
+  --foreground: #111418;
+  --surface: #ffffff;
+  --surface-subtle: #f8fafc;
+  --border: #dfe4ea;
+  --muted: #667085;
+  --sidebar: #111418;
+  --sidebar-soft: #1a1f26;
+  --primary: #111418;
+  --elevation-1: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --elevation-2: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
 @theme inline {
@@ -17,6 +26,10 @@ body {
   font-family: var(--font-inter), Arial, Helvetica, sans-serif;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 button,
 a {
   transition:
@@ -24,4 +37,12 @@ a {
     border-color 150ms ease,
     color 150ms ease,
     box-shadow 150ms ease;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
 }

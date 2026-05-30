@@ -17,12 +17,12 @@ export function SectionCard({
 }: SectionCardProps) {
   return (
     <section
-      className={`rounded-lg border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)] ${className}`}
+      className={`rounded-lg border border-[#dfe4ea] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)] ${className}`}
     >
-      <div className="flex min-h-14 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+      <div className="flex min-h-14 items-center justify-between gap-3 border-b border-[#dfe4ea] px-4 py-3">
         <div>
-          <h2 className="text-sm font-semibold">{title}</h2>
-          {description ? <p className="text-xs text-slate-500">{description}</p> : null}
+          <h2 className="text-sm font-semibold leading-5 text-[#111418]">{title}</h2>
+          {description ? <p className="text-xs leading-4 text-[#667085]">{description}</p> : null}
         </div>
         {action}
       </div>

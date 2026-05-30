@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -37,15 +38,20 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : window.localStorage.getItem("medschedule.token"),
-  );
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    if (typeof window === "undefined") return null;
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
-    const savedUser = window.localStorage.getItem("medschedule.user");
-    return savedUser ? (JSON.parse(savedUser) as AuthUser) : null;
-  });
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const savedToken = window.localStorage.getItem("medschedule.token");
+      const savedUser = window.localStorage.getItem("medschedule.user");
+
+      setToken(savedToken);
+      setUser(savedUser ? (JSON.parse(savedUser) as AuthUser) : null);
+    }, 0);
+
+    return () => window.clearTimeout(id);
+  }, []);
 
   const login = useCallback(async (username: string, password: string) => {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
