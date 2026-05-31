@@ -150,6 +150,10 @@ SPEC.md
 QuanLyLichCongTac_v5.txt
 QuanLyLichCongTac_v5.docx
 
+# Vercel agent skills (user-level, not project-specific)
+.agents/
+skills-lock.json
+
 # Python
 __pycache__/
 *.py[cod]
