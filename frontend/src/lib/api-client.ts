@@ -1,0 +1,519 @@
+import type {
+  ApiResponse,
+  AuthResponse,
+  LoginRequest,
+  Staff,
+  StaffSearchParams,
+  Schedule,
+  ScheduleRequest,
+  SchedulePeriod,
+  DashboardData,
+  ShiftStatistics,
+  StaffWorkloadStatistics,
+  PeriodSummary,
+  LeaveRequest,
+  LeaveRequestCreate,
+  ScheduleExchange,
+  ScheduleExchangeCreate,
+  AutoScheduleRequest,
+  AutoScheduleResponse,
+  AutoSchedulePreview,
+  AlgorithmMetrics,
+  ShiftRequirement,
+  Specialty,
+  Notification,
+  ScheduleTemplate,
+  AuditHistory,
+  ConflictCheckResponse,
+  ShiftType,
+  LeaveRequestStatistics,
+} from "@/types/api";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+
+class ApiClient {
+  private token: string | null = null;
+
+  constructor() {
+    if (typeof window !== "undefined") {
+      this.token = localStorage.getItem("token");
+    }
+  }
+
+  setToken(token: string | null) {
+    this.token = token;
+    if (typeof window !== "undefined") {
+      if (token) {
+        localStorage.setItem("token", token);
+      } else {
+        localStorage.removeItem("token");
+      }
+    }
+  }
+
+  getToken(): string | null {
+    if (!this.token && typeof window !== "undefined") {
+      this.token = localStorage.getItem("token");
+    }
+    return this.token;
+  }
+
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...(options.headers as Record<string, string>),
+    };
+
+    const token = this.getToken();
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        this.setToken(null);
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // Auth
+  async login(data: LoginRequest): Promise<ApiResponse<AuthResponse>> {
+    return this.request<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Staff
+  async getAllStaff(): Promise<ApiResponse<Staff[]>> {
+    return this.request<Staff[]>("/staff");
+  }
+
+  async getActiveStaff(): Promise<ApiResponse<Staff[]>> {
+    return this.request<Staff[]>("/staff/active");
+  }
+
+  async searchStaff(params: StaffSearchParams): Promise<ApiResponse<Staff[]>> {
+    const query = new URLSearchParams();
+    if (params.keyword) query.set("keyword", params.keyword);
+    if (params.specialtyId) query.set("specialtyId", String(params.specialtyId));
+    if (params.status) query.set("status", params.status);
+    return this.request<Staff[]>(`/staff/search?${query.toString()}`);
+  }
+
+  async getStaffById(id: number): Promise<ApiResponse<Staff>> {
+    return this.request<Staff>(`/staff/${id}`);
+  }
+
+  async getCurrentStaff(): Promise<ApiResponse<Staff>> {
+    return this.request<Staff>("/staff/me");
+  }
+
+  async createStaff(data: Partial<Staff> & { roles?: string[] }): Promise<ApiResponse<Staff>> {
+    return this.request<Staff>("/staff", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateStaff(id: number, data: Partial<Staff>): Promise<ApiResponse<Staff>> {
+    return this.request<Staff>(`/staff/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteStaff(id: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/staff/${id}`, { method: "DELETE" });
+  }
+
+  // Schedule
+  async getSchedulesByPeriod(periodId: number): Promise<ApiResponse<Schedule[]>> {
+    return this.request<Schedule[]>(`/schedules/period/${periodId}`);
+  }
+
+  async getSchedulesByPeriodAndDate(
+    periodId: number,
+    date: string
+  ): Promise<ApiResponse<Schedule[]>> {
+    return this.request<Schedule[]>(`/schedules/period/${periodId}/date/${date}`);
+  }
+
+  async getSchedulesByStaff(staffId: number): Promise<ApiResponse<Schedule[]>> {
+    return this.request<Schedule[]>(`/schedules/staff/${staffId}`);
+  }
+
+  async getScheduleById(id: number): Promise<ApiResponse<Schedule>> {
+    return this.request<Schedule>(`/schedules/${id}`);
+  }
+
+  async createSchedule(data: ScheduleRequest): Promise<ApiResponse<Schedule>> {
+    return this.request<Schedule>("/schedules", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateSchedule(id: number, data: ScheduleRequest): Promise<ApiResponse<Schedule>> {
+    return this.request<Schedule>(`/schedules/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteSchedule(id: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/schedules/${id}`, { method: "DELETE" });
+  }
+
+  async checkConflicts(periodId: number): Promise<ApiResponse<ConflictCheckResponse>> {
+    return this.request<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`);
+  }
+
+  async findReplacements(
+    periodId: number,
+    workDate: string,
+    shiftTypeId: string,
+    originalStaffId: number,
+    requiredCount = 1
+  ): Promise<ApiResponse<Staff[]>> {
+    const params = new URLSearchParams({
+      workDate,
+      shiftTypeId,
+      originalStaffId: String(originalStaffId),
+      requiredCount: String(requiredCount),
+    });
+    return this.request<Staff[]>(`/schedules/replacements/${periodId}?${params.toString()}`);
+  }
+
+  // Schedule Period
+  async getAllPeriods(): Promise<ApiResponse<SchedulePeriod[]>> {
+    return this.request<SchedulePeriod[]>("/periods");
+  }
+
+  async getPeriodsByStatus(status: string): Promise<ApiResponse<SchedulePeriod[]>> {
+    return this.request<SchedulePeriod[]>(`/periods/status/${status}`);
+  }
+
+  async getPeriodById(id: number): Promise<ApiResponse<SchedulePeriod>> {
+    return this.request<SchedulePeriod>(`/periods/${id}`);
+  }
+
+  async createPeriod(data: Partial<SchedulePeriod>): Promise<ApiResponse<SchedulePeriod>> {
+    return this.request<SchedulePeriod>("/periods", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePeriod(id: number, data: Partial<SchedulePeriod>): Promise<ApiResponse<SchedulePeriod>> {
+    return this.request<SchedulePeriod>(`/periods/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async publishPeriod(id: number): Promise<ApiResponse<SchedulePeriod>> {
+    return this.request<SchedulePeriod>(`/periods/${id}/publish`, { method: "POST" });
+  }
+
+  async archivePeriod(id: number): Promise<ApiResponse<SchedulePeriod>> {
+    return this.request<SchedulePeriod>(`/periods/${id}/archive`, { method: "POST" });
+  }
+
+  // Dashboard
+  async getDashboard(): Promise<ApiResponse<DashboardData>> {
+    return this.request<DashboardData>("/dashboard");
+  }
+
+  async getShiftStatistics(): Promise<ApiResponse<ShiftStatistics>> {
+    return this.request<ShiftStatistics>("/dashboard/shifts");
+  }
+
+  async getLeaveRequestStatistics(): Promise<ApiResponse<LeaveRequestStatistics>> {
+    return this.request<LeaveRequestStatistics>("/dashboard/leave-requests");
+  }
+
+  async getStaffWorkload(periodId: number): Promise<ApiResponse<StaffWorkloadStatistics[]>> {
+    return this.request<StaffWorkloadStatistics[]>(`/dashboard/workload/period/${periodId}`);
+  }
+
+  async getPeriodSummaries(): Promise<ApiResponse<PeriodSummary[]>> {
+    return this.request<PeriodSummary[]>("/dashboard/periods");
+  }
+
+  async getHeatmapData(periodId: number): Promise<ApiResponse<Record<string, unknown>>> {
+    return this.request<Record<string, unknown>>(`/dashboard/heatmap/period/${periodId}`);
+  }
+
+  async exportScheduleExcel(periodId: number): Promise<Blob> {
+    const token = this.getToken();
+    const response = await fetch(`${API_BASE}/dashboard/export/schedule/${periodId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error("Export failed");
+    return response.blob();
+  }
+
+  // Leave Requests
+  async getAllLeaveRequests(): Promise<ApiResponse<LeaveRequest[]>> {
+    return this.request<LeaveRequest[]>("/leave-requests");
+  }
+
+  async getPendingLeaveRequests(): Promise<ApiResponse<LeaveRequest[]>> {
+    return this.request<LeaveRequest[]>("/leave-requests/pending");
+  }
+
+  async getLeaveRequestsByStatus(status: string): Promise<ApiResponse<LeaveRequest[]>> {
+    return this.request<LeaveRequest[]>(`/leave-requests/status/${status}`);
+  }
+
+  async getLeaveRequestsByStaff(staffId: number): Promise<ApiResponse<LeaveRequest[]>> {
+    return this.request<LeaveRequest[]>(`/leave-requests/staff/${staffId}`);
+  }
+
+  async getLeaveRequestById(id: number): Promise<ApiResponse<LeaveRequest>> {
+    return this.request<LeaveRequest>(`/leave-requests/${id}`);
+  }
+
+  async createLeaveRequest(staffId: number, data: LeaveRequestCreate): Promise<ApiResponse<LeaveRequest>> {
+    return this.request<LeaveRequest>(`/leave-requests/staff/${staffId}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async approveLeaveRequest(id: number, reviewerId: number, reviewNote?: string): Promise<ApiResponse<LeaveRequest>> {
+    const params = new URLSearchParams({ reviewerId: String(reviewerId) });
+    if (reviewNote) params.set("reviewNote", reviewNote);
+    return this.request<LeaveRequest>(`/leave-requests/${id}/approve?${params.toString()}`, { method: "PUT" });
+  }
+
+  async rejectLeaveRequest(id: number, reviewerId: number, reviewNote?: string): Promise<ApiResponse<LeaveRequest>> {
+    const params = new URLSearchParams({ reviewerId: String(reviewerId) });
+    if (reviewNote) params.set("reviewNote", reviewNote);
+    return this.request<LeaveRequest>(`/leave-requests/${id}/reject?${params.toString()}`, { method: "PUT" });
+  }
+
+  async cancelLeaveRequest(id: number): Promise<ApiResponse<LeaveRequest>> {
+    return this.request<LeaveRequest>(`/leave-requests/${id}/cancel`, { method: "PUT" });
+  }
+
+  // Schedule Exchanges
+  async getAllExchanges(): Promise<ApiResponse<ScheduleExchange[]>> {
+    return this.request<ScheduleExchange[]>("/schedule-exchanges");
+  }
+
+  async getPendingExchanges(): Promise<ApiResponse<ScheduleExchange[]>> {
+    return this.request<ScheduleExchange[]>("/schedule-exchanges/pending");
+  }
+
+  async getExchangesByStatus(status: string): Promise<ApiResponse<ScheduleExchange[]>> {
+    return this.request<ScheduleExchange[]>(`/schedule-exchanges/status/${status}`);
+  }
+
+  async getExchangesForUser(userId: number): Promise<ApiResponse<ScheduleExchange[]>> {
+    return this.request<ScheduleExchange[]>(`/schedule-exchanges/user/${userId}`);
+  }
+
+  async getExchangeById(id: number): Promise<ApiResponse<ScheduleExchange>> {
+    return this.request<ScheduleExchange>(`/schedule-exchanges/${id}`);
+  }
+
+  async createExchange(requesterId: number, data: ScheduleExchangeCreate): Promise<ApiResponse<ScheduleExchange>> {
+    return this.request<ScheduleExchange>(`/schedule-exchanges/requester/${requesterId}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async approveExchange(id: number, reviewerId: number, reviewNote?: string): Promise<ApiResponse<ScheduleExchange>> {
+    const params = new URLSearchParams({ reviewerId: String(reviewerId) });
+    if (reviewNote) params.set("reviewNote", reviewNote);
+    return this.request<ScheduleExchange>(`/schedule-exchanges/${id}/approve?${params.toString()}`, { method: "PUT" });
+  }
+
+  async rejectExchange(id: number, reviewerId: number, reviewNote?: string): Promise<ApiResponse<ScheduleExchange>> {
+    const params = new URLSearchParams({ reviewerId: String(reviewerId) });
+    if (reviewNote) params.set("reviewNote", reviewNote);
+    return this.request<ScheduleExchange>(`/schedule-exchanges/${id}/reject?${params.toString()}`, { method: "PUT" });
+  }
+
+  async cancelExchange(id: number): Promise<ApiResponse<ScheduleExchange>> {
+    return this.request<ScheduleExchange>(`/schedule-exchanges/${id}/cancel`, { method: "PUT" });
+  }
+
+  // Auto Schedule
+  async previewAutoSchedule(data: AutoScheduleRequest): Promise<ApiResponse<AutoSchedulePreview>> {
+    return this.request<AutoSchedulePreview>("/auto-schedule/preview", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async runAutoSchedule(data: AutoScheduleRequest): Promise<ApiResponse<AutoScheduleResponse>> {
+    return this.request<AutoScheduleResponse>("/auto-schedule", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getMetricsByPeriod(periodId: number): Promise<ApiResponse<AlgorithmMetrics[]>> {
+    return this.request<AlgorithmMetrics[]>(`/auto-schedule/metrics/period/${periodId}`);
+  }
+
+  async getAllMetrics(): Promise<ApiResponse<AlgorithmMetrics[]>> {
+    return this.request<AlgorithmMetrics[]>("/auto-schedule/metrics");
+  }
+
+  // Shift Requirements
+  async getAllRequirements(): Promise<ApiResponse<ShiftRequirement[]>> {
+    return this.request<ShiftRequirement[]>("/shift-requirements");
+  }
+
+  async getRequirementsByPeriod(periodId: number): Promise<ApiResponse<ShiftRequirement[]>> {
+    return this.request<ShiftRequirement[]>(`/shift-requirements/period/${periodId}`);
+  }
+
+  async getRequirementsByPeriodAndDate(periodId: number, date: string): Promise<ApiResponse<ShiftRequirement[]>> {
+    return this.request<ShiftRequirement[]>(`/shift-requirements/period/${periodId}/date/${date}`);
+  }
+
+  async createRequirement(data: Partial<ShiftRequirement>): Promise<ApiResponse<ShiftRequirement>> {
+    return this.request<ShiftRequirement>("/shift-requirements", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateRequirement(id: number, data: Partial<ShiftRequirement>): Promise<ApiResponse<ShiftRequirement>> {
+    return this.request<ShiftRequirement>(`/shift-requirements/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteRequirement(id: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/shift-requirements/${id}`, { method: "DELETE" });
+  }
+
+  // Shift Types
+  async getAllShiftTypes(): Promise<ApiResponse<ShiftType[]>> {
+    return this.request<ShiftType[]>("/shift-types");
+  }
+
+  async getActiveShiftTypes(): Promise<ApiResponse<ShiftType[]>> {
+    return this.request<ShiftType[]>("/shift-types/active");
+  }
+
+  async getShiftTypeById(id: string): Promise<ApiResponse<ShiftType>> {
+    return this.request<ShiftType>(`/shift-types/${id}`);
+  }
+
+  // Specialties
+  async getAllSpecialties(): Promise<ApiResponse<Specialty[]>> {
+    return this.request<Specialty[]>("/specialties");
+  }
+
+  async getActiveSpecialties(): Promise<ApiResponse<Specialty[]>> {
+    return this.request<Specialty[]>("/specialties/active");
+  }
+
+  // Notifications
+  async getNotificationsByStaff(staffId: number): Promise<ApiResponse<Notification[]>> {
+    return this.request<Notification[]>(`/notifications/staff/${staffId}`);
+  }
+
+  async getUnreadNotifications(staffId: number): Promise<ApiResponse<Notification[]>> {
+    return this.request<Notification[]>(`/notifications/staff/${staffId}/unread`);
+  }
+
+  async countUnreadNotifications(staffId: number): Promise<ApiResponse<{ count: number }>> {
+    return this.request<{ count: number }>(`/notifications/staff/${staffId}/unread/count`);
+  }
+
+  async markNotificationAsRead(id: number): Promise<ApiResponse<Notification>> {
+    return this.request<Notification>(`/notifications/${id}/read`, { method: "PUT" });
+  }
+
+  async markAllNotificationsAsRead(staffId: number): Promise<ApiResponse<{ status: string }>> {
+    return this.request<{ status: string }>(`/notifications/staff/${staffId}/read-all`, { method: "PUT" });
+  }
+
+  async deleteNotification(id: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/notifications/${id}`, { method: "DELETE" });
+  }
+
+  // Schedule Templates
+  async getAllTemplates(): Promise<ApiResponse<ScheduleTemplate[]>> {
+    return this.request<ScheduleTemplate[]>("/schedule-templates");
+  }
+
+  async getActiveTemplates(): Promise<ApiResponse<ScheduleTemplate[]>> {
+    return this.request<ScheduleTemplate[]>("/schedule-templates/active");
+  }
+
+  async getTemplateById(id: number): Promise<ApiResponse<ScheduleTemplate>> {
+    return this.request<ScheduleTemplate>(`/schedule-templates/${id}`);
+  }
+
+  async createTemplate(data: Partial<ScheduleTemplate>): Promise<ApiResponse<ScheduleTemplate>> {
+    return this.request<ScheduleTemplate>("/schedule-templates", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTemplate(id: number, data: Partial<ScheduleTemplate>): Promise<ApiResponse<ScheduleTemplate>> {
+    return this.request<ScheduleTemplate>(`/schedule-templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteTemplate(id: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/schedule-templates/${id}`, { method: "DELETE" });
+  }
+
+  async applyTemplate(templateId: number, periodId: number): Promise<ApiResponse<{ templateId: number; periodId: number; appliedCount: number }>> {
+    return this.request<{ templateId: number; periodId: number; appliedCount: number }>(
+      `/schedule-templates/${templateId}/apply/${periodId}`,
+      { method: "POST" }
+    );
+  }
+
+  // Audit History
+  async getAllAuditHistory(): Promise<ApiResponse<AuditHistory[]>> {
+    return this.request<AuditHistory[]>("/audit-history");
+  }
+
+  async getAuditHistoryByTableAndRecord(tableName: string, recordId: number): Promise<ApiResponse<AuditHistory[]>> {
+    return this.request<AuditHistory[]>(`/audit-history/table/${tableName}/record/${recordId}`);
+  }
+
+  async getAuditHistoryByUser(userId: number): Promise<ApiResponse<AuditHistory[]>> {
+    return this.request<AuditHistory[]>(`/audit-history/user/${userId}`);
+  }
+
+  async getAuditHistoryByDateRange(startDate: string, endDate: string): Promise<ApiResponse<AuditHistory[]>> {
+    const params = new URLSearchParams({ startDate, endDate });
+    return this.request<AuditHistory[]>(`/audit-history/date-range?${params.toString()}`);
+  }
+}
+
+export const api = new ApiClient();
+export default api;
