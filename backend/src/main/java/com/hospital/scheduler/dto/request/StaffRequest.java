@@ -33,4 +33,7 @@ public class StaffRequest {
     private Integer maxShiftsPerMonth = 5;
     private java.util.List<String> roles;
     private String status;
+
+    private Integer id;
+    private String specialtyName;
 }

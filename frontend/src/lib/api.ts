@@ -27,9 +27,12 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
+
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -79,14 +82,14 @@ export const api = {
   post<T = unknown>(path: string, body?: unknown) {
     return apiFetch<T>(path, {
       method: "POST",
-      body: body != null ? JSON.stringify(body) : undefined,
+      body: body instanceof FormData ? body : (body != null ? JSON.stringify(body) : undefined),
     });
   },
 
   put<T = unknown>(path: string, body?: unknown) {
     return apiFetch<T>(path, {
       method: "PUT",
-      body: body != null ? JSON.stringify(body) : undefined,
+      body: body instanceof FormData ? body : (body != null ? JSON.stringify(body) : undefined),
     });
   },
 
