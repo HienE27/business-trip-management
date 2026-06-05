@@ -215,4 +215,4 @@ Database file: `hospital_scheduler_business_final.sql`
 
 ## Tài liệu gốc
 
-Chi tiết luồng xử lý từng bước, xem file: `QuanLyLichCongTac_v5.txt`
+Chi tiết luồng xử lý từng bước, xem file: `QuanLyLichCongTac_v5.md`, `QuanLyLichCongTac_v5.docx`
