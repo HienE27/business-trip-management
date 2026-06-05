@@ -157,10 +157,10 @@ export const StaffCrudPanel = forwardRef<StaffCrudPanelRef, StaffCrudPanelProps>
     }, [records]);
 
     const downloadTemplate = useCallback(() => {
-      const headers = ["ID", "Username", "Họ tên", "Email", "Số điện thoại", "Chuyên khoa", "Max ca/tháng", "Vai trò", "Trạng thái"];
+      const headers = ["Username", "Họ tên", "Email", "Số điện thoại", "Chuyên khoa", "Max ca/tháng", "Vai trò", "Trạng thái"];
       const rows = [
-        ["", "bacsi_quang", "Nguyễn Văn Quang", "quang.nv@hospital.com", "0901234567", "Bác sĩ", "5", "STAFF, MANAGER", "Đang làm việc"],
-        ["", "dieuduong_linh", "Trần Thị Linh", "linh.tt@hospital.com", "0901234568", "Điều dưỡng", "5", "STAFF", "Nghỉ phép"]
+        ["bacsi_quang", "Nguyễn Văn Quang", "quang.nv@hospital.com", '="0901234567"', "Bác sĩ", "5", "STAFF, MANAGER", "Đang làm việc"],
+        ["dieuduong_linh", "Trần Thị Linh", "linh.tt@hospital.com", '="0901234568"', "Điều dưỡng", "5", "STAFF", "Nghỉ phép"]
       ];
 
       const csvContent = "\uFEFF" + [

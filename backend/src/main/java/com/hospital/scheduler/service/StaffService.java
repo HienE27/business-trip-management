@@ -573,54 +573,105 @@ public class StaffService {
         try (BufferedReader br = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             int lineNum = 0;
+            Map<String, Integer> colMap = new HashMap<>();
             while ((line = br.readLine()) != null) {
                 lineNum++;
                 if (lineNum == 1) {
+                    List<String> headers = parseCsvLine(line);
+                    for (int i = 0; i < headers.size(); i++) {
+                        String h = headers.get(i).trim().toLowerCase();
+                        if (h.startsWith("\uFEFF")) {
+                            h = h.substring(1);
+                        }
+                        colMap.put(h, i);
+                    }
                     continue; // Skip header
                 }
                 if (line.trim().isEmpty()) {
                     continue;
                 }
                 List<String> columns = parseCsvLine(line);
-                while (columns.size() < 9) {
-                    columns.add("");
-                }
 
                 StaffRequest req = new StaffRequest();
-                String idStr = cleanString(columns.get(0));
-                if (!idStr.isEmpty()) {
-                    try {
-                        req.setId(Integer.parseInt(idStr));
-                    } catch (NumberFormatException e) {
-                        errorMessages.add("Dòng " + lineNum + " - Cột ID: ID không đúng định dạng số");
+                Integer idIdx = colMap.get("id");
+                Integer usernameIdx = colMap.get("username");
+                Integer fullNameIdx = colMap.get("họ tên");
+                Integer emailIdx = colMap.get("email");
+                Integer phoneIdx = colMap.get("số điện thoại");
+                Integer specialtyIdx = colMap.get("chuyên khoa");
+                Integer maxShiftsIdx = colMap.get("max ca/tháng");
+                Integer rolesIdx = colMap.get("vai trò");
+                Integer statusIdx = colMap.get("trạng thái");
+
+                if (idIdx != null && idIdx < columns.size()) {
+                    String idStr = cleanString(columns.get(idIdx));
+                    if (!idStr.isEmpty()) {
+                        try {
+                            req.setId(Integer.parseInt(idStr));
+                        } catch (NumberFormatException e) {
+                            errorMessages.add("Dòng " + lineNum + " - Cột ID: ID không đúng định dạng số");
+                        }
                     }
                 }
-                req.setUsername(cleanString(columns.get(1)));
-                req.setFullName(cleanString(columns.get(2)));
-                req.setEmail(cleanString(columns.get(3)));
-                req.setPhone(cleanString(columns.get(4)));
-                req.setSpecialtyName(cleanString(columns.get(5)));
+                if (usernameIdx != null && usernameIdx < columns.size()) {
+                    req.setUsername(cleanString(columns.get(usernameIdx)));
+                } else {
+                    req.setUsername("");
+                }
+                if (fullNameIdx != null && fullNameIdx < columns.size()) {
+                    req.setFullName(cleanString(columns.get(fullNameIdx)));
+                } else {
+                    req.setFullName("");
+                }
+                if (emailIdx != null && emailIdx < columns.size()) {
+                    req.setEmail(cleanString(columns.get(emailIdx)));
+                } else {
+                    req.setEmail("");
+                }
+                if (phoneIdx != null && phoneIdx < columns.size()) {
+                    req.setPhone(cleanString(columns.get(phoneIdx)));
+                } else {
+                    req.setPhone("");
+                }
+                if (specialtyIdx != null && specialtyIdx < columns.size()) {
+                    req.setSpecialtyName(cleanString(columns.get(specialtyIdx)));
+                } else {
+                    req.setSpecialtyName("");
+                }
                 
-                String maxShiftsStr = cleanString(columns.get(6));
-                if (!maxShiftsStr.isEmpty()) {
-                    try {
-                        req.setMaxShiftsPerMonth(Integer.parseInt(maxShiftsStr));
-                    } catch (NumberFormatException e) {
-                        errorMessages.add("Dòng " + lineNum + " - Cột Max ca/tháng: Phải là định dạng số");
+                if (maxShiftsIdx != null && maxShiftsIdx < columns.size()) {
+                    String maxShiftsStr = cleanString(columns.get(maxShiftsIdx));
+                    if (!maxShiftsStr.isEmpty()) {
+                        try {
+                            req.setMaxShiftsPerMonth(Integer.parseInt(maxShiftsStr));
+                        } catch (NumberFormatException e) {
+                            errorMessages.add("Dòng " + lineNum + " - Cột Max ca/tháng: Phải là định dạng số");
+                        }
+                    } else {
+                        req.setMaxShiftsPerMonth(5);
                     }
                 } else {
                     req.setMaxShiftsPerMonth(5);
                 }
 
-                String rolesStr = cleanString(columns.get(7));
-                List<String> rolesList = new ArrayList<>();
-                if (!rolesStr.isEmpty()) {
-                    for (String r : rolesStr.split(",")) {
-                        rolesList.add(r.trim());
+                if (rolesIdx != null && rolesIdx < columns.size()) {
+                    String rolesStr = cleanString(columns.get(rolesIdx));
+                    List<String> rolesList = new ArrayList<>();
+                    if (!rolesStr.isEmpty()) {
+                        for (String r : rolesStr.split(",")) {
+                            rolesList.add(r.trim());
+                        }
                     }
+                    req.setRoles(rolesList);
+                } else {
+                    req.setRoles(new ArrayList<>());
                 }
-                req.setRoles(rolesList);
-                req.setStatus(cleanString(columns.get(8)));
+
+                if (statusIdx != null && statusIdx < columns.size()) {
+                    req.setStatus(cleanString(columns.get(statusIdx)));
+                } else {
+                    req.setStatus("");
+                }
 
                 requests.add(req);
             }
@@ -632,6 +683,19 @@ public class StaffService {
     private void parseExcelFile(MultipartFile file, List<StaffRequest> requests, List<String> errorMessages) {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
+            Row headerRow = sheet.getRow(0);
+            if (headerRow == null) {
+                throw new BadRequestException("Tệp Excel không có dòng tiêu đề");
+            }
+            Map<String, Integer> colMap = new HashMap<>();
+            for (int cellNum = 0; cellNum < headerRow.getLastCellNum(); cellNum++) {
+                Cell cell = headerRow.getCell(cellNum);
+                if (cell != null) {
+                    String h = getCellValueAsString(cell).trim().toLowerCase();
+                    colMap.put(h, cellNum);
+                }
+            }
+
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null || isRowEmpty(row)) {
@@ -640,57 +704,92 @@ public class StaffService {
                 int lineNum = i + 1;
                 StaffRequest req = new StaffRequest();
 
-                // 0: ID
-                String idStr = cleanString(getCellValueAsString(row.getCell(0)));
-                if (!idStr.isEmpty()) {
-                    try {
-                        if (idStr.contains(".")) {
-                            idStr = idStr.substring(0, idStr.indexOf("."));
+                Integer idIdx = colMap.get("id");
+                Integer usernameIdx = colMap.get("username");
+                Integer fullNameIdx = colMap.get("họ tên");
+                Integer emailIdx = colMap.get("email");
+                Integer phoneIdx = colMap.get("số điện thoại");
+                Integer specialtyIdx = colMap.get("chuyên khoa");
+                Integer maxShiftsIdx = colMap.get("max ca/tháng");
+                Integer rolesIdx = colMap.get("vai trò");
+                Integer statusIdx = colMap.get("trạng thái");
+
+                if (idIdx != null) {
+                    String idStr = cleanString(getCellValueAsString(row.getCell(idIdx)));
+                    if (!idStr.isEmpty()) {
+                        try {
+                            if (idStr.contains(".")) {
+                                idStr = idStr.substring(0, idStr.indexOf("."));
+                            }
+                            req.setId(Integer.parseInt(idStr));
+                        } catch (NumberFormatException e) {
+                            errorMessages.add("Dòng " + lineNum + " - Cột ID: ID không đúng định dạng số");
                         }
-                        req.setId(Integer.parseInt(idStr));
-                    } catch (NumberFormatException e) {
-                        errorMessages.add("Dòng " + lineNum + " - Cột ID: ID không đúng định dạng số");
                     }
                 }
 
-                // 1: Username
-                req.setUsername(cleanString(getCellValueAsString(row.getCell(1))));
-                // 2: Họ tên
-                req.setFullName(cleanString(getCellValueAsString(row.getCell(2))));
-                // 3: Email
-                req.setEmail(cleanString(getCellValueAsString(row.getCell(3))));
-                // 4: Số điện thoại
-                req.setPhone(cleanString(getCellValueAsString(row.getCell(4))));
-                // 5: Chuyên khoa
-                req.setSpecialtyName(cleanString(getCellValueAsString(row.getCell(5))));
+                if (usernameIdx != null) {
+                    req.setUsername(cleanString(getCellValueAsString(row.getCell(usernameIdx))));
+                } else {
+                    req.setUsername("");
+                }
+                if (fullNameIdx != null) {
+                    req.setFullName(cleanString(getCellValueAsString(row.getCell(fullNameIdx))));
+                } else {
+                    req.setFullName("");
+                }
+                if (emailIdx != null) {
+                    req.setEmail(cleanString(getCellValueAsString(row.getCell(emailIdx))));
+                } else {
+                    req.setEmail("");
+                }
+                if (phoneIdx != null) {
+                    req.setPhone(cleanString(getCellValueAsString(row.getCell(phoneIdx))));
+                } else {
+                    req.setPhone("");
+                }
+                if (specialtyIdx != null) {
+                    req.setSpecialtyName(cleanString(getCellValueAsString(row.getCell(specialtyIdx))));
+                } else {
+                    req.setSpecialtyName("");
+                }
 
-                // 6: Max ca/tháng
-                String maxShiftsStr = cleanString(getCellValueAsString(row.getCell(6)));
-                if (!maxShiftsStr.isEmpty()) {
-                    try {
-                        if (maxShiftsStr.contains(".")) {
-                            maxShiftsStr = maxShiftsStr.substring(0, maxShiftsStr.indexOf("."));
+                if (maxShiftsIdx != null) {
+                    String maxShiftsStr = cleanString(getCellValueAsString(row.getCell(maxShiftsIdx)));
+                    if (!maxShiftsStr.isEmpty()) {
+                        try {
+                            if (maxShiftsStr.contains(".")) {
+                                maxShiftsStr = maxShiftsStr.substring(0, maxShiftsStr.indexOf("."));
+                            }
+                            req.setMaxShiftsPerMonth(Integer.parseInt(maxShiftsStr));
+                        } catch (NumberFormatException e) {
+                            errorMessages.add("Dòng " + lineNum + " - Cột Max ca/tháng: Phải là định dạng số");
                         }
-                        req.setMaxShiftsPerMonth(Integer.parseInt(maxShiftsStr));
-                    } catch (NumberFormatException e) {
-                        errorMessages.add("Dòng " + lineNum + " - Cột Max ca/tháng: Phải là định dạng số");
+                    } else {
+                        req.setMaxShiftsPerMonth(5);
                     }
                 } else {
                     req.setMaxShiftsPerMonth(5);
                 }
 
-                // 7: Vai trò
-                String rolesStr = cleanString(getCellValueAsString(row.getCell(7)));
-                List<String> rolesList = new ArrayList<>();
-                if (!rolesStr.isEmpty()) {
-                    for (String r : rolesStr.split(",")) {
-                        rolesList.add(r.trim());
+                if (rolesIdx != null) {
+                    String rolesStr = cleanString(getCellValueAsString(row.getCell(rolesIdx)));
+                    List<String> rolesList = new ArrayList<>();
+                    if (!rolesStr.isEmpty()) {
+                        for (String r : rolesStr.split(",")) {
+                            rolesList.add(r.trim());
+                        }
                     }
+                    req.setRoles(rolesList);
+                } else {
+                    req.setRoles(new ArrayList<>());
                 }
-                req.setRoles(rolesList);
 
-                // 8: Trạng thái
-                req.setStatus(cleanString(getCellValueAsString(row.getCell(8))));
+                if (statusIdx != null) {
+                    req.setStatus(cleanString(getCellValueAsString(row.getCell(statusIdx))));
+                } else {
+                    req.setStatus("");
+                }
 
                 requests.add(req);
             }
