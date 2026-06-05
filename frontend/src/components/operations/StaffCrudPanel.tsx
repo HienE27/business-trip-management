@@ -33,6 +33,7 @@ type StaffFormData = {
   email: string;
   specialtyId: number | null;
   maxShiftsPerMonth: number;
+  roles: string[];
 };
 
 const emptyForm: StaffFormData = {
@@ -43,6 +44,7 @@ const emptyForm: StaffFormData = {
   email: "",
   specialtyId: null,
   maxShiftsPerMonth: 5,
+  roles: [],
 };
 
 export function StaffCrudPanel() {
@@ -54,6 +56,9 @@ export function StaffCrudPanel() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const [specialties, setSpecialties] = useState<SpecialtyInfo[]>([]);
 
   // ── Fetch staff list ──────────────────────────────────────
   const fetchStaff = useCallback(async () => {
@@ -69,10 +74,19 @@ export function StaffCrudPanel() {
     }
   }, []);
 
+  const fetchSpecialties = useCallback(async () => {
+    try {
+      const data = await api.get<SpecialtyInfo[]>("/specialties");
+      setSpecialties(data ?? []);
+    } catch (err) {
+      console.error("Không thể tải danh sách chuyên khoa:", err);
+    }
+  }, []);
+
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchStaff();
-  }, [fetchStaff]);
+    fetchSpecialties();
+  }, [fetchStaff, fetchSpecialties]);
 
   // ── Summary cards ─────────────────────────────────────────
   const summary = useMemo(
@@ -112,16 +126,51 @@ export function StaffCrudPanel() {
     }
   }
 
-  function updateField(field: keyof StaffFormData, value: string | number | null) {
+  function updateField<K extends keyof StaffFormData>(field: K, value: StaffFormData[K]) {
     setForm((current) => ({ ...current, [field]: value }));
+    if (fieldErrors[field]) {
+      setFieldErrors((current) => {
+        const next = { ...current };
+        delete next[field];
+        return next;
+      });
+    }
   }
 
   // ── Create / Update ───────────────────────────────────────
   async function submitStaff(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setFieldErrors({});
 
-    if (!form.fullName.trim() || !form.username.trim()) {
-      showMessage("Cần nhập họ tên và tên đăng nhập.", "error");
+    // Client-side validations
+    const errors: Record<string, string> = {};
+    if (!form.username.trim()) {
+      errors.username = "Username không được để trống";
+    }
+    if (!form.fullName.trim()) {
+      errors.fullName = "Họ tên không được để trống";
+    }
+    if (editingId === null && !form.password.trim()) {
+      errors.password = "Mật khẩu không được để trống";
+    } else if (form.password.trim() && form.password.length < 6) {
+      errors.password = "Mật khẩu phải từ 6 ký tự trở lên";
+    }
+    if (form.phone.trim() && !/^[0-9]{10,11}$/.test(form.phone.trim())) {
+      errors.phone = "Số điện thoại phải từ 10 đến 11 chữ số";
+    }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      errors.email = "Email không đúng định dạng";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      if (errors.username === "Username không được để trống" || 
+          errors.fullName === "Họ tên không được để trống" || 
+          errors.password === "Mật khẩu không được để trống") {
+        showMessage("Vui lòng nhập đầy đủ thông tin", "error");
+      } else {
+        showMessage("Vui lòng kiểm tra và sửa các trường lỗi màu đỏ.", "error");
+      }
       return;
     }
 
@@ -136,18 +185,22 @@ export function StaffCrudPanel() {
         await api.put(`/staff/${editingId}`, body);
         showMessage(`Đã cập nhật ${form.fullName}.`, "success");
       } else {
-        if (!form.password.trim()) {
-          showMessage("Cần nhập mật khẩu khi thêm mới.", "error");
-          return;
-        }
         await api.post("/staff", form);
         showMessage(`Đã thêm ${form.fullName}.`, "success");
       }
       setForm(emptyForm);
       setEditingId(null);
+      setFieldErrors({});
       await fetchStaff();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : "Lỗi lưu nhân sự", "error");
+      if (err instanceof Error) {
+        if ("fieldErrors" in err && err.fieldErrors) {
+          setFieldErrors(err.fieldErrors as Record<string, string>);
+        }
+        showMessage(err.message, "error");
+      } else {
+        showMessage("Lỗi lưu nhân sự", "error");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -163,8 +216,10 @@ export function StaffCrudPanel() {
       email: record.email ?? "",
       specialtyId: record.specialty?.id ?? null,
       maxShiftsPerMonth: record.maxShiftsPerMonth ?? 5,
+      roles: record.roles ?? [],
     });
     setEditingId(record.id);
+    setFieldErrors({});
     showMessage(`Đang sửa ${record.fullName}.`, "info");
   }
 
@@ -318,9 +373,18 @@ export function StaffCrudPanel() {
         >
           <form className="space-y-3 p-4" onSubmit={submitStaff}>
             <label className="block">
-              <span className="text-xs font-medium text-slate-500">Username</span>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-slate-500">Username</span>
+                {fieldErrors.username && (
+                  <span className="text-[10px] font-semibold text-rose-600">{fieldErrors.username}</span>
+                )}
+              </div>
               <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
+                className={`mt-1 h-9 w-full rounded-md border bg-white px-3 text-sm outline-none transition-colors ${
+                  fieldErrors.username 
+                    ? "border-rose-400 focus:border-rose-500 bg-rose-50/10" 
+                    : "border-slate-200 focus:border-slate-400"
+                }`}
                 id="staff-field-username"
                 onChange={(e) => updateField("username", e.target.value)}
                 value={form.username}
@@ -328,9 +392,18 @@ export function StaffCrudPanel() {
             </label>
 
             <label className="block">
-              <span className="text-xs font-medium text-slate-500">Họ tên</span>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-slate-500">Họ tên</span>
+                {fieldErrors.fullName && (
+                  <span className="text-[10px] font-semibold text-rose-600">{fieldErrors.fullName}</span>
+                )}
+              </div>
               <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
+                className={`mt-1 h-9 w-full rounded-md border bg-white px-3 text-sm outline-none transition-colors ${
+                  fieldErrors.fullName 
+                    ? "border-rose-400 focus:border-rose-500 bg-rose-50/10" 
+                    : "border-slate-200 focus:border-slate-400"
+                }`}
                 id="staff-field-fullName"
                 onChange={(e) => updateField("fullName", e.target.value)}
                 value={form.fullName}
@@ -338,11 +411,20 @@ export function StaffCrudPanel() {
             </label>
 
             <label className="block">
-              <span className="text-xs font-medium text-slate-500">
-                {editingId !== null ? "Mật khẩu mới (để trống = không đổi)" : "Mật khẩu"}
-              </span>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-slate-500">
+                  {editingId !== null ? "Mật khẩu mới (để trống = không đổi)" : "Mật khẩu"}
+                </span>
+                {fieldErrors.password && (
+                  <span className="text-[10px] font-semibold text-rose-600">{fieldErrors.password}</span>
+                )}
+              </div>
               <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
+                className={`mt-1 h-9 w-full rounded-md border bg-white px-3 text-sm outline-none transition-colors ${
+                  fieldErrors.password 
+                    ? "border-rose-400 focus:border-rose-500 bg-rose-50/10" 
+                    : "border-slate-200 focus:border-slate-400"
+                }`}
                 id="staff-field-password"
                 onChange={(e) => updateField("password", e.target.value)}
                 type="password"
@@ -351,9 +433,18 @@ export function StaffCrudPanel() {
             </label>
 
             <label className="block">
-              <span className="text-xs font-medium text-slate-500">Email</span>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-slate-500">Email</span>
+                {fieldErrors.email && (
+                  <span className="text-[10px] font-semibold text-rose-600">{fieldErrors.email}</span>
+                )}
+              </div>
               <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
+                className={`mt-1 h-9 w-full rounded-md border bg-white px-3 text-sm outline-none transition-colors ${
+                  fieldErrors.email 
+                    ? "border-rose-400 focus:border-rose-500 bg-rose-50/10" 
+                    : "border-slate-200 focus:border-slate-400"
+                }`}
                 id="staff-field-email"
                 onChange={(e) => updateField("email", e.target.value)}
                 type="email"
@@ -362,19 +453,67 @@ export function StaffCrudPanel() {
             </label>
 
             <label className="block">
-              <span className="text-xs font-medium text-slate-500">Số điện thoại</span>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-slate-500">Số điện thoại (10 - 11 chữ số)</span>
+                {fieldErrors.phone && (
+                  <span className="text-[10px] font-semibold text-rose-600">{fieldErrors.phone}</span>
+                )}
+              </div>
               <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
+                className={`mt-1 h-9 w-full rounded-md border bg-white px-3 text-sm outline-none transition-colors ${
+                  fieldErrors.phone 
+                    ? "border-rose-400 focus:border-rose-500 bg-rose-50/10" 
+                    : "border-slate-200 focus:border-slate-400"
+                }`}
                 id="staff-field-phone"
                 onChange={(e) => updateField("phone", e.target.value)}
+                placeholder="Ví dụ: 0901234567"
                 value={form.phone}
               />
             </label>
 
             <label className="block">
-              <span className="text-xs font-medium text-slate-500">Max ca / tháng</span>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-slate-500">Chuyên khoa</span>
+                {fieldErrors.specialtyId && (
+                  <span className="text-[10px] font-semibold text-rose-600">{fieldErrors.specialtyId}</span>
+                )}
+              </div>
+              <select
+                className={`mt-1 h-9 w-full rounded-md border bg-white px-3 text-sm outline-none transition-colors ${
+                  fieldErrors.specialtyId 
+                    ? "border-rose-400 focus:border-rose-500 bg-rose-50/10" 
+                    : "border-slate-200 focus:border-slate-400"
+                }`}
+                id="staff-field-specialty"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateField("specialtyId", val ? parseInt(val) : null);
+                }}
+                value={form.specialtyId ?? ""}
+              >
+                <option value="">-- Chọn chuyên khoa --</option>
+                {specialties.map((spec) => (
+                  <option key={spec.id} value={spec.id}>
+                    {spec.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-slate-500">Max ca / tháng</span>
+                {fieldErrors.maxShiftsPerMonth && (
+                  <span className="text-[10px] font-semibold text-rose-600">{fieldErrors.maxShiftsPerMonth}</span>
+                )}
+              </div>
               <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
+                className={`mt-1 h-9 w-full rounded-md border bg-white px-3 text-sm outline-none transition-colors ${
+                  fieldErrors.maxShiftsPerMonth 
+                    ? "border-rose-400 focus:border-rose-500 bg-rose-50/10" 
+                    : "border-slate-200 focus:border-slate-400"
+                }`}
                 id="staff-field-maxShifts"
                 min={1}
                 onChange={(e) => updateField("maxShiftsPerMonth", parseInt(e.target.value) || 5)}
@@ -383,10 +522,38 @@ export function StaffCrudPanel() {
               />
             </label>
 
+            <div className="block">
+              <span className="text-xs font-medium text-slate-500">Vai trò</span>
+              <div className="mt-2 flex flex-wrap gap-4">
+                {["ADMIN", "MANAGER", "STAFF"].map((role) => (
+                  <label className="inline-flex items-center gap-2 text-sm font-normal text-slate-600 cursor-pointer" key={role}>
+                    <input
+                      checked={form.roles?.includes(role) ?? false}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        let updatedRoles: string[];
+                        if (role === "STAFF") {
+                          updatedRoles = checked ? ["STAFF"] : [];
+                        } else {
+                          updatedRoles = checked
+                            ? [...(form.roles ?? []).filter((r) => r !== "STAFF"), role]
+                            : (form.roles ?? []).filter((r) => r !== role);
+                        }
+                        updateField("roles", updatedRoles);
+                      }}
+                      type="checkbox"
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 size-4 cursor-pointer"
+                    />
+                    <span>{role}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Message */}
             {message ? (
               <p
-                className={`rounded-md border px-3 py-2 text-sm ${
+                className={`rounded-md border px-3 py-2 text-sm whitespace-pre-line ${
                   messageType === "error"
                     ? "border-rose-200 bg-rose-50 text-rose-700"
                     : messageType === "success"
@@ -415,6 +582,7 @@ export function StaffCrudPanel() {
                   setEditingId(null);
                   setForm(emptyForm);
                   setMessage("");
+                  setFieldErrors({});
                 }}
                 type="button"
               >

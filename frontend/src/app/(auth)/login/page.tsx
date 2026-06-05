@@ -19,6 +19,7 @@ export default function LoginPage() {
 
     try {
       await login(username, password);
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đăng nhập thất bại");
     } finally {
@@ -27,9 +28,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div 
+      className="min-h-screen w-full flex items-center justify-center bg-cover bg-center p-4 relative"
+      style={{ backgroundImage: "url('/background.jpg')" }}
+    >
+      {/* Dark overlay with blur for readability and premium feel */}
+      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[3px] z-0"></div>
+
+      <div className="w-full max-w-md relative z-10">
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-8 text-center">
             <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4">

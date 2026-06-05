@@ -19,7 +19,6 @@ public class StaffRequest {
     @Size(max = 100, message = "Họ tên không quá 100 ký tự")
     private String fullName;
 
-    @NotBlank(message = "Password không được để trống")
     @Size(min = 6, message = "Password phải có ít nhất 6 ký tự")
     private String password;
 
@@ -32,4 +31,5 @@ public class StaffRequest {
     private Integer specialtyId;
     @Builder.Default
     private Integer maxShiftsPerMonth = 5;
+    private java.util.List<String> roles;
 }

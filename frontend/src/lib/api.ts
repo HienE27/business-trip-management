@@ -47,6 +47,14 @@ export async function apiFetch<T = unknown>(
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
+    if (errorBody && errorBody.fieldErrors && typeof errorBody.fieldErrors === "object") {
+      const fieldMsgs = Object.entries(errorBody.fieldErrors)
+        .map(([_, msg]) => `• ${msg}`)
+        .join("\n");
+      const err = new Error(`Thông tin nhập chưa hợp lệ:\n${fieldMsgs}`);
+      (err as any).fieldErrors = errorBody.fieldErrors;
+      throw err;
+    }
     throw new Error(
       errorBody?.message ?? `Request failed: ${response.status} ${response.statusText}`,
     );

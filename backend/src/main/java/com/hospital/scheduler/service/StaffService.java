@@ -8,6 +8,7 @@ import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.entity.StaffRole;
+import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.AppRoleRepository;
@@ -66,6 +67,9 @@ public class StaffService {
     }
 
     public StaffResponse createStaff(StaffRequest request, List<String> roles) {
+        if (request.getPassword() == null || request.getPassword().isBlank()) {
+            throw new BadRequestException("Password không được để trống");
+        }
         if (staffRepository.existsByUsername(request.getUsername())) {
             throw new ConflictException("Username '" + request.getUsername() + "' đã tồn tại");
         }
@@ -149,6 +153,20 @@ public class StaffService {
         if (request.getSpecialtyId() != null) {
             Specialty specialty = specialtyRepository.findById(request.getSpecialtyId()).orElse(null);
             staff.setSpecialty(specialty);
+        }
+
+        // Update roles
+        if (request.getRoles() != null) {
+            staff.getStaffRoles().clear();
+            for (String roleName : request.getRoles()) {
+                AppRole role = appRoleRepository.findByName(roleName)
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy role: " + roleName));
+                StaffRole sr = StaffRole.builder()
+                        .staffId(staff.getId())
+                        .roleId(role.getId())
+                        .build();
+                staff.getStaffRoles().add(sr);
+            }
         }
 
         Staff saved = staffRepository.save(staff);

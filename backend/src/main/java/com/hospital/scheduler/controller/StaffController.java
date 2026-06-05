@@ -74,7 +74,11 @@ public class StaffController {
     public ResponseEntity<ApiResponse<StaffResponse>> createStaff(
             @Valid @RequestBody StaffRequest request,
             @RequestParam(required = false) List<String> roles) {
-        StaffResponse created = staffService.createStaff(request, roles);
+        List<String> finalRoles = roles;
+        if (finalRoles == null || finalRoles.isEmpty()) {
+            finalRoles = request.getRoles();
+        }
+        StaffResponse created = staffService.createStaff(request, finalRoles);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(created, "Tạo nhân sự thành công"));
     }
 

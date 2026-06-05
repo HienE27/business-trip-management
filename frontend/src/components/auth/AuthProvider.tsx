@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 
 type AuthUser = {
   username: string;
@@ -37,6 +38,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [token, setToken] = useState<string | null>(() =>
     typeof window === "undefined" ? null : window.localStorage.getItem("medschedule.token"),
   );
@@ -81,7 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.localStorage.removeItem("medschedule.user");
     setToken(null);
     setUser(null);
-  }, []);
+    router.push("/login");
+  }, [router]);
 
   const value = useMemo(
     () => ({
