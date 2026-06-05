@@ -57,7 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!response.ok) {
-      throw new Error("Đăng nhập thất bại. Kiểm tra backend hoặc tài khoản.");
+      const errorBody = await response.json().catch(() => null);
+      throw new Error(errorBody?.message ?? "Đăng nhập thất bại. Kiểm tra backend hoặc tài khoản.");
     }
 
     const payload = (await response.json()) as LoginResponse;

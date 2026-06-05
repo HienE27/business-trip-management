@@ -64,7 +64,7 @@ public class GlobalExceptionHandler {
                         .timestamp(LocalDateTime.now())
                         .status(HttpStatus.UNAUTHORIZED.value())
                         .error("Unauthorized")
-                        .message("Invalid username or password")
+                        .message(ex.getMessage())
                         .path(request.getRequestURI())
                         .build());
     }
