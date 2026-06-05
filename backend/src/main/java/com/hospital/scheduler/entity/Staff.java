@@ -51,6 +51,10 @@ public class Staff {
     @Builder.Default
     private Boolean isActive = true;
 
+    @Column(name = "status", nullable = false, length = 50)
+    @Builder.Default
+    private String status = "ACTIVE";
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

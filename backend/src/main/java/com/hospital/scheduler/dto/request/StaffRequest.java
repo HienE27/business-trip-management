@@ -32,4 +32,5 @@ public class StaffRequest {
     @Builder.Default
     private Integer maxShiftsPerMonth = 5;
     private java.util.List<String> roles;
+    private String status;
 }

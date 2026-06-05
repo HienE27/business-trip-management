@@ -9,6 +9,8 @@ type DashboardShellProps = {
   description: string;
   primaryAction?: string;
   secondaryAction?: string;
+  onPrimaryAction?: () => void;
+  onSecondaryAction?: () => void;
   children: ReactNode;
 };
 
@@ -18,6 +20,8 @@ export function DashboardShell({
   description,
   primaryAction,
   secondaryAction,
+  onPrimaryAction,
+  onSecondaryAction,
   children,
 }: DashboardShellProps) {
   return (
@@ -29,6 +33,8 @@ export function DashboardShell({
             description={description}
             primaryAction={primaryAction}
             secondaryAction={secondaryAction}
+            onPrimaryAction={onPrimaryAction}
+            onSecondaryAction={onSecondaryAction}
             title={title}
           />
           {children}

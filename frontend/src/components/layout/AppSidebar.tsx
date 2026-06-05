@@ -14,7 +14,7 @@ export function AppSidebar({ items }: AppSidebarProps) {
   const [showConfirm, setShowConfirm] = useState(false);
 
   return (
-    <aside className="border-r border-slate-200 bg-[#111418] text-white max-lg:hidden flex flex-col h-screen sticky top-0 justify-between">
+    <aside className="border-r border-slate-200 bg-[#111418] text-white max-lg:hidden flex flex-col h-screen sticky top-0 justify-between z-30">
       <div>
         <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
           <div className="grid size-9 place-items-center rounded-md bg-white text-sm font-bold text-slate-950">

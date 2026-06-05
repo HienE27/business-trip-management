@@ -54,14 +54,9 @@ public class StaffService {
 
     public List<StaffResponse> searchStaffs(StaffSearchRequest request) {
         String keyword = (request.getKeyword() != null && !request.getKeyword().isBlank()) ? request.getKeyword() : null;
-        Boolean isActive = null;
-        if ("active".equalsIgnoreCase(request.getStatus())) {
-            isActive = true;
-        } else if ("inactive".equalsIgnoreCase(request.getStatus())) {
-            isActive = false;
-        }
+        String status = (request.getStatus() != null && !request.getStatus().isBlank()) ? request.getStatus().toUpperCase() : null;
 
-        return staffRepository.searchStaffs(keyword, request.getSpecialtyId(), isActive).stream()
+        return staffRepository.searchStaffs(keyword, request.getSpecialtyId(), status).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -82,6 +77,9 @@ public class StaffService {
             specialty = specialtyRepository.findById(request.getSpecialtyId()).orElse(null);
         }
 
+        String status = request.getStatus() != null ? request.getStatus() : "ACTIVE";
+        boolean isActive = !"INACTIVE".equalsIgnoreCase(status);
+
         Staff staff = Staff.builder()
                 .username(request.getUsername())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
@@ -90,7 +88,8 @@ public class StaffService {
                 .email(request.getEmail())
                 .specialty(specialty)
                 .maxShiftsPerMonth(request.getMaxShiftsPerMonth() != null ? request.getMaxShiftsPerMonth() : 5)
-                .isActive(true)
+                .isActive(isActive)
+                .status(status)
                 .staffRoles(new HashSet<>())
                 .build();
 
@@ -138,6 +137,8 @@ public class StaffService {
                 .email(staff.getEmail())
                 .maxShiftsPerMonth(staff.getMaxShiftsPerMonth())
                 .specialty(staff.getSpecialty())
+                .isActive(staff.getIsActive())
+                .status(staff.getStatus())
                 .build();
 
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
@@ -155,15 +156,40 @@ public class StaffService {
             staff.setSpecialty(specialty);
         }
 
+        if (request.getStatus() != null) {
+            staff.setStatus(request.getStatus());
+            staff.setIsActive(!"INACTIVE".equalsIgnoreCase(request.getStatus()));
+        }
+
         // Update roles
         if (request.getRoles() != null) {
-            staff.getStaffRoles().clear();
+            List<AppRole> targetRoles = new java.util.ArrayList<>();
             for (String roleName : request.getRoles()) {
                 AppRole role = appRoleRepository.findByName(roleName)
                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy role: " + roleName));
+                targetRoles.add(role);
+            }
+
+            // Identify roles to remove
+            List<StaffRole> toRemove = staff.getStaffRoles().stream()
+                    .filter(sr -> targetRoles.stream().noneMatch(tr -> tr.getId().equals(sr.getRoleId())))
+                    .collect(Collectors.toList());
+
+            // Identify role IDs to add
+            List<AppRole> toAdd = targetRoles.stream()
+                    .filter(tr -> staff.getStaffRoles().stream().noneMatch(sr -> sr.getRoleId().equals(tr.getId())))
+                    .collect(Collectors.toList());
+
+            // Apply removals
+            staff.getStaffRoles().removeAll(toRemove);
+
+            // Apply additions
+            for (AppRole role : toAdd) {
                 StaffRole sr = StaffRole.builder()
                         .staffId(staff.getId())
                         .roleId(role.getId())
+                        .staff(staff)
+                        .role(role)
                         .build();
                 staff.getStaffRoles().add(sr);
             }
@@ -184,9 +210,12 @@ public class StaffService {
                 .username(staff.getUsername())
                 .fullName(staff.getFullName())
                 .isActive(staff.getIsActive())
+                .status(staff.getStatus())
                 .build();
 
         staff.setIsActive(false);
+        staff.setStatus("INACTIVE");
+        staff.setUpdatedAt(java.time.LocalDateTime.now());
         staffRepository.save(staff);
 
         auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, staff, null);
@@ -221,6 +250,7 @@ public class StaffService {
                 .specialty(specialtyResp)
                 .maxShiftsPerMonth(staff.getMaxShiftsPerMonth())
                 .isActive(staff.getIsActive())
+                .status(staff.getStatus())
                 .createdAt(staff.getCreatedAt())
                 .updatedAt(staff.getUpdatedAt())
                 .roles(roleNames)

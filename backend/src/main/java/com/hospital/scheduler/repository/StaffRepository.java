@@ -24,8 +24,8 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
            "WHERE (:keyword IS NULL OR LOWER(s.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "OR LOWER(s.username) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:specialtyId IS NULL OR s.specialty.id = :specialtyId) " +
-           "AND (:isActive IS NULL OR s.isActive = :isActive)")
+           "AND (:status IS NULL OR s.status = :status)")
     List<Staff> searchStaffs(@Param("keyword") String keyword,
                               @Param("specialtyId") Integer specialtyId,
-                              @Param("isActive") Boolean isActive);
+                              @Param("status") String status);
 }
