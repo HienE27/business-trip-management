@@ -322,14 +322,17 @@ export interface AuditHistory {
 // Conflict Types
 // ============================================================
 export interface ConflictCheckResponse {
+  periodId: number;
   hasConflicts: boolean;
-  conflicts: ScheduleConflict[];
+  totalConflicts: number;
+  conflicts: ConflictDetail[];
 }
 
-export interface ScheduleConflict {
-  id: number;
+export interface ConflictDetail {
   scheduleId: number;
-  conflictType: string;
-  conflictDescription: string;
-  relatedScheduleId?: number;
+  staffName: string;
+  workDate: string;
+  shiftTypeId: string;
+  shiftTypeName: string;
+  conflictReasons: string[];
 }
