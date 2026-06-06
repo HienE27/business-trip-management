@@ -1,12 +1,13 @@
-import type { StaffScheduleRow } from "@/types/schedule";
+import type { StaffScheduleRow, CalendarAssignment } from "@/types/schedule";
 import { toneStyles } from "./tone-styles";
 
 type ScheduleMatrixProps = {
   staff: string[];
   rows: StaffScheduleRow[];
+  onCellClick?: (staffName: string, dateStr: string, assignment: CalendarAssignment) => void;
 };
 
-export function ScheduleMatrix({ staff, rows }: ScheduleMatrixProps) {
+export function ScheduleMatrix({ staff, rows, onCellClick }: ScheduleMatrixProps) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
       <div className="flex h-14 items-center justify-between border-b border-slate-200 px-4">
@@ -40,13 +41,20 @@ export function ScheduleMatrix({ staff, rows }: ScheduleMatrixProps) {
                 </td>
                 {staff.map((name) => {
                   const assignment = row.assignments[name];
+                  const hasValidScheduleId = assignment && assignment.scheduleId !== undefined && assignment.scheduleId !== null;
+                  const isClickable = !!onCellClick && hasValidScheduleId;
 
                   return (
                     <td className="px-3" key={name}>
                       <span
+                        onClick={() => {
+                          if (isClickable && row.dateStr) {
+                            onCellClick(name, row.dateStr, assignment);
+                          }
+                        }}
                         className={`inline-flex h-7 items-center rounded-md border px-2 text-xs font-medium ${
                           toneStyles[assignment.tone]
-                        }`}
+                        } ${isClickable ? "cursor-pointer hover:opacity-80 transition-opacity ring-1 ring-slate-900/10 hover:ring-slate-950/20" : ""}`}
                       >
                         {assignment.locked ? "Khóa: " : ""}
                         {assignment.label}
