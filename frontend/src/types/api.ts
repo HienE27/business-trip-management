@@ -207,6 +207,30 @@ export interface ScheduleExchange {
   updatedAt: string;
 }
 
+export interface ScheduleExchangeResponse {
+  id: number;
+  periodId: number;
+  requester: { id: number; fullName: string };
+  target: { id: number; fullName: string };
+  requesterSchedule: {
+    id: number;
+    workDate: string;
+    shiftType: { id: string; name: string };
+  };
+  targetSchedule: {
+    id: number;
+    workDate: string;
+    shiftType: { id: string; name: string };
+  };
+  reason?: string;
+  status: ExchangeStatus;
+  reviewedBy?: { id: number; fullName: string };
+  reviewedAt?: string;
+  reviewNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ScheduleExchangeCreate {
   targetStaffId: number;
   requesterScheduleId: number;
