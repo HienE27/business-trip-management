@@ -74,8 +74,12 @@ public class AuditHistoryService {
         }
         try {
             return objectMapper.writeValueAsString(data);
-        } catch (JsonProcessingException e) {
-            return data.toString();
+        } catch (Exception e) {
+            try {
+                return objectMapper.writeValueAsString("Serialization error: " + e.getMessage());
+            } catch (Exception ex) {
+                return "\"Serialization failed completely\"";
+            }
         }
     }
 }

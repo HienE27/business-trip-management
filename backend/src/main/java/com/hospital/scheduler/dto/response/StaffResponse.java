@@ -18,6 +18,7 @@ public class StaffResponse {
     private SpecialtyResponse specialty;
     private Integer maxShiftsPerMonth;
     private Boolean isActive;
+    private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<String> roles;

@@ -16,8 +16,7 @@ import type {
   ScheduleExchange,
   ScheduleExchangeCreate,
   AutoScheduleRequest,
-  AutoScheduleResponse,
-  AutoSchedulePreview,
+  AutoScheduleResult,
   AlgorithmMetrics,
   ShiftRequirement,
   Specialty,
@@ -358,15 +357,15 @@ class ApiClient {
   }
 
   // Auto Schedule
-  async previewAutoSchedule(data: AutoScheduleRequest): Promise<ApiResponse<AutoSchedulePreview>> {
-    return this.request<AutoSchedulePreview>("/auto-schedule/preview", {
+  async previewAutoSchedule(data: AutoScheduleRequest): Promise<ApiResponse<AutoScheduleResult>> {
+    return this.request<AutoScheduleResult>("/auto-schedule/preview", {
       method: "POST",
       body: JSON.stringify(data),
     });
   }
 
-  async runAutoSchedule(data: AutoScheduleRequest): Promise<ApiResponse<AutoScheduleResponse>> {
-    return this.request<AutoScheduleResponse>("/auto-schedule", {
+  async runAutoSchedule(data: AutoScheduleRequest): Promise<ApiResponse<AutoScheduleResult>> {
+    return this.request<AutoScheduleResult>("/auto-schedule", {
       method: "POST",
       body: JSON.stringify(data),
     });

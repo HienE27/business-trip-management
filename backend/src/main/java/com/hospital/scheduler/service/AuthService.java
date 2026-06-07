@@ -27,12 +27,12 @@ public class AuthService {
         Staff staff = staffRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new BadCredentialsException("Tên đăng nhập hoặc mật khẩu không đúng"));
 
-        if (!passwordEncoder.matches(request.getPassword(), staff.getPasswordHash())) {
-            throw new BadCredentialsException("Tên đăng nhập hoặc mật khẩu không đúng");
+        if (!staff.getIsActive()) {
+            throw new BadCredentialsException("Tài khoản của bạn đã bị vô hiệu hóa");
         }
 
-        if (!staff.getIsActive()) {
-            throw new BadCredentialsException("Tài khoản đã bị vô hiệu hóa");
+        if (!passwordEncoder.matches(request.getPassword(), staff.getPasswordHash())) {
+            throw new BadCredentialsException("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
         List<String> roles = staff.getStaffRoles().stream()

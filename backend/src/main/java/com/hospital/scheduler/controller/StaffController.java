@@ -16,6 +16,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/staff")
@@ -74,7 +77,11 @@ public class StaffController {
     public ResponseEntity<ApiResponse<StaffResponse>> createStaff(
             @Valid @RequestBody StaffRequest request,
             @RequestParam(required = false) List<String> roles) {
-        StaffResponse created = staffService.createStaff(request, roles);
+        List<String> finalRoles = roles;
+        if (finalRoles == null || finalRoles.isEmpty()) {
+            finalRoles = request.getRoles();
+        }
+        StaffResponse created = staffService.createStaff(request, finalRoles);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(created, "Tạo nhân sự thành công"));
     }
 
@@ -93,5 +100,14 @@ public class StaffController {
     public ResponseEntity<ApiResponse<Void>> deleteStaff(@PathVariable Integer id) {
         staffService.deleteStaff(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa nhân sự thành công"));
+    }
+
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Nhập danh sách nhân sự từ Excel hoặc CSV")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> importStaffs(
+            @RequestParam("file") MultipartFile file) {
+        Map<String, Object> result = staffService.importStaffs(file);
+        return ResponseEntity.ok(ApiResponse.success(result, (String) result.get("message")));
     }
 }

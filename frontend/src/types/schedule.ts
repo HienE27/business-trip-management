@@ -57,12 +57,15 @@ export type StaffScheduleRow = {
   day: string;
   weekday: string;
   assignments: Record<string, CalendarAssignment>;
+  dateStr?: string;
 };
 
 export type CalendarAssignment = {
   label: string;
   tone: ScheduleTone;
   locked?: boolean;
+  scheduleId?: number | null;
+  shiftTypeId?: string;
 };
 
 export type ConflictItem = {

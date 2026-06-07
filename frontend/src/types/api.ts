@@ -207,6 +207,30 @@ export interface ScheduleExchange {
   updatedAt: string;
 }
 
+export interface ScheduleExchangeResponse {
+  id: number;
+  periodId: number;
+  requester: { id: number; fullName: string };
+  target: { id: number; fullName: string };
+  requesterSchedule: {
+    id: number;
+    workDate: string;
+    shiftType: { id: string; name: string };
+  };
+  targetSchedule: {
+    id: number;
+    workDate: string;
+    shiftType: { id: string; name: string };
+  };
+  reason?: string;
+  status: ExchangeStatus;
+  reviewedBy?: { id: number; fullName: string };
+  reviewedAt?: string;
+  reviewNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ScheduleExchangeCreate {
   targetStaffId: number;
   requesterScheduleId: number;
@@ -224,22 +248,68 @@ export interface AutoScheduleRequest {
   autoAssign?: boolean;
 }
 
-export interface AutoSchedulePreview {
-  proposedSchedules: Schedule[];
-  unassignedDays: string[];
-  conflictWarnings: string[];
-  coverageRate: number;
-  balanceScore: number;
+export interface AutoScheduleSummary {
+  scheduleId: number | null;
+  staffId: number;
+  staffName: string;
+  workDate: string;
+  shiftTypeId: string;
+  shiftTypeName: string;
 }
 
-export interface AutoScheduleResponse {
-  scheduleCount: number;
-  unassignedDays: string[];
-  conflictCount: number;
+export interface AutoScheduleResult {
+  success: boolean;
+  message: string;
+  periodId: number;
+  algorithmType: string;
   executionTimeMs: number;
   coverageRate: number;
   balanceScore: number;
-  schedules?: Schedule[];
+  conflictCount: number;
+  totalSchedulesCreated: number;
+  schedules: AutoScheduleSummary[];
+  executedAt: string;
+}
+
+export interface UnassignedDayItem {
+  workDate: string;
+  dayOfWeek: string;
+  shiftTypeId: string;
+  shiftTypeName: string;
+  specialty: string | null;
+  requiredStaffCount: number;
+  assignedStaffCount: number;
+  missingCount: number;
+}
+
+export interface UnassignedDayReport {
+  periodId: number;
+  periodName: string;
+  startDate: string;
+  endDate: string;
+  totalUnassignedDays: number;
+  unassignedDays: UnassignedDayItem[];
+}
+
+export interface ReplacementCandidate {
+  staffId: number;
+  staffName: string;
+  specialty: string | null;
+  currentWorkload: number;
+  conflicts: string[];
+  isAvailable: boolean;
+}
+
+export interface ReplacementSuggestion {
+  originalScheduleId: number;
+  originalStaffId: number;
+  originalStaffName: string;
+  workDate: string;
+  shiftTypeId: string;
+  shiftTypeName: string;
+  totalCandidates: number;
+  availableCount: number;
+  suggestions: ReplacementCandidate[];
 }
 
 export interface AlgorithmMetrics {
@@ -322,14 +392,17 @@ export interface AuditHistory {
 // Conflict Types
 // ============================================================
 export interface ConflictCheckResponse {
+  periodId: number;
   hasConflicts: boolean;
-  conflicts: ScheduleConflict[];
+  totalConflicts: number;
+  conflicts: ConflictDetail[];
 }
 
-export interface ScheduleConflict {
-  id: number;
+export interface ConflictDetail {
   scheduleId: number;
-  conflictType: string;
-  conflictDescription: string;
-  relatedScheduleId?: number;
+  staffName: string;
+  workDate: string;
+  shiftTypeId: string;
+  shiftTypeName: string;
+  conflictReasons: string[];
 }
