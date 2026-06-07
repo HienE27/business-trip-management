@@ -1,21 +1,29 @@
 import type {
+  AllocationStat,
   ConflictItem,
   Metric,
   NavigationItem,
   ScheduleModule,
   StaffLoad,
   StaffScheduleRow,
+  SwapRequest,
   WorkflowStep,
 } from "@/types/schedule";
 
 const baseNavigationItems: NavigationItem[] = [
-  { label: "Tổng quan", code: "M06", href: "/" },
-  { label: "Nhân sự", code: "M01", href: "/staff" },
-  { label: "Trực 24/24", code: "M02", href: "/duty-24" },
-  { label: "Thông tầm", code: "M03", href: "/all-day" },
-  { label: "PK dịch vụ", code: "M04", href: "/service-clinic" },
-  { label: "PK chuyên gia", code: "M05", href: "/expert-clinic" },
-  { label: "Tự động xếp", code: "M07", href: "/auto-scheduling" },
+  { label: "Tổng quan", code: "HOME", href: "/", icon: "dashboard" },
+  { label: "Nhân sự", code: "M01", href: "/staff", icon: "groups" },
+  { label: "Trực 24/24", code: "M02", href: "/duty-24", icon: "emergency" },
+  { label: "Thông tầm", code: "M03", href: "/all-day", icon: "schedule" },
+  { label: "PK dịch vụ", code: "M04", href: "/service-clinic", icon: "medical_services" },
+  { label: "PK chuyên gia", code: "M05", href: "/expert-clinic", icon: "stethoscope" },
+  { label: "Tổng hợp lịch", code: "M03-SUMMARY", href: "/schedule-summary", icon: "calendar_view_month" },
+  { label: "Đổi trực", code: "M02-SWAP", href: "/swap-requests", icon: "swap_horiz" },
+  { label: "Kiểm tra lỗi", code: "M06-CONFLICT", href: "/conflict-check", icon: "warning" },
+  { label: "Báo cáo", code: "M06-REPORTS", href: "/reports", icon: "query_stats" },
+  { label: "Thông báo", code: "M06-NOTIFICATIONS", href: "/notifications", icon: "notifications" },
+  { label: "Nhật ký", code: "M06-AUDIT", href: "/audit-history", icon: "history" },
+  { label: "Tự động xếp", code: "M07", href: "/auto-scheduling", icon: "auto_mode" },
 ];
 
 export function getNavigationItems(activeCode: string): NavigationItem[] {
@@ -26,10 +34,145 @@ export function getNavigationItems(activeCode: string): NavigationItem[] {
 }
 
 export const metrics: Metric[] = [
-  { label: "Nhân sự hoạt động", value: "20", helper: "3 vai trò hệ thống" },
-  { label: "Ngày đã phân công", value: "86%", helper: "Tháng 05/2026" },
-  { label: "Xung đột cần xử lý", value: "04", helper: "Chặn lưu lịch tháng", tone: "warning" },
-  { label: "Ngày nghỉ bù", value: "18", helper: "Tự tính sau trực 24/24", tone: "compLeave" },
+  {
+    label: "Tổng nhân sự",
+    value: "20",
+    tone: "neutral",
+    icon: "group",
+  },
+  {
+    label: "Trực 24/24",
+    value: "45",
+    tone: "duty24",
+    icon: "emergency",
+  },
+  {
+    label: "Thông tầm",
+    value: "30",
+    tone: "allDay",
+    icon: "schedule",
+  },
+  {
+    label: "Lịch dịch vụ",
+    value: "15",
+    tone: "serviceClinic",
+    icon: "medical_services",
+  },
+  {
+    label: "Lịch chuyên gia",
+    value: "12",
+    tone: "expertClinic",
+    icon: "vaccines",
+  },
+  {
+    label: "Xung đột",
+    value: "3",
+    helper: "warning",
+    tone: "warning",
+    icon: "warning",
+  },
+];
+
+export const dashboardCalendar = {
+  month: "Tháng 10, 2023",
+  prevDays: [25, 26, 27, 28, 29, 30],
+  cells: [
+    {
+      day: 1,
+      isCurrentMonth: true,
+      isToday: false,
+      isWeekend: false,
+      items: [
+        { label: "BS. An (24/24)", tone: "duty24" as const },
+        { label: "BS. Bình (TT)", tone: "allDay" as const },
+      ],
+    },
+    {
+      day: 2,
+      isCurrentMonth: true,
+      isToday: false,
+      isWeekend: false,
+      items: [{ label: "BS. Cường (DV)", tone: "serviceClinic" as const }],
+    },
+    {
+      day: 3,
+      isCurrentMonth: true,
+      isToday: false,
+      isWeekend: false,
+      items: [{ label: "GS. Dũng (CG)", tone: "expertClinic" as const }],
+    },
+    {
+      day: 4,
+      isCurrentMonth: true,
+      isToday: false,
+      isWeekend: false,
+      hasConflict: true,
+      items: [
+        { label: "BS. An (24/24)", tone: "duty24" as const },
+        { label: "BS. An (TT)", tone: "allDay" as const },
+      ],
+    },
+    {
+      day: 5,
+      isCurrentMonth: true,
+      isToday: false,
+      isWeekend: false,
+      items: [],
+    },
+    {
+      day: 6,
+      isCurrentMonth: true,
+      isToday: false,
+      isWeekend: true,
+      items: [{ label: "BS. Hoa (DV)", tone: "serviceClinic" as const }],
+    },
+    {
+      day: 7,
+      isCurrentMonth: true,
+      isToday: false,
+      isWeekend: true,
+      isLocked: true,
+      lockedLabel: "Khóa / Nghỉ",
+      items: [],
+    },
+    {
+      day: 8,
+      isCurrentMonth: true,
+      isToday: false,
+      isWeekend: false,
+      items: [],
+    },
+  ],
+} as const;
+
+export const swapRequests: SwapRequest[] = [
+  {
+    id: "SR-001",
+    requester: "BS. An",
+    requesterInitials: "A",
+    requesterAvatar: "",
+    target: "BS. Cường",
+    shiftType: "Ca 24/24 ngày 10/10",
+    date: "10/10/2023",
+    type: "exchange",
+    status: "pending",
+  },
+  {
+    id: "SR-002",
+    requester: "BS. Hoa",
+    requesterInitials: "H",
+    requesterAvatar: "",
+    shiftType: "Lý do sức khỏe - Ca DV 12/10",
+    date: "12/10/2023",
+    type: "leave",
+    status: "pending",
+  },
+];
+
+export const allocationStats: AllocationStat[] = [
+  { department: "Nội khoa", percentage: 85, color: "primary" },
+  { department: "Ngoại khoa", percentage: 60, color: "secondary" },
+  { department: "Cấp cứu", percentage: 95, color: "error" },
 ];
 
 export const scheduleModules: ScheduleModule[] = [
@@ -125,30 +268,36 @@ export const scheduleRows: StaffScheduleRow[] = [
 
 export const conflicts: ConflictItem[] = [
   {
-    type: "Trực 24/24 trùng thông tầm",
-    staff: "Nguyen Minh Anh",
+    id: "CF-001",
+    type: "Truc 24/24 trung thong tam",
+    staffName: "Nguyen Minh Anh",
     date: "31/05/2026",
-    severity: "Chặn lưu",
+    severity: "Chan luu",
+    detail: "Nhan su co lich thong tam cung ngay voi ca truc 24/24 duoc de xuat.",
   },
   {
-    type: "Lịch xếp vào ngày nghỉ bù",
-    staff: "Tran Duc Huy",
+    id: "CF-002",
+    type: "Xep lich vao ngay nghi bu",
+    staffName: "Tran Duc Huy",
     date: "28/05/2026",
-    severity: "Chặn lưu",
+    severity: "Chan luu",
+    detail: "Ngay nghi bu sau truc dem dang bi su dung lai cho phong kham dich vu.",
   },
   {
-    type: "Dịch vụ trùng chuyên gia",
-    staff: "Le Bao Chau",
+    id: "CF-003",
+    type: "Dich vu trung chuyen gia",
+    staffName: "Le Bao Chau",
     date: "29/05/2026",
-    severity: "Cảnh báo",
+    severity: "Canh bao",
+    detail: "Nhan su dang duoc de xuat cho ca lich kham dich vu va kham chuyen gia cung ngay.",
   },
 ];
 
 export const workflowSteps: WorkflowStep[] = [
-  { step: "B1", title: "Chọn tháng và ngoại lệ", status: "Done" },
-  { step: "B2", title: "Chạy Round Robin", status: "Active" },
-  { step: "B3", title: "Quét ràng buộc", status: "Pending" },
-  { step: "B4", title: "Xem trước và áp dụng", status: "Pending" },
+  { id: "WS-001", step: "B1", title: "Chon thang va ngoai le", status: "completed" },
+  { id: "WS-002", step: "B2", title: "Chay Round Robin", status: "active", description: "Phan bo deu ca truc theo thuat toan vong tron." },
+  { id: "WS-003", step: "B3", title: "Quet rang buoc", status: "pending", description: "Kiem tra xung dot, nghi bu va ngoai le." },
+  { id: "WS-004", step: "B4", title: "Xem truoc va ap dung", status: "pending", description: "Xem truoc ket qua va xac nhan luu." },
 ];
 
 export const staffLoads: StaffLoad[] = [

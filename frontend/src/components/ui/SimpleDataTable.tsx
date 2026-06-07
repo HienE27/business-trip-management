@@ -9,48 +9,61 @@ type SimpleDataTableProps = {
 type BadgeTone = "success" | "warning" | "danger" | "neutral" | "info";
 
 function badgeTone(value: string): BadgeTone {
-  if (["Hợp lệ", "Hoàn tất", "Đang làm"].includes(value)) {
-    return "success";
-  }
-  if (["Chặn lưu", "Cần kiểm tra"].includes(value)) {
-    return "danger";
-  }
-  if (["Cảnh báo chuyên gia", "Cần đối chiếu", "Đang chạy", "Nghỉ phép"].includes(value)) {
-    return "warning";
-  }
-  if (["Chờ", "Chờ phân công"].includes(value)) {
-    return "neutral";
-  }
+  if (["Hoan tat", "Hop le", "Dang lam", "Da phe duyet", "Hoan tat"].includes(value)) return "success";
+  if (["Chan luu", "Can kiem tra", "Qua tai", "Chan luu"].includes(value)) return "danger";
+  if (["Canh bao", "Can doi chieu", "Dang chay", "Nghi phep", "Canh bao nhe", "Dang cho"].includes(value)) return "warning";
+  if (["Cho", "Cho phan cong", "Cho duyet", "Ban nhap", "Cho duyet", "Cho xu ly"].includes(value)) return "neutral";
   return "info";
 }
 
 export function SimpleDataTable({ headers, rows, statusColumn }: SimpleDataTableProps) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] border-collapse text-sm">
-        <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
-          <tr className="h-11 border-b border-slate-200">
+      <table className="w-full min-w-[720px] border-collapse text-left">
+        <thead>
+          <tr className="border-b border-outline-variant bg-surface-container-low">
             {headers.map((header) => (
-              <th className="px-4" key={header}>
+              <th
+                className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-bold"
+                key={header}
+                scope="col"
+              >
                 {header}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr className="h-12 border-b border-slate-100 last:border-0 hover:bg-slate-50" key={row.join("-")}>
-              {row.map((cell, index) => (
-                <td className="px-4 text-slate-700" key={`${cell}-${index}`}>
-                  {statusColumn === index ? (
-                    <StatusBadge tone={badgeTone(cell)}>{cell}</StatusBadge>
-                  ) : (
-                    cell
-                  )}
-                </td>
-              ))}
+        <tbody className="divide-y divide-outline-variant">
+          {rows.length > 0 ? (
+            rows.map((row, ri) => (
+              <tr
+                className="hover:bg-surface-container-low transition-colors"
+                key={ri}
+              >
+                {row.map((cell, ci) => (
+                  <td
+                    className="px-5 py-3 font-body-md text-body-md text-on-surface"
+                    key={ci}
+                  >
+                    {statusColumn === ci ? (
+                      <StatusBadge tone={badgeTone(cell)} showDot>{cell}</StatusBadge>
+                    ) : (
+                      cell
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td
+                className="px-5 py-10 text-center font-body-md text-body-md text-on-surface-variant"
+                colSpan={headers.length}
+              >
+                Chua co du lieu de hien thi.
+              </td>
             </tr>
-          ))}
+          )}
         </tbody>
       </table>
     </div>

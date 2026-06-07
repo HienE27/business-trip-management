@@ -8,22 +8,21 @@ export default function ExpertClinicPage() {
     <DashboardShell
       activeCode="M05"
       description="Lọc chuyên khoa, gán chuyên gia khám chuyên sâu và tránh trùng lịch dịch vụ."
-      primaryAction="Lưu lịch chuyên gia"
-      secondaryAction="Lọc chuyên khoa"
-      title="M05 - Lịch phòng khám chuyên gia"
+      title="Lịch phòng khám chuyên gia"
     >
-      <div className="grid gap-4 p-5 max-sm:p-3 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="space-y-4">
-          <SectionCard description="M05-F04" title="Bộ lọc chuyên khoa">
-            <div className="space-y-2 p-4">
-              {["Tất cả", "Ngoại", "Nội", "Nhi", "Mắt", "Răng hàm mặt"].map((specialty) => (
+      <div className="grid gap-6 xl:grid-cols-[280px_1fr_1fr]">
+        <aside className="space-y-6">
+          <SectionCard description="M05-F04" title="Bo loc chuyen khoa">
+            <div className="space-y-2 px-5 py-4">
+              {["Tat ca", "Ngoai", "Noi", "Nhi", "Mat", "Rang ham mat"].map((specialty) => (
                 <button
-                  className={`h-9 w-full rounded-md px-3 text-left text-sm ${
-                    specialty === "Tất cả"
-                      ? "bg-slate-950 text-white"
-                      : "border border-slate-200 bg-white text-slate-700"
+                  className={`w-full rounded-lg px-4 py-2.5 text-left text-label-md transition-colors ${
+                    specialty === "Tat ca"
+                      ? "bg-primary text-on-primary shadow-sm"
+                      : "border border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low"
                   }`}
                   key={specialty}
+                  type="button"
                 >
                   {specialty}
                 </button>
@@ -31,37 +30,40 @@ export default function ExpertClinicPage() {
             </div>
           </SectionCard>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
-            <p className="text-xs font-medium uppercase text-slate-500">Ràng buộc</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Cùng chuyên gia trong cùng ngày không được đồng thời có lịch phòng khám dịch vụ.
+          <section className="rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+            <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">Rang buoc</p>
+            <p className="mt-3 font-body-sm text-on-surface-variant">
+              Cung chuyen gia trong cung ngay khong duoc dong thoi co lich phong kham dich vu.
             </p>
           </section>
         </aside>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           <section className="grid gap-4 md:grid-cols-3">
             {[
-              ["Chuyên gia", "12"],
-              ["Ca chuyên sâu", "18"],
-              ["Chờ phân công", "01"],
-            ].map(([label, value]) => (
-              <div
-                className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
-                key={label}
-              >
-                <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
-                <p className="mt-3 text-2xl font-semibold">{value}</p>
-              </div>
-            ))}
+              ["Chuyen gia", "12"],
+              ["Ca chuyen sau", "18"],
+              ["Cho phan cong", "01"],
+            ].map((item) => {
+              const [label, value] = item;
+              return (
+                <div
+                  className="rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-sm transition-colors hover:bg-surface-container-low"
+                  key={label}
+                >
+                  <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">{label}</p>
+                  <p className="mt-3 font-display-lg font-bold text-on-surface">{value}</p>
+                </div>
+              );
+            })}
           </section>
 
           <SectionCard
-            description="Hiển thị theo ngày, chuyên khoa và trạng thái kiểm tra"
-            title="Bảng lịch chuyên gia"
+            description="Hien thi theo ngay, chuyen khoa va trang thai kiem tra"
+            title="Bang lich chuyen gia"
           >
             <SimpleDataTable
-              headers={["Ngày", "Chuyên gia", "Chuyên khoa", "Nội dung", "Trạng thái"]}
+              headers={["Ngay", "Chuyen gia", "Chuyen khoa", "Noi dung", "Trang thai"]}
               rows={expertClinicRows}
               statusColumn={4}
             />

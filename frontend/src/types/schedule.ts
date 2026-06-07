@@ -9,11 +9,32 @@ export type ScheduleTone =
 
 export type Priority = "Cao" | "Trung bình" | "Thấp" | "Cốt lõi";
 
+export type AllocationStat = {
+  department: string;
+  percentage: number;
+  color: string;
+};
+
+export type SwapRequest = {
+  id: string;
+  requester: string;
+  requesterAvatar: string;
+  requesterInitials: string;
+  target?: string;
+  shiftType: string;
+  date: string;
+  reason?: string;
+  type: "exchange" | "leave";
+  status: "pending" | "approved" | "rejected";
+};
+
 export type Metric = {
   label: string;
   value: string;
-  helper: string;
+  helper?: string;
   tone?: ScheduleTone;
+  icon?: string;
+  trend?: string;
 };
 
 export type NavigationItem = {
@@ -21,6 +42,7 @@ export type NavigationItem = {
   code: string;
   href: string;
   active?: boolean;
+  icon?: string;
 };
 
 export type ScheduleModule = {
@@ -44,16 +66,20 @@ export type CalendarAssignment = {
 };
 
 export type ConflictItem = {
+  id: string;
   type: string;
-  staff: string;
+  staffName: string;
   date: string;
-  severity: "Chặn lưu" | "Cảnh báo";
+  severity: "Chan luu" | "Canh bao";
+  detail?: string;
 };
 
 export type WorkflowStep = {
+  id: string;
   step: string;
   title: string;
-  status: "Done" | "Active" | "Pending";
+  description?: string;
+  status: "completed" | "active" | "pending";
 };
 
 export type StaffLoad = {

@@ -73,11 +73,19 @@ export const ruleCards = [
   },
 ];
 
-export const dutyRows = [
-  ["27/05", "Thứ 2", "Minh Anh, Duc Huy", "28/05", "Hợp lệ"],
-  ["28/05", "Thứ 3", "Bao Chau", "29/05", "Hợp lệ"],
-  ["30/05", "Thứ 5", "Quoc Viet", "31/05", "Hợp lệ"],
-  ["31/05", "Thứ 6", "Lan Phuong", "03/06", "Cần kiểm tra"],
+export type DutyRowData = {
+  date: string;
+  weekday: string;
+  staff: string;
+  compDay: string;
+  status: string;
+};
+
+export const dutyRows: DutyRowData[] = [
+  { date: "27/05", weekday: "Thu 2", staff: "Minh Anh, Duc Huy", compDay: "28/05", status: "Hop le" },
+  { date: "28/05", weekday: "Thu 3", staff: "Bao Chau", compDay: "29/05", status: "Hop le" },
+  { date: "30/05", weekday: "Thu 5", staff: "Quoc Viet", compDay: "31/05", status: "Hop le" },
+  { date: "31/05", weekday: "Thu 6", staff: "Lan Phuong", compDay: "03/06", status: "Can kiem tra" },
 ];
 
 export const allDayRows = [

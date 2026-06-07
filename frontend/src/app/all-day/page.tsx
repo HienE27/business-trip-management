@@ -8,17 +8,19 @@ export default function AllDayPage() {
     <DashboardShell
       activeCode="M03"
       description="Xếp lịch làm liên tục không nghỉ trưa, chỉ chọn ngày và nhân sự."
-      primaryAction="Lưu lịch thông tầm"
-      secondaryAction="Quét xung đột"
-      title="M03 - Lịch thông tầm"
+      title="Lịch thông tầm"
     >
-      <div className="grid gap-4 p-5 max-sm:p-3 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-4">
+        <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
+        <div className="space-y-6">
           <SectionCard
             action={
-              <div className="flex rounded-md border border-slate-200 bg-slate-50 p-1 text-xs font-medium">
-                <button className="h-7 rounded bg-white px-2 shadow-sm">Tháng</button>
-                <button className="h-7 px-2 text-slate-500">Tuần</button>
+              <div className="inline-flex items-center rounded-lg border border-outline-variant bg-surface-container p-1 text-on-surface-variant shadow-sm">
+                <button className="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-on-surface shadow-sm" type="button">
+                  Tháng
+                </button>
+                <button className="rounded-lg px-3 py-1.5 transition-colors hover:text-on-surface" type="button">
+                  Tuần
+                </button>
               </div>
             }
             description="Dữ liệu trực 24/24 và nghỉ bù được tải kèm để tránh xung đột"
@@ -34,12 +36,12 @@ export default function AllDayPage() {
           <section className="grid gap-4 md:grid-cols-3">
             {["Chọn tháng", "Gán nhân sự", "Lưu & công bố"].map((title, index) => (
               <div
-                className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
+                className="rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-sm transition-colors hover:bg-surface-container-low"
                 key={title}
               >
-                <p className="text-xs font-semibold text-slate-500">B{index + 1}</p>
-                <h2 className="mt-1 text-sm font-semibold">{title}</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
+                <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">B{index + 1}</p>
+                <h2 className="mt-2 font-title-lg text-on-surface">{title}</h2>
+                <p className="mt-2 font-body-sm text-on-surface-variant">
                   {index === 0
                     ? "Tải lịch trực 24/24 và ngày nghỉ bù của tháng."
                     : index === 1
@@ -51,28 +53,28 @@ export default function AllDayPage() {
           </section>
         </div>
 
-        <aside className="space-y-4">
-          <SectionCard description="Không chọn giờ, chỉ chọn ngày" title="Form gán nhanh">
-            <div className="space-y-3 p-4">
-              {["Tháng", "Ngày", "Nhân sự", "Ghi chú"].map((label) => (
+        <aside className="space-y-6">
+          <SectionCard description="Khong chon gio, chi chon ngay" title="Form gan nhanh">
+            <div className="space-y-4 px-5 py-4">
+              {["Thang", "Ngay", "Nhan su", "Ghi chu"].map((label) => (
                 <label className="block" key={label}>
-                  <span className="text-xs font-medium text-slate-500">{label}</span>
+                  <span className="text-label-sm uppercase tracking-wider text-on-surface-variant">{label}</span>
                   <input
-                    className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+                    className="mt-2 h-10 w-full rounded-lg border border-outline-variant bg-surface px-3 text-body-md text-on-surface outline-none transition-colors placeholder:text-on-surface-variant/70 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
                     placeholder={label}
                   />
                 </label>
               ))}
-              <button className="h-9 w-full rounded-md bg-slate-950 text-sm font-medium text-white">
-                Gán lịch
+              <button className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-primary px-4 text-label-md text-on-primary shadow-sm transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20">
+                Gan lich
               </button>
             </div>
           </SectionCard>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
-            <p className="text-xs font-medium uppercase text-slate-500">Ràng buộc</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Cùng nhân sự trong cùng ngày không được đồng thời có trực 24/24 hoặc nghỉ bù.
+          <section className="rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+            <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">Rang buoc</p>
+            <p className="mt-3 font-body-sm text-on-surface-variant">
+              Cung nhan su trong cung ngay khong duoc dong thoi co truc 24/24 hoac nghi bu.
             </p>
           </section>
         </aside>

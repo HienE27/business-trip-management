@@ -1,69 +1,119 @@
-import { StaffLoadTable } from "@/components/dashboard/StaffLoadTable";
+"use client";
+
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { SimpleDataTable } from "@/components/ui/SimpleDataTable";
-import { autoSchedulingPreview, exceptionStaff } from "@/data/module-screens";
-import { scheduleRows, staffColumns, staffLoads } from "@/data/schedule-dashboard";
-import { ScheduleMatrix } from "@/components/dashboard/ScheduleMatrix";
+import { StaffExclusionTable } from "@/components/auto-scheduling/StaffExclusionTable";
+import { BusinessRulesPanel } from "@/components/auto-scheduling/BusinessRulesPanel";
+import { AlgorithmTip } from "@/components/auto-scheduling/AlgorithmTip";
 
 export default function AutoSchedulingPage() {
   return (
     <DashboardShell
       activeCode="M07"
-      description="Tự động phân công lịch theo thuật toán, kiểm tra ràng buộc và xem trước trước khi áp dụng."
-      primaryAction="Xác nhận & áp dụng"
-      secondaryAction="Chạy lại"
-      title="M07 - Tự động sắp xếp lịch"
+      description="Tu dong phan cong lich theo thuat toan, kiem tra rang buoc va xem truoc truoc khi ap dung."
+      title="Cau hinh Tu dong xep lich"
     >
-      <div className="grid gap-4 p-5 max-sm:p-3 2xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-4">
-          <section className="grid gap-4 md:grid-cols-4">
-            {[
-              ["Thuật toán", "Round Robin", "Phân bổ đều"],
-              ["Nhân sự xét", "18/20", "Đã loại ngoại lệ"],
-              ["Ngày chưa đủ", "02", "Cần xử lý tay"],
-              ["Vi phạm", "00", "Sau quét ràng buộc"],
-            ].map(([label, value, helper]) => (
-              <div
-                className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
-                key={label}
-              >
-                <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
-                <p className="mt-3 text-xl font-semibold">{value}</p>
-                <p className="mt-1 text-sm text-slate-500">{helper}</p>
+      {/* Header actions */}
+      <div className="flex justify-end gap-3">
+        <button
+          className="px-4 py-2 border border-primary text-primary font-label-md rounded-lg hover:bg-primary/5 transition-colors flex items-center gap-2"
+          type="button"
+        >
+          <span className="material-symbols-outlined text-[18px]">restart_alt</span>
+          Dat lai
+        </button>
+        <button
+          className="px-6 py-2 bg-primary text-white font-label-md rounded-lg shadow-md hover:bg-primary/90 transition-all flex items-center gap-2"
+          type="button"
+        >
+          <span className="material-symbols-outlined text-[18px]">play_arrow</span>
+          Tao ban nhap
+        </button>
+      </div>
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+
+        {/* Left Column */}
+        <div className="xl:col-span-8 flex flex-col gap-6">
+
+          {/* Time & Basic Config */}
+          <SectionCard
+            title={
+              <span className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">event</span>
+                Thoi gian &amp; Chi tieu co ban
+              </span>
+            }
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+              <div>
+                <label className="block font-label-md text-on-surface-variant mb-2">Thang ap dung</label>
+                <div className="relative">
+                  <select className="w-full border border-outline-variant rounded-lg px-4 py-2.5 bg-surface-container-lowest font-body-sm text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all appearance-none cursor-pointer">
+                    <option>Thang 11 / 2023</option>
+                    <option selected>Thang 12 / 2023</option>
+                    <option>Thang 01 / 2024</option>
+                  </select>
+                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline-variant pointer-events-none">expand_more</span>
+                </div>
               </div>
-            ))}
-          </section>
-
-          <ScheduleMatrix staff={staffColumns} rows={scheduleRows} />
-
-          <SectionCard description="Trạng thái thực thi luồng M07" title="Tiến trình thuật toán">
-            <SimpleDataTable
-              headers={["Bước", "Xử lý", "Trạng thái"]}
-              rows={autoSchedulingPreview}
-              statusColumn={2}
-            />
+              <div>
+                <label className="block font-label-md text-on-surface-variant mb-2">Khoa / Phong ban</label>
+                <div className="relative">
+                  <select className="w-full border border-outline-variant rounded-lg px-4 py-2.5 bg-surface-container-lowest font-body-sm text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all appearance-none cursor-pointer">
+                    <option>Khoa Noi tong hop</option>
+                    <option selected>Khoa Cap cuu</option>
+                    <option>Khoa Nhi</option>
+                  </select>
+                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline-variant pointer-events-none">expand_more</span>
+                </div>
+              </div>
+              <div>
+                <label className="block font-label-md text-on-surface-variant mb-2">So ca truc Toi thieu / nguoi</label>
+                <input
+                  className="w-full border border-outline-variant rounded-lg px-4 py-2.5 bg-surface-container-lowest font-body-sm text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  type="number"
+                  defaultValue="4"
+                />
+              </div>
+              <div>
+                <label className="block font-label-md text-on-surface-variant mb-2">So ca truc Toi da / nguoi</label>
+                <input
+                  className="w-full border border-outline-variant rounded-lg px-4 py-2.5 bg-surface-container-lowest font-body-sm text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  type="number"
+                  defaultValue="8"
+                />
+              </div>
+            </div>
           </SectionCard>
+
+          {/* Personnel Exclusion */}
+          <SectionCard
+            title={
+              <span className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-tertiary-container">person_off</span>
+                Loai tru &amp; Ngay nghi du kien
+              </span>
+            }
+          >
+            <div className="p-6 pt-0">
+              <StaffExclusionTable />
+            </div>
+          </SectionCard>
+
         </div>
 
-        <aside className="space-y-4">
-          <SectionCard description="Không tham gia hoặc có giới hạn đặc biệt" title="Ngoại lệ đầu vào">
-            <SimpleDataTable
-              headers={["Nhân sự", "Loại ngoại lệ", "Thời gian"]}
-              rows={exceptionStaff}
-            />
-          </SectionCard>
+        {/* Right Column */}
+        <div className="xl:col-span-4 flex flex-col gap-6">
+          <div className="overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm">
+            <div className="p-6">
+              <BusinessRulesPanel />
+            </div>
+          </div>
+          <AlgorithmTip />
+        </div>
 
-          <StaffLoadTable loads={staffLoads} />
-
-          <section className="rounded-lg border border-slate-200 bg-[#15191f] p-4 text-white shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
-            <p className="text-xs font-medium uppercase text-white/50">Gợi ý</p>
-            <h2 className="mt-3 text-lg font-semibold">Dùng Round Robin trước</h2>
-            <p className="mt-2 text-sm leading-6 text-white/64">
-              Sau khi phân bổ đều, dùng greedy để chọn người có ít ngày công nhất mà không vi phạm.
-            </p>
-          </section>
-        </aside>
       </div>
     </DashboardShell>
   );

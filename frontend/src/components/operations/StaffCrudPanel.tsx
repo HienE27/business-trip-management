@@ -1,11 +1,9 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { SectionCard } from "@/components/ui/SectionCard";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
-// ── Types matching backend StaffResponse / StaffRequest ──────
 type SpecialtyInfo = {
   id: number;
   name: string;
@@ -20,6 +18,7 @@ type StaffResponse = {
   specialty: SpecialtyInfo | null;
   maxShiftsPerMonth: number;
   isActive: boolean;
+  status: "active" | "on_leave" | "inactive";
   roles: string[];
   createdAt: string;
   updatedAt: string;
@@ -35,6 +34,65 @@ type StaffFormData = {
   maxShiftsPerMonth: number;
 };
 
+const fallbackStaffRecords: StaffResponse[] = [
+  {
+    id: 1,
+    username: "NV-0124",
+    fullName: "Hoang Ngoc Anh",
+    phone: "0987 654 321",
+    email: "ngocanh.h@medops.vn",
+    specialty: { id: 1, name: "Khoa Kham benh" },
+    maxShiftsPerMonth: 6,
+    isActive: true,
+    status: "active",
+    roles: ["STAFF"],
+    createdAt: "2026-05-01T08:00:00.000Z",
+    updatedAt: "2026-05-28T09:15:00.000Z",
+  },
+  {
+    id: 2,
+    username: "NV-0285",
+    fullName: "Tran Minh Tuan",
+    phone: "0912 345 678",
+    email: "tuan.tm@medops.vn",
+    specialty: { id: 2, name: "Khoa Cap cuu" },
+    maxShiftsPerMonth: 5,
+    isActive: true,
+    status: "on_leave",
+    roles: ["STAFF"],
+    createdAt: "2026-05-02T08:00:00.000Z",
+    updatedAt: "2026-05-27T14:20:00.000Z",
+  },
+  {
+    id: 3,
+    username: "NV-0310",
+    fullName: "Le Thi Thanh",
+    phone: "0909 112 233",
+    email: "thanh.lt@medops.vn",
+    specialty: { id: 3, name: "Khoa Chan doan hinh anh" },
+    maxShiftsPerMonth: 5,
+    isActive: true,
+    status: "active",
+    roles: ["STAFF"],
+    createdAt: "2026-05-03T08:00:00.000Z",
+    updatedAt: "2026-05-26T10:45:00.000Z",
+  },
+  {
+    id: 4,
+    username: "NV-0042",
+    fullName: "Pham Van Dung",
+    phone: "",
+    email: "dung.pv@medops.vn",
+    specialty: { id: 4, name: "Khoa Ngoai tong hop" },
+    maxShiftsPerMonth: 4,
+    isActive: false,
+    status: "inactive",
+    roles: ["STAFF"],
+    createdAt: "2026-05-04T08:00:00.000Z",
+    updatedAt: "2026-05-20T16:30:00.000Z",
+  },
+];
+
 const emptyForm: StaffFormData = {
   username: "",
   fullName: "",
@@ -45,6 +103,40 @@ const emptyForm: StaffFormData = {
   maxShiftsPerMonth: 5,
 };
 
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+function getRoleLabel(roles: string[]) {
+  if (roles.includes("ADMIN")) return "Quản trị viên";
+  if (roles.includes("MANAGER")) return "Quản lý";
+  if (roles.includes("STAFF")) return "Nhân viên";
+  return "Nhân sự";
+}
+
+function getStatusLabel(record: StaffResponse) {
+  if (record.status === "active") return "Dang lam viec";
+  if (record.status === "on_leave") return "Nghi phep";
+  return "Da nghi";
+}
+
+function getStatusClass(record: StaffResponse) {
+  if (record.status === "active") return "bg-green-50 text-green-700 border border-green-200";
+  if (record.status === "on_leave") return "bg-orange-50 text-orange-700 border border-orange-200";
+  return "bg-gray-100 text-gray-600 border border-gray-200";
+}
+
+function getStatusDot(record: StaffResponse) {
+  if (record.status === "active") return "bg-green-500";
+  if (record.status === "on_leave") return "bg-orange-500";
+  return "bg-gray-400";
+}
+
 export function StaffCrudPanel() {
   const [records, setRecords] = useState<StaffResponse[]>([]);
   const [form, setForm] = useState<StaffFormData>(emptyForm);
@@ -54,56 +146,72 @@ export function StaffCrudPanel() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
-  // ── Fetch staff list ──────────────────────────────────────
   const fetchStaff = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.get<StaffResponse[]>("/staff");
-      setRecords(data ?? []);
+
+      if (data && data.length > 0) {
+        setRecords(data);
+        setMessage("");
+      } else {
+        showMessage(
+          "Danh sách nhân sự từ backend đang trống. Đang hiển thị dữ liệu mẫu để tiếp tục demo giao diện.",
+          "info",
+        );
+        setRecords(fallbackStaffRecords);
+      }
     } catch {
-      showMessage("Không thể tải danh sách nhân sự. Backend có thể chưa chạy.", "error");
-      setRecords([]);
+      showMessage(
+        "Không thể tải danh sách nhân sự từ backend. Đang hiển thị dữ liệu mẫu để tiếp tục demo giao diện.",
+        "info",
+      );
+      setRecords(fallbackStaffRecords);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchStaff();
   }, [fetchStaff]);
 
-  // ── Summary cards ─────────────────────────────────────────
   const summary = useMemo(
     () => [
       ["Tổng nhân sự", String(records.length).padStart(2, "0")],
-      ["Đang làm", String(records.filter((r) => r.isActive).length).padStart(2, "0")],
-      ["Ngừng HĐ", String(records.filter((r) => !r.isActive).length).padStart(2, "0")],
+      ["Đang làm việc", String(records.filter((r) => r.isActive).length).padStart(2, "0")],
+      ["Đã nghỉ", String(records.filter((r) => !r.isActive).length).padStart(2, "0")],
       [
         "Chuyên khoa",
-        String(
-          new Set(records.map((r) => r.specialty?.name).filter(Boolean)).size,
-        ).padStart(2, "0"),
+        String(new Set(records.map((r) => r.specialty?.name).filter(Boolean)).size).padStart(2, "0"),
       ],
     ],
     [records],
   );
 
-  // ── Filtered records (client-side search) ─────────────────
   const filteredRecords = useMemo(() => {
-    if (!searchKeyword.trim()) return records;
-    const kw = searchKeyword.toLowerCase();
-    return records.filter(
-      (r) =>
-        r.fullName.toLowerCase().includes(kw) ||
-        r.username.toLowerCase().includes(kw) ||
-        (r.specialty?.name ?? "").toLowerCase().includes(kw) ||
-        r.email.toLowerCase().includes(kw),
-    );
-  }, [records, searchKeyword]);
+    const keyword = searchKeyword.trim().toLowerCase();
 
-  // ── Helpers ───────────────────────────────────────────────
+    return records.filter((record) => {
+      const matchesKeyword = !keyword
+        ? true
+        : record.fullName.toLowerCase().includes(keyword) ||
+          record.username.toLowerCase().includes(keyword) ||
+          (record.specialty?.name ?? "").toLowerCase().includes(keyword) ||
+          record.email.toLowerCase().includes(keyword);
+
+      const matchesStatus =
+        !statusFilter ||
+        (statusFilter === "active" && record.status === "active") ||
+        (statusFilter === "on_leave" && record.status === "on_leave") ||
+        (statusFilter === "inactive" && record.status === "inactive");
+
+      return matchesKeyword && matchesStatus;
+    });
+  }, [records, searchKeyword, statusFilter]);
+
   function showMessage(msg: string, type: "success" | "error" | "info" = "info") {
     setMessage(msg);
     setMessageType(type);
@@ -116,7 +224,6 @@ export function StaffCrudPanel() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  // ── Create / Update ───────────────────────────────────────
   async function submitStaff(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -128,7 +235,6 @@ export function StaffCrudPanel() {
     try {
       setSubmitting(true);
       if (editingId !== null) {
-        // Build body — omit password if blank
         const body: Record<string, unknown> = { ...form };
         if (!form.password.trim()) {
           delete body.password;
@@ -153,7 +259,6 @@ export function StaffCrudPanel() {
     }
   }
 
-  // ── Edit ──────────────────────────────────────────────────
   function editStaff(record: StaffResponse) {
     setForm({
       username: record.username,
@@ -168,7 +273,6 @@ export function StaffCrudPanel() {
     showMessage(`Đang sửa ${record.fullName}.`, "info");
   }
 
-  // ── Delete (soft-delete) ──────────────────────────────────
   async function deleteStaff(id: number, name: string) {
     if (!confirm(`Bạn có chắc muốn ngừng hoạt động nhân sự "${name}"?`)) return;
 
@@ -185,114 +289,200 @@ export function StaffCrudPanel() {
     }
   }
 
-  // ── Render ────────────────────────────────────────────────
   return (
-    <div className="grid gap-4 p-5 max-sm:p-3 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="space-y-4">
-        {/* Summary Cards */}
-        <section className="grid gap-4 md:grid-cols-4">
-          {summary.map(([label, value]) => (
-            <div
-              className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
-              key={label}
-            >
-              <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
-              <p className="mt-3 text-2xl font-semibold">{value}</p>
-            </div>
-          ))}
-        </section>
+    <div className="space-y-6">
+      <section className="flex flex-col justify-between gap-5 rounded-xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm sm:flex-row sm:items-center">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant">Nhân sự</p>
+          <p className="mt-1 text-[14px] text-on-surface-variant">
+            Quản lý cơ sở dữ liệu nhân viên, chức vụ và trạng thái hoạt động trong hệ thống.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <button
+            className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 h-10 text-[13px] font-medium text-on-surface shadow-sm transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            type="button"
+          >
+            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">download</span>
+            Xuất Excel
+          </button>
+          <button
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 h-10 text-[13px] font-medium text-on-primary shadow-sm transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            type="button"
+          >
+            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">add</span>
+            Thêm nhân viên
+          </button>
+        </div>
+      </section>
 
-        {/* Staff Table */}
-        <SectionCard
-          description="Dữ liệu được tải từ API backend — thêm, sửa, xóa cập nhật realtime"
-          title="Danh sách nhân sự"
-          action={
-            <input
-              className="h-8 w-56 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-slate-400 max-sm:w-full"
-              id="staff-search"
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="Tìm kiếm theo tên, username, chuyên khoa…"
-              value={searchKeyword}
-            />
-          }
+      <section className="grid gap-4 md:grid-cols-4">
+        {summary.map(([label, value]) => (
+          <div
+            className="rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-sm hover:bg-surface-container-low transition-colors"
+            key={label}
+          >
+            <p className="text-[13px] font-medium text-on-surface-variant">{label}</p>
+            <p className="mt-3 text-[32px] font-bold leading-[40px] text-on-surface">{value}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm flex flex-wrap lg:flex-nowrap items-center gap-4">
+        <div className="relative flex-1 min-w-[240px]">
+          <span aria-hidden="true" className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+            search
+          </span>
+          <input
+            aria-label="Tìm kiếm nhân sự"
+            autoComplete="off"
+            className="w-full rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-10 pr-4 text-sm text-on-surface transition-all placeholder:text-outline focus-visible:border-primary focus:bg-surface-container-lowest focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            name="staffSearch"
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            placeholder="Tìm kiếm tên, email hoặc mã nhân viên…"
+            value={searchKeyword}
+          />
+        </div>
+
+        <div className="relative w-full lg:w-48">
+          <select aria-label="Lọc theo chức vụ" className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-sm text-on-surface transition-all focus-visible:border-primary focus:bg-surface-container-lowest focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary">
+            <option value="">Tất cả Chức vụ</option>
+            <option value="BS">Bác sĩ</option>
+            <option value="DD">Điều dưỡng</option>
+            <option value="KTV">Kỹ thuật viên</option>
+          </select>
+          <span aria-hidden="true" className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+            expand_more
+          </span>
+        </div>
+
+        <div className="relative w-full lg:w-48">
+          <select aria-label="Lọc theo khoa phòng" className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-sm text-on-surface transition-all focus-visible:border-primary focus:bg-surface-container-lowest focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary">
+            <option value="">Tất cả Khoa/Phòng</option>
+            <option value="kham-benh">Khoa Khám bệnh</option>
+            <option value="cap-cuu">Khoa Cấp cứu</option>
+            <option value="noi-tong-hop">Khoa Nội tổng hợp</option>
+          </select>
+          <span aria-hidden="true" className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+            expand_more
+          </span>
+        </div>
+
+        <div className="relative w-full lg:w-48">
+          <select
+            aria-label="Lọc theo trạng thái"
+            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-sm text-on-surface transition-all focus-visible:border-primary focus:bg-surface-container-lowest focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            onChange={(e) => setStatusFilter(e.target.value)}
+            value={statusFilter}
+          >
+            <option value="">Trang thai</option>
+            <option value="active">Dang lam viec</option>
+            <option value="on_leave">Nghi phep</option>
+            <option value="inactive">Da nghi</option>
+          </select>
+          <span aria-hidden="true" className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+            expand_more
+          </span>
+        </div>
+      </section>
+
+      {message ? (
+        <div
+          aria-live="polite"
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            messageType === "error"
+              ? "border-error/20 bg-error-container text-on-error-container"
+              : messageType === "success"
+                ? "border-on-secondary-container/10 bg-secondary-container text-on-secondary-container"
+                : "border-outline-variant bg-surface-container-low text-on-surface"
+          }`}
         >
+          {message}
+        </div>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden flex flex-col">
           <div className="overflow-x-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <svg className="size-6 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx={12} cy={12} r={10} stroke="currentColor" strokeWidth={4} />
+              <div className="flex items-center justify-center py-16">
+                <svg className="size-6 animate-spin text-outline" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" fill="currentColor" />
                 </svg>
               </div>
             ) : (
-              <table className="min-w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+              <table className="w-full border-collapse text-left">
+                <thead className="bg-surface-container-low border-b border-outline-variant">
                   <tr>
-                    {["ID", "Username", "Họ tên", "Email", "SĐT", "Chuyên khoa", "Max ca/tháng", "Vai trò", "Trạng thái", "Thao tác"].map(
-                      (header) => (
-                        <th className="border-b border-slate-200 px-4 py-3 font-semibold" key={header}>
-                          {header}
-                        </th>
-                      ),
-                    )}
+                    <th className="px-6 py-4 text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Nhân viên</th>
+                    <th className="px-6 py-4 text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Mã NV</th>
+                    <th className="px-6 py-4 text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Chức vụ</th>
+                    <th className="px-6 py-4 text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Khoa/Phòng</th>
+                    <th className="px-6 py-4 text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Số điện thoại</th>
+                    <th className="px-6 py-4 text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Trạng thái</th>
+                    <th className="px-6 py-4 text-right text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-outline-variant">
                   {filteredRecords.length === 0 ? (
                     <tr>
-                      <td className="px-4 py-8 text-center text-sm text-slate-400" colSpan={10}>
-                        {searchKeyword ? "Không tìm thấy nhân sự phù hợp" : "Chưa có nhân sự nào"}
+                      <td className="px-6 py-10 text-center text-sm text-on-surface-variant" colSpan={7}>
+                        {searchKeyword || statusFilter
+                          ? "Không tìm thấy nhân sự phù hợp"
+                          : "Chưa có nhân sự nào"}
                       </td>
                     </tr>
                   ) : (
                     filteredRecords.map((record) => (
-                      <tr
-                        className="border-b border-slate-100 transition-colors hover:bg-slate-50/50"
-                        key={record.id}
-                      >
-                        <td className="px-4 py-3 font-medium text-slate-500">{record.id}</td>
-                        <td className="px-4 py-3 font-medium">{record.username}</td>
-                        <td className="px-4 py-3">{record.fullName}</td>
-                        <td className="px-4 py-3 text-slate-500">{record.email}</td>
-                        <td className="px-4 py-3">{record.phone ?? "-"}</td>
-                        <td className="px-4 py-3">{record.specialty?.name ?? "-"}</td>
-                        <td className="px-4 py-3 text-center">{record.maxShiftsPerMonth}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-1">
-                            {record.roles?.length > 0
-                              ? record.roles.map((role) => (
-                                  <span
-                                    className="inline-flex h-6 items-center rounded bg-indigo-50 px-2 text-xs font-medium text-indigo-700"
-                                    key={role}
-                                  >
-                                    {role}
-                                  </span>
-                                ))
-                              : "-"}
+                      <tr className="group transition-colors hover:bg-surface-container-low" key={record.id}>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-fixed font-bold text-on-primary-fixed-variant">
+                              {getInitials(record.fullName)}
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-semibold text-on-surface">{record.fullName}</p>
+                              <p className="text-sm text-on-surface-variant">{record.email}</p>
+                            </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge tone={record.isActive ? "success" : "warning"}>
-                            {record.isActive ? "Đang làm" : "Ngừng HĐ"}
-                          </StatusBadge>
+                        <td className="px-6 py-4 text-sm text-on-surface-variant">{record.username}</td>
+                        <td className="px-6 py-4 text-sm text-on-surface">{getRoleLabel(record.roles)}</td>
+                        <td className="px-6 py-4 text-sm text-on-surface">{record.specialty?.name ?? "Chưa phân khoa"}</td>
+                        <td className="px-6 py-4 text-sm text-on-surface-variant">{record.phone || "-"}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${getStatusClass(record)}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${getStatusDot(record)}`} />
+                            {getStatusLabel(record)}
+                          </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-2">
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Link
+                              aria-label={`Xem chi tiet ${record.fullName}`}
+                              className="p-1.5 rounded-md text-outline hover:text-primary hover:bg-surface-container transition-colors"
+                              href={`/staff/profile?id=${record.id}`}
+                              title="Xem chi tiet"
+                            >
+                              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">visibility</span>
+                            </Link>
                             <button
-                              className="h-8 rounded-md border border-slate-200 px-3 text-xs font-medium transition-colors hover:bg-slate-50"
-                              id={`edit-staff-${record.id}`}
+                              aria-label={`Chinh sua ${record.fullName}`}
+                              className="p-1.5 rounded-md text-outline hover:text-primary hover:bg-surface-container transition-colors"
                               onClick={() => editStaff(record)}
+                              title="Chinh sua"
                               type="button"
                             >
-                              Sửa
+                              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">edit</span>
                             </button>
                             <button
-                              className="h-8 rounded-md border border-rose-200 px-3 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50"
-                              id={`delete-staff-${record.id}`}
-                              onClick={() => deleteStaff(record.id, record.fullName)}
+                              aria-label={`Them tuy chon cho ${record.fullName}`}
+                              className="p-1.5 rounded-md text-outline hover:text-on-surface hover:bg-surface-container transition-colors"
+                              title="Them tuy chon"
                               type="button"
                             >
-                              Xóa
+                              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">more_vert</span>
                             </button>
                           </div>
                         </td>
@@ -303,127 +493,144 @@ export function StaffCrudPanel() {
               </table>
             )}
           </div>
-        </SectionCard>
-      </div>
 
-      {/* ── Form sidebar ────────────────────────────────────── */}
-      <aside className="space-y-4">
-        <SectionCard
-          description={
-            editingId !== null
-              ? "Cập nhật thông tin — password trống = giữ nguyên"
-              : "Điền đầy đủ thông tin để thêm nhân sự mới"
-          }
-          title={editingId !== null ? "Sửa nhân sự" : "Thêm nhân sự"}
-        >
-          <form className="space-y-3 p-4" onSubmit={submitStaff}>
-            <label className="block">
-              <span className="text-xs font-medium text-slate-500">Username</span>
-              <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
-                id="staff-field-username"
-                onChange={(e) => updateField("username", e.target.value)}
-                value={form.username}
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-xs font-medium text-slate-500">Họ tên</span>
-              <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
-                id="staff-field-fullName"
-                onChange={(e) => updateField("fullName", e.target.value)}
-                value={form.fullName}
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-xs font-medium text-slate-500">
-                {editingId !== null ? "Mật khẩu mới (để trống = không đổi)" : "Mật khẩu"}
-              </span>
-              <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
-                id="staff-field-password"
-                onChange={(e) => updateField("password", e.target.value)}
-                type="password"
-                value={form.password}
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-xs font-medium text-slate-500">Email</span>
-              <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
-                id="staff-field-email"
-                onChange={(e) => updateField("email", e.target.value)}
-                type="email"
-                value={form.email}
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-xs font-medium text-slate-500">Số điện thoại</span>
-              <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
-                id="staff-field-phone"
-                onChange={(e) => updateField("phone", e.target.value)}
-                value={form.phone}
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-xs font-medium text-slate-500">Max ca / tháng</span>
-              <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-slate-400"
-                id="staff-field-maxShifts"
-                min={1}
-                onChange={(e) => updateField("maxShiftsPerMonth", parseInt(e.target.value) || 5)}
-                type="number"
-                value={form.maxShiftsPerMonth}
-              />
-            </label>
-
-            {/* Message */}
-            {message ? (
-              <p
-                className={`rounded-md border px-3 py-2 text-sm ${
-                  messageType === "error"
-                    ? "border-rose-200 bg-rose-50 text-rose-700"
-                    : messageType === "success"
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-slate-200 bg-slate-50 text-slate-600"
-                }`}
-              >
-                {message}
-              </p>
-            ) : null}
-
-            {/* Buttons */}
-            <div className="grid grid-cols-2 gap-2">
+          <div className="flex items-center justify-between border-t border-surface-variant bg-surface-container-lowest px-4 py-3">
+            <p className="text-sm text-on-surface-variant">
+              Hien thi <span className="font-medium text-on-surface">1</span> den <span className="font-medium text-on-surface">10</span> trong so <span className="font-medium text-on-surface">124</span> nhan vien
+            </p>
+            <div className="flex items-center gap-1">
               <button
-                className="h-9 rounded-md bg-slate-950 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={submitting}
-                id="staff-submit"
-                type="submit"
-              >
-                {submitting ? "Đang lưu…" : editingId !== null ? "Cập nhật" : "Thêm mới"}
-              </button>
-              <button
-                className="h-9 rounded-md border border-slate-200 text-sm font-medium transition-colors hover:bg-slate-50"
-                id="staff-reset"
-                onClick={() => {
-                  setEditingId(null);
-                  setForm(emptyForm);
-                  setMessage("");
-                }}
+                className="p-1.5 rounded-md text-outline-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled
                 type="button"
               >
-                Làm mới
+                <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+              </button>
+              <button className="w-8 h-8 rounded-md bg-primary text-on-primary font-label-md text-label-md flex items-center justify-center" type="button">1</button>
+              <button className="w-8 h-8 rounded-md text-on-surface-variant hover:bg-surface-container font-label-md text-label-md flex items-center justify-center transition-colors" type="button">2</button>
+              <button className="w-8 h-8 rounded-md text-on-surface-variant hover:bg-surface-container font-label-md text-label-md flex items-center justify-center transition-colors" type="button">3</button>
+              <span className="px-1 text-outline-variant font-label-md text-label-md">...</span>
+              <button className="w-8 h-8 rounded-md text-on-surface-variant hover:bg-surface-container font-label-md text-label-md flex items-center justify-center transition-colors" type="button">13</button>
+              <button
+                className="p-1.5 rounded-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[20px]">chevron_right</span>
               </button>
             </div>
-          </form>
-        </SectionCard>
-      </aside>
+          </div>
+        </section>
+
+        <aside>
+          <section className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm sticky top-24">
+            <div className="flex items-center gap-2 border-b border-outline-variant bg-surface-bright p-4 rounded-t-xl">
+              <span aria-hidden="true" className="material-symbols-outlined text-primary">add_circle</span>
+              <h3 className="text-[18px] font-semibold leading-[26px] text-on-surface">
+                {editingId !== null ? "Sửa nhân sự" : "Thêm nhân sự"}
+              </h3>
+            </div>
+
+            <form className="flex flex-col gap-4 p-5" onSubmit={submitStaff}>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">Username</span>
+                <input
+                  autoComplete="username"
+                  className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                  name="username"
+                  onChange={(e) => updateField("username", e.target.value)}
+                  spellCheck={false}
+                  value={form.username}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">Họ tên</span>
+                <input
+                  autoComplete="name"
+                  className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                  name="fullName"
+                  onChange={(e) => updateField("fullName", e.target.value)}
+                  value={form.fullName}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">
+                  {editingId !== null ? "Mật khẩu mới (để trống = không đổi)" : "Mật khẩu"}
+                </span>
+                <input
+                  autoComplete={editingId !== null ? "new-password" : "new-password"}
+                  className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                  name="password"
+                  onChange={(e) => updateField("password", e.target.value)}
+                  type="password"
+                  value={form.password}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">Email</span>
+                <input
+                  autoComplete="email"
+                  className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                  name="email"
+                  onChange={(e) => updateField("email", e.target.value)}
+                  spellCheck={false}
+                  type="email"
+                  value={form.email}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">Số điện thoại</span>
+                <input
+                  autoComplete="tel"
+                  className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                  inputMode="tel"
+                  name="phone"
+                  onChange={(e) => updateField("phone", e.target.value)}
+                  type="tel"
+                  value={form.phone}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">Max ca / tháng</span>
+                <input
+                  className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                  min={1}
+                  name="maxShiftsPerMonth"
+                  onChange={(e) => updateField("maxShiftsPerMonth", parseInt(e.target.value, 10) || 5)}
+                  type="number"
+                  value={form.maxShiftsPerMonth}
+                />
+              </label>
+
+              <div className="mt-2 flex justify-end gap-3 border-t border-outline-variant pt-4">
+                <button
+                  className="rounded-lg px-4 py-2 text-sm font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                  onClick={() => {
+                    setEditingId(null);
+                    setForm(emptyForm);
+                    setMessage("");
+                  }}
+                  type="button"
+                >
+                  Làm mới
+                </button>
+                <button
+                  className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-on-primary shadow-sm transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  disabled={submitting}
+                  type="submit"
+                >
+                  <span aria-hidden="true" className="material-symbols-outlined text-[18px]">save</span>
+                  {submitting ? "Đang lưu…" : editingId !== null ? "Cập nhật" : "Lưu nhân sự"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }

@@ -5,36 +5,82 @@ type AppSidebarProps = {
   items: NavigationItem[];
 };
 
+const FOOTER_ITEMS = [
+  { label: "Thong bao", href: "/notifications", icon: "notifications" },
+  { label: "Cai dat", href: "/settings", icon: "settings" },
+  { label: "Ho so ca nhan", href: "/profile", icon: "person" },
+];
+
 export function AppSidebar({ items }: AppSidebarProps) {
   return (
-    <aside className="border-r border-slate-200 bg-[#111418] text-white max-lg:hidden">
-      <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
-        <div className="grid size-9 place-items-center rounded-md bg-white text-sm font-bold text-slate-950">
-          MS
+    <aside
+      aria-label="Dieu huong chinh"
+      className="hidden md:flex flex-col fixed left-0 top-0 h-screen w-[260px] border-r border-outline-variant bg-surface-container-low py-4 z-50 overflow-y-auto"
+    >
+      {/* Logo Area */}
+      <div className="px-6 mb-8 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-primary text-white flex items-center justify-center shrink-0 shadow-md">
+          <span
+            aria-hidden="true"
+            className="material-symbols-outlined fill text-[20px]"
+          >
+            calendar_month
+          </span>
         </div>
         <div>
-          <p className="text-sm font-semibold">MedSchedule Pro</p>
-          <p className="text-xs text-white/50">Clinical operations system</p>
+          <p className="font-title-lg text-on-surface font-bold">MedSchedule Pro</p>
+          <p className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+            Quan ly lich cong tac
+          </p>
         </div>
       </div>
-      <nav className="space-y-1 px-3 py-4 text-sm">
-        {items.map((item) => (
+
+      {/* Main Navigation */}
+      <nav className="flex-1 flex flex-col gap-1 px-3">
+        {items.map((item) => {
+          const isActive = item.active;
+          return (
+            <Link
+              className={
+                isActive
+                  ? "flex items-center gap-3 px-4 py-2.5 rounded-lg bg-primary-container/10 text-primary font-semibold transition-all text-body-sm shadow-sm"
+                  : "flex items-center gap-3 px-4 py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all text-body-sm"
+              }
+              href={item.href}
+              key={item.code}
+            >
+              <span
+                aria-hidden="true"
+                className={`material-symbols-outlined text-[20px] shrink-0 ${
+                  isActive ? "fill" : ""
+                }`}
+              >
+                {item.icon || "dashboard"}
+              </span>
+              <span className="truncate">{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Footer Navigation */}
+      <div className="mt-auto px-3 pt-4 border-t border-outline-variant flex flex-col gap-1">
+        {FOOTER_ITEMS.map((item) => (
           <Link
-            className={`flex h-10 items-center justify-between rounded-md px-3 ${
-              item.active
-                ? "bg-white text-slate-950"
-                : "text-white/68 hover:bg-white/8 hover:text-white"
-            }`}
+            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all text-body-sm"
             href={item.href}
-            key={item.code}
+            key={item.href}
           >
-            <span>{item.label}</span>
-            <span className={item.active ? "text-slate-500" : "text-white/35"}>
-              {item.code}
+            <span
+              aria-hidden="true"
+              className="material-symbols-outlined text-[20px] shrink-0"
+            >
+              {item.icon}
             </span>
+            <span className="truncate">{item.label}</span>
           </Link>
         ))}
-      </nav>
+      </div>
     </aside>
   );
 }

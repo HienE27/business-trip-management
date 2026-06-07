@@ -5,7 +5,6 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "@/lib/api";
 
-// ── Types matching backend ScheduleResponse / ScheduleRequest ──
 type StaffSummary = {
   id: number;
   fullName: string;
@@ -34,7 +33,6 @@ type StaffOption = {
   fullName: string;
 };
 
-// ── Props ───────────────────────────────────────────────────
 export type ScheduleRecord = {
   id: string;
   date: string;
@@ -67,7 +65,6 @@ function getCompensationDate(dateValue: string) {
   if (!dateValue) return "";
   const date = new Date(`${dateValue}T00:00:00`);
   const day = date.getDay();
-  // Mon=1..Fri=5: next day. Fri=5 -> +4 (Tue next week), Sat=6 -> +3 (Tue next week), Sun=0 -> +1 (Mon)
   const plusDays = day === 5 ? 4 : day === 6 ? 3 : day === 0 ? 1 : 1;
   date.setDate(date.getDate() + plusDays);
   return date.toISOString().slice(0, 10);
@@ -85,7 +82,6 @@ export function ScheduleCrudPanel({
   locationLabel,
   submitLabel,
 }: ScheduleCrudPanelProps) {
-  // ── State ─────────────────────────────────────────────────
   const [apiRecords, setApiRecords] = useState<ScheduleResponseDTO[]>([]);
   const [localRecords, setLocalRecords] = useState<ScheduleRecord[]>(defaultRows);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
@@ -97,26 +93,23 @@ export function ScheduleCrudPanel({
   const [submitting, setSubmitting] = useState(false);
   const [useApi, setUseApi] = useState(false);
 
-  // ── Fetch from API ────────────────────────────────────────
   const fetchSchedules = useCallback(async () => {
     try {
       setLoading(true);
-      // Try to fetch schedules by period 1 (default)
       const data = await api.get<ScheduleResponseDTO[]>("/schedules/period/1");
       const filtered = (data ?? []).filter((s) => s.shiftType.id === shiftType);
       setApiRecords(filtered);
       setUseApi(true);
-
-      // Also fetch staff for dropdown
       const staff = await api.get<StaffOption[]>("/staff/active");
       setStaffOptions(
         (staff ?? []).map((s: Record<string, unknown>) => ({
           id: (s as StaffOption).id,
-          fullName: (s as StaffOption).fullName ?? (s as Record<string, unknown>).username as string,
+          fullName:
+            (s as StaffOption).fullName ??
+            ((s as Record<string, unknown>).username as string),
         })),
       );
     } catch {
-      // Backend not available — fallback to local mock data
       setUseApi(false);
     } finally {
       setLoading(false);
@@ -128,7 +121,6 @@ export function ScheduleCrudPanel({
     fetchSchedules();
   }, [fetchSchedules]);
 
-  // ── Metrics ───────────────────────────────────────────────
   const metrics = useMemo(() => {
     if (useApi) {
       return [
@@ -144,22 +136,18 @@ export function ScheduleCrudPanel({
     ];
   }, [useApi, apiRecords, localRecords]);
 
-  // ── Helpers ───────────────────────────────────────────────
   function showMessage(msg: string, type: "success" | "error" | "info" = "info") {
     setMessage(msg);
     setMessageType(type);
     if (type === "success") setTimeout(() => setMessage(""), 4000);
   }
 
-  // ── API Submit ────────────────────────────────────────────
   async function submitScheduleApi(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     if (!form.date || !form.staffId) {
       showMessage("Cần chọn ngày và nhân sự.", "error");
       return;
     }
-
     try {
       setSubmitting(true);
       const body = {
@@ -168,7 +156,6 @@ export function ScheduleCrudPanel({
         staffId: parseInt(form.staffId),
         shiftTypeId: shiftType,
       };
-
       if (editingId !== null) {
         await api.put(`/schedules/${editingId}`, body);
         showMessage("Đã cập nhật lịch.", "success");
@@ -176,7 +163,6 @@ export function ScheduleCrudPanel({
         await api.post("/schedules", body);
         showMessage("Đã thêm lịch mới.", "success");
       }
-
       setForm(createEmptyForm());
       setEditingId(null);
       await fetchSchedules();
@@ -187,14 +173,12 @@ export function ScheduleCrudPanel({
     }
   }
 
-  // ── Local fallback submit ─────────────────────────────────
   function submitScheduleLocal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!form.date || !form.staffId.trim()) {
       showMessage("Cần chọn ngày và nhập nhân sự.", "error");
       return;
     }
-
     const newRecord: ScheduleRecord = {
       id: editingId?.toString() ?? crypto.randomUUID(),
       date: form.date,
@@ -206,7 +190,6 @@ export function ScheduleCrudPanel({
       shiftType,
       compensationDate: shiftType === "L01" ? getCompensationDate(form.date) : undefined,
     };
-
     if (editingId !== null) {
       setLocalRecords((c) => c.map((r) => (r.id === editingId.toString() ? newRecord : r)));
       showMessage("Đã cập nhật lịch.", "success");
@@ -214,15 +197,12 @@ export function ScheduleCrudPanel({
       setLocalRecords((c) => [newRecord, ...c]);
       showMessage("Đã thêm lịch mới.", "success");
     }
-
     setForm(createEmptyForm());
     setEditingId(null);
   }
 
-  // ── Delete ────────────────────────────────────────────────
   async function deleteSchedule(id: number | string) {
     if (!confirm("Bạn có chắc muốn xóa lịch này?")) return;
-
     if (useApi) {
       try {
         await api.delete(`/schedules/${id}`);
@@ -241,13 +221,8 @@ export function ScheduleCrudPanel({
     }
   }
 
-  // ── Edit ──────────────────────────────────────────────────
   function editScheduleApi(record: ScheduleResponseDTO) {
-    setForm({
-      staffId: record.staff.id.toString(),
-      date: record.workDate,
-      note: "",
-    });
+    setForm({ staffId: record.staff.id.toString(), date: record.workDate, note: "" });
     setEditingId(record.id);
     showMessage(`Đang sửa lịch ngày ${record.workDate}.`, "info");
   }
@@ -258,48 +233,52 @@ export function ScheduleCrudPanel({
     showMessage("Đang sửa lịch đã chọn.", "info");
   }
 
-  // ── Render ────────────────────────────────────────────────
+  const tableHeaders = ["ID", "Ngày", "Nhân sự", "Loại lịch", "Xung đột", "Thao tác"];
+  const localHeaders = ["Ngày", "Nhân sự", "Loại lịch", "Chuyên khoa", locationLabel, "Nghỉ bù", "Trạng thái", "Thao tác"];
+
   return (
-    <div className="grid gap-4 p-5 max-sm:p-3 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="space-y-4">
-        {/* Metrics */}
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="space-y-6">
         <section className="grid gap-4 md:grid-cols-3">
           {metrics.map(([label, value]) => (
             <div
-              className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
+              className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm transition-colors hover:bg-surface-container-low"
               key={label}
             >
-              <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
-              <p className="mt-3 text-2xl font-semibold">{value}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant">{label}</p>
+              <p className="mt-3 text-[28px] font-bold leading-9 text-on-surface">{value}</p>
             </div>
           ))}
         </section>
 
-        {/* Connection status */}
-        <div className="flex items-center gap-2 text-xs">
-          <span className={`inline-block size-2 rounded-full ${useApi ? "bg-emerald-500" : "bg-amber-500"}`} />
-          <span className="text-slate-500">
-            {useApi ? "Kết nối API backend thành công" : "Đang dùng dữ liệu mẫu (backend chưa sẵn sàng)"}
-          </span>
+        <div className="flex items-center gap-2 rounded-lg border border-outline-variant/60 bg-surface-container-low px-4 py-2 text-sm text-on-surface-variant">
+          <span
+            className={`inline-block size-2 rounded-full ${useApi ? "bg-secondary" : "bg-tertiary"}`}
+          />
+          {useApi
+            ? "Kết nối API backend thành công"
+            : "Đang dùng dữ liệu mẫu (backend chưa sẵn sàng)"}
         </div>
 
-        {/* Table */}
         <SectionCard description={description} title={title}>
           <div className="overflow-x-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <svg className="size-6 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx={12} cy={12} r={10} stroke="currentColor" strokeWidth={4} />
+              <div className="flex items-center justify-center py-16">
+                <svg className="size-6 animate-spin text-outline" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" fill="currentColor" />
                 </svg>
               </div>
             ) : useApi ? (
-              /* ── API-connected table ── */
-              <table className="min-w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                  <tr>
-                    {["ID", "Ngày", "Nhân sự", "Loại lịch", "Xung đột", "Thao tác"].map((h) => (
-                      <th className="border-b border-slate-200 px-4 py-3 font-semibold" key={h}>
+              <table className="min-w-full border-collapse text-left text-sm text-on-surface">
+                <thead className="bg-surface-container-low">
+                  <tr className="border-b border-outline-variant/80">
+                    {tableHeaders.map((h) => (
+                      <th
+                        className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant"
+                        key={h}
+                        scope="col"
+                      >
                         {h}
                       </th>
                     ))}
@@ -308,36 +287,41 @@ export function ScheduleCrudPanel({
                 <tbody>
                   {apiRecords.length === 0 ? (
                     <tr>
-                      <td className="px-4 py-8 text-center text-sm text-slate-400" colSpan={6}>
-                        Chưa có lịch nào trong kỳ này
+                      <td className="px-5 py-10 text-center text-sm text-on-surface-variant" colSpan={6}>
+                        Chưa có lịch nào trong kỳ này.
                       </td>
                     </tr>
                   ) : (
                     apiRecords.map((record) => (
-                      <tr className="border-b border-slate-100 transition-colors hover:bg-slate-50/50" key={record.id}>
-                        <td className="px-4 py-3 font-medium text-slate-500">{record.id}</td>
-                        <td className="px-4 py-3 font-medium">{record.workDate}</td>
-                        <td className="px-4 py-3">{record.staff.fullName}</td>
-                        <td className="px-4 py-3">{record.shiftType.name}</td>
-                        <td className="px-4 py-3">
+                      <tr
+                        className="border-b border-outline-variant/60 transition-colors hover:bg-surface-container-low/60 last:border-0"
+                        key={record.id}
+                      >
+                        <td className="px-5 py-4 font-medium text-on-surface-variant">{record.id}</td>
+                        <td className="px-5 py-4 font-medium">{record.workDate}</td>
+                        <td className="px-5 py-4">{record.staff.fullName}</td>
+                        <td className="px-5 py-4">{record.shiftType.name}</td>
+                        <td className="px-5 py-4">
                           <StatusBadge tone={record.hasConflict ? "warning" : "success"}>
                             {record.hasConflict ? "Xung đột" : "Hợp lệ"}
                           </StatusBadge>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-2">
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2">
                             <button
-                              className="h-8 rounded-md border border-slate-200 px-3 text-xs font-medium transition-colors hover:bg-slate-50"
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                               onClick={() => editScheduleApi(record)}
                               type="button"
                             >
+                              <span aria-hidden="true" className="material-symbols-outlined text-[16px]">edit</span>
                               Sửa
                             </button>
                             <button
-                              className="h-8 rounded-md border border-rose-200 px-3 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50"
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-error/20 bg-error-container px-3 text-xs font-semibold text-on-error-container transition-colors hover:brightness-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/30"
                               onClick={() => deleteSchedule(record.id)}
                               type="button"
                             >
+                              <span aria-hidden="true" className="material-symbols-outlined text-[16px]">delete</span>
                               Xóa
                             </button>
                           </div>
@@ -348,12 +332,15 @@ export function ScheduleCrudPanel({
                 </tbody>
               </table>
             ) : (
-              /* ── Local fallback table ── */
-              <table className="min-w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                  <tr>
-                    {["Ngày", "Nhân sự", "Loại lịch", "Chuyên khoa", locationLabel, "Nghỉ bù", "Trạng thái", "Thao tác"].map((h) => (
-                      <th className="border-b border-slate-200 px-4 py-3 font-semibold" key={h}>
+              <table className="min-w-full border-collapse text-left text-sm text-on-surface">
+                <thead className="bg-surface-container-low">
+                  <tr className="border-b border-outline-variant/80">
+                    {localHeaders.map((h) => (
+                      <th
+                        className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant"
+                        key={h}
+                        scope="col"
+                      >
                         {h}
                       </th>
                     ))}
@@ -361,32 +348,37 @@ export function ScheduleCrudPanel({
                 </thead>
                 <tbody>
                   {localRecords.map((record) => (
-                    <tr className="border-b border-slate-100" key={record.id}>
-                      <td className="px-4 py-3 font-medium">{record.date}</td>
-                      <td className="px-4 py-3">{record.staff}</td>
-                      <td className="px-4 py-3">{labelsByShiftType[record.shiftType]}</td>
-                      <td className="px-4 py-3">{record.specialty || "-"}</td>
-                      <td className="px-4 py-3">{record.location || "-"}</td>
-                      <td className="px-4 py-3">{record.compensationDate || "-"}</td>
-                      <td className="px-4 py-3">
+                    <tr
+                      className="border-b border-outline-variant/60 transition-colors hover:bg-surface-container-low/60 last:border-0"
+                      key={record.id}
+                    >
+                      <td className="px-5 py-4 font-medium">{record.date}</td>
+                      <td className="px-5 py-4">{record.staff}</td>
+                      <td className="px-5 py-4">{labelsByShiftType[record.shiftType]}</td>
+                      <td className="px-5 py-4">{record.specialty || "-"}</td>
+                      <td className="px-5 py-4">{record.location || "-"}</td>
+                      <td className="px-5 py-4">{record.compensationDate || "-"}</td>
+                      <td className="px-5 py-4">
                         <StatusBadge tone={record.status === "Hợp lệ" ? "success" : "warning"}>
                           {record.status}
                         </StatusBadge>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
                           <button
-                            className="h-8 rounded-md border border-slate-200 px-3 text-xs font-medium"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                             onClick={() => editScheduleLocal(record)}
                             type="button"
                           >
+                            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">edit</span>
                             Sửa
                           </button>
                           <button
-                            className="h-8 rounded-md border border-rose-200 px-3 text-xs font-medium text-rose-700"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-error/20 bg-error-container px-3 text-xs font-semibold text-on-error-container transition-colors hover:brightness-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/30"
                             onClick={() => deleteSchedule(record.id)}
                             type="button"
                           >
+                            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">delete</span>
                             Xóa
                           </button>
                         </div>
@@ -400,17 +392,16 @@ export function ScheduleCrudPanel({
         </SectionCard>
       </div>
 
-      {/* ── Form sidebar ────────────────────────────────────── */}
-      <aside className="space-y-4">
+      <aside className="space-y-6">
         <SectionCard
           description={editingId !== null ? "Sửa lịch và kiểm tra ràng buộc phía backend" : "Chọn ngày và nhân sự để tạo lịch mới"}
           title={editingId !== null ? "Sửa lịch" : submitLabel}
         >
-          <form className="space-y-3 p-4" onSubmit={useApi ? submitScheduleApi : submitScheduleLocal}>
+          <form className="space-y-4 px-5 py-4" onSubmit={useApi ? submitScheduleApi : submitScheduleLocal}>
             <label className="block">
-              <span className="text-xs font-medium text-slate-500">Ngày</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Ngày</span>
               <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+                className="mt-2 h-10 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
                 id="schedule-date"
                 onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
                 type="date"
@@ -420,9 +411,9 @@ export function ScheduleCrudPanel({
 
             {useApi && staffOptions.length > 0 ? (
               <label className="block">
-                <span className="text-xs font-medium text-slate-500">Nhân sự</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Nhân sự</span>
                 <select
-                  className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                  className="mt-2 h-10 w-full appearance-none rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
                   id="schedule-staff"
                   onChange={(e) => setForm((f) => ({ ...f, staffId: e.target.value }))}
                   value={form.staffId}
@@ -437,9 +428,9 @@ export function ScheduleCrudPanel({
               </label>
             ) : (
               <label className="block">
-                <span className="text-xs font-medium text-slate-500">Nhân sự</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Nhân sự</span>
                 <input
-                  className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+                  className="mt-2 h-10 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant/60 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
                   id="schedule-staff"
                   onChange={(e) => setForm((f) => ({ ...f, staffId: e.target.value }))}
                   placeholder="Nhập tên nhân sự"
@@ -449,42 +440,42 @@ export function ScheduleCrudPanel({
             )}
 
             <label className="block">
-              <span className="text-xs font-medium text-slate-500">Ghi chú</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Ghi chú</span>
               <input
-                className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+                className="mt-2 h-10 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant/60 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
                 id="schedule-note"
                 onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
                 value={form.note}
               />
             </label>
 
-            <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              Loại lịch: <span className="font-semibold text-slate-700">{labelsByShiftType[shiftType]}</span>
+            <div className="rounded-xl border border-outline-variant/60 bg-surface-container-low px-3.5 py-2.5 text-sm text-on-surface-variant">
+              Loại lịch: <span className="font-semibold text-on-surface">{labelsByShiftType[shiftType]}</span>
             </div>
 
             {shiftType === "L01" && form.date ? (
-              <p className="rounded-md bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
+              <div className="rounded-xl border border-primary/15 bg-primary-fixed/60 px-3.5 py-2.5 text-sm text-on-primary-fixed-variant">
                 Nghỉ bù dự kiến: <span className="font-semibold">{getCompensationDate(form.date)}</span>
-              </p>
+              </div>
             ) : null}
 
             {message ? (
               <p
-                className={`rounded-md border px-3 py-2 text-sm ${
+                className={`rounded-xl border px-3.5 py-2.5 text-sm ${
                   messageType === "error"
-                    ? "border-rose-200 bg-rose-50 text-rose-700"
+                    ? "border-error/20 bg-error-container text-on-error-container"
                     : messageType === "success"
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-slate-200 bg-slate-50 text-slate-600"
+                      ? "border-secondary/15 bg-secondary-container/70 text-on-secondary-container"
+                      : "border-outline-variant bg-surface-container-low text-on-surface"
                 }`}
               >
                 {message}
               </p>
             ) : null}
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <button
-                className="h-9 rounded-md bg-slate-950 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary shadow-sm transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={submitting}
                 id="schedule-submit"
                 type="submit"
@@ -492,7 +483,7 @@ export function ScheduleCrudPanel({
                 {submitting ? "Đang lưu…" : editingId !== null ? "Cập nhật" : "Thêm mới"}
               </button>
               <button
-                className="h-9 rounded-md border border-slate-200 text-sm font-medium transition-colors hover:bg-slate-50"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 id="schedule-reset"
                 onClick={() => {
                   setEditingId(null);

@@ -1,11 +1,18 @@
-import type { ScheduleTone } from "@/types/schedule";
-
-export const toneStyles: Record<ScheduleTone, string> = {
-  duty24: "border-blue-200 bg-blue-50 text-blue-800",
-  allDay: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  serviceClinic: "border-amber-200 bg-amber-50 text-amber-800",
-  expertClinic: "border-violet-200 bg-violet-50 text-violet-800",
-  compLeave: "border-slate-200 bg-slate-100 text-slate-600",
-  warning: "border-rose-200 bg-rose-50 text-rose-700",
-  neutral: "border-slate-200 bg-white text-slate-400",
+export const toneStyles: Record<string, string> = {
+  duty24:
+    "bg-primary text-primary-foreground border-l-[3px] border-l-primary px-2 py-1 rounded-lg",
+  allDay:
+    "bg-secondary text-secondary-foreground border-l-[3px] border-l-secondary px-2 py-1 rounded-lg",
+  serviceClinic:
+    "bg-tertiary text-tertiary-foreground border-l-[3px] border-l-tertiary px-2 py-1 rounded-lg",
+  expertClinic:
+    "bg-expert text-expert-foreground border-l-[3px] border-l-expert px-2 py-1 rounded-lg",
+  conflict:
+    "bg-error-container text-error border border-error px-2 py-1 rounded-lg",
+  empty:
+    "bg-surface-container text-on-surface-variant px-2 py-1 rounded-lg opacity-50",
+  locked:
+    "bg-surface-variant text-on-surface-variant px-2 py-1 rounded-lg",
+  pending:
+    "bg-tertiary-fixed text-on-tertiary-fixed px-2 py-1 rounded-lg",
 };

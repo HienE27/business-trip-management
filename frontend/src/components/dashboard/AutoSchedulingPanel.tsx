@@ -2,38 +2,63 @@ import type { WorkflowStep } from "@/types/schedule";
 
 type AutoSchedulingPanelProps = {
   steps: WorkflowStep[];
+  className?: string;
 };
 
-export function AutoSchedulingPanel({ steps }: AutoSchedulingPanelProps) {
+export function AutoSchedulingPanel({ steps, className = "" }: AutoSchedulingPanelProps) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-[#15191f] p-4 text-white shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
-      <p className="text-xs font-medium uppercase text-white/50">M07</p>
-      <h2 className="mt-3 text-lg font-semibold">Tự động sắp xếp lịch</h2>
-      <p className="mt-2 text-sm leading-6 text-white/64">
-        Round Robin phân bổ đều, sau đó quét ràng buộc trực 24/24, thông tầm,
-        phòng khám và ngày nghỉ bù.
-      </p>
-      <div className="mt-4 space-y-2">
-        {steps.map((step) => (
-          <div className="flex items-center gap-3 rounded-md bg-white/6 p-2" key={step.step}>
-            <span
-              className={`grid size-7 place-items-center rounded-md text-xs font-semibold ${
-                step.status === "Done"
-                  ? "bg-emerald-400 text-slate-950"
-                  : step.status === "Active"
-                    ? "bg-white text-slate-950"
-                    : "bg-white/10 text-white/50"
-              }`}
-            >
-              {step.step}
-            </span>
-            <span className="text-sm">{step.title}</span>
-          </div>
+    <section className={`flex flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-[0_1px_3px_0_rgba(0,0,0,0.05)] overflow-hidden ${className}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-outline-variant bg-surface-bright">
+        <div className="flex items-center gap-2">
+          <span aria-hidden="true" className="material-symbols-outlined text-primary text-[20px]">
+            auto_fix_high
+          </span>
+          <h3 className="font-title-lg text-on-surface">Tu dong xep lich</h3>
+        </div>
+        <button className="px-4 py-2 bg-primary text-on-primary rounded-lg text-[14px] font-bold flex items-center gap-2 hover:opacity-90 transition-colors shadow-[0_1px_3px_0_rgba(0,0,0,0.1)]">
+          <span aria-hidden="true" className="material-symbols-outlined text-[18px]">play_arrow</span>
+          KHOI DONG
+        </button>
+      </div>
+
+      {/* Steps */}
+      <div className="flex flex-col divide-y divide-outline-variant p-4">
+        {steps.map((step, index) => (
+          <article className="flex items-start gap-4 py-4 first:pt-0" key={step.id}>
+            {/* Step number */}
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-container text-on-primary-container font-bold text-sm">
+              {index + 1}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              <p className="font-label-md text-on-surface">{step.title}</p>
+              {step.description && (
+                <p className="mt-1 font-body-sm text-on-surface-variant leading-relaxed">
+                  {step.description}
+                </p>
+              )}
+            </div>
+
+            {/* Status icon */}
+            <div className="shrink-0">
+              <span
+                aria-hidden="true"
+                className={`material-symbols-outlined text-[18px] ${
+                  step.status === "completed"
+                    ? "text-secondary fill"
+                    : step.status === "active"
+                    ? "text-primary"
+                    : "text-outline"
+                }`}
+              >
+                {step.status === "completed" ? "check_circle" : step.status === "active" ? "radio_button_checked" : "radio_button_unchecked"}
+              </span>
+            </div>
+          </article>
         ))}
       </div>
-      <button className="mt-4 h-9 w-full rounded-md bg-white text-sm font-medium text-slate-950">
-        Xem bản nháp
-      </button>
     </section>
   );
 }

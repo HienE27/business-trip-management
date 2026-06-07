@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -18,6 +19,7 @@ type AuthState = {
   token: string | null;
   user: AuthUser | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 };
@@ -37,15 +39,23 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : window.localStorage.getItem("medschedule.token"),
-  );
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    if (typeof window === "undefined") return null;
+  const [mounted, setMounted] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
+  useEffect(() => {
+    setMounted(true);
+    const savedToken = window.localStorage.getItem("medschedule.token");
     const savedUser = window.localStorage.getItem("medschedule.user");
-    return savedUser ? (JSON.parse(savedUser) as AuthUser) : null;
-  });
+    if (savedToken) setToken(savedToken);
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser) as AuthUser);
+      } catch {
+        window.localStorage.removeItem("medschedule.user");
+      }
+    }
+  }, []);
 
   const login = useCallback(async (username: string, password: string) => {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -87,11 +97,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       token,
       user,
-      isAuthenticated: Boolean(token),
+      isAuthenticated: Boolean(mounted && token),
+      isLoading: !mounted,
       login,
       logout,
     }),
-    [login, logout, token, user],
+    [login, logout, mounted, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

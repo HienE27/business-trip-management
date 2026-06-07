@@ -2,37 +2,53 @@ import type { ConflictItem } from "@/types/schedule";
 
 type ConflictPanelProps = {
   conflicts: ConflictItem[];
+  maxItems?: number;
+  className?: string;
 };
 
-export function ConflictPanel({ conflicts }: ConflictPanelProps) {
+export function ConflictPanel({ conflicts, maxItems = 5, className = "" }: ConflictPanelProps) {
+  const displayConflicts = conflicts.slice(0, maxItems);
+
   return (
-    <section className="rounded-lg border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
-      <div className="border-b border-slate-200 p-4">
-        <h2 className="text-sm font-semibold">Cảnh báo xung đột</h2>
-        <p className="text-xs text-slate-500">Logic dùng chung cho thủ công và tự động</p>
+    <section className={`flex flex-col rounded-xl border border-error-container bg-surface-container-lowest shadow-[0_1px_3px_0_rgba(0,0,0,0.05)] overflow-hidden ${className}`}>
+      {/* Header */}
+      <div className="flex items-center gap-2 p-4 border-b border-error-container bg-error/5">
+        <span aria-hidden="true" className="material-symbols-outlined fill text-error text-[20px]">
+          warning
+        </span>
+        <h3 className="font-title-lg text-error">
+          Canh bao xung dot ({conflicts.length})
+        </h3>
       </div>
-      <div className="divide-y divide-slate-100">
-        {conflicts.map((conflict) => (
-          <div className="p-4" key={`${conflict.staff}-${conflict.date}-${conflict.type}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium">{conflict.type}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {conflict.staff} · {conflict.date}
+
+      {/* List */}
+      <div className="p-2 flex flex-col gap-2">
+        {displayConflicts.map((conflict) => (
+          <article
+            className="p-3 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
+            key={conflict.id}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="font-label-md text-on-surface truncate">
+                  {conflict.staffName}
+                </p>
+                <p className="mt-1 font-body-sm text-on-surface-variant leading-relaxed line-clamp-2">
+                  {conflict.detail}
                 </p>
               </div>
-              <span
-                className={`shrink-0 rounded-md border px-2 py-1 text-xs font-medium ${
-                  conflict.severity === "Chặn lưu"
-                    ? "border-rose-200 bg-rose-50 text-rose-700"
-                    : "border-amber-200 bg-amber-50 text-amber-700"
-                }`}
-              >
-                {conflict.severity}
-              </span>
+              <button className="shrink-0 text-error text-[14px] font-medium hover:underline">
+                Xu ly ngay
+              </button>
             </div>
-          </div>
+          </article>
         ))}
+
+        {conflicts.length > maxItems && (
+          <button className="mt-2 text-center text-[14px] text-primary hover:underline font-medium">
+            Xem tat ca ({conflicts.length})
+          </button>
+        )}
       </div>
     </section>
   );

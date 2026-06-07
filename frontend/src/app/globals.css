@@ -1,75 +1,288 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: hsl(0 0% 98%);
-  --color-foreground: hsl(222 47% 11%);
+  /* ── Brand Colors (Stitch exact) ── */
+  --color-primary: #004ac6;
+  --color-primary-foreground: #ffffff;
+  --color-primary-fixed: #dbe1ff;
+  --color-primary-container: #2563eb;
+  --color-on-primary-container: #eeefff;
+  --color-on-primary-fixed-variant: #003ea8;
+  --color-on-primary-fixed: #00174b;
 
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(222 47% 11%);
+  --color-secondary: #006e2d;
+  --color-secondary-foreground: #ffffff;
+  --color-secondary-container: #7cf994;
+  --color-on-secondary-container: #007230;
+  --color-secondary-fixed: #7ffc97;
+  --color-on-secondary-fixed-variant: #005320;
+  --color-on-secondary-fixed: #002109;
+  --color-secondary-fixed-dim: #62df7d;
 
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(222 47% 11%);
+  --color-tertiary: #973400;
+  --color-tertiary-foreground: #ffffff;
+  --color-tertiary-container: #c04400;
+  --color-on-tertiary-container: #ffede7;
+  --color-tertiary-fixed: #ffdbce;
+  --color-on-tertiary-fixed-variant: #7f2a00;
+  --color-on-tertiary-fixed: #370e00;
+  --color-tertiary-fixed-dim: #ffb599;
 
-  --color-primary: hsl(221 83% 53%);
-  --color-primary-foreground: hsl(0 0% 100%);
+  /* ── Expert Clinic (Purple) ── */
+  --color-expert: #7f2a00;
+  --color-expert-foreground: #ffffff;
+  --color-expert-container: #c97b55;
+  --color-on-expert-container: #3b1c07;
 
-  --color-secondary: hsl(210 40% 96%);
-  --color-secondary-foreground: hsl(222 47% 11%);
+  /* ── Error ── */
+  --color-error: #ba1a1a;
+  --color-error-foreground: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
 
-  --color-muted: hsl(210 40% 96%);
-  --color-muted-foreground: hsl(215 16% 47%);
+  /* ── Surface System (Stitch exact) ── */
+  --color-background: #f7f9fb;
+  --color-foreground: #191c1e;
 
-  --color-accent: hsl(210 40% 96%);
-  --color-accent-foreground: hsl(222 47% 11%);
+  --color-surface: #f7f9fb;
+  --color-surface-bright: #ffffff;
+  --color-surface-dim: #d8dadc;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f2f4f6;
+  --color-surface-container: #eceef0;
+  --color-surface-container-high: #e6e8ea;
+  --color-surface-container-highest: #e0e3e5;
+  --color-surface-variant: #e6e8ea;
 
-  --color-destructive: hsl(0 84% 60%);
-  --color-destructive-foreground: hsl(0 0% 100%);
+  /* ── Dark Surface ── */
+  --color-surface-dark: #15191f;
 
-  --color-border: hsl(214 32% 91%);
-  --color-input: hsl(214 32% 91%);
-  --color-ring: hsl(221 83% 53%);
+  /* ── Inverse ── */
+  --color-inverse-surface: #2d3133;
+  --color-inverse-on-surface: #eff1f3;
+  --color-inverse-primary: #b4c5ff;
+  --color-surface-tint: #0053db;
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* ── Borders / Outline ── */
+  --color-outline: #737686;
+  --color-outline-variant: #c3c6d7;
 
-  --radius: 0.5rem;
+  /* ── On-surface ── */
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #434655;
 
-  --color-chart-1: hsl(12 76% 61%);
-  --color-chart-2: hsl(173 58% 39%);
-  --color-chart-3: hsl(197 37% 24%);
-  --color-chart-4: hsl(43 74% 66%);
-  --color-chart-5: hsl(27 87% 67%);
+  /* ── Chart Colors ── */
+  --color-chart-2424: #004ac6;
+  --color-chart-thongtam: #006e2d;
+  --color-chart-dichvu: #973400;
+  --color-chart-chuyengia: #7f2a00;
+
+  /* ── Border Radius ── */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
 }
 
 @layer base {
   * {
-    border-color: var(--color-border);
+    border-color: var(--color-outline-variant);
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-inter), var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* Custom scrollbar */
+/* ── Typography Scale (Stitch exact) ── */
+.font-display-lg {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 700;
+}
+
+.font-headline-lg {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+}
+
+.font-headline-md {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+.font-title-lg {
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+}
+
+.font-title-md {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+}
+
+.font-body-lg {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+
+.font-body-md {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.font-body-sm {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+.font-label-lg {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.font-label-md {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.font-label-sm {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.text-display-lg { font-size: 32px; line-height: 40px; font-weight: 700; }
+.text-headline-lg { font-size: 24px; line-height: 32px; font-weight: 600; }
+.text-headline-md { font-size: 20px; line-height: 28px; font-weight: 600; }
+.text-title-lg { font-size: 18px; line-height: 26px; font-weight: 600; }
+.text-title-md { font-size: 16px; line-height: 24px; font-weight: 500; }
+.text-body-lg { font-size: 16px; line-height: 24px; font-weight: 400; }
+.text-body-md { font-size: 14px; line-height: 20px; font-weight: 400; }
+.text-body-sm { font-size: 13px; line-height: 18px; font-weight: 400; }
+.text-label-lg { font-size: 14px; line-height: 20px; font-weight: 500; }
+.text-label-md { font-size: 13px; line-height: 18px; font-weight: 500; }
+.text-label-sm { font-size: 11px; line-height: 16px; font-weight: 600; }
+
+/* ── Material Symbols ── */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', var(--font-inter), system-ui, sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.material-symbols-outlined[data-weight="fill"],
+.material-symbols-outlined.fill {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ── Scrollbar (Stitch exact) ── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-outline-variant) transparent;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-muted);
-  border-radius: 3px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--color-muted-foreground) 30%, transparent);
-  border-radius: 3px;
+  background: var(--color-outline-variant);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--color-muted-foreground) 50%, transparent);
+  background: var(--color-outline);
+}
+
+/* ── Hide scrollbar utility ── */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Decorative corner (KPI card corner accent) ── */
+.card-corner-deco {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 64px;
+  height: 64px;
+  border-bottom-left-radius: 9999px;
+  opacity: 0.3;
+}
+
+/* ── Emergency pulse ── */
+@keyframes emergency-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(186, 26, 26, 0.4); }
+  70% { box-shadow: 0 0 0 15px rgba(186, 26, 26, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(186, 26, 26, 0); }
+}
+
+.emergency-pulse {
+  animation: emergency-pulse 2s infinite;
+}
+
+/* ── Schedule shift type colors (Stitch exact) ── */
+.shift-24-24 {
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+.shift-regular {
+  background-color: var(--color-secondary);
+  color: var(--color-secondary-foreground);
+}
+
+.shift-service {
+  background-color: var(--color-tertiary);
+  color: var(--color-tertiary-foreground);
+}
+
+.shift-expert {
+  background-color: var(--color-expert);
+  color: var(--color-expert-foreground);
 }

@@ -13,18 +13,20 @@ export function SectionCard({
   description,
   action,
   children,
-  className = "",
+  className,
 }: SectionCardProps) {
   return (
     <section
-      className={`rounded-lg border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)] ${className}`}
+      className={`overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm ${className ?? ""}`}
     >
-      <div className="flex min-h-14 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-        <div>
-          <h2 className="text-sm font-semibold">{title}</h2>
-          {description ? <p className="text-xs text-slate-500">{description}</p> : null}
+      <div className="flex min-h-[60px] flex-col justify-between gap-3 border-b border-outline-variant px-5 py-4 md:flex-row md:items-start">
+        <div className="space-y-1">
+          <h2 className="font-title-lg text-on-surface">{title}</h2>
+          {description ? (
+            <p className="max-w-3xl font-body-sm text-on-surface-variant">{description}</p>
+          ) : null}
         </div>
-        {action}
+        {action ? <div className="shrink-0 self-start">{action}</div> : null}
       </div>
       {children}
     </section>

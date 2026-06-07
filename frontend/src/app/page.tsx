@@ -1,51 +1,64 @@
-import { AutoSchedulingPanel } from "@/components/dashboard/AutoSchedulingPanel";
+import { AllocationStats } from "@/components/dashboard/AllocationStats";
 import { ConflictPanel } from "@/components/dashboard/ConflictPanel";
+import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { ScheduleMatrix } from "@/components/dashboard/ScheduleMatrix";
-import { ScheduleModuleCard } from "@/components/dashboard/ScheduleModuleCard";
-import { StaffLoadTable } from "@/components/dashboard/StaffLoadTable";
+import { SwapRequestsPanel } from "@/components/dashboard/SwapRequestsPanel";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import {
+  allocationStats,
   conflicts,
   metrics,
-  scheduleModules,
-  scheduleRows,
-  staffColumns,
-  staffLoads,
-  workflowSteps,
+  swapRequests,
 } from "@/data/schedule-dashboard";
 
 export default function Home() {
   return (
     <DashboardShell
-      activeCode="M06"
-      description="Tổng hợp 4 loại lịch, cảnh báo xung đột và tự động phân công."
-      primaryAction="Xếp lịch tự động"
-      secondaryAction="Xuất báo cáo"
-      title="Dashboard lịch công tác toàn phòng"
+      activeCode="HOME"
+      description="Thông tin điều phối nhân sự ngày hôm nay"
+      title="Tổng quan"
     >
-      <div className="grid gap-4 p-5 max-sm:p-3 2xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-4">
-          <section className="grid gap-4 md:grid-cols-4">
-            {metrics.map((metric) => (
-              <MetricCard key={metric.label} metric={metric} />
-            ))}
-          </section>
+      {/* Page Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div />
+        <div className="flex gap-3">
+          <button
+            className="h-10 px-4 bg-surface-container-lowest border border-outline-variant text-on-surface rounded-lg font-label-md flex items-center gap-2 hover:bg-surface-container-low transition-colors shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]"
+            type="button"
+          >
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">download</span>
+            Xuất báo cáo
+          </button>
+          <button
+            className="h-10 px-4 bg-primary text-on-primary rounded-lg font-label-md flex items-center gap-2 hover:bg-primary/90 transition-colors shadow-[0_1px_3px_0_rgba(0,0,0,0.1),0_1px_2px_-1px_rgba(0,0,0,0.1)]"
+            type="button"
+          >
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
+            Xếp lịch mới
+          </button>
+        </div>
+      </div>
 
-          <section className="grid gap-4 lg:grid-cols-4">
-            {scheduleModules.map((module) => (
-              <ScheduleModuleCard key={module.code} module={module} />
-            ))}
-          </section>
+      {/* Summary Cards */}
+      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {metrics.map((metric) => (
+          <MetricCard key={metric.label} metric={metric} />
+        ))}
+      </section>
 
-          <ScheduleMatrix staff={staffColumns} rows={scheduleRows} />
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full min-h-[600px]">
+        {/* Left: Calendar Overview */}
+        <div className="col-span-1 lg:col-span-8">
+          <DashboardCalendar />
         </div>
 
-        <aside className="grid gap-4 lg:grid-cols-3 2xl:block 2xl:space-y-4">
+        {/* Right: Widgets */}
+        <div className="col-span-1 lg:col-span-4 flex flex-col gap-gutter">
           <ConflictPanel conflicts={conflicts} />
-          <AutoSchedulingPanel steps={workflowSteps} />
-          <StaffLoadTable loads={staffLoads} />
-        </aside>
+          <SwapRequestsPanel requests={swapRequests} />
+          <AllocationStats stats={allocationStats} />
+        </div>
       </div>
     </DashboardShell>
   );

@@ -8,30 +8,31 @@ export default function ServiceClinicPage() {
     <DashboardShell
       activeCode="M04"
       description="Gán nhân sự phụ trách phòng khám dịch vụ theo ngày và kiểm tra trùng lịch chuyên gia."
-      primaryAction="Lưu lịch dịch vụ"
-      secondaryAction="Kiểm tra chuyên gia"
-      title="M04 - Lịch phòng khám dịch vụ"
+      title="Lịch phòng khám dịch vụ"
     >
-      <div className="space-y-4 p-5 max-sm:p-3">
-        <section className="grid gap-4 md:grid-cols-4">
+      <div className="space-y-6">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Ca dịch vụ", "24", "Tháng 05/2026"],
-            ["Đã gán", "19", "79% kế hoạch"],
-            ["Cảnh báo", "01", "Trùng lịch chuyên gia"],
-            ["Phòng khám", "03", "Đang hoạt động"],
-          ].map(([label, value, helper]) => (
-            <div
-              className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
-              key={label}
-            >
-              <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
-              <p className="mt-3 text-2xl font-semibold">{value}</p>
-              <p className="mt-1 text-sm text-slate-500">{helper}</p>
-            </div>
-          ))}
+            ["Ca dich vu", "24", "Thang 05/2026"],
+            ["Da gan", "19", "79% ke hoach"],
+            ["Canh bao", "01", "Trung lich chuyen gia"],
+            ["Phong kham", "03", "Dang hoat dong"],
+          ].map((item) => {
+            const [label, value, helper] = item;
+            return (
+              <div
+                className="rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-sm transition-colors hover:bg-surface-container-low"
+                key={label}
+              >
+                <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">{label}</p>
+                <p className="mt-3 font-display-lg font-bold text-on-surface">{value}</p>
+                <p className="mt-1 font-body-sm text-on-surface-variant">{helper}</p>
+              </div>
+            );
+          })}
         </section>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
           <SectionCard
             description="Ô ngày có lịch chuyên gia hoặc nghỉ bù được tô cảnh báo"
             title="Bảng phân công phòng khám dịch vụ"
@@ -43,28 +44,28 @@ export default function ServiceClinicPage() {
             />
           </SectionCard>
 
-          <aside className="space-y-4">
-            <SectionCard description="M04-F01" title="Tạo lịch dịch vụ">
-              <div className="space-y-3 p-4">
-                {["Ngày", "Nhân sự", "Phòng khám", "Ghi chú"].map((label) => (
+          <aside className="space-y-6">
+            <SectionCard description="M04-F01" title="Tao lich dich vu">
+              <div className="space-y-4 px-5 py-4">
+                {["Ngay", "Nhan su", "Phong kham", "Ghi chu"].map((label) => (
                   <label className="block" key={label}>
-                    <span className="text-xs font-medium text-slate-500">{label}</span>
+                    <span className="text-label-sm uppercase tracking-wider text-on-surface-variant">{label}</span>
                     <input
-                      className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+                      className="mt-2 h-10 w-full rounded-lg border border-outline-variant bg-surface px-3 text-body-md text-on-surface outline-none transition-colors placeholder:text-on-surface-variant/70 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
                       placeholder={label}
                     />
                   </label>
                 ))}
-                <button className="h-9 w-full rounded-md bg-slate-950 text-sm font-medium text-white">
-                  Thêm ca dịch vụ
+                <button className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-primary px-4 text-label-md text-on-primary shadow-sm transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20">
+                  Them ca dich vu
                 </button>
               </div>
             </SectionCard>
 
-            <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
-              <p className="text-xs font-medium uppercase">Kiểm tra trước lưu</p>
-              <p className="mt-2 text-sm leading-6">
-                Dịch vụ không được trùng phòng khám chuyên gia và không được xếp vào ngày nghỉ bù.
+            <section className="rounded-lg border border-tertiary-container bg-tertiary-fixed/30 p-5 shadow-sm">
+              <p className="text-label-sm uppercase tracking-wider text-tertiary">Kiem tra truoc luu</p>
+              <p className="mt-3 font-body-sm text-on-surface">
+                Dich vu khong duoc trung phong kham chuyen gia va khong duoc xep vao ngay nghi bu.
               </p>
             </section>
           </aside>
