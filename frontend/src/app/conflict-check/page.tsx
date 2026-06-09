@@ -1,103 +1,167 @@
-﻿import { DashboardShell } from "@/components/layout/DashboardShell";
-import { conflictRows, conflictSummary } from "@/data/operations-dashboard";
+﻿"use client";
 
-const conflictDetails = [
-  {
-    code: "CF-101",
-    type: "Truc 24/24 trung thong tam",
-    staff: "Nguyen Minh Anh",
-    date: "31/05/2026",
-    module: "M02 / M03",
-    severity: "Chan luu",
-    description: "Nhan su da co lich thong tam cung ngay voi ca truc 24/24 duoc de xuat.",
-  },
-  {
-    code: "CF-102",
-    type: "Xep lich vao ngay nghi bu",
-    staff: "Tran Duc Huy",
-    date: "28/05/2026",
-    module: "M02 / M04",
-    severity: "Chan luu",
-    description: "Ngay nghi bu sau truc dem dang bi su dung lai cho phong kham dich vu.",
-  },
-  {
-    code: "CF-103",
-    type: "Dich vu trung chuyen gia",
-    staff: "Le Bao Chau",
-    date: "29/05/2026",
-    module: "M04 / M05",
-    severity: "Canh bao",
-    description: "Nhan su dang duoc de xuat cho ca lich kham dich vu va kham chuyen gia cung ngay.",
-  },
-  {
-    code: "CF-104",
-    type: "Ngoai le nghi phep",
-    staff: "Do Lan Phuong",
-    date: "30/05/2026",
-    module: "M07",
-    severity: "Canh bao",
-    description: "Ban du thao tu dong dang phan bo vao ngay co yeu cau nghi phep cho duyet.",
-  },
-];
-
-const affectedScopes = [
-  ["Lich truc 24/24", "02 loi chan luu"],
-  ["Phong kham dich vu", "01 canh bao"],
-  ["Phong kham chuyen gia", "01 canh bao"],
-  ["Tu dong xep lich", "01 dau vao can xac minh"],
-];
-
-function getSeverityClass(severity: string) {
-  if (severity === "Chan luu") {
-    return "bg-error-container text-error border border-error/20";
-  }
-  if (severity === "Canh bao") {
-    return "bg-tertiary-fixed text-on-tertiary-fixed border border-on-tertiary-fixed/10";
-  }
-  return "bg-surface-container-high text-on-surface-variant border border-outline/10";
-}
-
-function getSummaryAccent(label: string) {
-  if (label === "Chan luu") return "border-l-4 border-l-error";
-  if (label === "Da xu ly") return "border-l-4 border-l-secondary";
-  return "border-l-4 border-l-outline";
-}
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { DashboardShell } from "@/components/layout/DashboardShell";
+import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
+import type { ConflictCheckResponse, ConflictDetail } from "@/types/api";
 
 export default function ConflictCheckPage() {
+  const [periodId, setPeriodId] = useState<number>(1);
+  const [periods, setPeriods] = useState<{ id: number; periodName: string }[]>([]);
+  const [conflictData, setConflictData] = useState<ConflictCheckResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const fetchPeriods = useCallback(async () => {
+    try {
+      const res = await api.get<{ id: number; periodName: string }[]>("/periods");
+      setPeriods(res ?? []);
+      if (res && res.length > 0) {
+        const published = res.find((p: { id: number; periodName: string }) => p.id === periodId);
+        if (!published) setPeriodId(res[0].id);
+      }
+    } catch (err) {
+      setPeriods([]);
+      setMessage(getErrorMessage(err, "Không thể tải danh sách kỳ lịch."));
+    }
+  }, [periodId]);
+
+  const runCheck = useCallback(async () => {
+    if (!periodId) return;
+    try {
+      setChecking(true);
+      setMessage("");
+      const res = await api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`);
+      setConflictData(res);
+    } catch (err) {
+      setMessage(getErrorMessage(err, "Lỗi kiểm tra xung đột."));
+    } finally {
+      setChecking(false);
+    }
+  }, [periodId]);
+
+  useEffect(() => {
+    fetchPeriods();
+  }, [fetchPeriods]);
+
+  useEffect(() => {
+    if (periodId) runCheck();
+  }, [periodId, runCheck]);
+
+  const conflictRows = useMemo(() => {
+    if (!conflictData?.conflicts) return [];
+    return conflictData.conflicts.map((c: ConflictDetail) => [
+      `CF-${c.scheduleId.toString().padStart(3, "0")}`,
+      c.conflictReasons.join(", "),
+      c.staffName,
+      new Date(c.workDate).toLocaleDateString("vi-VN"),
+      c.shiftTypeId,
+      c.shiftTypeName,
+    ]);
+  }, [conflictData]);
+
+  const conflictDetails = useMemo(() => {
+    if (!conflictData?.conflicts) return [];
+    return conflictData.conflicts.map((c: ConflictDetail, i: number) => ({
+      code: `CF-${c.scheduleId.toString().padStart(3, "0")}`,
+      type: c.shiftTypeName,
+      staff: c.staffName,
+      date: new Date(c.workDate).toLocaleDateString("vi-VN"),
+      module: c.shiftTypeId,
+      severity: c.conflictReasons.some((r: string) => r.toLowerCase().includes("bù"))
+        ? "Chặn lưu"
+        : "Cảnh báo",
+      description: c.conflictReasons.join("; "),
+    }));
+  }, [conflictData]);
+
+  const summary = useMemo(() => {
+    if (!conflictData) return [];
+    const conflicts = conflictData.conflicts ?? [];
+    return [
+      ["Tổng lỗi", String(conflicts.length)],
+      ["Chặn lưu", String(conflicts.filter((c: ConflictDetail) => c.conflictReasons.some((r: string) => r.toLowerCase().includes("bù"))).length)],
+      ["Cảnh báo", String(conflicts.filter((c: ConflictDetail) => !c.conflictReasons.some((r: string) => r.toLowerCase().includes("bù"))).length)],
+      ["Đã xử lý", "0"],
+    ];
+  }, [conflictData]);
+
+  const affectedScopes = useMemo(() => {
+    if (!conflictData?.conflicts) return [];
+    const scopes: Record<string, { block: number; warn: number }> = {};
+    for (const c of conflictData.conflicts) {
+      if (!scopes[c.shiftTypeName]) scopes[c.shiftTypeName] = { block: 0, warn: 0 };
+      if (c.conflictReasons.some((r: string) => r.toLowerCase().includes("bù"))) scopes[c.shiftTypeName].block++;
+      else scopes[c.shiftTypeName].warn++;
+    }
+    return Object.entries(scopes).map(([name, counts]) => [
+      name,
+      `${counts.block > 0 ? `${counts.block} lỗi chặn lưu` : ""}${counts.block > 0 && counts.warn > 0 ? ", " : ""}${counts.warn > 0 ? `${counts.warn} cảnh báo` : ""}`.trim(),
+    ]);
+  }, [conflictData]);
+
+  function getSeverityClass(severity: string) {
+    if (severity === "Chặn lưu") return "bg-error-container text-error border border-error/20";
+    if (severity === "Cảnh báo") return "bg-tertiary-fixed text-on-tertiary-fixed border border-on-tertiary-fixed/10";
+    return "bg-surface-container-high text-on-surface-variant border border-outline/10";
+  }
+
+  function getSummaryAccent(label: string) {
+    if (label === "Chặn lưu") return "border-l-4 border-l-error";
+    if (label === "Đã xử lý") return "border-l-4 border-l-secondary";
+    return "border-l-4 border-l-outline";
+  }
+
   return (
     <DashboardShell
       activeCode="M06-CONFLICT"
-      description="Quet toan bo lich thang, phat hien trung truc 24/24, thong tam, phong kham va ngay nghi bu."
-      title="Canh bao xung dot thoi gian thuc"
+      description="Quét toàn bộ lịch tháng, phát hiện trùng trực 24/24, thông tầm, phòng khám và ngày nghỉ bù."
+      title="Cảnh báo xung đột thời gian thực"
     >
       <div className="space-y-6">
         {/* Header */}
         <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <p className="text-label-sm text-on-surface-variant uppercase tracking-widest">Canh bao xung dot</p>
+            <p className="text-label-sm text-on-surface-variant uppercase tracking-widest">Cảnh báo xung đột</p>
             <p className="mt-1 font-body-sm text-on-surface-variant">
-              Quet toan bo lich thang va gom cac loi chan luu truoc khi cong bo lich chinh thuc.
+              Quét toàn bộ lịch tháng và gom các lỗi chặn lưu trước khi công bố lịch chính thức.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <button className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-2 text-label-md text-on-surface shadow-sm transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20">
-              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">tune</span>
-              Bo loc nang cao
-            </button>
-            <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary shadow-sm transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20">
-              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">play_circle</span>
-              Chay kiem tra
+            <select
+              className="h-10 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface shadow-sm"
+              value={periodId}
+              onChange={(e) => setPeriodId(Number(e.target.value))}
+            >
+              {periods.map((p) => (
+                <option key={p.id} value={p.id}>{p.periodName}</option>
+              ))}
+            </select>
+            <button
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary shadow-sm transition-colors hover:opacity-90 disabled:opacity-50"
+              disabled={checking}
+              onClick={runCheck}
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[18px]">{checking ? "sync" : "play_circle"}</span>
+              {checking ? "Đang kiểm tra..." : "Chạy kiểm tra"}
             </button>
           </div>
         </section>
 
+        {message && (
+          <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">{message}</div>
+        )}
+
         {/* Summary Cards */}
         <section className="grid gap-4 md:grid-cols-4">
-          {conflictSummary.map((item) => {
-            const [label, value] = item;
+          {summary.map((item) => {
+            const [label, value] = item as [string, string];
             return (
               <div
-                className={`rounded-lg border-t border-r border-b border-outline-variant bg-surface-container-lowest p-5 shadow-sm transition-colors hover:bg-surface-container-low ${getSummaryAccent(label)}`}
+                className={`rounded-lg border-t border-r border-b border-outline-variant bg-surface-container-lowest p-5 shadow-sm hover:bg-surface-container-low ${getSummaryAccent(label)}`}
                 key={label}
               >
                 <p className="text-label-sm text-on-surface-variant uppercase tracking-wider opacity-80">{label}</p>
@@ -107,98 +171,36 @@ export default function ConflictCheckPage() {
           })}
         </section>
 
-        {/* Filter bar */}
-        <section className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            <div className="relative">
-              <label className="mb-1 block text-label-sm text-on-surface-variant uppercase tracking-wider" htmlFor="conflict-search">
-                Tim kiem
-              </label>
-              <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">
-                  search
-                </span>
-                <input
-                  autoComplete="off"
-                  className="w-full rounded-lg border border-outline-variant bg-surface py-2 pl-9 pr-3 font-body-sm text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  id="conflict-search"
-                  name="conflictSearch"
-                  placeholder="Tim theo ma loi, nhan su..."
-                  type="text"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-label-sm text-on-surface-variant uppercase tracking-wider" htmlFor="conflict-module">
-                Module
-              </label>
-              <select id="conflict-module" name="module" className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 font-body-sm text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20">
-                <option value="">Tat ca Module</option>
-                <option value="m02">Lich truc 24/24</option>
-                <option value="m03">Thong tam</option>
-                <option value="m04">Phong kham dich vu</option>
-                <option value="m05">Phong kham chuyen gia</option>
-                <option value="m07">Tu dong xep lich</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-label-sm text-on-surface-variant uppercase tracking-wider" htmlFor="conflict-severity">
-                Muc do
-              </label>
-              <select id="conflict-severity" name="severity" className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 font-body-sm text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20">
-                <option value="">Tat ca muc do</option>
-                <option value="block">Chan luu</option>
-                <option value="warning">Canh bao</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-label-sm text-on-surface-variant uppercase tracking-wider" htmlFor="conflict-period">
-                Ky kiem tra
-              </label>
-              <input
-                className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 font-body-sm text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                id="conflict-period"
-                name="period"
-                type="month"
-              />
-            </div>
-          </div>
-        </section>
-
         <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
           <div className="space-y-6">
             {/* Error Table */}
             <section className="overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm">
               <div className="flex flex-col gap-4 border-b border-outline-variant bg-surface-container-low p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="font-title-lg text-on-surface">Bang loi xung dot</h2>
+                  <h2 className="font-title-lg text-on-surface">Bảng lỗi xung đột</h2>
                   <p className="mt-1 font-body-sm text-on-surface-variant">
-                    Danh sach loi tong hop sau khi quet toan bo cac module lich.
+                    Danh sách lỗi tổng hợp sau khi quét toàn bộ các module lịch.
                   </p>
                 </div>
-                <button className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-md text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20">
-                  <span aria-hidden="true" className="material-symbols-outlined text-[18px]">download</span>
-                  Xuat danh sach
-                </button>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left">
                   <thead>
                     <tr className="border-b border-outline-variant bg-surface-container-low">
-                      <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Ma loi</th>
-                      <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Loai loi</th>
-                      <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Nhan su</th>
-                      <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Ngay</th>
+                      <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Mã lỗi</th>
+                      <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Loại lỗi</th>
+                      <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Nhân sự</th>
+                      <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Ngày</th>
                       <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Module</th>
-                      <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Muc do</th>
+                      <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Mức độ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant font-body-sm">
                     {conflictRows.length === 0 ? (
                       <tr>
                         <td className="px-5 py-10 text-center font-body-sm text-on-surface-variant" colSpan={6}>
-                          Khong co loi xung dot nao.
+                          Không có lỗi xung đột nào.
                         </td>
                       </tr>
                     ) : (
@@ -208,10 +210,10 @@ export default function ConflictCheckPage() {
                           <td className="px-5 py-3 text-on-surface">{row[1]}</td>
                           <td className="px-5 py-3 text-on-surface">{row[2]}</td>
                           <td className="px-5 py-3 text-on-surface-variant">{row[3]}</td>
-                          <td className="px-5 py-3 text-on-surface-variant">{row[4]}</td>
+                          <td className="px-5 py-3 text-on-surface-variant">{row[4]} — {row[5]}</td>
                           <td className="px-5 py-3">
-                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${getSeverityClass(row[5])}`}>
-                              {row[5]}
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${getSeverityClass(row[1]?.includes("bù") ? "Chặn lưu" : "Cảnh báo")}`}>
+                              {row[1]?.includes("bù") ? "Chặn lưu" : "Cảnh báo"}
                             </span>
                           </td>
                         </tr>
@@ -240,18 +242,15 @@ export default function ConflictCheckPage() {
                       <p className="mt-2 font-label-md text-on-surface">{item.type}</p>
                       <p className="mt-1 font-body-sm text-on-surface-variant">{item.description}</p>
                     </div>
-                    <button className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-md text-on-surface transition-colors hover:bg-surface-container shrink-0">
-                      Xem nguyen nhan
-                    </button>
                   </div>
 
                   <div className="mt-5 grid gap-4 md:grid-cols-4">
                     <div className="flex flex-col gap-1">
-                      <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Nhan su</span>
+                      <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Nhân sự</span>
                       <span className="font-label-md text-on-surface">{item.staff}</span>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Ngay</span>
+                      <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Ngày</span>
                       <span className="font-label-md text-on-surface">{item.date}</span>
                     </div>
                     <div className="flex flex-col gap-1">
@@ -259,9 +258,9 @@ export default function ConflictCheckPage() {
                       <span className="font-label-md text-on-surface">{item.module}</span>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Khuyen nghi</span>
+                      <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Khuyến nghị</span>
                       <span className="font-label-md text-on-surface">
-                        {item.severity === "Chan luu" ? "Sua truoc khi cong bo lich" : "Cho phep luu ban nhap de ra lai"}
+                        {item.severity === "Chặn lưu" ? "Sửa trước khi công bố lịch" : "Cho phép lưu bản nháp để rà soát thêm"}
                       </span>
                     </div>
                   </div>
@@ -273,37 +272,47 @@ export default function ConflictCheckPage() {
           <aside className="space-y-4">
             {/* Affected Scopes */}
             <section className="rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-              <h2 className="font-title-lg text-on-surface">Pham vi bi anh huong</h2>
+              <h2 className="font-title-lg text-on-surface">Phạm vi bị ảnh hưởng</h2>
               <div className="mt-4 space-y-3">
-                {affectedScopes.map((item) => {
-                  const [name, detail] = item;
-                  return (
-                    <div className="rounded-lg bg-surface-container-low p-3" key={name}>
-                      <p className="font-label-md text-on-surface">{name}</p>
-                      <p className="mt-1 font-body-sm text-on-surface-variant">{detail}</p>
-                    </div>
-                  );
-                })}
+                {affectedScopes.length === 0 ? (
+                  <p className="text-sm text-on-surface-variant">Không có phạm vi bị ảnh hưởng.</p>
+                ) : (
+                  affectedScopes.map((item) => {
+                    const [name, detail] = item as [string, string];
+                    return (
+                      <div className="rounded-lg bg-surface-container-low p-3" key={name}>
+                        <p className="font-label-md text-on-surface">{name}</p>
+                        <p className="mt-1 font-body-sm text-on-surface-variant">{detail}</p>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </section>
 
             {/* Logic Panel */}
             <section className="rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-              <h2 className="font-title-lg text-on-surface">Logic kiem tra</h2>
+              <h2 className="font-title-lg text-on-surface">Logic kiểm tra</h2>
               <div className="mt-4 space-y-3 font-body-sm leading-relaxed text-on-surface-variant">
-                <p>1. L01 khong duoc trung L02 cung ngay.</p>
-                <p>2. L03 khong duoc trung L04 cung ngay.</p>
-                <p>3. Ngay nghi bu bi khoa voi moi loai lich khac.</p>
-                <p>4. Ngoai le nghi phep duoc kiem tra truoc khi luu.</p>
+                <p>1. L01 không được trùng L02 cùng ngày.</p>
+                <p>2. L03 không được trùng L04 cùng ngày.</p>
+                <p>3. Ngày nghỉ bù bị khóa với mọi loại lịch khác.</p>
+                <p>4. Ngoại lệ nghỉ phép được kiểm tra trước khi lưu.</p>
               </div>
             </section>
 
             {/* Lock Status Panel */}
-            <section className="rounded-lg border border-error-container bg-error-container/10 p-5 shadow-sm">
-              <p className="text-label-sm text-error uppercase tracking-wider opacity-80">Trang thai luu</p>
-              <h2 className="mt-2 font-headline-md text-on-surface">Dang bi khoa</h2>
+            <section className={`rounded-lg border p-5 shadow-sm ${conflictData?.hasConflicts ? "border-error-container bg-error-container/10" : "border-secondary-container bg-secondary-container/10"}`}>
+              <p className={`text-label-sm uppercase tracking-wider ${conflictData?.hasConflicts ? "text-error" : "text-secondary"}`}>
+                Trạng thái lưu
+              </p>
+              <h2 className="mt-2 font-headline-md text-on-surface">
+                {conflictData?.hasConflicts ? "Cần xử lý lỗi" : "Sẵn sàng công bố"}
+              </h2>
               <p className="mt-2 font-body-sm leading-relaxed text-on-surface-variant">
-                Can xu ly 2 loi chan luu truoc khi cong bo lich thang. Cac canh bao con lai co the giu o ban nhap de ran soat them.
+                {conflictData?.hasConflicts
+                  ? `Cần xử lý ${conflictData.totalConflicts} lỗi trước khi công bố lịch tháng.`
+                  : "Không có lỗi xung đột. Lịch tháng sẵn sàng để công bố."}
               </p>
             </section>
           </aside>

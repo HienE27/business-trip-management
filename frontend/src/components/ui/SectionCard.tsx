@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 type SectionCardProps = {
-  title: string;
+  title: ReactNode;
   description?: string;
   action?: ReactNode;
   children: ReactNode;
@@ -16,17 +16,15 @@ export function SectionCard({
   className,
 }: SectionCardProps) {
   return (
-    <section
-      className={`overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm ${className ?? ""}`}
-    >
-      <div className="flex min-h-[60px] flex-col justify-between gap-3 border-b border-outline-variant px-5 py-4 md:flex-row md:items-start">
+    <section className={`bg-surface-container-lowest rounded-xl border border-outline-variant shadow-[0_1px_3px_0_rgba(0,0,0,0.08),0_1px_2px_-1px_rgba(0,0,0,0.06)] overflow-hidden ${className ?? ""}`}>
+      <div className="px-5 py-4 border-b border-outline-variant flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <h2 className="font-title-lg text-on-surface">{title}</h2>
-          {description ? (
+          <h2 className="text-title-lg text-on-surface">{title}</h2>
+          {description && (
             <p className="max-w-3xl font-body-sm text-on-surface-variant">{description}</p>
-          ) : null}
+          )}
         </div>
-        {action ? <div className="shrink-0 self-start">{action}</div> : null}
+        {action && <div className="shrink-0">{action}</div>}
       </div>
       {children}
     </section>

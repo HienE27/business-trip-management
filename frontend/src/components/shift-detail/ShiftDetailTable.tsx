@@ -1,30 +1,20 @@
-import type { ShiftDetail, ShiftStaff } from "@/data/shift-detail";
+import type { ShiftDetailViewModel } from "@/types/shift-detail";
 
 type ShiftDetailTableProps = {
-  shift: ShiftDetail;
+  shift: ShiftDetailViewModel;
   className?: string;
 };
 
 const ROLE_BADGE_STYLES: Record<string, string> = {
-  primary: "bg-tertiary-fixed text-on-tertiary-fixed font-label-sm border border-tertiary/20",
-  secondary: "bg-secondary-fixed text-on-secondary-fixed font-label-sm border border-secondary/20",
-  neutral: "bg-surface-container-high text-on-surface font-label-sm border border-outline-variant",
+  primary: "bg-tertiary-fixed text-on-tertiary-fixed text-label-sm border border-tertiary/20",
+  secondary: "bg-secondary-fixed text-on-secondary-fixed text-label-sm border border-secondary/20",
+  neutral: "bg-surface-container-high text-on-surface text-label-sm border border-outline-variant",
 };
 
-function StaffAvatar({ staff }: { staff: ShiftStaff }) {
+function StaffAvatar({ initials, avatarColor }: { initials: string; avatarColor: string }) {
   return (
-    <div className="flex items-center gap-3">
-      <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center font-label-md font-bold shrink-0 ${staff.avatarColor}`}
-      >
-        {staff.initials}
-      </div>
-      <div>
-        <p className="font-medium text-on-surface group-hover:text-primary transition-colors">
-          {staff.name}
-        </p>
-        <p className="text-on-surface-variant text-[12px]">{staff.department}</p>
-      </div>
+    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-label-md font-bold shrink-0 ${avatarColor}`}>
+      {initials}
     </div>
   );
 }
@@ -36,11 +26,11 @@ export function ShiftDetailTable({ shift, className = "" }: ShiftDetailTableProp
     >
       {/* Header */}
       <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
-        <h2 className="font-title-lg text-on-surface flex items-center gap-2">
+        <h2 className="text-title-lg text-on-surface flex items-center gap-2">
           <span className="material-symbols-outlined text-primary">groups</span>
           Danh sách chi tiết nhân sự tham gia
         </h2>
-        <span className="bg-primary-fixed text-on-primary-fixed-variant px-3 py-1 rounded-full font-label-sm font-medium">
+        <span className="bg-primary-fixed text-on-primary-fixed-variant px-3 py-1 rounded-full text-label-sm font-medium">
           Tổng: {shift.staff.length} nhân sự
         </span>
       </div>
@@ -49,7 +39,7 @@ export function ShiftDetailTable({ shift, className = "" }: ShiftDetailTableProp
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50 border-b border-outline-variant text-on-surface-variant font-label-sm uppercase tracking-wider">
+            <tr className="bg-slate-50 border-b border-outline-variant text-on-surface-variant text-label-sm uppercase tracking-wider">
               <th className="p-4 font-semibold w-12 text-center align-middle">STT</th>
               <th className="p-4 font-semibold align-middle">Họ và tên</th>
               <th className="p-4 font-semibold align-middle">Chức danh / Vai trò</th>
@@ -60,14 +50,22 @@ export function ShiftDetailTable({ shift, className = "" }: ShiftDetailTableProp
           <tbody className="divide-y divide-outline-variant/50">
             {shift.staff.map((staff, index) => (
               <tr
-                className="hover:bg-surface-container-low transition-colors group"
+                className="hover:bg-surface-container-low transition-colors group h-12"
                 key={staff.id}
               >
                 <td className="p-4 text-center text-on-surface-variant align-middle">
                   {index + 1}
                 </td>
                 <td className="p-4 align-middle">
-                  <StaffAvatar staff={staff} />
+                  <div className="flex items-center gap-3">
+                    <StaffAvatar initials={staff.initials} avatarColor={staff.avatarColor} />
+                    <div>
+                      <p className="text-label-md text-on-surface group-hover:text-primary transition-colors">
+                        {staff.name}
+                      </p>
+                      <p className="text-[12px] text-on-surface-variant">{staff.department}</p>
+                    </div>
+                  </div>
                 </td>
                 <td className="p-4 align-middle">
                   <span className={`inline-flex items-center px-2 py-1 rounded ${ROLE_BADGE_STYLES[staff.roleBadge]}`}>
@@ -75,13 +73,13 @@ export function ShiftDetailTable({ shift, className = "" }: ShiftDetailTableProp
                   </span>
                 </td>
                 <td className="p-4 align-middle">
-                  <span className="text-on-surface font-body-sm">{staff.position}</span>
+                  <span className="text-label-md text-on-surface">{staff.position}</span>
                 </td>
                 <td className="p-4 align-middle">
                   {staff.note ? (
-                    <span className="text-on-surface-variant italic">{staff.note}</span>
+                    <span className="text-label-md text-on-surface-variant italic">{staff.note}</span>
                   ) : (
-                    <span className="text-on-surface-variant/40">—</span>
+                    <span className="text-label-md text-on-surface-variant">—</span>
                   )}
                 </td>
               </tr>

@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 
 type StaffSummary = {
   id: number;
@@ -23,6 +24,7 @@ type ScheduleResponseDTO = {
   staff: StaffSummary;
   shiftType: ShiftTypeSummary;
   requirementId: number | null;
+  compensationDate?: string | null;
   hasConflict: boolean;
   createdAt: string;
   updatedAt: string;
@@ -60,15 +62,6 @@ const labelsByShiftType: Record<string, string> = {
   L03: "Phòng khám dịch vụ",
   L04: "Phòng khám chuyên gia",
 };
-
-function getCompensationDate(dateValue: string) {
-  if (!dateValue) return "";
-  const date = new Date(`${dateValue}T00:00:00`);
-  const day = date.getDay();
-  const plusDays = day === 5 ? 4 : day === 6 ? 3 : day === 0 ? 1 : 1;
-  date.setDate(date.getDate() + plusDays);
-  return date.toISOString().slice(0, 10);
-}
 
 function createEmptyForm() {
   return { staffId: "", date: "", note: "" };
@@ -109,8 +102,9 @@ export function ScheduleCrudPanel({
             ((s as Record<string, unknown>).username as string),
         })),
       );
-    } catch {
+    } catch (err) {
       setUseApi(false);
+      showMessage(getErrorMessage(err, "Không thể tải dữ liệu lịch từ backend. Đang dùng dữ liệu local."), "info");
     } finally {
       setLoading(false);
     }
@@ -167,7 +161,7 @@ export function ScheduleCrudPanel({
       setEditingId(null);
       await fetchSchedules();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : "Lỗi lưu lịch", "error");
+      showMessage(getErrorMessage(err, "Lỗi lưu lịch"), "error");
     } finally {
       setSubmitting(false);
     }
@@ -188,7 +182,7 @@ export function ScheduleCrudPanel({
       note: form.note,
       status: "Hợp lệ",
       shiftType,
-      compensationDate: shiftType === "L01" ? getCompensationDate(form.date) : undefined,
+      compensationDate: shiftType === "L01" ? "Sẽ do backend tính khi đồng bộ" : undefined,
     };
     if (editingId !== null) {
       setLocalRecords((c) => c.map((r) => (r.id === editingId.toString() ? newRecord : r)));
@@ -213,7 +207,7 @@ export function ScheduleCrudPanel({
         }
         await fetchSchedules();
       } catch (err) {
-        showMessage(err instanceof Error ? err.message : "Lỗi xóa lịch", "error");
+        showMessage(getErrorMessage(err, "Lỗi xóa lịch"), "error");
       }
     } else {
       setLocalRecords((c) => c.filter((r) => r.id !== id.toString()));
@@ -455,7 +449,9 @@ export function ScheduleCrudPanel({
 
             {shiftType === "L01" && form.date ? (
               <div className="rounded-xl border border-primary/15 bg-primary-fixed/60 px-3.5 py-2.5 text-sm text-on-primary-fixed-variant">
-                Nghỉ bù dự kiến: <span className="font-semibold">{getCompensationDate(form.date)}</span>
+                {useApi
+                  ? "Ngày nghỉ bù sẽ được backend tự tính và lưu khi tạo lịch L01."
+                  : "Ngày nghỉ bù sẽ được backend tính khi kết nối lại API."}
               </div>
             ) : null}
 

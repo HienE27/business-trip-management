@@ -1,13 +1,12 @@
 "use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { StaffCrudPanel } from "@/components/operations/StaffCrudPanel";
 
 function StaffCreateForm() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const idParam = searchParams.get("id");
   const editingId = idParam ? parseInt(idParam, 10) : null;
 
@@ -15,11 +14,9 @@ function StaffCreateForm() {
     <DashboardShell
       activeCode="M01"
       description={editingId ? "Cập nhật thông tin nhân sự hệ thống." : "Thêm mới tài khoản nhân sự và phân quyền."}
-      primaryAction="Quay lại danh sách"
-      onPrimaryAction={() => router.push("/staff")}
       title={editingId ? "Cập nhật nhân sự" : "Tạo mới nhân sự"}
     >
-      <StaffCrudPanel showOnlyForm={true} editingIdFromUrl={editingId} />
+      <StaffCrudPanel />
     </DashboardShell>
   );
 }

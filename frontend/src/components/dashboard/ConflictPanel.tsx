@@ -10,43 +10,48 @@ export function ConflictPanel({ conflicts, maxItems = 5, className = "" }: Confl
   const displayConflicts = conflicts.slice(0, maxItems);
 
   return (
-    <section className={`flex flex-col rounded-xl border border-error-container bg-surface-container-lowest shadow-[0_1px_3px_0_rgba(0,0,0,0.05)] overflow-hidden ${className}`}>
+    <section className={`bg-surface-container-lowest border-error-container rounded-xl shadow-[0_1px_3px_0_rgba(0,0,0,0.05)] overflow-hidden ${className}`}>
       {/* Header */}
-      <div className="flex items-center gap-2 p-4 border-b border-error-container bg-error/5">
-        <span aria-hidden="true" className="material-symbols-outlined fill text-error text-[20px]">
+      <div className="p-4 border-b border-error-container bg-error/5 flex items-center gap-2">
+          <span aria-hidden="true" className="material-symbols-outlined fill-icon text-[20px] text-error">
           warning
         </span>
-        <h3 className="font-title-lg text-error">
-          Canh bao xung dot ({conflicts.length})
+        <h3 className="text-title-lg text-error">
+          Cảnh báo xung đột ({conflicts.length})
         </h3>
       </div>
 
       {/* List */}
       <div className="p-2 flex flex-col gap-2">
-        {displayConflicts.map((conflict) => (
-          <article
-            className="p-3 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
-            key={conflict.id}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="font-label-md text-on-surface truncate">
-                  {conflict.staffName}
-                </p>
-                <p className="mt-1 font-body-sm text-on-surface-variant leading-relaxed line-clamp-2">
-                  {conflict.detail}
-                </p>
-              </div>
-              <button className="shrink-0 text-error text-[14px] font-medium hover:underline">
-                Xu ly ngay
+        {displayConflicts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 gap-3">
+            <span aria-hidden="true" className="material-symbols-outlined text-[40px] text-secondary/30">
+              check_circle
+            </span>
+            <p className="text-label-md text-label-md text-on-surface-variant">Không có xung đột</p>
+          </div>
+        ) : (
+          displayConflicts.map((conflict) => (
+            <div
+              className="p-3 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
+              key={conflict.id}
+            >
+              <p className="text-label-md text-label-md text-on-surface font-medium">
+                {conflict.staffName}
+              </p>
+              <p className="text-body-sm text-body-sm text-on-surface-variant mt-1 leading-relaxed line-clamp-2">
+                {conflict.detail}
+              </p>
+              <button className="mt-2 text-error text-label-sm text-label-sm font-medium hover:underline">
+                Xử lý ngay
               </button>
             </div>
-          </article>
-        ))}
+          ))
+        )}
 
         {conflicts.length > maxItems && (
-          <button className="mt-2 text-center text-[14px] text-primary hover:underline font-medium">
-            Xem tat ca ({conflicts.length})
+          <button className="mt-2 text-center text-label-sm text-label-sm text-primary hover:underline font-medium">
+            Xem tất cả ({conflicts.length})
           </button>
         )}
       </div>

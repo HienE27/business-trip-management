@@ -30,7 +30,7 @@ export function StaffExclusionTable({ onAdd }: StaffExclusionTableProps) {
     setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, fullyExcluded: excluded } : s)));
   }
 
-  function toggleDate(id: string, date: string) {
+  function _toggleDate(id: string, date: string) {
     setStaff((prev) =>
       prev.map((s) => {
         if (s.id !== id) return s;
@@ -57,8 +57,8 @@ export function StaffExclusionTable({ onAdd }: StaffExclusionTableProps) {
               </th>
               <th className="p-3 font-label-sm text-on-surface-variant">Nhan su</th>
               <th className="p-3 font-label-sm text-on-surface-variant">Vai tro</th>
-              <th className="p-3 font-label-sm text-on-surface-variant text-center">Loai tru hoan toan</th>
-              <th className="p-3 font-label-sm text-on-surface-variant">Ngay khong kha dung</th>
+              <th className="p-3 font-label-sm text-on-surface-variant text-center">Loại trừ hoàn toàn</th>
+              <th className="p-3 font-label-sm text-on-surface-variant">Ngày không khả dụng</th>
               <th className="p-3 text-right">
                 <button
                   className="text-primary font-label-sm flex items-center gap-1 hover:underline"
@@ -66,7 +66,7 @@ export function StaffExclusionTable({ onAdd }: StaffExclusionTableProps) {
                   type="button"
                 >
                   <span className="material-symbols-outlined text-[16px]">add</span>
-                  Them ngoai le
+                  Thêm ngoại lệ
                 </button>
               </th>
             </tr>
@@ -91,7 +91,7 @@ export function StaffExclusionTable({ onAdd }: StaffExclusionTableProps) {
                 </td>
                 <td className="p-3">
                   {s.fullyExcluded ? (
-                    <span className="text-outline-variant italic text-xs">Vo hieu hoa (Loai tru hoan toan)</span>
+                    <span className="text-outline-variant italic text-xs">Vô hiệu hóa (Loại trừ hoàn toàn)</span>
                   ) : s.unavailableDates.length > 0 ? (
                     <div className="flex gap-1 flex-wrap">
                       {s.unavailableDates.map((d) => (
@@ -104,7 +104,7 @@ export function StaffExclusionTable({ onAdd }: StaffExclusionTableProps) {
                       ))}
                     </div>
                   ) : (
-                    <span className="text-outline-variant italic text-xs">Khong co</span>
+                    <span className="text-outline-variant italic text-xs">Không có</span>
                   )}
                 </td>
                 <td className="p-3 text-right">
@@ -118,7 +118,7 @@ export function StaffExclusionTable({ onAdd }: StaffExclusionTableProps) {
         </table>
       </div>
       <div className="mt-4 flex items-center justify-between text-label-sm text-on-surface-variant">
-        <span>Dang hien thi 3 / 24 nhan su</span>
+        <span>Đang hiển thị 3 / 24 nhân sự</span>
         <div className="flex gap-1">
           <button className="p-1 hover:bg-surface-container rounded transition-colors" type="button">
             <span className="material-symbols-outlined text-[18px]">chevron_left</span>

@@ -6,60 +6,62 @@ import { useAuth } from "./AuthProvider";
 
 const PUBLIC_PATHS = ["/login"];
 
+function AuthLoadingScreen({ message }: { message: string }) {
+  return (
+    <div className="grid min-h-screen place-items-center bg-surface">
+      <div className="flex flex-col items-center gap-3">
+        <svg className="size-8 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx={12} cy={12} r={10} stroke="currentColor" strokeWidth={4} />
+          <path className="opacity-75" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" fill="currentColor" />
+        </svg>
+        <p className="text-sm text-on-surface-variant">{message}</p>
+      </div>
+    </div>
+  );
+}
+
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const isPublicPage = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   useEffect(() => {
-    if (mounted && !isAuthenticated && !isPublicPage) {
-      router.replace("/login");
+    if (!mounted || isLoading) {
+      return;
     }
-  }, [mounted, isAuthenticated, isPublicPage, router]);
 
-  // Prevent hydration mismatch: render exact same content on server and initial client render
-  if (!mounted) {
+    if (!isAuthenticated && !isPublicPage) {
+      router.replace("/login");
+      return;
+    }
+
+    if (isAuthenticated && isPublicPage) {
+      router.replace("/");
+      return;
+    }
+  }, [isAuthenticated, isLoading, isPublicPage, mounted, router]);
+
+  if (!mounted || isLoading) {
     if (isPublicPage) {
       return <>{children}</>;
     }
-    return (
-      <div className="grid min-h-screen place-items-center bg-slate-900">
-        <div className="flex flex-col items-center gap-3">
-          <svg className="size-8 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx={12} cy={12} r={10} stroke="currentColor" strokeWidth={4} />
-            <path className="opacity-75" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" fill="currentColor" />
-          </svg>
-          <p className="text-sm text-white/50">Đang khởi động…</p>
-        </div>
-      </div>
-    );
+    return <AuthLoadingScreen message="Đang kiểm tra xác thực…" />;
   }
 
-  // On public pages (e.g. /login) always render
   if (isPublicPage) {
-    return <>{children}</>;
+    return isAuthenticated ? <AuthLoadingScreen message="Đang chuyển hướng…" /> : <>{children}</>;
   }
 
-  // On protected pages, show nothing while redirecting
   if (!isAuthenticated) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-slate-900">
-        <div className="flex flex-col items-center gap-3">
-          <svg className="size-8 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx={12} cy={12} r={10} stroke="currentColor" strokeWidth={4} />
-            <path className="opacity-75" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" fill="currentColor" />
-          </svg>
-          <p className="text-sm text-white/50">Đang kiểm tra xác thực…</p>
-        </div>
-      </div>
-    );
+    return <AuthLoadingScreen message="Đang chuyển về trang đăng nhập…" />;
   }
 
   return <>{children}</>;

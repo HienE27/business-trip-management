@@ -10,7 +10,8 @@ type ClientOnlyProps = {
 export function ClientOnly({ children, fallback = null }: ClientOnlyProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timer);
   }, []);
   return mounted ? <>{children}</> : <>{fallback}</>;
 }

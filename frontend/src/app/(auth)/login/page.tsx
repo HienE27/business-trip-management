@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { ComponentProps } from "react";
 
 const LoginForm = dynamic(
   () => import("./LoginForm").then((m) => m.LoginForm),

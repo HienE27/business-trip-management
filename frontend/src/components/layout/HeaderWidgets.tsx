@@ -89,7 +89,9 @@ export function UserMenu() {
         <div className="border-t border-outline-variant/60 py-1">
           <button
             className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-error transition-colors hover:bg-error-container/30 focus-visible:outline-none focus-visible:bg-error-container/30"
-            onClick={logout}
+            onClick={() => {
+              void logout();
+            }}
             role="menuitem"
             type="button"
           >

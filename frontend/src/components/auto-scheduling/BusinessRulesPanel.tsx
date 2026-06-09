@@ -17,24 +17,24 @@ const RULES: Rule[] = [
     id: "rule-1",
     icon: "check_circle",
     iconColor: "text-secondary",
-    title: "Quy tac nghi sau Truc 24/24",
-    description: "Bat buoc nghi it nhat 1 ca Thong tam (hoac 24h) ngay sau ca truc 24/24.",
+    title: "Quy tắc nghỉ sau Trực 24/24",
+    description: "Bắt buộc nghỉ ít nhất 1 ca Thông tầm (hoặc 24h) ngay sau ca trực 24/24.",
     type: "required",
   },
   {
     id: "rule-2",
     icon: "check_circle",
     iconColor: "text-secondary",
-    title: "Tranh xung dot lich Phong kham",
-    description: "Khong xep truc dem neu co lich Phong kham Dich vu sang hom sau.",
+    title: "Tránh xung đột lịch Phòng khám",
+    description: "Không xếp trực đêm nếu có lịch Phòng khám Dịch vụ sang hôm sau.",
     type: "required",
   },
   {
     id: "rule-3",
     icon: "balance",
     iconColor: "text-primary",
-    title: "Can bang khoi luong cong viec",
-    description: "Uu tien chia deu so ca truc cuoi tuan (Thu 7, CN) cho tat ca nhan su trong khoa.",
+    title: "Cân bằng khối lượng công việc",
+    description: "Ưu tiên chia đều số ca trực cuối tuần (Thứ 7, CN) cho tất cả nhân sự trong khoa.",
     type: "preference",
     hasConfig: true,
   },
@@ -49,7 +49,7 @@ export function BusinessRulesPanel({ onAddRule }: BusinessRulesPanelProps) {
     <div className="relative">
       <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 border-b border-outline-variant/30 pb-3">
         <span className="material-symbols-outlined text-primary-container">rule</span>
-        Luat nghiep vu dang ap dung
+        Luật nghiệp vụ đang áp dụng
       </h2>
       <div className="flex flex-col gap-4">
         {RULES.map((rule) => (
@@ -71,7 +71,7 @@ export function BusinessRulesPanel({ onAddRule }: BusinessRulesPanelProps) {
                   )}
                   {rule.hasConfig && (
                     <Link className="text-xs text-primary hover:underline ml-auto" href="#">
-                      Cau hinh
+                      Cấu hình
                     </Link>
                   )}
                 </div>
@@ -85,7 +85,7 @@ export function BusinessRulesPanel({ onAddRule }: BusinessRulesPanelProps) {
         onClick={onAddRule}
         type="button"
       >
-        + Them luat tuy chinh
+        + Thêm luật tùy chỉnh
       </button>
     </div>
   );

@@ -272,7 +272,7 @@ export const conflicts: ConflictItem[] = [
     type: "Truc 24/24 trung thong tam",
     staffName: "Nguyen Minh Anh",
     date: "31/05/2026",
-    severity: "Chan luu",
+    severity: "Chặn lưu",
     detail: "Nhan su co lich thong tam cung ngay voi ca truc 24/24 duoc de xuat.",
   },
   {
@@ -280,7 +280,7 @@ export const conflicts: ConflictItem[] = [
     type: "Xep lich vao ngay nghi bu",
     staffName: "Tran Duc Huy",
     date: "28/05/2026",
-    severity: "Chan luu",
+    severity: "Chặn lưu",
     detail: "Ngay nghi bu sau truc dem dang bi su dung lai cho phong kham dich vu.",
   },
   {
@@ -288,7 +288,7 @@ export const conflicts: ConflictItem[] = [
     type: "Dich vu trung chuyen gia",
     staffName: "Le Bao Chau",
     date: "29/05/2026",
-    severity: "Canh bao",
+    severity: "Cảnh báo",
     detail: "Nhan su dang duoc de xuat cho ca lich kham dich vu va kham chuyen gia cung ngay.",
   },
 ];

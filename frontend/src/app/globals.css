@@ -1,94 +1,113 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── Brand Colors (Stitch exact) ── */
+  /* ── Primary ── */
   --color-primary: #004ac6;
-  --color-primary-foreground: #ffffff;
-  --color-primary-fixed: #dbe1ff;
+  --color-on-primary: #ffffff;
   --color-primary-container: #2563eb;
   --color-on-primary-container: #eeefff;
-  --color-on-primary-fixed-variant: #003ea8;
+  --color-inverse-primary: #b4c5ff;
+  --color-primary-fixed: #dbe1ff;
+  --color-primary-fixed-dim: #b4c5ff;
   --color-on-primary-fixed: #00174b;
+  --color-on-primary-fixed-variant: #003ea8;
 
+  /* ── Secondary ── */
   --color-secondary: #006e2d;
-  --color-secondary-foreground: #ffffff;
+  --color-on-secondary: #ffffff;
   --color-secondary-container: #7cf994;
   --color-on-secondary-container: #007230;
-  --color-secondary-fixed: #7ffc97;
-  --color-on-secondary-fixed-variant: #005320;
-  --color-on-secondary-fixed: #002109;
+  --color-secondary-fixed: #7cfc97;
   --color-secondary-fixed-dim: #62df7d;
+  --color-on-secondary-fixed: #002109;
+  --color-on-secondary-fixed-variant: #005320;
 
+  /* ── Tertiary ── */
   --color-tertiary: #973400;
-  --color-tertiary-foreground: #ffffff;
+  --color-on-tertiary: #ffffff;
   --color-tertiary-container: #c04400;
   --color-on-tertiary-container: #ffede7;
   --color-tertiary-fixed: #ffdbce;
-  --color-on-tertiary-fixed-variant: #7f2a00;
-  --color-on-tertiary-fixed: #370e00;
   --color-tertiary-fixed-dim: #ffb599;
+  --color-on-tertiary-fixed: #370e00;
+  --color-on-tertiary-fixed-variant: #7f2a00;
 
   /* ── Expert Clinic (Purple) ── */
-  --color-expert: #7f2a00;
-  --color-expert-foreground: #ffffff;
-  --color-expert-container: #c97b55;
+  --color-expert: #8b5cf6;
+  --color-on-expert: #ffffff;
+  --color-expert-container: #e9d5ff;
   --color-on-expert-container: #3b1c07;
 
   /* ── Error ── */
   --color-error: #ba1a1a;
-  --color-error-foreground: #ffffff;
+  --color-on-error: #ffffff;
   --color-error-container: #ffdad6;
   --color-on-error-container: #93000a;
 
-  /* ── Surface System (Stitch exact) ── */
-  --color-background: #f7f9fb;
-  --color-foreground: #191c1e;
-
+  /* ── Surface ── */
   --color-surface: #f7f9fb;
-  --color-surface-bright: #ffffff;
+  --color-surface-bright: #f7f9fb;
   --color-surface-dim: #d8dadc;
   --color-surface-container-lowest: #ffffff;
   --color-surface-container-low: #f2f4f6;
   --color-surface-container: #eceef0;
   --color-surface-container-high: #e6e8ea;
   --color-surface-container-highest: #e0e3e5;
-  --color-surface-variant: #e6e8ea;
+  --color-surface-variant: #e0e3e5;
+  --color-surface-hover: #f1f5f9;
 
-  /* ── Dark Surface ── */
-  --color-surface-dark: #15191f;
-
-  /* ── Inverse ── */
-  --color-inverse-surface: #2d3133;
-  --color-inverse-on-surface: #eff1f3;
-  --color-inverse-primary: #b4c5ff;
-  --color-surface-tint: #0053db;
-
-  /* ── Borders / Outline ── */
-  --color-outline: #737686;
-  --color-outline-variant: #c3c6d7;
+  /* ── Background ── */
+  --color-background: #f7f9fb;
+  --color-foreground: #191c1e;
 
   /* ── On-surface ── */
   --color-on-surface: #191c1e;
   --color-on-surface-variant: #434655;
+  --color-inverse-surface: #2d3133;
+  --color-inverse-on-surface: #eff1f3;
+  --color-surface-tint: #0053db;
 
-  /* ── Chart Colors ── */
-  --color-chart-2424: #004ac6;
-  --color-chart-thongtam: #006e2d;
-  --color-chart-dichvu: #973400;
-  --color-chart-chuyengia: #7f2a00;
+  /* ── Borders ── */
+  --color-outline: #737686;
+  --color-outline-variant: #c3c6d7;
 
-  /* ── Border Radius ── */
+  /* ── Border Radius — matches Stitch tailwind.config exactly ── */
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
+  --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
+  --radius-2xl: 1.5rem;
   --radius-full: 9999px;
 }
 
+/* ── Base ── */
 @layer base {
   * {
     border-color: var(--color-outline-variant);
+  }
+
+  /* ── Keyboard Focus Styles ── */
+  *:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Remove outline on mouse click */
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Respect reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
   html {
@@ -104,86 +123,18 @@
   }
 }
 
-/* ── Typography Scale (Stitch exact) ── */
-.font-display-lg {
-  font-size: 32px;
-  line-height: 40px;
-  font-weight: 700;
-}
-
-.font-headline-lg {
-  font-size: 24px;
-  line-height: 32px;
-  font-weight: 600;
-}
-
-.font-headline-md {
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 600;
-}
-
-.font-title-lg {
-  font-size: 18px;
-  line-height: 26px;
-  font-weight: 600;
-}
-
-.font-title-md {
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 500;
-}
-
-.font-body-lg {
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-}
-
-.font-body-md {
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 400;
-}
-
-.font-body-sm {
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 400;
-}
-
-.font-label-lg {
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 500;
-}
-
-.font-label-md {
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 500;
-}
-
-.font-label-sm {
-  font-size: 11px;
-  line-height: 16px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.text-display-lg { font-size: 32px; line-height: 40px; font-weight: 700; }
-.text-headline-lg { font-size: 24px; line-height: 32px; font-weight: 600; }
-.text-headline-md { font-size: 20px; line-height: 28px; font-weight: 600; }
-.text-title-lg { font-size: 18px; line-height: 26px; font-weight: 600; }
-.text-title-md { font-size: 16px; line-height: 24px; font-weight: 500; }
-.text-body-lg { font-size: 16px; line-height: 24px; font-weight: 400; }
-.text-body-md { font-size: 14px; line-height: 20px; font-weight: 400; }
-.text-body-sm { font-size: 13px; line-height: 18px; font-weight: 400; }
-.text-label-lg { font-size: 14px; line-height: 20px; font-weight: 500; }
-.text-label-md { font-size: 13px; line-height: 18px; font-weight: 500; }
-.text-label-sm { font-size: 11px; line-height: 16px; font-weight: 600; }
+/* ── Typography Scale — matches Stitch tong-hop-lich HTML ── */
+.text-display-lg  { font-size: 30px;  line-height: 38px; letter-spacing: -0.02em; font-weight: 700; }
+.text-headline-lg { font-size: 24px; line-height: 40px; letter-spacing: -0.01em; font-weight: 600; }
+.text-headline-md { font-size: 24px; line-height: 32px; letter-spacing: -0.01em; font-weight: 600; }
+.text-title-lg    { font-size: 18px; line-height: 26px; font-weight: 600; }
+.text-title-md    { font-size: 16px; line-height: 24px; font-weight: 500; }
+.text-body-lg     { font-size: 16px; line-height: 24px; font-weight: 400; }
+.text-body-md     { font-size: 16px; line-height: 24px; font-weight: 400; }
+.text-body-sm     { font-size: 14px; line-height: 20px; font-weight: 400; }
+.text-label-lg    { font-size: 14px; line-height: 20px; font-weight: 500; }
+.text-label-md    { font-size: 13px; line-height: 18px; font-weight: 500; }
+.text-label-sm    { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
 
 /* ── Material Symbols ── */
 .material-symbols-outlined {
@@ -205,84 +156,41 @@
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-.material-symbols-outlined[data-weight="fill"],
 .material-symbols-outlined.fill {
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-/* ── Scrollbar (Stitch exact) ── */
+.material-symbols-outlined.fill-icon {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ── Scrollbar ── */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-outline-variant) transparent;
 }
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-outline-variant); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-outline); }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-outline-variant);
-  border-radius: 9999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-outline);
-}
-
-/* ── Hide scrollbar utility ── */
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
 
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-/* ── Decorative corner (KPI card corner accent) ── */
-.card-corner-deco {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 64px;
-  height: 64px;
-  border-bottom-left-radius: 9999px;
-  opacity: 0.3;
-}
-
-/* ── Emergency pulse ── */
+/* ── Emergency Pulse ── */
 @keyframes emergency-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(186, 26, 26, 0.4); }
-  70% { box-shadow: 0 0 0 15px rgba(186, 26, 26, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(186, 26, 26, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(186,26,26,0.4); }
+  70%  { box-shadow: 0 0 0 15px rgba(186,26,26,0); }
+  100%  { box-shadow: 0 0 0 0 rgba(186,26,26,0); }
 }
+.emergency-pulse { animation: emergency-pulse 2s infinite; }
 
-.emergency-pulse {
-  animation: emergency-pulse 2s infinite;
-}
-
-/* ── Schedule shift type colors (Stitch exact) ── */
-.shift-24-24 {
-  background-color: var(--color-primary);
-  color: var(--color-primary-foreground);
-}
-
-.shift-regular {
-  background-color: var(--color-secondary);
-  color: var(--color-secondary-foreground);
-}
-
-.shift-service {
-  background-color: var(--color-tertiary);
-  color: var(--color-tertiary-foreground);
-}
-
-.shift-expert {
-  background-color: var(--color-expert);
-  color: var(--color-expert-foreground);
-}
+/* ── Schedule Shift Colors ── */
+.shift-24-24 { background-color: var(--color-primary);   color: var(--color-on-primary); }
+.shift-regular { background-color: var(--color-secondary); color: var(--color-on-secondary); }
+.shift-service { background-color: var(--color-tertiary);  color: var(--color-on-tertiary); }
+.shift-expert  { background-color: var(--color-expert);  color: var(--color-on-expert); }

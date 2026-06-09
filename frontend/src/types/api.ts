@@ -72,10 +72,34 @@ export interface ShiftType {
 export interface Schedule {
   id: number;
   periodId: number;
+  period?: {
+    id: number;
+    periodName: string;
+    startDate: string;
+    endDate: string;
+    status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  };
   workDate: string;
-  staff: { id: number; fullName: string };
-  shiftType: { id: string; name: string; isOvernight: boolean };
+  staff: {
+    id: number;
+    username?: string;
+    fullName: string;
+    specialtyName?: string | null;
+    roles?: string[];
+  };
+  shiftType: {
+    id: string;
+    name: string;
+    description?: string | null;
+    startTime?: string | null;
+    endTime?: string | null;
+    isOvernight: boolean;
+    fatigueScore?: number;
+  };
   requirementId?: number;
+  compensationDate?: string | null;
+  conflictReasons?: string[];
+  notes?: string | null;
   hasConflict: boolean;
   createdAt: string;
   updatedAt: string;
@@ -269,6 +293,16 @@ export interface AutoScheduleResult {
   totalSchedulesCreated: number;
   schedules: AutoScheduleSummary[];
   executedAt: string;
+  excludedStaffIds?: number[];
+}
+
+export interface AutoScheduleSummary {
+  scheduleId: number | null;
+  staffId: number;
+  staffName: string;
+  workDate: string;
+  shiftTypeId: string;
+  shiftTypeName: string;
 }
 
 export interface UnassignedDayItem {
@@ -364,12 +398,25 @@ export interface Notification {
 // ============================================================
 export interface ScheduleTemplate {
   id: number;
-  templateName: string;
+  name: string;
   description?: string;
+  dayOfWeek: number;
+  shiftTypeId: string;
+  specialtyId?: number | null;
+  specialtyName?: string | null;
+  requiredStaffCount: number;
   isActive: boolean;
-  scheduleCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ScheduleTemplateRequest {
+  name: string;
+  description?: string;
+  dayOfWeek: number;
+  shiftTypeId: string;
+  specialtyId?: number | null;
+  requiredStaffCount: number;
 }
 
 // ============================================================

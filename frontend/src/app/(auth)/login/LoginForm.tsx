@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getErrorMessage } from "@/lib/errors";
 
 export function LoginForm() {
   const [username, setUsername] = useState("");
@@ -18,7 +19,7 @@ export function LoginForm() {
     try {
       await login(username, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Dang nhap that bai");
+      setError(getErrorMessage(err, "Đăng nhập thất bại"));
     } finally {
       setIsLoading(false);
     }
@@ -36,15 +37,15 @@ export function LoginForm() {
                 health_and_safety
               </span>
             </div>
-            <h1 className="font-headline-md text-headline-md text-primary tracking-tight">
-              Quan Ly Lich
+              <h1 className="font-headline-md text-headline-md text-primary tracking-tight">
+              Quản Lý Lịch
             </h1>
           </div>
           <h2 className="font-display-lg text-display-lg text-on-surface mb-2">
-            Dang nhap he thong
+            Đăng nhập hệ thống
           </h2>
           <p className="font-body-md text-body-md text-on-surface-variant">
-            He thong Quan Ly Lich Cong Tac
+            Hệ thống Quản Lý Lịch Công Tác
           </p>
         </div>
 
@@ -58,7 +59,7 @@ export function LoginForm() {
 
           <div className="space-y-1.5">
             <label className="block font-label-md text-label-md text-on-surface" htmlFor="username">
-              Ten dang nhap
+              Ten đăng nhập
             </label>
             <div className="relative">
               <span
@@ -73,7 +74,7 @@ export function LoginForm() {
                 id="username"
                 name="username"
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Nhap ten dang nhap"
+                placeholder="Nhập tên đăng nhập"
                 required
                 spellCheck={false}
                 type="text"
@@ -84,7 +85,7 @@ export function LoginForm() {
 
           <div className="space-y-1.5">
             <label className="block font-label-md text-label-md text-on-surface" htmlFor="password">
-              Mat khau
+              Mật khẩu
             </label>
             <div className="relative">
               <span
@@ -99,7 +100,7 @@ export function LoginForm() {
                 id="password"
                 name="password"
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Nhap mat khau"
+                placeholder="Nhập mật khẩu"
                 required
                 type="password"
                 value={password}
@@ -120,13 +121,13 @@ export function LoginForm() {
                   check
                 </span>
               </div>
-              <span className="font-label-md text-label-md text-on-surface-variant">Ghi nho dang nhap</span>
+              <span className="font-label-md text-label-md text-on-surface-variant">Ghi nhớ đăng nhập</span>
             </label>
             <button
               className="font-label-md text-label-md text-primary hover:text-on-primary-fixed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded"
               type="button"
             >
-              Quen mat khau?
+              Quên mật khẩu?
             </button>
           </div>
 
@@ -138,7 +139,8 @@ export function LoginForm() {
             {isLoading ? (
               <>
                 <svg
-                  aria-hidden="true"
+                  aria-label="Đăng nhập"
+                  role="status"
                   className="h-5 w-5 animate-spin"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -157,21 +159,21 @@ export function LoginForm() {
                     fill="currentColor"
                   />
                 </svg>
-                <span>Dang nhap...</span>
+                <span>Đăng nhập...</span>
               </>
             ) : (
               <>
                 <span aria-hidden="true" className="material-symbols-outlined text-[20px]">
                   login
                 </span>
-                <span>Dang nhap</span>
+                <span>Đăng nhập</span>
               </>
             )}
           </button>
         </form>
 
         <p className="mt-8 text-center font-body-sm text-body-sm text-outline">
-          Quan ly Lich Cong Tac — Nhom 4
+          Quản lý Lịch Công Tác — Nhóm 4
         </p>
       </section>
 
@@ -205,14 +207,14 @@ export function LoginForm() {
               </span>
             </div>
             <div>
-              <h3 className="font-title-lg text-title-lg text-on-surface">Hieu Suat Toi Da</h3>
+              <h3 className="font-title-lg text-title-lg text-on-surface">Hiệu Suất Tối Đa</h3>
               <p className="font-body-sm text-body-sm text-on-surface-variant">
-                Dieu phoi nhan su 24/7
+                Điều phối nhân sự 24/7
               </p>
             </div>
           </div>
           <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-            Toi uu hoa phan bo ca truc, giam xung dot va tang hieu qua lam viec cua doi ngu y te.
+            Tối ưu hóa phân bổ ca trực, giảm xung đột và tăng hiệu quả làm việc của đội ngũ y tế.
           </p>
         </div>
       </section>

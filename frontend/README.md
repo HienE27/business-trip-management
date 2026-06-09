@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend - Hospital Scheduler
 
-## Getting Started
+Frontend quản trị cho hệ thống quản lý lịch công tác, viết bằng Next.js App Router.
 
-First, run the development server:
+## Công nghệ
+
+- Next.js `16.2.6`
+- React `19.2.4`
+- TypeScript `5`
+- Tailwind CSS `4`
+- ESLint `9`
+
+## Chạy local
+
+### Cài dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Cấu hình API
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Frontend gọi backend qua biến môi trường:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+```
 
-## Learn More
+Tạo file `.env.local` trong thư mục `frontend/` nếu cần override.
 
-To learn more about Next.js, take a look at the following resources:
+Nếu không có biến này, code hiện đang fallback về `http://localhost:8080/api/v1`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Start dev server
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm dev
+```
 
-## Deploy on Vercel
+App sẽ chạy tại `http://localhost:3000`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `pnpm dev` — chạy dev server
+- `pnpm build` — build production
+- `pnpm start` — chạy production build
+- `pnpm lint` — chạy ESLint
+
+## Các màn hình chính
+
+App Router hiện có các trang chính:
+
+- `/login` — đăng nhập
+- `/` — dashboard tổng quan
+- `/staff` — danh sách nhân sự
+- `/staff/create` — tạo nhân sự
+- `/staff/profile` — hồ sơ cá nhân
+- `/duty-24` — quản lý lịch `L01`
+- `/all-day` — quản lý lịch `L02`
+- `/service-clinic` — quản lý lịch `L03`
+- `/expert-clinic` — quản lý lịch `L04`
+- `/schedule-summary` — tổng hợp lịch và export
+- `/conflict-check` — kiểm tra xung đột
+- `/swap-requests` — yêu cầu đổi ca
+- `/notifications` — thông báo
+- `/reports` — workload report
+- `/audit-history` — nhật ký thao tác
+- `/auto-scheduling` — auto scheduling
+- `/settings` — cài đặt giao diện
+
+## Luồng dữ liệu chính
+
+- Auth dùng cookie HTTP-only do backend set sau login
+- Phần lớn API yêu cầu user có role `ADMIN` hoặc `MANAGER`
+- Frontend đọc dữ liệu kỳ lịch (`periods`) rồi tải dữ liệu theo `periodId`
+- Các màn hình lịch sử dụng endpoint conflict check theo kỳ để hiển thị cảnh báo
+- Với lịch `L01`, frontend ưu tiên dùng `compensationDate` trả từ backend thay vì tự tính ở client
+
+## Tình trạng triển khai đáng chú ý
+
+- `schedule-summary` hỗ trợ export Excel và PDF theo `periodId`
+- `reports` đang tập trung vào workload report theo kỳ
+- `auto-scheduling` đã có preview, run, metrics, unassigned report và apply template flow trong UI
+- Một số khác biệt UX giữa các module vẫn có thể tồn tại dù backend rule đã thống nhất
+
+## Tài khoản dùng thử
+
+Nếu backend đang dùng seed mặc định, có thể đăng nhập bằng:
+
+- `admin / admin123`
+- `staff1 / 123456`
+
+Thực tế các màn quản trị sẽ phù hợp nhất khi dùng `admin` vì nhiều API yêu cầu `ADMIN` hoặc `MANAGER`.
+
+## Ghi chú
+
+- File này thay cho README mặc định của `create-next-app`
+- Thư mục `.next/` là build artifact, không phải source code
+- Nếu frontend báo lỗi xác thực hoặc không tải được dữ liệu, kiểm tra backend đang chạy ở `:8080` và cookie auth đã được set thành công

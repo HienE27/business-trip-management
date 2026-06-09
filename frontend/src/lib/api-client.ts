@@ -29,34 +29,9 @@ import type {
 } from "@/types/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+const LOGIN_PATH = "/login";
 
 class ApiClient {
-  private token: string | null = null;
-
-  constructor() {
-    if (typeof window !== "undefined") {
-      this.token = localStorage.getItem("token");
-    }
-  }
-
-  setToken(token: string | null) {
-    this.token = token;
-    if (typeof window !== "undefined") {
-      if (token) {
-        localStorage.setItem("token", token);
-      } else {
-        localStorage.removeItem("token");
-      }
-    }
-  }
-
-  getToken(): string | null {
-    if (!this.token && typeof window !== "undefined") {
-      this.token = localStorage.getItem("token");
-    }
-    return this.token;
-  }
-
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -66,21 +41,18 @@ class ApiClient {
       ...(options.headers as Record<string, string>),
     };
 
-    const token = this.getToken();
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers,
+      credentials: "include",
     });
 
     if (!response.ok) {
-      if (response.status === 401) {
-        this.setToken(null);
-        if (typeof window !== "undefined") {
-          window.location.href = "/login";
+      if (response.status === 401 && typeof window !== "undefined") {
+        window.localStorage.removeItem("medschedule.user");
+        const currentPath = window.location.pathname;
+        if (currentPath !== LOGIN_PATH) {
+          window.location.replace(LOGIN_PATH);
         }
       }
       const errorData = await response.json().catch(() => ({}));
@@ -90,11 +62,44 @@ class ApiClient {
     return response.json();
   }
 
+  // Generic HTTP methods
+  async get<T>(endpoint: string): Promise<T> {
+    const res = await this.request<T>(endpoint, { method: "GET" });
+    return res.data;
+  }
+
+  async post<T>(endpoint: string, body: unknown): Promise<T> {
+    const res = await this.request<T>(endpoint, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return res.data;
+  }
+
+  async put<T>(endpoint: string, body: unknown): Promise<T> {
+    const res = await this.request<T>(endpoint, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+    return res.data;
+  }
+
+  async delete<T>(endpoint: string): Promise<T> {
+    const res = await this.request<T>(endpoint, { method: "DELETE" });
+    return res.data;
+  }
+
   // Auth
   async login(data: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     return this.request<AuthResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  }
+
+  async logout(): Promise<ApiResponse<void>> {
+    return this.request<void>("/auth/logout", {
+      method: "POST",
     });
   }
 
@@ -189,14 +194,14 @@ class ApiClient {
     shiftTypeId: string,
     originalStaffId: number,
     requiredCount = 1
-  ): Promise<ApiResponse<Staff[]>> {
+  ): Promise<Staff[]> {
     const params = new URLSearchParams({
       workDate,
       shiftTypeId,
       originalStaffId: String(originalStaffId),
       requiredCount: String(requiredCount),
     });
-    return this.request<Staff[]>(`/schedules/replacements/${periodId}?${params.toString()}`);
+    return this.get<Staff[]>(`/schedules/replacements/${periodId}?${params.toString()}`);
   }
 
   // Schedule Period
@@ -260,9 +265,8 @@ class ApiClient {
   }
 
   async exportScheduleExcel(periodId: number): Promise<Blob> {
-    const token = this.getToken();
     const response = await fetch(`${API_BASE}/dashboard/export/schedule/${periodId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: "include",
     });
     if (!response.ok) throw new Error("Export failed");
     return response.blob();

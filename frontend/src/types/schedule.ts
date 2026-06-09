@@ -5,7 +5,9 @@ export type ScheduleTone =
   | "expertClinic"
   | "compLeave"
   | "warning"
-  | "neutral";
+  | "neutral"
+  | "conflict"
+  | "empty";
 
 export type Priority = "Cao" | "Trung bình" | "Thấp" | "Cốt lõi";
 
@@ -73,7 +75,7 @@ export type ConflictItem = {
   type: string;
   staffName: string;
   date: string;
-  severity: "Chan luu" | "Canh bao";
+  severity: "Chặn lưu" | "Cảnh báo";
   detail?: string;
 };
 

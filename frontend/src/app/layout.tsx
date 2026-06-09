@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { NotificationProvider } from "@/components/ui/NotificationContext";
 import "./globals.css";
@@ -38,9 +39,11 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <AuthProvider>
-          <NotificationProvider>
-            {children}
-          </NotificationProvider>
+          <AuthGuard>
+            <NotificationProvider>
+              {children}
+            </NotificationProvider>
+          </AuthGuard>
         </AuthProvider>
       </body>
     </html>

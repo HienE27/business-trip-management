@@ -23,7 +23,7 @@ const dotColors: Record<NonNullable<StatusBadgeProps["tone"]>, string> = {
 export function StatusBadge({ children, tone = "neutral", showDot = false }: StatusBadgeProps) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${styles[tone]}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-label-sm ${styles[tone]}`}
     >
       {showDot && (
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColors[tone]}`} />

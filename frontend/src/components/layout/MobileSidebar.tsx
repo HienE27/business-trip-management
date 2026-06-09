@@ -1,13 +1,16 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import type { NavigationItem } from "@/types/schedule";
 
 type AppSidebarProps = {
   items: NavigationItem[];
-  mobileOpen?: boolean;
-  onClose?: () => void;
+  mobileOpen: boolean;
+  onClose: () => void;
 };
 
-export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarProps) {
+export function AppSidebar({ items, mobileOpen, onClose }: AppSidebarProps) {
   return (
     <>
       {/* Mobile overlay */}
@@ -19,15 +22,16 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
         />
       )}
 
+      {/* Sidebar */}
       <aside
         aria-label="Điều hướng chính"
         className={`
-          fixed left-0 top-0 h-full w-[260px] border-r border-outline-variant
-          bg-surface-container-low z-50 flex flex-col py-4
+          fixed left-0 top-0 h-full w-[260px] border-r border-outline-variant bg-surface-container-low z-50
+          flex flex-col py-4
+          transform transition-transform duration-200 ease-out
           hidden md:flex
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
           md:translate-x-0
-          transition-transform duration-200
         `}
       >
         {/* Logo */}
@@ -71,6 +75,7 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
         {/* Footer */}
         <div className="mt-auto px-3 border-t border-outline-variant pt-4 flex flex-col gap-1">
           {[
+            { label: "Thông báo", icon: "notifications", href: "/notifications" },
             { label: "Cài đặt", icon: "settings", href: "/settings" },
             { label: "Hồ sơ cá nhân", icon: "person", href: "/staff/profile" },
           ].map((item) => (
