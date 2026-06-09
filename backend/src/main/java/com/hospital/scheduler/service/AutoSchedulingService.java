@@ -40,6 +40,71 @@ public class AutoSchedulingService {
         return runScheduling(request, true);
     }
 
+    public AutoScheduleResponse applyPreviewSchedule(com.hospital.scheduler.dto.request.AutoScheduleApplyPreviewRequestDTO request) {
+        SchedulePeriod period = periodRepository.findById(request.getPeriodId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + request.getPeriodId()));
+
+        if (period.getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
+            throw new BadRequestException("Chỉ có thể áp dụng bản nháp khi kỳ lịch ở trạng thái DRAFT");
+        }
+
+        scheduleRepository.deleteAll(scheduleRepository.findByPeriodId(period.getId()));
+
+        List<Schedule> savedSchedules = new ArrayList<>();
+        for (var item : request.getSchedules()) {
+            Staff staff = staffRepository.findById(item.getStaffId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + item.getStaffId()));
+            ShiftRequirement requirement = requirementRepository.findByPeriodId(period.getId()).stream()
+                    .filter(req -> req.getWorkDate().toString().equals(item.getWorkDate()))
+                    .filter(req -> req.getShiftType().getId().equals(item.getShiftTypeId()))
+                    .findFirst()
+                    .orElse(null);
+            ShiftType shiftType = requirement != null ? requirement.getShiftType() : null;
+            if (shiftType == null) {
+                throw new BadRequestException("Không tìm thấy ca trực phù hợp cho ngày " + item.getWorkDate());
+            }
+
+            Schedule schedule = Schedule.builder()
+                    .period(period)
+                    .staff(staff)
+                    .shiftType(shiftType)
+                    .workDate(LocalDate.parse(item.getWorkDate()))
+                    .requirement(requirement)
+                    .hasConflict(false)
+                    .build();
+            Schedule saved = scheduleRepository.save(schedule);
+            if ("L01".equals(shiftType.getId())) {
+                createCompensationDayForAuto(saved);
+            }
+            savedSchedules.add(saved);
+        }
+
+        List<AutoScheduleResponse.ScheduleSummary> summaries = savedSchedules.stream()
+                .map(s -> AutoScheduleResponse.ScheduleSummary.builder()
+                        .scheduleId(s.getId())
+                        .staffId(s.getStaff().getId())
+                        .staffName(s.getStaff().getFullName())
+                        .workDate(s.getWorkDate().toString())
+                        .shiftTypeId(s.getShiftType().getId())
+                        .shiftTypeName(s.getShiftType().getName())
+                        .build())
+                .toList();
+
+        return AutoScheduleResponse.builder()
+                .success(true)
+                .message("Đã áp dụng bản nháp đã chỉnh sửa")
+                .periodId(period.getId())
+                .algorithmType(request.getAlgorithmType())
+                .executionTimeMs(0)
+                .coverageRate(BigDecimal.ZERO)
+                .balanceScore(BigDecimal.ZERO)
+                .conflictCount(0)
+                .totalSchedulesCreated(savedSchedules.size())
+                .schedules(summaries)
+                .executedAt(LocalDateTime.now())
+                .build();
+    }
+
     private AutoScheduleResponse runScheduling(AutoScheduleRequestDTO request, boolean save) {
         long startTime = System.currentTimeMillis();
 

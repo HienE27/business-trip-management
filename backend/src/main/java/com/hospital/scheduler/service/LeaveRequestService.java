@@ -112,9 +112,17 @@ public class LeaveRequestService {
         return LeaveRequestResponse.fromEntity(saved);
     }
 
-    public LeaveRequestResponse cancelLeaveRequest(Integer leaveRequestId) {
+    public LeaveRequestResponse cancelLeaveRequest(Integer leaveRequestId, Staff currentStaff) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveRequestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu nghỉ phép với ID: " + leaveRequestId));
+
+        boolean canCancel = leaveRequest.getStaff().getId().equals(currentStaff.getId())
+                || currentStaff.getStaffRoles().stream()
+                .map(role -> role.getRole() != null ? role.getRole().getName() : null)
+                .anyMatch(roleName -> "ADMIN".equals(roleName) || "MANAGER".equals(roleName));
+        if (!canCancel) {
+            throw new BadRequestException("Bạn không có quyền hủy yêu cầu nghỉ phép này");
+        }
 
         if (leaveRequest.getStatus() != LeaveRequest.LeaveStatus.PENDING) {
             throw new BadRequestException("Chỉ có thể hủy yêu cầu đang chờ");

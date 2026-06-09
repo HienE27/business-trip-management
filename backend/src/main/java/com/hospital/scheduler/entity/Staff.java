@@ -63,7 +63,7 @@ public class Staff {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    @OneToMany(mappedBy = "staff", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "staff", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
     @com.fasterxml.jackson.annotation.JsonIgnore
     private Set<StaffRole> staffRoles = new HashSet<>();

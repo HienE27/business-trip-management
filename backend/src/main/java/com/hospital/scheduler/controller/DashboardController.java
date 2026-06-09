@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.response.DashboardResponse;
 import com.hospital.scheduler.service.DashboardService;
 import com.hospital.scheduler.service.ReportExportService;
+import com.hospital.scheduler.service.SchedulePdfExportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class DashboardController {
 
     private final DashboardService dashboardService;
     private final ReportExportService reportExportService;
+    private final SchedulePdfExportService schedulePdfExportService;
 
     @GetMapping
     @Operation(summary = "Lấy tổng quan dashboard")
@@ -77,6 +79,17 @@ public class DashboardController {
         headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
         headers.setContentDispositionFormData("attachment", "lich_cong_tac_" + periodId + ".xlsx");
         return ResponseEntity.ok().headers(headers).body(excelData);
+    }
+
+    @GetMapping("/export/schedule/{periodId}/pdf")
+    @Operation(summary = "Xuất báo cáo lịch công tác ra PDF")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<byte[]> exportScheduleToPdf(@PathVariable Integer periodId) throws Exception {
+        byte[] pdfData = schedulePdfExportService.exportScheduleToPdf(periodId);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData("attachment", "lich_cong_tac_" + periodId + ".pdf");
+        return ResponseEntity.ok().headers(headers).body(pdfData);
     }
 
     @GetMapping("/export/workload/{periodId}")

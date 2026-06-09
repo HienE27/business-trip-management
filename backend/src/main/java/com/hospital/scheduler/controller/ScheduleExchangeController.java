@@ -5,6 +5,7 @@ import com.hospital.scheduler.dto.request.ScheduleExchangeDTO;
 import com.hospital.scheduler.dto.response.ScheduleExchangeResponse;
 import com.hospital.scheduler.entity.ScheduleExchange;
 import com.hospital.scheduler.service.ScheduleExchangeService;
+import com.hospital.scheduler.security.AuthContextService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -23,6 +24,7 @@ import java.util.List;
 public class ScheduleExchangeController {
 
     private final ScheduleExchangeService exchangeService;
+    private final AuthContextService authContextService;
 
     @GetMapping
     @Operation(summary = "Lấy danh sách tất cả yêu cầu đổi ca")
@@ -63,6 +65,7 @@ public class ScheduleExchangeController {
     @GetMapping("/user/{userId}")
     @Operation(summary = "Lấy yêu cầu đổi ca liên quan đến người dùng")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getForUser(@PathVariable Integer userId) {
+        authContextService.requireSelfOrManager(userId);
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesForUser(userId)));
     }
 
@@ -77,6 +80,7 @@ public class ScheduleExchangeController {
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> create(
             @PathVariable Integer requesterId,
             @Valid @RequestBody ScheduleExchangeDTO dto) {
+        authContextService.requireSelfOrManager(requesterId);
         ScheduleExchangeResponse created = exchangeService.createExchange(requesterId, dto);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(created, "Tạo yêu cầu đổi ca thành công"));
@@ -84,22 +88,22 @@ public class ScheduleExchangeController {
 
     @PutMapping("/{id}/approve")
     @Operation(summary = "Duyệt yêu cầu đổi ca")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> approve(
             @PathVariable Integer id,
             @RequestParam Integer reviewerId,
             @RequestParam(required = false) String reviewNote) {
+        authContextService.requireManagerLikeReviewer(reviewerId);
         ScheduleExchangeResponse approved = exchangeService.approveExchange(id, reviewerId, reviewNote);
         return ResponseEntity.ok(ApiResponse.success(approved, "Duyệt yêu cầu đổi ca thành công"));
     }
 
     @PutMapping("/{id}/reject")
     @Operation(summary = "Từ chối yêu cầu đổi ca")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> reject(
             @PathVariable Integer id,
             @RequestParam Integer reviewerId,
             @RequestParam(required = false) String reviewNote) {
+        authContextService.requireManagerLikeReviewer(reviewerId);
         ScheduleExchangeResponse rejected = exchangeService.rejectExchange(id, reviewerId, reviewNote);
         return ResponseEntity.ok(ApiResponse.success(rejected, "Từ chối yêu cầu đổi ca thành công"));
     }
@@ -107,7 +111,7 @@ public class ScheduleExchangeController {
     @PutMapping("/{id}/cancel")
     @Operation(summary = "Hủy yêu cầu đổi ca")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> cancel(@PathVariable Integer id) {
-        ScheduleExchangeResponse cancelled = exchangeService.cancelExchange(id);
+        ScheduleExchangeResponse cancelled = exchangeService.cancelExchange(id, authContextService.getCurrentStaff());
         return ResponseEntity.ok(ApiResponse.success(cancelled, "Hủy yêu cầu đổi ca thành công"));
     }
 }

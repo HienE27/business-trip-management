@@ -11,7 +11,8 @@ import java.util.Optional;
 
 @Repository
 public interface StaffRepository extends JpaRepository<Staff, Integer> {
-    Optional<Staff> findByUsername(String username);
+    @Query("SELECT s FROM Staff s LEFT JOIN FETCH s.staffRoles sr LEFT JOIN FETCH sr.role WHERE s.username = :username")
+    Optional<Staff> findByUsername(@Param("username") String username);
     Optional<Staff> findByEmail(String email);
     List<Staff> findByIsActiveTrue();
     List<Staff> findBySpecialtyId(Integer specialtyId);
@@ -24,8 +25,10 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
            "WHERE (:keyword IS NULL OR LOWER(s.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "OR LOWER(s.username) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:specialtyId IS NULL OR s.specialty.id = :specialtyId) " +
-           "AND (:status IS NULL OR s.status = :status)")
+           "AND (:status IS NULL OR s.status = :status) " +
+           "AND (:role IS NULL OR UPPER(sr.role.name) = UPPER(:role))")
     List<Staff> searchStaffs(@Param("keyword") String keyword,
                               @Param("specialtyId") Integer specialtyId,
-                              @Param("status") String status);
+                              @Param("status") String status,
+                              @Param("role") String role);
 }

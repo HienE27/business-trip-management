@@ -5,6 +5,7 @@ import com.hospital.scheduler.dto.request.LeaveRequestDTO;
 import com.hospital.scheduler.dto.response.LeaveRequestResponse;
 import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.service.LeaveRequestService;
+import com.hospital.scheduler.security.AuthContextService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -23,6 +24,7 @@ import java.util.List;
 public class LeaveRequestController {
 
     private final LeaveRequestService leaveRequestService;
+    private final AuthContextService authContextService;
 
     @GetMapping
     @Operation(summary = "Lấy danh sách tất cả yêu cầu nghỉ phép")
@@ -48,8 +50,8 @@ public class LeaveRequestController {
 
     @GetMapping("/staff/{staffId}")
     @Operation(summary = "Lấy yêu cầu nghỉ phép theo nhân sự")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<LeaveRequestResponse>>> getByStaff(@PathVariable Integer staffId) {
+        authContextService.requireSelfOrManager(staffId);
         return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getLeaveRequestsByStaff(staffId)));
     }
 
@@ -64,6 +66,7 @@ public class LeaveRequestController {
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> create(
             @PathVariable Integer staffId,
             @Valid @RequestBody LeaveRequestDTO dto) {
+        authContextService.requireSelfOrManager(staffId);
         LeaveRequestResponse created = leaveRequestService.createLeaveRequest(staffId, dto);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(created, "Tạo yêu cầu nghỉ phép thành công"));
@@ -71,22 +74,22 @@ public class LeaveRequestController {
 
     @PutMapping("/{id}/approve")
     @Operation(summary = "Duyệt yêu cầu nghỉ phép")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> approve(
             @PathVariable Integer id,
             @RequestParam Integer reviewerId,
             @RequestParam(required = false) String reviewNote) {
+        authContextService.requireManagerLikeReviewer(reviewerId);
         LeaveRequestResponse approved = leaveRequestService.approveLeaveRequest(id, reviewerId, reviewNote);
         return ResponseEntity.ok(ApiResponse.success(approved, "Duyệt yêu cầu nghỉ phép thành công"));
     }
 
     @PutMapping("/{id}/reject")
     @Operation(summary = "Từ chối yêu cầu nghỉ phép")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> reject(
             @PathVariable Integer id,
             @RequestParam Integer reviewerId,
             @RequestParam(required = false) String reviewNote) {
+        authContextService.requireManagerLikeReviewer(reviewerId);
         LeaveRequestResponse rejected = leaveRequestService.rejectLeaveRequest(id, reviewerId, reviewNote);
         return ResponseEntity.ok(ApiResponse.success(rejected, "Từ chối yêu cầu nghỉ phép thành công"));
     }
@@ -94,7 +97,7 @@ public class LeaveRequestController {
     @PutMapping("/{id}/cancel")
     @Operation(summary = "Hủy yêu cầu nghỉ phép")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> cancel(@PathVariable Integer id) {
-        LeaveRequestResponse cancelled = leaveRequestService.cancelLeaveRequest(id);
+        LeaveRequestResponse cancelled = leaveRequestService.cancelLeaveRequest(id, authContextService.getCurrentStaff());
         return ResponseEntity.ok(ApiResponse.success(cancelled, "Hủy yêu cầu nghỉ phép thành công"));
     }
 }

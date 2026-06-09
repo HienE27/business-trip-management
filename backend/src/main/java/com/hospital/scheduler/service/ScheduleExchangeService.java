@@ -185,9 +185,18 @@ public class ScheduleExchangeService {
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 
-    public ScheduleExchangeResponse cancelExchange(Integer exchangeId) {
+    public ScheduleExchangeResponse cancelExchange(Integer exchangeId, Staff currentStaff) {
         ScheduleExchange exchange = exchangeRepository.findById(exchangeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu đổi ca với ID: " + exchangeId));
+
+        boolean canCancel = exchange.getRequester().getId().equals(currentStaff.getId())
+                || exchange.getTarget().getId().equals(currentStaff.getId())
+                || currentStaff.getStaffRoles().stream()
+                .map(role -> role.getRole() != null ? role.getRole().getName() : null)
+                .anyMatch(roleName -> "ADMIN".equals(roleName) || "MANAGER".equals(roleName));
+        if (!canCancel) {
+            throw new BadRequestException("Bạn không có quyền hủy yêu cầu đổi ca này");
+        }
 
         if (exchange.getStatus() != ScheduleExchange.ExchangeStatus.PENDING) {
             throw new BadRequestException("Chỉ có thể hủy yêu cầu đang chờ");
