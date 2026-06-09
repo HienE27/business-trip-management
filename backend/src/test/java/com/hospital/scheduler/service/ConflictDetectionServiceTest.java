@@ -239,6 +239,66 @@ class ConflictDetectionServiceTest {
 
             assertThat(conflicts).isEmpty();
         }
+
+        @Test
+        @DisplayName("L02 vào ngày nghỉ bù -> REJECT")
+        void L02OnCompensationDay_shouldReject() {
+            LocalDate compensationDate = monday.plusDays(1);
+            CompensationDay compDay = CompensationDay.builder()
+                    .id(2)
+                    .staff(testStaff)
+                    .compensationDate(compensationDate)
+                    .build();
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(testStaff.getId(), compensationDate))
+                    .thenReturn(Optional.of(compDay));
+
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    testStaff.getId(), compensationDate, "L02", null);
+
+            assertThat(conflicts)
+                    .hasSize(1)
+                    .anyMatch(c -> c.contains("ngày nghỉ bù"));
+        }
+
+        @Test
+        @DisplayName("L03 vào ngày nghỉ bù -> REJECT")
+        void L03OnCompensationDay_shouldReject() {
+            LocalDate compensationDate = monday.plusDays(2);
+            CompensationDay compDay = CompensationDay.builder()
+                    .id(3)
+                    .staff(testStaff)
+                    .compensationDate(compensationDate)
+                    .build();
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(testStaff.getId(), compensationDate))
+                    .thenReturn(Optional.of(compDay));
+
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    testStaff.getId(), compensationDate, "L03", null);
+
+            assertThat(conflicts)
+                    .hasSize(1)
+                    .anyMatch(c -> c.contains("ngày nghỉ bù"));
+        }
+
+        @Test
+        @DisplayName("L04 vào ngày nghỉ bù -> REJECT")
+        void L04OnCompensationDay_shouldReject() {
+            LocalDate compensationDate = monday.plusDays(3);
+            CompensationDay compDay = CompensationDay.builder()
+                    .id(4)
+                    .staff(testStaff)
+                    .compensationDate(compensationDate)
+                    .build();
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(testStaff.getId(), compensationDate))
+                    .thenReturn(Optional.of(compDay));
+
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    testStaff.getId(), compensationDate, "L04", null);
+
+            assertThat(conflicts)
+                    .hasSize(1)
+                    .anyMatch(c -> c.contains("ngày nghỉ bù"));
+        }
     }
 
     // ==================== M01: Nghỉ phép ====================

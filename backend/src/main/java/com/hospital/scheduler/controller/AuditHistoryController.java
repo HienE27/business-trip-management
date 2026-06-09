@@ -24,14 +24,14 @@ public class AuditHistoryController {
 
     @GetMapping
     @Operation(summary = "Lấy tất cả lịch sử thay đổi")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<AuditHistoryResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(auditHistoryService.getAllAuditHistory()));
     }
 
     @GetMapping("/table/{tableName}/record/{recordId}")
     @Operation(summary = "Lấy lịch sử thay đổi theo bảng và bản ghi")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<AuditHistoryResponse>>> getByTableAndRecord(
             @PathVariable String tableName,
             @PathVariable Integer recordId) {
@@ -41,14 +41,14 @@ public class AuditHistoryController {
 
     @GetMapping("/user/{userId}")
     @Operation(summary = "Lấy lịch sử thay đổi theo người dùng")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<AuditHistoryResponse>>> getByUser(@PathVariable Integer userId) {
         return ResponseEntity.ok(ApiResponse.success(auditHistoryService.getAuditHistoryByUser(userId)));
     }
 
     @GetMapping("/date-range")
     @Operation(summary = "Lấy lịch sử thay đổi theo khoảng thời gian")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<AuditHistoryResponse>>> getByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {

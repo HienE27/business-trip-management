@@ -28,7 +28,6 @@ class ScheduleServiceBusinessRulesTest {
                 mock(ShiftTypeRepository.class),
                 mock(ShiftRequirementRepository.class),
                 mock(CompensationDayRepository.class),
-                mock(LeaveRequestRepository.class),
                 mock(ConflictDetectionService.class),
                 new AuditHistoryService(
                         mock(AuditHistoryRepository.class),

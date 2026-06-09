@@ -1,6 +1,7 @@
 package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
+import com.hospital.scheduler.dto.request.AutoScheduleApplyPreviewRequestDTO;
 import com.hospital.scheduler.dto.request.AutoScheduleRequestDTO;
 import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.entity.AlgorithmMetrics;
@@ -45,6 +46,16 @@ public class AutoSchedulingController {
         AutoScheduleResponse result = autoSchedulingService.autoSchedule(request);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.success(result, "Xếp lịch tự động hoàn tất"));
+    }
+
+    @PostMapping("/apply-preview")
+    @Operation(summary = "M07-F07: Áp dụng bản nháp đã chỉnh sửa thủ công")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<AutoScheduleResponse>> applyPreviewSchedule(
+            @Valid @RequestBody AutoScheduleApplyPreviewRequestDTO request) {
+        AutoScheduleResponse result = autoSchedulingService.applyPreviewSchedule(request);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(ApiResponse.success(result, "Đã áp dụng bản nháp đã chỉnh sửa"));
     }
 
     @GetMapping("/unassigned/{periodId}")

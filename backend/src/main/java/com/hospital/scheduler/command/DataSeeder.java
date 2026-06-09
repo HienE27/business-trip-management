@@ -274,7 +274,7 @@ public class DataSeeder implements CommandLineRunner {
             case WEDNESDAY -> shiftDate.plusDays(1);
             case THURSDAY -> shiftDate.plusDays(1);
             case FRIDAY -> shiftDate.plusDays(4);
-            case SATURDAY -> shiftDate.plusDays(3);
+            case SATURDAY -> shiftDate.plusDays(4);
             case SUNDAY -> shiftDate.plusDays(1);
         };
     }

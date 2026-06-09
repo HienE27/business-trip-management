@@ -22,6 +22,7 @@ public class AutoScheduleResponse {
     private Integer conflictCount;
     private Integer totalSchedulesCreated;
     private List<ScheduleSummary> schedules;
+    private List<Integer> excludedStaffIds;
     private LocalDateTime executedAt;
 
     @Getter

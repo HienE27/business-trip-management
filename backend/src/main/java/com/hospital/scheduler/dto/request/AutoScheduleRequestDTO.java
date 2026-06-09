@@ -3,6 +3,8 @@ package com.hospital.scheduler.dto.request;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -21,4 +23,7 @@ public class AutoScheduleRequestDTO {
 
     @Builder.Default
     private Boolean autoAssign = true;
+
+    @Builder.Default
+    private List<Integer> excludedStaffIds = List.of();
 }

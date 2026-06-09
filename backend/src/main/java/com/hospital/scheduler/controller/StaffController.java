@@ -48,11 +48,13 @@ public class StaffController {
     public ResponseEntity<ApiResponse<List<StaffResponse>>> searchStaffs(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer specialtyId,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String role) {
         StaffSearchRequest request = StaffSearchRequest.builder()
                 .keyword(keyword)
                 .specialtyId(specialtyId)
                 .status(status)
+                .role(role)
                 .build();
         return ResponseEntity.ok(ApiResponse.success(staffService.searchStaffs(request)));
     }

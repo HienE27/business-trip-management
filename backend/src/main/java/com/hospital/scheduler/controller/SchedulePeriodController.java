@@ -67,14 +67,14 @@ public class SchedulePeriodController {
 
     @PostMapping("/{id}/publish")
     @Operation(summary = "Công bố kỳ lịch")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<SchedulePeriodResponse>> publishPeriod(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(periodService.publishPeriod(id), "Công bố kỳ lịch thành công"));
     }
 
     @PostMapping("/{id}/archive")
     @Operation(summary = "Lưu trữ kỳ lịch")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<SchedulePeriodResponse>> archivePeriod(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(periodService.archivePeriod(id), "Lưu trữ kỳ lịch thành công"));
     }

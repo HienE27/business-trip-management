@@ -61,8 +61,9 @@ public class StaffService {
     public List<StaffResponse> searchStaffs(StaffSearchRequest request) {
         String keyword = (request.getKeyword() != null && !request.getKeyword().isBlank()) ? request.getKeyword() : null;
         String status = (request.getStatus() != null && !request.getStatus().isBlank()) ? request.getStatus().toUpperCase() : null;
+        String role = (request.getRole() != null && !request.getRole().isBlank()) ? request.getRole().toUpperCase() : null;
 
-        return staffRepository.searchStaffs(keyword, request.getSpecialtyId(), status).stream()
+        return staffRepository.searchStaffs(keyword, request.getSpecialtyId(), status, role).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }

@@ -13,7 +13,16 @@ import java.util.Optional;
 @Repository
 public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
 
-    @Query("SELECT s FROM Schedule s WHERE s.period.id = :periodId ORDER BY s.workDate")
+    @Query("""
+            SELECT s
+            FROM Schedule s
+            JOIN FETCH s.staff st
+            LEFT JOIN FETCH st.specialty
+            JOIN FETCH s.shiftType
+            JOIN FETCH s.period
+            WHERE s.period.id = :periodId
+            ORDER BY s.workDate
+            """)
     List<Schedule> findByPeriodId(@Param("periodId") Integer periodId);
 
     @Query("SELECT s FROM Schedule s WHERE s.period.id = :periodId AND s.workDate = :workDate")

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -59,6 +60,7 @@ public class ReportExportService {
             int stt = 1;
 
             Map<String, List<Schedule>> groupedByDate = schedules.stream()
+                    .sorted(Comparator.comparing(Schedule::getWorkDate).thenComparing(s -> s.getStaff().getFullName()))
                     .collect(Collectors.groupingBy(s -> s.getWorkDate().toString()));
 
             for (Map.Entry<String, List<Schedule>> entry : groupedByDate.entrySet()) {
