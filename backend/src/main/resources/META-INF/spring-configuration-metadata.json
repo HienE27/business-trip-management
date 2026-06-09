@@ -1,0 +1,16 @@
+{
+  "properties": [
+    {
+      "name": "app.auth.cookie-secure",
+      "type": "java.lang.Boolean",
+      "description": "Whether the authentication cookie should be marked Secure.",
+      "defaultValue": false
+    },
+    {
+      "name": "app.auth.cookie-same-site",
+      "type": "java.lang.String",
+      "description": "SameSite policy for the authentication cookie.",
+      "defaultValue": "Lax"
+    }
+  ]
+}
