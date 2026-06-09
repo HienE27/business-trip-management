@@ -1,218 +1,255 @@
-# business-trip-management
-
 # Hệ thống Quản lý Lịch Công Tác
 
-## Thông tin dự án
+Website quản lý lịch công tác cho phòng chuyên môn với 4 loại lịch (`L01`-`L04`), backend Spring Boot + MySQL và frontend Next.js.
 
-| Trường | Giá trị |
-|--------|---------|
-| Phiên bản | 1.1 |
-| Ngày lập | 05/2026 |
-| Người hướng dẫn | ThS. Văn Minh Hoàng Quân |
-| Nhóm thực hiện | Nhóm 4 |
-| Công nghệ | Java Spring Boot + MySQL + REST API |
-| Database | hospital_scheduler (utf8mb4) |
+## Tổng quan
 
-## 1. Tổng quan hệ thống
+- **Backend**: Spring Boot `4.0.6`, Java `17`, Spring Security, JPA, MySQL, SpringDoc OpenAPI
+- **Frontend**: Next.js `16.2.6`, React `19`, TypeScript, Tailwind CSS `4`
+- **Database**: MySQL schema `hospital_scheduler`
+- **API base path**: `/api/v1`
+- **Swagger UI**: `http://localhost:8080/swagger-ui.html`
 
-### 1.1 Mục tiêu
-Xây dựng website quản lý lịch công tác cho phòng gồm 20 nhân sự. Hệ thống hỗ trợ xếp lịch 4 loại, kiểm tra xung đột tự động và tự động phân công lịch theo thuật toán.
+## Nghiệp vụ cốt lõi
 
-### 1.2 Các loại lịch trong hệ thống
+Hệ thống quản lý 4 loại lịch:
 
-| Mã | Tên | Mô tả | Ưu tiên |
-|----|-----|--------|---------|
-| L01 | Lịch trực 24/24 | Nhân sự trực liên tục từ 7h30 ngày N đến 7h30 ngày N+1. Sau ngày trực, nhân sự được nghỉ bù ngày kế tiếp. | Cốt lõi |
-| L02 | Lịch thông tầm | Nhân sự làm ca liên tục không nghỉ trưa trong ngày được chọn. | Cốt lõi |
-| L03 | Lịch phòng khám dịch vụ | Nhân sự phụ trách ca khám dịch vụ trong ngày được chọn. | Cốt lõi |
-| L04 | Lịch phòng khám chuyên gia | Chuyên gia phụ trách ca khám chuyên sâu trong ngày được chọn. | Cốt lõi |
+- `L01` — Lịch trực `24/24`
+- `L02` — Lịch thông tầm
+- `L03` — Lịch phòng khám dịch vụ
+- `L04` — Lịch phòng khám chuyên gia
 
-### 1.3 Quy tắc chọn ngày
+Các ràng buộc đang được backend kiểm soát qua `ConflictDetectionService`:
 
-- Tất cả 4 loại lịch đều chỉ yêu cầu chọn **NGÀY**, không cần nhập giờ hoặc chọn ca.
-- Lịch trực 24/24: chọn ngày N => hệ thống tự hiểu ca trực từ 7h30 ngày N đến 7h30 ngày N+1.
-- Lịch thông tầm, phòng khám dịch vụ, phòng khám chuyên gia: chọn ngày N => ghi nhận lịch làm việc trong ngày N.
+- Cùng nhân sự, cùng ngày: `L01` và `L02` không được đồng thời tồn tại
+- Cùng nhân sự, cùng ngày: `L03` và `L04` không được đồng thời tồn tại
+- Ngày nghỉ bù sau `L01` không được xếp bất kỳ lịch nào khác
 
-### 1.4 Quy định nghỉ bù sau trực 24/24
+Quy tắc nghỉ bù hiện bám theo tài liệu nghiệp vụ:
 
-| Trực | Nghỉ bù |
-|------|---------|
-| Thứ 2 | Thứ 3 (tuần này) |
-| Thứ 3 | Thứ 4 (tuần này) |
-| Thứ 4 | Thứ 5 (tuần này) |
-| Thứ 5 | Thứ 6 (tuần này) |
-| Thứ 6 | Thứ 3 tuần sau |
-| Thứ 7 | Thứ 3 tuần sau |
-| Chủ Nhật | Thứ 2 (tuần sau) |
+- Trực `Thứ 2` → nghỉ bù `Thứ 3`
+- Trực `Thứ 3` → nghỉ bù `Thứ 4`
+- Trực `Thứ 4` → nghỉ bù `Thứ 5`
+- Trực `Thứ 5` → nghỉ bù `Thứ 6`
+- Trực `Thứ 6` hoặc `Thứ 7` → nghỉ bù `Thứ 3 tuần sau`
+- Trực `Chủ Nhật` → nghỉ bù `Thứ 2 tuần sau`
 
-**Lưu ý:** Ngày nghỉ bù được dời sang tuần sau KHÔNG được rơi vào Thứ 2 hoặc Thứ 6.
+## Cấu trúc thư mục
 
-### 1.5 Ràng buộc nghiệp vụ cốt lõi
+- `backend/` — API, business rules, seed data, export Excel/PDF
+- `frontend/` — giao diện quản trị và dashboard
+- `SPEC.md` — tài liệu nghiệp vụ và phạm vi hệ thống
+- `QuanLyLichCongTac_v5.md` — mô tả chức năng gốc theo hướng product/spec
 
-1. **Lịch trực 24/24 và Lịch thông tầm**: Cùng nhân sự, cùng ngày => KHÔNG được đồng thời có cả 2 loại lịch.
+## Cách chạy local
 
-2. **Ngày nghỉ bù**: Cùng nhân sự => KHÔNG được xếp bất kỳ loại lịch nào vào ngày nghỉ bù.
+### 1. Chuẩn bị
 
-3. **Lịch phòng khám dịch vụ và Lịch phòng khám chuyên gia**: Cùng nhân sự, cùng ngày => KHÔNG được đồng thời có cả 2 loại lịch.
+Cần cài sẵn:
 
----
+- Java `17`
+- Maven wrapper hoặc Maven compatible với Spring Boot `4`
+- Node.js mới đủ chạy Next.js `16`
+- `pnpm`
+- MySQL `8.x`
 
-## 2. Các Module chức năng
+Tạo database:
 
-### Module M01 — Quản lý nhân sự
+```sql
+CREATE DATABASE hospital_scheduler CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
 
-| Mã | Chức năng | Mô tả | Ưu tiên |
-|----|-----------|-------|---------|
-| M01-F01 | Thêm nhân sự | Nhập: họ tên, mã nhân viên, chức vụ, chuyên khoa, SĐT, email. Kiểm tra trùng mã NV. | Trung bình |
-| M01-F02 | Sửa thông tin nhân sự | Chỉnh sửa thông tin; lưu lịch sử thay đổi. | Trung bình |
-| M01-F03 | Ngừng hoạt động | Đánh dấu nghỉ việc (soft delete). | Trung bình |
-| M01-F04 | Tìm kiếm & lọc | Tìm theo tên, mã NV, chức vụ, chuyên khoa, trạng thái. | Trung bình |
-| M01-F05 | Phân quyền hệ thống | 3 vai trò: Quản lý lịch, Trưởng phòng, Nhân viên. | Trung bình |
+Cấu hình mặc định hiện nằm trong `backend/src/main/resources/application.properties`:
 
-### Module M02 — Lịch trực 24/24
+- DB URL: `jdbc:mysql://localhost:3306/hospital_scheduler`
+- Username: `root`
+- Password: `123456`
+- Backend port: `8080`
 
-| Mã | Chức năng | Mô tả | Ưu tiên |
-|----|-----------|-------|---------|
-| M02-F01 | Xếp lịch trực 24/24 theo tháng | Gán ngày trực cho từng nhân sự trên bảng lịch tháng. | Cao |
-| M02-F02 | Kiểm tra xung đột hàng loạt | Quét toàn bộ, phát hiện lịch trực 24/24 trùng thông tầm. | Cao |
-| M02-F03 | Chỉnh sửa lịch trong tháng | Sửa từng ô ngày trên bảng lịch tháng. | Cao |
-| M02-F04 | Đăng ký đổi ngày trực | Nhân viên gửi yêu cầu đổi; quản lý duyệt/từ chối. | Trung bình |
-| M02-F05 | Thống kê số ngày trực | Báo cáo tổng số ngày trực của từng nhân sự. | Trung bình |
-| M02-F06 | Tự động tính ngày nghỉ bù | Tự tính ngày nghỉ bù theo quy định. | Cao |
-| M02-F07 | Cảnh báo lịch trùng ngày nghỉ bù | Phát hiện lịch khác xếp trùng ngày nghỉ bù. | Cao |
+### 2. Chạy backend
 
-### Module M03 — Lịch thông tầm
+```bash
+cd backend
+./mvnw spring-boot:run
+```
 
-| Mã | Chức năng | Mô tả | Ưu tiên |
-|----|-----------|-------|---------|
-| M03-F01 | Tạo lịch thông tầm | Chọn nhân sự và ngày làm thông tầm. | Cao |
-| M03-F02 | Kiểm tra xung đột lịch trực 24/24 | Ngăn lưu nếu nhân sự đã có lịch trực 24/24 cùng ngày. | Cao |
-| M03-F03 | Sửa / huỷ lịch thông tầm | Chỉnh sửa hoặc huỷ lịch; ghi nhật ký. | Cao |
-| M03-F04 | Xem lịch theo tuần / tháng | Hiển thị dạng bảng lịch; bộ lọc theo nhân sự. | Trung bình |
+Hoặc trên Windows:
 
-### Module M04 — Lịch phòng khám dịch vụ
+```bash
+cd backend
+mvnw.cmd spring-boot:run
+```
 
-| Mã | Chức năng | Mô tả | Ưu tiên |
-|----|-----------|-------|---------|
-| M04-F01 | Tạo lịch phòng khám dịch vụ | Chọn nhân sự và ngày phụ trách. | Cao |
-| M04-F02 | Kiểm tra xung đột lịch chuyên gia | Ngăn lưu nếu nhân sự đã có lịch chuyên gia cùng ngày. | Cao |
-| M04-F03 | Sửa / huỷ lịch dịch vụ | Chỉnh sửa hoặc huỷ lịch. | Cao |
-| M04-F04 | Xem lịch theo tuần / tháng | Hiển thị bảng lịch; bộ lọc theo nhân sự. | Trung bình |
-| M04-F05 | Thống kê ca khám dịch vụ | Báo cáo số ngày theo tuần/tháng. | Thấp |
+Backend sẽ chạy tại `http://localhost:8080`.
 
-### Module M05 — Lịch phòng khám chuyên gia
+### 3. Chạy frontend
 
-| Mã | Chức năng | Mô tả | Ưu tiên |
-|----|-----------|-------|---------|
-| M05-F01 | Tạo lịch phòng khám chuyên gia | Chọn chuyên gia và ngày phụ trách. | Cao |
-| M05-F02 | Kiểm tra xung đột lịch dịch vụ | Ngăn lưu nếu đã có lịch dịch vụ cùng ngày. | Cao |
-| M05-F03 | Sửa / huỷ lịch chuyên gia | Chỉnh sửa hoặc huỷ lịch. | Cao |
-| M05-F04 | Lọc lịch theo chuyên khoa | Xem lịch theo Ngoại, Nội, Sản, Nhi, Mắt, Răng... | Trung bình |
-| M05-F05 | Thống kê ca khám chuyên gia | Báo cáo số ngày theo tuần/tháng. | Thấp |
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
 
-### Module M06 — Tổng hợp & Hiển thị lịch
+Frontend sẽ chạy tại `http://localhost:3000`.
 
-| Mã | Chức năng | Mô tả | Ưu tiên |
-|----|-----------|-------|---------|
-| M06-F01 | Xem lịch theo ngày / tuần / tháng | Lưới lịch 4 loại với màu phân biệt. | Cao |
-| M06-F02 | Xem lịch theo nhân sự | Xem toàn bộ lịch của 1 người. | Cao |
-| M06-F03 | Cảnh báo xung đột thời gian thực | Thông báo tức thời khi phát hiện vi phạm. | Cao |
-| M06-F04 | Xuất báo cáo lịch | Xuất Excel / PDF theo tháng hoặc loại lịch. | Trung bình |
-| M06-F05 | Nhật ký thao tác | Ghi lại toàn bộ hành động. | Thấp |
+Nếu cần chỉ rõ API URL cho frontend, tạo file `.env.local` trong `frontend/`:
 
-### Module M07 — Tự động sắp xếp lịch
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+```
 
-| Mã | Chức năng | Mô tả | Ưu tiên |
-|----|-----------|-------|---------|
-| M07-F01 | Cấu hình tham số đầu vào | Chọn tháng, danh sách nhân sự ngoại lệ. | Cao |
-| M07-F02 | Tự động xếp lịch trực 24/24 | Tự chọn ngày và phân công. | Cao |
-| M07-F03 | Tự động xếp lịch thông tầm | Tự chọn ngày và phân công. | Cao |
-| M07-F04 | Tự động xếp lịch phòng khám dịch vụ | Tự phân công nhân sự. | Cao |
-| M07-F05 | Tự động xếp lịch phòng khám chuyên gia | Tự gán chuyên gia phù hợp. | Cao |
-| M07-F06 | Báo cáo ngày chưa phân công được | Liệt kê ngày chưa đủ nhân sự. | Cao |
-| M07-F07 | Xem trước lịch trước khi xác nhận | Hiển thị bản nháp để chỉnh sửa. | Cao |
-| M07-F08 | Sắp xếp lại khi có thay đổi đột xuất | Tự đề xuất người thay thế hợp lệ. | Trung bình |
-| M07-F09 | Thống kê cân bằng tải | Biểu đồ số ngày trực của từng nhân sự. | Trung bình |
-| M07-F10 | Lưu & tái sử dụng mẫu lịch | Lưu cấu hình thành template. | Thấp |
+Nếu không cấu hình biến này, frontend đang fallback về `http://localhost:8080/api/v1` trong code.
 
-### Gợi ý thuật toán
+## Tài khoản seed mặc định
 
-- **Round Robin**: Luân phiên xoay vòng theo thứ tự danh sách nhân sự.
-- **Greedy**: Mỗi ngày chọn nhân sự có ít ngày công nhất và không vi phạm ràng buộc.
-- **Backtracking**: Thử từng phương án, quay lui nếu vi phạm ràng buộc.
+`DataSeeder` sẽ seed dữ liệu mẫu khi database còn trống.
 
----
+Tài khoản có sẵn:
 
-## 3. Database Schema
+- `admin / admin123`
+- `staff1 / 123456`
+- `staff2 / 123456`
+- `staff3 / 123456`
+- `staff4 / 123456`
+- `staff5 / 123456`
 
-Database file: `hospital_scheduler_business_final.sql`
+Role hiện có trong hệ thống:
 
-### 3.1 Tổng quan các bảng
+- `ADMIN`
+- `MANAGER`
+- `STAFF`
 
-| Bảng | Mục đích | Mapping Module |
-|------|----------|----------------|
-| `specialty` | Chuyên môn (Bác sĩ, Điều dưỡng...) | M01 |
-| `staff` | Nhân sự (20 người) | M01 |
-| `app_role` | Vai trò (ADMIN, MANAGER, STAFF) | M01-F05 |
-| `app_permission` | Quyền chi tiết | M01-F05 |
-| `role_permission` | Mapping role ↔ permission | M01-F05 |
-| `staff_role` | Mapping staff ↔ role | M01-F05 |
-| `shift_type` | Loại ca (L01, L02, L03, L04) | M02-M05 |
-| `schedule_period` | Kỳ lập lịch (DRAFT→PUBLISHED→ARCHIVED) | M02-M07 |
-| `shift_requirement` | Nhu cầu nhân sự cho từng ngày/ca | M07 |
-| `leave_request` | Xin nghỉ phép | M01 |
-| `schedule` | Lịch phân công thực tế | M02-M05 |
-| `compensation_day` | Ngày nghỉ bù sau L01 | M02 |
-| `schedule_exchange` | Đổi ca giữa nhân sự | M02-F04 |
-| `algorithm_config` | Cấu hình thuật toán | M07 |
-| `algorithm_metrics` | Kết quả chạy thuật toán | M07 |
-| `schedule_conflict` | Chi tiết xung đột lịch | M02-M05 |
-| `notification` | Thông báo cho nhân sự | M06 |
-| `audit_history` | Lịch sử thay đổi dữ liệu | M01, M06-F05 |
-| `system_log` | Log hành động hệ thống | M06-F05 |
-| `file_attachment` | File đính kèm | M01, M02 |
+Lưu ý: user `admin` được seed với cả role `ADMIN` và `MANAGER`.
 
-### 3.2 Mapping Shift Type (Loại ca)
+## Dữ liệu mẫu được seed
 
-| shift_type_id | Tên | is_overnight | Mapping |
-|---------------|-----|--------------|---------|
-| L01 | Lịch trực 24/24 | TRUE | M02 |
-| L02 | Lịch thông tầm | FALSE | M03 |
-| L03 | Lịch phòng khám dịch vụ | FALSE | M04 |
-| L04 | Lịch phòng khám chuyên gia | FALSE | M05 |
+Khi database rỗng, hệ thống tự tạo:
 
-### 3.3 Ràng buộc Database quan trọng
+- 4 `shift types`: `L01`, `L02`, `L03`, `L04`
+- 4 nhóm chuyên môn mẫu
+- 1 kỳ `PUBLISHED`: `Kỳ tháng 06/2026`
+- 1 kỳ `DRAFT`: `Kỳ tháng 07/2026`
+- Một số `shift requirements`
+- Một số lịch mẫu, bao gồm cả dữ liệu có conflict để test UI và rule
 
-1. **UNIQUE**: `schedule(period_id, staff_id, shift_type_id, work_date)` - Mỗi nhân sự chỉ 1 lịch/ngày/loại
-2. **UNIQUE**: `compensation_day(staff_id, compensation_date)` - 1 ngày nghỉ bù chỉ cho 1 nhân sự
-3. **Composite FK**: `compensation_day` references `schedule` để đảm bảo consistency
-4. **schedule_period.status**: DRAFT → PUBLISHED → ARCHIVED (workflow bắt buộc)
+## Màn hình frontend hiện có
 
-### 3.4 Conflict Types trong schedule_conflict
+Các route quan trọng trong `frontend/src/app`:
 
-| conflict_type | Mô tả |
-|---------------|-------|
-| LEAVE_CONFLICT | Trùng ngày nghỉ phép |
-| MAX_SHIFT_EXCEEDED | Vượt số ca tối đa/tháng |
-| BACK_TO_BACK_SHIFT | Ca liên tiếp không nghỉ |
-| SPECIALTY_MISMATCH | Chuyên môn không phù hợp |
-| REQUIREMENT_NOT_MET | Không đủ nhân sự |
-| DUPLICATE_ASSIGNMENT | Trùng phân công |
-| COMPENSATION_CONFLICT | Trùng ngày nghỉ bù |
-| OTHER | Khác |
+- `/login` — đăng nhập
+- `/` — dashboard tổng quan
+- `/staff` — danh sách nhân sự
+- `/staff/create` — tạo nhân sự
+- `/staff/profile` — hồ sơ cá nhân
+- `/duty-24` — lịch trực `L01`
+- `/all-day` — lịch thông tầm `L02`
+- `/service-clinic` — lịch phòng khám dịch vụ `L03`
+- `/expert-clinic` — lịch phòng khám chuyên gia `L04`
+- `/schedule-summary` — tổng hợp lịch + export Excel/PDF
+- `/conflict-check` — kiểm tra xung đột
+- `/swap-requests` — yêu cầu đổi ca
+- `/notifications` — thông báo
+- `/reports` — báo cáo tải nhân sự
+- `/audit-history` — nhật ký thao tác
+- `/auto-scheduling` — chạy auto scheduling
+- `/settings` — cài đặt giao diện/màn hình
 
----
+## API chính hiện có
 
-## 4. Lưu ý quan trọng
+### Auth
 
-1. **Logic kiểm tra ràng buộc phải được tách thành hàm/service dùng chung** cho toàn hệ thống (sử dụng cho cả thủ công và tự động).
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/logout`
 
-2. **Tất cả ngày nghỉ bù** phải được hiển thị và khoá trên bảng lịch tháng.
+Auth hiện dùng JWT lưu trong cookie HTTP-only tên `medschedule_access_token`.
 
-3. **Ngày nghỉ bù** được kiểm tra trong bước kiểm tra xung đột hàng loạt của tất cả 3 module M03, M04, M05.
+### Schedule
 
----
+- `GET /api/v1/schedules/period/{periodId}`
+- `GET /api/v1/schedules/period/{periodId}/date/{date}`
+- `GET /api/v1/schedules/staff/{staffId}`
+- `GET /api/v1/schedules/conflicts/check/{periodId}`
+- `POST /api/v1/schedules`
+- `PUT /api/v1/schedules/{id}`
+- `DELETE /api/v1/schedules/{id}`
+- `GET /api/v1/schedules/replacements/{periodId}`
 
-## Tài liệu gốc
+### Period
 
-Chi tiết luồng xử lý từng bước, xem file: `QuanLyLichCongTac_v5.md`, `QuanLyLichCongTac_v5.docx`
+- `GET /api/v1/periods`
+- `GET /api/v1/periods/{id}`
+- `POST /api/v1/periods`
+- `PUT /api/v1/periods/{id}`
+- `POST /api/v1/periods/{id}/publish`
+- `POST /api/v1/periods/{id}/archive`
+
+### Dashboard / Export
+
+- `GET /api/v1/dashboard`
+- `GET /api/v1/dashboard/shifts`
+- `GET /api/v1/dashboard/periods`
+- `GET /api/v1/dashboard/workload/period/{periodId}`
+- `GET /api/v1/dashboard/export/schedule/{periodId}`
+- `GET /api/v1/dashboard/export/schedule/{periodId}/pdf`
+- `GET /api/v1/dashboard/export/workload/{periodId}`
+
+### Auto scheduling
+
+- `POST /api/v1/auto-schedule/preview`
+- `POST /api/v1/auto-schedule`
+- `GET /api/v1/auto-schedule/unassigned/{periodId}`
+- `GET /api/v1/auto-schedule/suggest-replacements/{scheduleId}`
+- `GET /api/v1/auto-schedule/workload-chart/{periodId}`
+- `GET /api/v1/auto-schedule/metrics/period/{periodId}`
+
+### Staff / exchange
+
+- `GET /api/v1/staff`
+- `GET /api/v1/staff/active`
+- `GET /api/v1/staff/me`
+- `POST /api/v1/staff/import`
+- `GET /api/v1/schedule-exchanges`
+- `GET /api/v1/schedule-exchanges/pending`
+- `POST /api/v1/schedule-exchanges/requester/{requesterId}`
+- `PUT /api/v1/schedule-exchanges/{id}/approve`
+- `PUT /api/v1/schedule-exchanges/{id}/reject`
+
+## Trạng thái triển khai hiện tại
+
+Những phần đã thấy rõ trong code:
+
+- CRUD lịch cơ bản cho `L01`-`L04`
+- Kiểm tra conflict theo kỳ
+- Tự tính và trả `compensationDate` từ backend
+- Export Excel cho lịch và workload
+- Export PDF cho lịch tổng hợp nếu service PDF khả dụng trong môi trường chạy
+- Auto scheduling với các luồng preview, run, báo cáo unassigned, workload chart, metrics
+- Seed dữ liệu mẫu để demo nhanh
+
+Các điểm cần hiểu đúng khi đọc tài liệu:
+
+- `SPEC.md` và `QuanLyLichCongTac_v5.md` chứa nhiều mô tả theo hướng mục tiêu sản phẩm, không phải mục nào cũng đồng nghĩa UI hiện tại đã hoàn thiện 100%
+- Một số flow giữa các module đang chưa đồng đều về UX dù backend endpoint đã có
+- Quyền trên API không hoàn toàn giống mô tả product-level; ví dụ publish/archive period đang yêu cầu `ADMIN`
+
+## Test hiện có
+
+Backend đang có test ở các vùng chính:
+
+- `backend/src/test/java/com/hospital/scheduler/service/ConflictDetectionServiceTest.java`
+- `backend/src/test/java/com/hospital/scheduler/service/ScheduleServiceBusinessRulesTest.java`
+- `backend/src/test/java/com/hospital/scheduler/service/AutoSchedulingServiceTest.java`
+
+Chạy test backend:
+
+```bash
+cd backend
+./mvnw test
+```
+
+## Tài liệu liên quan
+
+- `SPEC.md` — scope nghiệp vụ và constraints
+- `QuanLyLichCongTac_v5.md` — mô tả chức năng chi tiết
+- `backend/HELP.md` — hướng dẫn backend current-state
+- `frontend/README.md` — hướng dẫn frontend current-state

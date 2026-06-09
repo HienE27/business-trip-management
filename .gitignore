@@ -158,3 +158,9 @@ skills-lock.json
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Local temp and generated artifacts
+backend/cp.txt
+verify_*.png
+~$*.docx
+backend/target/
