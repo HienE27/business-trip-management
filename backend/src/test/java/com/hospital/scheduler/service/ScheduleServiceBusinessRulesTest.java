@@ -33,8 +33,9 @@ class ScheduleServiceBusinessRulesTest {
         assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 5)))
                 .isEqualTo(LocalDate.of(2026, 6, 9));
         // Saturday duty → Tuesday NEXT WEEK (skip CN, T2)
+        // June 6 (Sat) + 9 = June 15 (Tue next week)
         assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 6)))
-                .isEqualTo(LocalDate.of(2026, 6, 9));
+                .isEqualTo(LocalDate.of(2026, 6, 15));
         // Sunday duty → Monday (next day)
         assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 7)))
                 .isEqualTo(LocalDate.of(2026, 6, 8));

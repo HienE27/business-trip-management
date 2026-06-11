@@ -56,23 +56,49 @@ export function useScheduleWorkspace(): [ScheduleWorkspaceState, ScheduleWorkspa
     if (!periodId) {
       setSchedules([]);
       setConflictData(null);
+      setCompensationDays([]);
+      setRequirements([]);
+      setSpecialties([]);
       return;
     }
 
-    const [scheduleData, conflictResult, , compDaysData, reqData, specialtyData] = await Promise.all([
-      api.get<Schedule[]>(`/schedules/period/${periodId}`),
-      api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`),
-      api.get<UnassignedDayReport>(`/auto-schedule/unassigned/${periodId}`),
-      api.get<CompensationDay[]>(`/schedules/compensation-days/${periodId}`),
-      api.get<ShiftRequirement[]>(`/shift-requirements/period/${periodId}`),
-      api.get<Specialty[]>("/specialties"),
-    ]);
+    let scheduleData: Schedule[] = [];
+    let conflictResult: ConflictCheckResponse | null = null;
+    let compDaysData: CompensationDay[] = [];
+    let reqData: ShiftRequirement[] = [];
+    let specialtyData: Specialty[] = [];
 
-    setSchedules(scheduleData ?? []);
+    try {
+      scheduleData = await api.get<Schedule[]>(`/schedules/period/${periodId}`);
+    } catch {
+      console.warn(`Failed to load schedules for period ${periodId}`);
+    }
+    try {
+      conflictResult = await api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`);
+    } catch {
+      console.warn(`Failed to load conflicts for period ${periodId}`);
+    }
+    try {
+      compDaysData = await api.get<CompensationDay[]>(`/schedules/compensation-days/${periodId}`) ?? [];
+    } catch {
+      console.warn(`Failed to load compensation days for period ${periodId}`);
+    }
+    try {
+      reqData = await api.get<ShiftRequirement[]>(`/shift-requirements/period/${periodId}`) ?? [];
+    } catch {
+      console.warn(`Failed to load shift requirements for period ${periodId}`);
+    }
+    try {
+      specialtyData = await api.get<Specialty[]>("/specialties") ?? [];
+    } catch {
+      console.warn(`Failed to load specialties`);
+    }
+
+    setSchedules(scheduleData);
     setConflictData(conflictResult);
-    setCompensationDays(compDaysData ?? []);
-    setRequirements(reqData ?? []);
-    setSpecialties(specialtyData ?? []);
+    setCompensationDays(compDaysData);
+    setRequirements(reqData);
+    setSpecialties(specialtyData);
   }, []);
 
   useEffect(() => {

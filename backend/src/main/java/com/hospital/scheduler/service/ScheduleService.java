@@ -8,6 +8,7 @@ import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
+import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class ScheduleService {
     private final ConflictDetectionService conflictDetectionService;
     private final AuditHistoryService auditHistoryService;
     private final CompensationDateCalculator compensationDateCalculator;
+    private final NotificationService notificationService;
 
     public List<ScheduleResponse> getSchedulesByPeriod(Integer periodId) {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
@@ -126,15 +128,24 @@ public class ScheduleService {
 
         auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
 
-        LocalDate compDate = null;
+        // Notify staff about new schedule assignment
+        String shiftTypeName = shiftType.getName();
+        String compDateStr = "";
         if (ConflictDetectionService.SHIFT_TYPE_L01.equals(request.getShiftTypeId())) {
-            compDate = compensationDayRepository.findByScheduleId(saved.getId()).stream()
+            LocalDate compDate = compensationDayRepository.findByScheduleId(saved.getId()).stream()
                     .map(CompensationDay::getCompensationDate)
                     .filter(java.util.Objects::nonNull)
                     .min(Comparator.naturalOrder())
                     .orElse(null);
+            if (compDate != null) {
+                compDateStr = " Ngày nghỉ bù: " + compDate + ".";
+            }
         }
-        return toResponse(saved, compDate);
+        notificationService.createNotification(staff.getId(),
+                new NotificationDTO("Phân công lịch mới",
+                        "Bạn được phân công lịch " + shiftTypeName + " vào ngày " + request.getWorkDate() + "." + compDateStr));
+
+        return toResponse(saved, null);
     }
 
     public ScheduleResponse updateSchedule(Integer id, ScheduleRequest request) {
@@ -274,6 +285,9 @@ public class ScheduleService {
     public ScheduleResponse overrideConflict(Integer scheduleId, String reason) {
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + scheduleId));
+
+        schedule.setHasConflict(false);
+        scheduleRepository.save(schedule);
 
         auditHistoryService.logAction("schedule", scheduleId, AuditHistory.ActionType.UPDATE,
                 schedule, Map.of("override", true, "reason", reason), null);

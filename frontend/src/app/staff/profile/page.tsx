@@ -176,7 +176,7 @@ export default function StaffProfilePage() {
       description="Xem và cập nhật thông tin tài khoản của bạn."
     >
       {message && (
-        <div className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-on-surface">
+        <div className="rounded-xl border border-tertiary-container bg-tertiary-container/30 px-4 py-3 text-sm text-on-surface">
           {message}
         </div>
       )}
@@ -517,7 +517,7 @@ export default function StaffProfilePage() {
               {[
                 { label: "Đổi mật khẩu", icon: "lock", href: "/settings?tab=password" },
                 { label: "Cài đặt thông báo", icon: "notifications", href: "/settings?tab=notifications" },
-                { label: "Xem lịch cá nhân", icon: "calendar_month", href: "/schedule" },
+                { label: "Xem lịch cá nhân", icon: "calendar_month", href: "/monthly-schedule" },
                 { label: "Yêu cầu đổi ca", icon: "swap_horiz", href: "/swap-requests" },
               ].map((item) => (
                 <Link

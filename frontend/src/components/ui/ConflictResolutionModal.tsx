@@ -113,18 +113,18 @@ export function ConflictResolutionModal({
     >
       {done ? (
         <div className="flex flex-col items-center gap-4 py-6">
-          <span className="material-symbols-outlined text-[48px] text-secondary fill-icon">
+          <span aria-hidden="true" className="material-symbols-outlined text-[48px] text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>
             check_circle
           </span>
           <p className="text-title-lg text-on-surface font-semibold">
-            Da giải quyết xung đột
+            Đã giải quyết xung đột
           </p>
         </div>
       ) : (
         <>
           {/* Conflict Detail */}
           {conflict && (
-            <div className="bg-error-container/30 border border-error/20 rounded-lg p-4 mb-6">
+            <div className="bg-error-container border border-error/20 rounded-lg p-4 mb-6">
               <div className="flex items-start gap-3">
                 <span className="material-symbols-outlined text-error mt-0.5">warning</span>
                 <div>
@@ -152,7 +152,7 @@ export function ConflictResolutionModal({
                 className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
                   resolution === opt.value
                     ? "border-primary bg-primary/5"
-                    : "border-outline-variant hover:bg-surface-container-low"
+                    : "border-outline-variant hover:bg-surface-container"
                 }`}
               >
                 <input
@@ -208,7 +208,7 @@ export function ConflictResolutionModal({
             </label>
             <textarea
               id="conflict-reason"
-              className="w-full h-20 resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="w-full h-20 resize-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
               placeholder="Nhập lý do giải quyết (nếu có)..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -217,7 +217,7 @@ export function ConflictResolutionModal({
 
           {/* Error */}
           {error && (
-            <div className="mt-4 rounded-lg border border-error/20 bg-error-container/30 px-4 py-3 text-sm text-error">
+            <div className="mt-4 rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
               {error}
             </div>
           )}

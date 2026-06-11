@@ -29,20 +29,43 @@ public class ConflictDetectionService {
     private final ScheduleConflictRepository scheduleConflictRepository;
     private final StaffRepository staffRepository;
     private final ShiftRequirementRepository shiftRequirementRepository;
+    private final ShiftTypeRepository shiftTypeRepository;
 
     public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
+        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, false, false);
+    }
+
+    public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay) {
+        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, false);
+    }
+
+    public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay, boolean skipShiftTypeConflict) {
         List<String> conflicts = new ArrayList<>();
 
         detectLeaveConflict(staffId, workDate).ifPresent(conflicts::add);
-        detectCompensationConflict(staffId, workDate).ifPresent(conflicts::add);
-        detectShiftTypeConflict(staffId, workDate, shiftTypeId, excludeScheduleId).ifPresent(conflicts::add);
+        if (!skipCompensationDay) {
+            detectCompensationConflict(staffId, workDate).ifPresent(conflicts::add);
+        }
+        if (!skipShiftTypeConflict) {
+            detectShiftTypeConflict(staffId, workDate, shiftTypeId, excludeScheduleId).ifPresent(conflicts::add);
+        }
 
         return conflicts;
     }
 
     public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
                                            Integer excludeScheduleId, Integer periodId) {
-        List<String> conflicts = detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId);
+        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, false, false);
+    }
+
+    public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
+                                           Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay) {
+        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, false);
+    }
+
+    public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
+                                           Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict) {
+        List<String> conflicts = detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, skipShiftTypeConflict);
         detectMaxShiftsConflict(staffId, periodId, excludeScheduleId).ifPresent(conflicts::add);
         return conflicts;
     }
@@ -51,12 +74,28 @@ public class ConflictDetectionService {
         return !detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId).isEmpty();
     }
 
+    public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay) {
+        return hasAnyConflict(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, false);
+    }
+
+    public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay, boolean skipShiftTypeConflict) {
+        return !detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, skipShiftTypeConflict).isEmpty();
+    }
+
     public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
-        validateAndThrow(staffId, workDate, shiftTypeId, excludeScheduleId, null);
+        validateAndThrow(staffId, workDate, shiftTypeId, excludeScheduleId, null, false, false);
     }
 
     public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, Integer periodId) {
-        List<String> conflicts = detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId);
+        validateAndThrow(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, false, false);
+    }
+
+    public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay) {
+        validateAndThrow(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, false);
+    }
+
+    public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict) {
+        List<String> conflicts = detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, skipShiftTypeConflict);
         if (!conflicts.isEmpty()) {
             throw new ConflictException("Phát hiện xung đột: " + String.join("; ", conflicts));
         }
@@ -165,23 +204,28 @@ public class ConflictDetectionService {
                                                                 String shiftTypeId, Integer excludeScheduleId) {
         List<Schedule> existingSchedules = scheduleRepository.findByStaffIdAndWorkDate(staffId, workDate);
 
+        com.hospital.scheduler.entity.ShiftType newShiftType = shiftTypeRepository.findById(shiftTypeId).orElse(null);
+        boolean newIsOvernight = newShiftType != null && Boolean.TRUE.equals(newShiftType.getIsOvernight());
+
         for (Schedule s : existingSchedules) {
             if (excludeScheduleId != null && s.getId().equals(excludeScheduleId)) {
                 continue;
             }
-            String existingTypeId = s.getShiftType().getId();
 
-            if (SHIFT_TYPE_L01.equals(shiftTypeId) && SHIFT_TYPE_L02.equals(existingTypeId)) {
-                return java.util.Optional.of("Trùng với lịch thông tầm (L02) trong ngày này");
+            boolean existingIsOvernight = s.getShiftType() != null && Boolean.TRUE.equals(s.getShiftType().getIsOvernight());
+
+            // L01↔L02 conflict (overnight vs non-overnight)
+            if (newIsOvernight != existingIsOvernight) {
+                return java.util.Optional.of("Trùng loại ca: lịch trực 24/24 và ca thường không thể cùng ngày");
             }
-            if (SHIFT_TYPE_L02.equals(shiftTypeId) && SHIFT_TYPE_L01.equals(existingTypeId)) {
-                return java.util.Optional.of("Trùng với lịch trực 24/24 (L01) trong ngày này");
-            }
-            if (SHIFT_TYPE_L03.equals(shiftTypeId) && SHIFT_TYPE_L04.equals(existingTypeId)) {
-                return java.util.Optional.of("Trùng với lịch phòng khám chuyên gia (L04) trong ngày này");
-            }
-            if (SHIFT_TYPE_L04.equals(shiftTypeId) && SHIFT_TYPE_L03.equals(existingTypeId)) {
-                return java.util.Optional.of("Trùng với lịch phòng khám dịch vụ (L03) trong ngày này");
+
+            // L03↔L04 conflict (both non-overnight service shifts)
+            if (!newIsOvernight && !existingIsOvernight) {
+                String nid = newShiftType != null ? newShiftType.getId() : "";
+                String eid = s.getShiftType() != null ? s.getShiftType().getId() : "";
+                if (("L03".equals(nid) && "L04".equals(eid)) || ("L04".equals(nid) && "L03".equals(eid))) {
+                    return java.util.Optional.of("Trùng phòng khám dịch vụ và phòng khám chuyên gia trong ngày");
+                }
             }
         }
         return java.util.Optional.empty();
@@ -213,6 +257,12 @@ public class ConflictDetectionService {
     public List<Staff> findReplacements(Integer periodId, LocalDate workDate, String shiftTypeId,
                                          Integer originalStaffId, Integer requiredCount,
                                          Set<Integer> excludedStaffIds) {
+        return findReplacements(periodId, workDate, shiftTypeId, originalStaffId, requiredCount, excludedStaffIds, false);
+    }
+
+    public List<Staff> findReplacements(Integer periodId, LocalDate workDate, String shiftTypeId,
+                                         Integer originalStaffId, Integer requiredCount,
+                                         Set<Integer> excludedStaffIds, boolean skipCompensationDay) {
         List<Staff> replacements = new ArrayList<>();
         List<Staff> allStaff = staffRepository.findByIsActiveTrue();
 
@@ -223,7 +273,7 @@ public class ConflictDetectionService {
             if (excludedStaffIds != null && excludedStaffIds.contains(staff.getId())) {
                 continue;
             }
-            if (!hasAnyConflict(staff.getId(), workDate, shiftTypeId, null)) {
+            if (!hasAnyConflict(staff.getId(), workDate, shiftTypeId, null, skipCompensationDay)) {
                 replacements.add(staff);
                 if (replacements.size() >= requiredCount) {
                     break;

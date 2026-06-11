@@ -114,8 +114,6 @@ public class SchedulePeriodService {
         period.setPublishedBy(publishedBy);
         period.setPublishedAt(LocalDateTime.now());
         SchedulePeriod saved = periodRepository.save(period);
-        auditHistoryService.logAction("schedule_period", id, AuditHistory.ActionType.UPDATE,
-                "DRAFT", saved, null);
 
         String notifTitle = "Lịch công tác đã được công bố";
         String notifMsg = "Kỳ lịch \"" + period.getPeriodName() + "\" (" + period.getStartDate() + " - " + period.getEndDate() + ") đã được công bố. Vui lòng kiểm tra lịch trực của bạn.";

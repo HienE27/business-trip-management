@@ -69,7 +69,6 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
           periodId,
           algorithmType,
           schedules: edited.length > 0 ? edited : previewResult.schedules
-            .filter((s) => s.scheduleId != null)
             .map((s) => ({ workDate: s.workDate, shiftTypeId: s.shiftTypeId, staffId: s.staffId })),
         });
         setMessage("Đã áp dụng phương án phân công.");

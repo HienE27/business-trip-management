@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 type ModalProps = {
   open: boolean;
@@ -19,10 +19,43 @@ const SIZE_CLASS = {
 };
 
 export function Modal({ open, onClose, title, description, children, size = "md" }: ModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<Element | null>(null);
+
+  // Focus trap and restore
+  useEffect(() => {
+    if (open) {
+      previousActiveElement.current = document.activeElement;
+      const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      firstFocusable?.focus();
+    } else {
+      if (previousActiveElement.current instanceof HTMLElement) {
+        previousActiveElement.current.focus();
+      }
+    }
+  }, [open]);
+
   // Close on Escape
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
+      // Focus trap
+      if (e.key === "Tab" && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     if (open) {
       document.addEventListener("keydown", handleKey);
@@ -53,12 +86,13 @@ export function Modal({ open, onClose, title, description, children, size = "md"
 
       {/* Dialog */}
       <div
-        className={`relative w-full ${SIZE_CLASS[size]} bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200`}
+        ref={dialogRef}
+        className={`relative w-full ${SIZE_CLASS[size]} bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200`}
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-outline-variant flex items-start justify-between gap-4">
           <div>
-            <h2 id="modal-title" className="text-title-lg text-on-surface font-semibold">
+            <h2 id="modal-title" className="text-title-lg text-on-surface">
               {title}
             </h2>
             {description && (
@@ -69,14 +103,15 @@ export function Modal({ open, onClose, title, description, children, size = "md"
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shrink-0"
-            aria-label="Dong"
+            aria-label="Đóng"
+            title="Đóng"
           >
             <span className="material-symbols-outlined text-[20px] text-on-surface-variant">close</span>
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6">{children}</div>
+        <div className="p-6 max-h-[70vh] overflow-y-auto">{children}</div>
       </div>
     </div>
   );

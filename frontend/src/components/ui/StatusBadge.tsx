@@ -21,9 +21,11 @@ const dotColors: Record<NonNullable<StatusBadgeProps["tone"]>, string> = {
 };
 
 export function StatusBadge({ children, tone = "neutral", showDot = false }: StatusBadgeProps) {
+  const role = tone === "success" || tone === "warning" || tone === "danger" ? "status" : undefined;
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-label-sm ${styles[tone]}`}
+      role={role}
     >
       {showDot && (
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColors[tone]}`} />

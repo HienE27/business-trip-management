@@ -14,7 +14,7 @@ const STATUS_STYLES: Record<string, string> = {
 export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps) {
   return (
     <section
-      className={`bg-surface-container-lowest rounded-lg border border-outline-variant shadow-[0_1px_3px_0_rgba(0,0,0,0.05)] p-6 ${className}`}
+      className={`bg-surface-container-lowest rounded-lg border border-outline-variant shadow-sm p-6 ${className}`}
     >
       <h2 className="mb-6 border-b border-outline-variant pb-4 text-title-lg text-on-surface">
         Thông tin chung

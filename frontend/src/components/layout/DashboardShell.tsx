@@ -35,7 +35,7 @@ export function DashboardShell({
         mobileOpen={mobileOpen}
         onClose={() => setMobileOpen(false)}
       />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden md:ml-[260px]">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden md:ml-64">
         <DashboardHeader
           title={title}
           description={description}

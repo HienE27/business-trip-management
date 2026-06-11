@@ -24,8 +24,17 @@ public class Holiday {
     @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column(name = "date", nullable = false, unique = true)
+    @Column(name = "holiday_date", nullable = false, unique = true)
+    private LocalDate holidayDate;
+
+    @Column(name = "date", nullable = false)
     private LocalDate date;
+
+    @Column(name = "year", nullable = false)
+    private Integer year;
+
+    @Column(name = "is_national_holiday")
+    private Boolean isNationalHoliday;
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;

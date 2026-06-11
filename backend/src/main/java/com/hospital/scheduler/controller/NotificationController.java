@@ -60,13 +60,12 @@ public class NotificationController {
                 Map.of("count", notificationService.countUnreadNotifications(staffId))));
     }
 
-    @PostMapping("/staff/{staffId}")
+    @PostMapping
     @Operation(summary = "Tạo thông báo cho nhân sự")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<NotificationResponse>> create(
-            @PathVariable Integer staffId,
             @Valid @RequestBody NotificationDTO dto) {
-        NotificationResponse created = notificationService.createNotification(staffId, dto);
+        NotificationResponse created = notificationService.createNotification(dto.getRecipientId(), dto);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(created, "Tạo thông báo thành công"));
     }

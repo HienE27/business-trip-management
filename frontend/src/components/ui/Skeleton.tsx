@@ -1,3 +1,5 @@
+"use client";
+
 type SkeletonProps = {
   className?: string;
 };
@@ -29,7 +31,7 @@ export function SkeletonCard() {
 
 export function SkeletonTable({ rows = 5, cols = 4 }: { rows?: number; cols?: number }) {
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden" aria-busy="true">
       <table className="w-full">
         <thead>
           <tr className="border-b border-outline-variant">
@@ -70,7 +72,7 @@ export function SkeletonCalendar() {
       </div>
       {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-outline-variant">
-        {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d) => (
+        {["CN", "T2", "T3", "T4", "T5", "T6", "T7"].map((d) => (
           <div key={d} className="p-2 text-center">
             <Skeleton className="h-3 w-6 mx-auto rounded" />
           </div>
@@ -96,14 +98,11 @@ export function SkeletonKPI() {
       {Array.from({ length: 4 }).map((_, i) => (
         <div
           key={i}
-          className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 relative overflow-hidden"
+          className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm"
         >
-          <div className="absolute right-0 top-0 w-16 h-16 rounded-bl-full">
-            <Skeleton className="w-full h-full rounded-bl-full" />
-          </div>
           <Skeleton className="h-3 w-24 rounded mb-3" />
-          <Skeleton className="h-8 w-16 rounded" />
-          <Skeleton className="h-3 w-20 rounded mt-2" />
+          <Skeleton className="h-8 w-16 rounded mb-2" />
+          <Skeleton className="h-3 w-20 rounded" />
         </div>
       ))}
     </div>

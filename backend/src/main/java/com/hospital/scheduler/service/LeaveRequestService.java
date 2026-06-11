@@ -13,6 +13,7 @@ import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.LeaveRequestRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
+import com.hospital.scheduler.dto.request.NotificationDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,7 @@ public class LeaveRequestService {
     private final AuditHistoryService auditHistoryService;
     private final ScheduleRepository scheduleRepository;
     private final CompensationDayRepository compensationDayRepository;
+    private final NotificationService notificationService;
 
     public List<LeaveRequestResponse> getAllLeaveRequests() {
         return leaveRequestRepository.findAll().stream()
@@ -67,7 +69,7 @@ public class LeaveRequestService {
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + staffId));
 
-        validateLeaveRequest(dto);
+        validateLeaveRequest(staffId, dto);
         validateNoScheduleConflict(staff, dto.getStartDate(), dto.getEndDate());
 
         LeaveRequest leaveRequest = LeaveRequest.builder()
@@ -80,6 +82,19 @@ public class LeaveRequestService {
 
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
         auditHistoryService.logAction("leave_request", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+
+        // Notify managers about the new leave request
+        List<Staff> managers = staffRepository.findAll().stream()
+                .filter(s -> s.getStaffRoles().stream()
+                        .anyMatch(sr -> sr.getRole() != null &&
+                                ("ADMIN".equals(sr.getRole().getName()) || "MANAGER".equals(sr.getRole().getName()))))
+                .collect(Collectors.toList());
+        for (Staff manager : managers) {
+            notificationService.createNotification(manager.getId(),
+                    new NotificationDTO("Yêu cầu nghỉ phép mới",
+                            "Nhân sự " + staff.getFullName() + " gửi yêu cầu nghỉ phép từ " + dto.getStartDate() + " đến " + dto.getEndDate()));
+        }
+
         return LeaveRequestResponse.fromEntity(saved);
     }
 
@@ -102,6 +117,12 @@ public class LeaveRequestService {
 
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
         auditHistoryService.logAction("leave_request", leaveRequestId, AuditHistory.ActionType.UPDATE, prev, saved, reviewerId);
+
+        // Notify the staff about approval
+        notificationService.createNotification(leaveRequest.getStaff().getId(),
+                new NotificationDTO("Yêu cầu nghỉ phép đã được duyệt",
+                        "Yêu cầu nghỉ phép của bạn từ " + leaveRequest.getStartDate() + " đến " + leaveRequest.getEndDate() + " đã được duyệt bởi " + reviewer.getFullName() + "."));
+
         return LeaveRequestResponse.fromEntity(saved);
     }
 
@@ -124,6 +145,13 @@ public class LeaveRequestService {
 
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
         auditHistoryService.logAction("leave_request", leaveRequestId, AuditHistory.ActionType.UPDATE, prev, saved, reviewerId);
+
+        // Notify the staff about rejection
+        String rejectMsg = "Yêu cầu nghỉ phép của bạn từ " + leaveRequest.getStartDate() + " đến " + leaveRequest.getEndDate() + " đã bị từ chối bởi " + reviewer.getFullName()
+                + (reviewNote != null && !reviewNote.isBlank() ? ". Lý do: " + reviewNote : "");
+        notificationService.createNotification(leaveRequest.getStaff().getId(),
+                new NotificationDTO("Yêu cầu nghỉ phép bị từ chối", rejectMsg));
+
         return LeaveRequestResponse.fromEntity(saved);
     }
 
@@ -151,13 +179,31 @@ public class LeaveRequestService {
         return LeaveRequestResponse.fromEntity(saved);
     }
 
-    private void validateLeaveRequest(LeaveRequestDTO dto) {
+    private void validateLeaveRequest(Integer staffId, LeaveRequestDTO dto) {
         if (dto.getStartDate().isAfter(dto.getEndDate())) {
             throw new BadRequestException("Ngày bắt đầu phải trước ngày kết thúc");
         }
 
         if (dto.getStartDate().isBefore(java.time.LocalDate.now())) {
             throw new BadRequestException("Ngày bắt đầu không được trong quá khứ");
+        }
+
+        // Check for overlapping APPROVED leave requests
+        List<LeaveRequest> overlappingLeaves = leaveRequestRepository.findByStaffIdAndDateRange(
+                staffId, dto.getStartDate(), dto.getEndDate());
+        boolean hasApprovedOverlap = overlappingLeaves.stream()
+                .anyMatch(lr -> lr.getStatus() == LeaveRequest.LeaveStatus.APPROVED);
+        if (hasApprovedOverlap) {
+            throw new BadRequestException("Nhân sự đã có ngày nghỉ phép được duyệt trùng với khoảng thời gian này");
+        }
+
+        // Check for compensation days in the date range
+        List<CompensationDay> compDaysInRange = compensationDayRepository.findByStaffIdAndDateRange(
+                staffId, dto.getStartDate(), dto.getEndDate());
+        if (!compDaysInRange.isEmpty()) {
+            CompensationDay conflict = compDaysInRange.get(0);
+            throw new BadRequestException(
+                    "Ngày nghỉ phép trùng với ngày nghỉ bù ngày " + conflict.getCompensationDate());
         }
     }
 

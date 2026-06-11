@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ScheduleCalendarWidget } from "@/components/dashboard/ScheduleCalendarWidget";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 import type {
   DashboardData,
@@ -70,6 +72,7 @@ function formatDate(dateStr: string) {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [recentSchedules, setRecentSchedules] = useState<Schedule[]>([]);
@@ -213,7 +216,7 @@ export default function DashboardPage() {
 
       {/* Alert Banner */}
       {(totalConflicts > 0 || pendingExchanges > 0 || pendingLeave > 0) && (
-        <div className="flex flex-wrap gap-3 rounded-xl border border-warning/30 bg-warning/10 p-4">
+        <div className="flex flex-wrap gap-3 rounded-xl border border-tertiary-container bg-tertiary-container/30 p-4">
           {totalConflicts > 0 && (
             <span className="inline-flex items-center gap-2 rounded-full bg-error-container px-3 py-1 text-[12px] font-semibold text-error">
               <span className="h-2 w-2 rounded-full bg-error" />
@@ -306,11 +309,11 @@ export default function DashboardPage() {
           { label: "Trực 24/24", count: L01Count, bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-700" },
           { label: "Thông tầm", count: L02Count, bg: "bg-emerald-50", border: "border-emerald-300", text: "text-emerald-700" },
           { label: "PK dịch vụ", count: dashboardData?.shiftStatistics?.L03Count ?? 0, bg: "bg-amber-50", border: "border-amber-300", text: "text-amber-700" },
-          { label: "PK chuyên gia", count: dashboardData?.shiftStatistics?.L04Count ?? 0, bg: "bg-violet-50", border: "border-violet-300", text: "text-violet-700" },
+          { label: "PK chuyên gia", count: dashboardData?.shiftStatistics?.L04Count ?? 0, bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-700" },
         ].map((stat) => (
           <div
             key={stat.label}
-            className={`flex items-center justify-between rounded-lg border px-4 py-3 ${stat.bg} ${stat.border} ${stat.text}`}
+            className={`flex items-center justify-between rounded-lg border px-4 py-3 bg-surface-container-lowest ${stat.border} ${stat.text}`}
           >
             <span className="text-label-md font-medium">{stat.label}</span>
             <span className="text-headline-md font-bold">
@@ -379,7 +382,7 @@ export default function DashboardPage() {
             periodId={activePeriod.id}
             onRefresh={() => void load()}
             onDayClick={(date) => {
-              void date;
+              router.push(`/monthly-schedule?date=${date.toISOString().slice(0, 10)}`);
             }}
           />
         </section>
@@ -415,39 +418,35 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : recentSchedules.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-outline-variant bg-surface px-5 py-10 text-center">
-            <span className="material-symbols-outlined text-[40px] text-outline">
-              calendar_today
-            </span>
-            <p className="mt-3 text-body-sm text-on-surface-variant">
-              Chưa có phân công nào trong kỳ đang vận hành.
-            </p>
-            <Link
-              href="/monthly-schedule"
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary transition-colors hover:bg-primary/90"
-            >
-              <span className="material-symbols-outlined text-[18px]">
-                auto_mode
-              </span>
-              Bắt đầu lập lịch
-            </Link>
-          </div>
+          <EmptyState
+            icon="calendar_today"
+            title="Chưa có phân công nào trong kỳ đang vận hành"
+            description="Bắt đầu lập lịch để thấy phân công hiển thị tại đây."
+            action={
+              <Link
+                href="/monthly-schedule"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary transition-colors hover:bg-primary/90"
+              >
+                <span className="material-symbols-outlined text-[18px]">auto_mode</span>
+                Bắt đầu lập lịch
+              </Link>
+            }
+          />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recentSchedules.map((schedule) => {
               const colorMap: Record<string, { bg: string; border: string; text: string; badge: string }> = {
-                L01: { bg: "bg-blue-50", border: "#3b82f6", text: "text-blue-700", badge: "bg-blue-100 text-blue-700" },
-                L02: { bg: "bg-emerald-50", border: "#10b981", text: "text-emerald-700", badge: "bg-emerald-100 text-emerald-700" },
-                L03: { bg: "bg-amber-50", border: "#d97706", text: "text-amber-700", badge: "bg-amber-100 text-amber-700" },
-                L04: { bg: "bg-violet-50", border: "#7c3aed", text: "text-violet-700", badge: "bg-violet-100 text-violet-700" },
+                L01: { bg: "bg-red-50", border: "border-red-300", text: "text-red-700", badge: "bg-red-100 text-red-700" },
+                L02: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-700", badge: "bg-blue-100 text-blue-700" },
+                L03: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-700", badge: "bg-orange-100 text-orange-700" },
+                L04: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-700", badge: "bg-purple-100 text-purple-700" },
               };
               const color = colorMap[schedule.shiftType.id] ?? colorMap.L01;
 
               return (
                 <article
                   key={schedule.id}
-                  className={`flex flex-col gap-3 rounded-xl border p-4 shadow-sm bg-surface-container-lowest ${color.bg}`}
-                  style={{ borderLeftColor: color.border, borderLeftWidth: "3px" }}
+                  className={`flex flex-col gap-3 rounded-xl border border-l-4 p-4 shadow-sm bg-surface-container-lowest ${color.bg} ${color.border}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-label-sm font-semibold text-on-surface">

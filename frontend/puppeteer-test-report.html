@@ -1,0 +1,419 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hospital Scheduler - Puppeteer Test Report</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f7f9fb; color: #191c1e; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 32px; margin-bottom: 8px; }
+    .timestamp { color: #737686; margin-bottom: 24px; }
+    .summary { display: flex; gap: 16px; margin-bottom: 32px; }
+    .summary-card { background: white; border: 1px solid #c3c6d7; border-radius: 8px; padding: 20px; flex: 1; }
+    .summary-card.success { border-left: 4px solid #006e2d; }
+    .summary-card.failed { border-left: 4px solid #ba1a1a; }
+    .summary-card.skipped { border-left: 4px solid #737686; }
+    .summary-number { font-size: 48px; font-weight: 700; }
+    .summary-label { color: #737686; font-size: 14px; text-transform: uppercase; }
+    .login-section { background: white; border: 1px solid #c3c6d7; border-radius: 8px; padding: 20px; margin-bottom: 32px; }
+    .login-section h2 { font-size: 20px; margin-bottom: 16px; }
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+    .status-success { background: #7cf994; color: #007230; }
+    .status-failed { background: #ffdad6; color: #93000a; }
+    .status-pending { background: #e0e3e5; color: #434655; }
+    .status-warning { background: #ffe0b2; color: #973400; }
+    .page-list { display: flex; flex-direction: column; gap: 16px; }
+    .page-card { background: white; border: 1px solid #c3c6d7; border-radius: 8px; overflow: hidden; }
+    .page-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e0e3e5; }
+    .page-name { font-weight: 600; font-size: 16px; }
+    .page-path { color: #737686; font-size: 13px; }
+    .page-body { padding: 16px 20px; }
+    .page-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .meta-item { display: flex; flex-direction: column; }
+    .meta-label { font-size: 11px; text-transform: uppercase; color: #737686; }
+    .meta-value { font-size: 14px; }
+    .error-list { background: #ffdad6; border-radius: 4px; padding: 12px; margin-top: 12px; }
+    .error-list h4 { color: #93000a; font-size: 12px; margin-bottom: 8px; }
+    .error-item { color: #ba1a1a; font-size: 13px; margin-bottom: 4px; }
+    .warning-list { background: #ffe0b2; border-radius: 4px; padding: 12px; margin-top: 12px; }
+    .warning-list h4 { color: #973400; font-size: 12px; margin-bottom: 8px; }
+    .screenshot-link { display: inline-block; margin-top: 12px; color: #004ac6; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏥 Hospital Scheduler - E2E Test Report</h1>
+    <p class="timestamp">Generated: 13:07:41 11/6/2026</p>
+    
+    <div class="summary">
+      <div class="summary-card success">
+        <div class="summary-number">10</div>
+        <div class="summary-label">Passed</div>
+      </div>
+      <div class="summary-card failed">
+        <div class="summary-number">0</div>
+        <div class="summary-label">Failed</div>
+      </div>
+      <div class="summary-card skipped">
+        <div class="summary-number">0</div>
+        <div class="summary-label">Skipped / Auth Required</div>
+      </div>
+    </div>
+    
+    <div class="login-section">
+      <h2>🔐 Login Test</h2>
+      <p>Status: <span class="status-badge status-failed">Failed</span></p>
+      <p>Page Title: MedSchedule Pro</p>
+    </div>
+    
+    <h2 style="margin-bottom: 16px;">📄 Page Tests</h2>
+    <div class="page-list">
+      
+        <div class="page-card">
+          <div class="page-header">
+            <div>
+              <div class="page-name">Dashboard</div>
+              <div class="page-path">/dashboard</div>
+            </div>
+            <span class="status-badge status-success">
+              success
+            </span>
+          </div>
+          <div class="page-body">
+            <div class="page-meta">
+              <div class="meta-item">
+                <span class="meta-label">URL</span>
+                <span class="meta-value">http://localhost:3000/dashboard</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Page Title</span>
+                <span class="meta-value">MedSchedule Pro</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Load Time</span>
+                <span class="meta-value">909ms</span>
+              </div>
+            </div>
+            
+            
+            
+            
+            
+            <a class="screenshot-link" href="puppeteer-screenshots\-dashboard-2026-06-11T06-07-50-730Z.png">📸 View Screenshot</a>
+          </div>
+        </div>
+      
+        <div class="page-card">
+          <div class="page-header">
+            <div>
+              <div class="page-name">Monthly Schedule</div>
+              <div class="page-path">/monthly-schedule</div>
+            </div>
+            <span class="status-badge status-success">
+              success
+            </span>
+          </div>
+          <div class="page-body">
+            <div class="page-meta">
+              <div class="meta-item">
+                <span class="meta-label">URL</span>
+                <span class="meta-value">http://localhost:3000/monthly-schedule</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Page Title</span>
+                <span class="meta-value">MedSchedule Pro</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Load Time</span>
+                <span class="meta-value">618ms</span>
+              </div>
+            </div>
+            
+            
+            
+            
+            
+            <a class="screenshot-link" href="puppeteer-screenshots\-monthly-schedule-2026-06-11T06-07-55-363Z.png">📸 View Screenshot</a>
+          </div>
+        </div>
+      
+        <div class="page-card">
+          <div class="page-header">
+            <div>
+              <div class="page-name">Staff Management</div>
+              <div class="page-path">/staff</div>
+            </div>
+            <span class="status-badge status-success">
+              success
+            </span>
+          </div>
+          <div class="page-body">
+            <div class="page-meta">
+              <div class="meta-item">
+                <span class="meta-label">URL</span>
+                <span class="meta-value">http://localhost:3000/staff</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Page Title</span>
+                <span class="meta-value">MedSchedule Pro</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Load Time</span>
+                <span class="meta-value">667ms</span>
+              </div>
+            </div>
+            
+            
+            
+            
+            
+            <a class="screenshot-link" href="puppeteer-screenshots\-staff-2026-06-11T06-08-00-061Z.png">📸 View Screenshot</a>
+          </div>
+        </div>
+      
+        <div class="page-card">
+          <div class="page-header">
+            <div>
+              <div class="page-name">Leave Requests</div>
+              <div class="page-path">/leave-requests</div>
+            </div>
+            <span class="status-badge status-success">
+              success
+            </span>
+          </div>
+          <div class="page-body">
+            <div class="page-meta">
+              <div class="meta-item">
+                <span class="meta-label">URL</span>
+                <span class="meta-value">http://localhost:3000/leave-requests</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Page Title</span>
+                <span class="meta-value">MedSchedule Pro</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Load Time</span>
+                <span class="meta-value">636ms</span>
+              </div>
+            </div>
+            
+            
+            
+            
+            
+            <a class="screenshot-link" href="puppeteer-screenshots\-leave-requests-2026-06-11T06-08-04-736Z.png">📸 View Screenshot</a>
+          </div>
+        </div>
+      
+        <div class="page-card">
+          <div class="page-header">
+            <div>
+              <div class="page-name">Swap Requests</div>
+              <div class="page-path">/swap-requests</div>
+            </div>
+            <span class="status-badge status-success">
+              success
+            </span>
+          </div>
+          <div class="page-body">
+            <div class="page-meta">
+              <div class="meta-item">
+                <span class="meta-label">URL</span>
+                <span class="meta-value">http://localhost:3000/swap-requests</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Page Title</span>
+                <span class="meta-value">MedSchedule Pro</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Load Time</span>
+                <span class="meta-value">659ms</span>
+              </div>
+            </div>
+            
+            
+            
+            
+            
+            <a class="screenshot-link" href="puppeteer-screenshots\-swap-requests-2026-06-11T06-08-09-423Z.png">📸 View Screenshot</a>
+          </div>
+        </div>
+      
+        <div class="page-card">
+          <div class="page-header">
+            <div>
+              <div class="page-name">Notifications</div>
+              <div class="page-path">/notifications</div>
+            </div>
+            <span class="status-badge status-success">
+              success
+            </span>
+          </div>
+          <div class="page-body">
+            <div class="page-meta">
+              <div class="meta-item">
+                <span class="meta-label">URL</span>
+                <span class="meta-value">http://localhost:3000/notifications</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Page Title</span>
+                <span class="meta-value">MedSchedule Pro</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Load Time</span>
+                <span class="meta-value">666ms</span>
+              </div>
+            </div>
+            
+            
+            
+            
+            
+            <a class="screenshot-link" href="puppeteer-screenshots\-notifications-2026-06-11T06-08-14-127Z.png">📸 View Screenshot</a>
+          </div>
+        </div>
+      
+        <div class="page-card">
+          <div class="page-header">
+            <div>
+              <div class="page-name">Reports</div>
+              <div class="page-path">/reports</div>
+            </div>
+            <span class="status-badge status-success">
+              success
+            </span>
+          </div>
+          <div class="page-body">
+            <div class="page-meta">
+              <div class="meta-item">
+                <span class="meta-label">URL</span>
+                <span class="meta-value">http://localhost:3000/reports</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Page Title</span>
+                <span class="meta-value">MedSchedule Pro</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Load Time</span>
+                <span class="meta-value">676ms</span>
+              </div>
+            </div>
+            
+            
+            
+            
+            
+            <a class="screenshot-link" href="puppeteer-screenshots\-reports-2026-06-11T06-08-18-809Z.png">📸 View Screenshot</a>
+          </div>
+        </div>
+      
+        <div class="page-card">
+          <div class="page-header">
+            <div>
+              <div class="page-name">Audit History</div>
+              <div class="page-path">/audit-history</div>
+            </div>
+            <span class="status-badge status-success">
+              success
+            </span>
+          </div>
+          <div class="page-body">
+            <div class="page-meta">
+              <div class="meta-item">
+                <span class="meta-label">URL</span>
+                <span class="meta-value">http://localhost:3000/audit-history</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Page Title</span>
+                <span class="meta-value">MedSchedule Pro</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Load Time</span>
+                <span class="meta-value">641ms</span>
+              </div>
+            </div>
+            
+            
+            
+            
+            
+            <a class="screenshot-link" href="puppeteer-screenshots\-audit-history-2026-06-11T06-08-23-459Z.png">📸 View Screenshot</a>
+          </div>
+        </div>
+      
+        <div class="page-card">
+          <div class="page-header">
+            <div>
+              <div class="page-name">Settings</div>
+              <div class="page-path">/settings</div>
+            </div>
+            <span class="status-badge status-success">
+              success
+            </span>
+          </div>
+          <div class="page-body">
+            <div class="page-meta">
+              <div class="meta-item">
+                <span class="meta-label">URL</span>
+                <span class="meta-value">http://localhost:3000/settings</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Page Title</span>
+                <span class="meta-value">MedSchedule Pro</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Load Time</span>
+                <span class="meta-value">654ms</span>
+              </div>
+            </div>
+            
+            
+            
+            
+            
+            <a class="screenshot-link" href="puppeteer-screenshots\-settings-2026-06-11T06-08-28-112Z.png">📸 View Screenshot</a>
+          </div>
+        </div>
+      
+        <div class="page-card">
+          <div class="page-header">
+            <div>
+              <div class="page-name">Create Staff</div>
+              <div class="page-path">/staff/create</div>
+            </div>
+            <span class="status-badge status-success">
+              success
+            </span>
+          </div>
+          <div class="page-body">
+            <div class="page-meta">
+              <div class="meta-item">
+                <span class="meta-label">URL</span>
+                <span class="meta-value">http://localhost:3000/staff/create</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Page Title</span>
+                <span class="meta-value">MedSchedule Pro</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Load Time</span>
+                <span class="meta-value">640ms</span>
+              </div>
+            </div>
+            
+            
+            
+            
+            
+            <a class="screenshot-link" href="puppeteer-screenshots\-staff-create-2026-06-11T06-08-32-787Z.png">📸 View Screenshot</a>
+          </div>
+        </div>
+      
+    </div>
+  </div>
+</body>
+</html>
+  

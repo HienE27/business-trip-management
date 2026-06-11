@@ -27,15 +27,15 @@ export function DashboardHeader({ title, description, onMenuToggle }: DashboardH
             <span className="material-symbols-outlined text-[20px]">menu</span>
           </button>
         )}
-        <div className="relative w-32 sm:w-40 md:w-64 lg:w-96">
+        <div className="relative w-32 sm:w-40 md:w-64">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">
             search
           </span>
           <input
-            className="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-label-md text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors placeholder:text-on-surface-variant"
+            className="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-label-md text-on-surface focus:bg-surface-container-lowest focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant"
             placeholder="Tìm kiếm lịch, nhân sự..."
             type="search"
-            aria-label="Tìm kiếm"
+            aria-label="Tìm kiếm toàn cục"
             name="global-search"
             autoComplete="off"
           />

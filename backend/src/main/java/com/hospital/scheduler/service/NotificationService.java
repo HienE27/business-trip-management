@@ -37,6 +37,26 @@ public class NotificationService {
                 .collect(Collectors.toList());
     }
 
+    public List<NotificationResponse> getNotificationsByStaff(Integer staffId, Integer page, Integer size) {
+        Pageable pageable = (page != null && size != null)
+                ? PageRequest.of(page - 1, size) // page is 1-based for API
+                : Pageable.unpaged();
+
+        if (pageable.isUnpaged()) {
+            return notificationRepository.findByStaffIdOrderByCreatedAtDesc(staffId).stream()
+                    .map(NotificationResponse::fromEntity)
+                    .collect(Collectors.toList());
+        }
+
+        return notificationRepository.findByStaffId(staffId, pageable).stream()
+                .map(NotificationResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    public long countNotificationsByStaff(Integer staffId) {
+        return notificationRepository.countByStaffId(staffId);
+    }
+
     public Page<NotificationResponse> getNotificationsByStaffPaginated(Integer staffId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         return notificationRepository.findByStaffId(staffId, pageable)

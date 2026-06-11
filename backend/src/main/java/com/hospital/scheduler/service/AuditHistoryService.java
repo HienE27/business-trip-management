@@ -5,7 +5,6 @@ import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.AuditHistoryRepository;
 import com.hospital.scheduler.repository.StaffRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -58,28 +57,23 @@ public class AuditHistoryService {
 
         AuditHistory auditHistory = AuditHistory.builder()
                 .tableName(tableName)
-                .recordId(recordId)
+                .recordId(recordId != null ? recordId : 0)
                 .actionType(actionType)
                 .changedBy(changedBy)
-                .oldData(convertToJson(oldData))
-                .newData(convertToJson(newData))
+                .oldData(safeToJson(oldData))
+                .newData(safeToJson(newData))
                 .build();
 
         return auditHistoryRepository.save(auditHistory);
     }
 
-    private String convertToJson(Object data) {
-        if (data == null) {
-            return null;
-        }
+    private String safeToJson(Object data) {
+        if (data == null) return null;
         try {
             return objectMapper.writeValueAsString(data);
         } catch (Exception e) {
-            try {
-                return objectMapper.writeValueAsString("Serialization error: " + e.getMessage());
-            } catch (Exception ex) {
-                return "\"Serialization failed completely\"";
-            }
+            String type = (data instanceof Class) ? ((Class<?>) data).getSimpleName() : data.getClass().getSimpleName();
+            return "\"[" + type + "]: " + e.getMessage().replace("\"", "'") + "\"";
         }
     }
 }

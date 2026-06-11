@@ -29,6 +29,7 @@ public class DataSeeder implements CommandLineRunner {
     private final CompensationDayRepository compensationDayRepository;
     private final ScheduleTemplateRepository scheduleTemplateRepository;
     private final CompensationDateCalculator compensationDateCalculator;
+    private final HolidayRepository holidayRepository;
 
     // ⚠️  Muốn re-seed (thêm staff mới) → drop database + restart backend
     @Override
@@ -36,6 +37,7 @@ public class DataSeeder implements CommandLineRunner {
         seedRoles();
         seedSpecialties();
         seedShiftTypes();
+        seedHolidays();
         seedScheduleTemplates();
         seedAdminUser();
         seedPeriodsAndSchedules();
@@ -86,6 +88,31 @@ public class DataSeeder implements CommandLineRunner {
                 .isOvernight(false).fatigueScore(2).isActive(true).build());
 
         System.out.println("✅ Seeded shift types: L01, L02, L03, L04");
+    }
+
+    private void seedHolidays() {
+        if (holidayRepository.count() > 0) return;
+
+        record HolidaySeed(String name, int month, int day, String description) {}
+        HolidaySeed[] holidays = new HolidaySeed[]{
+            new HolidaySeed("Tết Dương lịch",       1,  1,  "Năm mới Dương lịch"),
+            new HolidaySeed("Tết Nguyên đán",        2,  14, "Tết Nguyên đán Ất Tỵ"),
+            new HolidaySeed("Tết Nguyên đán",        2,  15, "Tết Nguyên đán Ất Tỵ"),
+            new HolidaySeed("Tết Nguyên đán",        2,  16, "Tết Nguyên đán Ất Tỵ"),
+            new HolidaySeed("Giỗ Tổ Hùng Vương",    4,  27, "Giỗ Tổ Hùng Vương"),
+            new HolidaySeed("Ngày Giải phóng miền Nam", 4, 30, "Ngày Giải phóng miền Nam 30/4"),
+            new HolidaySeed("Quốc tế Lao động",       5,  1,  "Ngày Quốc tế Lao động"),
+            new HolidaySeed("Ngày Quốc khánh",         9,  2,  "Ngày Quốc khánh Việt Nam"),
+        };
+
+        for (HolidaySeed h : holidays) {
+            LocalDate date = LocalDate.of(2026, h.month, h.day);
+            if (!holidayRepository.findByDate(date).isPresent()) {
+                holidayRepository.save(Holiday.builder()
+                        .name(h.name).holidayDate(date).date(date).year(date.getYear()).description(h.description).isActive(true).build());
+            }
+        }
+        System.out.println("✅ Seeded " + holidays.length + " holidays for 2026");
     }
 
     private void seedScheduleTemplates() {

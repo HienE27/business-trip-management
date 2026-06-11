@@ -9,6 +9,7 @@ import com.hospital.scheduler.entity.ScheduleExchange;
 import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.entity.LeaveRequest;
+import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.*;
@@ -36,6 +37,7 @@ public class ScheduleExchangeService {
     private final AuditHistoryService auditHistoryService;
     private final ConflictDetectionService conflictDetectionService;
     private final CompensationDateCalculator compensationDateCalculator;
+    private final NotificationService notificationService;
 
     public List<ScheduleExchangeResponse> getAllExchanges() {
         return exchangeRepository.findAll().stream()
@@ -93,14 +95,15 @@ public class ScheduleExchangeService {
             throw new BadRequestException("Lịch yêu cầu không thuộc về người gửi");
         }
 
-        if (requesterSchedule.getId().equals(dto.getTargetScheduleId())) {
-            throw new BadRequestException("Không thể đổi trực với chính mình");
+        if (requesterSchedule.getId().equals(targetSchedule.getId())) {
+            throw new BadRequestException("Không thể tự đổi ca với chính mình");
+        }
+
+        if (requesterSchedule.getStaff().getId().equals(targetSchedule.getStaff().getId())) {
+            throw new BadRequestException("Không thể đổi ca giữa cùng một nhân sự");
         }
 
         Staff targetStaff = targetSchedule.getStaff();
-        if (requesterSchedule.getStaff().getId().equals(targetStaff.getId())) {
-            throw new BadRequestException("Không thể đổi trực với chính mình");
-        }
 
         if (requesterSchedule.getPeriod().getStatus() == SchedulePeriod.PeriodStatus.DRAFT) {
             throw new BadRequestException("Không thể đổi ca khi kỳ lịch chưa được công bố");
@@ -124,6 +127,12 @@ public class ScheduleExchangeService {
 
         ScheduleExchange saved = exchangeRepository.save(exchange);
         auditHistoryService.logAction("schedule_exchange", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, requesterId);
+
+        // Notify the target staff about the exchange request
+        notificationService.createNotification(targetSchedule.getStaff().getId(),
+                new NotificationDTO("Yêu cầu đổi trực mới",
+                        "Nhân sự " + requester.getFullName() + " yêu cầu đổi trực ngày " + requesterSchedule.getWorkDate() + " với bạn. Vui lòng kiểm tra và chờ quản lý duyệt."));
+
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 
@@ -243,6 +252,14 @@ public class ScheduleExchangeService {
         ScheduleExchange saved = exchangeRepository.save(exchange);
         auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.UPDATE,
                 "PENDING", saved, reviewerId);
+
+        // Notify both staff about the approved exchange
+        String approveMsg = "Yêu cầu đổi trực ngày " + requesterSchedule.getWorkDate() + " <-> " + targetSchedule.getWorkDate() + " đã được duyệt bởi " + reviewer.getFullName() + ".";
+        notificationService.createNotification(requesterOldStaff.getId(),
+                new NotificationDTO("Yêu cầu đổi trực đã được duyệt", approveMsg));
+        notificationService.createNotification(targetOldStaff.getId(),
+                new NotificationDTO("Yêu cầu đổi trực đã được duyệt", approveMsg));
+
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 
@@ -265,6 +282,15 @@ public class ScheduleExchangeService {
         ScheduleExchange saved = exchangeRepository.save(exchange);
         auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.UPDATE,
                 "PENDING", saved, reviewerId);
+
+        // Notify both staff about the rejected exchange
+        String rejectMsg = "Yêu cầu đổi trực ngày " + exchange.getRequesterSchedule().getWorkDate() + " <-> " + exchange.getTargetSchedule().getWorkDate() + " đã bị từ chối bởi " + reviewer.getFullName()
+                + (reviewNote != null && !reviewNote.isBlank() ? ". Lý do: " + reviewNote : "");
+        notificationService.createNotification(exchange.getRequester().getId(),
+                new NotificationDTO("Yêu cầu đổi trực bị từ chối", rejectMsg));
+        notificationService.createNotification(exchange.getTarget().getId(),
+                new NotificationDTO("Yêu cầu đổi trực bị từ chối", rejectMsg));
+
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 
@@ -290,6 +316,15 @@ public class ScheduleExchangeService {
         ScheduleExchange saved = exchangeRepository.save(exchange);
         auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.UPDATE,
                 "PENDING", saved, currentStaff.getId());
+
+        // Notify both staff about the cancellation
+        notificationService.createNotification(exchange.getRequester().getId(),
+                new NotificationDTO("Yêu cầu đổi trực đã bị hủy",
+                        "Yêu cầu đổi trực ngày " + exchange.getRequesterSchedule().getWorkDate() + " <-> " + exchange.getTargetSchedule().getWorkDate() + " đã bị hủy."));
+        notificationService.createNotification(exchange.getTarget().getId(),
+                new NotificationDTO("Yêu cầu đổi trực đã bị hủy",
+                        "Yêu cầu đổi trực ngày " + exchange.getRequesterSchedule().getWorkDate() + " <-> " + exchange.getTargetSchedule().getWorkDate() + " đã bị hủy."));
+
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 }

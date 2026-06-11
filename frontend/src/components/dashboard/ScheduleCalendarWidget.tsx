@@ -64,7 +64,7 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
     <Modal open={open} onClose={onClose} title="Tạo nhanh ca trực" size="md">
       {done ? (
         <div className="flex flex-col items-center gap-4 py-8">
-          <span className="material-symbols-outlined text-[48px] text-secondary fill-icon">check_circle</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-[48px] text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
           <p className="text-title-lg text-on-surface font-semibold">Đã tạo thành công!</p>
         </div>
       ) : (

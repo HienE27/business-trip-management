@@ -31,7 +31,7 @@ export function Pagination({
         <span className="text-label-sm text-on-surface-variant">Hàng mới trang:</span>
         <div className="relative">
           <select
-            className="h-8 pl-2 pr-7 appearance-none rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface cursor-pointer focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="h-8 pl-2 pr-7 appearance-none rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface cursor-pointer focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             value={pageSize}
             onChange={(e) => onPageSizeChange?.(Number(e.target.value))}
             aria-label="Hàng mới trang"

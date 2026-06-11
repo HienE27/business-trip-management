@@ -257,7 +257,7 @@ function QuickAddForm({ date, periodId, defaultShiftTypeId, staffList, onSuccess
         <div className="relative">
           <select
             id="qa-shift-type"
-            className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-outline-variant bg-surface px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
             value={shiftTypeId}
             onChange={(e) => setShiftTypeId(e.target.value)}
             required
@@ -278,7 +278,7 @@ function QuickAddForm({ date, periodId, defaultShiftTypeId, staffList, onSuccess
         <div className="relative">
           <select
             id="qa-staff"
-            className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-outline-variant bg-surface px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
             value={staffId}
             onChange={(e) => setStaffId(e.target.value ? Number(e.target.value) : "")}
             required
@@ -603,7 +603,7 @@ export default function MonthlySchedulePage() {
                 type="button"
                 onClick={() => void handlePreviewAutoSchedule()}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-label-md font-medium text-on-primary transition-colors hover:bg-primary/90 disabled:opacity-60"
-                disabled={runningAutoSchedule || !selectedPeriodId}
+                disabled={runningAutoSchedule || !selectedPeriodId || selectedPeriod?.status !== "DRAFT"}
               >
                 <span className="material-symbols-outlined text-[18px]">auto_mode</span>
                 {runningAutoSchedule ? "Đang tạo preview" : "Auto Schedule"}
@@ -612,7 +612,7 @@ export default function MonthlySchedulePage() {
                 type="button"
                 onClick={() => void handleCheckConflicts()}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-outline-variant bg-surface px-4 py-2.5 text-label-md font-medium text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-60"
-                disabled={checkingConflicts || !selectedPeriodId}
+                disabled={checkingConflicts || !selectedPeriodId || selectedPeriod?.status !== "DRAFT"}
               >
                 <span className="material-symbols-outlined text-[18px]">warning</span>
                 {checkingConflicts ? "Đang kiểm tra" : "Conflict Check"}
@@ -622,7 +622,7 @@ export default function MonthlySchedulePage() {
                   type="button"
                   onClick={() => void handlePublish()}
                   className="inline-flex items-center justify-center gap-2 rounded-lg border border-outline-variant bg-surface px-4 py-2.5 text-label-md font-medium text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-60"
-                  disabled={publishing || !selectedPeriodId}
+                  disabled={publishing || !selectedPeriodId || selectedPeriod?.status !== "DRAFT"}
                 >
                   <span className="material-symbols-outlined text-[18px]">publish</span>
                   {publishing ? "Đang publish" : "Publish"}
@@ -666,9 +666,10 @@ export default function MonthlySchedulePage() {
                       setQueryState({ panel: step.id as LegacyPanel });
                     }
                   }}
-                  className={`flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${isActive ? "border-primary bg-primary-fixed/40" : "border-outline-variant bg-surface hover:bg-surface-container-low"}`}
+                  aria-current={isActive ? "step" : undefined}
+                  className={`flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-primary ${isActive ? "border-primary bg-primary-fixed/40" : "border-outline-variant bg-surface hover:bg-surface-container-low"}`}
                 >
-                  <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${isCompleted ? "bg-secondary-container text-on-secondary-container" : isActive ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"}`}>
+                  <div aria-label={`Bước ${index + 1} trong ${WORKFLOW_STEPS.length}`} className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${isCompleted ? "bg-secondary-container text-on-secondary-container" : isActive ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"}`}>
                     {isCompleted ? <span className="material-symbols-outlined text-[16px]">check</span> : index + 1}
                   </div>
                   <div>
@@ -709,7 +710,8 @@ export default function MonthlySchedulePage() {
                   setQueryState({ view: "calendar" });
                 }}
                 aria-label="Chế độ xem lịch theo tháng"
-                className={`rounded-md px-3 py-1.5 text-label-sm transition-colors ${resolvedViewMode === "calendar" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant"}`}
+                aria-pressed={resolvedViewMode === "calendar"}
+                className={`rounded-md px-3 py-1.5 text-label-sm transition-colors focus-visible:ring-2 focus-visible:ring-primary ${resolvedViewMode === "calendar" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant"}`}
               >
                 Calendar View
               </button>
@@ -719,7 +721,8 @@ export default function MonthlySchedulePage() {
                   setQueryState({ view: "table" });
                 }}
                 aria-label="Chế độ xem bảng danh sách"
-                className={`rounded-md px-3 py-1.5 text-label-sm transition-colors ${resolvedViewMode === "table" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant"}`}
+                aria-pressed={resolvedViewMode === "table"}
+                className={`rounded-md px-3 py-1.5 text-label-sm transition-colors focus-visible:ring-2 focus-visible:ring-primary ${resolvedViewMode === "table" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant"}`}
               >
                 Table View
               </button>
@@ -735,7 +738,9 @@ export default function MonthlySchedulePage() {
                   key={option.id}
                   type="button"
                   onClick={() => setQueryState({ tab: option.id })}
-                  className={`inline-flex items-center gap-2 rounded-t-lg border border-b-0 px-4 py-2 text-label-md transition-colors ${isActive ? "border-primary bg-primary-fixed text-primary" : "border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-low"}`}
+                  aria-selected={isActive}
+                  role="tab"
+                  className={`inline-flex items-center gap-2 rounded-t-lg border border-b-0 px-4 py-2 text-label-md transition-colors focus-visible:ring-2 focus-visible:ring-primary ${isActive ? "border-primary bg-primary-fixed text-primary" : "border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-low"}`}
                 >
                   <span className="rounded-full bg-surface-container-low px-2 py-0.5 text-[11px] font-semibold">{option.shortLabel}</span>
                   {option.label}
@@ -870,7 +875,7 @@ export default function MonthlySchedulePage() {
               type="button"
               onClick={() => void handlePreviewAutoSchedule()}
               className="rounded-lg bg-primary px-4 py-2 text-label-md font-medium text-on-primary transition-colors hover:bg-primary/90 disabled:opacity-60"
-              disabled={runningAutoSchedule || !selectedPeriodId}
+              disabled={runningAutoSchedule || !selectedPeriodId || selectedPeriod?.status !== "DRAFT"}
             >
               {runningAutoSchedule ? "Đang chạy preview" : "Làm mới preview"}
             </button>
@@ -886,7 +891,7 @@ export default function MonthlySchedulePage() {
                 </div>
                 <div className="rounded-lg border border-outline-variant bg-surface p-3">
                   <p className="text-label-sm text-on-surface-variant">Coverage</p>
-                  <p className="mt-1 text-title-lg font-bold text-on-surface">{Math.round(previewResult.coverageRate * 100)}%</p>
+                  <p className="mt-1 text-title-lg font-bold text-on-surface">{previewResult.coverageRate}%</p>
                 </div>
                 <div className="rounded-lg border border-outline-variant bg-surface p-3">
                   <p className="text-label-sm text-on-surface-variant">Balance</p>
@@ -928,7 +933,6 @@ export default function MonthlySchedulePage() {
                     </thead>
                     <tbody className="divide-y divide-outline-variant">
                       {previewResult.schedules
-                        .filter((s) => s.scheduleId != null)
                         .sort((a, b) => a.workDate.localeCompare(b.workDate))
                         .map((item) => {
                           const editIdx = editedPreview.findIndex(
@@ -938,16 +942,16 @@ export default function MonthlySchedulePage() {
                           const currentStaffId = isEdited ? editedPreview[editIdx].staffId : item.staffId;
 
                           return (
-                            <tr key={`${item.workDate}-${item.shiftTypeId}-${item.scheduleId}`} className="hover:bg-surface-container-low transition-colors">
+                            <tr key={`${item.workDate}-${item.shiftTypeId}-${item.staffId}`} className="hover:bg-surface-container-low transition-colors">
                               <td className="px-3 py-2 text-label-sm text-on-surface whitespace-nowrap">
                                 {new Date(item.workDate).toLocaleDateString("vi-VN")}
                               </td>
                               <td className="px-3 py-2 text-label-sm text-on-surface">
                                 <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold ${
-                                  item.shiftTypeId === "L01" ? "bg-blue-50 text-blue-700" :
-                                  item.shiftTypeId === "L02" ? "bg-emerald-50 text-emerald-700" :
-                                  item.shiftTypeId === "L03" ? "bg-amber-50 text-amber-700" :
-                                  "bg-violet-50 text-violet-700"
+                                  item.shiftTypeId === "L01" ? "bg-red-50 text-red-700" :
+                                  item.shiftTypeId === "L02" ? "bg-blue-50 text-blue-700" :
+                                  item.shiftTypeId === "L03" ? "bg-green-50 text-green-700" :
+                                  "bg-purple-50 text-purple-700"
                                 }`}>
                                   {item.shiftTypeName}
                                 </span>
@@ -990,7 +994,7 @@ export default function MonthlySchedulePage() {
                 <button
                   type="button"
                   onClick={handleApplyPreview}
-                  disabled={applyingPreview || editedPreview.length === 0}
+                  disabled={applyingPreview || !previewResult}
                   className="rounded-lg bg-secondary px-4 py-2 text-label-md font-medium text-on-secondary transition-colors hover:bg-secondary/90 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {applyingPreview ? (
@@ -1009,7 +1013,25 @@ export default function MonthlySchedulePage() {
           ) : (
             <div className="p-8 flex flex-col items-center gap-3">
               <span className="material-symbols-outlined text-5xl text-outline">auto_mode</span>
-              <p className="text-on-surface-variant text-body-sm text-center">Chưa có preview. Hãy chạy Auto Schedule để tạo phương án.</p>
+              {runningAutoSchedule && !previewResult ? (
+                <div className="flex items-center gap-2 text-label-sm text-on-surface-variant">
+                  <div className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  Đang tạo preview...
+                </div>
+              ) : asMessage ? (
+                <div className={`${asMessage.toLowerCase().includes('thành công') || asMessage.toLowerCase().includes('đã áp dụng') || asMessage.toLowerCase().includes('đã hủy') || asMessage.toLowerCase().includes('đã làm mới') ? 'bg-secondary-container border border-secondary/20 text-on-secondary-container' : 'bg-error-container border border-error/20 text-error'} rounded-lg px-4 py-2 text-label-sm flex items-center gap-2 max-w-sm text-center`}>
+                  <span className="material-symbols-outlined text-[16px]">{asMessage.toLowerCase().includes('thành công') || asMessage.toLowerCase().includes('đã áp dụng') || asMessage.toLowerCase().includes('đã hủy') || asMessage.toLowerCase().includes('đã làm mới') ? 'check_circle' : 'error'}</span>
+                  {asMessage}
+                </div>
+              ) : (
+                <p className="text-on-surface-variant text-body-sm text-center">Chưa có preview. Hãy chạy Auto Schedule để tạo phương án.</p>
+              )}
+              {selectedPeriod?.status !== "DRAFT" && (
+                <div className="bg-tertiary-container text-on-tertiary-container rounded-lg px-3 py-1.5 text-label-sm flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[14px]">info</span>
+                  Chỉ kỳ lịch ở trạng thái <strong>DRAFT</strong> mới có thể xếp tự động
+                </div>
+              )}
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <select
@@ -1029,7 +1051,7 @@ export default function MonthlySchedulePage() {
                 <button
                   type="button"
                   onClick={() => void handlePreviewAutoSchedule()}
-                  disabled={runningAutoSchedule || !selectedPeriodId}
+                  disabled={runningAutoSchedule || !selectedPeriodId || selectedPeriod?.status !== "DRAFT"}
                   className="rounded-lg bg-primary px-4 py-2 text-label-md font-medium text-on-primary transition-colors hover:bg-primary/90 disabled:opacity-60"
                 >
                   {runningAutoSchedule ? "Đang tạo preview…" : "Chạy Auto Schedule"}

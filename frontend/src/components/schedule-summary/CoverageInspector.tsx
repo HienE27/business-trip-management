@@ -12,8 +12,8 @@ export function CoverageInspector({
   totalCoverageGaps,
 }: CoverageInspectorProps) {
   return (
-    <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-[0_1px_3px_0_rgba(0,0,0,0.05)]">
-      <div className="border-b border-outline-variant bg-tertiary-fixed/40 px-4 py-4">
+    <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm">
+      <div className="border-b border-outline-variant bg-tertiary-container px-4 py-4">
         <h3 className="flex items-center gap-2 text-title-lg font-semibold text-on-surface">
           <span className="material-symbols-outlined text-tertiary" style={{ fontVariationSettings: "'FILL' 1" }}>empty_half_bottom_stalk</span>
           Coverage gaps

@@ -148,6 +148,26 @@ export default function ReportsMonthlyPage() {
                 }`} />
                 {selectedPeriod.status}
               </span>
+              <div className="flex gap-2">
+                <a
+                  href={`/api/v1/dashboard/export/schedule/${selectedPeriod.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-primary px-3 py-1.5 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[16px]">table_view</span>
+                  Xuất Excel
+                </a>
+                <a
+                  href={`/api/v1/dashboard/export/schedule/${selectedPeriod.id}/pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-tertiary px-3 py-1.5 text-[12px] font-medium text-tertiary hover:bg-tertiary-fixed transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                  Xuất PDF
+                </a>
+              </div>
             </div>
           </section>
 

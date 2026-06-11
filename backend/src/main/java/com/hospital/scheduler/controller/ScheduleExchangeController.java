@@ -57,7 +57,7 @@ public class ScheduleExchangeController {
 
     @GetMapping("/target/{targetId}")
     @Operation(summary = "Lấy yêu cầu đổi ca theo người được đổi")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#targetId)")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getByTarget(@PathVariable Integer targetId) {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesByTarget(targetId)));
     }
