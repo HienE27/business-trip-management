@@ -164,3 +164,17 @@ backend/cp.txt
 verify_*.png
 ~$*.docx
 backend/target/
+
+# Debug and test scripts
+*.ps1
+*.class
+DbSchema.class
+CheckReq.class
+
+# Puppeteer screenshots (test artifacts)
+frontend/puppeteer-screenshots/
+frontend/puppeteer-test-report.html
+frontend/puppeteer-test-report.json
+frontend/puppeteer-test.js
+frontend/test-*.js
+stitch_medschedule_pro_dashboard/
