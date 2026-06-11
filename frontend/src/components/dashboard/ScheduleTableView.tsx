@@ -23,6 +23,7 @@ type ScheduleTableViewProps = {
   onEdit?: (s: Schedule) => void;
   onDelete?: (s: Schedule) => void;
   onResolveConflict?: (s: Schedule) => void;
+  onViewDetail?: (s: Schedule) => void;
   canEdit?: boolean;
 };
 
@@ -33,6 +34,7 @@ export function ScheduleTableView({
   onEdit,
   onDelete,
   onResolveConflict,
+  onViewDetail,
   canEdit = false,
 }: ScheduleTableViewProps) {
   const uid = useId();
@@ -364,6 +366,14 @@ export function ScheduleTableView({
                     {/* Actions */}
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onViewDetail?.(s)}
+                          className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
+                          title="Xem chi tiết"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">visibility</span>
+                        </button>
                         {canEdit && (
                           <>
                             <button
@@ -383,9 +393,6 @@ export function ScheduleTableView({
                               <span className="material-symbols-outlined text-[16px]">delete</span>
                             </button>
                           </>
-                        )}
-                        {!canEdit && (
-                          <span className="text-label-sm text-on-surface-variant/40">—</span>
                         )}
                       </div>
                     </td>

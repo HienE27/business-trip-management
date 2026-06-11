@@ -37,7 +37,7 @@ export function LoginForm() {
                 health_and_safety
               </span>
             </div>
-              <h1 className="font-headline-md text-headline-md text-primary tracking-tight">
+              <h1 className="font-title-lg text-title-lg text-primary tracking-tight">
               Quản Lý Lịch
             </h1>
           </div>
@@ -59,7 +59,7 @@ export function LoginForm() {
 
           <div className="space-y-1.5">
             <label className="block font-label-md text-label-md text-on-surface" htmlFor="username">
-              Ten đăng nhập
+              Tên đăng nhập
             </label>
             <div className="relative">
               <span

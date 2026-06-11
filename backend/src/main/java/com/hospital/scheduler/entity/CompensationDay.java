@@ -9,7 +9,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "compensation_day")
+@Table(name = "compensation_day",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_compensation_staff_date", columnNames = {"staff_id", "compensation_date"})
+    },
+    indexes = {
+        @Index(name = "idx_compday_staff_date", columnList = "staff_id, compensation_date"),
+        @Index(name = "idx_compday_schedule", columnList = "schedule_id")
+    })
 @Getter
 @Setter
 @NoArgsConstructor

@@ -2,17 +2,23 @@ package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.ScheduleExchangeDTO;
 import com.hospital.scheduler.dto.response.ScheduleExchangeResponse;
+import com.hospital.scheduler.entity.AuditHistory;
+import com.hospital.scheduler.entity.CompensationDay;
 import com.hospital.scheduler.entity.Schedule;
 import com.hospital.scheduler.entity.ScheduleExchange;
+import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.util.CompensationDateCalculator;
+import com.hospital.scheduler.service.ConflictDetectionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,6 +33,9 @@ public class ScheduleExchangeService {
     private final StaffRepository staffRepository;
     private final LeaveRequestRepository leaveRequestRepository;
     private final CompensationDayRepository compensationDayRepository;
+    private final AuditHistoryService auditHistoryService;
+    private final ConflictDetectionService conflictDetectionService;
+    private final CompensationDateCalculator compensationDateCalculator;
 
     public List<ScheduleExchangeResponse> getAllExchanges() {
         return exchangeRepository.findAll().stream()
@@ -84,8 +93,23 @@ public class ScheduleExchangeService {
             throw new BadRequestException("Lịch yêu cầu không thuộc về người gửi");
         }
 
-        if (requesterSchedule.getPeriod().getStatus().name().equals("PUBLISHED")) {
-            throw new BadRequestException("Không thể đổi ca khi kỳ lịch đã được công bố");
+        if (requesterSchedule.getId().equals(dto.getTargetScheduleId())) {
+            throw new BadRequestException("Không thể đổi trực với chính mình");
+        }
+
+        Staff targetStaff = targetSchedule.getStaff();
+        if (requesterSchedule.getStaff().getId().equals(targetStaff.getId())) {
+            throw new BadRequestException("Không thể đổi trực với chính mình");
+        }
+
+        if (requesterSchedule.getPeriod().getStatus() == SchedulePeriod.PeriodStatus.DRAFT) {
+            throw new BadRequestException("Không thể đổi ca khi kỳ lịch chưa được công bố");
+        }
+
+        boolean requesterIsL01 = ConflictDetectionService.SHIFT_TYPE_L01.equals(requesterSchedule.getShiftType().getId());
+        boolean targetIsL01 = ConflictDetectionService.SHIFT_TYPE_L01.equals(targetSchedule.getShiftType().getId());
+        if (!requesterIsL01 && !targetIsL01) {
+            throw new BadRequestException("Chỉ hỗ trợ đổi ca L01 (trực 24/24). Vui lòng chọn ca trực 24/24.");
         }
 
         ScheduleExchange exchange = ScheduleExchange.builder()
@@ -99,6 +123,7 @@ public class ScheduleExchangeService {
                 .build();
 
         ScheduleExchange saved = exchangeRepository.save(exchange);
+        auditHistoryService.logAction("schedule_exchange", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, requesterId);
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 
@@ -116,42 +141,96 @@ public class ScheduleExchangeService {
         Schedule requesterSchedule = exchange.getRequesterSchedule();
         Schedule targetSchedule = exchange.getTargetSchedule();
 
-        if (requesterSchedule.getPeriod().getStatus().name().equals("PUBLISHED")) {
-            throw new BadRequestException("Không thể duyệt đổi ca khi kỳ lịch đã được công bố");
+        Staff requesterOldStaff = requesterSchedule.getStaff();
+        Staff targetOldStaff = targetSchedule.getStaff();
+        LocalDate requesterWorkDate = requesterSchedule.getWorkDate();
+        LocalDate targetWorkDate = targetSchedule.getWorkDate();
+
+        if (requesterSchedule.getPeriod().getStatus() == SchedulePeriod.PeriodStatus.DRAFT) {
+            throw new BadRequestException("Không thể duyệt đổi ca khi kỳ lịch chưa được công bố");
         }
 
-        // Check if target staff has approved leave on the day they would receive
         List<LeaveRequest> targetLeaves = leaveRequestRepository.findByStaffIdAndDateRange(
-                targetSchedule.getStaff().getId(), targetSchedule.getWorkDate(), targetSchedule.getWorkDate());
+                targetOldStaff.getId(), targetWorkDate, targetWorkDate);
         boolean targetHasApprovedLeave = targetLeaves.stream()
                 .anyMatch(l -> l.getStatus() == LeaveRequest.LeaveStatus.APPROVED);
         if (targetHasApprovedLeave) {
-            throw new BadRequestException("Nhân sự được đổi (" + targetSchedule.getStaff().getFullName() + ") có ngày nghỉ phép được duyệt vào ngày " + targetSchedule.getWorkDate());
+            throw new BadRequestException("Nhân sự được đổi (" + targetOldStaff.getFullName() + ") có ngày nghỉ phép được duyệt vào ngày " + targetWorkDate);
         }
 
-        // Check if requester staff has approved leave on the day they would receive
         List<LeaveRequest> requesterLeaves = leaveRequestRepository.findByStaffIdAndDateRange(
-                requesterSchedule.getStaff().getId(), requesterSchedule.getWorkDate(), requesterSchedule.getWorkDate());
+                requesterOldStaff.getId(), requesterWorkDate, requesterWorkDate);
         boolean requesterHasApprovedLeave = requesterLeaves.stream()
                 .anyMatch(l -> l.getStatus() == LeaveRequest.LeaveStatus.APPROVED);
         if (requesterHasApprovedLeave) {
-            throw new BadRequestException("Nhân sự yêu cầu (" + requesterSchedule.getStaff().getFullName() + ") có ngày nghỉ phép được duyệt vào ngày " + requesterSchedule.getWorkDate());
+            throw new BadRequestException("Nhân sự yêu cầu (" + requesterOldStaff.getFullName() + ") có ngày nghỉ phép được duyệt vào ngày " + requesterWorkDate);
         }
 
-        // Check compensation day conflicts for both staff after swap
-        compensationDayRepository.findByStaffIdAndCompensationDate(targetSchedule.getStaff().getId(), targetSchedule.getWorkDate())
+        compensationDayRepository.findByStaffIdAndCompensationDate(targetOldStaff.getId(), targetWorkDate)
                 .ifPresent(cd -> {
-                    throw new BadRequestException("Nhân sự được đổi (" + targetSchedule.getStaff().getFullName() + ") có ngày nghỉ bù vào ngày " + targetSchedule.getWorkDate());
+                    throw new BadRequestException("Nhân sự được đổi (" + targetOldStaff.getFullName() + ") có ngày nghỉ bù vào ngày " + targetWorkDate);
                 });
 
-        compensationDayRepository.findByStaffIdAndCompensationDate(requesterSchedule.getStaff().getId(), requesterSchedule.getWorkDate())
+        compensationDayRepository.findByStaffIdAndCompensationDate(requesterOldStaff.getId(), requesterWorkDate)
                 .ifPresent(cd -> {
-                    throw new BadRequestException("Nhân sự yêu cầu (" + requesterSchedule.getStaff().getFullName() + ") có ngày nghỉ bù vào ngày " + requesterSchedule.getWorkDate());
+                    throw new BadRequestException("Nhân sự yêu cầu (" + requesterOldStaff.getFullName() + ") có ngày nghỉ bù vào ngày " + requesterWorkDate);
                 });
 
-        Staff tempStaff = requesterSchedule.getStaff();
-        requesterSchedule.setStaff(targetSchedule.getStaff());
-        targetSchedule.setStaff(tempStaff);
+        List<String> requesterConflicts = conflictDetectionService.detectAllConflicts(
+                requesterOldStaff.getId(), targetWorkDate,
+                requesterSchedule.getShiftType().getId(), targetSchedule.getId());
+        if (!requesterConflicts.isEmpty()) {
+            throw new BadRequestException("Nhân sự yêu cầu (" + requesterOldStaff.getFullName() + ") bị xung đột sau khi đổi: " + String.join("; ", requesterConflicts));
+        }
+
+        List<String> targetConflicts = conflictDetectionService.detectAllConflicts(
+                targetOldStaff.getId(), requesterWorkDate,
+                targetSchedule.getShiftType().getId(), requesterSchedule.getId());
+        if (!targetConflicts.isEmpty()) {
+            throw new BadRequestException("Nhân sự được đổi (" + targetOldStaff.getFullName() + ") bị xung đột sau khi đổi: " + String.join("; ", targetConflicts));
+        }
+
+        boolean requesterIsL01 = ConflictDetectionService.SHIFT_TYPE_L01.equals(requesterSchedule.getShiftType().getId());
+        boolean targetIsL01 = ConflictDetectionService.SHIFT_TYPE_L01.equals(targetSchedule.getShiftType().getId());
+
+        // Delete existing compensation days for affected staff + date combinations
+        if (requesterIsL01) {
+            compensationDayRepository.findByStaffIdAndCompensationDate(requesterOldStaff.getId(), requesterWorkDate)
+                    .ifPresent(compensationDayRepository::delete);
+        }
+        if (targetIsL01) {
+            compensationDayRepository.findByStaffIdAndCompensationDate(targetOldStaff.getId(), targetWorkDate)
+                    .ifPresent(compensationDayRepository::delete);
+        }
+
+        // Swap staff on schedules
+        requesterSchedule.setStaff(targetOldStaff);
+        targetSchedule.setStaff(requesterOldStaff);
+
+        // Create new compensation days for the new L01 assignments
+        SchedulePeriod period = requesterSchedule.getPeriod();
+        if (targetIsL01) {
+            CompensationDay newCompForRequester = CompensationDay.builder()
+                    .schedule(requesterSchedule)
+                    .staff(requesterOldStaff)
+                    .period(period)
+                    .shiftDate(targetWorkDate)
+                    .compensationDate(compensationDateCalculator.calculate(targetWorkDate))
+                    .note("Ngày nghỉ bù từ đổi ca: " + targetOldStaff.getFullName() + " -> " + requesterOldStaff.getFullName())
+                    .build();
+            compensationDayRepository.save(newCompForRequester);
+        }
+        if (requesterIsL01) {
+            CompensationDay newCompForTarget = CompensationDay.builder()
+                    .schedule(targetSchedule)
+                    .staff(targetOldStaff)
+                    .period(period)
+                    .shiftDate(requesterWorkDate)
+                    .compensationDate(compensationDateCalculator.calculate(requesterWorkDate))
+                    .note("Ngày nghỉ bù từ đổi ca: " + requesterOldStaff.getFullName() + " -> " + targetOldStaff.getFullName())
+                    .build();
+            compensationDayRepository.save(newCompForTarget);
+        }
 
         scheduleRepository.save(requesterSchedule);
         scheduleRepository.save(targetSchedule);
@@ -162,6 +241,8 @@ public class ScheduleExchangeService {
         exchange.setReviewNote(reviewNote);
 
         ScheduleExchange saved = exchangeRepository.save(exchange);
+        auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.UPDATE,
+                "PENDING", saved, reviewerId);
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 
@@ -182,6 +263,8 @@ public class ScheduleExchangeService {
         exchange.setReviewNote(reviewNote);
 
         ScheduleExchange saved = exchangeRepository.save(exchange);
+        auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.UPDATE,
+                "PENDING", saved, reviewerId);
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 
@@ -205,6 +288,8 @@ public class ScheduleExchangeService {
         exchange.setStatus(ScheduleExchange.ExchangeStatus.CANCELLED);
 
         ScheduleExchange saved = exchangeRepository.save(exchange);
+        auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.UPDATE,
+                "PENDING", saved, currentStaff.getId());
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 }

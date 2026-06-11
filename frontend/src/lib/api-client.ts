@@ -30,6 +30,12 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
 const LOGIN_PATH = "/login";
+const TOKEN_STORAGE_KEY = "medschedule.token";
+
+function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+}
 
 class ApiClient {
   private async request<T>(
@@ -40,6 +46,11 @@ class ApiClient {
       "Content-Type": "application/json",
       ...(options.headers as Record<string, string>),
     };
+
+    const token = getStoredToken();
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
@@ -375,6 +386,25 @@ class ApiClient {
     });
   }
 
+  async applyPreviewSchedule(
+    periodId: number,
+    schedules: Array<{ staffId: number; workDate: string; shiftTypeId: string }>,
+    algorithmType = "GREEDY"
+  ): Promise<ApiResponse<AutoScheduleResult>> {
+    return this.request<AutoScheduleResult>("/auto-schedule/apply-preview", {
+      method: "POST",
+      body: JSON.stringify({ periodId, schedules, algorithmType }),
+    });
+  }
+
+  async getUnassignedDaysReport(periodId: number): Promise<ApiResponse<Record<string, unknown>>> {
+    return this.request<Record<string, unknown>>(`/auto-schedule/unassigned/${periodId}`);
+  }
+
+  async getWorkloadChartData(periodId: number): Promise<ApiResponse<Record<string, unknown>>> {
+    return this.request<Record<string, unknown>>(`/auto-schedule/workload-chart/${periodId}`);
+  }
+
   async getMetricsByPeriod(periodId: number): Promise<ApiResponse<AlgorithmMetrics[]>> {
     return this.request<AlgorithmMetrics[]>(`/auto-schedule/metrics/period/${periodId}`);
   }
@@ -459,6 +489,20 @@ class ApiClient {
 
   async deleteNotification(id: number): Promise<ApiResponse<void>> {
     return this.request<void>(`/notifications/${id}`, { method: "DELETE" });
+  }
+
+  async createNotification(staffId: number, data: { title: string; message: string }): Promise<ApiResponse<Notification>> {
+    return this.request<Notification>(`/notifications/staff/${staffId}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async broadcastNotification(data: { title: string; message: string }): Promise<ApiResponse<{ status: string }>> {
+    return this.request<{ status: string }>("/notifications/broadcast", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   // Schedule Templates

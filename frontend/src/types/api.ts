@@ -113,6 +113,26 @@ export interface ScheduleRequest {
   requirementId?: number;
 }
 
+export interface ShiftRequirement {
+  id: number;
+  periodId: number;
+  workDate: string;
+  shiftType: { id: string; name: string };
+  specialty: { id: number; name: string };
+  requiredStaffCount: number;
+  assignedStaffCount: number;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DayCoverage {
+  date: string;
+  shiftTypeId: string;
+  required: number;
+  assigned: number;
+}
+
 // ============================================================
 // Schedule Period Types
 // ============================================================
@@ -188,17 +208,24 @@ export interface DashboardData {
 // ============================================================
 export type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 
+export interface LeaveRequestStaffSummary {
+  id: number;
+  fullName: string;
+}
+
 export interface LeaveRequest {
   id: number;
-  staffId: number;
+  staffId?: number;
+  staff?: LeaveRequestStaffSummary;
   staffName?: string;
   startDate: string;
   endDate: string;
   reason?: string;
   status: LeaveStatus;
-  reviewedBy?: number;
+  reviewedBy?: LeaveRequestStaffSummary;
   reviewerName?: string;
   reviewNote?: string;
+  reviewedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -362,11 +389,21 @@ export interface AlgorithmMetrics {
 export interface ShiftRequirement {
   id: number;
   periodId: number;
-  shiftTypeId: string;
+  workDate: string;
+  shiftType: { id: string; name: string };
+  specialty: { id: number; name: string };
   requiredStaffCount: number;
-  requiredDate: string;
+  assignedStaffCount: number;
+  note?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DayCoverage {
+  date: string;
+  shiftTypeId: string;
+  required: number;
+  assigned: number;
 }
 
 // ============================================================
@@ -429,8 +466,8 @@ export interface AuditHistory {
   action: string;
   tableName: string;
   recordId: number;
-  oldValues?: string;
-  newValues?: string;
+  oldData?: string;
+  newData?: string;
   ipAddress?: string;
   createdAt: string;
 }
@@ -443,6 +480,9 @@ export interface ConflictCheckResponse {
   hasConflicts: boolean;
   totalConflicts: number;
   conflicts: ConflictDetail[];
+  coverageGaps: string[];
+  hasCoverageGaps: boolean;
+  totalCoverageGaps: number;
 }
 
 export interface ConflictDetail {
@@ -452,4 +492,12 @@ export interface ConflictDetail {
   shiftTypeId: string;
   shiftTypeName: string;
   conflictReasons: string[];
+}
+
+export interface CompensationDay {
+  id: number;
+  staffId: number;
+  staffName: string;
+  shiftDate: string;
+  compensationDate: string;
 }

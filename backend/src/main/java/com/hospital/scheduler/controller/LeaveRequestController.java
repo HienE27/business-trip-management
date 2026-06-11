@@ -50,6 +50,7 @@ public class LeaveRequestController {
 
     @GetMapping("/staff/{staffId}")
     @Operation(summary = "Lấy yêu cầu nghỉ phép theo nhân sự")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#staffId)")
     public ResponseEntity<ApiResponse<List<LeaveRequestResponse>>> getByStaff(@PathVariable Integer staffId) {
         authContextService.requireSelfOrManager(staffId);
         return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getLeaveRequestsByStaff(staffId)));
@@ -57,12 +58,14 @@ public class LeaveRequestController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết yêu cầu nghỉ phép")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getLeaveRequestById(id)));
     }
 
     @PostMapping("/staff/{staffId}")
     @Operation(summary = "Tạo yêu cầu nghỉ phép mới")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#staffId)")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> create(
             @PathVariable Integer staffId,
             @Valid @RequestBody LeaveRequestDTO dto) {
@@ -74,6 +77,7 @@ public class LeaveRequestController {
 
     @PutMapping("/{id}/approve")
     @Operation(summary = "Duyệt yêu cầu nghỉ phép")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> approve(
             @PathVariable Integer id,
             @RequestParam Integer reviewerId,
@@ -85,6 +89,7 @@ public class LeaveRequestController {
 
     @PutMapping("/{id}/reject")
     @Operation(summary = "Từ chối yêu cầu nghỉ phép")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> reject(
             @PathVariable Integer id,
             @RequestParam Integer reviewerId,
@@ -96,6 +101,7 @@ public class LeaveRequestController {
 
     @PutMapping("/{id}/cancel")
     @Operation(summary = "Hủy yêu cầu nghỉ phép")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaffOwnerOfLeaveRequest(#id)")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> cancel(@PathVariable Integer id) {
         LeaveRequestResponse cancelled = leaveRequestService.cancelLeaveRequest(id, authContextService.getCurrentStaff());
         return ResponseEntity.ok(ApiResponse.success(cancelled, "Hủy yêu cầu nghỉ phép thành công"));

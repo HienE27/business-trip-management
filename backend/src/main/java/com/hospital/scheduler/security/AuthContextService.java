@@ -5,6 +5,7 @@ import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.entity.StaffRole;
 import com.hospital.scheduler.exception.ForbiddenOperationException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
+import com.hospital.scheduler.repository.LeaveRequestRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 public class AuthContextService {
 
     private final StaffRepository staffRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
 
     public Staff getCurrentStaff() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -25,6 +27,34 @@ public class AuthContextService {
 
         return staffRepository.findByUsername(authentication.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự hiện tại"));
+    }
+
+    public boolean isCurrentStaff(Integer staffId) {
+        try {
+            return getCurrentStaff().getId().equals(staffId);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean isCurrentStaffOwnerOfLeaveRequest(Integer leaveRequestId) {
+        try {
+            Staff current = getCurrentStaff();
+            return leaveRequestRepository.findById(leaveRequestId)
+                    .map(lr -> lr.getStaff().getId().equals(current.getId()))
+                    .orElse(false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean isCurrentStaffOwnerOfExchange(Integer exchangeId) {
+        try {
+            Staff current = getCurrentStaff();
+            return isManagerLike(current) || current.getId().equals(exchangeId);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public boolean isManagerLike(Staff staff) {

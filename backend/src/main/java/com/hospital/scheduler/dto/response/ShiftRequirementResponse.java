@@ -62,4 +62,10 @@ public class ShiftRequirementResponse {
                 .updatedAt(entity.getUpdatedAt())
                 .build();
     }
+
+    public static ShiftRequirementResponse fromEntityWithAssignedCount(ShiftRequirement entity, long assignedCount) {
+        ShiftRequirementResponse resp = fromEntity(entity);
+        resp.setAssignedStaffCount((int) assignedCount);
+        return resp;
+    }
 }

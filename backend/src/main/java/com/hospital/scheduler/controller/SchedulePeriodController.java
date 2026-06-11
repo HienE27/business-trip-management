@@ -68,8 +68,10 @@ public class SchedulePeriodController {
     @PostMapping("/{id}/publish")
     @Operation(summary = "Công bố kỳ lịch")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<ApiResponse<SchedulePeriodResponse>> publishPeriod(@PathVariable Integer id) {
-        return ResponseEntity.ok(ApiResponse.success(periodService.publishPeriod(id), "Công bố kỳ lịch thành công"));
+    public ResponseEntity<ApiResponse<SchedulePeriodResponse>> publishPeriod(
+            @PathVariable Integer id,
+            @RequestParam(required = false) Integer publishedById) {
+        return ResponseEntity.ok(ApiResponse.success(periodService.publishPeriod(id, publishedById), "Công bố kỳ lịch thành công"));
     }
 
     @PostMapping("/{id}/archive")
@@ -77,5 +79,13 @@ public class SchedulePeriodController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<SchedulePeriodResponse>> archivePeriod(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(periodService.archivePeriod(id), "Lưu trữ kỳ lịch thành công"));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Xóa kỳ lịch")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deletePeriod(@PathVariable Integer id) {
+        periodService.deletePeriod(id);
+        return ResponseEntity.ok(ApiResponse.success(null, "Xóa kỳ lịch thành công"));
     }
 }

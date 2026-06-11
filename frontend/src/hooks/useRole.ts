@@ -7,8 +7,8 @@ export type UserRole = "ADMIN" | "MANAGER" | "STAFF";
 export function useRole(): UserRole {
   const { user } = useAuth();
   const roles = user?.roles ?? [];
-  if (roles.includes("ROLE_ADMIN")) return "ADMIN";
-  if (roles.includes("ROLE_MANAGER")) return "MANAGER";
+  if (roles.includes("ADMIN")) return "ADMIN";
+  if (roles.includes("MANAGER")) return "MANAGER";
   return "STAFF";
 }
 

@@ -64,6 +64,7 @@ public class ScheduleExchangeController {
 
     @GetMapping("/user/{userId}")
     @Operation(summary = "Lấy yêu cầu đổi ca liên quan đến người dùng")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#userId)")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getForUser(@PathVariable Integer userId) {
         authContextService.requireSelfOrManager(userId);
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesForUser(userId)));
@@ -71,12 +72,14 @@ public class ScheduleExchangeController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết yêu cầu đổi ca")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangeById(id)));
     }
 
     @PostMapping("/requester/{requesterId}")
     @Operation(summary = "Tạo yêu cầu đổi ca mới")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#requesterId)")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> create(
             @PathVariable Integer requesterId,
             @Valid @RequestBody ScheduleExchangeDTO dto) {
@@ -88,6 +91,7 @@ public class ScheduleExchangeController {
 
     @PutMapping("/{id}/approve")
     @Operation(summary = "Duyệt yêu cầu đổi ca")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> approve(
             @PathVariable Integer id,
             @RequestParam Integer reviewerId,
@@ -99,6 +103,7 @@ public class ScheduleExchangeController {
 
     @PutMapping("/{id}/reject")
     @Operation(summary = "Từ chối yêu cầu đổi ca")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> reject(
             @PathVariable Integer id,
             @RequestParam Integer reviewerId,
@@ -110,6 +115,7 @@ public class ScheduleExchangeController {
 
     @PutMapping("/{id}/cancel")
     @Operation(summary = "Hủy yêu cầu đổi ca")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaffOwnerOfExchange(#id)")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> cancel(@PathVariable Integer id) {
         ScheduleExchangeResponse cancelled = exchangeService.cancelExchange(id, authContextService.getCurrentStaff());
         return ResponseEntity.ok(ApiResponse.success(cancelled, "Hủy yêu cầu đổi ca thành công"));

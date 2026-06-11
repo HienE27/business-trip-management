@@ -1,11 +1,11 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { Schedule, ScheduleExchangeCreate, ScheduleExchangeResponse, Staff } from "@/types/api";
+import type { Schedule, ScheduleExchangeResponse, Staff, ConflictCheckResponse } from "@/types/api";
 
 type ExchangeStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 
@@ -39,6 +39,19 @@ function formatDate(dateStr: string) {
   }
 }
 
+function formatDateFull(dateStr: string) {
+  try {
+    return new Date(dateStr).toLocaleDateString("vi-VN", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
 function isManagerLike(staff: Staff | null) {
   return Boolean(staff?.roles?.some((role) => role === "ADMIN" || role === "MANAGER"));
 }
@@ -53,12 +66,17 @@ export default function SwapRequestsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [message, setMessage] = useState("");
   const [processing, setProcessing] = useState<number | null>(null);
+  const [conflictWarning, setConflictWarning] = useState<{ periodId: number; totalConflicts: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     requesterScheduleId: "",
     targetScheduleId: "",
     reason: "",
   });
+
+  // Detail modal state
+  const [selectedExchange, setSelectedExchange] = useState<ScheduleExchangeResponse | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
 
   const fetchExchanges = useCallback(async () => {
     try {
@@ -101,10 +119,6 @@ export default function SwapRequestsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    void fetchExchanges();
-  }, [fetchExchanges]);
-
   const managerMode = isManagerLike(currentUser);
 
   const filtered = useMemo(() => {
@@ -125,9 +139,7 @@ export default function SwapRequestsPage() {
   );
 
   const candidateTargetSchedules = useMemo(() => {
-    if (!selectedRequesterSchedule) {
-      return [];
-    }
+    if (!selectedRequesterSchedule) return [];
     return allSchedules.filter(
       (schedule) =>
         schedule.periodId === selectedRequesterSchedule.periodId &&
@@ -135,13 +147,28 @@ export default function SwapRequestsPage() {
     );
   }, [allSchedules, selectedRequesterSchedule]);
 
-  async function handleApprove(id: number) {
+  async function handleApprove(id: number, periodId: number) {
     const reviewerId = currentUser?.id;
     if (!reviewerId) return;
     try {
       setProcessing(id);
+      setConflictWarning(null);
+
+      // 1. Check for conflicts in the period
+      const conflictRes = await api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`);
+      if (conflictRes.hasConflicts && conflictRes.totalConflicts > 0) {
+        setConflictWarning({ periodId, totalConflicts: conflictRes.totalConflicts });
+        setMessage(
+          `Phát hiện ${conflictRes.totalConflicts} xung đột lịch trong kỳ. Không thể duyệt đổi trực khi còn xung đột.`
+        );
+        return;
+      }
+
+      // 2. No conflicts — proceed with approval
       await api.put(`/schedule-exchanges/${id}/approve?reviewerId=${reviewerId}`, {});
       setMessage("Đã duyệt yêu cầu đổi trực.");
+      setSelectedExchange(null);
+      setReviewNote("");
       await fetchExchanges();
     } catch (err) {
       setMessage(getErrorMessage(err, "Lỗi duyệt yêu cầu."));
@@ -157,6 +184,9 @@ export default function SwapRequestsPage() {
       setProcessing(id);
       await api.put(`/schedule-exchanges/${id}/reject?reviewerId=${reviewerId}`, {});
       setMessage("Đã từ chối yêu cầu đổi trực.");
+      setSelectedExchange(null);
+      setReviewNote("");
+      setConflictWarning(null);
       await fetchExchanges();
     } catch (err) {
       setMessage(getErrorMessage(err, "Lỗi từ chối yêu cầu."));
@@ -186,7 +216,7 @@ export default function SwapRequestsPage() {
 
     try {
       setSubmitting(true);
-      const payload: ScheduleExchangeCreate & { periodId: number } = {
+      const payload = {
         targetStaffId:
           candidateTargetSchedules.find((schedule) => String(schedule.id) === form.targetScheduleId)?.staff.id ?? 0,
         requesterScheduleId: selectedRequesterSchedule.id,
@@ -208,7 +238,7 @@ export default function SwapRequestsPage() {
 
   return (
     <DashboardShell
-      activeCode="M02-SWAP"
+      activeSection="shift-swaps"
       description={
         managerMode
           ? "Quản lý và xét duyệt các đề xuất thay đổi lịch trực từ nhân sự các khoa phòng."
@@ -219,120 +249,132 @@ export default function SwapRequestsPage() {
       <div className="space-y-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           {[
-            { label: "Tổng yêu cầu", value: String(stats.total).padStart(2, "0"), icon: "list_alt", accent: "primary-fixed/50", colorClass: "text-on-surface-variant" },
-            { label: "Chờ duyệt", value: String(stats.pending).padStart(2, "0"), icon: "pending_actions", accent: "tertiary-fixed/50", colorClass: "text-tertiary" },
-            { label: "Đã duyệt", value: String(stats.approved).padStart(2, "0"), icon: "task_alt", accent: "secondary-fixed/50", colorClass: "text-secondary" },
-            { label: "Từ chối", value: String(stats.rejected).padStart(2, "0"), icon: "cancel", accent: "error-container/50", colorClass: "text-error" },
+            { label: "Tổng yêu cầu", value: String(stats.total).padStart(2, "0"), icon: "list_alt", colorClass: "text-on-surface-variant" },
+            { label: "Chờ duyệt", value: String(stats.pending).padStart(2, "0"), icon: "pending_actions", colorClass: "text-tertiary" },
+            { label: "Đã duyệt", value: String(stats.approved).padStart(2, "0"), icon: "task_alt", colorClass: "text-secondary" },
+            { label: "Từ chối", value: String(stats.rejected).padStart(2, "0"), icon: "cancel", colorClass: "text-error" },
           ].map((card) => (
             <div
-              className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.1)]"
+              className="flex items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm"
               key={card.label}
             >
-              <div className={`absolute right-0 top-0 h-24 w-24 rounded-bl-full bg-${card.accent} blur-xl -z-10`} />
-              <div className={`flex items-center gap-3 ${card.colorClass}`}>
-                <span className="material-symbols-outlined">{card.icon}</span>
-                <span className="font-label-md uppercase tracking-wider">{card.label}</span>
+              <span className={`material-symbols-outlined ${card.colorClass}`}>{card.icon}</span>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">{card.label}</p>
+                <p className="mt-1 text-display-lg text-on-surface font-bold">{card.value}</p>
               </div>
-              <div className="mt-3 font-display-lg text-display-lg text-on-surface">{card.value}</div>
             </div>
           ))}
         </div>
 
         {!managerMode && (
-          <div className="grid gap-6 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.1)] lg:grid-cols-2">
+          <section className="grid gap-6 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm lg:grid-cols-2">
             <div className="space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold text-on-surface">Gửi yêu cầu đổi trực</h2>
-                <p className="mt-1 text-sm text-on-surface-variant">
-                  Chỉ hỗ trợ đổi giữa các ca `L01` trong cùng kỳ đã được công bố.
-                </p>
-              </div>
+              <h2 className="text-[18px] font-semibold text-on-surface">Gửi yêu cầu đổi trực</h2>
+              <p className="text-sm text-on-surface-variant">
+                Chỉ hỗ trợ đổi giữa các ca L01 trong cùng kỳ đã được công bố.
+              </p>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-on-surface" htmlFor="requesterScheduleId">
-                  Ca trực của bạn
-                </label>
-                <select
-                  id="requesterScheduleId"
-                  className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary"
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, requesterScheduleId: event.target.value, targetScheduleId: "" }))
-                  }
-                  value={form.requesterScheduleId}
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-on-surface" htmlFor="requesterScheduleId">
+                    Ca trực của bạn
+                  </label>
+                  <select
+                    className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-body-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary"
+                    id="requesterScheduleId"
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, requesterScheduleId: event.target.value, targetScheduleId: "" }))
+                    }
+                    value={form.requesterScheduleId}
+                  >
+                    <option value="">Chọn ca trực của bạn</option>
+                    {mySchedules.map((schedule) => (
+                      <option key={schedule.id} value={schedule.id}>
+                        {formatDate(schedule.workDate)} — {schedule.period?.periodName ?? `Kỳ #${schedule.periodId}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-on-surface" htmlFor="targetScheduleId">
+                    Ca muốn đổi cùng
+                  </label>
+                  <select
+                    className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-body-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary"
+                    id="targetScheduleId"
+                    onChange={(event) => setForm((prev) => ({ ...prev, targetScheduleId: event.target.value }))}
+                    value={form.targetScheduleId}
+                  >
+                    <option value="">Chọn ca trực của người khác</option>
+                    {candidateTargetSchedules.map((schedule) => (
+                      <option key={schedule.id} value={schedule.id}>
+                        {schedule.staff.fullName} — {formatDate(schedule.workDate)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-on-surface" htmlFor="exchange-reason">
+                    Lý do
+                  </label>
+                  <textarea
+                    className="min-h-20 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-body-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary resize-none"
+                    id="exchange-reason"
+                    maxLength={500}
+                    onChange={(event) => setForm((prev) => ({ ...prev, reason: event.target.value }))}
+                    placeholder="Ví dụ: bận công việc gia đình, cần đổi ngày trực..."
+                    value={form.reason}
+                  />
+                </div>
+
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[14px] font-semibold text-on-primary transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={submitting || !form.requesterScheduleId || !form.targetScheduleId}
+                  onClick={handleCreateRequest}
+                  type="button"
                 >
-                  <option value="">Chọn ca trực của bạn</option>
-                  {mySchedules.map((schedule) => (
-                    <option key={schedule.id} value={schedule.id}>
-                      {formatDate(schedule.workDate)} — {schedule.period?.periodName ?? `Kỳ #${schedule.periodId}`}
-                    </option>
-                  ))}
-                </select>
+                  {submitting ? "Đang gửi..." : "Gửi yêu cầu đổi trực"}
+                </button>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-on-surface" htmlFor="targetScheduleId">
-                  Ca muốn đổi cùng
-                </label>
-                <select
-                  id="targetScheduleId"
-                  className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary"
-                  onChange={(event) => setForm((prev) => ({ ...prev, targetScheduleId: event.target.value }))}
-                  value={form.targetScheduleId}
-                >
-                  <option value="">Chọn ca trực của người khác</option>
-                  {candidateTargetSchedules.map((schedule) => (
-                    <option key={schedule.id} value={schedule.id}>
-                      {schedule.staff.fullName} — {formatDate(schedule.workDate)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-on-surface" htmlFor="reason">
-                  Lý do
-                </label>
-                <textarea
-                  id="reason"
-                  className="min-h-24 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary"
-                  maxLength={500}
-                  onChange={(event) => setForm((prev) => ({ ...prev, reason: event.target.value }))}
-                  placeholder="Ví dụ: bận công việc gia đình, cần đổi ngày trực..."
-                  value={form.reason}
-                />
-              </div>
-
-              <button
-                className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={submitting || !form.requesterScheduleId || !form.targetScheduleId}
-                onClick={handleCreateRequest}
-                type="button"
-              >
-                {submitting ? "Đang gửi..." : "Gửi yêu cầu đổi trực"}
-              </button>
             </div>
 
             <div className="rounded-xl border border-outline-variant bg-surface p-4">
-              <h3 className="text-sm font-semibold text-on-surface">Lưu ý</h3>
-              <ul className="mt-3 space-y-2 text-sm text-on-surface-variant">
-                <li>- Chỉ đổi được giữa 2 lịch trực `L01` trong cùng kỳ.</li>
-                <li>- Kỳ lịch phải ở trạng thái `PUBLISHED`.</li>
-                <li>- Hệ thống sẽ tự kiểm tra nghỉ phép và ngày nghỉ bù trước khi duyệt.</li>
-                <li>- Bạn có thể hủy yêu cầu khi trạng thái vẫn là chờ duyệt.</li>
+              <h3 className="text-[14px] font-semibold text-on-surface">Lưu ý</h3>
+              <ul className="mt-3 space-y-2 text-[13px] text-on-surface-variant">
+                <li className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-outline shrink-0 mt-0.5">info</span>
+                  Chỉ đổi được giữa 2 lịch trực L01 trong cùng kỳ.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-outline shrink-0 mt-0.5">info</span>
+                  Kỳ lịch phải ở trạng thái PUBLISHED.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-outline shrink-0 mt-0.5">info</span>
+                  Hệ thống tự kiểm tra nghỉ phép và ngày nghỉ bù trước khi duyệt.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-outline shrink-0 mt-0.5">info</span>
+                  Bạn có thể hủy yêu cầu khi trạng thái vẫn là chờ duyệt.
+                </li>
               </ul>
             </div>
-          </div>
+          </section>
         )}
 
-        <div className="flex items-center justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.1)]">
+        {/* Filter bar */}
+        <section className="flex items-center justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="flex flex-col gap-1">
               <label className="font-label-sm text-label-sm text-on-surface-variant" htmlFor="status-filter">
                 Trạng thái
               </label>
               <select
+                className="rounded-lg border border-outline-variant bg-surface px-3 py-2 font-body-sm text-body-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary cursor-pointer"
                 id="status-filter"
-                className="rounded-lg border border-outline-variant bg-surface px-3 py-2 font-body-sm text-body-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary"
                 onChange={(event) => setStatusFilter(event.target.value)}
                 value={statusFilter}
               >
@@ -344,7 +386,15 @@ export default function SwapRequestsPage() {
               </select>
             </div>
           </div>
-        </div>
+          <button
+            className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-2 text-[13px] font-medium text-on-surface shadow-sm transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+            onClick={() => void fetchExchanges()}
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[18px]">refresh</span>
+            Làm mới
+          </button>
+        </section>
 
         {message && (
           <div className="rounded-lg border border-primary/20 bg-primary-container/30 px-4 py-3 text-sm text-on-surface">
@@ -352,7 +402,17 @@ export default function SwapRequestsPage() {
           </div>
         )}
 
-        <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-[0_1px_3px_0_rgba(0,0,0,0.1)]">
+        {conflictWarning && (
+          <div className="rounded-lg border border-error/30 bg-error-container/40 px-4 py-3 text-sm text-error flex items-start gap-2">
+            <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">warning</span>
+            <span>
+              Phát hiện <strong>{conflictWarning.totalConflicts} xung đột</strong> trong kỳ lịch. Vui lòng giải quyết xung đột trước khi duyệt đổi trực.
+            </span>
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm">
           <div className="overflow-x-auto">
             {loading ? (
               <div className="flex items-center justify-center py-16">
@@ -366,7 +426,7 @@ export default function SwapRequestsPage() {
             ) : (
               <table className="w-full border-collapse text-left">
                 <thead>
-                  <tr className="border-b border-outline-variant bg-[#f8fafc]">
+                  <tr className="border-b border-outline-variant bg-surface-container-low">
                     <th className="px-5 py-3 font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Người yêu cầu</th>
                     <th className="px-5 py-3 font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Người đổi cùng</th>
                     <th className="px-5 py-3 font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Ca ban đầu</th>
@@ -380,20 +440,15 @@ export default function SwapRequestsPage() {
                     const canManage = managerMode && req.status === "PENDING";
                     const canCancel = !managerMode && req.status === "PENDING" && req.requester.id === currentUser?.id;
                     return (
-                      <tr className="group transition-colors hover:bg-[#f1f5f9]" key={req.id}>
-                        <td className="px-5 py-2">
-                          <div className="flex flex-col">
-                            <span className="font-body-sm font-medium text-on-surface">{req.requester.fullName}</span>
-                          </div>
+                      <tr className="group transition-colors hover:bg-surface-container-lowest" key={req.id}>
+                        <td className="px-5 py-4">
+                          <span className="font-body-sm font-medium text-on-surface">{req.requester.fullName}</span>
                         </td>
-                        <td className="px-5 py-2">
-                          <div className="flex flex-col">
-                            <span className="font-body-sm text-on-surface">{req.target.fullName}</span>
-                          </div>
+                        <td className="px-5 py-4">
+                          <span className="font-body-sm text-on-surface">{req.target.fullName}</span>
                         </td>
-                        <td className="px-5 py-2">
+                        <td className="px-5 py-4">
                           <div className={`flex items-center gap-2 border-l-4 ${getBorderColor(req.requesterSchedule.shiftType.id)} pl-2`}>
-                            <span className="material-symbols-outlined text-[16px] text-outline">calendar_today</span>
                             <div className="flex flex-col">
                               <span className={`font-body-sm text-on-surface ${req.status === "APPROVED" ? "line-through" : ""}`}>
                                 {formatDate(req.requesterSchedule.workDate)}
@@ -402,58 +457,69 @@ export default function SwapRequestsPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-2">
+                        <td className="px-5 py-4">
                           <div className={`flex items-center gap-2 border-l-4 ${getBorderColor(req.targetSchedule.shiftType.id)} pl-2`}>
-                            <span className="material-symbols-outlined text-[16px] text-outline">event</span>
                             <div className="flex flex-col">
                               <span className="font-body-sm text-on-surface">{formatDate(req.targetSchedule.workDate)}</span>
                               <span className="font-label-sm text-label-sm text-on-surface-variant">{req.targetSchedule.shiftType.name}</span>
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-2">
-                          <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusBadge(req.status)}`}>
+                        <td className="px-5 py-4">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusBadge(req.status)}`}>
                             {getStatusLabel(req.status)}
                           </span>
-                          {req.reason && <p className="mt-1 max-w-[240px] text-xs text-on-surface-variant">Lý do: {req.reason}</p>}
+                          {req.reason && (
+                            <p className="mt-1.5 max-w-[220px] truncate text-[11px] text-on-surface-variant" title={req.reason}>
+                              Lý do: {req.reason}
+                            </p>
+                          )}
                           {req.reviewNote && (
-                            <p className="mt-1 max-w-[240px] text-xs text-on-surface-variant">Phản hồi: {req.reviewNote}</p>
+                            <p className="mt-1 max-w-[220px] truncate rounded-lg bg-surface-container-low px-2 py-1 text-[11px] text-secondary" title={req.reviewNote}>
+                              Phản hồi: {req.reviewNote}
+                            </p>
+                          )}
+                          {req.reviewedBy && (
+                            <p className="mt-1 text-[11px] text-outline">
+                              Bởi {req.reviewedBy.fullName}
+                            </p>
                           )}
                         </td>
-                        <td className="px-5 py-2 text-right">
+                        <td className="px-5 py-4 text-right">
                           {canManage ? (
-                            <div className="flex justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
-                                className="flex h-8 w-8 items-center justify-center rounded bg-secondary-container/20 text-secondary transition-colors hover:bg-secondary-container"
+                                className="flex h-8 w-8 items-center justify-center rounded bg-secondary-container/20 text-secondary transition-colors hover:bg-secondary-container disabled:opacity-50"
                                 disabled={processing !== null}
-                                onClick={() => handleApprove(req.id)}
-                                title="Phê duyệt"
+                                onClick={() => { setSelectedExchange(req); setReviewNote(req.reviewNote ?? ""); }}
+                                title="Xem chi tiết &amp; duyệt"
                                 type="button"
                               >
-                                <span className="material-symbols-outlined text-[18px]">check</span>
-                              </button>
-                              <button
-                                className="flex h-8 w-8 items-center justify-center rounded bg-error-container/20 text-error transition-colors hover:bg-error-container"
-                                disabled={processing !== null}
-                                onClick={() => handleReject(req.id)}
-                                title="Từ chối"
-                                type="button"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">close</span>
+                                <span className="material-symbols-outlined text-[18px]">visibility</span>
                               </button>
                             </div>
-                          ) : canCancel ? (
-                            <button
-                              className="rounded-lg border border-outline-variant px-3 py-1.5 text-sm text-on-surface transition-colors hover:bg-surface"
-                              disabled={processing !== null}
-                              onClick={() => handleCancel(req.id)}
-                              type="button"
-                            >
-                              Hủy yêu cầu
-                            </button>
                           ) : (
                             <span className="font-label-sm text-label-sm text-on-surface-variant">
-                              {req.reviewedBy ? `Bởi ${req.reviewedBy.fullName}` : ""}
+                              {req.status === "PENDING" && !managerMode && (
+                                <button
+                                  className="rounded-lg border border-outline-variant px-3 py-1.5 text-[13px] text-error transition-colors hover:bg-error-container"
+                                  disabled={processing !== null}
+                                  onClick={() => handleCancel(req.id)}
+                                  type="button"
+                                >
+                                  Hủy
+                                </button>
+                              )}
+                              {req.status !== "PENDING" && (
+                                <button
+                                  className="flex h-8 w-8 items-center justify-center rounded text-outline transition-colors hover:bg-surface-container hover:text-primary"
+                                  onClick={() => { setSelectedExchange(req); setReviewNote(req.reviewNote ?? ""); }}
+                                  title="Xem chi tiết"
+                                  type="button"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                </button>
+                              )}
                             </span>
                           )}
                         </td>
@@ -467,14 +533,162 @@ export default function SwapRequestsPage() {
 
           <div className="flex items-center justify-between border-t border-outline-variant/50 bg-surface-container-lowest px-5 py-3">
             <span className="font-body-sm text-body-sm text-on-surface-variant">
-              Hiển thị {filtered.length} của {exchanges.length} yêu cầu
+              Hiển thị {filtered.length} / {exchanges.length} yêu cầu
             </span>
             {!managerMode && user?.roles?.includes("STAFF") && (
-              <span className="text-xs text-on-surface-variant">Bạn chỉ thấy các yêu cầu liên quan tới mình.</span>
+              <span className="text-[12px] text-on-surface-variant">
+                Chỉ thấy các yêu cầu liên quan tới bạn.
+              </span>
             )}
           </div>
         </div>
       </div>
+
+      {/* Detail / Review Modal */}
+      {selectedExchange && (
+        <div
+          aria-label="Chi tiết yêu cầu đổi trực"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+        >
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setSelectedExchange(null); setConflictWarning(null); }} />
+          <div className="relative w-full max-w-lg rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-fixed">
+                  <span className="material-symbols-outlined text-[20px] text-primary">swap_horiz</span>
+                </div>
+                <div>
+                  <h2 className="text-[18px] font-semibold text-on-surface">Chi tiết đổi trực</h2>
+                  <p className="text-[12px] text-on-surface-variant">#{selectedExchange.id}</p>
+                </div>
+              </div>
+              <button
+                className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+                onClick={() => setSelectedExchange(null)}
+                title="Đóng"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {/* People */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-lg border border-outline-variant bg-surface p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Người yêu cầu</p>
+                  <p className="text-[14px] font-semibold text-on-surface">{selectedExchange.requester.fullName}</p>
+                </div>
+                <div className="rounded-lg border border-outline-variant bg-surface p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Người đổi cùng</p>
+                  <p className="text-[14px] font-semibold text-on-surface">{selectedExchange.target.fullName}</p>
+                </div>
+              </div>
+
+              {/* Schedule comparison */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.requesterSchedule.shiftType.id)} bg-surface`}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Ca ban đầu</p>
+                  <p className="text-[13px] font-medium text-on-surface">{formatDateFull(selectedExchange.requesterSchedule.workDate)}</p>
+                  <p className="text-[12px] text-on-surface-variant">{selectedExchange.requesterSchedule.shiftType.name}</p>
+                  {selectedExchange.status === "APPROVED" && (
+                    <span className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-secondary">
+                      <span className="material-symbols-outlined text-[12px]">check</span> Đã đổi
+                    </span>
+                  )}
+                </div>
+                <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.targetSchedule.shiftType.id)} bg-surface`}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Ca đề xuất</p>
+                  <p className="text-[13px] font-medium text-on-surface">{formatDateFull(selectedExchange.targetSchedule.workDate)}</p>
+                  <p className="text-[12px] text-on-surface-variant">{selectedExchange.targetSchedule.shiftType.name}</p>
+                </div>
+              </div>
+
+              {/* Status + reason */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Trạng thái</p>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${getStatusBadge(selectedExchange.status)}`}>
+                    {getStatusLabel(selectedExchange.status)}
+                  </span>
+                </div>
+
+                {selectedExchange.reason && (
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Lý do</p>
+                    <p className="text-[13px] text-on-surface leading-relaxed">{selectedExchange.reason}</p>
+                  </div>
+                )}
+
+                {selectedExchange.reviewNote && (
+                  <div className="rounded-lg bg-surface-container-low p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Phản hồi</p>
+                    <p className="text-[13px] text-on-surface">{selectedExchange.reviewNote}</p>
+                  </div>
+                )}
+
+                {managerMode && selectedExchange.status === "PENDING" && (
+                  <div className="space-y-2">
+                    <label className="text-[13px] font-semibold text-on-surface" htmlFor="exchange-review-note">
+                      Ghi chú duyệt <span className="text-outline font-normal">(tùy chọn)</span>
+                    </label>
+                    <textarea
+                      className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2.5 text-[13px] text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 resize-none"
+                      id="exchange-review-note"
+                      rows={3}
+                      placeholder="Nhập ghi chú phê duyệt hoặc lý do từ chối..."
+                      value={reviewNote}
+                      onChange={(e) => setReviewNote(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 px-6 py-4 border-t border-outline-variant">
+              <button
+                className="flex-1 rounded-lg border border-outline-variant px-4 py-2.5 text-[14px] font-semibold text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                onClick={() => { setSelectedExchange(null); setConflictWarning(null); }}
+                type="button"
+              >
+                Đóng
+              </button>
+              {managerMode && selectedExchange.status === "PENDING" && (
+                <>
+                  <button
+                    className="flex items-center gap-2 rounded-lg border border-outline-variant bg-error-container px-4 py-2.5 text-[14px] font-semibold text-error transition-colors hover:bg-error-container/80 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/20"
+                    disabled={processing !== null}
+                    onClick={() => handleReject(selectedExchange.id)}
+                    type="button"
+                  >
+                    {processing !== null ? (
+                      <div className="size-4 animate-spin rounded-full border-2 border-error border-t-transparent" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[18px]">close</span>
+                    )}
+                    Từ chối
+                  </button>
+                  <button
+                    className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-[14px] font-semibold text-on-secondary transition-colors hover:brightness-110 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/20"
+                    disabled={processing !== null}
+                    onClick={() => handleApprove(selectedExchange.id, selectedExchange.periodId)}
+                    type="button"
+                  >
+                    {processing !== null ? (
+                      <div className="size-4 animate-spin rounded-full border-2 border-on-secondary border-t-transparent" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[18px]">check</span>
+                    )}
+                    Duyệt
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardShell>
   );
 }

@@ -35,8 +35,13 @@ public class DashboardService {
                 .pendingScheduleExchanges((long) exchangeRepository.findByStatus(ScheduleExchange.ExchangeStatus.PENDING).size())
                 .build();
 
+        DashboardResponse.ShiftStatistics shiftStatistics = getShiftStatistics();
+        DashboardResponse.LeaveRequestStatistics leaveRequestStatistics = getLeaveRequestStatistics();
+
         return DashboardResponse.builder()
                 .summary(summary)
+                .shiftStatistics(shiftStatistics)
+                .leaveRequestStatistics(leaveRequestStatistics)
                 .build();
     }
 
@@ -44,16 +49,16 @@ public class DashboardService {
         List<Schedule> schedules = scheduleRepository.findAll();
 
         long L01Count = schedules.stream()
-                .filter(s -> "L01".equals(s.getShiftType().getId()))
+                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L01.equals(s.getShiftType().getId()))
                 .count();
         long L02Count = schedules.stream()
-                .filter(s -> "L02".equals(s.getShiftType().getId()))
+                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L02.equals(s.getShiftType().getId()))
                 .count();
         long L03Count = schedules.stream()
-                .filter(s -> "L03".equals(s.getShiftType().getId()))
+                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L03.equals(s.getShiftType().getId()))
                 .count();
         long L04Count = schedules.stream()
-                .filter(s -> "L04".equals(s.getShiftType().getId()))
+                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L04.equals(s.getShiftType().getId()))
                 .count();
 
         return DashboardResponse.ShiftStatistics.builder()
@@ -88,16 +93,16 @@ public class DashboardService {
             List<Schedule> staffScheduleList = entry.getValue();
 
             long L01Count = staffScheduleList.stream()
-                    .filter(s -> "L01".equals(s.getShiftType().getId()))
+                    .filter(s -> ConflictDetectionService.SHIFT_TYPE_L01.equals(s.getShiftType().getId()))
                     .count();
             long L02Count = staffScheduleList.stream()
-                    .filter(s -> "L02".equals(s.getShiftType().getId()))
+                    .filter(s -> ConflictDetectionService.SHIFT_TYPE_L02.equals(s.getShiftType().getId()))
                     .count();
             long L03Count = staffScheduleList.stream()
-                    .filter(s -> "L03".equals(s.getShiftType().getId()))
+                    .filter(s -> ConflictDetectionService.SHIFT_TYPE_L03.equals(s.getShiftType().getId()))
                     .count();
             long L04Count = staffScheduleList.stream()
-                    .filter(s -> "L04".equals(s.getShiftType().getId()))
+                    .filter(s -> ConflictDetectionService.SHIFT_TYPE_L04.equals(s.getShiftType().getId()))
                     .count();
 
             result.add(DashboardResponse.StaffWorkloadStatistics.builder()

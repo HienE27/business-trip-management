@@ -12,7 +12,7 @@ function StaffCreateForm() {
 
   return (
     <DashboardShell
-      activeCode="M01"
+      activeSection="staff"
       description={editingId ? "Cập nhật thông tin nhân sự hệ thống." : "Thêm mới tài khoản nhân sự và phân quyền."}
       title={editingId ? "Cập nhật nhân sự" : "Tạo mới nhân sự"}
     >

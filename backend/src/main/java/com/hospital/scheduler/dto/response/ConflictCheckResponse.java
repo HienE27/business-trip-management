@@ -16,6 +16,9 @@ public class ConflictCheckResponse {
     private boolean hasConflicts;
     private int totalConflicts;
     private List<ConflictDetail> conflicts;
+    private List<String> coverageGaps;
+    private boolean hasCoverageGaps;
+    private int totalCoverageGaps;
 
     @Getter
     @Setter

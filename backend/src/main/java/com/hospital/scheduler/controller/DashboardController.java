@@ -2,20 +2,25 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.response.DashboardResponse;
+import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.service.DashboardService;
 import com.hospital.scheduler.service.ReportExportService;
 import com.hospital.scheduler.service.SchedulePdfExportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/dashboard")
@@ -25,7 +30,7 @@ public class DashboardController {
 
     private final DashboardService dashboardService;
     private final ReportExportService reportExportService;
-    private final SchedulePdfExportService schedulePdfExportService;
+    private final Optional<SchedulePdfExportService> schedulePdfExportService;
 
     @GetMapping
     @Operation(summary = "Lấy tổng quan dashboard")
@@ -71,10 +76,15 @@ public class DashboardController {
     }
 
     @GetMapping("/export/schedule/{periodId}")
-    @Operation(summary = "Xuất báo cáo lịch công tác ra Excel")
+    @Operation(summary = "Xuất báo cáo lịch công tác ra Excel với bộ lọc")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<byte[]> exportScheduleToExcel(@PathVariable Integer periodId) throws Exception {
-        byte[] excelData = reportExportService.exportScheduleToExcel(periodId);
+    public ResponseEntity<byte[]> exportScheduleToExcel(
+            @PathVariable Integer periodId,
+            @RequestParam(required = false) String shiftTypeId,
+            @RequestParam(required = false) Integer staffId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) throws Exception {
+        byte[] excelData = reportExportService.exportScheduleToExcel(periodId, shiftTypeId, staffId, startDate, endDate);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
         headers.setContentDispositionFormData("attachment", "lich_cong_tac_" + periodId + ".xlsx");
@@ -85,7 +95,10 @@ public class DashboardController {
     @Operation(summary = "Xuất báo cáo lịch công tác ra PDF")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> exportScheduleToPdf(@PathVariable Integer periodId) throws Exception {
-        byte[] pdfData = schedulePdfExportService.exportScheduleToPdf(periodId);
+        SchedulePdfExportService pdfExportService = schedulePdfExportService
+                .orElseThrow(() -> new BadRequestException("PDF export chưa khả dụng trong môi trường hiện tại"));
+
+        byte[] pdfData = pdfExportService.exportScheduleToPdf(periodId);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDispositionFormData("attachment", "lich_cong_tac_" + periodId + ".pdf");
@@ -93,10 +106,13 @@ public class DashboardController {
     }
 
     @GetMapping("/export/workload/{periodId}")
-    @Operation(summary = "Xuất báo cáo thống kê tải nhân sự ra Excel")
+    @Operation(summary = "Xuất báo cáo thống kê tải nhân sự ra Excel với bộ lọc")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<byte[]> exportWorkloadReportToExcel(@PathVariable Integer periodId) throws Exception {
-        byte[] excelData = reportExportService.exportWorkloadReportToExcel(periodId);
+    public ResponseEntity<byte[]> exportWorkloadReportToExcel(
+            @PathVariable Integer periodId,
+            @RequestParam(required = false) Integer staffId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate) throws Exception {
+        byte[] excelData = reportExportService.exportWorkloadReportToExcel(periodId, staffId, startDate);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
         headers.setContentDispositionFormData("attachment", "thong_ke_tai_" + periodId + ".xlsx");

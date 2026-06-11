@@ -46,6 +46,15 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
     @Query("SELECT COUNT(s) FROM Schedule s WHERE s.staff.id = :staffId AND s.period.id = :periodId")
     long countByStaffIdAndPeriodId(@Param("staffId") Integer staffId, @Param("periodId") Integer periodId);
 
+    @Query("SELECT COUNT(s) FROM Schedule s WHERE s.staff.id = :staffId AND s.period.id = :periodId AND s.id <> :excludeScheduleId")
+    long countByStaffIdAndPeriodIdExcluding(@Param("staffId") Integer staffId, @Param("periodId") Integer periodId, @Param("excludeScheduleId") Integer excludeScheduleId);
+
+    @Query("SELECT COUNT(s) FROM Schedule s WHERE s.period.id = :periodId AND s.workDate = :workDate AND s.shiftType.id = :shiftTypeId")
+    long countByPeriodIdAndWorkDateAndShiftTypeId(
+            @Param("periodId") Integer periodId,
+            @Param("workDate") LocalDate workDate,
+            @Param("shiftTypeId") String shiftTypeId);
+
     @Query("SELECT s FROM Schedule s WHERE s.staff.id = :staffId AND s.workDate BETWEEN :startDate AND :endDate ORDER BY s.workDate")
     List<Schedule> findByStaffIdAndDateRange(
             @Param("staffId") Integer staffId,

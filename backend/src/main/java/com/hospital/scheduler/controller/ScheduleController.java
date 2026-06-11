@@ -5,6 +5,8 @@ import com.hospital.scheduler.dto.request.ScheduleRequest;
 import com.hospital.scheduler.dto.response.ConflictCheckResponse;
 import com.hospital.scheduler.dto.response.ScheduleResponse;
 import com.hospital.scheduler.dto.response.StaffResponse;
+import com.hospital.scheduler.security.AuthContextService;
+import com.hospital.scheduler.service.CompensationDayService;
 import com.hospital.scheduler.service.ConflictDetectionService;
 import com.hospital.scheduler.service.ScheduleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/schedules")
@@ -28,6 +31,8 @@ public class ScheduleController {
 
     private final ScheduleService scheduleService;
     private final ConflictDetectionService conflictDetectionService;
+    private final CompensationDayService compensationDayService;
+    private final AuthContextService authContextService;
 
     @GetMapping("/conflicts/check/{periodId}")
     @Operation(summary = "Kiểm tra xung đột lịch trong kỳ")
@@ -56,6 +61,13 @@ public class ScheduleController {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByPeriod(periodId)));
     }
 
+    @GetMapping("/compensation-days/{periodId}")
+    @Operation(summary = "Lấy danh sách ngày nghỉ bù theo kỳ lịch")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<List<?>>> getCompensationDays(@PathVariable Integer periodId) {
+        return ResponseEntity.ok(ApiResponse.success(compensationDayService.getCompensationDaysByPeriod(periodId)));
+    }
+
     @GetMapping("/period/{periodId}/date/{date}")
     @Operation(summary = "Lấy danh sách lịch theo kỳ và ngày")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
@@ -67,12 +79,14 @@ public class ScheduleController {
 
     @GetMapping("/staff/{staffId}")
     @Operation(summary = "Lấy danh sách lịch theo nhân sự")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#staffId)")
     public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getSchedulesByStaff(@PathVariable Integer staffId) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByStaff(staffId)));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết lịch")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<ScheduleResponse>> getScheduleById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getScheduleById(id)));
     }
@@ -100,5 +114,16 @@ public class ScheduleController {
     public ResponseEntity<ApiResponse<Void>> deleteSchedule(@PathVariable Integer id) {
         scheduleService.deleteSchedule(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa lịch thành công"));
+    }
+
+    @PutMapping("/{id}/override")
+    @Operation(summary = "Override xung đột - giữ lịch bất chấp cảnh báo")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<ScheduleResponse>> overrideConflict(
+            @PathVariable Integer id,
+            @RequestBody Map<String, String> body) {
+        String reason = body.getOrDefault("reason", "Override by manager");
+        return ResponseEntity.ok(ApiResponse.success(
+                scheduleService.overrideConflict(id, reason), "Đã ghi nhận override xung đột"));
     }
 }

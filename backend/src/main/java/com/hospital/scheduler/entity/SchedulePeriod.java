@@ -44,6 +44,10 @@ public class SchedulePeriod {
     @Column(name = "generated_at")
     private LocalDateTime generatedAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "published_by")
+    private Staff publishedBy;
+
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 

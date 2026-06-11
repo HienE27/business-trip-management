@@ -23,7 +23,34 @@ public class ReportExportService {
     private final ScheduleRepository scheduleRepository;
 
     public byte[] exportScheduleToExcel(Integer periodId) throws IOException {
+        return exportScheduleToExcel(periodId, null, null, null, null);
+    }
+
+    public byte[] exportScheduleToExcel(Integer periodId, String shiftTypeId, Integer staffId,
+                                        java.time.LocalDate startDate, java.time.LocalDate endDate) throws IOException {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
+
+        // Apply additional filters
+        if (shiftTypeId != null && !shiftTypeId.isBlank()) {
+            schedules = schedules.stream()
+                    .filter(s -> shiftTypeId.equals(s.getShiftType().getId()))
+                    .toList();
+        }
+        if (staffId != null) {
+            schedules = schedules.stream()
+                    .filter(s -> staffId.equals(s.getStaff().getId()))
+                    .toList();
+        }
+        if (startDate != null) {
+            schedules = schedules.stream()
+                    .filter(s -> !s.getWorkDate().isBefore(startDate))
+                    .toList();
+        }
+        if (endDate != null) {
+            schedules = schedules.stream()
+                    .filter(s -> !s.getWorkDate().isAfter(endDate))
+                    .toList();
+        }
 
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
@@ -86,7 +113,23 @@ public class ReportExportService {
     }
 
     public byte[] exportWorkloadReportToExcel(Integer periodId) throws IOException {
+        return exportWorkloadReportToExcel(periodId, null, null);
+    }
+
+    public byte[] exportWorkloadReportToExcel(Integer periodId, Integer staffId,
+                                            java.time.LocalDate startDate) throws IOException {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
+
+        if (staffId != null) {
+            schedules = schedules.stream()
+                    .filter(s -> staffId.equals(s.getStaff().getId()))
+                    .toList();
+        }
+        if (startDate != null) {
+            schedules = schedules.stream()
+                    .filter(s -> !s.getWorkDate().isBefore(startDate))
+                    .toList();
+        }
 
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
@@ -138,10 +181,10 @@ public class ReportExportService {
                 createCell(row, 1, staff.getFullName(), dataStyle);
                 createCell(row, 2, staff.getSpecialty() != null ? staff.getSpecialty().getName() : "", dataStyle);
                 createCell(row, 3, stats.values().stream().mapToLong(Long::longValue).sum(), dataStyle);
-                createCell(row, 4, stats.getOrDefault("L01", 0L).intValue(), dataStyle);
-                createCell(row, 5, stats.getOrDefault("L02", 0L).intValue(), dataStyle);
-                createCell(row, 6, stats.getOrDefault("L03", 0L).intValue(), dataStyle);
-                createCell(row, 7, stats.getOrDefault("L04", 0L).intValue(), dataStyle);
+                createCell(row, 4, stats.getOrDefault(ConflictDetectionService.SHIFT_TYPE_L01, 0L).intValue(), dataStyle);
+                createCell(row, 5, stats.getOrDefault(ConflictDetectionService.SHIFT_TYPE_L02, 0L).intValue(), dataStyle);
+                createCell(row, 6, stats.getOrDefault(ConflictDetectionService.SHIFT_TYPE_L03, 0L).intValue(), dataStyle);
+                createCell(row, 7, stats.getOrDefault(ConflictDetectionService.SHIFT_TYPE_L04, 0L).intValue(), dataStyle);
                 long conflictCount = schedules.stream()
                         .filter(s -> s.getStaff().getId().equals(entry.getKey()) && s.getHasConflict())
                         .count();

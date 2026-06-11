@@ -3,11 +3,13 @@ package com.hospital.scheduler.controller;
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.dto.response.NotificationResponse;
+import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,21 +25,36 @@ import java.util.Map;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final AuthContextService authContextService;
 
     @GetMapping("/staff/{staffId}")
     @Operation(summary = "Lấy thông báo theo nhân sự")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#staffId)")
     public ResponseEntity<ApiResponse<List<NotificationResponse>>> getByStaff(@PathVariable Integer staffId) {
         return ResponseEntity.ok(ApiResponse.success(notificationService.getNotificationsByStaff(staffId)));
     }
 
+    @GetMapping("/staff/{staffId}/paginated")
+    @Operation(summary = "Lấy thông báo theo nhân sự (có phân trang)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#staffId)")
+    public ResponseEntity<ApiResponse<Page<NotificationResponse>>> getByStaffPaginated(
+            @PathVariable Integer staffId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                notificationService.getNotificationsByStaffPaginated(staffId, page, size)));
+    }
+
     @GetMapping("/staff/{staffId}/unread")
     @Operation(summary = "Lấy thông báo chưa đọc")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#staffId)")
     public ResponseEntity<ApiResponse<List<NotificationResponse>>> getUnread(@PathVariable Integer staffId) {
         return ResponseEntity.ok(ApiResponse.success(notificationService.getUnreadNotifications(staffId)));
     }
 
     @GetMapping("/staff/{staffId}/unread/count")
     @Operation(summary = "Đếm thông báo chưa đọc")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#staffId)")
     public ResponseEntity<ApiResponse<Map<String, Long>>> countUnread(@PathVariable Integer staffId) {
         return ResponseEntity.ok(ApiResponse.success(
                 Map.of("count", notificationService.countUnreadNotifications(staffId))));
@@ -65,6 +82,7 @@ public class NotificationController {
 
     @PutMapping("/{id}/read")
     @Operation(summary = "Đánh dấu đã đọc")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<NotificationResponse>> markAsRead(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(
                 notificationService.markAsRead(id), "Đã đánh dấu là đã đọc"));
@@ -72,6 +90,7 @@ public class NotificationController {
 
     @PutMapping("/staff/{staffId}/read-all")
     @Operation(summary = "Đánh dấu tất cả là đã đọc")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#staffId)")
     public ResponseEntity<ApiResponse<Map<String, String>>> markAllAsRead(@PathVariable Integer staffId) {
         notificationService.markAllAsRead(staffId);
         return ResponseEntity.ok(ApiResponse.success(
@@ -80,6 +99,7 @@ public class NotificationController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa thông báo")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Integer id) {
         notificationService.deleteNotification(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa thông báo thành công"));

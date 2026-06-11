@@ -33,6 +33,8 @@ class ConflictDetectionServiceTest {
     private ScheduleRepository scheduleRepository;
     @Mock
     private ScheduleConflictRepository scheduleConflictRepository;
+    @Mock
+    private StaffRepository staffRepository;
 
     @InjectMocks
     private ConflictDetectionService conflictDetectionService;
@@ -47,6 +49,7 @@ class ConflictDetectionServiceTest {
                 .username("nurse1")
                 .fullName("Nguyen Van A")
                 .isActive(true)
+                .maxShiftsPerMonth(5)
                 .build();
 
         monday = LocalDate.of(2026, 6, 1);
@@ -418,6 +421,133 @@ class ConflictDetectionServiceTest {
             assertThatCode(() -> conflictDetectionService.validateAndThrow(
                     testStaff.getId(), monday, "L01", null))
                     .doesNotThrowAnyException();
+        }
+    }
+
+    // ==================== P2-14: maxShiftsPerMonth ====================
+    @Nested
+    @DisplayName("P2-14: Giới hạn số ngày trực/tháng (maxShiftsPerMonth)")
+    class MaxShiftsPerMonth {
+
+        @Test
+        @DisplayName("Đạt giới hạn maxShiftsPerMonth -> REJECT")
+        void atMaxShiftsLimit_shouldReject() {
+            Integer periodId = 1;
+
+            when(staffRepository.findById(testStaff.getId()))
+                    .thenReturn(Optional.of(testStaff));
+            when(scheduleRepository.countByStaffIdAndPeriodId(testStaff.getId(), periodId))
+                    .thenReturn(5L);
+
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    testStaff.getId(), monday, "L01", null, periodId);
+
+            assertThat(conflicts)
+                    .hasSize(1)
+                    .anyMatch(c -> c.contains("Nhân sự đã đạt giới hạn 5 ngày trực/tháng"));
+        }
+
+        @Test
+        @DisplayName("Dưới giới hạn maxShiftsPerMonth -> OK")
+        void underMaxShiftsLimit_shouldPass() {
+            Integer periodId = 1;
+
+            when(staffRepository.findById(testStaff.getId()))
+                    .thenReturn(Optional.of(testStaff));
+            when(scheduleRepository.countByStaffIdAndPeriodId(testStaff.getId(), periodId))
+                    .thenReturn(3L);
+
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    testStaff.getId(), monday, "L01", null, periodId);
+
+            assertThat(conflicts).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Cập nhật lịch - loại trừ lịch hiện tại -> OK khi chỉ còn max-1")
+        void updateScheduleExcludingCurrent_shouldPass() {
+            Integer periodId = 1;
+            Integer excludeScheduleId = 100;
+
+            when(staffRepository.findById(testStaff.getId()))
+                    .thenReturn(Optional.of(testStaff));
+            when(scheduleRepository.countByStaffIdAndPeriodIdExcluding(testStaff.getId(), periodId, excludeScheduleId))
+                    .thenReturn(4L);
+
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    testStaff.getId(), monday, "L01", excludeScheduleId, periodId);
+
+            assertThat(conflicts).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Không truyền periodId -> bỏ qua kiểm tra maxShifts")
+        void noPeriodId_shouldSkipMaxShiftsCheck() {
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(testStaff.getId(), monday))
+                    .thenReturn(Optional.empty());
+            when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
+                    .thenReturn(Collections.emptyList());
+
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    testStaff.getId(), monday, "L01", null, null);
+
+            assertThat(conflicts).isEmpty();
+            verify(staffRepository, never()).findById(any());
+        }
+
+        @Test
+        @DisplayName("Staff không tồn tại -> bỏ qua kiểm tra maxShifts")
+        void staffNotFound_shouldSkipMaxShiftsCheck() {
+            Integer periodId = 1;
+
+            when(staffRepository.findById(testStaff.getId()))
+                    .thenReturn(Optional.empty());
+
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    testStaff.getId(), monday, "L01", null, periodId);
+
+            assertThat(conflicts).isEmpty();
+        }
+
+        @Test
+        @DisplayName("maxShiftsPerMonth null -> dùng default 5")
+        void nullMaxShifts_shouldUseDefault5() {
+            Integer periodId = 1;
+            Staff staffWithNullMax = Staff.builder()
+                    .id(2)
+                    .username("nurse2")
+                    .fullName("Nguyen Van B")
+                    .isActive(true)
+                    .maxShiftsPerMonth(null)
+                    .build();
+
+            when(staffRepository.findById(staffWithNullMax.getId()))
+                    .thenReturn(Optional.of(staffWithNullMax));
+            when(scheduleRepository.countByStaffIdAndPeriodId(staffWithNullMax.getId(), periodId))
+                    .thenReturn(5L);
+
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    staffWithNullMax.getId(), monday, "L01", null, periodId);
+
+            assertThat(conflicts)
+                    .hasSize(1)
+                    .anyMatch(c -> c.contains("Nhân sự đã đạt giới hạn 5 ngày trực/tháng"));
+        }
+
+        @Test
+        @DisplayName("validateAndThrow với maxShifts vượt -> throw ConflictException")
+        void validateAndThrow_withMaxShiftsViolation_shouldThrow() {
+            Integer periodId = 1;
+
+            when(staffRepository.findById(testStaff.getId()))
+                    .thenReturn(Optional.of(testStaff));
+            when(scheduleRepository.countByStaffIdAndPeriodId(testStaff.getId(), periodId))
+                    .thenReturn(5L);
+
+            assertThatThrownBy(() -> conflictDetectionService.validateAndThrow(
+                    testStaff.getId(), monday, "L01", null, periodId))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("Nhân sự đã đạt giới hạn");
         }
     }
 }

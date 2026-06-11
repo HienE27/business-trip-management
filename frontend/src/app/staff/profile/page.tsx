@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/layout/DashboardShell";
@@ -20,16 +20,6 @@ function getInitials(name: string): string {
 function formatDate(dateStr: string): string {
   if (!dateStr) return "—";
   return new Date(dateStr).toLocaleDateString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function formatDateFull(dateStr: string): string {
-  if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("vi-VN", {
-    weekday: "long",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -69,60 +59,6 @@ export default function StaffProfilePage() {
 
   const userId = staff?.id ?? null;
 
-  const fetchProfile = useCallback(async () => {
-    try {
-      setLoading(true);
-      setMessage(null);
-      const [profileData, periodsData] = await Promise.all([
-        api.get<Staff>("/staff/me"),
-        api.get<SchedulePeriod[]>("/periods"),
-      ]);
-      setStaff(profileData);
-      setPeriods(periodsData ?? []);
-      if (periodsData && periodsData.length > 0) {
-        const preferredPeriod =
-          periodsData.find((p) => p.status === "PUBLISHED" || p.status === "DRAFT") ?? periodsData[0];
-        setSelectedPeriodId(preferredPeriod.id);
-      }
-    } catch (err) {
-      const nextMessage = getErrorMessage(err, "Không thể tải hồ sơ nhân sự.");
-      setStaff(null);
-      setPeriods([]);
-      setSelectedPeriodId(null);
-      setMessage(nextMessage);
-      if (nextMessage.toLowerCase().includes("401") || nextMessage.toLowerCase().includes("unauthorized")) {
-        router.replace("/login");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
-
-  const fetchSchedules = useCallback(async () => {
-    if (!userId || !selectedPeriodId) return;
-    try {
-      setSchedulesLoading(true);
-      const data = await api.get<Schedule[]>(`/schedules/staff/${userId}`);
-      const filtered = (data ?? []).filter((s) => s.periodId === selectedPeriodId);
-      setSchedules(filtered);
-    } catch (err) {
-      setSchedules([]);
-      setMessage(getErrorMessage(err, "Không thể tải lịch công tác."));
-    } finally {
-      setSchedulesLoading(false);
-    }
-  }, [userId, selectedPeriodId]);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
-
-  useEffect(() => {
-    if (selectedPeriodId) {
-      fetchSchedules();
-    }
-  }, [fetchSchedules]);
-
   const stats = {
     total: schedules.length,
     L01: schedules.filter((s) => s.shiftType.id === "L01").length,
@@ -132,15 +68,81 @@ export default function StaffProfilePage() {
     conflicts: schedules.filter((s) => s.hasConflict).length,
   };
 
+  // Load profile on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadProfile = async () => {
+      setLoading(true);
+      setMessage(null);
+      try {
+        const [profileData, periodsData] = await Promise.all([
+          api.get<Staff>("/staff/me"),
+          api.get<SchedulePeriod[]>("/periods"),
+        ]);
+        if (cancelled) return;
+        setStaff(profileData);
+        setPeriods(periodsData ?? []);
+        const preferred = (periodsData ?? []).find(
+          (p) => p.status === "PUBLISHED" || p.status === "DRAFT"
+        ) ?? (periodsData ?? [])[0];
+        if (preferred) {
+          setSelectedPeriodId(preferred.id);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setStaff(null);
+        setPeriods([]);
+        setSelectedPeriodId(null);
+        const msg = getErrorMessage(err, "Không thể tải hồ sơ nhân sự.");
+        setMessage(msg);
+        if (msg.toLowerCase().includes("401") || msg.toLowerCase().includes("unauthorized")) {
+          router.replace("/login");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void loadProfile();
+    return () => { cancelled = true; };
+  }, [router]);
+
+  // Load schedules for selected period
+  let cancelled = false;
+
+  const loadSchedules = async () => {
+    if (!userId || !selectedPeriodId) return;
+    try {
+      setSchedulesLoading(true);
+      const data = await api.get<Schedule[]>(`/schedules/staff/${userId}`);
+      if (cancelled) return;
+      const filtered = (data ?? []).filter((s) => s.periodId === selectedPeriodId);
+      setSchedules(filtered);
+    } catch {
+      if (!cancelled) setSchedules([]);
+    } finally {
+      if (!cancelled) setSchedulesLoading(false);
+    }
+  };
+
+  // Reload schedules when period changes (after profile is loaded)
+  useEffect(() => {
+    if (!userId || !selectedPeriodId) return;
+    void loadSchedules();
+    return () => { cancelled = true; };
+  }, [userId, selectedPeriodId]);
+
   if (loading) {
     return (
       <DashboardShell
-        activeCode="M01-PROFILE"
+        activeSection="staff"
         title="Hồ sơ cá nhân"
         description="Xem và cập nhật thông tin tài khoản của bạn."
       >
-        <div className="flex items-center justify-center py-20">
-          <div className="size-10 animate-spin rounded-full border-3 border-primary border-t-transparent" />
+        <div className="flex flex-col items-center justify-center gap-4 py-20">
+          <span className="material-symbols-outlined text-6xl text-outline animate-pulse">account_circle</span>
+          <p className="text-center text-on-surface-variant">Đang tải hồ sơ cá nhân…</p>
         </div>
       </DashboardShell>
     );
@@ -149,7 +151,7 @@ export default function StaffProfilePage() {
   if (!staff) {
     return (
       <DashboardShell
-        activeCode="M01-PROFILE"
+        activeSection="staff"
         title="Hồ sơ cá nhân"
         description="Xem và cập nhật thông tin tài khoản của bạn."
       >
@@ -169,7 +171,7 @@ export default function StaffProfilePage() {
 
   return (
     <DashboardShell
-      activeCode="M01-PROFILE"
+      activeSection="staff"
       title="Hồ sơ cá nhân"
       description="Xem và cập nhật thông tin tài khoản của bạn."
     >
@@ -232,6 +234,7 @@ export default function StaffProfilePage() {
           <div className="shrink-0">
             <button
               type="button"
+              onClick={() => router.push(`/staff/${staff?.id}/edit`)}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors text-body-sm font-medium"
             >
               <span className="material-symbols-outlined text-[18px]">edit</span>
@@ -336,9 +339,18 @@ export default function StaffProfilePage() {
                     <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                   </div>
                 ) : schedules.length === 0 ? (
-                  <div className="text-center py-12">
-                    <span className="material-symbols-outlined text-5xl text-outline">calendar_month</span>
-                    <p className="mt-4 text-on-surface-variant">Chưa có lịch công tác nào trong kỳ này.</p>
+                  <div className="rounded-lg border border-dashed border-outline-variant bg-surface px-5 py-10 text-center">
+                    <p className="text-body-sm text-on-surface-variant">
+                      Chưa có lịch tải lên cho kỳ đang chọn.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void loadSchedules()}
+                      className="mt-4 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary transition-colors hover:bg-primary/90"
+                      disabled={!selectedPeriodId}
+                    >
+                      Tải lịch kỳ này
+                    </button>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -506,7 +518,7 @@ export default function StaffProfilePage() {
                 { label: "Đổi mật khẩu", icon: "lock", href: "/settings?tab=password" },
                 { label: "Cài đặt thông báo", icon: "notifications", href: "/settings?tab=notifications" },
                 { label: "Xem lịch cá nhân", icon: "calendar_month", href: "/schedule" },
-                { label: "Yêu cầu đổi ca", icon: "swap_horiz", href: "/exchange" },
+                { label: "Yêu cầu đổi ca", icon: "swap_horiz", href: "/swap-requests" },
               ].map((item) => (
                 <Link
                   key={item.href}

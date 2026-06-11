@@ -2,6 +2,7 @@ package com.hospital.scheduler.command;
 
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,12 +27,16 @@ public class DataSeeder implements CommandLineRunner {
     private final ScheduleRepository scheduleRepository;
     private final ShiftRequirementRepository shiftRequirementRepository;
     private final CompensationDayRepository compensationDayRepository;
+    private final ScheduleTemplateRepository scheduleTemplateRepository;
+    private final CompensationDateCalculator compensationDateCalculator;
 
+    // ⚠️  Muốn re-seed (thêm staff mới) → drop database + restart backend
     @Override
     public void run(String... args) {
         seedRoles();
         seedSpecialties();
         seedShiftTypes();
+        seedScheduleTemplates();
         seedAdminUser();
         seedPeriodsAndSchedules();
     }
@@ -83,63 +88,113 @@ public class DataSeeder implements CommandLineRunner {
         System.out.println("✅ Seeded shift types: L01, L02, L03, L04");
     }
 
+    private void seedScheduleTemplates() {
+        if (scheduleTemplateRepository.count() > 0) return;
+        Specialty doctor = specialtyRepository.findByName("Bác sĩ").orElse(null);
+        Specialty nurse = specialtyRepository.findByName("Điều dưỡng").orElse(null);
+
+        record TemplateSeed(String name, String desc, int dayOfWeek, String shiftTypeId, Specialty specialty, int count) {}
+        TemplateSeed[] templates = new TemplateSeed[]{
+                new TemplateSeed("Trực 24/24 thứ 2", "Lịch trực 24/24 vào thứ 2", 1, "L01", doctor, 1),
+                new TemplateSeed("Trực 24/24 thứ 3", "Lịch trực 24/24 vào thứ 3", 2, "L01", doctor, 1),
+                new TemplateSeed("Trực 24/24 thứ 4", "Lịch trực 24/24 vào thứ 4", 3, "L01", doctor, 1),
+                new TemplateSeed("Trực 24/24 thứ 5", "Lịch trực 24/24 vào thứ 5", 4, "L01", doctor, 1),
+                new TemplateSeed("Trực 24/24 thứ 6", "Lịch trực 24/24 vào thứ 6", 5, "L01", doctor, 1),
+                new TemplateSeed("Thông tầm thứ 2–6", "Ca thông tầm các ngày trong tuần", 1, "L02", doctor, 2),
+                new TemplateSeed("PK dịch vụ thứ 2–6", "Phòng khám dịch vụ các ngày trong tuần", 1, "L03", nurse, 1),
+                new TemplateSeed("PK chuyên gia thứ 7", "Phòng khám chuyên gia vào thứ 7", 6, "L04", doctor, 1),
+        };
+
+        for (TemplateSeed t : templates) {
+            scheduleTemplateRepository.save(ScheduleTemplate.builder()
+                    .name(t.name).description(t.desc)
+                    .dayOfWeek(t.dayOfWeek).shiftTypeId(t.shiftTypeId)
+                    .specialty(t.specialty).requiredStaffCount(t.count)
+                    .isActive(true).build());
+        }
+        System.out.println("✅ Seeded " + templates.length + " schedule templates");
+    }
+
     private void seedAdminUser() {
         if (staffRepository.count() > 0) return;
 
         AppRole adminRole = appRoleRepository.findByName("ADMIN").orElse(null);
         AppRole managerRole = appRoleRepository.findByName("MANAGER").orElse(null);
-        Specialty doctorSpecialty = specialtyRepository.findByName("Bác sĩ").orElse(null);
-
-        Staff admin = Staff.builder()
-                .username("admin")
-                .passwordHash(passwordEncoder.encode("admin123"))
-                .fullName("Quản trị viên")
-                .phone("0901234567")
-                .email("admin@hospital.com")
-                .specialty(doctorSpecialty)
-                .maxShiftsPerMonth(5)
-                .isActive(true)
-                .staffRoles(new HashSet<>())
-                .build();
-
-        Staff savedAdmin = staffRepository.save(admin);
-
-        if (adminRole != null) {
-            StaffRole ar = StaffRole.builder().staffId(savedAdmin.getId()).roleId(adminRole.getId()).build();
-            savedAdmin.getStaffRoles().add(ar);
-        }
-        if (managerRole != null) {
-            StaffRole mr = StaffRole.builder().staffId(savedAdmin.getId()).roleId(managerRole.getId()).build();
-            savedAdmin.getStaffRoles().add(mr);
-        }
-        staffRepository.save(savedAdmin);
-
-        // Create some sample staff
-        Specialty nurseSpecialty = specialtyRepository.findByName("Điều dưỡng").orElse(null);
         AppRole staffRole = appRoleRepository.findByName("STAFF").orElse(null);
+        Specialty doctorSpecialty = specialtyRepository.findByName("Bác sĩ").orElse(null);
+        Specialty nurseSpecialty = specialtyRepository.findByName("Điều dưỡng").orElse(null);
+        Specialty techSpecialty = specialtyRepository.findByName("Kỹ thuật viên").orElse(null);
+        Specialty pharmaSpecialty = specialtyRepository.findByName("Dược sĩ").orElse(null);
 
-        for (int i = 1; i <= 5; i++) {
-            Staff staff = Staff.builder()
-                    .username("staff" + i)
-                    .passwordHash(passwordEncoder.encode("123456"))
-                    .fullName("Nhân viên " + i)
-                    .phone("090" + String.format("%06d", i * 1111))
-                    .email("staff" + i + "@hospital.com")
-                    .specialty(i % 2 == 0 ? doctorSpecialty : nurseSpecialty)
-                    .maxShiftsPerMonth(5)
-                    .isActive(true)
-                    .staffRoles(new HashSet<>())
-                    .build();
+        // ── ADMIN (ADMIN + MANAGER) ─────────────────────────────────────────
+        Staff admin = staffRepository.save(Staff.builder()
+                .username("admin").passwordHash(passwordEncoder.encode("admin123"))
+                .fullName("Nguyễn Văn An").phone("0901000001")
+                .email("admin@hospital.com").specialty(doctorSpecialty)
+                .maxShiftsPerMonth(5).isActive(true).staffRoles(new HashSet<>()).build());
+        addRoles(admin, adminRole, managerRole);
 
-            Staff savedStaff = staffRepository.save(staff);
-            if (staffRole != null) {
-                StaffRole sr = StaffRole.builder().staffId(savedStaff.getId()).roleId(staffRole.getId()).build();
-                savedStaff.getStaffRoles().add(sr);
-                staffRepository.save(savedStaff);
+        // ── MANAGER (2 người) ──────────────────────────────────────────────
+        Staff mgr1 = staffRepository.save(Staff.builder()
+                .username("manager1").passwordHash(passwordEncoder.encode("123456"))
+                .fullName("Trần Thị Bình").phone("0901000002")
+                .email("manager1@hospital.com").specialty(doctorSpecialty)
+                .maxShiftsPerMonth(4).isActive(true).staffRoles(new HashSet<>()).build());
+        addRoles(mgr1, managerRole);
+
+        Staff mgr2 = staffRepository.save(Staff.builder()
+                .username("manager2").passwordHash(passwordEncoder.encode("123456"))
+                .fullName("Lê Hoàng Cường").phone("0901000003")
+                .email("manager2@hospital.com").specialty(nurseSpecialty)
+                .maxShiftsPerMonth(4).isActive(true).staffRoles(new HashSet<>()).build());
+        addRoles(mgr2, managerRole);
+
+        // ── STAFF (17 người) ────────────────────────────────────────────────
+        record StaffSeed(String username, String password, String fullName, String phone,
+                        String email, Specialty specialty, int maxShifts) {}
+
+        StaffSeed[] seeds = new StaffSeed[]{
+                new StaffSeed("nvminh",    "123456", "Nguyễn Văn Minh",    "0901000004", "nvminh@hospital.com",    doctorSpecialty,  5),
+                new StaffSeed("tthuhien",  "123456", "Trần Thu Hiền",     "0901000005", "tthuhien@hospital.com",  nurseSpecialty,   5),
+                new StaffSeed("lbthanhtam","123456", "Lê Bùi Thanh Tâm",   "0901000006", "lbthanhtam@hospital.com",doctorSpecialty,  6),
+                new StaffSeed("hpdat",     "123456", "Hoàng Phú Đạt",      "0901000007", "hpdat@hospital.com",     techSpecialty,    5),
+                new StaffSeed("ntphuong",  "123456", "Ngô Thị Phượng",     "0901000008", "ntphuong@hospital.com",  pharmaSpecialty,  4),
+                new StaffSeed("cmtuan",    "123456", "Chu Minh Tuấn",      "0901000009", "cmtuan@hospital.com",    doctorSpecialty,  5),
+                new StaffSeed("dvanh",     "123456", "Đỗ Văn Anh",         "0901000010", "dvanh@hospital.com",     nurseSpecialty,   5),
+                new StaffSeed("nthuylinh", "123456", "Nguyễn Thị Huyền Linh","0901000011","nthuylinh@hospital.com", doctorSpecialty,  6),
+                new StaffSeed("vtquan",    "123456", "Vũ Trọng Quân",      "0901000012", "vtquan@hospital.com",    techSpecialty,    5),
+                new StaffSeed("btdthu",    "123456", "Bùi Thị Diễm Thu",   "0901000013", "btdthu@hospital.com",    pharmaSpecialty,  4),
+                new StaffSeed("nhduy",     "123456", "Nguyễn Hữu Duy",     "0901000014", "nhduy@hospital.com",     doctorSpecialty,  5),
+                new StaffSeed("lthanhha",  "123456", "Lý Thị Thanh Hà",    "0901000015", "lthanhha@hospital.com",  nurseSpecialty,   5),
+                new StaffSeed("dtqhieu",   "123456", "Đinh Trần Quang Hiếu","0901000016","dtqhieu@hospital.com",   doctorSpecialty,  6),
+                new StaffSeed("pthanh",    "123456", "Phạm Thị Thanh",      "0901000017", "pthanh@hospital.com",     pharmaSpecialty,  4),
+                new StaffSeed("vhhuy",     "123456", "Võ Hoàng Huy",        "0901000018", "vhhuy@hospital.com",      techSpecialty,    5),
+                new StaffSeed("atducd",    "123456", "Anh Trần Đức",        "0901000019", "atducd@hospital.com",     doctorSpecialty,  5),
+                new StaffSeed("dttthuy",   "123456", "Đặng Trần Thanh Thúy","0901000020","dttthuy@hospital.com",    nurseSpecialty,   5),
+        };
+
+        for (StaffSeed s : seeds) {
+            Staff staff = staffRepository.save(Staff.builder()
+                    .username(s.username).passwordHash(passwordEncoder.encode(s.password))
+                    .fullName(s.fullName).phone(s.phone)
+                    .email(s.email).specialty(s.specialty)
+                    .maxShiftsPerMonth(s.maxShifts)
+                    .isActive(true).staffRoles(new HashSet<>()).build());
+            addRoles(staff, staffRole);
+        }
+
+        System.out.println("✅ Seeded: 1 admin + 2 manager + 17 staff = 20 total users");
+    }
+
+    private void addRoles(Staff staff, AppRole... roles) {
+        for (AppRole role : roles) {
+            if (role != null) {
+                StaffRole sr = StaffRole.builder()
+                        .staffId(staff.getId()).roleId(role.getId()).build();
+                staff.getStaffRoles().add(sr);
             }
         }
-
-        System.out.println("✅ Seeded admin user (admin/admin123) + 5 sample staff");
+        staffRepository.save(staff);
     }
 
     private void seedPeriodsAndSchedules() {
@@ -253,7 +308,13 @@ public class DataSeeder implements CommandLineRunner {
 
     private void createCompensationDayForSeed(Schedule schedule) {
         LocalDate shiftDate = schedule.getWorkDate();
-        LocalDate compensationDate = calculateCompensationDateOnSeed(shiftDate);
+        LocalDate compensationDate = compensationDateCalculator.calculateWithoutHolidays(shiftDate);
+
+        // Check if compensation day already exists to avoid duplicates
+        if (compensationDayRepository.findByStaffIdAndCompensationDate(
+                schedule.getStaff().getId(), compensationDate).isPresent()) {
+            return;
+        }
 
         CompensationDay compDay = CompensationDay.builder()
                 .schedule(schedule)
@@ -264,18 +325,5 @@ public class DataSeeder implements CommandLineRunner {
                 .note("Ngày nghỉ bù tự động từ ca L01 (Seed)")
                 .build();
         compensationDayRepository.save(compDay);
-    }
-
-    private LocalDate calculateCompensationDateOnSeed(LocalDate shiftDate) {
-        java.time.DayOfWeek dow = shiftDate.getDayOfWeek();
-        return switch (dow) {
-            case MONDAY -> shiftDate.plusDays(1);
-            case TUESDAY -> shiftDate.plusDays(1);
-            case WEDNESDAY -> shiftDate.plusDays(1);
-            case THURSDAY -> shiftDate.plusDays(1);
-            case FRIDAY -> shiftDate.plusDays(4);
-            case SATURDAY -> shiftDate.plusDays(4);
-            case SUNDAY -> shiftDate.plusDays(1);
-        };
     }
 }

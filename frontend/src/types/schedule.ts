@@ -77,6 +77,11 @@ export type ConflictItem = {
   date: string;
   severity: "Chặn lưu" | "Cảnh báo";
   detail?: string;
+  periodId?: number;
+  workDate?: string;
+  shiftTypeId?: string;
+  shiftType?: string;
+  originalStaffId?: number;
 };
 
 export type WorkflowStep = {

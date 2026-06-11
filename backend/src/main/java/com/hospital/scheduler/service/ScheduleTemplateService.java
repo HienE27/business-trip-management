@@ -1,7 +1,10 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.dto.request.SaveTemplateRequest;
 import com.hospital.scheduler.dto.request.ScheduleTemplateRequest;
 import com.hospital.scheduler.dto.response.ScheduleTemplateResponse;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.scheduler.entity.ScheduleTemplate;
 import com.hospital.scheduler.entity.ShiftRequirement;
 import com.hospital.scheduler.entity.ShiftType;
@@ -30,6 +33,7 @@ public class ScheduleTemplateService {
     private final SpecialtyRepository specialtyRepository;
     private final SchedulePeriodRepository periodRepository;
     private final ShiftRequirementRepository requirementRepository;
+    private final ObjectMapper objectMapper;
 
     public List<ScheduleTemplateResponse> getAllTemplates() {
         return templateRepository.findAll().stream()
@@ -136,5 +140,46 @@ public class ScheduleTemplateService {
         }
 
         return appliedCount;
+    }
+
+    public ScheduleTemplateResponse saveTemplateFromGenerated(SaveTemplateRequest request) {
+        var period = periodRepository.findById(request.getPeriodId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + request.getPeriodId()));
+
+        String algorithmConfigJson = null;
+        if (request.getAlgorithmConfig() != null && !request.getAlgorithmConfig().isEmpty()) {
+            try {
+                algorithmConfigJson = objectMapper.writeValueAsString(request.getAlgorithmConfig());
+            } catch (JsonProcessingException e) {
+                throw new com.hospital.scheduler.exception.BadRequestException("Lỗi khi serialize cấu hình thuật toán: " + e.getMessage());
+            }
+        }
+
+        String scheduleIdsJson = null;
+        if (request.getScheduleIds() != null && !request.getScheduleIds().isEmpty()) {
+            try {
+                scheduleIdsJson = objectMapper.writeValueAsString(request.getScheduleIds());
+            } catch (JsonProcessingException e) {
+                throw new com.hospital.scheduler.exception.BadRequestException("Lỗi khi serialize danh sách lịch: " + e.getMessage());
+            }
+        }
+
+        ScheduleTemplate template = ScheduleTemplate.builder()
+                .name(request.getTemplateName())
+                .description(request.getDescription())
+                .sourcePeriodId(request.getPeriodId())
+                .sourcePeriodName(period.getPeriodName())
+                .algorithmType(request.getAlgorithmType())
+                .algorithmConfig(algorithmConfigJson)
+                .templateType("GENERATED")
+                .generatedScheduleIds(scheduleIdsJson)
+                .dayOfWeek(null)
+                .shiftTypeId(null)
+                .requiredStaffCount(0)
+                .isActive(true)
+                .build();
+
+        ScheduleTemplate saved = templateRepository.save(template);
+        return ScheduleTemplateResponse.fromEntity(saved);
     }
 }

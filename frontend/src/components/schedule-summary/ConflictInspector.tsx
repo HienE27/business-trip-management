@@ -1,6 +1,7 @@
 "use client";
 
 import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { useRole, canManage } from "@/hooks/useRole";
 import type { ConflictDetail } from "@/types/api";
 
 type ConflictInspectorProps = {
@@ -11,6 +12,7 @@ type ConflictInspectorProps = {
   selectedConflict: ConflictDetail | null;
   onSelect: (conflict: ConflictDetail) => void;
   onClose: () => void;
+  onResolve?: (conflict: ConflictDetail) => void;
 };
 
 export function ConflictInspector({
@@ -21,7 +23,10 @@ export function ConflictInspector({
   selectedConflict,
   onSelect,
   onClose,
+  onResolve,
 }: ConflictInspectorProps) {
+  const role = useRole();
+  const canResolve = canManage(role) && !!onResolve;
   return (
     <>
       <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-[0_1px_3px_0_rgba(0,0,0,0.05)]">
@@ -111,6 +116,15 @@ export function ConflictInspector({
               >
                 Đóng
               </button>
+              {canResolve && (
+                <button
+                  type="button"
+                  onClick={() => { onResolve?.(selectedConflict); onClose(); }}
+                  className="rounded-lg bg-primary px-4 py-2 text-label-md font-medium text-on-primary transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  Giải quyết
+                </button>
+              )}
             </ModalFooter>
           </div>
         ) : null}

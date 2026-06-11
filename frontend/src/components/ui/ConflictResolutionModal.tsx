@@ -2,44 +2,105 @@
 
 import { useState } from "react";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
-
-export type ConflictItem = {
-  id: string;
-  staffName: string;
-  date: string;
-  detail: string;
-  shiftType: string;
-};
+import { api } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/errors";
+import type { ConflictItem } from "@/types/schedule";
+import type { Staff } from "@/types/api";
 
 type ConflictResolutionModalProps = {
   open: boolean;
   onClose: () => void;
   conflict: ConflictItem | null;
+  onRefresh?: () => void;
 };
 
 export function ConflictResolutionModal({
   open,
   onClose,
   conflict,
+  onRefresh,
 }: ConflictResolutionModalProps) {
   const [resolution, setResolution] = useState<string>("reassign");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reassign state
+  const [replacements, setReplacements] = useState<Staff[]>([]);
+  const [selectedReplacementId, setSelectedReplacementId] = useState<number | null>(null);
+  const [loadingReplacements, setLoadingReplacements] = useState(false);
+
+  async function loadReplacements() {
+    if (!conflict?.periodId || !conflict?.workDate || !conflict?.shiftTypeId) return;
+    setLoadingReplacements(true);
+    try {
+      const data = await api.findReplacements(
+        conflict.periodId,
+        conflict.workDate,
+        conflict.shiftTypeId,
+        conflict.originalStaffId ?? 0,
+        5,
+      );
+      setReplacements(data ?? []);
+    } catch {
+      setReplacements([]);
+    } finally {
+      setLoadingReplacements(false);
+    }
+  }
+
+  const handleResolutionChange = (value: string) => {
+    setResolution(value);
+    if (value === "reassign") {
+      setSelectedReplacementId(null);
+      void loadReplacements();
+    } else {
+      setReplacements([]);
+      setSelectedReplacementId(null);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!conflict) return;
     setSubmitting(true);
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 800));
-    setSubmitting(false);
-    setDone(true);
-    setTimeout(() => {
-      setDone(false);
-      setReason("");
-      setResolution("reassign");
-      onClose();
-    }, 1500);
+    setError(null);
+    try {
+      const scheduleId = Number(conflict.id);
+      if (resolution === "remove") {
+        await api.deleteSchedule(scheduleId);
+      } else if (resolution === "override") {
+        await api.put(`/schedules/${scheduleId}/override`, { reason });
+      } else if (resolution === "reassign") {
+        if (!selectedReplacementId) {
+          setError("Vui lòng chọn nhân sự thay thế.");
+          setSubmitting(false);
+          return;
+        }
+        // Fetch the existing schedule to preserve its other fields
+        const existing = await api.get<import("@/types/api").Schedule>(`/schedules/${scheduleId}`);
+        await api.updateSchedule(scheduleId, {
+          periodId: existing.periodId,
+          workDate: existing.workDate,
+          shiftTypeId: existing.shiftType.id,
+          staffId: selectedReplacementId,
+        });
+      }
+      setDone(true);
+      onRefresh?.();
+      setTimeout(() => {
+        setDone(false);
+        setReason("");
+        setResolution("reassign");
+        setReplacements([]);
+        setSelectedReplacementId(null);
+        onClose();
+      }, 1500);
+    } catch (err) {
+      setError(getErrorMessage(err, "Không thể giải quyết xung đột."));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -99,15 +160,42 @@ export function ConflictResolutionModal({
                   name="resolution"
                   value={opt.value}
                   checked={resolution === opt.value}
-                  onChange={() => setResolution(opt.value)}
+                  onChange={() => handleResolutionChange(opt.value)}
                   className="mt-0.5 accent-primary cursor-pointer"
                 />
                 <span className="material-symbols-outlined text-[20px] text-primary shrink-0 mt-0.5">
                   {opt.icon}
                 </span>
-                <div>
+                <div className="flex-1">
                   <p className="text-label-md text-on-surface font-medium">{opt.label}</p>
                   <p className="text-label-sm text-on-surface-variant mt-0.5 leading-relaxed">{opt.desc}</p>
+
+                  {/* Reassign: replacement picker */}
+                  {opt.value === "reassign" && resolution === "reassign" && (
+                    <div className="mt-3">
+                      {loadingReplacements ? (
+                        <div className="flex items-center gap-2 text-label-sm text-on-surface-variant">
+                          <div className="size-3.5 animate-spin rounded-full border border-primary border-t-transparent" />
+                          Đang tìm nhân sự thay thế...
+                        </div>
+                      ) : replacements.length > 0 ? (
+                        <select
+                          className="w-full mt-1 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-label-md text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                          value={selectedReplacementId ?? ""}
+                          onChange={(e) => setSelectedReplacementId(Number(e.target.value) || null)}
+                        >
+                          <option value="">-- Chọn nhân sự thay thế --</option>
+                          {replacements.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.fullName}{r.specialty?.name ? ` (${r.specialty.name})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="mt-1 text-label-sm text-outline italic">Không có nhân sự khả dụng.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </label>
             ))}
@@ -126,6 +214,13 @@ export function ConflictResolutionModal({
               onChange={(e) => setReason(e.target.value)}
             />
           </div>
+
+          {/* Error */}
+          {error && (
+            <div className="mt-4 rounded-lg border border-error/20 bg-error-container/30 px-4 py-3 text-sm text-error">
+              {error}
+            </div>
+          )}
         </>
       )}
 

@@ -9,6 +9,7 @@ import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,32 +34,47 @@ public class ScheduleService {
     private final CompensationDayRepository compensationDayRepository;
     private final ConflictDetectionService conflictDetectionService;
     private final AuditHistoryService auditHistoryService;
+    private final CompensationDateCalculator compensationDateCalculator;
 
     public List<ScheduleResponse> getSchedulesByPeriod(Integer periodId) {
-        return scheduleRepository.findByPeriodId(periodId).stream()
-                .map(this::toResponse)
+        List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
+        if (schedules.isEmpty()) return List.of();
+
+        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByPeriodIdWithStaff(periodId)
+                .stream()
+                .collect(Collectors.toMap(
+                        cd -> cd.getSchedule().getId(),
+                        CompensationDay::getCompensationDate,
+                        (a, b) -> a
+                ));
+
+        return schedules.stream()
+                .map(s -> toResponse(s, compDateMap.get(s.getId())))
                 .collect(Collectors.toList());
     }
 
     public List<ScheduleResponse> getSchedulesByStaff(Integer staffId) {
         return scheduleRepository.findByStaffId(staffId).stream()
-                .map(this::toResponse)
+                .map(s -> toResponse(s, null))
                 .collect(Collectors.toList());
     }
 
     public ScheduleResponse getScheduleById(Integer id) {
         Schedule schedule = scheduleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + id));
-        return toResponse(schedule);
+        LocalDate compDate = compensationDayRepository.findByScheduleId(id).stream()
+                .map(CompensationDay::getCompensationDate)
+                .filter(java.util.Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
+        return toResponse(schedule, compDate);
     }
 
     public ScheduleResponse createSchedule(ScheduleRequest request) {
         SchedulePeriod period = periodRepository.findById(request.getPeriodId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + request.getPeriodId()));
 
-        if (!request.getWorkDate().isBefore(period.getStartDate()) && !request.getWorkDate().isAfter(period.getEndDate())) {
-            // ok
-        } else if (request.getWorkDate().isBefore(period.getStartDate()) || request.getWorkDate().isAfter(period.getEndDate())) {
+        if (request.getWorkDate().isBefore(period.getStartDate()) || request.getWorkDate().isAfter(period.getEndDate())) {
             throw new BadRequestException("Ngày làm việc phải nằm trong kỳ lịch");
         }
 
@@ -82,7 +99,8 @@ public class ScheduleService {
                 request.getStaffId(),
                 request.getWorkDate(),
                 request.getShiftTypeId(),
-                null
+                null,
+                request.getPeriodId()
         );
 
         ShiftRequirement requirement = null;
@@ -102,13 +120,21 @@ public class ScheduleService {
         Schedule saved = scheduleRepository.save(schedule);
 
         // Auto create compensation day for L01
-        if ("L01".equals(request.getShiftTypeId())) {
+        if (ConflictDetectionService.SHIFT_TYPE_L01.equals(request.getShiftTypeId())) {
             createCompensationDay(saved);
         }
 
         auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
 
-        return toResponse(saved);
+        LocalDate compDate = null;
+        if (ConflictDetectionService.SHIFT_TYPE_L01.equals(request.getShiftTypeId())) {
+            compDate = compensationDayRepository.findByScheduleId(saved.getId()).stream()
+                    .map(CompensationDay::getCompensationDate)
+                    .filter(java.util.Objects::nonNull)
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+        }
+        return toResponse(saved, compDate);
     }
 
     public ScheduleResponse updateSchedule(Integer id, ScheduleRequest request) {
@@ -120,14 +146,17 @@ public class ScheduleService {
             throw new BadRequestException("Chỉ có thể cập nhật lịch khi kỳ lịch ở trạng thái DRAFT");
         }
 
+        // Snapshot old state for audit before any mutation
+        Integer oldStaffId = schedule.getStaff().getId();
         String oldShiftTypeId = schedule.getShiftType().getId();
-        boolean wasL01 = "L01".equals(oldShiftTypeId);
-        boolean willBeL01 = "L01".equals(request.getShiftTypeId());
-        boolean shiftTypeChanged = !oldShiftTypeId.equals(request.getShiftTypeId());
+        LocalDate oldWorkDate = schedule.getWorkDate();
 
-        if (!request.getWorkDate().isBefore(period.getStartDate()) && !request.getWorkDate().isAfter(period.getEndDate())) {
-            // ok
-        } else if (request.getWorkDate().isBefore(period.getStartDate()) || request.getWorkDate().isAfter(period.getEndDate())) {
+        boolean wasL01 = ConflictDetectionService.SHIFT_TYPE_L01.equals(oldShiftTypeId);
+        boolean willBeL01 = ConflictDetectionService.SHIFT_TYPE_L01.equals(request.getShiftTypeId());
+        boolean shiftTypeChanged = !oldShiftTypeId.equals(request.getShiftTypeId());
+        boolean dateChanged = !oldWorkDate.equals(request.getWorkDate());
+
+        if (request.getWorkDate().isBefore(period.getStartDate()) || request.getWorkDate().isAfter(period.getEndDate())) {
             throw new BadRequestException("Ngày làm việc phải nằm trong kỳ lịch");
         }
 
@@ -148,11 +177,16 @@ public class ScheduleService {
             period = newPeriod;
         }
 
-        conflictDetectionService.validateAndThrow(targetStaffId, targetWorkDate, targetShiftTypeId, id);
+        conflictDetectionService.validateAndThrow(targetStaffId, targetWorkDate, targetShiftTypeId, id, period.getId());
 
         if (wasL01 && shiftTypeChanged) {
             List<CompensationDay> compDays = compensationDayRepository.findByScheduleId(id);
             compensationDayRepository.deleteAll(compDays);
+        }
+
+        if (wasL01 && willBeL01 && dateChanged) {
+            List<CompensationDay> oldCompDays = compensationDayRepository.findByScheduleId(id);
+            compensationDayRepository.deleteAll(oldCompDays);
         }
 
         schedule.setWorkDate(targetWorkDate);
@@ -172,7 +206,23 @@ public class ScheduleService {
             createCompensationDay(updated);
         }
 
-        return toResponse(updated);
+        if (wasL01 && willBeL01 && dateChanged) {
+            createCompensationDay(updated);
+        }
+
+        auditHistoryService.logAction("schedule", id, AuditHistory.ActionType.UPDATE,
+                String.format("staffId=%d,shiftTypeId=%s,workDate=%s", oldStaffId, oldShiftTypeId, oldWorkDate),
+                updated, null);
+
+        LocalDate compDate = null;
+        if (willBeL01) {
+            compDate = compensationDayRepository.findByScheduleId(id).stream()
+                    .map(CompensationDay::getCompensationDate)
+                    .filter(java.util.Objects::nonNull)
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+        }
+        return toResponse(updated, compDate);
     }
 
     public void deleteSchedule(Integer id) {
@@ -185,7 +235,7 @@ public class ScheduleService {
         }
 
         // If L01, delete related compensation days first
-        if ("L01".equals(schedule.getShiftType().getId())) {
+        if (ConflictDetectionService.SHIFT_TYPE_L01.equals(schedule.getShiftType().getId())) {
             compensationDayRepository.deleteAll(compensationDayRepository.findByScheduleId(id));
         }
 
@@ -195,49 +245,18 @@ public class ScheduleService {
 
     public List<ScheduleResponse> getSchedulesByPeriodAndDate(Integer periodId, LocalDate date) {
         return scheduleRepository.findByPeriodIdAndWorkDate(periodId, date).stream()
-                .map(this::toResponse)
+                .map(s -> toResponse(s, null))
                 .collect(Collectors.toList());
     }
 
     public ConflictCheckResponse checkConflictsInPeriod(Integer periodId) {
-        List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
-        List<ConflictCheckResponse.ConflictDetail> conflictDetails = new java.util.ArrayList<>();
-
-        for (Schedule schedule : schedules) {
-            List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    schedule.getStaff().getId(),
-                    schedule.getWorkDate(),
-                    schedule.getShiftType().getId(),
-                    schedule.getId()
-            );
-
-            if (!conflicts.isEmpty()) {
-                schedule.setHasConflict(true);
-                scheduleRepository.save(schedule);
-
-                conflictDetails.add(ConflictCheckResponse.ConflictDetail.builder()
-                        .scheduleId(schedule.getId())
-                        .staffName(schedule.getStaff().getFullName())
-                        .workDate(schedule.getWorkDate())
-                        .shiftTypeId(schedule.getShiftType().getId())
-                        .shiftTypeName(schedule.getShiftType().getName())
-                        .conflictReasons(conflicts)
-                        .build());
-            }
-        }
-
-        return ConflictCheckResponse.builder()
-                .periodId(periodId)
-                .hasConflicts(!conflictDetails.isEmpty())
-                .totalConflicts(conflictDetails.size())
-                .conflicts(conflictDetails)
-                .build();
+        return conflictDetectionService.checkPeriodConflicts(periodId);
     }
 
     public List<StaffResponse> findReplacements(Integer periodId, LocalDate workDate, String shiftTypeId,
                                                  Integer originalStaffId, Integer requiredCount) {
         List<Staff> replacements = conflictDetectionService.findReplacements(
-                periodId, workDate, shiftTypeId, originalStaffId, requiredCount);
+                periodId, workDate, shiftTypeId, originalStaffId, requiredCount, null);
         return replacements.stream().map(s -> StaffResponse.builder()
                     .id(s.getId())
                     .fullName(s.getFullName())
@@ -252,13 +271,21 @@ public class ScheduleService {
                 .collect(Collectors.toList());
     }
 
+    public ScheduleResponse overrideConflict(Integer scheduleId, String reason) {
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + scheduleId));
+
+        auditHistoryService.logAction("schedule", scheduleId, AuditHistory.ActionType.UPDATE,
+                schedule, Map.of("override", true, "reason", reason), null);
+        return toResponse(schedule, null);
+    }
+
     private void createCompensationDay(Schedule schedule) {
         LocalDate shiftDate = schedule.getWorkDate();
-        LocalDate compensationDate = calculateCompensationDate(shiftDate);
+        LocalDate compensationDate = compensationDateCalculator.calculate(shiftDate);
 
-        // Check if compensation date already exists for this staff
         if (compensationDayRepository.findByStaffIdAndCompensationDate(schedule.getStaff().getId(), compensationDate).isPresent()) {
-            return; // Already has compensation day
+            return;
         }
 
         CompensationDay compDay = CompensationDay.builder()
@@ -273,20 +300,11 @@ public class ScheduleService {
         compensationDayRepository.save(compDay);
     }
 
-    private LocalDate calculateCompensationDate(LocalDate shiftDate) {
-        DayOfWeek dow = shiftDate.getDayOfWeek();
-        return switch (dow) {
-            case MONDAY -> shiftDate.plusDays(1);    // T2 -> T3
-            case TUESDAY -> shiftDate.plusDays(1);   // T3 -> T4
-            case WEDNESDAY -> shiftDate.plusDays(1); // T4 -> T5
-            case THURSDAY -> shiftDate.plusDays(1);  // T5 -> T6
-            case FRIDAY -> shiftDate.plusDays(4); // T6 -> T3 tuần sau (T6→T7→CN→T2→T3)
-            case SATURDAY -> shiftDate.plusDays(4); // T7 -> T3 tuần sau (T7→CN→T2→T3)
-            case SUNDAY -> shiftDate.plusDays(1);   // CN -> T2
-        };
+    private ScheduleResponse toResponse(Schedule schedule) {
+        return toResponse(schedule, null);
     }
 
-    private ScheduleResponse toResponse(Schedule schedule) {
+    private ScheduleResponse toResponse(Schedule schedule, LocalDate compDateOverride) {
         List<String> staffRoles = schedule.getStaff().getStaffRoles().stream()
                 .map(StaffRole::getRole)
                 .filter(java.util.Objects::nonNull)
@@ -300,15 +318,16 @@ public class ScheduleService {
                 schedule.getStaff().getId(),
                 schedule.getWorkDate(),
                 schedule.getShiftType().getId(),
-                schedule.getId()
+                schedule.getId(),
+                schedule.getPeriod().getId()
         );
 
-        LocalDate compensationDate = compensationDayRepository.findByScheduleId(schedule.getId()).stream()
-                .map(CompensationDay::getCompensationDate)
-                .filter(java.util.Objects::nonNull)
-                .sorted(Comparator.naturalOrder())
-                .findFirst()
-                .orElseGet(() -> "L01".equals(schedule.getShiftType().getId()) ? calculateCompensationDate(schedule.getWorkDate()) : null);
+        LocalDate compensationDate = compDateOverride != null ? compDateOverride
+                : compensationDayRepository.findByScheduleId(schedule.getId()).stream()
+                        .map(CompensationDay::getCompensationDate)
+                        .filter(java.util.Objects::nonNull)
+                        .min(Comparator.naturalOrder())
+                        .orElse(null);
 
         return ScheduleResponse.builder()
                 .id(schedule.getId())

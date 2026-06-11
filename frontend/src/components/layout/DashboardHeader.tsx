@@ -15,7 +15,7 @@ export function DashboardHeader({ title, description, onMenuToggle }: DashboardH
   const { notifications, markAllRead } = useNotifications();
 
   return (
-    <header className="sticky top-0 z-40 h-16 border-b border-outline-variant bg-surface-bright shadow-sm flex items-center justify-between px-6 shrink-0">
+    <header className="sticky top-0 z-40 h-16 border-b border-outline-variant bg-surface shadow-sm flex items-center justify-between px-4 md:px-6 shrink-0">
       {/* Left */}
       <div className="flex-1 flex items-center gap-3 min-w-0">
         {onMenuToggle && (
@@ -27,7 +27,7 @@ export function DashboardHeader({ title, description, onMenuToggle }: DashboardH
             <span className="material-symbols-outlined text-[20px]">menu</span>
           </button>
         )}
-        <div className="relative w-40 md:w-64 lg:w-96">
+        <div className="relative w-32 sm:w-40 md:w-64 lg:w-96">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">
             search
           </span>

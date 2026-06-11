@@ -11,7 +11,15 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "schedule")
+@Table(name = "schedule",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_schedule_unique", columnNames = {"period_id", "staff_id", "shift_type_id", "work_date"})
+    },
+    indexes = {
+        @Index(name = "idx_schedule_period_workdate", columnList = "period_id, work_date"),
+        @Index(name = "idx_schedule_staff_date", columnList = "staff_id, work_date"),
+        @Index(name = "idx_schedule_shift_type", columnList = "shift_type_id")
+    })
 @Getter
 @Setter
 @NoArgsConstructor

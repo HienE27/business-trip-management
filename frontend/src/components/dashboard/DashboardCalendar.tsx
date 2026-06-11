@@ -49,6 +49,10 @@ export type CalendarAnnotation = {
   label: string;
   tone?: CalendarAnnotationTone;
   description?: string;
+  isCompensation?: boolean;
+  locked?: boolean;
+  coverage?: { required: number; assigned: number };
+  coverageShiftTypeId?: string;
 };
 
 type CalendarCell = {
@@ -56,6 +60,7 @@ type CalendarCell = {
   isWeekend: boolean;
   isCurrentMonth: boolean;
   hasConflict: boolean;
+  isCompensation: boolean;
   items: CalendarItem[];
   annotations: CalendarAnnotation[];
   dateStr: string;
@@ -65,10 +70,21 @@ type CalendarCell = {
 type DashboardCalendarProps = {
   schedules?: Schedule[];
   annotations?: CalendarAnnotation[];
+  coverages?: Record<string, { required: number; assigned: number }>;
+  staffList?: { id: number; fullName: string }[];
+  staffFilter?: number | null;
+  specialtyList?: { id: number; name: string }[];
+  specialtyFilter?: number | null;
+  initialYear?: number;
+  initialMonth?: number;
   onEditSchedule?: (schedule: Schedule) => void;
   onDeleteSchedule?: (schedule: Schedule) => void;
   onResolveConflict?: (schedule: Schedule) => void;
+  onViewDetail?: (schedule: Schedule) => void;
   onDayClick?: (date: Date, items: CalendarItem[]) => void;
+  onAddClick?: (date: Date) => void;
+  onStaffFilterChange?: (staffId: number | null) => void;
+  onSpecialtyFilterChange?: (specialtyId: number | null) => void;
 };
 
 function getInitials(name: string): string {
@@ -95,11 +111,7 @@ function shiftTypeToTone(id: string): ScheduleTone {
 }
 
 // ─── Data computation ─────────────────────────────────────────────────────────
-function buildCalendar(schedules: Schedule[], annotations: CalendarAnnotation[] = []) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-
+function buildCalendar(schedules: Schedule[], annotations: CalendarAnnotation[] = [], year: number, month: number) {
   const firstDay = new Date(year, month, 1);
   const lastDay  = new Date(year, month + 1, 0);
   const startDayOfWeek = (firstDay.getDay() + 6) % 7;
@@ -134,19 +146,24 @@ function buildCalendar(schedules: Schedule[], annotations: CalendarAnnotation[] 
 
   const cells: CalendarCell[] = [];
 
+  const isCompDay = (anns: CalendarAnnotation[]) =>
+    anns.some((a) => a.tone === "compLeave" || a.isCompensation);
+
   for (const d of prevDays) {
     const m = prevMonth - 1;
     const y = m < 0 ? prevYear - 1 : prevYear;
     const mm = m < 0 ? 11 : m;
     const dateStr = fmt(y, mm, d);
     const dow = new Date(y, mm, d).getDay();
+    const anns = annotationMap.get(dateStr) ?? [];
     cells.push({
       day: d,
       isWeekend: dow === 0 || dow === 6,
       isCurrentMonth: false,
       hasConflict: false,
+      isCompensation: isCompDay(anns),
       items: [],
-      annotations: annotationMap.get(dateStr) ?? [],
+      annotations: anns,
       dateStr,
       date: new Date(y, mm, d),
     });
@@ -156,6 +173,7 @@ function buildCalendar(schedules: Schedule[], annotations: CalendarAnnotation[] 
     const dateStr = fmt(year, month, d);
     const daySchedules = scheduleMap.get(dateStr) ?? [];
     const hasConflict  = daySchedules.some((s) => s.hasConflict);
+    const anns = annotationMap.get(dateStr) ?? [];
     const items: CalendarItem[] = daySchedules.map((s) => ({
       shiftLabel:  SHIFT_SHORT[s.shiftType.id] ?? s.shiftType.id,
       staffName:   s.staff.fullName,
@@ -169,8 +187,9 @@ function buildCalendar(schedules: Schedule[], annotations: CalendarAnnotation[] 
       isWeekend: false,
       isCurrentMonth: true,
       hasConflict,
+      isCompensation: isCompDay(anns),
       items,
-      annotations: annotationMap.get(dateStr) ?? [],
+      annotations: anns,
       dateStr,
       date: new Date(year, month, d),
     });
@@ -181,23 +200,25 @@ function buildCalendar(schedules: Schedule[], annotations: CalendarAnnotation[] 
     const ny = month === 11 ? year + 1 : year;
     const dateStr = fmt(ny, nm, d);
     const dow = new Date(ny, nm, d).getDay();
+    const anns = annotationMap.get(dateStr) ?? [];
     cells.push({
       day: d,
       isWeekend: dow === 0 || dow === 6,
       isCurrentMonth: false,
       hasConflict: false,
+      isCompensation: isCompDay(anns),
       items: [],
-      annotations: annotationMap.get(dateStr) ?? [],
+      annotations: anns,
       dateStr,
       date: new Date(ny, nm, d),
     });
   }
 
-  const monthName = now.toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
+  const monthName = new Date(year, month, 1).toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
   return {
     month: monthName.charAt(0).toUpperCase() + monthName.slice(1),
     cells,
-    today: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+    today: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()),
   };
 }
 
@@ -208,11 +229,12 @@ type TooltipData = {
   item: CalendarItem;
 };
 
-function EventTooltip({ data, onEdit, onDelete, onResolve, canEdit }: {
+function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, canEdit }: {
   data: TooltipData;
   onEdit: (s: Schedule) => void;
   onDelete: (s: Schedule) => void;
   onResolve: (s: Schedule) => void;
+  onViewDetail: (s: Schedule) => void;
   canEdit: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -270,8 +292,18 @@ function EventTooltip({ data, onEdit, onDelete, onResolve, canEdit }: {
       </div>
 
       {/* Actions */}
-      {canEdit && (
-        <div className="flex gap-2 pt-2 border-t border-outline-variant">
+      <div className="flex gap-2 pt-2 border-t border-outline-variant">
+        <button
+          type="button"
+          onClick={() => onViewDetail(s)}
+          className="flex-1 px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container-low text-on-surface hover:bg-surface-container-high transition-colors"
+        >
+          <span className="flex items-center justify-center gap-1.5">
+            <span className="material-symbols-outlined text-[16px]">visibility</span>
+            Xem chi tiet
+          </span>
+        </button>
+        {canEdit && (
           <button
             type="button"
             onClick={() => onEdit(s)}
@@ -279,15 +311,17 @@ function EventTooltip({ data, onEdit, onDelete, onResolve, canEdit }: {
           >
             Chinh sua
           </button>
-          {s.hasConflict && (
-            <button
-              type="button"
-              onClick={() => onResolve(s)}
-              className="flex-1 px-3 py-1.5 rounded-lg text-label-sm font-medium bg-error text-on-error hover:bg-error/90 transition-colors"
-            >
-              Xu ly xung dot
-            </button>
-          )}
+        )}
+        {canEdit && s.hasConflict && (
+          <button
+            type="button"
+            onClick={() => onResolve(s)}
+            className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-error text-on-error hover:bg-error/90 transition-colors"
+          >
+            Xu ly
+          </button>
+        )}
+        {canEdit && (
           <button
             type="button"
             onClick={() => onDelete(s)}
@@ -295,19 +329,20 @@ function EventTooltip({ data, onEdit, onDelete, onResolve, canEdit }: {
           >
             Xoa
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
 // ─── Overflow Popover ─────────────────────────────────────────────────────────
-function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, canEdit }: {
+function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, onViewDetail, canEdit }: {
   items: CalendarItem[];
   anchor: { x: number; y: number };
   onEdit: (s: Schedule) => void;
   onDelete: (s: Schedule) => void;
   onResolve: (s: Schedule) => void;
+  onViewDetail: (s: Schedule) => void;
   canEdit: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -326,6 +361,7 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, canEdit }
   const handleEdit = (s: Schedule) => { onEdit(s); setVisible(false); };
   const handleDelete = (s: Schedule) => { onDelete(s); setVisible(false); };
   const handleResolve = (s: Schedule) => { onResolve(s); setVisible(false); };
+  const handleViewDetail = (s: Schedule) => { onViewDetail(s); setVisible(false); };
 
   return (
     <div
@@ -345,7 +381,7 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, canEdit }
           const t = TONE[item.tone];
           const s = item.schedule;
           return (
-            <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border-l-2 ${t.bg} ${t.border}`}>
+            <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border-l-2 ${t.bg} ${t.border}`}>
               <div className={`w-6 h-6 rounded-full ${t.bg} flex items-center justify-center shrink-0`}>
                 <span className={`text-[10px] font-bold ${t.text}`}>{item.staffCode}</span>
               </div>
@@ -356,36 +392,46 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, canEdit }
               {s.hasConflict && (
                 <span className="material-symbols-outlined text-error text-[14px] shrink-0" title="Xung đột">warning</span>
               )}
-              {canEdit && (
-                <div className="flex gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleEdit(s)}
-                    className="p-1 rounded hover:bg-surface-container-high transition-colors"
-                    aria-label="Chỉnh sửa"
-                  >
-                    <span className="material-symbols-outlined text-[14px] text-on-surface-variant">edit</span>
-                  </button>
-                  {s.hasConflict && (
+              <div className="flex gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleViewDetail(s)}
+                  className="p-1 rounded hover:bg-surface-container-high transition-colors"
+                  aria-label="Xem chi tiết"
+                >
+                  <span className="material-symbols-outlined text-[14px] text-on-surface-variant">visibility</span>
+                </button>
+                {canEdit && (
+                  <>
                     <button
                       type="button"
-                      onClick={() => handleResolve(s)}
-                      className="p-1 rounded hover:bg-error-container/30 transition-colors"
-                      aria-label="Xử lý xung đột"
+                      onClick={() => handleEdit(s)}
+                      className="p-1 rounded hover:bg-surface-container-high transition-colors"
+                      aria-label="Chỉnh sửa"
                     >
-                      <span className="material-symbols-outlined text-[14px] text-error">warning</span>
+                      <span className="material-symbols-outlined text-[14px] text-on-surface-variant">edit</span>
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(s)}
-                    className="p-1 rounded hover:bg-error-container/30 transition-colors"
-                    aria-label="Xóa"
-                  >
-                    <span className="material-symbols-outlined text-[14px] text-error">delete</span>
-                  </button>
-                </div>
-              )}
+                    {s.hasConflict && (
+                      <button
+                        type="button"
+                        onClick={() => handleResolve(s)}
+                        className="p-1 rounded hover:bg-error-container/30 transition-colors"
+                        aria-label="Xử lý xung đột"
+                      >
+                        <span className="material-symbols-outlined text-[14px] text-error">warning</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(s)}
+                      className="p-1 rounded hover:bg-error-container/30 transition-colors"
+                      aria-label="Xóa"
+                    >
+                      <span className="material-symbols-outlined text-[14px] text-error">delete</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           );
         })}
@@ -398,23 +444,53 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, canEdit }
 export function DashboardCalendar({
   schedules = [],
   annotations = [],
+  coverages = {},
+  staffList = [],
+  staffFilter: externalStaffFilter = null,
+  specialtyList = [],
+  specialtyFilter: externalSpecialtyFilter = null,
+  initialYear,
+  initialMonth,
   onEditSchedule,
   onDeleteSchedule,
   onResolveConflict,
+  onViewDetail,
   onDayClick,
+  onAddClick,
+  onStaffFilterChange,
+  onSpecialtyFilterChange,
 }: DashboardCalendarProps) {
   const [filterType, setFilterType] = useState<string>("all");
+  const [staffFilter, setStaffFilter] = useState<number | null>(externalStaffFilter);
+  const [specialtyFilter, setSpecialtyFilter] = useState<number | null>(externalSpecialtyFilter);
+  const [currentYear, setCurrentYear] = useState(() => initialYear ?? new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(() => initialMonth ?? new Date().getMonth());
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [overflow, setOverflow] = useState<{ items: CalendarItem[]; anchor: { x: number; y: number } } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const calendarRef = useRef<HTMLDivElement>(null);
 
-  const filteredSchedules = useMemo(() => {
-    if (filterType === "all") return schedules;
-    return schedules.filter((s) => s.shiftType.id === filterType);
-  }, [schedules, filterType]);
+  // Sync external filters when they change
+  useEffect(() => {
+    setStaffFilter(externalStaffFilter);
+  }, [externalStaffFilter]);
 
-  const { cells, month, today } = useMemo(() => buildCalendar(filteredSchedules, annotations), [annotations, filteredSchedules]);
+  useEffect(() => {
+    setSpecialtyFilter(externalSpecialtyFilter);
+  }, [externalSpecialtyFilter]);
+
+  const filteredSchedules = useMemo(() => {
+    let result = filterType === "all" ? schedules : schedules.filter((s) => s.shiftType.id === filterType);
+    if (staffFilter !== null) {
+      result = result.filter((s) => s.staff.id === staffFilter);
+    }
+    if (specialtyFilter !== null) {
+      result = result.filter((s) => s.staff.specialtyName != null && s.staff.specialtyName.includes(String(specialtyFilter)));
+    }
+    return result;
+  }, [schedules, filterType, staffFilter, specialtyFilter]);
+
+  const { cells, month, today } = useMemo(() => buildCalendar(filteredSchedules, annotations, currentYear, currentMonth), [annotations, filteredSchedules, currentYear, currentMonth]);
 
   // Close tooltip on scroll
   useEffect(() => {
@@ -435,8 +511,13 @@ export function DashboardCalendar({
   }, []);
 
   const handleCellClick = useCallback((cell: CalendarCell) => {
-    onDayClick?.(cell.date, cell.items);
-  }, [onDayClick]);
+    if (cell.isCompensation) return;
+    if (cell.items.length === 0) {
+      onAddClick?.(cell.date);
+    } else {
+      onDayClick?.(cell.date, cell.items);
+    }
+  }, [onAddClick, onDayClick]);
 
   const isToday = (cell: CalendarCell) =>
     cell.date.getTime() === today.getTime();
@@ -456,17 +537,59 @@ export function DashboardCalendar({
           </button>
           <h3 className="text-title-lg text-on-surface font-semibold">{month}</h3>
           <div className="flex gap-0.5">
-            <button type="button" className="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="Tháng trước">
+            <button type="button" onClick={() => { const pm = currentMonth === 0 ? 11 : currentMonth - 1; setCurrentYear(currentMonth === 0 ? currentYear - 1 : currentYear); setCurrentMonth(pm); }} className="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="Tháng trước">
               <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
-            <button type="button" className="px-2.5 py-1 rounded-md hover:bg-surface-container-high text-on-surface text-label-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset">
+            <button type="button" onClick={() => { const now = new Date(); setCurrentYear(now.getFullYear()); setCurrentMonth(now.getMonth()); }} className="px-2.5 py-1 rounded-md hover:bg-surface-container-high text-on-surface text-label-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset">
               Hom nay
             </button>
-            <button type="button" className="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="Tháng sau">
+            <button type="button" onClick={() => { const nm = currentMonth === 11 ? 0 : currentMonth + 1; setCurrentYear(currentMonth === 11 ? currentYear + 1 : currentYear); setCurrentMonth(nm); }} className="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="Tháng sau">
               <span className="material-symbols-outlined text-[18px]">chevron_right</span>
             </button>
           </div>
         </div>
+
+        {/* Staff filter */}
+        {staffList.length > 0 && (
+          <div className="relative">
+            <select
+              className="h-8 pl-3 pr-8 bg-surface-container-low border border-transparent rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all max-w-[180px]"
+              value={staffFilter ?? ""}
+              onChange={(e) => {
+                const val = e.target.value ? Number(e.target.value) : null;
+                setStaffFilter(val);
+                onStaffFilterChange?.(val);
+              }}
+            >
+              <option value="">Tất cả nhân sự</option>
+              {staffList.map((s) => (
+                <option key={s.id} value={s.id}>{s.fullName}</option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px]">expand_more</span>
+          </div>
+        )}
+
+        {/* Specialty filter */}
+        {specialtyList.length > 0 && (
+          <div className="relative">
+            <select
+              className="h-8 pl-3 pr-8 bg-surface-container-low border border-transparent rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all max-w-[160px]"
+              value={specialtyFilter ?? ""}
+              onChange={(e) => {
+                const val = e.target.value ? Number(e.target.value) : null;
+                setSpecialtyFilter(val);
+                onSpecialtyFilterChange?.(val);
+              }}
+            >
+              <option value="">Tất cả chuyên khoa</option>
+              {specialtyList.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px]">expand_more</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           {/* Filter chips */}
@@ -482,6 +605,8 @@ export function DashboardCalendar({
                 key={f.value}
                 type="button"
                 onClick={() => setFilterType(f.value)}
+                aria-pressed={filterType === f.value}
+                aria-label={`Lọc theo loại lịch ${f.label}`}
                 className={`px-2.5 py-1 rounded-md text-label-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                   filterType === f.value
                     ? "bg-surface-container-lowest text-on-surface shadow-sm"
@@ -489,7 +614,7 @@ export function DashboardCalendar({
                 }`}
               >
                 {f.color && (
-                  <span className={`inline-block w-2 h-2 rounded-full ${f.color} mr-1.5`} />
+                  <span className={`inline-block w-2 h-2 rounded-full ${f.color} mr-1.5`} aria-hidden="true" />
                 )}
                 {f.label}
               </button>
@@ -525,6 +650,7 @@ export function DashboardCalendar({
 
               const hasAnnotations = cell.annotations.length > 0;
               const primaryAnnotation = cell.annotations[0] ?? null;
+              const isCompLocked = cell.isCompensation;
 
               return (
                 <div
@@ -536,17 +662,31 @@ export function DashboardCalendar({
                     transition-colors hover:bg-surface-container-low
                     ${!cell.isCurrentMonth ? "bg-surface-variant/20" : ""}
                     ${cell.hasConflict ? "ring-2 ring-inset ring-red-300" : ""}
-                    ${hasAnnotations && cell.isCurrentMonth ? "bg-slate-50/80" : ""}
+                    ${isCompLocked ? "bg-[repeating-linear-gradient(45deg,transparent,transparent_6px,rgba(0,0,0,0.04)_6px,rgba(0,0,0,0.04)_12px)]" : ""}
                   `}
                 >
+                  {/* Diagonal stripes overlay for locked comp days */}
+                  {isCompLocked && (
+                    <div
+                      className="absolute inset-0 pointer-events-none z-10 opacity-30"
+                      style={{
+                        backgroundImage: "repeating-linear-gradient(45deg, #94a3b8 0px, #94a3b8 1px, transparent 1px, transparent 10px)",
+                        backgroundSize: "14px 14px",
+                      }}
+                      aria-hidden="true"
+                    />
+                  )}
+
                   {/* Day number */}
-                  <div className={`shrink-0 px-1.5 py-1 flex items-center justify-between ${
+                  <div className={`shrink-0 px-1.5 py-1 flex items-center justify-between z-20 ${
                     isToday(cell)
                       ? "bg-primary text-on-primary rounded-tl-sm"
                       : cell.isWeekend
                       ? "text-red-500"
                       : cell.hasConflict
                       ? "text-red-600"
+                      : isCompLocked
+                      ? "text-slate-500"
                       : hasAnnotations
                       ? "text-slate-700"
                       : cell.isCurrentMonth
@@ -560,6 +700,8 @@ export function DashboardCalendar({
                     </span>
                     {cell.hasConflict && !isToday(cell) ? (
                       <span className="material-symbols-outlined text-[11px] text-red-500">warning</span>
+                    ) : isCompLocked ? (
+                      <span className="material-symbols-outlined text-[11px] text-slate-400" title="Ngày nghỉ bù — khóa">lock</span>
                     ) : primaryAnnotation ? (
                       <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-600">
                         {primaryAnnotation.label}
@@ -568,7 +710,7 @@ export function DashboardCalendar({
                   </div>
 
                   {/* Events */}
-                  <div className="flex-1 flex flex-col gap-0.5 p-0.5 min-h-0 overflow-hidden">
+                  <div className="flex-1 flex flex-col gap-0.5 p-0.5 min-h-0 overflow-hidden z-20">
                     {cell.annotations.map((annotation) => {
                       const annotationTone = TONE[annotation.tone ?? "compLeave"] ?? TONE.compLeave;
                       return (
@@ -617,21 +759,59 @@ export function DashboardCalendar({
                       <button
                         type="button"
                         onClick={(e) => handleOverflowClick(e, cell.items)}
+                        aria-label={`Xem thêm ${extra} lịch khác trong ngày ${cell.day}`}
                         className="flex items-center justify-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-colors min-h-[22px] max-h-[22px] w-full"
                       >
-                        <span className="material-symbols-outlined text-[12px]">expand_more</span>
+                        <span className="material-symbols-outlined text-[12px]" aria-hidden="true">expand_more</span>
                         +{extra} lich khac
+                      </button>
+                    )}
+
+                    {/* Empty cell + hint */}
+                    {!hasMore && cell.items.length === 0 && cell.annotations.length === 0 && !cell.isCompensation && cell.isCurrentMonth && (
+                      <button
+                        type="button"
+                        className="flex items-center justify-center min-h-[24px] text-[14px] text-on-surface-variant/40 hover:text-primary/60 transition-colors w-full"
+                        onClick={() => onAddClick?.(cell.date)}
+                        aria-label={`Thêm lịch cho ngày ${cell.day}`}
+                      >
+                        <span className="material-symbols-outlined text-[16px]" aria-hidden="true">add</span>
                       </button>
                     )}
                   </div>
 
-                  {/* Conflict count badge */}
-                  {cell.hasConflict && (
-                    <div className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-100 text-error text-[10px] font-bold">
-                      <span className="material-symbols-outlined text-[10px]">warning</span>
-                      {cell.items.length}
-                    </div>
-                  )}
+                    {/* Conflict count badge */}
+                    {cell.hasConflict && (
+                      <div
+                        className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-100 text-error text-[10px] font-bold"
+                        aria-label={`${cell.items.length} xung đột trong ngày này`}
+                      >
+                        <span className="material-symbols-outlined text-[10px]" aria-hidden="true">warning</span>
+                        {cell.items.length}
+                      </div>
+                    )}
+
+                  {/* Coverage indicator badge */}
+                  {!cell.isCompensation && (() => {
+                    const cov = coverages[cell.dateStr];
+                    if (!cov) return null;
+                    const isFull = cov.assigned >= cov.required;
+                    const isEmpty = cov.assigned === 0;
+                    if (isFull && cell.items.length > 0) return null;
+                    return (
+                      <div
+                        className={`absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          isFull ? "bg-secondary-container text-on-secondary-container" :
+                          isEmpty ? "bg-surface-container-high text-on-surface-variant" :
+                          "bg-amber-50 text-amber-700"
+                        }`}
+                        aria-label={`Phủ ${cov.assigned} trên ${cov.required} ca cần thiết`}
+                      >
+                        <span className="material-symbols-outlined text-[10px]" aria-hidden="true">group</span>
+                        {cov.assigned}/{cov.required}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -697,6 +877,7 @@ export function DashboardCalendar({
           onEdit={onEditSchedule ?? (() => {})}
           onDelete={onDeleteSchedule ?? (() => {})}
           onResolve={onResolveConflict ?? (() => {})}
+          onViewDetail={onViewDetail ?? (() => {})}
           canEdit={!!onEditSchedule}
         />
       )}
@@ -709,6 +890,7 @@ export function DashboardCalendar({
           onEdit={onEditSchedule ?? (() => {})}
           onDelete={onDeleteSchedule ?? (() => {})}
           onResolve={onResolveConflict ?? (() => {})}
+          onViewDetail={onViewDetail ?? (() => {})}
           canEdit={!!onEditSchedule}
         />
       )}

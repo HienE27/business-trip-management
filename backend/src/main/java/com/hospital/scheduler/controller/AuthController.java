@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private static final String AUTH_COOKIE_NAME = "medschedule_access_token";
+    private static final String AUTH_TOKEN_HEADER = "X-Auth-Token";
 
     private final AuthService authService;
     private final AuthCookieProperties authCookieProperties;
@@ -39,6 +40,7 @@ public class AuthController {
             HttpServletResponse response) {
         AuthResponse authResponse = authService.login(request);
         response.addHeader(HttpHeaders.SET_COOKIE, buildAuthCookie(authResponse.getToken(), authResponse.getExpiresIn()).toString());
+        response.setHeader(AUTH_TOKEN_HEADER, authResponse.getToken());
         return ResponseEntity.ok(ApiResponse.success(authResponse, "Login successful"));
     }
 

@@ -1,17 +1,9 @@
 package com.hospital.scheduler.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hospital.scheduler.repository.AuditHistoryRepository;
-import com.hospital.scheduler.repository.CompensationDayRepository;
-import com.hospital.scheduler.repository.LeaveRequestRepository;
-import com.hospital.scheduler.repository.SchedulePeriodRepository;
-import com.hospital.scheduler.repository.ScheduleRepository;
-import com.hospital.scheduler.repository.ShiftRequirementRepository;
-import com.hospital.scheduler.repository.ShiftTypeRepository;
-import com.hospital.scheduler.repository.StaffRepository;
+import com.hospital.scheduler.repository.HolidayRepository;
+import com.hospital.scheduler.util.CompensationDateCalculator;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Method;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,37 +12,31 @@ import static org.mockito.Mockito.mock;
 class ScheduleServiceBusinessRulesTest {
 
     @Test
-    void calculatesCompensationDateForEachDutyDayRule() throws Exception {
-        ScheduleService scheduleService = new ScheduleService(
-                mock(ScheduleRepository.class),
-                mock(SchedulePeriodRepository.class),
-                mock(StaffRepository.class),
-                mock(ShiftTypeRepository.class),
-                mock(ShiftRequirementRepository.class),
-                mock(CompensationDayRepository.class),
-                mock(ConflictDetectionService.class),
-                new AuditHistoryService(
-                        mock(AuditHistoryRepository.class),
-                        mock(StaffRepository.class),
-                        new ObjectMapper()
-                )
+    void calculatesCompensationDateForEachDutyDayRule() {
+        CompensationDateCalculator calculator = new CompensationDateCalculator(
+                mock(HolidayRepository.class)
         );
-        Method method = ScheduleService.class.getDeclaredMethod("calculateCompensationDate", LocalDate.class);
-        method.setAccessible(true);
 
-        assertThat(method.invoke(scheduleService, LocalDate.of(2026, 6, 1)))
+        // Monday duty → Tuesday (next day)
+        assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 1)))
                 .isEqualTo(LocalDate.of(2026, 6, 2));
-        assertThat(method.invoke(scheduleService, LocalDate.of(2026, 6, 2)))
+        // Tuesday duty → Wednesday (next day)
+        assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 2)))
                 .isEqualTo(LocalDate.of(2026, 6, 3));
-        assertThat(method.invoke(scheduleService, LocalDate.of(2026, 6, 3)))
+        // Wednesday duty → Thursday (next day)
+        assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 3)))
                 .isEqualTo(LocalDate.of(2026, 6, 4));
-        assertThat(method.invoke(scheduleService, LocalDate.of(2026, 6, 4)))
+        // Thursday duty → Friday (next day)
+        assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 4)))
                 .isEqualTo(LocalDate.of(2026, 6, 5));
-        assertThat(method.invoke(scheduleService, LocalDate.of(2026, 6, 5)))
+        // Friday duty → Tuesday NEXT WEEK (skip T7, CN, T2)
+        assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 5)))
                 .isEqualTo(LocalDate.of(2026, 6, 9));
-        assertThat(method.invoke(scheduleService, LocalDate.of(2026, 6, 6)))
+        // Saturday duty → Tuesday NEXT WEEK (skip CN, T2)
+        assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 6)))
                 .isEqualTo(LocalDate.of(2026, 6, 9));
-        assertThat(method.invoke(scheduleService, LocalDate.of(2026, 6, 7)))
+        // Sunday duty → Monday (next day)
+        assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 7)))
                 .isEqualTo(LocalDate.of(2026, 6, 8));
     }
 }

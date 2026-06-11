@@ -9,6 +9,7 @@ import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.ShiftRequirementRepository;
+import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.ShiftTypeRepository;
 import com.hospital.scheduler.repository.SpecialtyRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
@@ -26,38 +27,57 @@ import java.util.stream.Collectors;
 public class ShiftRequirementService {
 
     private final ShiftRequirementRepository requirementRepository;
+    private final ScheduleRepository scheduleRepository;
     private final SchedulePeriodRepository periodRepository;
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
 
     public List<ShiftRequirementResponse> getAllRequirements() {
         return requirementRepository.findAll().stream()
-                .map(ShiftRequirementResponse::fromEntity)
+                .map(req -> {
+                    long count = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
+                            req.getPeriod().getId(), req.getWorkDate(), req.getShiftType().getId());
+                    return ShiftRequirementResponse.fromEntityWithAssignedCount(req, count);
+                })
                 .collect(Collectors.toList());
     }
 
     public List<ShiftRequirementResponse> getRequirementsByPeriod(Integer periodId) {
         return requirementRepository.findByPeriodId(periodId).stream()
-                .map(ShiftRequirementResponse::fromEntity)
+                .map(req -> {
+                    long count = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
+                            periodId, req.getWorkDate(), req.getShiftType().getId());
+                    return ShiftRequirementResponse.fromEntityWithAssignedCount(req, count);
+                })
                 .collect(Collectors.toList());
     }
 
     public List<ShiftRequirementResponse> getRequirementsByPeriodAndDate(Integer periodId, LocalDate date) {
         return requirementRepository.findByPeriodIdAndWorkDate(periodId, date).stream()
-                .map(ShiftRequirementResponse::fromEntity)
+                .map(req -> {
+                    long count = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
+                            periodId, date, req.getShiftType().getId());
+                    return ShiftRequirementResponse.fromEntityWithAssignedCount(req, count);
+                })
                 .collect(Collectors.toList());
     }
 
     public List<ShiftRequirementResponse> getRequirementsByPeriodAndDateRange(Integer periodId, LocalDate startDate, LocalDate endDate) {
         return requirementRepository.findByPeriodIdAndDateRange(periodId, startDate, endDate).stream()
-                .map(ShiftRequirementResponse::fromEntity)
+                .map(req -> {
+                    long count = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
+                            periodId, req.getWorkDate(), req.getShiftType().getId());
+                    return ShiftRequirementResponse.fromEntityWithAssignedCount(req, count);
+                })
                 .collect(Collectors.toList());
     }
 
     public ShiftRequirementResponse getRequirementById(Integer id) {
         ShiftRequirement requirement = requirementRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu nhân sự với ID: " + id));
-        return ShiftRequirementResponse.fromEntity(requirement);
+        long count = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
+                requirement.getPeriod().getId(), requirement.getWorkDate(), requirement.getShiftType().getId());
+        return ShiftRequirementResponse.fromEntityWithAssignedCount(requirement, count);
     }
 
     public ShiftRequirementResponse createRequirement(ShiftRequirementDTO dto) {
@@ -88,7 +108,7 @@ public class ShiftRequirementService {
                 .build();
 
         ShiftRequirement saved = requirementRepository.save(requirement);
-        return ShiftRequirementResponse.fromEntity(saved);
+        return ShiftRequirementResponse.fromEntityWithAssignedCount(saved, 0);
     }
 
     public ShiftRequirementResponse updateRequirement(Integer id, ShiftRequirementDTO dto) {
@@ -116,7 +136,9 @@ public class ShiftRequirementService {
         requirement.setNote(dto.getNote());
 
         ShiftRequirement saved = requirementRepository.save(requirement);
-        return ShiftRequirementResponse.fromEntity(saved);
+        long count = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
+                saved.getPeriod().getId(), saved.getWorkDate(), saved.getShiftType().getId());
+        return ShiftRequirementResponse.fromEntityWithAssignedCount(saved, count);
     }
 
     public void deleteRequirement(Integer id) {

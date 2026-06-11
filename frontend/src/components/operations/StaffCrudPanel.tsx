@@ -4,6 +4,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { useToast } from "@/hooks/useToast";
+import type { Specialty } from "@/types/api";
 
 type SpecialtyInfo = {
   id: number;
@@ -41,65 +43,6 @@ type StaffFormData = {
   specialtyId: number | null;
   maxShiftsPerMonth: number;
 };
-
-const fallbackStaffRecords: StaffResponse[] = [
-  {
-    id: 1,
-    username: "NV-0124",
-    fullName: "Hoang Ngoc Anh",
-    phone: "0987 654 321",
-    email: "ngocanh.h@medops.vn",
-    specialty: { id: 1, name: "Khoa Khám bệnh" },
-    maxShiftsPerMonth: 6,
-    isActive: true,
-    status: "active",
-    roles: ["STAFF"],
-    createdAt: "2026-05-01T08:00:00.000Z",
-    updatedAt: "2026-05-28T09:15:00.000Z",
-  },
-  {
-    id: 2,
-    username: "NV-0285",
-    fullName: "Tran Minh Tuan",
-    phone: "0912 345 678",
-    email: "tuan.tm@medops.vn",
-    specialty: { id: 2, name: "Khoa Cấp cứu" },
-    maxShiftsPerMonth: 5,
-    isActive: true,
-    status: "on_leave",
-    roles: ["STAFF"],
-    createdAt: "2026-05-02T08:00:00.000Z",
-    updatedAt: "2026-05-27T14:20:00.000Z",
-  },
-  {
-    id: 3,
-    username: "NV-0310",
-    fullName: "Le Thi Thanh",
-    phone: "0909 112 233",
-    email: "thanh.lt@medops.vn",
-    specialty: { id: 3, name: "Khoa Chẩn đoán hình ảnh" },
-    maxShiftsPerMonth: 5,
-    isActive: true,
-    status: "active",
-    roles: ["STAFF"],
-    createdAt: "2026-05-03T08:00:00.000Z",
-    updatedAt: "2026-05-26T10:45:00.000Z",
-  },
-  {
-    id: 4,
-    username: "NV-0042",
-    fullName: "Pham Van Dung",
-    phone: "",
-    email: "dung.pv@medops.vn",
-    specialty: { id: 4, name: "Khoa Ngoại tổng hợp" },
-    maxShiftsPerMonth: 4,
-    isActive: false,
-    status: "inactive",
-    roles: ["STAFF"],
-    createdAt: "2026-05-04T08:00:00.000Z",
-    updatedAt: "2026-05-20T16:30:00.000Z",
-  },
-];
 
 const emptyForm: StaffFormData = {
   username: "",
@@ -149,29 +92,40 @@ function getStatusLabel(record: StaffResponse) {
 }
 
 function getStatusClass(record: StaffResponse) {
-  if (record.status === "active") return "bg-green-50 text-green-700 border border-green-200";
-  if (record.status === "on_leave") return "bg-orange-50 text-orange-700 border border-orange-200";
-  return "bg-gray-100 text-gray-600 border border-gray-200";
+  if (record.status === "active") return "bg-secondary-container text-on-secondary-container border border-secondary/20";
+  if (record.status === "on_leave") return "bg-tertiary-fixed text-on-tertiary-fixed-variant border border-tertiary/20";
+  return "bg-surface-container-highest text-outline border border-outline-variant";
 }
 
 function getStatusDot(record: StaffResponse) {
-  if (record.status === "active") return "bg-green-500";
-  if (record.status === "on_leave") return "bg-orange-500";
-  return "bg-gray-400";
+  if (record.status === "active") return "bg-secondary";
+  if (record.status === "on_leave") return "bg-tertiary";
+  return "bg-outline";
 }
 
 export function StaffCrudPanel() {
   const [records, setRecords] = useState<StaffResponse[]>([]);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [form, setForm] = useState<StaffFormData>(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
-  const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error" | "info">("info");
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  const fetchSpecialties = useCallback(async () => {
+    try {
+      const data = await api.get<Specialty[]>("/specialties/active");
+      setSpecialties(data ?? []);
+    } catch {
+      // Silently fail - specialties are optional
+    }
+  }, []);
 
   const fetchStaff = useCallback(async () => {
     try {
@@ -199,25 +153,27 @@ export function StaffCrudPanel() {
           return true;
         });
 
-      const combined = hasFilters ? dedup(normalizedData) : dedup([...normalizedData, ...fallbackStaffRecords]);
-
-      setRecords(combined);
-      setMessage("");
+      setRecords(dedup(normalizedData));
     } catch {
-      showMessage(
-        "Không thể tải danh sách nhân sự từ backend. Hiển thị dữ liệu mẫu để tiếp tục demo giao diện.",
-        "info",
-      );
-      setRecords(fallbackStaffRecords);
+      toast.error("Không thể tải danh sách nhân sự. Vui lòng kiểm tra kết nối backend.");
+      setRecords([]);
     } finally {
       setLoading(false);
     }
   }, [roleFilter, searchKeyword, statusFilter]);
 
   useEffect(() => {
+    fetchSpecialties();
+  }, [fetchSpecialties]);
+
+  useEffect(() => {
     const timer = setTimeout(() => fetchStaff(), 0);
     return () => clearTimeout(timer);
   }, [fetchStaff]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchKeyword, statusFilter, roleFilter]);
 
   const summary = useMemo(
     () => [
@@ -260,12 +216,66 @@ export function StaffCrudPanel() {
     });
   }, [records, searchKeyword, statusFilter, roleFilter]);
 
-  function showMessage(msg: string, type: "success" | "error" | "info" = "info") {
-    setMessage(msg);
-    setMessageType(type);
-    if (type === "success") {
-      setTimeout(() => setMessage(""), 4000);
+  const pagedRecords = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredRecords.slice(start, start + PAGE_SIZE);
+  }, [filteredRecords, currentPage]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE)),
+    [filteredRecords.length]
+  );
+
+  const pageNumbers = useMemo(() => {
+    const pages: (number | "...")[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push("...");
+      for (
+        let i = Math.max(2, currentPage - 1);
+        i <= Math.min(totalPages - 1, currentPage + 1);
+        i++
+      ) {
+        pages.push(i);
+      }
+      if (currentPage < totalPages - 2) pages.push("...");
+      pages.push(totalPages);
     }
+    return pages;
+  }, [totalPages, currentPage]);
+
+  function handlePageClick(page: number | "...") {
+    if (page === "...") return;
+    setCurrentPage(page);
+  }
+
+  function handleExportExcel() {
+    const rows = [
+      ["Họ tên", "Tên đăng nhập", "Vai trò", "Chuyên khoa", "SĐT", "Email", "Trạng thái"],
+      ...filteredRecords.map((r) => [
+        r.fullName,
+        r.username,
+        getRoleLabel(r.roles),
+        r.specialty?.name ?? "Chưa phân khoa",
+        r.phone || "-",
+        r.email || "-",
+        getStatusLabel(r),
+      ]),
+    ];
+    const csv = rows
+      .map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+      )
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `danh-sach-nhan-su-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function updateField(field: keyof StaffFormData, value: string | number | null) {
@@ -302,7 +312,7 @@ export function StaffCrudPanel() {
     event.preventDefault();
 
     if (!form.fullName.trim() || !form.username.trim()) {
-      showMessage("Cần nhập họ tên và tên đăng nhập.", "error");
+      toast.error("Cần nhập họ tên và tên đăng nhập.");
       return;
     }
 
@@ -314,21 +324,21 @@ export function StaffCrudPanel() {
           delete body.password;
         }
         await api.put(`/staff/${editingId}`, body);
-        showMessage(`Đã cập nhật ${form.fullName}.`, "success");
+        toast.success(`Đã cập nhật ${form.fullName}.`);
       } else {
         if (!form.password.trim()) {
-          showMessage("Cần nhập mật khẩu khi thêm mới.", "error");
+          toast.error("Cần nhập mật khẩu khi thêm mới.");
           return;
         }
         await api.post("/staff", form);
-        showMessage(`Đã thêm ${form.fullName}.`, "success");
+        toast.success(`Đã thêm ${form.fullName}.`);
       }
       setForm(emptyForm);
       setEditingId(null);
       closeForm();
       await fetchStaff();
     } catch (err) {
-      showMessage(getErrorMessage(err, "Lỗi lưu nhân sự"), "error");
+      toast.error(getErrorMessage(err, "Lỗi lưu nhân sự"));
     } finally {
       setSubmitting(false);
     }
@@ -339,13 +349,13 @@ export function StaffCrudPanel() {
 
     try {
       await api.delete(`/staff/${id}`);
-      showMessage(`Đã dừng hoạt động ${name}.`, "success");
+      toast.success(`Đã dừng hoạt động ${name}.`);
       if (editingId === id) {
         closeForm();
       }
       await fetchStaff();
     } catch (err) {
-      showMessage(getErrorMessage(err, "Lỗi xóa nhân sự"), "error");
+      toast.error(getErrorMessage(err, "Lỗi xóa nhân sự"));
     }
   }
 
@@ -393,7 +403,7 @@ export function StaffCrudPanel() {
 
           <div className="flex-1 overflow-y-auto px-6 py-5">
             <form className="flex flex-col gap-5" id="staff-drawer-form" onSubmit={submitStaff}>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label className="flex flex-col gap-1.5 col-span-2">
                   <span className="text-sm font-semibold text-on-surface">Username <span className="text-error">*</span></span>
                   <input
@@ -468,15 +478,9 @@ export function StaffCrudPanel() {
                       value={form.specialtyId ?? ""}
                     >
                       <option value="">Chưa phân khoa</option>
-                      <option value="1">Khoa Khám bệnh</option>
-                      <option value="2">Khoa Cấp cứu</option>
-                      <option value="3">Khoa Chẩn đoán hình ảnh</option>
-                      <option value="4">Khoa Ngoại tổng hợp</option>
-                      <option value="5">Khoa Noi tong hop</option>
-                      <option value="6">Khoa San</option>
-                      <option value="7">Khoa Nhi</option>
-                      <option value="8">Khoa Mat</option>
-                      <option value="9">Khoa Rang ham mat</option>
+                      {specialties.map((spec) => (
+                        <option key={spec.id} value={spec.id}>{spec.name}</option>
+                      ))}
                     </select>
                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
                   </div>
@@ -509,18 +513,6 @@ export function StaffCrudPanel() {
                   </div>
                 </label>
               </div>
-
-              {message && (
-                <div className={`rounded-lg border px-4 py-3 text-sm ${
-                  messageType === "error"
-                    ? "border-error/20 bg-error-container text-on-error-container"
-                    : messageType === "success"
-                      ? "border-secondary/20 bg-secondary-container text-on-secondary-container"
-                      : "border-outline-variant bg-surface-container text-on-surface"
-                }`}>
-                  {message}
-                </div>
-              )}
             </form>
           </div>
 
@@ -554,7 +546,7 @@ export function StaffCrudPanel() {
         </div>
       </div>
 
-      <section className="flex flex-col justify-between gap-5 rounded-xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm sm:flex-row sm:items-center">
+      <section className="flex flex-col justify-between gap-5 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 md:p-6 shadow-sm sm:flex-row sm:items-center">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant">Nhân sự</p>
           <p className="mt-1 text-[14px] text-on-surface-variant">
@@ -564,6 +556,7 @@ export function StaffCrudPanel() {
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <button
             className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 h-10 text-[13px] font-medium text-on-surface shadow-sm transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            onClick={handleExportExcel}
             type="button"
           >
             <span aria-hidden="true" className="material-symbols-outlined text-[18px]">download</span>
@@ -600,7 +593,7 @@ export function StaffCrudPanel() {
           <input
             aria-label="Tìm kiếm nhân sự"
             autoComplete="off"
-            className="w-full rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-10 pr-4 text-sm text-on-surface transition-all placeholder:text-outline focus-visible:border-primary focus:bg-surface-container-lowest focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            className="w-full rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-10 pr-4 text-sm text-on-surface transition-all placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
             name="staffSearch"
             onChange={(e) => setSearchKeyword(e.target.value)}
             placeholder="Tìm kiếm tên, email hoặc mã nhân viên..."
@@ -611,7 +604,7 @@ export function StaffCrudPanel() {
         <div className="relative w-full lg:w-48">
           <select
             aria-label="Loc theo chuc vu"
-            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-sm text-on-surface transition-all focus-visible:border-primary focus:bg-surface-container-lowest focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
             onChange={(e) => setRoleFilter(e.target.value)}
             value={roleFilter}
           >
@@ -626,7 +619,7 @@ export function StaffCrudPanel() {
         </div>
 
         <div className="relative w-full lg:w-48">
-          <select aria-label="Loc theo khoa phong" className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-sm text-on-surface transition-all focus-visible:border-primary focus:bg-surface-container-lowest focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary">
+          <select aria-label="Loc theo khoa phong" className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20" value="" onChange={() => {}}>
             <option value="">Tất cả Khoa/Phòng</option>
             <option value="kham-benh">Khoa Khám bệnh</option>
             <option value="cap-cuu">Khoa Cấp cứu</option>
@@ -640,7 +633,7 @@ export function StaffCrudPanel() {
         <div className="relative w-full lg:w-48">
           <select
             aria-label="Loc theo trang thai"
-            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-sm text-on-surface transition-all focus-visible:border-primary focus:bg-surface-container-lowest focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
             onChange={(e) => setStatusFilter(e.target.value)}
             value={statusFilter}
           >
@@ -678,7 +671,7 @@ export function StaffCrudPanel() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">
-                {filteredRecords.length === 0 ? (
+                {pagedRecords.length === 0 ? (
                   <tr>
                     <td className="px-6 py-10 text-center text-sm text-on-surface-variant" colSpan={7}>
                       {searchKeyword || statusFilter
@@ -687,7 +680,7 @@ export function StaffCrudPanel() {
                     </td>
                   </tr>
                 ) : (
-                  filteredRecords.map((record) => (
+                  pagedRecords.map((record) => (
                     <tr className="group transition-colors hover:bg-surface-container-low" key={record.id}>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -715,7 +708,7 @@ export function StaffCrudPanel() {
                           <Link
                             aria-label={`Xem chi tiết ${record.fullName}`}
                             className="p-1.5 rounded-md text-outline hover:text-primary hover:bg-surface-container transition-colors"
-                            href={`/staff/profile?id=${record.id}`}
+                            href={`/staff/${record.id}`}
                             title="Xem chi tiết"
                           >
                             <span aria-hidden="true" className="material-symbols-outlined text-[18px]">visibility</span>
@@ -750,23 +743,50 @@ export function StaffCrudPanel() {
 
         <div className="flex items-center justify-between border-t border-surface-variant bg-surface-container-lowest px-4 py-3">
           <p className="text-sm text-on-surface-variant">
-            Hiển thị <span className="font-medium text-on-surface">1</span> đến <span className="font-medium text-on-surface">10</span> trong số <span className="font-medium text-on-surface">{filteredRecords.length}</span> nhân viên
+            Hiển thị{" "}
+            <span className="font-medium text-on-surface">
+              {(currentPage - 1) * PAGE_SIZE + 1}
+            </span>{" "}
+            đến{" "}
+            <span className="font-medium text-on-surface">
+              {Math.min(currentPage * PAGE_SIZE, filteredRecords.length)}
+            </span>{" "}
+            trong số{" "}
+            <span className="font-medium text-on-surface">{filteredRecords.length}</span> nhân viên
           </p>
           <div className="flex items-center gap-1">
             <button
               className="p-1.5 rounded-md text-outline-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              disabled
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               type="button"
             >
               <span className="material-symbols-outlined text-[20px]">chevron_left</span>
             </button>
-            <button className="w-8 h-8 rounded-md bg-primary text-on-primary font-label-md text-label-md flex items-center justify-center" type="button">1</button>
-            <button className="w-8 h-8 rounded-md text-on-surface-variant hover:bg-surface-container font-label-md text-label-md flex items-center justify-center transition-colors" type="button">2</button>
-            <button className="w-8 h-8 rounded-md text-on-surface-variant hover:bg-surface-container font-label-md text-label-md flex items-center justify-center transition-colors" type="button">3</button>
-            <span className="px-1 text-outline-variant font-label-md text-label-md">...</span>
-            <button className="w-8 h-8 rounded-md text-on-surface-variant hover:bg-surface-container font-label-md text-label-md flex items-center justify-center transition-colors" type="button">{Math.ceil(filteredRecords.length / 10)}</button>
+            {pageNumbers.map((page, idx) =>
+              page === "..." ? (
+                <span className="px-1 text-outline-variant font-label-md text-label-md" key={`ellipsis-${idx}`}>
+                  ...
+                </span>
+              ) : (
+                <button
+                  key={page}
+                  className={`w-8 h-8 rounded-md font-label-md text-label-md flex items-center justify-center transition-colors ${
+                    currentPage === page
+                      ? "bg-primary text-on-primary"
+                      : "text-on-surface-variant hover:bg-surface-container"
+                  }`}
+                  onClick={() => handlePageClick(page)}
+                  type="button"
+                >
+                  {page}
+                </button>
+              )
+            )}
             <button
-              className="p-1.5 rounded-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+              className="p-1.5 rounded-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               type="button"
             >
               <span className="material-symbols-outlined text-[20px]">chevron_right</span>

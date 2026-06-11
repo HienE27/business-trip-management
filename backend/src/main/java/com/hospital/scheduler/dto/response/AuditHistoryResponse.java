@@ -15,6 +15,9 @@ public class AuditHistoryResponse {
     private String tableName;
     private Integer recordId;
     private ActionType actionType;
+    private String action;
+    private Integer userId;
+    private String userName;
     private StaffSummary changedBy;
     private String oldData;
     private String newData;
@@ -37,20 +40,30 @@ public class AuditHistoryResponse {
     }
 
     public static AuditHistoryResponse fromEntity(AuditHistory entity) {
-        return AuditHistoryResponse.builder()
+        AuditHistoryResponse response = AuditHistoryResponse.builder()
                 .id(entity.getId())
                 .tableName(entity.getTableName())
                 .recordId(entity.getRecordId())
                 .actionType(ActionType.valueOf(entity.getActionType().name()))
-                .changedBy(entity.getChangedBy() != null ? StaffSummary.builder()
-                        .id(entity.getChangedBy().getId())
-                        .fullName(entity.getChangedBy().getFullName())
-                        .build() : null)
+                .action(switch (entity.getActionType()) {
+                    case INSERT -> "CREATE";
+                    case UPDATE -> "UPDATE";
+                    case DELETE -> "DELETE";
+                })
                 .oldData(entity.getOldData())
                 .newData(entity.getNewData())
                 .ipAddress(entity.getIpAddress())
                 .userAgent(entity.getUserAgent())
                 .createdAt(entity.getCreatedAt())
                 .build();
+        if (entity.getChangedBy() != null) {
+            response.setChangedBy(StaffSummary.builder()
+                    .id(entity.getChangedBy().getId())
+                    .fullName(entity.getChangedBy().getFullName())
+                    .build());
+            response.setUserId(entity.getChangedBy().getId());
+            response.setUserName(entity.getChangedBy().getFullName());
+        }
+        return response;
     }
 }

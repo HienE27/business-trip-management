@@ -26,10 +26,10 @@ public class ScheduleTemplate {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "day_of_week", nullable = false)
+    @Column(name = "day_of_week")
     private Integer dayOfWeek;
 
-    @Column(name = "shift_type_id", nullable = false, length = 10)
+    @Column(name = "shift_type_id", length = 10)
     private String shiftTypeId;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -51,4 +51,23 @@ public class ScheduleTemplate {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(name = "source_period_id")
+    private Integer sourcePeriodId;
+
+    @Column(name = "algorithm_type", length = 50)
+    private String algorithmType;
+
+    @Column(name = "algorithm_config", columnDefinition = "TEXT")
+    private String algorithmConfig;
+
+    @Column(name = "template_type", nullable = false, length = 20)
+    @Builder.Default
+    private String templateType = "PATTERN";
+
+    @Column(name = "generated_schedule_ids", columnDefinition = "TEXT")
+    private String generatedScheduleIds;
+
+    @Column(name = "source_period_name", length = 100)
+    private String sourcePeriodName;
 }

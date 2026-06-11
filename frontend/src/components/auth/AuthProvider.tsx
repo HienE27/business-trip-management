@@ -42,6 +42,8 @@ type LoginResponse = {
   };
 };
 
+const TOKEN_STORAGE_KEY = "medschedule.token";
+
 const AuthContext = createContext<AuthState | null>(null);
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api/v1";
@@ -130,13 +132,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("Đăng nhập thất bại. Kiểm tra backend hoặc tài khoản.");
     }
 
+    // Parse body ONCE to extract token and user data
     const payload = (await response.json()) as LoginResponse;
+    const token =
+      response.headers.get("X-Auth-Token") ?? payload.data?.token;
+
     const fallbackUser = {
       username: payload.data?.username ?? username,
       userId: payload.data?.userId ?? 0,
       roles: payload.data?.roles ?? [],
     };
 
+    if (token) {
+      window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    }
     persistAuthUser(fallbackUser);
     setUser(fallbackUser);
     setIsLoading(true);
@@ -153,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.logout();
     } finally {
+      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
       persistAuthUser(null);
       setUser(null);
       setIsLoading(false);

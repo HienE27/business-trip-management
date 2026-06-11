@@ -2,6 +2,7 @@ package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.SchedulePeriodRequest;
 import com.hospital.scheduler.dto.response.SchedulePeriodResponse;
+import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.exception.BadRequestException;
@@ -23,6 +24,9 @@ public class SchedulePeriodService {
 
     private final SchedulePeriodRepository periodRepository;
     private final StaffRepository staffRepository;
+    private final AuditHistoryService auditHistoryService;
+    private final ConflictDetectionService conflictDetectionService;
+    private final NotificationService notificationService;
 
     public List<SchedulePeriodResponse> getAllPeriods() {
         return periodRepository.findAll().stream()
@@ -62,6 +66,7 @@ public class SchedulePeriodService {
                 .build();
 
         SchedulePeriod saved = periodRepository.save(period);
+        auditHistoryService.logAction("schedule_period", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
         return toResponse(saved);
     }
 
@@ -77,14 +82,17 @@ public class SchedulePeriodService {
             throw new BadRequestException("Ngày bắt đầu phải trước ngày kết thúc");
         }
 
+        SchedulePeriod prev = period;
         period.setPeriodName(request.getPeriodName());
         period.setStartDate(request.getStartDate());
         period.setEndDate(request.getEndDate());
 
-        return toResponse(periodRepository.save(period));
+        SchedulePeriod saved = periodRepository.save(period);
+        auditHistoryService.logAction("schedule_period", id, AuditHistory.ActionType.UPDATE, prev, saved, null);
+        return toResponse(saved);
     }
 
-    public SchedulePeriodResponse publishPeriod(Integer id) {
+    public SchedulePeriodResponse publishPeriod(Integer id, Integer publishedById) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
 
@@ -92,9 +100,28 @@ public class SchedulePeriodService {
             throw new BadRequestException("Chỉ có thể công bố kỳ lịch ở trạng thái DRAFT");
         }
 
+        List<String> conflicts = conflictDetectionService.detectAllConflictsForPeriod(id);
+        if (!conflicts.isEmpty()) {
+            throw new BadRequestException("Kỳ lịch có xung đột, không thể công bố: " + String.join("; ", conflicts));
+        }
+
+        Staff publishedBy = null;
+        if (publishedById != null) {
+            publishedBy = staffRepository.findById(publishedById).orElse(null);
+        }
+
         period.setStatus(SchedulePeriod.PeriodStatus.PUBLISHED);
+        period.setPublishedBy(publishedBy);
         period.setPublishedAt(LocalDateTime.now());
-        return toResponse(periodRepository.save(period));
+        SchedulePeriod saved = periodRepository.save(period);
+        auditHistoryService.logAction("schedule_period", id, AuditHistory.ActionType.UPDATE,
+                "DRAFT", saved, null);
+
+        String notifTitle = "Lịch công tác đã được công bố";
+        String notifMsg = "Kỳ lịch \"" + period.getPeriodName() + "\" (" + period.getStartDate() + " - " + period.getEndDate() + ") đã được công bố. Vui lòng kiểm tra lịch trực của bạn.";
+        notificationService.createNotificationForAllStaff(notifTitle, notifMsg);
+
+        return toResponse(saved);
     }
 
     public SchedulePeriodResponse archivePeriod(Integer id) {
@@ -109,12 +136,32 @@ public class SchedulePeriodService {
         return toResponse(periodRepository.save(period));
     }
 
+    public void deletePeriod(Integer id) {
+        SchedulePeriod period = periodRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
+
+        if (period.getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
+            throw new BadRequestException("Chỉ có thể xóa kỳ lịch ở trạng thái DRAFT");
+        }
+
+        auditHistoryService.logAction("schedule_period", id, AuditHistory.ActionType.DELETE, period, null, null);
+        periodRepository.delete(period);
+    }
+
     private SchedulePeriodResponse toResponse(SchedulePeriod period) {
         SchedulePeriodResponse.StaffSummary generatedBySummary = null;
         if (period.getGeneratedBy() != null) {
             generatedBySummary = SchedulePeriodResponse.StaffSummary.builder()
                     .id(period.getGeneratedBy().getId())
                     .fullName(period.getGeneratedBy().getFullName())
+                    .build();
+        }
+
+        SchedulePeriodResponse.StaffSummary publishedBySummary = null;
+        if (period.getPublishedBy() != null) {
+            publishedBySummary = SchedulePeriodResponse.StaffSummary.builder()
+                    .id(period.getPublishedBy().getId())
+                    .fullName(period.getPublishedBy().getFullName())
                     .build();
         }
 
@@ -126,6 +173,7 @@ public class SchedulePeriodService {
                 .status(period.getStatus().name())
                 .generatedBy(generatedBySummary)
                 .generatedAt(period.getGeneratedAt())
+                .publishedBy(publishedBySummary)
                 .publishedAt(period.getPublishedAt())
                 .createdAt(period.getCreatedAt())
                 .updatedAt(period.getUpdatedAt())

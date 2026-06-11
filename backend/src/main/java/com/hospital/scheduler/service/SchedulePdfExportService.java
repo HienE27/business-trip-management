@@ -17,13 +17,14 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
 public class SchedulePdfExportService {
 
     private final ScheduleRepository scheduleRepository;
-
-    public SchedulePdfExportService(ScheduleRepository scheduleRepository) {
-        this.scheduleRepository = scheduleRepository;
-    }
 
     public byte[] exportScheduleToPdf(Integer periodId) throws IOException {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId).stream()

@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -119,6 +118,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [initialized, setInitialized] = useState(false);
 
   const loadNotifications = useCallback(async () => {
     if (!userId) {
@@ -136,14 +136,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setError(getErrorMessage(err, "Không thể tải thông báo."));
     } finally {
       setLoading(false);
+      setInitialized(true);
     }
   }, [userId]);
 
-  useEffect(() => {
-    void loadNotifications();
-  }, [loadNotifications]);
-
   const refreshCount = useCallback(async (count?: number) => {
+    if (!initialized && !loading) {
+      void loadNotifications();
+      return;
+    }
+
     if (typeof count === "number") {
       setNotifications((prev) => {
         const unreadIndexes = prev
@@ -159,7 +161,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
 
     await loadNotifications();
-  }, [loadNotifications]);
+  }, [initialized, loadNotifications, loading]);
 
   const markRead = useCallback(async (id: string) => {
     await api.put(`/notifications/${id}/read`, {});

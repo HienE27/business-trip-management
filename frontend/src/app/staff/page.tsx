@@ -4,7 +4,7 @@ import { StaffCrudPanel } from "@/components/operations/StaffCrudPanel";
 export default function StaffPage() {
   return (
     <DashboardShell
-      activeCode="M01"
+      activeSection="staff"
       description="Quản lý cơ sở dữ liệu nhân viên, chức vụ và trạng thái hoạt động trong hệ thống."
       title="Quản lý nhân sự"
     >

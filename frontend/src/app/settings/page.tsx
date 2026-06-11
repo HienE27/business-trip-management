@@ -24,7 +24,7 @@ const plannedItems = [
 export default function SettingsPage() {
   return (
     <DashboardShell
-      activeCode="SETTINGS"
+      activeSection="settings"
       title="Cài đặt"
       description="Trang này đang được tinh gọn để tránh hiển thị các cấu hình chưa hoạt động thực tế."
     >

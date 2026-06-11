@@ -22,6 +22,12 @@ public class ScheduleTemplateResponse {
     private Integer requiredStaffCount;
     private Boolean isActive;
     private LocalDateTime createdAt;
+    private Integer sourcePeriodId;
+    private String sourcePeriodName;
+    private String algorithmType;
+    private String algorithmConfig;
+    private String templateType;
+    private String generatedScheduleIds;
 
     @Getter
     @Setter
@@ -51,6 +57,12 @@ public class ScheduleTemplateResponse {
                 .isActive(template.getIsActive())
                 .createdAt(template.getCreatedAt())
                 .specialty(specialtyResp)
+                .sourcePeriodId(template.getSourcePeriodId())
+                .sourcePeriodName(template.getSourcePeriodName())
+                .algorithmType(template.getAlgorithmType())
+                .algorithmConfig(template.getAlgorithmConfig())
+                .templateType(template.getTemplateType())
+                .generatedScheduleIds(template.getGeneratedScheduleIds())
                 .build();
     }
 }

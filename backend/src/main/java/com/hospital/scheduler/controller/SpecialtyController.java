@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,24 +25,28 @@ public class SpecialtyController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách chuyên khoa")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<SpecialtyResponse>>> getAllSpecialties() {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getAllSpecialties()));
     }
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách chuyên khoa đang hoạt động")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<SpecialtyResponse>>> getActiveSpecialties() {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getActiveSpecialties()));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết chuyên khoa")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<SpecialtyResponse>> getSpecialtyById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getSpecialtyById(id)));
     }
 
     @PostMapping
     @Operation(summary = "Tạo chuyên khoa mới")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<SpecialtyResponse>> createSpecialty(@Valid @RequestBody SpecialtyRequest request) {
         SpecialtyResponse created = specialtyService.createSpecialty(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(created, "Tạo chuyên khoa thành công"));
@@ -49,6 +54,7 @@ public class SpecialtyController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật chuyên khoa")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<SpecialtyResponse>> updateSpecialty(
             @PathVariable Integer id,
             @Valid @RequestBody SpecialtyRequest request) {
@@ -57,6 +63,7 @@ public class SpecialtyController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa chuyên khoa (soft delete)")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteSpecialty(@PathVariable Integer id) {
         specialtyService.deleteSpecialty(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa chuyên khoa thành công"));

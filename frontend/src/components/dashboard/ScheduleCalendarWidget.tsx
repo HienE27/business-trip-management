@@ -7,8 +7,9 @@ import { FAB } from "@/components/ui/FAB";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { ConflictResolutionModal } from "@/components/ui/ConflictResolutionModal";
 import { useRole, canEditSchedule } from "@/hooks/useRole";
+import { api } from "@/lib/api-client";
 import type { Schedule } from "@/types/api";
-import type { ConflictItem } from "@/components/ui/ConflictResolutionModal";
+import type { ConflictItem } from "@/types/schedule";
 
 type CalendarAnnotation = {
   date: string;
@@ -21,23 +22,42 @@ type QuickScheduleModalProps = {
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  periodId: number | null;
+  staffList?: { id: number; fullName: string }[];
+  defaultShiftTypeId?: string;
 };
 
-export function QuickScheduleModal({ open, onClose, onSuccess }: QuickScheduleModalProps) {
+export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffList = [], defaultShiftTypeId = "L01" }: QuickScheduleModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [selectedShiftType, setSelectedShiftType] = useState(defaultShiftTypeId);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>("");
+  const [workDate, setWorkDate] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!periodId || !selectedStaffId || !workDate) return;
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setSubmitting(false);
-    setDone(true);
-    setTimeout(() => {
-      setDone(false);
-      onSuccess?.();
-      onClose();
-    }, 1200);
+    try {
+      await api.post("/schedules", {
+        periodId,
+        workDate,
+        staffId: Number(selectedStaffId),
+        shiftTypeId: selectedShiftType,
+      });
+      setDone(true);
+      setTimeout(() => {
+        setDone(false);
+        setSelectedStaffId("");
+        setWorkDate("");
+        setNotes("");
+        onSuccess?.();
+        onClose();
+      }, 1200);
+    } catch {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -56,10 +76,12 @@ export function QuickScheduleModal({ open, onClose, onSuccess }: QuickScheduleMo
             <div className="relative">
               <select
                 id="q-shift-type"
+                name="shift-type"
                 className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-outline-variant bg-surface px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                value={selectedShiftType}
+                onChange={(e) => setSelectedShiftType(e.target.value)}
                 required
               >
-                <option value="">Chọn loại lịch...</option>
                 <option value="L01">Trực 24/24</option>
                 <option value="L02">Thông tầm</option>
                 <option value="L03">Phòng khám dịch vụ</option>
@@ -73,35 +95,50 @@ export function QuickScheduleModal({ open, onClose, onSuccess }: QuickScheduleMo
             <label className="text-label-sm uppercase tracking-wider text-on-surface-variant block mb-2" htmlFor="q-staff">
               Nhân sự
             </label>
-            <input
-              id="q-staff"
-              className="h-10 w-full cursor-pointer rounded-lg border border-outline-variant bg-surface px-3 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-              placeholder="Nhập tên nhân sự..."
-              required
-            />
+            <div className="relative">
+              <select
+                id="q-staff"
+                name="staff"
+                className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-outline-variant bg-surface px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                value={selectedStaffId}
+                onChange={(e) => setSelectedStaffId(e.target.value)}
+                required
+              >
+                <option value="">Chọn nhân sự...</option>
+                {staffList.map((s) => (
+                  <option key={s.id} value={s.id}>{s.fullName}</option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">expand_more</span>
+            </div>
           </div>
 
           <div>
             <label className="text-label-sm uppercase tracking-wider text-on-surface-variant block mb-2" htmlFor="q-date">
-              Ngay
+              Ngày
             </label>
             <input
               id="q-date"
+              name="date"
               type="date"
               className="h-10 w-full cursor-pointer rounded-lg border border-outline-variant bg-surface px-3 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+              value={workDate}
+              onChange={(e) => setWorkDate(e.target.value)}
               required
             />
           </div>
 
           <div>
             <label className="text-label-sm uppercase tracking-wider text-on-surface-variant block mb-2" htmlFor="q-notes">
-Ghi chú
-              </label>
-              <textarea
-                id="q-notes"
-                className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-                rows={2}
-                placeholder="Ghi chú (nếu có)..."
+              Ghi chú
+            </label>
+            <textarea
+              id="q-notes"
+              className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+              rows={2}
+              placeholder="Ghi chú (nếu có)..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
             />
           </div>
 
@@ -134,15 +171,29 @@ Ghi chú
 type ScheduleCalendarWidgetProps = {
   schedules: Schedule[];
   calendarAnnotations?: CalendarAnnotation[];
+  coverages?: Record<string, { required: number; assigned: number }>;
+  staffList?: { id: number; fullName: string }[];
+  staffFilter?: number | null;
+  specialtyList?: { id: number; name: string }[];
+  specialtyFilter?: number | null;
+  initialYear?: number;
+  initialMonth?: number;
+  periodId?: number | null;
   onRefresh?: () => void;
   onDayClick?: (date: Date, items: unknown[]) => void;
+  onAddClick?: (date: Date) => void;
+  onStaffFilterChange?: (staffId: number | null) => void;
+  onSpecialtyFilterChange?: (specialtyId: number | null) => void;
+  onViewDetail?: (schedule: Schedule) => void;
 };
 
-export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], onRefresh, onDayClick }: ScheduleCalendarWidgetProps) {
+export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail }: ScheduleCalendarWidgetProps) {
   const [view, setView] = useState<"calendar" | "table">("calendar");
   const [quickOpen, setQuickOpen] = useState(false);
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
+  const [editing, setEditing] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<Schedule | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [conflictItem, setConflictItem] = useState<ConflictItem | null>(null);
   const role = useRole();
   const canEdit = canEditSchedule(role);
@@ -162,9 +213,16 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], on
 
   const confirmDelete = async () => {
     if (!deleteConfirm) return;
-    await new Promise((r) => setTimeout(r, 600));
-    setDeleteConfirm(null);
-    onRefresh?.();
+    setDeleting(true);
+    try {
+      await api.delete(`/schedules/${deleteConfirm.id}`);
+      setDeleteConfirm(null);
+      onRefresh?.();
+    } catch {
+      setDeleteConfirm(null);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -201,6 +259,13 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], on
         <DashboardCalendar
           schedules={schedules}
           annotations={calendarAnnotations}
+          coverages={coverages}
+          staffList={staffList}
+          staffFilter={externalStaffFilter}
+          specialtyList={specialtyList}
+          specialtyFilter={externalSpecialtyFilter}
+          initialYear={initialYear}
+          initialMonth={initialMonth}
           onEditSchedule={canEdit ? (s) => setEditSchedule(s) : undefined}
           onDeleteSchedule={canEdit ? handleDelete : undefined}
           onResolveConflict={canEdit ? (s) => setConflictItem({
@@ -208,9 +273,19 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], on
             staffName: s.staff.fullName,
             date: new Date(s.workDate).toLocaleDateString("vi-VN"),
             detail: `Xung đột lịch trực ${s.shiftType.name} ngày ${new Date(s.workDate).toLocaleDateString("vi-VN")}`,
+            type: "SCHEDULE_CONFLICT",
+            severity: "Chặn lưu",
             shiftType: s.shiftType.name,
+            periodId: s.periodId,
+            workDate: s.workDate,
+            shiftTypeId: s.shiftType.id,
+            originalStaffId: s.staff.id,
           }) : undefined}
           onDayClick={onDayClick}
+          onAddClick={onAddClick}
+          onStaffFilterChange={onStaffFilterChange}
+          onSpecialtyFilterChange={onSpecialtyFilterChange}
+          onViewDetail={onViewDetail}
         />
       ) : (
         <ScheduleTableView
@@ -223,8 +298,15 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], on
             staffName: s.staff.fullName,
             date: new Date(s.workDate).toLocaleDateString("vi-VN"),
             detail: `Xung đột lịch trực ${s.shiftType.name} ngày ${new Date(s.workDate).toLocaleDateString("vi-VN")}`,
+            type: "SCHEDULE_CONFLICT",
+            severity: "Chặn lưu",
             shiftType: s.shiftType.name,
+            periodId: s.periodId,
+            workDate: s.workDate,
+            shiftTypeId: s.shiftType.id,
+            originalStaffId: s.staff.id,
           }) : undefined}
+          onViewDetail={onViewDetail}
         />
       )}
 
@@ -235,6 +317,9 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], on
         open={quickOpen}
         onClose={() => setQuickOpen(false)}
         onSuccess={onRefresh}
+        periodId={periodId ?? null}
+        staffList={staffList}
+        defaultShiftTypeId="L01"
       />
 
       {/* Edit Modal */}
@@ -271,13 +356,32 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], on
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setEditSchedule(null);
-                  onRefresh?.();
+                disabled={editing}
+                onClick={async () => {
+                  if (!editSchedule) return;
+                  setEditing(true);
+                  try {
+                    await api.put(`/schedules/${editSchedule.id}`, {
+                      periodId: editSchedule.periodId,
+                      workDate: editSchedule.workDate,
+                      staffId: editSchedule.staff.id,
+                      shiftTypeId: editSchedule.shiftType.id,
+                    });
+                    setEditSchedule(null);
+                    onRefresh?.();
+                  } catch {
+                    setEditSchedule(null);
+                  } finally {
+                    setEditing(false);
+                  }
                 }}
-                className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-md hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-md hover:bg-primary/90 transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                Lưu thay đổi
+                {editing ? (
+                  <><div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Đang xử lý…</>
+                ) : (
+                  <>Lưu thay đổi</>
+                )}
               </button>
             </ModalFooter>
           </div>
@@ -306,10 +410,15 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], on
             </button>
             <button
               type="button"
+              disabled={deleting}
               onClick={confirmDelete}
-              className="px-4 py-2 rounded-lg bg-error text-on-error text-label-md hover:bg-error/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="px-4 py-2 rounded-lg bg-error text-on-error text-label-md hover:bg-error/90 transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              Xóa
+              {deleting ? (
+                <><div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Đang xóa…</>
+              ) : (
+                <>Xóa</>
+              )}
             </button>
           </ModalFooter>
         </div>
@@ -320,6 +429,7 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], on
         open={!!conflictItem}
         onClose={() => setConflictItem(null)}
         conflict={conflictItem}
+        onRefresh={onRefresh}
       />
     </>
   );

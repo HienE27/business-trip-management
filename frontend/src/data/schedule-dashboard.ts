@@ -11,7 +11,7 @@ import type {
 } from "@/types/schedule";
 
 const baseNavigationItems: NavigationItem[] = [
-  { label: "Tổng quan", code: "HOME", href: "/", icon: "dashboard" },
+  { label: "Tổng quan", code: "DASHBOARD", href: "/dashboard", icon: "dashboard" },
   { label: "Nhân sự", code: "M01", href: "/staff", icon: "groups" },
   { label: "Trực 24/24", code: "M02", href: "/duty-24", icon: "emergency" },
   { label: "Thông tầm", code: "M03", href: "/all-day", icon: "schedule" },

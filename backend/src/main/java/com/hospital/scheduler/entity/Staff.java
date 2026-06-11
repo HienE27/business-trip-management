@@ -2,6 +2,7 @@ package com.hospital.scheduler.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -65,6 +66,7 @@ public class Staff {
 
     @OneToMany(mappedBy = "staff", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
+    @BatchSize(size = 50)
     @com.fasterxml.jackson.annotation.JsonIgnore
     private Set<StaffRole> staffRoles = new HashSet<>();
 

@@ -75,6 +75,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return authHeader.substring(7);
         }
 
+        // Also check custom token header (for frontend localStorage token)
+        final String customHeader = request.getHeader("X-Auth-Token");
+        if (customHeader != null && !customHeader.isBlank()) {
+            return customHeader;
+        }
+
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
             return null;
