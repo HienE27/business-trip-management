@@ -121,7 +121,8 @@ export default function ReportsConflictsPage() {
       ) : conflictData ? (
         <div className="space-y-6">
           {/* Summary */}
-          <section className="grid gap-4 md:grid-cols-3">
+          <section className="flex items-center justify-between gap-4 flex-wrap">
+          <section className="grid gap-4 md:grid-cols-3 flex-1">
             <article className={`flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm ${conflictData.hasConflicts ? "border-l-4 border-l-error" : "border-l-4 border-l-secondary"}`}>
               <div className="flex justify-between items-start">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Tổng xung đột</p>
@@ -152,6 +153,18 @@ export default function ReportsConflictsPage() {
               </p>
               <p className="mt-1 text-[12px] text-on-surface-variant">Người có xung đột lịch</p>
             </article>
+          </section>
+          {selectedPeriod && (
+            <a
+              href={`/api/v1/dashboard/export/schedule/${selectedPeriod.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary px-3 py-1.5 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors shrink-0"
+            >
+              <span className="material-symbols-outlined text-[16px]">table_view</span>
+              Xuất Excel
+            </a>
+          )}
           </section>
 
           {/* No conflicts */}

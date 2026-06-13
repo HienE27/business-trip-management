@@ -27,6 +27,7 @@ public class SchedulePeriodService {
     private final AuditHistoryService auditHistoryService;
     private final ConflictDetectionService conflictDetectionService;
     private final NotificationService notificationService;
+    private final EmailService emailService;
 
     public List<SchedulePeriodResponse> getAllPeriods() {
         return periodRepository.findAll().stream()
@@ -118,6 +119,11 @@ public class SchedulePeriodService {
         String notifTitle = "Lịch công tác đã được công bố";
         String notifMsg = "Kỳ lịch \"" + period.getPeriodName() + "\" (" + period.getStartDate() + " - " + period.getEndDate() + ") đã được công bố. Vui lòng kiểm tra lịch trực của bạn.";
         notificationService.createNotificationForAllStaff(notifTitle, notifMsg);
+
+        // Send email notifications to all active staff
+        List<Staff> activeStaff = staffRepository.findByIsActiveTrue();
+        emailService.sendSchedulePublishedEmail(activeStaff, period.getPeriodName(),
+                period.getStartDate(), period.getEndDate());
 
         return toResponse(saved);
     }

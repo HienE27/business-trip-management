@@ -29,11 +29,6 @@ public class EmailService {
             return;
         }
 
-        if (!appConfigService.isEmailEnabled() || !appConfigService.isConflictEmailEnabled()) {
-            log.debug("Email notification disabled, skipping conflict alert");
-            return;
-        }
-
         Staff staff = schedule.getStaff();
         if (staff == null || staff.getEmail() == null || staff.getEmail().isBlank()) {
             log.warn("Cannot send conflict email: staff {} has no email", staff != null ? staff.getId() : "null");
@@ -46,6 +41,93 @@ public class EmailService {
 
         String body = buildConflictEmailBody(schedule, conflictDescription);
 
+        sendEmail(staff.getEmail(), subject, body);
+    }
+
+    @Async
+    public void sendSchedulePublishedEmail(List<Staff> recipients, String periodName,
+                                          java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        if (!appConfigService.isEmailEnabled()) {
+            return;
+        }
+        String subject = "[Lịch công tác] Kỳ lịch mới đã được công bố";
+        StringBuilder body = new StringBuilder();
+        body.append("Kính gửi quý nhân sự,\n\n");
+        body.append("Kỳ lịch công tác mới đã được công bố.\n\n");
+        body.append("=== THÔNG TIN KỲ LỊCH ===\n");
+        body.append("Tên kỳ: ").append(periodName).append("\n");
+        body.append("Thời gian: ").append(startDate.format(DATE_FORMATTER))
+                .append(" - ").append(endDate.format(DATE_FORMATTER)).append("\n\n");
+        body.append("Vui lòng đăng nhập hệ thống để kiểm tra lịch trực cá nhân của bạn.\n\n");
+        body.append("Trân trọng,\n");
+        body.append("Hệ thống Quản lý Lịch Công Tác\n");
+        for (Staff staff : recipients) {
+            if (staff.getEmail() != null && !staff.getEmail().isBlank()) {
+                sendEmail(staff.getEmail(), subject, body.toString());
+            }
+        }
+    }
+
+    @Async
+    public void sendSwapApprovedEmail(Staff staff, String requesterDate,
+                                      String targetDate, String shiftType) {
+        if (!appConfigService.isEmailEnabled()) {
+            return;
+        }
+        if (staff.getEmail() == null || staff.getEmail().isBlank()) {
+            return;
+        }
+        String subject = "[Đổi trực] Yêu cầu đổi ca đã được duyệt";
+        String body = String.format(
+                "Kính gửi %s,\n\n" +
+                "Yêu cầu đổi trực của bạn đã được duyệt.\n\n" +
+                "Ca trực của bạn: %s (Loại: %s)\n" +
+                "Ngày trực mới của bạn: %s\n\n" +
+                "Vui lòng kiểm tra lịch làm việc mới trên hệ thống.\n\n" +
+                "Trân trọng,\n" +
+                "Hệ thống Quản lý Lịch Công Tác\n",
+                staff.getFullName(), targetDate, shiftType, requesterDate);
+        sendEmail(staff.getEmail(), subject, body);
+    }
+
+    @Async
+    public void sendSwapRejectedEmail(Staff staff, String requesterDate,
+                                      String targetDate, String reason) {
+        if (!appConfigService.isEmailEnabled()) {
+            return;
+        }
+        if (staff.getEmail() == null || staff.getEmail().isBlank()) {
+            return;
+        }
+        String subject = "[Đổi trực] Yêu cầu đổi ca đã bị từ chối";
+        String body = String.format(
+                "Kính gửi %s,\n\n" +
+                "Yêu cầu đổi trực (%s <-> %s) đã bị từ chối.\n%s\n\n" +
+                "Nếu cần thiết, bạn có thể gửi yêu cầu đổi ca mới.\n\n" +
+                "Trân trọng,\n" +
+                "Hệ thống Quản lý Lịch Công Tác\n",
+                staff.getFullName(), requesterDate, targetDate,
+                reason != null && !reason.isBlank() ? "Lý do: " + reason : "");
+        sendEmail(staff.getEmail(), subject, body);
+    }
+
+    @Async
+    public void sendLeaveApprovedEmail(Staff staff, java.time.LocalDate startDate,
+                                      java.time.LocalDate endDate) {
+        if (!appConfigService.isEmailEnabled()) {
+            return;
+        }
+        if (staff.getEmail() == null || staff.getEmail().isBlank()) {
+            return;
+        }
+        String subject = "[Nghỉ phép] Yêu cầu nghỉ phép đã được duyệt";
+        String body = String.format(
+                "Kính gửi %s,\n\n" +
+                "Yêu cầu nghỉ phép từ %s đến %s đã được duyệt.\n\n" +
+                "Vui lòng kiểm tra lịch làm việc của bạn trên hệ thống.\n\n" +
+                "Trân trọng,\n" +
+                "Hệ thống Quản lý Lịch Công Tác\n",
+                staff.getFullName(), startDate.format(DATE_FORMATTER), endDate.format(DATE_FORMATTER));
         sendEmail(staff.getEmail(), subject, body);
     }
 

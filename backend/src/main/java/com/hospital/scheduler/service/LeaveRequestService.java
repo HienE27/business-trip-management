@@ -37,6 +37,7 @@ public class LeaveRequestService {
     private final ScheduleRepository scheduleRepository;
     private final CompensationDayRepository compensationDayRepository;
     private final NotificationService notificationService;
+    private final EmailService emailService;
     @Lazy
     private final ConflictDetectionService conflictDetectionService;
 
@@ -127,6 +128,21 @@ public class LeaveRequestService {
         notificationService.createNotification(leaveRequest.getStaff().getId(),
                 new NotificationDTO("Yêu cầu nghỉ phép đã được duyệt",
                         "Yêu cầu nghỉ phép của bạn từ " + leaveRequest.getStartDate() + " đến " + leaveRequest.getEndDate() + " đã được duyệt bởi " + reviewer.getFullName() + "."));
+
+        // Send email to approved staff
+        emailService.sendLeaveApprovedEmail(leaveRequest.getStaff(), leaveRequest.getStartDate(), leaveRequest.getEndDate());
+
+        // Auto-propose replacements for affected schedules
+        List<ReplacementProposal> proposals = findReplacementsForLeave(leaveRequestId);
+        for (ReplacementProposal proposal : proposals) {
+            if (proposal.getPrimaryCandidate() != null) {
+                String msg = "Nhân sự " + leaveRequest.getStaff().getFullName()
+                        + " có lịch " + proposal.getShiftTypeName() + " ngày " + proposal.getWorkDate()
+                        + " cần người thay thế do nghỉ phép. Bạn được đề xuất làm người thay thế.";
+                notificationService.createNotification(proposal.getPrimaryCandidate().getId(),
+                        new NotificationDTO("Đề xuất thay ca", msg));
+            }
+        }
 
         return LeaveRequestResponse.fromEntity(saved);
     }

@@ -38,6 +38,7 @@ public class ScheduleExchangeService {
     private final ConflictDetectionService conflictDetectionService;
     private final CompensationDateCalculator compensationDateCalculator;
     private final NotificationService notificationService;
+    private final EmailService emailService;
 
     public List<ScheduleExchangeResponse> getAllExchanges() {
         return exchangeRepository.findAll().stream()
@@ -280,6 +281,16 @@ public class ScheduleExchangeService {
         notificationService.createNotification(targetOldStaff.getId(),
                 new NotificationDTO("Yêu cầu đổi trực đã được duyệt", approveMsg));
 
+        // Send email notifications to both staff
+        emailService.sendSwapApprovedEmail(requesterOldStaff,
+                requesterSchedule.getWorkDate().toString(),
+                targetSchedule.getWorkDate().toString(),
+                requesterSchedule.getShiftType().getName());
+        emailService.sendSwapApprovedEmail(targetOldStaff,
+                targetSchedule.getWorkDate().toString(),
+                requesterSchedule.getWorkDate().toString(),
+                targetSchedule.getShiftType().getName());
+
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 
@@ -310,6 +321,16 @@ public class ScheduleExchangeService {
                 new NotificationDTO("Yêu cầu đổi trực bị từ chối", rejectMsg));
         notificationService.createNotification(exchange.getTarget().getId(),
                 new NotificationDTO("Yêu cầu đổi trực bị từ chối", rejectMsg));
+
+        // Send email notifications to both staff
+        emailService.sendSwapRejectedEmail(exchange.getRequester(),
+                exchange.getRequesterSchedule().getWorkDate().toString(),
+                exchange.getTargetSchedule().getWorkDate().toString(),
+                reviewNote);
+        emailService.sendSwapRejectedEmail(exchange.getTarget(),
+                exchange.getRequesterSchedule().getWorkDate().toString(),
+                exchange.getTargetSchedule().getWorkDate().toString(),
+                reviewNote);
 
         return ScheduleExchangeResponse.fromEntity(saved);
     }
