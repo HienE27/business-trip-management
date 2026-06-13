@@ -15,6 +15,7 @@ import type {
   LeaveRequestCreate,
   ScheduleExchange,
   ScheduleExchangeCreate,
+  ScheduleExchangeResponse,
   AutoScheduleRequest,
   AutoScheduleResult,
   AlgorithmMetrics,
@@ -87,10 +88,18 @@ class ApiClient {
     return res.data;
   }
 
-  async put<T>(endpoint: string, body: unknown): Promise<T> {
-    const res = await this.request<T>(endpoint, {
+  async put<T>(endpoint: string, body: unknown, params?: Record<string, string | number | boolean>): Promise<T> {
+    let url = endpoint;
+    if (params) {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        qs.set(k, String(v));
+      }
+      url += `?${qs.toString()}`;
+    }
+    const res = await this.request<T>(url, {
       method: "PUT",
-      body: JSON.stringify(body),
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
     return res.data;
   }
@@ -328,47 +337,47 @@ class ApiClient {
   }
 
   // Schedule Exchanges
-  async getAllExchanges(): Promise<ApiResponse<ScheduleExchange[]>> {
-    return this.request<ScheduleExchange[]>("/schedule-exchanges");
+  async getAllExchanges(): Promise<ApiResponse<ScheduleExchangeResponse[]>> {
+    return this.request<ScheduleExchangeResponse[]>("/schedule-exchanges");
   }
 
-  async getPendingExchanges(): Promise<ApiResponse<ScheduleExchange[]>> {
-    return this.request<ScheduleExchange[]>("/schedule-exchanges/pending");
+  async getPendingExchanges(): Promise<ApiResponse<ScheduleExchangeResponse[]>> {
+    return this.request<ScheduleExchangeResponse[]>("/schedule-exchanges/pending");
   }
 
-  async getExchangesByStatus(status: string): Promise<ApiResponse<ScheduleExchange[]>> {
-    return this.request<ScheduleExchange[]>(`/schedule-exchanges/status/${status}`);
+  async getExchangesByStatus(status: string): Promise<ApiResponse<ScheduleExchangeResponse[]>> {
+    return this.request<ScheduleExchangeResponse[]>(`/schedule-exchanges/status/${status}`);
   }
 
-  async getExchangesForUser(userId: number): Promise<ApiResponse<ScheduleExchange[]>> {
-    return this.request<ScheduleExchange[]>(`/schedule-exchanges/user/${userId}`);
+  async getExchangesForUser(userId: number): Promise<ApiResponse<ScheduleExchangeResponse[]>> {
+    return this.request<ScheduleExchangeResponse[]>(`/schedule-exchanges/user/${userId}`);
   }
 
-  async getExchangeById(id: number): Promise<ApiResponse<ScheduleExchange>> {
-    return this.request<ScheduleExchange>(`/schedule-exchanges/${id}`);
+  async getExchangeById(id: number): Promise<ApiResponse<ScheduleExchangeResponse>> {
+    return this.request<ScheduleExchangeResponse>(`/schedule-exchanges/${id}`);
   }
 
-  async createExchange(requesterId: number, data: ScheduleExchangeCreate): Promise<ApiResponse<ScheduleExchange>> {
-    return this.request<ScheduleExchange>(`/schedule-exchanges/requester/${requesterId}`, {
+  async createExchange(requesterId: number, data: Omit<ScheduleExchangeCreate, "targetStaffId"> & { periodId: number; reason?: string }): Promise<ApiResponse<ScheduleExchangeResponse>> {
+    return this.request<ScheduleExchangeResponse>(`/schedule-exchanges/requester/${requesterId}`, {
       method: "POST",
       body: JSON.stringify(data),
     });
   }
 
-  async approveExchange(id: number, reviewerId: number, reviewNote?: string): Promise<ApiResponse<ScheduleExchange>> {
+  async approveExchange(id: number, reviewerId: number, reviewNote?: string): Promise<ApiResponse<ScheduleExchangeResponse>> {
     const params = new URLSearchParams({ reviewerId: String(reviewerId) });
     if (reviewNote) params.set("reviewNote", reviewNote);
-    return this.request<ScheduleExchange>(`/schedule-exchanges/${id}/approve?${params.toString()}`, { method: "PUT" });
+    return this.request<ScheduleExchangeResponse>(`/schedule-exchanges/${id}/approve?${params.toString()}`, { method: "PUT" });
   }
 
-  async rejectExchange(id: number, reviewerId: number, reviewNote?: string): Promise<ApiResponse<ScheduleExchange>> {
+  async rejectExchange(id: number, reviewerId: number, reviewNote?: string): Promise<ApiResponse<ScheduleExchangeResponse>> {
     const params = new URLSearchParams({ reviewerId: String(reviewerId) });
     if (reviewNote) params.set("reviewNote", reviewNote);
-    return this.request<ScheduleExchange>(`/schedule-exchanges/${id}/reject?${params.toString()}`, { method: "PUT" });
+    return this.request<ScheduleExchangeResponse>(`/schedule-exchanges/${id}/reject?${params.toString()}`, { method: "PUT" });
   }
 
-  async cancelExchange(id: number): Promise<ApiResponse<ScheduleExchange>> {
-    return this.request<ScheduleExchange>(`/schedule-exchanges/${id}/cancel`, { method: "PUT" });
+  async cancelExchange(id: number): Promise<ApiResponse<ScheduleExchangeResponse>> {
+    return this.request<ScheduleExchangeResponse>(`/schedule-exchanges/${id}/cancel`, { method: "PUT" });
   }
 
   // Auto Schedule

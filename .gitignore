@@ -165,6 +165,14 @@ verify_*.png
 ~$*.docx
 backend/target/
 
+# Spring Boot JAR artifacts (root-level build output)
+BOOT-INF/
+META-INF/
+app/
+org/
+tests/
+*.class
+
 # Debug and test scripts
 *.ps1
 *.class

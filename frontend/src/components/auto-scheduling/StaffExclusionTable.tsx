@@ -1,49 +1,79 @@
 "use client";
 
-import { useState } from "react";
 import { Toggle } from "@/components/auto-scheduling/Toggle";
+import type { Staff } from "@/types/api";
 
-type StaffException = {
-  id: string;
-  name: string;
-  initials: string;
-  role: string;
-  avatarColor: string;
-  fullyExcluded: boolean;
-  unavailableDates: string[];
-};
-
-const MOCK_STAFF: StaffException[] = [
-  { id: "1", name: "BS. Nguyen Van A", initials: "BS", role: "Truong khoa", avatarColor: "bg-primary-container text-on-primary-container", fullyExcluded: true, unavailableDates: [] },
-  { id: "2", name: "BS. Tran Thi B", initials: "BS", role: "Bac si dieu tri", avatarColor: "bg-secondary-container text-on-secondary-container", fullyExcluded: false, unavailableDates: ["12/12", "13/12"] },
-  { id: "3", name: "DD. Le Van C", initials: "DD", role: "Dieu duong truong", avatarColor: "bg-tertiary-container text-on-tertiary-container", fullyExcluded: false, unavailableDates: [] },
+const AVATAR_COLORS = [
+  "bg-primary-container text-on-primary-container",
+  "bg-secondary-container text-on-secondary-container",
+  "bg-tertiary-container text-on-tertiary-container",
+  "bg-error-container text-on-error-container",
+  "bg-surface-container-high text-on-surface",
 ];
 
+function getAvatarColor(id: number): string {
+  return AVATAR_COLORS[id % AVATAR_COLORS.length];
+}
+
+function getInitials(fullName: string): string {
+  return fullName
+    .split(" ")
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function getRoleLabel(roles: string[]): string {
+  if (!roles || roles.length === 0) return "Nhân viên";
+  return roles
+    .map((r) => {
+      if (r === "ADMIN") return "Quản trị";
+      if (r === "MANAGER") return "Quản lý";
+      if (r === "STAFF") return "Nhân viên";
+      return r;
+    })
+    .join(", ");
+}
+
 type StaffExclusionTableProps = {
-  onAdd?: () => void;
+  staff: Staff[];
+  excludedIds: number[];
+  onExclusionsChange: (ids: number[]) => void;
+  loading?: boolean;
 };
 
-export function StaffExclusionTable({ onAdd }: StaffExclusionTableProps) {
-  const [staff, setStaff] = useState<StaffException[]>(MOCK_STAFF);
-
-  function toggleExclusion(id: string, excluded: boolean) {
-    setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, fullyExcluded: excluded } : s)));
+export function StaffExclusionTable({
+  staff,
+  excludedIds,
+  onExclusionsChange,
+  loading = false,
+}: StaffExclusionTableProps) {
+  function toggleExclusion(id: number, excluded: boolean) {
+    if (excluded) {
+      onExclusionsChange([...excludedIds, id]);
+    } else {
+      onExclusionsChange(excludedIds.filter((i) => i !== id));
+    }
   }
 
-  function _toggleDate(id: string, date: string) {
-    setStaff((prev) =>
-      prev.map((s) => {
-        if (s.id !== id) return s;
-        const dates = s.unavailableDates.includes(date)
-          ? s.unavailableDates.filter((d) => d !== date)
-          : [...s.unavailableDates, date];
-        return { ...s, unavailableDates: dates };
-      })
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="h-14 bg-surface-container-low rounded-lg animate-pulse" />
+        ))}
+      </div>
     );
   }
 
-  function removeDate(id: string, date: string) {
-    setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, unavailableDates: s.unavailableDates.filter((d) => d !== date) } : s)));
+  if (staff.length === 0) {
+    return (
+      <p className="text-body-sm text-on-surface-variant py-6 text-center">
+        Không có nhân sự nào.
+      </p>
+    );
   }
 
   return (
@@ -53,80 +83,93 @@ export function StaffExclusionTable({ onAdd }: StaffExclusionTableProps) {
           <thead>
             <tr className="bg-surface-container-low border-b border-outline-variant/50">
               <th className="p-3 w-10 text-center">
-                <input className="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox" />
+                <input
+                  className="rounded border-outline-variant text-primary focus:ring-primary"
+                  type="checkbox"
+                  checked={excludedIds.length === staff.length && staff.length > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      onExclusionsChange(staff.map((s) => s.id));
+                    } else {
+                      onExclusionsChange([]);
+                    }
+                  }}
+                />
               </th>
-              <th className="p-3 font-label-sm text-on-surface-variant">Nhan su</th>
-              <th className="p-3 font-label-sm text-on-surface-variant">Vai tro</th>
-              <th className="p-3 font-label-sm text-on-surface-variant text-center">Loại trừ hoàn toàn</th>
-              <th className="p-3 font-label-sm text-on-surface-variant">Ngày không khả dụng</th>
-              <th className="p-3 text-right">
-                <button
-                  className="text-primary font-label-sm flex items-center gap-1 hover:underline"
-                  onClick={onAdd}
-                  type="button"
-                >
-                  <span className="material-symbols-outlined text-[16px]">add</span>
-                  Thêm ngoại lệ
-                </button>
+              <th className="p-3 font-label-sm text-on-surface-variant">Nhân sự</th>
+              <th className="p-3 font-label-sm text-on-surface-variant">Vai trò</th>
+              <th className="p-3 font-label-sm text-on-surface-variant text-center">
+                Loại trừ hoàn toàn
               </th>
+              <th className="p-3 font-label-sm text-on-surface-variant">
+                Số ca tối đa/tháng
+              </th>
+              <th className="p-3 text-right" />
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/30">
-            {staff.map((s) => (
-              <tr className="hover:bg-surface transition-colors" key={s.id}>
-                <td className="p-3 text-center">
-                  <input className="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox" />
-                </td>
-                <td className="p-3">
-                  <span className="font-medium flex items-center gap-2">
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${s.avatarColor}`}>
-                      {s.initials}
+            {staff.map((s) => {
+              const isExcluded = excludedIds.includes(s.id);
+              return (
+                <tr className="hover:bg-surface transition-colors" key={s.id}>
+                  <td className="p-3 text-center">
+                    <input
+                      className="rounded border-outline-variant text-primary focus:ring-primary"
+                      type="checkbox"
+                      checked={isExcluded}
+                      onChange={(e) => toggleExclusion(s.id, e.target.checked)}
+                    />
+                  </td>
+                  <td className="p-3">
+                    <span className="font-medium flex items-center gap-2">
+                      <span
+                        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getAvatarColor(s.id)}`}
+                      >
+                        {getInitials(s.fullName)}
+                      </span>
+                      {s.fullName}
                     </span>
-                    {s.name}
-                  </span>
-                </td>
-                <td className="p-3 text-on-surface-variant">{s.role}</td>
-                <td className="p-3 text-center">
-                  <Toggle checked={s.fullyExcluded} onChange={(v) => toggleExclusion(s.id, v)} />
-                </td>
-                <td className="p-3">
-                  {s.fullyExcluded ? (
-                    <span className="text-outline-variant italic text-xs">Vô hiệu hóa (Loại trừ hoàn toàn)</span>
-                  ) : s.unavailableDates.length > 0 ? (
-                    <div className="flex gap-1 flex-wrap">
-                      {s.unavailableDates.map((d) => (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-surface-container-high rounded text-xs" key={d}>
-                          {d}
-                          <button className="hover:text-error transition-colors" onClick={() => removeDate(s.id, d)} type="button">
-                            <span className="material-symbols-outlined text-[12px]">close</span>
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-outline-variant italic text-xs">Không có</span>
-                  )}
-                </td>
-                <td className="p-3 text-right">
-                  <button className="text-outline hover:text-primary transition-colors" type="button">
-                    <span className="material-symbols-outlined text-[18px]">edit</span>
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="p-3 text-on-surface-variant">
+                    {getRoleLabel(s.roles)}
+                  </td>
+                  <td className="p-3 text-center">
+                    <Toggle
+                      checked={isExcluded}
+                      onChange={(v) => toggleExclusion(s.id, v)}
+                    />
+                  </td>
+                  <td className="p-3 text-label-sm text-on-surface-variant">
+                    {s.maxShiftsPerMonth > 0 ? s.maxShiftsPerMonth : "Không giới hạn"}
+                  </td>
+                  <td className="p-3 text-right">
+                    {isExcluded && (
+                      <span className="text-label-xs text-error bg-error-container px-2 py-0.5 rounded-full">
+                        Đã loại trừ
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      <div className="mt-4 flex items-center justify-between text-label-sm text-on-surface-variant">
-        <span>Đang hiển thị 3 / 24 nhân sự</span>
-        <div className="flex gap-1">
-          <button className="p-1 hover:bg-surface-container rounded transition-colors" type="button">
-            <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+      <div className="mt-3 flex items-center justify-between text-label-sm text-on-surface-variant">
+        <span>
+          {excludedIds.length > 0
+            ? `Đã chọn ${excludedIds.length} / ${staff.length} nhân sự`
+            : `Hiển thị ${staff.length} nhân sự`}
+        </span>
+        {excludedIds.length > 0 && (
+          <button
+            className="text-primary hover:underline text-label-sm"
+            onClick={() => onExclusionsChange([])}
+            type="button"
+          >
+            Bỏ chọn tất cả
           </button>
-          <button className="p-1 hover:bg-surface-container rounded transition-colors" type="button">
-            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );

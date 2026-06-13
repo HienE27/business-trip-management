@@ -179,16 +179,24 @@ type ScheduleCalendarWidgetProps = {
   initialYear?: number;
   initialMonth?: number;
   periodId?: number | null;
+  viewMode?: "calendar" | "table";
+  showViewToggle?: boolean;
   onRefresh?: () => void;
   onDayClick?: (date: Date, items: unknown[]) => void;
   onAddClick?: (date: Date) => void;
   onStaffFilterChange?: (staffId: number | null) => void;
   onSpecialtyFilterChange?: (specialtyId: number | null) => void;
   onViewDetail?: (schedule: Schedule) => void;
+  onViewModeChange?: (view: "calendar" | "table") => void;
 };
 
-export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail }: ScheduleCalendarWidgetProps) {
-  const [view, setView] = useState<"calendar" | "table">("calendar");
+export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, viewMode: externalViewMode, showViewToggle = true, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail, onViewModeChange }: ScheduleCalendarWidgetProps) {
+  const [internalView, setInternalView] = useState<"calendar" | "table">("calendar");
+  const view = externalViewMode ?? internalView;
+  const setView = (nextView: "calendar" | "table") => {
+    if (externalViewMode === undefined) setInternalView(nextView);
+    onViewModeChange?.(nextView);
+  };
   const [quickOpen, setQuickOpen] = useState(false);
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
   const [editing, setEditing] = useState(false);
@@ -227,33 +235,34 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
 
   return (
     <>
-      {/* View toggle */}
-      <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-lg w-fit shrink-0">
-        <button
-          type="button"
-          onClick={() => setView("calendar")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-sm font-medium transition-all ${
-            view === "calendar"
-              ? "bg-surface-container-lowest text-primary shadow-sm"
-              : "text-on-surface-variant hover:text-on-surface"
-          }`}
-        >
-          <span className="material-symbols-outlined text-[16px]">calendar_month</span>
-          Calendar
-        </button>
-        <button
-          type="button"
-          onClick={() => setView("table")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-sm font-medium transition-all ${
-            view === "table"
-              ? "bg-surface-container-lowest text-primary shadow-sm"
-              : "text-on-surface-variant hover:text-on-surface"
-          }`}
-        >
-          <span className="material-symbols-outlined text-[16px]">table</span>
-          Bang
-        </button>
-      </div>
+      {showViewToggle && (
+        <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-lg w-fit shrink-0">
+          <button
+            type="button"
+            onClick={() => setView("calendar")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-sm font-medium transition-all ${
+              view === "calendar"
+                ? "bg-surface-container-lowest text-primary shadow-sm"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">calendar_month</span>
+            Calendar
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("table")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-sm font-medium transition-all ${
+              view === "table"
+                ? "bg-surface-container-lowest text-primary shadow-sm"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">table</span>
+            Bảng
+          </button>
+        </div>
+      )}
 
       {view === "calendar" ? (
         <DashboardCalendar

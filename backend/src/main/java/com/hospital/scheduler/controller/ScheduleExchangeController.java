@@ -66,7 +66,7 @@ public class ScheduleExchangeController {
     @Operation(summary = "Lấy yêu cầu đổi ca liên quan đến người dùng")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#userId)")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getForUser(@PathVariable Integer userId) {
-        authContextService.requireSelfOrManager(userId);
+        authContextService.requireManagerOrSelfForUserData(userId);
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesForUser(userId)));
     }
 

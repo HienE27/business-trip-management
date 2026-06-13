@@ -5,7 +5,7 @@ import type { Schedule } from "@/types/api";
 
 // ─── Color tokens ────────────────────────────────────────────────────────────
 const TONE: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-  L01: { bg: "bg-blue-50",    text: "text-blue-700",   dot: "bg-blue-500",   label: "Trực 24/24"   },
+  L01: { bg: "bg-red-50",      text: "text-red-700",    dot: "bg-red-500",    label: "Trực 24/24" },
   L02: { bg: "bg-emerald-50",text: "text-emerald-700",dot: "bg-emerald-500",label: "Thông tầm"      },
   L03: { bg: "bg-amber-50",  text: "text-amber-700",  dot: "bg-amber-500",  label: "Dịch vụ"      },
   L04: { bg: "bg-violet-50", text: "text-violet-700", dot: "bg-violet-500", label: "Chuyên gia"    },

@@ -25,7 +25,7 @@ public class DashboardService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final ScheduleExchangeRepository exchangeRepository;
 
-    public DashboardResponse getDashboardSummary() {
+    public DashboardResponse getDashboardSummary(Integer periodId) {
         DashboardResponse.DashboardSummary summary = DashboardResponse.DashboardSummary.builder()
                 .totalStaff(staffRepository.count())
                 .activeStaff(staffRepository.findByIsActiveTrue().size())
@@ -35,7 +35,7 @@ public class DashboardService {
                 .pendingScheduleExchanges((long) exchangeRepository.findByStatus(ScheduleExchange.ExchangeStatus.PENDING).size())
                 .build();
 
-        DashboardResponse.ShiftStatistics shiftStatistics = getShiftStatistics();
+        DashboardResponse.ShiftStatistics shiftStatistics = getShiftStatistics(periodId);
         DashboardResponse.LeaveRequestStatistics leaveRequestStatistics = getLeaveRequestStatistics();
 
         return DashboardResponse.builder()
@@ -45,8 +45,10 @@ public class DashboardService {
                 .build();
     }
 
-    public DashboardResponse.ShiftStatistics getShiftStatistics() {
-        List<Schedule> schedules = scheduleRepository.findAll();
+    public DashboardResponse.ShiftStatistics getShiftStatistics(Integer periodId) {
+        List<Schedule> schedules = (periodId != null)
+                ? scheduleRepository.findByPeriodId(periodId)
+                : scheduleRepository.findAll();
 
         long L01Count = schedules.stream()
                 .filter(s -> ConflictDetectionService.SHIFT_TYPE_L01.equals(s.getShiftType().getId()))

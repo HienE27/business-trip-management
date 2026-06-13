@@ -81,8 +81,10 @@ export default function DashboardPage() {
   const [requirements, setRequirements] = useState<import("@/types/api").ShiftRequirement[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (periodId?: number) => {
     let cancelled = false;
     setLoading(true);
     setMessage(null);
@@ -106,17 +108,26 @@ export default function DashboardPage() {
         (p) => p.status === "DRAFT" || p.status === "PUBLISHED"
       );
 
-      if (activePeriod) {
+      const targetPeriodId = periodId ?? activePeriod?.id;
+      const targetPeriod = targetPeriodId
+        ? periodList.find((p) => p.id === targetPeriodId) ?? activePeriod
+        : activePeriod;
+
+      if (targetPeriod) {
+        if (periodId !== undefined) {
+          setSelectedPeriodId(targetPeriod.id);
+        }
+
         const [scheduleRes, conflictRes, compDaysRes, reqRes] = await Promise.allSettled([
-          api.get<Schedule[]>(`/schedules/period/${activePeriod.id}`),
+          api.get<Schedule[]>(`/schedules/period/${targetPeriod.id}`),
           api.get<ConflictCheckResponse>(
-            `/schedules/conflicts/check/${activePeriod.id}`
+            `/schedules/conflicts/check/${targetPeriod.id}`
           ),
           api.get<import("@/types/api").CompensationDay[]>(
-            `/schedules/compensation-days/${activePeriod.id}`
+            `/schedules/compensation-days/${targetPeriod.id}`
           ),
           api.get<import("@/types/api").ShiftRequirement[]>(
-            `/shift-requirements/period/${activePeriod.id}`
+            `/shift-requirements/period/${targetPeriod.id}`
           ),
         ]);
 
@@ -143,6 +154,46 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const handlePeriodChange = useCallback(
+    (periodId: number) => {
+      setSelectedPeriodId(periodId);
+      void load(periodId);
+    },
+    [load]
+  );
+
+  const handleExport = useCallback(async () => {
+    const periodId = selectedPeriodId;
+    if (!periodId) return;
+
+    setExporting(true);
+    try {
+      const token = localStorage.getItem("medschedule.token");
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1"}/dashboard/export/schedule/${periodId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token ?? ""}`,
+          },
+        }
+      );
+      if (!response.ok) throw new Error("Export failed");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `schedule-export-${periodId}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      setMessage("Xuất file thất bại. Vui lòng thử lại.");
+    } finally {
+      setExporting(false);
+    }
+  }, [selectedPeriodId]);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -155,9 +206,12 @@ export default function DashboardPage() {
   const L01Count = dashboardData?.shiftStatistics?.L01Count ?? 0;
   const L02Count = dashboardData?.shiftStatistics?.L02Count ?? 0;
 
-  const activePeriod = periods.find(
-    (p) => p.status === "DRAFT" || p.status === "PUBLISHED"
-  );
+  const activePeriod = useMemo(() => {
+    if (selectedPeriodId) {
+      return periods.find((p) => p.id === selectedPeriodId) ?? null;
+    }
+    return periods.find((p) => p.status === "DRAFT" || p.status === "PUBLISHED") ?? null;
+  }, [periods, selectedPeriodId]);
 
   const calendarAnnotations = useMemo(() => {
     const compAnnotations = compensationDays.map((cd) => ({
@@ -235,6 +289,65 @@ export default function DashboardPage() {
               {pendingLeave} nghỉ phép chờ duyệt
             </span>
           )}
+        </div>
+      )}
+
+      {/* Period Selector */}
+      {periods.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-label-sm text-on-surface-variant shrink-0">
+            <span className="material-symbols-outlined text-[16px]">calendar_month</span>
+            <span className="font-semibold uppercase tracking-wide">Kỳ lịch:</span>
+          </div>
+          <div className="relative">
+            <select
+              className="h-9 pl-3 pr-8 bg-surface-container-low border border-transparent rounded-lg text-label-md text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all min-w-[200px]"
+              value={selectedPeriodId ?? activePeriod?.id ?? ""}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                if (val) handlePeriodChange(val);
+              }}
+            >
+              {periods.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.periodName} ({new Date(p.startDate).toLocaleDateString("vi-VN")} – {new Date(p.endDate).toLocaleDateString("vi-VN")})
+                </option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[18px]">expand_more</span>
+          </div>
+          {activePeriod && (
+            <div className="flex items-center gap-1.5">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                activePeriod.status === "PUBLISHED"
+                  ? "bg-secondary-container text-on-secondary-container"
+                  : activePeriod.status === "ARCHIVED"
+                  ? "bg-surface-container-highest text-outline"
+                  : "bg-primary-fixed text-primary"
+              }`}>
+                {activePeriod.status === "PUBLISHED" ? "Đã công bố" : activePeriod.status === "ARCHIVED" ? "Đã lưu trữ" : "Nháp"}
+              </span>
+            </div>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            {selectedPeriodId && (
+              <button
+                onClick={() => void handleExport()}
+                disabled={exporting}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low border border-outline-variant text-label-sm font-medium text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[16px]">{exporting ? "hourglass_empty" : "download"}</span>
+                {exporting ? "Đang xuất…" : "Xuất Excel"}
+              </button>
+            )}
+            <Link
+              href="/monthly-schedule"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-label-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              Quản lý kỳ lịch
+            </Link>
+          </div>
         </div>
       )}
 

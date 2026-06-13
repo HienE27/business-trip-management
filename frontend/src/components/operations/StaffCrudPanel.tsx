@@ -115,6 +115,7 @@ export function StaffCrudPanel() {
   const [searchKeyword, setSearchKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [specialtyFilter, setSpecialtyFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
 
@@ -130,7 +131,7 @@ export function StaffCrudPanel() {
   const fetchStaff = useCallback(async () => {
     try {
       setLoading(true);
-      const hasFilters = Boolean(searchKeyword.trim() || statusFilter || roleFilter);
+      const hasFilters = Boolean(searchKeyword.trim() || statusFilter || roleFilter || specialtyFilter);
       const params = new URLSearchParams();
       if (searchKeyword.trim()) {
         params.set("keyword", searchKeyword.trim());
@@ -140,6 +141,9 @@ export function StaffCrudPanel() {
       }
       if (roleFilter) {
         params.set("role", roleFilter);
+      }
+      if (specialtyFilter) {
+        params.set("specialtyId", specialtyFilter);
       }
 
       const data = await api.get<StaffApiResponse[]>(hasFilters ? `/staff/search?${params.toString()}` : "/staff");
@@ -160,7 +164,7 @@ export function StaffCrudPanel() {
     } finally {
       setLoading(false);
     }
-  }, [roleFilter, searchKeyword, statusFilter]);
+  }, [roleFilter, searchKeyword, specialtyFilter, statusFilter]);
 
   useEffect(() => {
     fetchSpecialties();
@@ -173,7 +177,7 @@ export function StaffCrudPanel() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchKeyword, statusFilter, roleFilter]);
+  }, [searchKeyword, statusFilter, roleFilter, specialtyFilter]);
 
   const summary = useMemo(
     () => [
@@ -619,11 +623,16 @@ export function StaffCrudPanel() {
         </div>
 
         <div className="relative w-full lg:w-48">
-          <select aria-label="Loc theo khoa phong" className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20" value="" onChange={() => {}}>
+          <select
+            aria-label="Lọc theo khoa phòng"
+            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            value={specialtyFilter}
+            onChange={(e) => setSpecialtyFilter(e.target.value)}
+          >
             <option value="">Tất cả Khoa/Phòng</option>
-            <option value="kham-benh">Khoa Khám bệnh</option>
-            <option value="cap-cuu">Khoa Cấp cứu</option>
-            <option value="noi-tong-hop">Khoa Nội tổng hợp</option>
+            {specialties.map((spec) => (
+              <option key={spec.id} value={spec.name}>{spec.name}</option>
+            ))}
           </select>
           <span aria-hidden="true" className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
             expand_more

@@ -6,6 +6,7 @@ export type AppSectionKey =
   | "staff"
   | "leave-requests"
   | "shift-swaps"
+  | "auto-scheduling"
   | "reports"
   | "notifications"
   | "audit-history"
@@ -33,6 +34,13 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/monthly-schedule",
     icon: "calendar_month",
     description: "Điều phối kỳ lịch theo workflow: auto schedule, conflict check, review, publish và export.",
+  },
+  {
+    key: "auto-scheduling",
+    label: "Tự động xếp lịch",
+    href: "/auto-scheduling",
+    icon: "auto_mode",
+    description: "Chạy thuật toán tạo phương án phân công, xem trước và áp dụng cho kỳ lịch.",
   },
   {
     key: "staff",
@@ -96,7 +104,7 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/service-clinic": "monthly-schedule",
   "/expert-clinic": "monthly-schedule",
   "/schedule-summary": "monthly-schedule",
-  "/auto-scheduling": "monthly-schedule",
+  "/auto-scheduling": "auto-scheduling",
   "/conflict-check": "monthly-schedule",
   "/leave-requests": "leave-requests",
   "/swap-requests": "shift-swaps",

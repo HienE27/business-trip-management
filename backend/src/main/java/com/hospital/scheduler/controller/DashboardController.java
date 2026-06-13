@@ -35,15 +35,17 @@ public class DashboardController {
     @GetMapping
     @Operation(summary = "Lấy tổng quan dashboard")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<ApiResponse<DashboardResponse>> getDashboard() {
-        return ResponseEntity.ok(ApiResponse.success(dashboardService.getDashboardSummary()));
+    public ResponseEntity<ApiResponse<DashboardResponse>> getDashboard(
+            @RequestParam(required = false) Integer periodId) {
+        return ResponseEntity.ok(ApiResponse.success(dashboardService.getDashboardSummary(periodId)));
     }
 
     @GetMapping("/shifts")
     @Operation(summary = "Lấy thống kê các loại ca")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<ApiResponse<DashboardResponse.ShiftStatistics>> getShiftStatistics() {
-        return ResponseEntity.ok(ApiResponse.success(dashboardService.getShiftStatistics()));
+    public ResponseEntity<ApiResponse<DashboardResponse.ShiftStatistics>> getShiftStatistics(
+            @RequestParam(required = false) Integer periodId) {
+        return ResponseEntity.ok(ApiResponse.success(dashboardService.getShiftStatistics(periodId)));
     }
 
     @GetMapping("/leave-requests")

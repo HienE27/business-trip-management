@@ -14,6 +14,7 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.AppRoleRepository;
 import com.hospital.scheduler.repository.SpecialtyRepository;
 import com.hospital.scheduler.repository.StaffRepository;
+import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class StaffService {
     private final SpecialtyRepository specialtyRepository;
     private final AppRoleRepository appRoleRepository;
     private final AuditHistoryService auditHistoryService;
+    private final AuthContextService authContextService;
     private final PasswordEncoder passwordEncoder;
 
     public List<StaffResponse> getAllStaff() {
@@ -116,7 +118,9 @@ public class StaffService {
             staffRepository.save(saved);
         }
 
-        return toResponse(staffRepository.findByIdWithRoles(saved.getId()).orElse(saved));
+        StaffResponse created = toResponse(staffRepository.findByIdWithRoles(saved.getId()).orElse(saved));
+        auditHistoryService.logAction("staff", saved.getId(), AuditHistory.ActionType.INSERT, null, created, authContextService.getCurrentStaff().getId());
+        return created;
     }
 
     public StaffResponse updateStaff(Integer id, StaffRequest request) {
@@ -204,7 +208,7 @@ public class StaffService {
 
         Staff saved = staffRepository.save(staff);
 
-        auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, saved, null);
+        auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, saved, authContextService.getCurrentStaff().getId());
 
         return toResponse(saved);
     }
@@ -225,7 +229,7 @@ public class StaffService {
         staff.setUpdatedAt(java.time.LocalDateTime.now());
         staffRepository.save(staff);
 
-        auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, staff, null);
+        auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, staff, authContextService.getCurrentStaff().getId());
     }
 
     public StaffResponse getStaffByUsername(String username) {
@@ -556,12 +560,13 @@ public class StaffService {
         }
 
         // 5. Write audit logs
+        Integer currentStaffId = authContextService.getCurrentStaff().getId();
         for (Staff us : toSaveUpdate) {
             Staff oldStaff = auditOldNewMap.get(us);
-            auditHistoryService.logAction("staff", us.getId(), AuditHistory.ActionType.UPDATE, oldStaff, us, null);
+            auditHistoryService.logAction("staff", us.getId(), AuditHistory.ActionType.UPDATE, oldStaff, us, currentStaffId);
         }
         for (Staff ns : toSaveNew) {
-            auditHistoryService.logAction("staff", ns.getId(), AuditHistory.ActionType.INSERT, null, ns, null);
+            auditHistoryService.logAction("staff", ns.getId(), AuditHistory.ActionType.INSERT, null, ns, currentStaffId);
         }
 
         Map<String, Object> result = new HashMap<>();

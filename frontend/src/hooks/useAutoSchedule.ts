@@ -15,11 +15,16 @@ export type AutoScheduleState = {
 };
 
 export type AutoScheduleActions = {
-  runPreview: (periodId: number | null) => Promise<void>;
+  runPreview: (periodId: number | null, excludedStaffIds?: number[]) => Promise<void>;
   applyPreview: (
     periodId: number | null,
     edited: Array<{ workDate: string; shiftTypeId: string; staffId: number }>,
     onSuccess: () => void
+  ) => Promise<void>;
+  saveAsTemplate: (
+    periodId: number | null,
+    templateName: string,
+    description?: string
   ) => Promise<void>;
   editStaff: (workDate: string, shiftTypeId: string, staffId: number) => void;
   resetEdits: () => void;
@@ -35,7 +40,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [message, setMessage] = useState<string | null>(null);
   const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "ROUND_ROBIN" | "BACKTRACKING">("GREEDY");
 
-  const runPreview = useCallback(async (periodId: number | null) => {
+  const runPreview = useCallback(async (periodId: number | null, excludedStaffIds: number[] = []) => {
     if (!periodId) return;
     try {
       setRunning(true);
@@ -44,7 +49,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         periodId,
         algorithmType,
         maxIterations: 1000,
-        excludedStaffIds: [],
+        excludedStaffIds,
       });
       setPreviewResult(result);
       setEditedPreview([]);
@@ -111,8 +116,29 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
     setAlgorithmType(type);
   }, []);
 
+  const saveAsTemplate = useCallback(
+    async (periodId: number | null, templateName: string, description?: string) => {
+      if (!periodId || !previewResult) return;
+      try {
+        setMessage(null);
+        const scheduleIds = previewResult.schedules.map((s) => s.scheduleId).filter(Boolean) as number[];
+        await api.post("/auto-schedule/save-as-template", {
+          periodId,
+          templateName,
+          description: description ?? "",
+          algorithmType,
+          scheduleIds,
+        });
+        setMessage("Đã lưu mẫu lịch '" + templateName + "' thành công.");
+      } catch (error) {
+        setMessage(getErrorMessage(error, "Không thể lưu mẫu lịch."));
+      }
+    },
+    [previewResult, algorithmType]
+  );
+
   return [
     { previewResult, editedPreview, applying, running, message, algorithmType },
-    { runPreview, applyPreview, editStaff, resetEdits, clearMessage, setAlgorithmType: setAlgoType },
+    { runPreview, applyPreview, saveAsTemplate, editStaff, resetEdits, clearMessage, setAlgorithmType: setAlgoType },
   ];
 }

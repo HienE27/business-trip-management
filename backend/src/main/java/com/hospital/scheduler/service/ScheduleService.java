@@ -10,6 +10,7 @@ import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,7 @@ public class ScheduleService {
     private final CompensationDayRepository compensationDayRepository;
     private final ConflictDetectionService conflictDetectionService;
     private final AuditHistoryService auditHistoryService;
+    private final AuthContextService authContextService;
     private final CompensationDateCalculator compensationDateCalculator;
     private final NotificationService notificationService;
 
@@ -126,7 +128,8 @@ public class ScheduleService {
             createCompensationDay(saved);
         }
 
-        auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+        auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT,
+                null, saved, authContextService.getCurrentStaff().getId());
 
         // Notify staff about new schedule assignment
         String shiftTypeName = shiftType.getName();
@@ -223,7 +226,7 @@ public class ScheduleService {
 
         auditHistoryService.logAction("schedule", id, AuditHistory.ActionType.UPDATE,
                 String.format("staffId=%d,shiftTypeId=%s,workDate=%s", oldStaffId, oldShiftTypeId, oldWorkDate),
-                updated, null);
+                updated, authContextService.getCurrentStaff().getId());
 
         LocalDate compDate = null;
         if (willBeL01) {
@@ -250,7 +253,7 @@ public class ScheduleService {
             compensationDayRepository.deleteAll(compensationDayRepository.findByScheduleId(id));
         }
 
-        auditHistoryService.logAction("schedule", id, AuditHistory.ActionType.DELETE, schedule, null, null);
+        auditHistoryService.logAction("schedule", id, AuditHistory.ActionType.DELETE, schedule, null, authContextService.getCurrentStaff().getId());
         scheduleRepository.delete(schedule);
     }
 

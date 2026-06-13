@@ -1,83 +1,472 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { DashboardShell } from '@/components/layout/DashboardShell';
+import { useCallback, useEffect, useState } from "react";
+import { DashboardShell } from "@/components/layout/DashboardShell";
+import { api } from "@/lib/api";
 
-const plannedItems = [
-  {
-    title: 'Tùy chọn giao diện',
-    description: 'Dark mode, mật độ hiển thị và cá nhân hóa dashboard chưa được kết nối với backend hoặc persistent storage.',
-    icon: 'palette',
-  },
-  {
-    title: 'Thông báo cá nhân',
-    description: 'Hệ thống thông báo chính đã hoạt động, nhưng phần cấu hình nhận thông báo theo kênh vẫn đang được hoàn thiện.',
-    icon: 'notifications_active',
-  },
-  {
-    title: 'Thiết lập tài khoản',
-    description: 'Các thao tác như đổi mật khẩu, ngôn ngữ và múi giờ sẽ được gom vào luồng hồ sơ cá nhân ở bước sau.',
-    icon: 'manage_accounts',
-  },
-];
+type ThemeMode = "light" | "dark" | "system";
+type DensityMode = "compact" | "comfortable" | "spacious";
 
 export default function SettingsPage() {
+  // Email section
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  const [conflictEmailEnabled, setConflictEmailEnabled] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [loadingEmail, setLoadingEmail] = useState(true);
+
+  // UI Preferences section
+  const [theme, setTheme] = useState<ThemeMode>("system");
+  const [density, setDensity] = useState<DensityMode>("comfortable");
+  const [savingPrefs, setSavingPrefs] = useState(false);
+
+  // Account section
+  const [currentStaff, setCurrentStaff] = useState<{
+    fullName: string;
+    email: string;
+    phone: string;
+    username: string;
+    specialtyName: string | null;
+    roles: string[];
+  } | null>(null);
+  const [loadingAccount, setLoadingAccount] = useState(true);
+  const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" });
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Load email config
+  const loadEmailConfig = useCallback(async () => {
+    try {
+      const data = await api.get<{ emailEnabled: boolean; conflictEmailEnabled: boolean }>("/app-config/email");
+      setEmailEnabled(data.emailEnabled);
+      setConflictEmailEnabled(data.conflictEmailEnabled);
+    } catch {
+      // Config not available - show defaults
+    } finally {
+      setLoadingEmail(false);
+    }
+  }, []);
+
+  // Load staff profile
+  const loadProfile = useCallback(async () => {
+    try {
+      const res = await api.get<{ fullName: string; email: string; phone: string; username: string; specialtyName: string | null; roles: string[] }>("/staff/me");
+      setCurrentStaff(res);
+    } catch {
+      // Not available
+    } finally {
+      setLoadingAccount(false);
+    }
+  }, []);
+
+  // Load UI preferences from localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("medschedule.theme") as ThemeMode | null;
+    const savedDensity = localStorage.getItem("medschedule.density") as DensityMode | null;
+    if (savedTheme) setTheme(savedTheme);
+    if (savedDensity) setDensity(savedDensity);
+  }, []);
+
+  useEffect(() => { void loadEmailConfig(); }, [loadEmailConfig]);
+  useEffect(() => { void loadProfile(); }, [loadProfile]);
+
+  const handleSaveEmail = async () => {
+    setSavingEmail(true);
+    setEmailMsg(null);
+    try {
+      await api.put("/app-config/email", undefined, {
+        emailEnabled,
+        conflictEmailEnabled,
+      });
+      setEmailMsg({ type: "success", text: "Đã lưu cấu hình email thành công." });
+    } catch {
+      setEmailMsg({ type: "error", text: "Lưu cấu hình thất bại. Vui lòng thử lại." });
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handleSaveTheme = async (t: ThemeMode) => {
+    setTheme(t);
+    localStorage.setItem("medschedule.theme", t);
+    if (t === "dark") {
+      document.documentElement.classList.add("dark");
+    } else if (t === "light") {
+      document.documentElement.classList.remove("dark");
+    } else {
+      if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    }
+    setSavingPrefs(true);
+    setTimeout(() => setSavingPrefs(false), 500);
+  };
+
+  const handleSaveDensity = async (d: DensityMode) => {
+    setDensity(d);
+    localStorage.setItem("medschedule.density", d);
+    document.documentElement.dataset.density = d;
+    setSavingPrefs(true);
+    setTimeout(() => setSavingPrefs(false), 500);
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordForm.next !== passwordForm.confirm) {
+      setPasswordMsg({ type: "error", text: "Mật khẩu mới và xác nhận không khớp." });
+      return;
+    }
+    if (passwordForm.next.length < 8) {
+      setPasswordMsg({ type: "error", text: "Mật khẩu mới phải có ít nhất 8 ký tự." });
+      return;
+    }
+    setSavingPassword(true);
+    setPasswordMsg(null);
+    try {
+      await api.put("/staff/change-password", {
+        currentPassword: passwordForm.current,
+        newPassword: passwordForm.next,
+      });
+      setPasswordMsg({ type: "success", text: "Đổi mật khẩu thành công." });
+      setPasswordForm({ current: "", next: "", confirm: "" });
+    } catch {
+      setPasswordMsg({ type: "error", text: "Đổi mật khẩu thất bại. Kiểm tra lại mật khẩu hiện tại." });
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
+  const roleLabel = (r: string) => {
+    if (r === "ADMIN") return "Quản trị viên";
+    if (r === "MANAGER") return "Quản lý";
+    return "Nhân viên";
+  };
+
   return (
     <DashboardShell
       activeSection="settings"
       title="Cài đặt"
-      description="Trang này đang được tinh gọn để tránh hiển thị các cấu hình chưa hoạt động thực tế."
+      description="Quản lý cấu hình hệ thống và tùy chọn thông báo."
     >
       <div className="flex flex-col gap-6 pb-8">
-        <section className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-tertiary-fixed/50 text-tertiary">
-              <span className="material-symbols-outlined text-[24px]">construction</span>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <h2 className="text-title-lg font-semibold text-on-surface">Khu vực cài đặt đang được hoàn thiện</h2>
-                <p className="mt-1 text-body-md leading-relaxed text-on-surface-variant">
-                  Hiện tại hệ thống ưu tiên hoàn thiện các luồng nghiệp vụ xếp lịch, kiểm tra xung đột và công bố kỳ lịch.
-                  Những cấu hình dưới đây chưa được mở chính thức để tránh gây hiểu nhầm rằng dữ liệu đã được lưu thật.
-                </p>
-              </div>
 
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  href="/staff/profile"
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-label-md font-medium text-on-primary transition-colors hover:bg-primary/90"
+        {/* ── Email Notification Settings ──────────────────────────────── */}
+        <section className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-fixed/40 text-primary">
+              <span className="material-symbols-outlined text-[20px]">mail</span>
+            </div>
+            <div>
+              <h2 className="text-title-lg font-semibold text-on-surface">Thông báo Email</h2>
+              <p className="text-label-sm text-on-surface-variant">Bật/tắt các thông báo qua email của hệ thống.</p>
+            </div>
+          </div>
+
+          {loadingEmail ? (
+            <div className="space-y-3">
+              <div className="h-12 rounded-lg bg-surface-container-low animate-pulse" />
+              <div className="h-12 rounded-lg bg-surface-container-low animate-pulse" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <label className="flex items-center justify-between rounded-xl border border-outline-variant bg-surface p-4 cursor-pointer hover:bg-surface-container-low transition-colors">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-on-surface-variant text-[20px]">mark_email_unread</span>
+                  <div>
+                    <p className="text-label-md font-medium text-on-surface">Bật thông báo Email</p>
+                    <p className="text-label-sm text-on-surface-variant">Kích hoạt hệ thống gửi email từ ứng dụng.</p>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  id="email-toggle"
+                  checked={emailEnabled}
+                  onChange={setEmailEnabled}
+                />
+              </label>
+
+              <label className={`flex items-center justify-between rounded-xl border p-4 cursor-pointer transition-colors ${
+                emailEnabled
+                  ? "border-outline-variant bg-surface hover:bg-surface-container-low"
+                  : "border-surface-container-high bg-surface-container-low opacity-60 cursor-not-allowed"
+              }`}>
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-on-surface-variant text-[20px]">warning</span>
+                  <div>
+                    <p className="text-label-md font-medium text-on-surface">Thông báo xung đột lịch</p>
+                    <p className="text-label-sm text-on-surface-variant">Gửi email cảnh báo khi phát hiện xung đột lịch trực.</p>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  id="conflict-email-toggle"
+                  checked={conflictEmailEnabled}
+                  onChange={setConflictEmailEnabled}
+                  disabled={!emailEnabled}
+                />
+              </label>
+
+              {emailMsg && (
+                <div className={`rounded-lg px-4 py-3 text-label-sm ${
+                  emailMsg.type === "success"
+                    ? "bg-secondary-container text-on-secondary-container"
+                    : "bg-error-container text-on-error-container"
+                }`}>
+                  {emailMsg.text}
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={() => void handleSaveEmail()}
+                  disabled={savingEmail}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-label-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
                 >
-                  <span className="material-symbols-outlined text-[18px]">person</span>
-                  Đi tới hồ sơ cá nhân
-                </Link>
-                <Link
-                  href="/notifications"
-                  className="inline-flex items-center gap-2 rounded-lg border border-outline-variant bg-surface px-4 py-2.5 text-label-md font-medium text-on-surface transition-colors hover:bg-surface-container-low"
-                >
-                  <span className="material-symbols-outlined text-[18px]">notifications</span>
-                  Xem thông báo hệ thống
-                </Link>
+                  {savingEmail ? (
+                    <><div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" /><span>Đang lưu...</span></>
+                  ) : (
+                    <><span className="material-symbols-outlined text-[18px]">save</span><span>Lưu cấu hình</span></>
+                  )}
+                </button>
               </div>
             </div>
+          )}
+        </section>
+
+        {/* ── UI Preferences ───────────────────────────────────────────── */}
+        <section className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-fixed/40 text-primary">
+              <span className="material-symbols-outlined text-[20px]">palette</span>
+            </div>
+            <div>
+              <h2 className="text-title-lg font-semibold text-on-surface">Tùy chọn giao diện</h2>
+              <p className="text-label-sm text-on-surface-variant">Cá nhân hóa giao diện hiển thị của ứng dụng.</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* Theme */}
+            <div className="flex items-center justify-between rounded-xl border border-outline-variant bg-surface p-4">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-on-surface-variant text-[20px]">contrast</span>
+                <div>
+                  <p className="text-label-md font-medium text-on-surface">Chế độ giao diện</p>
+                  <p className="text-label-sm text-on-surface-variant">Chọn giao diện sáng, tối hoặc theo hệ thống.</p>
+                </div>
+              </div>
+              <div className="flex gap-1 bg-surface-container-low rounded-lg p-0.5">
+                {(["light", "dark", "system"] as ThemeMode[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => void handleSaveTheme(t)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-sm font-medium transition-colors ${
+                      theme === t
+                        ? "bg-surface-container-lowest text-on-surface shadow-sm"
+                        : "text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">
+                      {t === "light" ? "light_mode" : t === "dark" ? "dark_mode" : "brightness_auto"}
+                    </span>
+                    {t === "light" ? "Sáng" : t === "dark" ? "Tối" : "Hệ thống"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Density */}
+            <div className="flex items-center justify-between rounded-xl border border-outline-variant bg-surface p-4">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-on-surface-variant text-[20px]">view_compact</span>
+                <div>
+                  <p className="text-label-md font-medium text-on-surface">Mật độ hiển thị</p>
+                  <p className="text-label-sm text-on-surface-variant">Điều chỉnh khoảng cách và kích thước phần tử trên giao diện.</p>
+                </div>
+              </div>
+              <div className="flex gap-1 bg-surface-container-low rounded-lg p-0.5">
+                {(["compact", "comfortable", "spacious"] as DensityMode[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => void handleSaveDensity(d)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-sm font-medium transition-colors ${
+                      density === d
+                        ? "bg-surface-container-lowest text-on-surface shadow-sm"
+                        : "text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    {d === "compact" ? "Thu gọn" : d === "comfortable" ? "Bình thường" : "Rộng rãi"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {savingPrefs && (
+              <div className="rounded-lg px-4 py-3 text-label-sm bg-secondary-container text-on-secondary-container">
+                Đã lưu tùy chọn hiển thị.
+              </div>
+            )}
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {plannedItems.map((item) => (
-            <article
-              key={item.title}
-              className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm"
-            >
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-primary-fixed/40 text-primary">
-                <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+        {/* ── Account Settings ──────────────────────────────────────────── */}
+        <section className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-fixed/40 text-primary">
+              <span className="material-symbols-outlined text-[20px]">manage_accounts</span>
+            </div>
+            <div>
+              <h2 className="text-title-lg font-semibold text-on-surface">Thiết lập tài khoản</h2>
+              <p className="text-label-sm text-on-surface-variant">Quản lý thông tin và bảo mật tài khoản cá nhân.</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {/* Profile info */}
+            {loadingAccount ? (
+              <div className="space-y-3">
+                <div className="h-16 rounded-lg bg-surface-container-low animate-pulse" />
+                <div className="h-16 rounded-lg bg-surface-container-low animate-pulse" />
               </div>
-              <h3 className="text-title-md font-semibold text-on-surface">{item.title}</h3>
-              <p className="mt-2 text-body-sm leading-relaxed text-on-surface-variant">{item.description}</p>
-            </article>
-          ))}
+            ) : currentStaff ? (
+              <div className="rounded-xl border border-outline-variant bg-surface p-4 space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-label-sm text-on-surface-variant">Họ tên</span>
+                  <span className="text-label-md text-on-surface font-medium">{currentStaff.fullName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-label-sm text-on-surface-variant">Tài khoản</span>
+                  <span className="text-label-md text-on-surface font-medium">{currentStaff.username}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-label-sm text-on-surface-variant">Email</span>
+                  <span className="text-label-md text-on-surface font-medium">{currentStaff.email || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-label-sm text-on-surface-variant">Điện thoại</span>
+                  <span className="text-label-md text-on-surface font-medium">{currentStaff.phone || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-label-sm text-on-surface-variant">Khoa/Phòng</span>
+                  <span className="text-label-md text-on-surface font-medium">{currentStaff.specialtyName || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-label-sm text-on-surface-variant">Vai trò</span>
+                  <span className="text-label-md text-on-surface font-medium flex gap-1.5">
+                    {(currentStaff.roles ?? []).map((r) => (
+                      <span key={r} className="inline-flex items-center px-2 py-0.5 rounded-full bg-primary-fixed text-primary text-[11px] font-semibold">
+                        {roleLabel(r)}
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Change password */}
+            <form onSubmit={(e) => void handleChangePassword(e)} className="rounded-xl border border-outline-variant bg-surface p-4 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="material-symbols-outlined text-on-surface-variant text-[18px]">lock</span>
+                <h3 className="text-label-md font-semibold text-on-surface">Đổi mật khẩu</h3>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="current-password">
+                    Mật khẩu hiện tại
+                  </label>
+                  <input
+                    id="current-password"
+                    type="password"
+                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    value={passwordForm.current}
+                    onChange={(e) => setPasswordForm((f) => ({ ...f, current: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="new-password">
+                    Mật khẩu mới
+                  </label>
+                  <input
+                    id="new-password"
+                    type="password"
+                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    value={passwordForm.next}
+                    onChange={(e) => setPasswordForm((f) => ({ ...f, next: e.target.value }))}
+                    required
+                    minLength={8}
+                  />
+                </div>
+                <div>
+                  <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="confirm-password">
+                    Xác nhận mật khẩu mới
+                  </label>
+                  <input
+                    id="confirm-password"
+                    type="password"
+                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    value={passwordForm.confirm}
+                    onChange={(e) => setPasswordForm((f) => ({ ...f, confirm: e.target.value }))}
+                    required
+                    minLength={8}
+                  />
+                </div>
+              </div>
+
+              {passwordMsg && (
+                <div className={`rounded-lg px-4 py-3 text-label-sm ${
+                  passwordMsg.type === "success"
+                    ? "bg-secondary-container text-on-secondary-container"
+                    : "bg-error-container text-on-error-container"
+                }`}>
+                  {passwordMsg.text}
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={savingPassword}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-label-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+                >
+                  {savingPassword ? (
+                    <><div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" /><span>Đang đổi...</span></>
+                  ) : (
+                    <><span className="material-symbols-outlined text-[18px]">lock_reset</span><span>Đổi mật khẩu</span></>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </section>
+
       </div>
     </DashboardShell>
+  );
+}
+
+function ToggleSwitch({ id, checked, onChange, disabled }: {
+  id: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-labelledby={id}
+      disabled={disabled}
+      onClick={() => !disabled && onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${checked ? "bg-primary" : "bg-surface-container-high"}`}
+    >
+      <span
+        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${checked ? "translate-x-5" : "translate-x-0"}`}
+      />
+    </button>
   );
 }

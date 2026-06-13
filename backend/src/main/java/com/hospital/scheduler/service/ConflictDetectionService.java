@@ -5,6 +5,7 @@ import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,8 @@ public class ConflictDetectionService {
     private final StaffRepository staffRepository;
     private final ShiftRequirementRepository shiftRequirementRepository;
     private final ShiftTypeRepository shiftTypeRepository;
+    @Lazy
+    private final EmailService emailService;
 
     public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
         return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, false, false);
@@ -157,6 +160,7 @@ public class ConflictDetectionService {
                 .build();
     }
 
+    @Transactional
     public void saveConflict(Schedule schedule, ScheduleConflict.ConflictType conflictType, String description) {
         ScheduleConflict conflict = ScheduleConflict.builder()
                 .schedule(schedule)
@@ -165,6 +169,7 @@ public class ConflictDetectionService {
                 .isResolved(false)
                 .build();
         scheduleConflictRepository.save(conflict);
+        emailService.sendConflictAlert(schedule, description);
     }
 
     public List<ScheduleConflict> getUnresolvedConflictsByPeriod(Integer periodId) {

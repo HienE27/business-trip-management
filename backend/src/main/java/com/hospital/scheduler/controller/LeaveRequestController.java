@@ -3,6 +3,7 @@ package com.hospital.scheduler.controller;
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.LeaveRequestDTO;
 import com.hospital.scheduler.dto.response.LeaveRequestResponse;
+import com.hospital.scheduler.dto.response.ReplacementProposal;
 import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.service.LeaveRequestService;
 import com.hospital.scheduler.security.AuthContextService;
@@ -105,5 +106,12 @@ public class LeaveRequestController {
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> cancel(@PathVariable Integer id) {
         LeaveRequestResponse cancelled = leaveRequestService.cancelLeaveRequest(id, authContextService.getCurrentStaff());
         return ResponseEntity.ok(ApiResponse.success(cancelled, "Hủy yêu cầu nghỉ phép thành công"));
+    }
+
+    @GetMapping("/{id}/replacements")
+    @Operation(summary = "Tìm người thay thế cho các ca bị ảnh hưởng bởi nghỉ phép")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<List<ReplacementProposal>>> getReplacements(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.success(leaveRequestService.findReplacementsForLeave(id)));
     }
 }

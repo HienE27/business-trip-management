@@ -70,7 +70,7 @@ public class ScheduleExchangeService {
     }
 
     public List<ScheduleExchangeResponse> getExchangesForUser(Integer userId) {
-        return exchangeRepository.findPendingByRequesterIdOrTargetId(userId, userId).stream()
+        return exchangeRepository.findAllByUserId(userId).stream()
                 .map(ScheduleExchangeResponse::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -243,6 +243,26 @@ public class ScheduleExchangeService {
 
         scheduleRepository.save(requesterSchedule);
         scheduleRepository.save(targetSchedule);
+
+        // Validate NEW compensation days do not conflict with existing schedules
+        if (targetIsL01) {
+            LocalDate newCompForRequesterDate = compensationDateCalculator.calculate(targetWorkDate);
+            List<Schedule> reqSchedulesOnCompDate = scheduleRepository.findByStaffIdAndWorkDate(requesterOldStaff.getId(), newCompForRequesterDate);
+            if (!reqSchedulesOnCompDate.isEmpty()) {
+                throw new BadRequestException("Ngày nghỉ bù mới của " + requesterOldStaff.getFullName()
+                        + " (" + newCompForRequesterDate + ") bị xung đột với lịch hiện có: "
+                        + reqSchedulesOnCompDate.get(0).getShiftType().getName());
+            }
+        }
+        if (requesterIsL01) {
+            LocalDate newCompForTargetDate = compensationDateCalculator.calculate(requesterWorkDate);
+            List<Schedule> tgtSchedulesOnCompDate = scheduleRepository.findByStaffIdAndWorkDate(targetOldStaff.getId(), newCompForTargetDate);
+            if (!tgtSchedulesOnCompDate.isEmpty()) {
+                throw new BadRequestException("Ngày nghỉ bù mới của " + targetOldStaff.getFullName()
+                        + " (" + newCompForTargetDate + ") bị xung đột với lịch hiện có: "
+                        + tgtSchedulesOnCompDate.get(0).getShiftType().getName());
+            }
+        }
 
         exchange.setStatus(ScheduleExchange.ExchangeStatus.APPROVED);
         exchange.setReviewedBy(reviewer);

@@ -41,11 +41,6 @@ const nextConfig: NextConfig = {
       permanent: false,
     },
     {
-      source: "/auto-scheduling",
-      destination: "/monthly-schedule?panel=auto-schedule",
-      permanent: false,
-    },
-    {
       source: "/conflict-check",
       destination: "/monthly-schedule?panel=conflicts",
       permanent: false,

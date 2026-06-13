@@ -55,8 +55,8 @@ public class CompensationDateCalculator {
             case TUESDAY   -> shiftDate.plusDays(1);   // T3 → T4
             case WEDNESDAY -> shiftDate.plusDays(1);   // T4 → T5
             case THURSDAY  -> shiftDate.plusDays(1);   // T5 → T6
-            case FRIDAY    -> shiftDate.plusDays(4);   // T6 → T3 tuần sau (bỏ T7, CN, T2)
-            case SATURDAY  -> shiftDate.plusDays(9);   // T7 → T3 tuần sau (bỏ CN, T2)
+            case FRIDAY    -> shiftDate.plusDays(11);  // T6 → T3 tuần sau (bỏ T7, CN, T2, T3, T4, T5, T6)
+            case SATURDAY  -> shiftDate.plusDays(10);  // T7 → T3 tuần sau (bỏ CN, T2, T3, T4, T5, T6)
             case SUNDAY    -> shiftDate.plusDays(1);   // CN → T2
         };
     }

@@ -57,7 +57,7 @@ function isManagerLike(staff: Staff | null) {
 }
 
 export default function SwapRequestsPage() {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
   const [exchanges, setExchanges] = useState<ScheduleExchangeResponse[]>([]);
   const [currentUser, setCurrentUser] = useState<Staff | null>(null);
   const [mySchedules, setMySchedules] = useState<Schedule[]>([]);
@@ -119,7 +119,7 @@ export default function SwapRequestsPage() {
     }
   }, []);
 
-  const managerMode = isManagerLike(currentUser);
+  const managerMode = Boolean(authUser?.roles?.some((role: string) => role === "ADMIN" || role === "MANAGER")) || isManagerLike(currentUser);
 
   const filtered = useMemo(() => {
     return exchanges.filter((exchange) => !statusFilter || exchange.status === statusFilter);
@@ -154,7 +154,6 @@ export default function SwapRequestsPage() {
       setProcessing(id);
       setConflictWarning(null);
 
-      // 1. Check for conflicts in the period
       const conflictRes = await api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`);
       if (conflictRes.hasConflicts && conflictRes.totalConflicts > 0) {
         setConflictWarning({ periodId, totalConflicts: conflictRes.totalConflicts });
@@ -164,8 +163,7 @@ export default function SwapRequestsPage() {
         return;
       }
 
-      // 2. No conflicts — proceed with approval
-      await api.put(`/schedule-exchanges/${id}/approve?reviewerId=${reviewerId}`, {});
+      await api.approveExchange(id, reviewerId, reviewNote || undefined);
       setMessage("Đã duyệt yêu cầu đổi trực.");
       setSelectedExchange(null);
       setReviewNote("");
@@ -182,7 +180,7 @@ export default function SwapRequestsPage() {
     if (!reviewerId) return;
     try {
       setProcessing(id);
-      await api.put(`/schedule-exchanges/${id}/reject?reviewerId=${reviewerId}`, {});
+      await api.rejectExchange(id, reviewerId, reviewNote || undefined);
       setMessage("Đã từ chối yêu cầu đổi trực.");
       setSelectedExchange(null);
       setReviewNote("");
@@ -198,7 +196,7 @@ export default function SwapRequestsPage() {
   async function handleCancel(id: number) {
     try {
       setProcessing(id);
-      await api.put(`/schedule-exchanges/${id}/cancel`, {});
+      await api.cancelExchange(id);
       setMessage("Đã hủy yêu cầu đổi trực.");
       await fetchExchanges();
     } catch (err) {
@@ -217,15 +215,13 @@ export default function SwapRequestsPage() {
     try {
       setSubmitting(true);
       const payload = {
-        targetStaffId:
-          candidateTargetSchedules.find((schedule) => String(schedule.id) === form.targetScheduleId)?.staff.id ?? 0,
+        periodId: selectedRequesterSchedule.periodId,
         requesterScheduleId: selectedRequesterSchedule.id,
         targetScheduleId: Number(form.targetScheduleId),
         reason: form.reason.trim() || undefined,
-        periodId: selectedRequesterSchedule.periodId,
       };
 
-      await api.post(`/schedule-exchanges/requester/${currentUser.id}`, payload);
+      await api.createExchange(currentUser.id, payload);
       setMessage("Đã gửi yêu cầu đổi trực. Quản lý sẽ xem xét và phản hồi.");
       setForm({ requesterScheduleId: "", targetScheduleId: "", reason: "" });
       await fetchExchanges();
@@ -280,6 +276,12 @@ export default function SwapRequestsPage() {
                   <label className="mb-1.5 block text-[13px] font-medium text-on-surface" htmlFor="requesterScheduleId">
                     Ca trực của bạn
                   </label>
+                  {mySchedules.length === 0 ? (
+                    <div className="rounded-lg border border-tertiary/30 bg-tertiary-container/20 px-3 py-2.5 text-[13px] text-on-surface">
+                      <span className="material-symbols-outlined text-[16px] text-tertiary align-middle mr-1.5">info</span>
+                      Bạn chưa có ca trực L01 nào trong kỳ đã công bố.
+                    </div>
+                  ) : (
                   <select
                     className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-body-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary"
                     id="requesterScheduleId"
@@ -295,25 +297,37 @@ export default function SwapRequestsPage() {
                       </option>
                     ))}
                   </select>
+                  )}
                 </div>
 
                 <div>
                   <label className="mb-1.5 block text-[13px] font-medium text-on-surface" htmlFor="targetScheduleId">
                     Ca muốn đổi cùng
                   </label>
-                  <select
-                    className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-body-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary"
-                    id="targetScheduleId"
-                    onChange={(event) => setForm((prev) => ({ ...prev, targetScheduleId: event.target.value }))}
-                    value={form.targetScheduleId}
-                  >
-                    <option value="">Chọn ca trực của người khác</option>
-                    {candidateTargetSchedules.map((schedule) => (
-                      <option key={schedule.id} value={schedule.id}>
-                        {schedule.staff.fullName} — {formatDate(schedule.workDate)}
-                      </option>
-                    ))}
-                  </select>
+                  {!selectedRequesterSchedule ? (
+                    <div className="rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-[13px] text-on-surface-variant">
+                      Vui lòng chọn ca trực của bạn trước.
+                    </div>
+                  ) : candidateTargetSchedules.length === 0 ? (
+                    <div className="rounded-lg border border-tertiary/30 bg-tertiary-container/20 px-3 py-2.5 text-[13px] text-on-surface">
+                      <span className="material-symbols-outlined text-[16px] text-tertiary align-middle mr-1.5">info</span>
+                      Không có ca L01 nào của người khác trong cùng kỳ.
+                    </div>
+                  ) : (
+                    <select
+                      className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-body-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary"
+                      id="targetScheduleId"
+                      onChange={(event) => setForm((prev) => ({ ...prev, targetScheduleId: event.target.value }))}
+                      value={form.targetScheduleId}
+                    >
+                      <option value="">Chọn ca trực của người khác</option>
+                      {candidateTargetSchedules.map((schedule) => (
+                        <option key={schedule.id} value={schedule.id}>
+                          {schedule.staff.fullName} — {formatDate(schedule.workDate)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -535,7 +549,7 @@ export default function SwapRequestsPage() {
             <span className="font-body-sm text-body-sm text-on-surface-variant">
               Hiển thị {filtered.length} / {exchanges.length} yêu cầu
             </span>
-            {!managerMode && user?.roles?.includes("STAFF") && (
+            {!managerMode && authUser?.roles?.includes("STAFF") && (
               <span className="text-[12px] text-on-surface-variant">
                 Chỉ thấy các yêu cầu liên quan tới bạn.
               </span>

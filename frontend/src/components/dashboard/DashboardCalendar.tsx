@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import type { Schedule } from "@/types/api";
 import type { ScheduleTone } from "@/types/schedule";
 
@@ -11,7 +11,7 @@ const TONE: Record<ScheduleTone, {
   border: string;
   dot: string;
 }> = {
-  duty24:       { bg: "bg-blue-50",        text: "text-blue-700",       border: "border-l-blue-500",       dot: "bg-blue-500"       },
+  duty24:       { bg: "bg-red-50",         text: "text-red-700",       border: "border-l-red-500",       dot: "bg-red-500"       },
   allDay:       { bg: "bg-emerald-50",     text: "text-emerald-700",    border: "border-l-emerald-500",    dot: "bg-emerald-500"    },
   serviceClinic:{ bg: "bg-amber-50",       text: "text-amber-700",      border: "border-l-amber-500",      dot: "bg-amber-500"      },
   expertClinic: { bg: "bg-violet-50",     text: "text-violet-700",     border: "border-l-violet-500",     dot: "bg-violet-500"    },
@@ -29,8 +29,22 @@ const SHIFT_SHORT: Record<string, string> = {
   L04: "CG",
 };
 
-const MAX_VISIBLE = 4;
+const MAX_VISIBLE_GROUPS = 2;
 const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"] as const;
+
+const SHIFT_FULL_LABEL: Record<string, string> = {
+  L01: "Trực 24/24",
+  L02: "Thông tầm",
+  L03: "PK dịch vụ",
+  L04: "PK chuyên gia",
+};
+
+const SHIFT_ORDER: Record<string, number> = {
+  L01: 1,
+  L02: 2,
+  L03: 3,
+  L04: 4,
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type CalendarItem = {
@@ -87,11 +101,7 @@ type DashboardCalendarProps = {
   onSpecialtyFilterChange?: (specialtyId: number | null) => void;
 };
 
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[parts.length - 2]?.charAt(0) ?? "") + (parts[parts.length - 1]?.charAt(0) ?? "");
-}
+export type CalendarViewMode = "month" | "week";
 
 function getStaffCode(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
@@ -108,6 +118,25 @@ function shiftTypeToTone(id: string): ScheduleTone {
     case "L04": return "expertClinic";
     default:    return "neutral";
   }
+}
+
+function summarizeItems(items: CalendarItem[]) {
+  const map = new Map<string, { shiftTypeId: string; label: string; count: number; tone: ScheduleTone }>();
+  for (const item of items) {
+    const current = map.get(item.shiftTypeId) ?? {
+      shiftTypeId: item.shiftTypeId,
+      label: SHIFT_FULL_LABEL[item.shiftTypeId] ?? item.shiftLabel,
+      count: 0,
+      tone: item.tone,
+    };
+    current.count += 1;
+    map.set(item.shiftTypeId, current);
+  }
+  return Array.from(map.values()).sort((a, b) => (SHIFT_ORDER[a.shiftTypeId] ?? 99) - (SHIFT_ORDER[b.shiftTypeId] ?? 99));
+}
+
+function formatFullDate(date: Date) {
+  return date.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 // ─── Data computation ─────────────────────────────────────────────────────────
@@ -373,7 +402,7 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, onViewDet
     >
       <div className="p-3 border-b border-outline-variant sticky top-0 bg-surface-container-lowest">
         <p className="text-label-md font-semibold text-on-surface">
-          Tat ca lich ({items.length})
+          Chi tiết ngày ({items.length})
         </p>
       </div>
       <div className="p-2 space-y-1">
@@ -381,7 +410,7 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, onViewDet
           const t = TONE[item.tone];
           const s = item.schedule;
           return (
-            <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border-l-2 ${t.bg} ${t.border}`}>
+            <div key={`${item.schedule.id}-${i}`} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border-l-2 ${t.bg} ${t.border}`}>
               <div className={`w-6 h-6 rounded-full ${t.bg} flex items-center justify-center shrink-0`}>
                 <span className={`text-[10px] font-bold ${t.text}`}>{item.staffCode}</span>
               </div>
@@ -390,7 +419,7 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, onViewDet
                 <p className="text-[11px] text-on-surface-variant">{item.shiftLabel}</p>
               </div>
               {s.hasConflict && (
-                <span className="material-symbols-outlined text-error text-[14px] shrink-0" title="Xung đột">warning</span>
+                <span key={`conflict-${s.id}`} className="material-symbols-outlined text-error text-[14px] shrink-0" title="Xung đột">warning</span>
               )}
               <div className="flex gap-1 shrink-0">
                 <button
@@ -402,7 +431,7 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, onViewDet
                   <span className="material-symbols-outlined text-[14px] text-on-surface-variant">visibility</span>
                 </button>
                 {canEdit && (
-                  <>
+                  <React.Fragment key={s.id}>
                     <button
                       type="button"
                       onClick={() => handleEdit(s)}
@@ -429,7 +458,7 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, onViewDet
                     >
                       <span className="material-symbols-outlined text-[14px] text-error">delete</span>
                     </button>
-                  </>
+                  </React.Fragment>
                 )}
               </div>
             </div>
@@ -446,9 +475,9 @@ export function DashboardCalendar({
   annotations = [],
   coverages = {},
   staffList = [],
-  staffFilter: externalStaffFilter = null,
+  staffFilter: externalStaffFilter,
   specialtyList = [],
-  specialtyFilter: externalSpecialtyFilter = null,
+  specialtyFilter: externalSpecialtyFilter,
   initialYear,
   initialMonth,
   onEditSchedule,
@@ -461,23 +490,17 @@ export function DashboardCalendar({
   onSpecialtyFilterChange,
 }: DashboardCalendarProps) {
   const [filterType, setFilterType] = useState<string>("all");
-  const [staffFilter, setStaffFilter] = useState<number | null>(externalStaffFilter);
-  const [specialtyFilter, setSpecialtyFilter] = useState<number | null>(externalSpecialtyFilter);
+  const [internalStaffFilter, setInternalStaffFilter] = useState<number | null>(null);
+  const [internalSpecialtyFilter, setInternalSpecialtyFilter] = useState<number | null>(null);
+  const staffFilter = externalStaffFilter === undefined ? internalStaffFilter : externalStaffFilter;
+  const specialtyFilter = externalSpecialtyFilter === undefined ? internalSpecialtyFilter : externalSpecialtyFilter;
   const [currentYear, setCurrentYear] = useState(() => initialYear ?? new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => initialMonth ?? new Date().getMonth());
+  const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [overflow, setOverflow] = useState<{ items: CalendarItem[]; anchor: { x: number; y: number } } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const calendarRef = useRef<HTMLDivElement>(null);
-
-  // Sync external filters when they change
-  useEffect(() => {
-    setStaffFilter(externalStaffFilter);
-  }, [externalStaffFilter]);
-
-  useEffect(() => {
-    setSpecialtyFilter(externalSpecialtyFilter);
-  }, [externalSpecialtyFilter]);
 
   const filteredSchedules = useMemo(() => {
     let result = filterType === "all" ? schedules : schedules.filter((s) => s.shiftType.id === filterType);
@@ -510,17 +533,84 @@ export function DashboardCalendar({
     setOverflow({ items, anchor: { x: e.clientX, y: e.clientY } });
   }, []);
 
-  const handleCellClick = useCallback((cell: CalendarCell) => {
+  const openCell = useCallback((cell: CalendarCell, anchor?: { x: number; y: number }) => {
     if (cell.isCompensation) return;
     if (cell.items.length === 0) {
       onAddClick?.(cell.date);
-    } else {
-      onDayClick?.(cell.date, cell.items);
+      return;
     }
+    onDayClick?.(cell.date, cell.items);
+    setOverflow({
+      items: cell.items,
+      anchor: anchor ?? { x: window.innerWidth / 2, y: Math.max(120, window.innerHeight / 4) },
+    });
   }, [onAddClick, onDayClick]);
+
+  const handleCellClick = useCallback((event: React.MouseEvent, cell: CalendarCell) => {
+    openCell(cell, { x: event.clientX, y: event.clientY });
+  }, [openCell]);
+
+  const handleCellKeyDown = useCallback((event: React.KeyboardEvent, cell: CalendarCell) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openCell(cell);
+  }, [openCell]);
 
   const isToday = (cell: CalendarCell) =>
     cell.date.getTime() === today.getTime();
+
+  const currentWeekStart = useMemo(() => {
+    const now = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const dow = (now.getDay() + 6) % 7; // Mon=0
+    now.setDate(now.getDate() - dow);
+    return now;
+  }, [today]);
+
+  const weekCells = useMemo(() => {
+    const start = new Date(currentWeekStart);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const daySchedules = filteredSchedules.filter((s) => s.workDate.split("T")[0] === dateStr);
+      return {
+        date: d,
+        dateStr,
+        isWeekend: i >= 5,
+        dayLabel: WEEKDAYS[i],
+        items: daySchedules.map((s) => ({
+          shiftLabel: SHIFT_SHORT[s.shiftType.id] ?? s.shiftType.id,
+          staffName: s.staff.fullName,
+          staffCode: getStaffCode(s.staff.fullName),
+          tone: shiftTypeToTone(s.shiftType.id),
+          shiftTypeId: s.shiftType.id,
+          schedule: s,
+        })),
+        annotations: annotations.filter((a) => a.date === dateStr),
+        isCompensation: annotations.some((a) => a.date === dateStr && (a.tone === "compLeave" || a.isCompensation)),
+        hasConflict: daySchedules.some((s) => s.hasConflict),
+      };
+    });
+  }, [currentWeekStart, filteredSchedules, annotations]);
+
+  const weekLabel = useMemo(() => {
+    const start = new Date(currentWeekStart);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    const fmt = (d: Date) => d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+    return `${fmt(start)} – ${fmt(end)}`;
+  }, [currentWeekStart]);
+
+  const navigateMonth = (direction: -1 | 1) => {
+    const nm = direction === -1
+      ? (currentMonth === 0 ? 11 : currentMonth - 1)
+      : (currentMonth === 11 ? 0 : currentMonth + 1);
+    const ny = direction === -1
+      ? (currentMonth === 0 ? currentYear - 1 : currentYear)
+      : (currentMonth === 11 ? currentYear + 1 : currentYear);
+    setCurrentMonth(nm);
+    setCurrentYear(ny);
+  };
 
   return (
     <section className="flex flex-col h-full" ref={calendarRef}>
@@ -535,15 +625,17 @@ export function DashboardCalendar({
           >
             <span className="material-symbols-outlined text-[20px]">{sidebarOpen ? "visibility_off" : "visibility"}</span>
           </button>
-          <h3 className="text-title-lg text-on-surface font-semibold">{month}</h3>
+          <h3 className="text-title-lg text-on-surface font-semibold">
+            {viewMode === "week" ? weekLabel : month}
+          </h3>
           <div className="flex gap-0.5">
-            <button type="button" onClick={() => { const pm = currentMonth === 0 ? 11 : currentMonth - 1; setCurrentYear(currentMonth === 0 ? currentYear - 1 : currentYear); setCurrentMonth(pm); }} className="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="Tháng trước">
+            <button type="button" onClick={() => navigateMonth(-1)} className="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label={viewMode === "week" ? "Tuần trước" : "Tháng trước"}>
               <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
             <button type="button" onClick={() => { const now = new Date(); setCurrentYear(now.getFullYear()); setCurrentMonth(now.getMonth()); }} className="px-2.5 py-1 rounded-md hover:bg-surface-container-high text-on-surface text-label-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset">
               Hom nay
             </button>
-            <button type="button" onClick={() => { const nm = currentMonth === 11 ? 0 : currentMonth + 1; setCurrentYear(currentMonth === 11 ? currentYear + 1 : currentYear); setCurrentMonth(nm); }} className="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="Tháng sau">
+            <button type="button" onClick={() => navigateMonth(1)} className="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label={viewMode === "week" ? "Tuần sau" : "Tháng sau"}>
               <span className="material-symbols-outlined text-[18px]">chevron_right</span>
             </button>
           </div>
@@ -557,7 +649,7 @@ export function DashboardCalendar({
               value={staffFilter ?? ""}
               onChange={(e) => {
                 const val = e.target.value ? Number(e.target.value) : null;
-                setStaffFilter(val);
+                if (externalStaffFilter === undefined) setInternalStaffFilter(val);
                 onStaffFilterChange?.(val);
               }}
             >
@@ -578,7 +670,7 @@ export function DashboardCalendar({
               value={specialtyFilter ?? ""}
               onChange={(e) => {
                 const val = e.target.value ? Number(e.target.value) : null;
-                setSpecialtyFilter(val);
+                if (externalSpecialtyFilter === undefined) setInternalSpecialtyFilter(val);
                 onSpecialtyFilterChange?.(val);
               }}
             >
@@ -592,6 +684,29 @@ export function DashboardCalendar({
         )}
 
         <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex gap-1 bg-surface-container-low rounded-lg p-0.5">
+            {([
+              { value: "month" as CalendarViewMode, label: "Tháng", icon: "calendar_view_month" },
+              { value: "week" as CalendarViewMode, label: "Tuần", icon: "view_week" },
+            ]).map((v) => (
+              <button
+                key={v.value}
+                type="button"
+                onClick={() => setViewMode(v.value)}
+                aria-pressed={viewMode === v.value}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-label-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  viewMode === v.value
+                    ? "bg-surface-container-lowest text-on-surface shadow-sm"
+                    : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{v.icon}</span>
+                {v.label}
+              </button>
+            ))}
+          </div>
+
           {/* Filter chips */}
           <div className="flex gap-1 bg-surface-container-low rounded-lg p-0.5">
             {[
@@ -623,8 +738,150 @@ export function DashboardCalendar({
         </div>
       </div>
 
+      {/* ── Week View ─────────────────────────────────────────────────── */}
+      {viewMode === "week" && (
+        <div className="flex-1 flex min-h-0">
+          <div className="flex-1 flex flex-col min-w-0">
+            {/* Day headers */}
+            <div className="grid grid-cols-7 shrink-0">
+              {weekCells.map((cell, i) => (
+                <div
+                  key={cell.dayLabel}
+                  className={`py-2 text-center text-label-sm font-semibold border-b border-r border-outline-variant bg-surface-container-low ${
+                    i >= 5 ? "text-red-500" : "text-on-surface-variant"
+                  }`}
+                >
+                  <div>{cell.dayLabel}</div>
+                  <div className={`text-label-xs font-normal ${cell.date.toDateString() === today.toDateString() ? "text-primary font-bold" : ""}`}>
+                    {cell.date.getDate()}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Week cells */}
+            <div className="flex-1 grid grid-cols-7 flex-1 auto-rows-fr" style={{ minHeight: 0 }}>
+              {weekCells.map((cell) => {
+                const t = TONE;
+                return (
+                  <div
+                    key={cell.dateStr}
+                    onClick={(event) => handleCellClick(event, cell as unknown as CalendarCell)}
+                    onKeyDown={(event) => handleCellKeyDown(event, cell as unknown as CalendarCell)}
+                    role="button"
+                    tabIndex={cell.isCompensation ? -1 : 0}
+                    aria-label={`${formatFullDate(cell.date)}: ${cell.items.length} lịch, ${cell.annotations.length} ghi chú`}
+                    className={`
+                      border-r border-b border-outline-variant flex flex-col
+                      min-h-[200px] cursor-pointer group relative
+                      transition-colors hover:bg-surface-container-low
+                      ${cell.date.toDateString() === today.toDateString() ? "bg-primary-fixed/10" : ""}
+                      ${cell.hasConflict ? "ring-2 ring-inset ring-red-300" : ""}
+                    `}
+                  >
+                    {/* Conflict indicator */}
+                    {cell.hasConflict && (
+                      <div className="absolute top-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-100 text-error text-[10px] font-bold z-10">
+                        <span className="material-symbols-outlined text-[10px]">warning</span>
+                      </div>
+                    )}
+                    {/* Compensation indicator */}
+                    {cell.isCompensation && (
+                      <div className="absolute top-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-surface-container-high text-outline text-[10px] font-bold z-10">
+                        <span className="material-symbols-outlined text-[10px]">lock</span>
+                      </div>
+                    )}
+
+                    {/* Schedule items */}
+                    <div className="flex-1 flex flex-col gap-0.5 p-0.5 min-h-0 overflow-hidden z-20">
+                      {cell.annotations.map((ann) => {
+                        if (ann.tone === "compLeave" || ann.isCompensation) return null;
+                        const annTone = TONE[ann.tone ?? "neutral"] ?? TONE.neutral;
+                        return (
+                          <div
+                            key={`${cell.dateStr}-${ann.label}`}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border-l-2 min-h-[22px] max-h-[22px] overflow-hidden ${annTone.bg} ${annTone.border}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${annTone.dot}`} />
+                            <span className={`text-[11px] font-semibold leading-none truncate ${annTone.text}`}>{ann.label}</span>
+                          </div>
+                        );
+                      })}
+                      {cell.items.map((item, i) => {
+                        const st = t[item.tone] ?? t.neutral;
+                        return (
+                          <div
+                            key={`week-item-${item.schedule.id}-${i}`}
+                            onMouseEnter={(e) => handleMouseEnter(e, item)}
+                            onMouseLeave={handleMouseLeave}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border-l-2 min-h-[22px] max-h-[22px] overflow-hidden cursor-pointer transition-colors hover:brightness-95 ${st.bg} ${st.border}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot}`} />
+                            <span className={`text-[11px] font-semibold leading-none truncate ${st.text}`}>{item.shiftLabel}</span>
+                            <span className="text-[11px] leading-none text-on-surface-variant shrink-0">·</span>
+                            <span className="text-[11px] leading-none text-on-surface font-medium truncate">{item.staffCode}</span>
+                          </div>
+                        );
+                      })}
+                      {cell.items.length === 0 && cell.annotations.length === 0 && !cell.isCompensation && (
+                        <button
+                          type="button"
+                          className="flex items-center justify-center min-h-[24px] text-[14px] text-on-surface-variant/40 hover:text-primary/60 transition-colors w-full"
+                          onClick={() => onAddClick?.(cell.date)}
+                          aria-label={`Thêm lịch cho ngày ${cell.date.getDate()}`}
+                        >
+                          <span className="material-symbols-outlined text-[16px]">add</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {/* Sidebar — Week summary */}
+          {sidebarOpen && (
+            <aside className="w-64 xl:w-72 shrink-0 border-l border-outline-variant bg-surface-container-low overflow-y-auto hidden xl:flex flex-col gap-3 p-3">
+              <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
+                <p className="text-label-sm font-semibold text-on-surface-variant mb-2 uppercase tracking-wide">Tổng kết tuần</p>
+                <div className="space-y-2">
+                  {[
+                    { label: "Tổng ca", value: weekCells.reduce((s, c) => s + c.items.length, 0), color: "text-primary" },
+                    { label: "Xung đột", value: weekCells.filter((c) => c.hasConflict).length, color: "text-error" },
+                    { label: "Ngày nghỉ bù", value: weekCells.filter((c) => c.isCompensation).length, color: "text-outline" },
+                  ].map((m) => (
+                    <div key={m.label} className="flex justify-between items-center">
+                      <span className="text-label-sm text-on-surface-variant">{m.label}</span>
+                      <span className={`text-label-md font-bold ${m.color}`}>{m.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Legend */}
+              <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
+                <p className="text-label-sm font-semibold text-on-surface-variant mb-2 uppercase tracking-wide">Loai lich</p>
+                <div className="space-y-1.5">
+                  {[
+                    { label: "Trực 24/24", color: "bg-red-500" },
+                    { label: "Thông tầm", color: "bg-emerald-500" },
+                    { label: "Dịch vụ", color: "bg-amber-500" },
+                    { label: "Chuyên gia", color: "bg-violet-500" },
+                  ].map((l) => (
+                    <div key={l.label} className="flex items-center gap-2">
+                      <div className={`w-5 h-3 rounded-sm ${l.color}`} />
+                      <span className="text-label-sm text-on-surface">{l.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </aside>
+          )}
+        </div>
+      )}
+
       {/* ── Calendar Grid ──────────────────────────────────────────── */}
-      <div className="flex-1 flex min-h-0">
+      {viewMode === "month" && (
+        <div className="flex-1 flex min-h-0">
         <div className="flex-1 flex flex-col min-w-0">
           {/* Day headers */}
           <div className="grid grid-cols-7 shrink-0">
@@ -642,10 +899,12 @@ export function DashboardCalendar({
 
           {/* Cells */}
           <div className="flex-1 grid grid-cols-7 flex-1 auto-rows-fr" style={{ minHeight: 0 }}>
-            {cells.map((cell, idx) => {
-              const visible = cell.items.slice(0, MAX_VISIBLE);
-              const extra   = cell.items.length - MAX_VISIBLE;
-              const hasMore = extra > 0;
+            {cells.map((cell) => {
+              const summaries = summarizeItems(cell.items);
+              const visibleSummaries = summaries.slice(0, MAX_VISIBLE_GROUPS);
+              const visibleStaffCount = visibleSummaries.reduce((sum, item) => sum + item.count, 0);
+              const hiddenStaffCount = Math.max(0, cell.items.length - visibleStaffCount);
+              const hasMore = hiddenStaffCount > 0;
               const t = TONE;
 
               const hasAnnotations = cell.annotations.length > 0;
@@ -655,7 +914,11 @@ export function DashboardCalendar({
               return (
                 <div
                   key={cell.dateStr}
-                  onClick={() => handleCellClick(cell)}
+                  onClick={(event) => handleCellClick(event, cell)}
+                  onKeyDown={(event) => handleCellKeyDown(event, cell)}
+                  role="button"
+                  tabIndex={isCompLocked ? -1 : 0}
+                  aria-label={`${formatFullDate(cell.date)}: ${cell.items.length} lịch, ${cell.annotations.length} ghi chú`}
                   className={`
                     border-r border-b border-outline-variant flex flex-col
                     min-h-[120px] cursor-pointer group relative
@@ -712,7 +975,8 @@ export function DashboardCalendar({
                   {/* Events */}
                   <div className="flex-1 flex flex-col gap-0.5 p-0.5 min-h-0 overflow-hidden z-20">
                     {cell.annotations.map((annotation) => {
-                      const annotationTone = TONE[annotation.tone ?? "compLeave"] ?? TONE.compLeave;
+                      if (annotation.tone === "compLeave" || annotation.isCompensation) return null;
+                      const annotationTone = TONE[annotation.tone ?? "neutral"] ?? TONE.neutral;
                       return (
                         <div
                           key={`${cell.dateStr}-${annotation.label}`}
@@ -726,29 +990,17 @@ export function DashboardCalendar({
                         </div>
                       );
                     })}
-                    {visible.map((item, i) => {
-                      const st = t[item.tone] ?? t.neutral;
-                      const isOpen = tooltip?.item === item;
+                    {visibleSummaries.map((summary) => {
+                      const st = t[summary.tone] ?? t.neutral;
                       return (
                         <div
-                          key={i}
-                          onMouseEnter={(e) => handleMouseEnter(e, item)}
-                          onMouseLeave={handleMouseLeave}
-                          className={`
-                            flex items-center gap-1 px-1.5 py-0.5 rounded border-l-2
-                            min-h-[22px] max-h-[22px] overflow-hidden cursor-pointer
-                            transition-colors hover:brightness-95
-                            ${st.bg} ${st.border}
-                          `}
+                          key={`month-summary-${cell.dateStr}-${summary.shiftTypeId}`}
+                          className={`flex items-center gap-1 rounded border-l-2 px-1.5 py-0.5 min-h-[24px] max-h-[24px] overflow-hidden ${st.bg} ${st.border}`}
+                          title={`${summary.label}: ${summary.count} nhân sự`}
                         >
-                          {/* Dot + label */}
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot}`} />
-                          <span className={`text-[11px] font-semibold leading-none truncate ${st.text}`}>
-                            {item.shiftLabel}
-                          </span>
-                          <span className="text-[11px] leading-none text-on-surface-variant shrink-0">·</span>
-                          <span className="text-[11px] leading-none text-on-surface font-medium truncate">
-                            {item.staffCode}
+                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${st.dot}`} aria-hidden="true" />
+                          <span className={`truncate text-[11px] font-semibold leading-none ${st.text}`}>
+                            {summary.label} ({summary.count})
                           </span>
                         </div>
                       );
@@ -759,11 +1011,11 @@ export function DashboardCalendar({
                       <button
                         type="button"
                         onClick={(e) => handleOverflowClick(e, cell.items)}
-                        aria-label={`Xem thêm ${extra} lịch khác trong ngày ${cell.day}`}
+                        aria-label={`Xem thêm ${hiddenStaffCount} nhân sự khác trong ngày ${cell.day}`}
                         className="flex items-center justify-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-colors min-h-[22px] max-h-[22px] w-full"
                       >
                         <span className="material-symbols-outlined text-[12px]" aria-hidden="true">expand_more</span>
-                        +{extra} lich khac
+                        +{hiddenStaffCount} nhân sự khác
                       </button>
                     )}
 
@@ -868,7 +1120,8 @@ export function DashboardCalendar({
             </div>
           </aside>
         )}
-      </div>
+        </div>
+      )}
 
       {/* ── Tooltip ─────────────────────────────────────────────────── */}
       {tooltip && (

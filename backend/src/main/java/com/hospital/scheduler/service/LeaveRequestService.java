@@ -2,6 +2,7 @@ package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.LeaveRequestDTO;
 import com.hospital.scheduler.dto.response.LeaveRequestResponse;
+import com.hospital.scheduler.dto.response.ReplacementProposal;
 import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.CompensationDay;
 import com.hospital.scheduler.entity.LeaveRequest;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,6 +36,8 @@ public class LeaveRequestService {
     private final ScheduleRepository scheduleRepository;
     private final CompensationDayRepository compensationDayRepository;
     private final NotificationService notificationService;
+    @Lazy
+    private final ConflictDetectionService conflictDetectionService;
 
     public List<LeaveRequestResponse> getAllLeaveRequests() {
         return leaveRequestRepository.findAll().stream()
@@ -177,6 +181,69 @@ public class LeaveRequestService {
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
         auditHistoryService.logAction("leave_request", leaveRequestId, AuditHistory.ActionType.UPDATE, prev, saved, currentStaff.getId());
         return LeaveRequestResponse.fromEntity(saved);
+    }
+
+    public List<ReplacementProposal> findReplacementsForLeave(Integer leaveRequestId) {
+        LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveRequestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu nghỉ phép với ID: " + leaveRequestId));
+
+        Staff absentStaff = leaveRequest.getStaff();
+        LocalDate start = leaveRequest.getStartDate();
+        LocalDate end = leaveRequest.getEndDate();
+        List<ReplacementProposal> proposals = new ArrayList<>();
+
+        List<Schedule> affectedSchedules = scheduleRepository.findByStaffIdAndDateRange(absentStaff.getId(), start, end);
+        for (Schedule schedule : affectedSchedules) {
+            String shiftTypeId = schedule.getShiftType().getId();
+            String shiftTypeName = schedule.getShiftType().getName();
+            LocalDate workDate = schedule.getWorkDate();
+            Integer periodId = schedule.getPeriod().getId();
+
+            List<Staff> candidates = conflictDetectionService.findReplacements(
+                    periodId, workDate, shiftTypeId, absentStaff.getId(), 3, null);
+
+            ReplacementProposal.StaffCandidate primary = null;
+            ReplacementProposal.StaffCandidate secondary = null;
+            ReplacementProposal.StaffCandidate tertiary = null;
+
+            if (!candidates.isEmpty()) {
+                primary = toCandidate(candidates.get(0), periodId);
+            }
+            if (candidates.size() > 1) {
+                secondary = toCandidate(candidates.get(1), periodId);
+            }
+            if (candidates.size() > 2) {
+                tertiary = toCandidate(candidates.get(2), periodId);
+            }
+
+            proposals.add(ReplacementProposal.builder()
+                    .scheduleId(schedule.getId())
+                    .workDate(workDate)
+                    .shiftTypeId(shiftTypeId)
+                    .shiftTypeName(shiftTypeName)
+                    .primaryCandidate(primary)
+                    .secondaryCandidate(secondary)
+                    .tertiaryCandidate(tertiary)
+                    .build());
+        }
+
+        return proposals;
+    }
+
+    private ReplacementProposal.StaffCandidate toCandidate(Staff staff, Integer periodId) {
+        long shiftCount = scheduleRepository.countByStaffIdAndPeriodId(staff.getId(), periodId);
+        String roleName = staff.getStaffRoles().stream()
+                .filter(sr -> sr.getRole() != null)
+                .map(sr -> sr.getRole().getName())
+                .findFirst()
+                .orElse("STAFF");
+        return ReplacementProposal.StaffCandidate.builder()
+                .id(staff.getId())
+                .fullName(staff.getFullName())
+                .specialtyName(staff.getSpecialty() != null ? staff.getSpecialty().getName() : null)
+                .roleName(roleName)
+                .currentShiftCount((int) shiftCount)
+                .build();
     }
 
     private void validateLeaveRequest(Integer staffId, LeaveRequestDTO dto) {

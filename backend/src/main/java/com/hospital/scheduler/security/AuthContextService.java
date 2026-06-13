@@ -6,6 +6,7 @@ import com.hospital.scheduler.entity.StaffRole;
 import com.hospital.scheduler.exception.ForbiddenOperationException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.LeaveRequestRepository;
+import com.hospital.scheduler.repository.ScheduleExchangeRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -18,6 +19,7 @@ public class AuthContextService {
 
     private final StaffRepository staffRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final ScheduleExchangeRepository scheduleExchangeRepository;
 
     public Staff getCurrentStaff() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -51,7 +53,10 @@ public class AuthContextService {
     public boolean isCurrentStaffOwnerOfExchange(Integer exchangeId) {
         try {
             Staff current = getCurrentStaff();
-            return isManagerLike(current) || current.getId().equals(exchangeId);
+            return scheduleExchangeRepository.findById(exchangeId)
+                    .map(e -> e.getRequester().getId().equals(current.getId())
+                            || e.getTarget().getId().equals(current.getId()))
+                    .orElse(false);
         } catch (Exception e) {
             return false;
         }
@@ -81,6 +86,13 @@ public class AuthContextService {
         }
         if (!isManagerLike(currentStaff)) {
             throw new ForbiddenOperationException("Bạn không có quyền duyệt thao tác này");
+        }
+    }
+
+    public void requireManagerOrSelfForUserData(Integer userId) {
+        Staff currentStaff = getCurrentStaff();
+        if (!isManagerLike(currentStaff) && !currentStaff.getId().equals(userId)) {
+            throw new ForbiddenOperationException("Bạn không có quyền xem dữ liệu của nhân sự khác");
         }
     }
 }
