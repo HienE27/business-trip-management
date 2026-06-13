@@ -16,6 +16,7 @@ import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.dto.request.NotificationDTO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
