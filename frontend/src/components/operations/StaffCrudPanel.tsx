@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
@@ -104,6 +105,7 @@ function getStatusDot(record: StaffResponse) {
 }
 
 export function StaffCrudPanel() {
+  const searchParams = useSearchParams();
   const [records, setRecords] = useState<StaffResponse[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [form, setForm] = useState<StaffFormData>(emptyForm);
@@ -118,6 +120,14 @@ export function StaffCrudPanel() {
   const [specialtyFilter, setSpecialtyFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
+
+  // Sync global search ?q= URL param to local search state
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q && q !== searchKeyword) {
+      setSearchKeyword(q);
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSpecialties = useCallback(async () => {
     try {

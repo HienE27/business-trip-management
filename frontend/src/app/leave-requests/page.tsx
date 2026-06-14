@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { WorkflowShell } from "@/components/layout/WorkflowShell";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -41,6 +42,7 @@ function getStaffDisplayName(req: LeaveRequest) {
 }
 
 export default function LeaveRequestsPage() {
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const isManager = user?.roles?.some((r) => r === "ADMIN" || r === "MANAGER") ?? false;
 
@@ -48,6 +50,14 @@ export default function LeaveRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("ALL");
   const toast = useToast();
+
+  // Sync global search ?q= URL param
+  const globalQuery = searchParams.get("q") ?? "";
+  const [searchKeyword, setSearchKeyword] = useState(globalQuery);
+
+  useEffect(() => {
+    setSearchKeyword(globalQuery);
+  }, [globalQuery]);
 
   // Modal state
   const [detailRequest, setDetailRequest] = useState<LeaveRequest | null>(null);
@@ -80,9 +90,17 @@ export default function LeaveRequestsPage() {
   }, [fetchRequests]);
 
   const filteredRequests = useMemo(() => {
-    if (statusFilter === "ALL") return requests;
-    return requests.filter((r) => r.status === statusFilter);
-  }, [requests, statusFilter]);
+    return requests.filter((r) => {
+      if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
+      if (searchKeyword.trim()) {
+        const kw = searchKeyword.toLowerCase();
+        const matchName = getStaffDisplayName(r).toLowerCase().includes(kw);
+        const matchReason = r.reason?.toLowerCase().includes(kw);
+        if (!matchName && !matchReason) return false;
+      }
+      return true;
+    });
+  }, [requests, statusFilter, searchKeyword]);
 
   const stats = useMemo(() => ({
     total: requests.length,

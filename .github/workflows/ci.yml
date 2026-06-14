@@ -1,0 +1,362 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '17'
+  NODE_VERSION: '20'
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ${{ github.actor }}/hospital-scheduler-backend
+  FRONTEND_IMAGE: ${{ github.actor }}/hospital-scheduler-frontend
+
+jobs:
+  # =====================
+  # Backend Pipeline
+  # =====================
+  backend-build:
+    name: Backend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Check for Maven wrapper
+        id: mvnw-check
+        run: |
+          if [ -f "backend/mvnw" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        working-directory: ./backend
+
+      - name: Make Maven wrapper executable
+        if: steps.mvnw-check.outputs.exists == 'true'
+        run: chmod +x backend/mvnw
+
+      - name: Build with Maven
+        run: |
+          if [ -f "backend/mvnw" ]; then
+            ./backend/mvnw package -DskipTests -f backend/pom.xml
+          else
+            mvn package -DskipTests -f backend/pom.xml
+          fi
+        working-directory: ${{ github.workspace }}
+
+      - name: Upload backend artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jar
+          path: backend/target/*.jar
+          retention-days: 5
+
+  backend-test:
+    name: Backend Test
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test_db
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 3306:3306
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Check for Maven wrapper
+        id: mvnw-check
+        run: |
+          if [ -f "backend/mvnw" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        working-directory: ./backend
+
+      - name: Make Maven wrapper executable
+        if: steps.mvnw-check.outputs.exists == 'true'
+        run: chmod +x backend/mvnw
+
+      - name: Run tests
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/test_db
+          SPRING_DATASOURCE_USERNAME: root
+          SPRING_DATASOURCE_PASSWORD: root
+        run: |
+          if [ -f "backend/mvnw" ]; then
+            ./backend/mvnw test -f backend/pom.xml
+          else
+            mvn test -f backend/pom.xml
+          fi
+        working-directory: ${{ github.workspace }}
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend/target/surefire-reports
+          retention-days: 7
+
+  # =====================
+  # Frontend Pipeline
+  # =====================
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ./frontend
+
+      - name: Build
+        run: pnpm build
+        working-directory: ./frontend
+
+      - name: Upload frontend artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: |
+            frontend/.next
+            frontend/public
+          retention-days: 5
+
+  frontend-test:
+    name: Frontend Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ./frontend
+
+      - name: Run linter
+        run: pnpm lint
+        working-directory: ./frontend
+
+      - name: Type check
+        run: pnpm tsc --noEmit
+        working-directory: ./frontend
+
+  # =====================
+  # Docker Build & Push
+  # =====================
+  docker-build-backend:
+    name: Docker Build Backend
+    needs: backend-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-jar
+          path: backend/target
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract JAR filename
+        id: jar-info
+        run: |
+          JAR_FILE=$(ls backend/target/*.jar | head -1)
+          echo "file=${JAR_FILE}" >> $GITHUB_OUTPUT
+
+      - name: Build and push backend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  docker-build-frontend:
+    name: Docker Build Frontend
+    needs: frontend-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # =====================
+  # Deploy Jobs (conditional)
+  # =====================
+  deploy-develop:
+    name: Deploy to Dev (develop branch)
+    needs: [docker-build-backend, docker-build-frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Echo deploy info
+        run: |
+          echo "=== Docker Images Ready for Development ==="
+          echo "Backend:  ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}"
+          echo "Frontend: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}"
+          echo ""
+          echo "Deploy to development server is commented out."
+          echo "Configure SSH credentials to enable deployment."
+
+  deploy-production:
+    name: Deploy to Production (main branch)
+    needs: [docker-build-backend, docker-build-frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Echo deploy info
+        run: |
+          echo "=== Docker Images Ready for Production ==="
+          echo "Backend:  ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}"
+          echo "Frontend: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}"
+          echo ""
+          echo "Deploy to production server is commented out."
+          echo "Configure SSH credentials to enable deployment."
+
+      # Uncomment below for actual production deployment:
+      # - name: Deploy to production via SSH
+      #   uses: appleboy/ssh-action@v1
+      #   with:
+      #     host: ${{ secrets.SSH_DEPLOY_HOST }}
+      #     username: ${{ secrets.SSH_DEPLOY_USER }}
+      #     key: ${{ secrets.SSH_DEPLOY_KEY }}
+      #     script: |
+      #       # Pull images
+      #       docker pull ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+      #       docker pull ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+      #       
+      #       # Stop existing containers
+      #       docker stop hospital-scheduler-backend || true
+      #       docker stop hospital-scheduler-frontend || true
+      #       docker rm hospital-scheduler-backend hospital-scheduler-frontend || true
+      #       
+      #       # Deploy backend
+      #       docker run -d \
+      #         --name hospital-scheduler-backend \
+      #         --restart unless-stopped \
+      #         -p 8080:8080 \
+      #         -e SPRING_PROFILES_ACTIVE=production \
+      #         -e DB_HOST=${{ secrets.DB_HOST }} \
+      #         -e DB_PORT=${{ secrets.DB_PORT }} \
+      #         -e DB_NAME=${{ secrets.DB_NAME }} \
+      #         -e DB_USER=${{ secrets.DB_USER }} \
+      #         -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+      #         ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+      #       
+      #       # Deploy frontend
+      #       docker run -d \
+      #         --name hospital-scheduler-frontend \
+      #         --restart unless-stopped \
+      #         -p 3000:3000 \
+      #         -e NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
+      #         ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}

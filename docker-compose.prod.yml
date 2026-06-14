@@ -1,60 +1,62 @@
 version: '3.8'
 
+# Production deployment configuration
 services:
   # MySQL Database
   mysql:
     image: mysql:8.0
-    container_name: hospital_scheduler_mysql
-    restart: unless-stopped
+    container_name: hospital_scheduler_mysql_prod
+    restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-hospital_scheduler}
       MYSQL_USER: ${MYSQL_USER:-hospital}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-hospital123}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
       - "${MYSQL_PORT:-3306}:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ./backend/src/main/resources/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - mysql_data_prod:/var/lib/mysql
     command: >
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
       --skip-character-set-client-handshake
       --default-authentication-plugin=mysql_native_password
+      --max_connections=500
+      --innodb_buffer_pool_size=512M
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
     networks:
-      - hospital-network
-    cap_add:
-      - SYS_NICE
+      - hospital-network-prod
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
 
   # Backend API - Spring Boot
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: hospital_scheduler_backend
-    restart: unless-stopped
+    container_name: hospital_scheduler_backend_prod
+    restart: always
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILE:-docker}
+      - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=mysql
       - DB_PORT=3306
       - DB_NAME=${MYSQL_DATABASE:-hospital_scheduler}
       - DB_USERNAME=${MYSQL_USER:-hospital}
-      - DB_PASSWORD=${MYSQL_PASSWORD:-hospital123}
+      - DB_PASSWORD=${MYSQL_PASSWORD}
       - SERVER_PORT=8080
-      - JWT_SECRET=${JWT_SECRET:-Ym9va2NhbXBzZWNyZXRrZXlmb3Jqd3R0b2tlbndpdGhBdExlYXN0MzJjaGFycw==}
+      - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
-      - MAIL_PORT=${MAIL_PORT:-587}
-      - MAIL_USERNAME=${MAIL_USERNAME:-}
-      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
-      - APP_EMAIL_ENABLED=${APP_EMAIL_ENABLED:-false}
+      - COOKIE_SECURE=${COOKIE_SECURE:-true}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:
@@ -67,24 +69,28 @@ services:
       retries: 3
       start_period: 60s
     networks:
-      - hospital-network
-    volumes:
-      - backend_logs:/app/logs
+      - hospital-network-prod
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
 
   # Frontend - Next.js
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: hospital_scheduler_frontend
-    restart: unless-stopped
+    container_name: hospital_scheduler_frontend_prod
+    restart: always
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://backend:8080/api/v1
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
       - PORT=3000
       - HOSTNAME=0.0.0.0
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "${FRONTEND_PORT:-80}:3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -95,16 +101,20 @@ services:
       retries: 3
       start_period: 30s
     networks:
-      - hospital-network
+      - hospital-network-prod
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
 # Networks
 networks:
-  hospital-network:
+  hospital-network-prod:
     driver: bridge
 
 # Volumes for data persistence
 volumes:
-  mysql_data:
-    driver: local
-  backend_logs:
+  mysql_data_prod:
     driver: local

@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { api } from "@/lib/api";
@@ -57,6 +58,7 @@ function isManagerLike(staff: Staff | null) {
 }
 
 export default function SwapRequestsPage() {
+  const searchParams = useSearchParams();
   const { user: authUser } = useAuth();
   const [exchanges, setExchanges] = useState<ScheduleExchangeResponse[]>([]);
   const [currentUser, setCurrentUser] = useState<Staff | null>(null);
@@ -73,6 +75,14 @@ export default function SwapRequestsPage() {
     targetScheduleId: "",
     reason: "",
   });
+
+  // Sync global search ?q= into local statusFilter for keyword-based filtering
+  const globalQuery = searchParams.get("q") ?? "";
+  const [searchKeyword, setSearchKeyword] = useState(globalQuery);
+
+  useEffect(() => {
+    setSearchKeyword(globalQuery);
+  }, [globalQuery]);
 
   // Detail modal state
   const [selectedExchange, setSelectedExchange] = useState<ScheduleExchangeResponse | null>(null);
@@ -122,8 +132,18 @@ export default function SwapRequestsPage() {
   const managerMode = Boolean(authUser?.roles?.some((role: string) => role === "ADMIN" || role === "MANAGER")) || isManagerLike(currentUser);
 
   const filtered = useMemo(() => {
-    return exchanges.filter((exchange) => !statusFilter || exchange.status === statusFilter);
-  }, [exchanges, statusFilter]);
+    return exchanges.filter((exchange) => {
+      if (statusFilter && exchange.status !== statusFilter) return false;
+      if (searchKeyword.trim()) {
+        const kw = searchKeyword.toLowerCase();
+        const matchRequester = exchange.requester?.fullName?.toLowerCase().includes(kw);
+        const matchTarget = exchange.target?.fullName?.toLowerCase().includes(kw);
+        const matchReason = exchange.reason?.toLowerCase().includes(kw);
+        if (!matchRequester && !matchTarget && !matchReason) return false;
+      }
+      return true;
+    });
+  }, [exchanges, statusFilter, searchKeyword]);
 
   const stats = useMemo(() => {
     const total = exchanges.length;
