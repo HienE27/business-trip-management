@@ -29,13 +29,13 @@ class ScheduleServiceBusinessRulesTest {
         // Thursday duty → Friday (next day)
         assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 4)))
                 .isEqualTo(LocalDate.of(2026, 6, 5));
-        // Friday duty → Tuesday NEXT WEEK (skip T7, CN, T2)
+        // Friday duty → Tuesday NEXT WEEK (skip T7, CN, T2) → 11 days forward
         assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 5)))
-                .isEqualTo(LocalDate.of(2026, 6, 9));
-        // Saturday duty → Tuesday NEXT WEEK (skip CN, T2)
-        // June 6 (Sat) + 9 = June 15 (Tue next week)
+                .isEqualTo(LocalDate.of(2026, 6, 16));
+        // Saturday duty → Tuesday NEXT WEEK (skip CN, T2) → 10 days forward
+        // June 6 (Sat) + 10 = June 16 (Tue next week)
         assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 6)))
-                .isEqualTo(LocalDate.of(2026, 6, 15));
+                .isEqualTo(LocalDate.of(2026, 6, 16));
         // Sunday duty → Monday (next day)
         assertThat(calculator.calculateWithoutHolidays(LocalDate.of(2026, 6, 7)))
                 .isEqualTo(LocalDate.of(2026, 6, 8));

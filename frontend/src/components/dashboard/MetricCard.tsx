@@ -23,7 +23,7 @@ export function MetricCard({ metric }: MetricCardProps) {
   const style = TONE_STYLES[tone] || DEFAULT_STYLE;
 
   return (
-    <div className="bg-white rounded-xl border border-outline-variant shadow-[0_1px_3px_0_rgba(0,0,0,0.05),0_1px_2px_0_rgba(0,0,0,0.1)] p-4 relative overflow-hidden">
+    <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-[0_1px_3px_0_rgba(0,0,0,0.05),0_1px_2px_0_rgba(0,0,0,0.1)] p-4 relative overflow-hidden">
       {/* Decorative corner — subtle primary tint */}
       <div className={`absolute right-0 top-0 w-16 h-16 rounded-bl-full flex items-start justify-end p-3 ${style.cornerBg}`}>
         <span aria-hidden="true" className="material-symbols-outlined text-[18px] text-primary opacity-40">

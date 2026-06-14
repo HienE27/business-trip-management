@@ -50,6 +50,7 @@ class LeaveRequestServiceTest {
     @Mock private ScheduleRepository scheduleRepository;
     @Mock private CompensationDayRepository compensationDayRepository;
     @Mock private NotificationService notificationService;
+    @Mock private EmailService emailService;
 
     @InjectMocks
     private LeaveRequestService leaveRequestService;

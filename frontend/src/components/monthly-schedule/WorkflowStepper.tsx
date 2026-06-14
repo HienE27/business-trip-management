@@ -8,25 +8,25 @@ import type { MonthlyPanel, WorkflowContext, WorkflowStatus, WorkflowStepId, Wor
 
 const STATUS_META: Record<WorkflowStatus, { label: string; icon: string; className: string; marker: string }> = {
   pending: {
-    label: "Pending",
+    label: "Chờ xử lý",
     icon: "radio_button_unchecked",
     className: "border-outline-variant bg-surface hover:bg-surface-container-low",
     marker: "bg-surface-container-high text-on-surface-variant",
   },
   active: {
-    label: "Active",
+    label: "Đang xử lý",
     icon: "play_arrow",
     className: "border-primary bg-primary-fixed/40",
     marker: "bg-primary text-on-primary",
   },
   completed: {
-    label: "Completed",
+    label: "Hoàn tất",
     icon: "check",
     className: "border-secondary/30 bg-secondary-container/40",
     marker: "bg-secondary-container text-on-secondary-container",
   },
   error: {
-    label: "Error",
+    label: "Lỗi",
     icon: "error",
     className: "border-error/30 bg-error-container/40",
     marker: "bg-error text-on-error",

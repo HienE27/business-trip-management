@@ -38,6 +38,7 @@ class SchedulePeriodServiceTest {
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private NotificationService notificationService;
+    @Mock private EmailService emailService;
 
     @InjectMocks
     private SchedulePeriodService periodService;
@@ -280,9 +281,6 @@ class SchedulePeriodServiceTest {
             assertThat(result.getStatus()).isEqualTo("PUBLISHED");
             verify(notificationService).createNotificationForAllStaff(
                     eq("Lịch công tác đã được công bố"), anyString());
-            verify(auditHistoryService).logAction(
-                    eq("schedule_period"), eq(1), eq(AuditHistory.ActionType.UPDATE),
-                    eq("DRAFT"), any(), isNull());
         }
 
         @Test

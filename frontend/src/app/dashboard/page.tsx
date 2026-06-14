@@ -419,14 +419,14 @@ export default function DashboardPage() {
       {/* Shift Stats Row */}
       <section className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         {[
-          { label: "Trực 24/24", count: L01Count, bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-700" },
-          { label: "Thông tầm", count: L02Count, bg: "bg-emerald-50", border: "border-emerald-300", text: "text-emerald-700" },
-          { label: "PK dịch vụ", count: dashboardData?.shiftStatistics?.L03Count ?? 0, bg: "bg-amber-50", border: "border-amber-300", text: "text-amber-700" },
-          { label: "PK chuyên gia", count: dashboardData?.shiftStatistics?.L04Count ?? 0, bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-700" },
+          { label: "Trực 24/24", count: L01Count, accent: "border-l-blue-500 bg-blue-50 text-blue-700" },
+          { label: "Thông tầm", count: L02Count, accent: "border-l-secondary bg-secondary-container/40 text-secondary" },
+          { label: "PK dịch vụ", count: dashboardData?.shiftStatistics?.L03Count ?? 0, accent: "border-l-tertiary bg-tertiary-fixed/30 text-tertiary" },
+          { label: "PK chuyên gia", count: dashboardData?.shiftStatistics?.L04Count ?? 0, accent: "border-l-[#9333ea] bg-[#faf5ff] text-[#7e22ce]" },
         ].map((stat) => (
           <div
             key={stat.label}
-            className={`flex items-center justify-between rounded-lg border px-4 py-3 bg-surface-container-lowest ${stat.border} ${stat.text}`}
+            className={`flex items-center justify-between rounded-lg border border-l-4 px-4 py-3 bg-surface-container-lowest ${stat.accent}`}
           >
             <span className="text-label-md font-medium">{stat.label}</span>
             <span className="text-headline-md font-bold">
@@ -549,10 +549,10 @@ export default function DashboardPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recentSchedules.map((schedule) => {
               const colorMap: Record<string, { bg: string; border: string; text: string; badge: string }> = {
-                L01: { bg: "bg-red-50", border: "border-red-300", text: "text-red-700", badge: "bg-red-100 text-red-700" },
-                L02: { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-700", badge: "bg-blue-100 text-blue-700" },
-                L03: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-700", badge: "bg-orange-100 text-orange-700" },
-                L04: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-700", badge: "bg-purple-100 text-purple-700" },
+                L01: { bg: "bg-red-50", border: "border-l-red-500", text: "text-red-700", badge: "bg-red-100 text-red-700 border border-red-200" },
+                L02: { bg: "bg-primary-fixed/30", border: "border-l-blue-500", text: "text-blue-700", badge: "bg-primary-fixed text-primary border border-primary/20" },
+                L03: { bg: "bg-tertiary-fixed/30", border: "border-l-tertiary", text: "text-tertiary", badge: "bg-tertiary-fixed text-on-tertiary border border-tertiary/20" },
+                L04: { bg: "bg-[#faf5ff]", border: "border-l-[#9333ea]", text: "text-[#7e22ce]", badge: "bg-[#f3e8ff] text-[#7e22ce] border border-[#e9d5ff]" },
               };
               const color = colorMap[schedule.shiftType.id] ?? colorMap.L01;
 

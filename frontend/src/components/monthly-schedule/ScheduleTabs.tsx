@@ -29,7 +29,7 @@ export const ScheduleTabs = memo(function ScheduleTabs({ selectedTab, viewMode, 
             aria-pressed={viewMode === "calendar"}
             className={`rounded-md px-3 py-1.5 text-label-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${viewMode === "calendar" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant"}`}
           >
-            Calendar View
+            Lịch biểu
           </button>
           <button
             type="button"
@@ -38,7 +38,7 @@ export const ScheduleTabs = memo(function ScheduleTabs({ selectedTab, viewMode, 
             aria-pressed={viewMode === "table"}
             className={`rounded-md px-3 py-1.5 text-label-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${viewMode === "table" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant"}`}
           >
-            Table View
+            Bảng dữ liệu
           </button>
         </div>
       }

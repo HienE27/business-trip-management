@@ -8,10 +8,10 @@ type StaffLoadTableProps = {
 export function StaffLoadTable({ loads, className = "" }: StaffLoadTableProps) {
   return (
     <section className={`flex flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-[0_1px_3px_0_rgba(0,0,0,0.05)] overflow-hidden ${className}`}>
-      <div className="p-5 border-b border-outline-variant bg-surface-bright">
-        <h3 className="font-title-lg text-on-surface">Thong ke phan bo (Tuan)</h3>
+      <div className="p-5 border-b border-outline-variant bg-surface-container-low">
+        <h3 className="font-title-lg text-on-surface">Thống kê phân bổ (Tuần)</h3>
         <p className="text-label-sm text-on-surface-variant mt-1">
-          Tai nguyen nhan su theo khoa
+          Tài nguyên nhân sự theo khoa
         </p>
       </div>
 

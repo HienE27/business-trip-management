@@ -35,6 +35,8 @@ class ConflictDetectionServiceTest {
     private ScheduleConflictRepository scheduleConflictRepository;
     @Mock
     private StaffRepository staffRepository;
+    @Mock
+    private ShiftTypeRepository shiftTypeRepository;
 
     @InjectMocks
     private ConflictDetectionService conflictDetectionService;
@@ -53,6 +55,23 @@ class ConflictDetectionServiceTest {
                 .build();
 
         monday = LocalDate.of(2026, 6, 1);
+
+        // Mock ShiftTypeRepository to return ShiftType objects with isOvernight set
+        ShiftType shiftL01 = ShiftType.builder().id("L01").name("Lịch trực 24/24").isOvernight(true).build();
+        ShiftType shiftL02 = ShiftType.builder().id("L02").name("Lịch thông tầm").isOvernight(false).build();
+        ShiftType shiftL03 = ShiftType.builder().id("L03").name("Phòng khám dịch vụ").isOvernight(false).build();
+        ShiftType shiftL04 = ShiftType.builder().id("L04").name("Phòng khám chuyên gia").isOvernight(false).build();
+        
+        when(shiftTypeRepository.findById(anyString())).thenAnswer(invocation -> {
+            String id = invocation.getArgument(0);
+            return switch (id) {
+                case "L01" -> Optional.of(shiftL01);
+                case "L02" -> Optional.of(shiftL02);
+                case "L03" -> Optional.of(shiftL03);
+                case "L04" -> Optional.of(shiftL04);
+                default -> Optional.empty();
+            };
+        });
     }
 
     // ==================== M02: L01 vs L02 ====================
@@ -68,7 +87,7 @@ class ConflictDetectionServiceTest {
                             .id(100)
                             .staff(testStaff)
                             .workDate(monday)
-                            .shiftType(ShiftType.builder().id("L02").name("Lịch thông tầm").build())
+                            .shiftType(ShiftType.builder().id("L02").name("Lịch thông tầm").isOvernight(false).build())
                             .build()
             );
             when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
@@ -79,7 +98,7 @@ class ConflictDetectionServiceTest {
 
             assertThat(conflicts)
                     .hasSize(1)
-                    .anyMatch(c -> c.contains("Trùng với lịch thông tầm"));
+                    .anyMatch(c -> c.contains("Trùng loại ca"));
         }
 
         @Test
@@ -90,7 +109,7 @@ class ConflictDetectionServiceTest {
                             .id(100)
                             .staff(testStaff)
                             .workDate(monday)
-                            .shiftType(ShiftType.builder().id("L01").name("Lịch trực 24/24").build())
+                            .shiftType(ShiftType.builder().id("L01").name("Lịch trực 24/24").isOvernight(true).build())
                             .build()
             );
             when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
@@ -101,7 +120,7 @@ class ConflictDetectionServiceTest {
 
             assertThat(conflicts)
                     .hasSize(1)
-                    .anyMatch(c -> c.contains("Trùng với lịch trực 24/24"));
+                    .anyMatch(c -> c.contains("Trùng loại ca"));
         }
 
         @Test
@@ -142,7 +161,7 @@ class ConflictDetectionServiceTest {
                             .id(100)
                             .staff(testStaff)
                             .workDate(monday)
-                            .shiftType(ShiftType.builder().id("L04").name("Phòng khám chuyên gia").build())
+                            .shiftType(ShiftType.builder().id("L04").name("Phòng khám chuyên gia").isOvernight(false).build())
                             .build()
             );
             when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
@@ -153,7 +172,7 @@ class ConflictDetectionServiceTest {
 
             assertThat(conflicts)
                     .hasSize(1)
-                    .anyMatch(c -> c.contains("Trùng với lịch phòng khám chuyên gia"));
+                    .anyMatch(c -> c.contains("Trùng phòng khám dịch vụ và phòng khám chuyên gia"));
         }
 
         @Test
@@ -164,7 +183,7 @@ class ConflictDetectionServiceTest {
                             .id(100)
                             .staff(testStaff)
                             .workDate(monday)
-                            .shiftType(ShiftType.builder().id("L03").name("Phòng khám dịch vụ").build())
+                            .shiftType(ShiftType.builder().id("L03").name("Phòng khám dịch vụ").isOvernight(false).build())
                             .build()
             );
             when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
@@ -175,7 +194,7 @@ class ConflictDetectionServiceTest {
 
             assertThat(conflicts)
                     .hasSize(1)
-                    .anyMatch(c -> c.contains("Trùng với lịch phòng khám dịch vụ"));
+                    .anyMatch(c -> c.contains("Trùng phòng khám dịch vụ và phòng khám chuyên gia"));
         }
 
         @Test
@@ -372,7 +391,7 @@ class ConflictDetectionServiceTest {
                             .id(100)
                             .staff(testStaff)
                             .workDate(tuesday)
-                            .shiftType(ShiftType.builder().id("L02").name("Lịch thông tầm").build())
+                            .shiftType(ShiftType.builder().id("L02").name("Lịch thông tầm").isOvernight(false).build())
                             .build()
             );
             when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), tuesday))
@@ -398,7 +417,7 @@ class ConflictDetectionServiceTest {
                             .id(100)
                             .staff(testStaff)
                             .workDate(monday)
-                            .shiftType(ShiftType.builder().id("L02").build())
+                            .shiftType(ShiftType.builder().id("L02").name("Lịch thông tầm").isOvernight(false).build())
                             .build()
             );
             when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
@@ -407,7 +426,7 @@ class ConflictDetectionServiceTest {
             assertThatThrownBy(() -> conflictDetectionService.validateAndThrow(
                     testStaff.getId(), monday, "L01", null))
                     .isInstanceOf(ConflictException.class)
-                    .hasMessageContaining("Phát hiện xung đột");
+                    .hasMessageContaining("Trùng loại ca");
         }
 
         @Test

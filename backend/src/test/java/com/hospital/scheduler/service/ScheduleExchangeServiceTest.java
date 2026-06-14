@@ -43,6 +43,7 @@ class ScheduleExchangeServiceTest {
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private CompensationDateCalculator compensationDateCalculator;
     @Mock private NotificationService notificationService;
+    @Mock private EmailService emailService;
 
     @InjectMocks
     private ScheduleExchangeService exchangeService;

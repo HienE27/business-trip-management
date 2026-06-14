@@ -8,18 +8,18 @@ export const TAB_OPTIONS: { id: ScheduleTab; label: string; shortLabel: string; 
 ];
 
 export const WORKFLOW_STEPS: WorkflowDefinition[] = [
-  { id: "auto-schedule", title: "Auto Schedule", description: "Tạo phương án phân công ban đầu cho kỳ lịch." },
-  { id: "conflicts", title: "Conflict Check", description: "Quét xung đột và đánh dấu lịch cần xử lý trước khi công bố." },
-  { id: "review", title: "Review", description: "Đối chiếu tải công việc, ngày nghỉ bù và mức độ phủ lịch." },
-  { id: "publish", title: "Publish", description: "Khóa bản nháp, công bố kỳ lịch hợp lệ và chuyển trạng thái vận hành." },
-  { id: "notify", title: "Notify", description: "Gửi thông báo cho nhân sự và đẩy dữ liệu sang các màn báo cáo." },
+  { id: "auto-schedule", title: "Tự động xếp lịch", description: "Tạo phương án phân công ban đầu cho kỳ lịch." },
+  { id: "conflicts", title: "Kiểm tra xung đột", description: "Quét xung đột và đánh dấu lịch cần xử lý trước khi công bố." },
+  { id: "review", title: "Đánh giá", description: "Đối chiếu tải công việc, ngày nghỉ bù và mức độ phủ lịch." },
+  { id: "publish", title: "Công bố", description: "Khóa bản nháp, công bố kỳ lịch hợp lệ và chuyển trạng thái vận hành." },
+  { id: "notify", title: "Thông báo", description: "Gửi thông báo cho nhân sự và đẩy dữ liệu sang các màn báo cáo." },
 ];
 
 export const SHIFT_TYPE_LABELS: Record<ScheduleTab, string> = {
   L01: "Trực 24/24",
-  L02: "Lịch thông tầm",
-  L03: "Phòng khám dịch vụ",
-  L04: "Phòng khám chuyên gia",
+  L02: "Thông tầm",
+  L03: "Phòng khám DV",
+  L04: "Phòng khám CG",
 };
 
 export const SHIFT_TYPE_COLORS: Record<ScheduleTab, string> = {
