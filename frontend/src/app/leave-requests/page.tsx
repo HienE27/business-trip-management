@@ -239,7 +239,7 @@ export default function LeaveRequestsPage() {
             key={item.label}
             className={`rounded-lg border border-t-2 border-r border-b border-outline-variant bg-surface-container-lowest p-5 shadow-sm hover:bg-surface-container-low transition-colors ${item.accent}`}
           >
-            <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">{item.label}</p>
+            <p className="text-label-sm text-on-surface-variant">{item.label}</p>
             <p className="mt-3 text-display-lg text-on-surface font-bold">{loading ? "\u2014" : item.value}</p>
           </article>
         ))}

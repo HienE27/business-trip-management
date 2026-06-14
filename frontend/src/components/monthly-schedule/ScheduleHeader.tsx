@@ -97,7 +97,7 @@ export const ScheduleHeader = memo(function ScheduleHeader({
           </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-1">
           <Link
             href="/auto-scheduling"
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-label-md font-medium text-on-primary transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"

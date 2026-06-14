@@ -24,7 +24,7 @@ export function SimpleDataTable({ headers, rows, statusColumn }: SimpleDataTable
           <tr className="border-b border-outline-variant bg-surface-container-low">
             {headers.map((header) => (
               <th
-                className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-bold"
+                className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant font-bold"
                 key={header}
                 scope="col"
               >

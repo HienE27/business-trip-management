@@ -32,7 +32,7 @@ export function MetricCard({ metric }: MetricCardProps) {
       </div>
 
       {/* Label */}
-      <span className={`text-label-sm ${style.labelColor} uppercase tracking-wider font-semibold`}>
+      <span className={`text-label-sm ${style.labelColor} font-semibold`}>
         {metric.label}
       </span>
 

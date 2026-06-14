@@ -297,7 +297,7 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
           <div className="flex items-center gap-2 text-label-sm text-on-surface-variant shrink-0">
             <span className="material-symbols-outlined text-[16px]">calendar_month</span>
-            <span className="font-semibold uppercase tracking-wide">Kỳ lịch:</span>
+            <span className="font-semibold">Kỳ lịch:</span>
           </div>
           <div className="relative">
             <select
@@ -395,7 +395,7 @@ export default function DashboardPage() {
             className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm hover:bg-surface-container-low transition-colors"
           >
             <div className="flex justify-between items-start">
-              <h3 className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+              <h3 className="text-label-sm text-on-surface-variant">
                 {kpi.label}
               </h3>
               <span

@@ -843,7 +843,7 @@ export function DashboardCalendar({
           {sidebarOpen && (
             <aside className="w-64 xl:w-72 shrink-0 border-l border-outline-variant bg-surface-container-low overflow-y-auto hidden xl:flex flex-col gap-3 p-3">
               <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
-                <p className="text-label-sm font-semibold text-on-surface-variant mb-2 uppercase tracking-wide">Tổng kết tuần</p>
+                <p className="text-label-sm font-semibold text-on-surface-variant mb-2">Tổng kết tuần</p>
                 <div className="space-y-2">
                   {[
                     { label: "Tổng ca", value: weekCells.reduce((s, c) => s + c.items.length, 0), color: "text-primary" },
@@ -859,7 +859,7 @@ export function DashboardCalendar({
               </div>
               {/* Legend */}
               <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
-                <p className="text-label-sm font-semibold text-on-surface-variant mb-2 uppercase tracking-wide">Loai lich</p>
+                <p className="text-label-sm font-semibold text-on-surface-variant mb-2">Loại lịch</p>
                 <div className="space-y-1.5">
                   {[
                     { label: "Trực 24/24", color: "bg-red-500" },
@@ -1075,7 +1075,7 @@ export function DashboardCalendar({
           <aside className="w-64 xl:w-72 shrink-0 border-l border-outline-variant bg-surface-container-low overflow-y-auto hidden xl:flex flex-col gap-3 p-3">
             {/* Legend */}
             <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
-              <p className="text-label-sm font-semibold text-on-surface-variant mb-2 uppercase tracking-wide">Loai lich</p>
+              <p className="text-label-sm font-semibold text-on-surface-variant mb-2">Loại lịch</p>
               <div className="space-y-1.5">
                 {[
                   { label: "Trực 24/24", color: "bg-blue-500",      id: "duty24"       },
@@ -1094,7 +1094,7 @@ export function DashboardCalendar({
             {/* Conflict summary */}
             <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-label-sm font-semibold text-on-surface-variant uppercase tracking-wide">Xung dot</p>
+                <p className="text-label-sm font-semibold text-on-surface-variant">Xung đột</p>
                 <span className="px-2 py-0.5 rounded-full bg-red-100 text-error text-[11px] font-bold">
                   {cells.filter((c) => c.hasConflict).length} ngày
                 </span>

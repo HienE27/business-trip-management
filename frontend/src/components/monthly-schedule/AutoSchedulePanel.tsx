@@ -95,7 +95,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
     >
       {previewResult ? (
         <div className="space-y-4 p-5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-lg border border-outline-variant bg-surface p-3">
               <p className="text-label-sm text-on-surface-variant">Đã tạo</p>
               <p className="mt-1 text-title-lg font-bold text-on-surface">{previewResult.totalSchedulesCreated}</p>

@@ -20,9 +20,9 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
         Thông tin chung
       </h2>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         <div className="flex flex-col gap-1">
-          <span className="text-label-sm uppercase tracking-wider text-on-surface-variant">
+          <span className="text-label-sm text-on-surface-variant">
             Kỳ lịch
           </span>
           <div className="flex items-center gap-2 text-label-md font-medium text-on-surface">
@@ -35,7 +35,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-label-sm uppercase tracking-wider text-on-surface-variant">
+          <span className="text-label-sm text-on-surface-variant">
             Chuyên khoa
           </span>
           <div className="flex items-center gap-2 text-label-md font-medium text-on-surface">
@@ -45,7 +45,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-label-sm uppercase tracking-wider text-on-surface-variant">
+          <span className="text-label-sm text-on-surface-variant">
             Ngày trực
           </span>
           <div className="flex items-center gap-2 text-label-md font-medium text-on-surface">
@@ -55,7 +55,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-label-sm uppercase tracking-wider text-on-surface-variant">
+          <span className="text-label-sm text-on-surface-variant">
             Loại ca
           </span>
           <div className="flex items-center gap-2">
@@ -67,7 +67,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-label-sm uppercase tracking-wider text-on-surface-variant">
+          <span className="text-label-sm text-on-surface-variant">
             Nghỉ bù
           </span>
           <div className="flex items-center gap-2 text-label-md font-medium text-on-surface">
@@ -77,7 +77,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-label-sm uppercase tracking-wider text-on-surface-variant">
+          <span className="text-label-sm text-on-surface-variant">
             Trạng thái
           </span>
           <div className="flex items-center gap-2">
@@ -92,7 +92,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
         <div className="mt-6 space-y-4 border-t border-outline-variant pt-5">
           {shift.roles.length > 0 && (
             <div>
-              <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">Vai trò hệ thống</p>
+              <p className="text-label-sm text-on-surface-variant">Vai trò hệ thống</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {shift.roles.map((role) => (
                   <span
@@ -108,14 +108,14 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
 
           {shift.notes && (
             <div>
-              <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">Ghi chú</p>
+              <p className="text-label-sm text-on-surface-variant">Ghi chú</p>
               <p className="mt-2 text-label-md leading-relaxed text-on-surface">{shift.notes}</p>
             </div>
           )}
 
           {shift.conflictReasons.length > 0 && (
             <div className="rounded-lg border border-error-container bg-error-container/10 p-4">
-              <p className="text-label-sm font-semibold uppercase tracking-wider text-error">Cảnh báo xung đột</p>
+              <p className="text-label-sm font-semibold text-error">Cảnh báo xung đột</p>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-label-md text-on-surface-variant">
                 {shift.conflictReasons.map((reason) => (
                   <li key={reason}>{reason}</li>

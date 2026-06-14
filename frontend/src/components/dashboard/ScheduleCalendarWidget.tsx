@@ -70,7 +70,7 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-label-sm uppercase tracking-wider text-on-surface-variant block mb-2" htmlFor="q-shift-type">
+            <label className="text-label-sm text-on-surface-variant block mb-2" htmlFor="q-shift-type">
               Loại lịch
             </label>
             <div className="relative">
@@ -92,7 +92,7 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
           </div>
 
           <div>
-            <label className="text-label-sm uppercase tracking-wider text-on-surface-variant block mb-2" htmlFor="q-staff">
+            <label className="text-label-sm text-on-surface-variant block mb-2" htmlFor="q-staff">
               Nhân sự
             </label>
             <div className="relative">
@@ -114,7 +114,7 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
           </div>
 
           <div>
-            <label className="text-label-sm uppercase tracking-wider text-on-surface-variant block mb-2" htmlFor="q-date">
+            <label className="text-label-sm text-on-surface-variant block mb-2" htmlFor="q-date">
               Ngày
             </label>
             <input
@@ -129,7 +129,7 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
           </div>
 
           <div>
-            <label className="text-label-sm uppercase tracking-wider text-on-surface-variant block mb-2" htmlFor="q-notes">
+            <label className="text-label-sm text-on-surface-variant block mb-2" htmlFor="q-notes">
               Ghi chú
             </label>
             <textarea

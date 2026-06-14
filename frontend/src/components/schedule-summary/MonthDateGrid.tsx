@@ -74,7 +74,7 @@ export function MonthDateGrid({
           <span className="material-symbols-outlined text-[18px]">chevron_left</span>
         </button>
         <div className="text-center">
-          <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">Lịch tháng</p>
+          <p className="text-label-sm text-on-surface-variant">Lịch tháng</p>
           <h3 className="text-title-lg text-on-surface">{title}</h3>
         </div>
         <button

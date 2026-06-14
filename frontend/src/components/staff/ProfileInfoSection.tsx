@@ -28,7 +28,7 @@ export function ProfileInfoSection({ personalInfo, workInfo, systemRoles }: Prof
         <div className="space-y-4">
           {personalInfo.map((field) => (
             <div key={field.label}>
-              <p className="font-label-sm text-outline uppercase tracking-wider mb-1">{field.label}</p>
+              <p className="font-label-sm text-outline mb-1">{field.label}</p>
               <p className="font-body-md text-on-surface font-medium">{field.value}</p>
             </div>
           ))}
@@ -38,19 +38,19 @@ export function ProfileInfoSection({ personalInfo, workInfo, systemRoles }: Prof
       <section>
         <h3 className="font-title-lg text-on-surface mb-6 flex items-center gap-2">
           <span className="material-symbols-outlined text-primary">work_outline</span>
-          Thong tin cong viec
+          Thông tin công việc
         </h3>
         <div className="space-y-4">
           {workInfo.map((field) => (
             <div key={field.label}>
-              <p className="font-label-sm text-outline uppercase tracking-wider mb-1">{field.label}</p>
+              <p className="font-label-sm text-outline mb-1">{field.label}</p>
               <p className="font-body-md text-on-surface font-medium">{field.value}</p>
             </div>
           ))}
 
           {systemRoles && systemRoles.length > 0 && (
             <div>
-              <p className="font-label-sm text-outline uppercase tracking-wider mb-2">Vai tro he thong</p>
+              <p className="font-label-sm text-outline mb-2">Vai trò hệ thống</p>
               <div className="flex gap-2 mt-2">
                 {systemRoles.map((role) => (
                   <span

@@ -69,7 +69,7 @@ export const QuickAddModal = memo(function QuickAddModal({ date, periodId, defau
           )}
 
           <div>
-            <label className="mb-2 block text-label-sm uppercase tracking-wider text-on-surface-variant" htmlFor={`${id}-shift-type`}>
+            <label className="mb-2 block text-label-sm text-on-surface-variant" htmlFor={`${id}-shift-type`}>
               Loại lịch
             </label>
             <div className="relative">
@@ -89,7 +89,7 @@ export const QuickAddModal = memo(function QuickAddModal({ date, periodId, defau
           </div>
 
           <div>
-            <label className="mb-2 block text-label-sm uppercase tracking-wider text-on-surface-variant" htmlFor={`${id}-staff`}>
+            <label className="mb-2 block text-label-sm text-on-surface-variant" htmlFor={`${id}-staff`}>
               Nhân sự
             </label>
             <div className="relative">

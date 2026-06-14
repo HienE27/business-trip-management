@@ -139,7 +139,7 @@ export function ConflictResolutionModal({
 
           {/* Resolution Options */}
           <div className="space-y-3">
-            <p className="text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">
+            <p className="text-label-sm text-on-surface-variant font-semibold">
               Chọn cách giải quyết
             </p>
             {[
@@ -203,7 +203,7 @@ export function ConflictResolutionModal({
 
           {/* Reason */}
           <div className="mt-4">
-            <label className="text-label-sm uppercase tracking-wider text-on-surface-variant block mb-2" htmlFor="conflict-reason">
+            <label className="text-label-sm text-on-surface-variant block mb-2" htmlFor="conflict-reason">
               Lý do / Ghi chú
             </label>
             <textarea
