@@ -285,7 +285,7 @@ export default function StaffProfilePage() {
                       { label: "Số điện thoại", value: staff.phone ?? "—" },
                     ].map((item) => (
                       <div key={item.label} className="bg-surface-container-low rounded-lg p-4">
-                        <p className="text-label-sm text-on-surface-variant uppercase tracking-wider">{item.label}</p>
+                        <p className="text-label-sm text-on-surface-variant">{item.label}</p>
                         <p className="font-label-md text-on-surface mt-1">{item.value}</p>
                       </div>
                     ))}
@@ -302,7 +302,7 @@ export default function StaffProfilePage() {
                       { label: "Vai trò", value: staff.roles.map((r) => ROLE_LABELS[r] ?? r).join(", ") },
                     ].map((item) => (
                       <div key={item.label} className="bg-surface-container-low rounded-lg p-4">
-                        <p className="text-label-sm text-on-surface-variant uppercase tracking-wider">{item.label}</p>
+                        <p className="text-label-sm text-on-surface-variant">{item.label}</p>
                         <p className="font-label-md text-on-surface mt-1">{item.value}</p>
                       </div>
                     ))}
@@ -360,7 +360,7 @@ export default function StaffProfilePage() {
                           {["Ngày", "Loại lịch", "Trạng thái"].map((h) => (
                             <th
                               key={h}
-                              className="py-3 px-4 text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold"
+                              className="py-3 px-4 text-label-sm text-on-surface-variant font-semibold"
                             >
                               {h}
                             </th>
@@ -438,7 +438,7 @@ export default function StaffProfilePage() {
                       className="bg-surface-container-lowest rounded-xl border border-outline-variant p-5 flex flex-col gap-2"
                     >
                       <div className="flex justify-between items-start">
-                        <p className="text-label-sm text-on-surface-variant uppercase tracking-wider">{item.label}</p>
+                        <p className="text-label-sm text-on-surface-variant">{item.label}</p>
                         <span className={`material-symbols-outlined text-[20px] p-1.5 rounded-md ${item.color}`}>
                           {item.icon}
                         </span>

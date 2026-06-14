@@ -206,7 +206,7 @@ export default function StaffDetailPage() {
             ].map((item) => (
               <article key={item.label} className="rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
                 <div className="flex justify-between items-start">
-                  <p className="text-label-sm uppercase tracking-wider text-on-surface-variant">{item.label}</p>
+                  <p className="text-label-sm text-on-surface-variant">{item.label}</p>
                   <span className={`material-symbols-outlined p-1.5 rounded-md ${item.accent} text-[18px]`}>
                     {item.icon}
                   </span>

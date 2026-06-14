@@ -461,12 +461,12 @@ export default function SwapRequestsPage() {
               <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-outline-variant bg-surface-container-low">
-                    <th className="px-5 py-3 font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Người yêu cầu</th>
-                    <th className="px-5 py-3 font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Người đổi cùng</th>
-                    <th className="px-5 py-3 font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Ca ban đầu</th>
-                    <th className="px-5 py-3 font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Ca đề xuất</th>
-                    <th className="px-5 py-3 font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Trạng thái</th>
-                    <th className="px-5 py-3 text-right font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Thao tác</th>
+                    <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant">Người yêu cầu</th>
+                    <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant">Người đổi cùng</th>
+                    <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant">Ca ban đầu</th>
+                    <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant">Ca đề xuất</th>
+                    <th className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant">Trạng thái</th>
+                    <th className="px-5 py-3 text-right font-label-sm text-label-sm text-on-surface-variant">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/50">

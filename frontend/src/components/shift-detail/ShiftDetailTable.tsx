@@ -39,7 +39,7 @@ export function ShiftDetailTable({ shift, className = "" }: ShiftDetailTableProp
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50 border-b border-outline-variant text-on-surface-variant text-label-sm uppercase tracking-wider">
+            <tr className="bg-slate-50 border-b border-outline-variant text-on-surface-variant text-label-sm">
               <th className="p-4 font-semibold w-12 text-center align-middle">STT</th>
               <th className="p-4 font-semibold align-middle">Họ và tên</th>
               <th className="p-4 font-semibold align-middle">Chức danh / Vai trò</th>
