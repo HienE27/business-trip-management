@@ -352,7 +352,7 @@ export default function DashboardPage() {
       )}
 
       {/* KPI Grid */}
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[
           {
             label: "Nhân sự đang hoạt động",
@@ -417,7 +417,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Shift Stats Row */}
-      <section className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-4">
         {[
           { label: "Trực 24/24", count: L01Count, bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-700" },
           { label: "Thông tầm", count: L02Count, bg: "bg-emerald-50", border: "border-emerald-300", text: "text-emerald-700" },
