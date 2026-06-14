@@ -125,7 +125,7 @@ export default function ReportsConflictsPage() {
           <section className="grid gap-4 md:grid-cols-3 flex-1">
             <article className={`flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm ${conflictData.hasConflicts ? "border-l-4 border-l-error" : "border-l-4 border-l-secondary"}`}>
               <div className="flex justify-between items-start">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Tổng xung đột</p>
+                <p className="text-label-sm text-on-surface-variant">Tổng xung đột</p>
                 <span className={`material-symbols-outlined p-1.5 rounded-md ${conflictData.hasConflicts ? "bg-error-container text-error" : "bg-secondary-container text-secondary"} text-[18px]`}>
                   {conflictData.hasConflicts ? "warning" : "check_circle"}
                 </span>
@@ -137,7 +137,7 @@ export default function ReportsConflictsPage() {
             </article>
             <article className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm border-l-4 border-l-primary">
               <div className="flex justify-between items-start">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Kỳ lịch</p>
+                <p className="text-label-sm text-on-surface-variant">Kỳ lịch</p>
                 <span className="material-symbols-outlined p-1.5 rounded-md bg-primary-fixed text-primary text-[18px]">calendar_month</span>
               </div>
               <p className="mt-3 text-[20px] font-bold text-on-surface">{selectedPeriod?.periodName}</p>
@@ -145,7 +145,7 @@ export default function ReportsConflictsPage() {
             </article>
             <article className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm border-l-4 border-l-tertiary">
               <div className="flex justify-between items-start">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Nhân sự bị ảnh hưởng</p>
+                <p className="text-label-sm text-on-surface-variant">Nhân sự bị ảnh hưởng</p>
                 <span className="material-symbols-outlined p-1.5 rounded-md bg-tertiary-fixed text-tertiary text-[18px]">groups</span>
               </div>
               <p className="mt-3 text-display-lg font-bold text-on-surface">

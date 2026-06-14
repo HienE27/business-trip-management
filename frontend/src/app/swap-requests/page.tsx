@@ -276,7 +276,7 @@ export default function SwapRequestsPage() {
             >
               <span className={`material-symbols-outlined ${card.colorClass}`}>{card.icon}</span>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">{card.label}</p>
+                <p className="text-label-sm text-on-surface-variant">{card.label}</p>
                 <p className="mt-1 text-display-lg text-on-surface font-bold">{card.value}</p>
               </div>
             </div>
@@ -612,11 +612,11 @@ export default function SwapRequestsPage() {
               {/* People */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-lg border border-outline-variant bg-surface p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Người yêu cầu</p>
+                  <p className="text-label-sm text-on-surface-variant mb-1">Người yêu cầu</p>
                   <p className="text-[14px] font-semibold text-on-surface">{selectedExchange.requester.fullName}</p>
                 </div>
                 <div className="rounded-lg border border-outline-variant bg-surface p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Người đổi cùng</p>
+                  <p className="text-label-sm text-on-surface-variant mb-1">Người đổi cùng</p>
                   <p className="text-[14px] font-semibold text-on-surface">{selectedExchange.target.fullName}</p>
                 </div>
               </div>
@@ -624,7 +624,7 @@ export default function SwapRequestsPage() {
               {/* Schedule comparison */}
               <div className="grid grid-cols-2 gap-4">
                 <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.requesterSchedule.shiftType.id)} bg-surface`}>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Ca ban đầu</p>
+                  <p className="text-label-sm text-on-surface-variant mb-1">Ca ban đầu</p>
                   <p className="text-[13px] font-medium text-on-surface">{formatDateFull(selectedExchange.requesterSchedule.workDate)}</p>
                   <p className="text-[12px] text-on-surface-variant">{selectedExchange.requesterSchedule.shiftType.name}</p>
                   {selectedExchange.status === "APPROVED" && (
@@ -634,7 +634,7 @@ export default function SwapRequestsPage() {
                   )}
                 </div>
                 <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.targetSchedule.shiftType.id)} bg-surface`}>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Ca đề xuất</p>
+                  <p className="text-label-sm text-on-surface-variant mb-1">Ca đề xuất</p>
                   <p className="text-[13px] font-medium text-on-surface">{formatDateFull(selectedExchange.targetSchedule.workDate)}</p>
                   <p className="text-[12px] text-on-surface-variant">{selectedExchange.targetSchedule.shiftType.name}</p>
                 </div>
@@ -643,7 +643,7 @@ export default function SwapRequestsPage() {
               {/* Status + reason */}
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Trạng thái</p>
+                  <p className="text-label-sm text-on-surface-variant">Trạng thái</p>
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${getStatusBadge(selectedExchange.status)}`}>
                     {getStatusLabel(selectedExchange.status)}
                   </span>
@@ -651,14 +651,14 @@ export default function SwapRequestsPage() {
 
                 {selectedExchange.reason && (
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Lý do</p>
+                    <p className="text-label-sm text-on-surface-variant mb-1">Lý do</p>
                     <p className="text-[13px] text-on-surface leading-relaxed">{selectedExchange.reason}</p>
                   </div>
                 )}
 
                 {selectedExchange.reviewNote && (
                   <div className="rounded-lg bg-surface-container-low p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Phản hồi</p>
+                    <p className="text-label-sm text-on-surface-variant mb-1">Phản hồi</p>
                     <p className="text-[13px] text-on-surface">{selectedExchange.reviewNote}</p>
                   </div>
                 )}

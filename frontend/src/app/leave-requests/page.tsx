@@ -317,7 +317,7 @@ export default function LeaveRequestsPage() {
                   </p>
                   {request.reviewNote ? (
                     <div className="mt-2 rounded-lg bg-surface-container-low px-3 py-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Ghi chú duyệt</p>
+                      <p className="text-label-sm text-on-surface-variant">Ghi chú duyệt</p>
                       <p className="text-body-sm text-on-surface">{request.reviewNote}</p>
                     </div>
                   ) : null}
@@ -415,13 +415,13 @@ export default function LeaveRequestsPage() {
             <div className="px-6 py-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Ngày bắt đầu</p>
+                  <p className="text-label-sm text-on-surface-variant">Ngày bắt đầu</p>
                   <p className="mt-1 text-body-sm font-medium text-on-surface">
                     {new Date(detailRequest.startDate).toLocaleDateString("vi-VN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Ngày kết thúc</p>
+                  <p className="text-label-sm text-on-surface-variant">Ngày kết thúc</p>
                   <p className="mt-1 text-body-sm font-medium text-on-surface">
                     {new Date(detailRequest.endDate).toLocaleDateString("vi-VN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                   </p>
@@ -429,14 +429,14 @@ export default function LeaveRequestsPage() {
               </div>
 
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Lý do</p>
+                <p className="text-label-sm text-on-surface-variant">Lý do</p>
                 <p className="mt-1 text-body-sm text-on-surface leading-relaxed">
                   {detailRequest.reason ?? "Không có lý do bổ sung."}
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Trạng thái</p>
+                <p className="text-label-sm text-on-surface-variant">Trạng thái</p>
                 <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${STATUS_CLASS[detailRequest.status]}`}>
                   {STATUS_LABEL[detailRequest.status]}
                 </span>

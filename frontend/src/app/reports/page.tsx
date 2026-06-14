@@ -39,7 +39,7 @@ export default function ReportsPage() {
     >
       <div className="space-y-6">
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 md:p-6 shadow-sm">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant">Reports hub</p>
+          <p className="text-label-sm text-on-surface-variant">Reports hub</p>
           <h2 className="mt-2 text-headline-md text-on-surface">Trung tâm báo cáo</h2>
           <p className="mt-2 max-w-3xl text-body-md leading-6 text-on-surface-variant">
             Chọn loại báo cáo để xem chi tiết. Các báo cáo sử dụng dữ liệu thực từ backend.

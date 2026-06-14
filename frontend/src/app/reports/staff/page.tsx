@@ -146,7 +146,7 @@ export default function ReportsStaffPage() {
         ].map((kpi) => (
           <article key={kpi.label} className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
             <div className="flex justify-between items-start">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">{kpi.label}</p>
+              <p className="text-label-sm text-on-surface-variant">{kpi.label}</p>
               <span className={`material-symbols-outlined p-1.5 rounded-md ${kpi.accent} text-[18px]`}>{kpi.icon}</span>
             </div>
             <p className="mt-3 text-display-lg font-bold text-on-surface">{loading ? "—" : kpi.value}</p>
@@ -197,14 +197,14 @@ export default function ReportsStaffPage() {
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container-low">
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Nhân sự</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Khoa</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant text-center">Tổng ca</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant text-center">L01</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant text-center">L02</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant text-center">L03</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant text-center">L04</th>
-                  <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Tải trọng</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Nhân sự</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Khoa</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-center">Tổng ca</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L01</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L02</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L03</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L04</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Tải trọng</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">

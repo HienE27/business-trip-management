@@ -562,7 +562,7 @@ export function StaffCrudPanel() {
 
       <section className="flex flex-col justify-between gap-5 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 md:p-6 shadow-sm sm:flex-row sm:items-center">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant">Nhân sự</p>
+          <p className="text-label-sm text-on-surface-variant">Nhân sự</p>
           <p className="mt-1 text-[14px] text-on-surface-variant">
             Quản lý cơ sở dữ liệu nhân viên, chức vụ và trạng thái hoạt động trong hệ thống.
           </p>

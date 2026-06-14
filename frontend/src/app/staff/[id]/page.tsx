@@ -188,7 +188,7 @@ export default function StaffDetailPage() {
                   {item.icon}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">{item.label}</p>
+                  <p className="text-label-sm text-on-surface-variant">{item.label}</p>
                   <p className="text-[13px] text-on-surface truncate">{item.value}</p>
                 </div>
               </div>
@@ -222,7 +222,7 @@ export default function StaffDetailPage() {
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {(Object.entries(SHIFT_COLORS) as [string, typeof SHIFT_COLORS[string]][]).map(([type, color]) => (
                 <div key={type} className={`rounded-lg border-l-4 p-3 ${color.border} bg-surface`}>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">{color.text}</p>
+                  <p className="text-label-sm text-on-surface-variant">{color.text}</p>
                   <p className="mt-1 text-headline-md font-bold text-on-surface">{shiftByType[type] ?? 0} ca</p>
                 </div>
               ))}

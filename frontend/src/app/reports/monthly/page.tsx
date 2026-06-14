@@ -181,7 +181,7 @@ export default function ReportsMonthlyPage() {
             ].map((kpi) => (
               <article key={kpi.label} className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm hover:bg-surface-container-low transition-colors">
                 <div className="flex justify-between items-start">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">{kpi.label}</p>
+                  <p className="text-label-sm text-on-surface-variant">{kpi.label}</p>
                   <span className={`material-symbols-outlined p-1.5 rounded-md ${kpi.accent} text-[18px]`}>
                     {kpi.icon}
                   </span>
@@ -247,10 +247,10 @@ export default function ReportsMonthlyPage() {
                 <table className="w-full border-collapse text-left">
                   <thead>
                     <tr className="border-b border-outline-variant bg-surface-container-low">
-                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Nhân sự</th>
-                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Loại lịch</th>
-                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Ngày</th>
-                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Trạng thái</th>
+                      <th className="px-4 py-3 text-label-sm text-on-surface-variant">Nhân sự</th>
+                      <th className="px-4 py-3 text-label-sm text-on-surface-variant">Loại lịch</th>
+                      <th className="px-4 py-3 text-label-sm text-on-surface-variant">Ngày</th>
+                      <th className="px-4 py-3 text-label-sm text-on-surface-variant">Trạng thái</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant">

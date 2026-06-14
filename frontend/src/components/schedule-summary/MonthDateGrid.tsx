@@ -90,7 +90,7 @@ export function MonthDateGrid({
 
       <div className="grid grid-cols-7 gap-2 text-center">
         {WEEKDAY_LABELS.map((label) => (
-          <div key={label} className="py-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
+          <div key={label} className="py-2 text-label-sm text-on-surface-variant">
             {label}
           </div>
         ))}

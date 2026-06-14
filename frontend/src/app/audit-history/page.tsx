@@ -172,7 +172,7 @@ export default function AuditHistoryPage() {
               className={`rounded-lg border-t border-r border-b border-outline-variant bg-surface-container-lowest p-5 shadow-sm hover:bg-surface-container-low transition-colors ${item.accent}`}
               key={item.label}
             >
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">{item.label}</p>
+              <p className="text-label-sm text-on-surface-variant">{item.label}</p>
               <p className="mt-3 text-display-lg text-on-surface font-bold">{loading ? "\u2014" : item.value}</p>
             </div>
           ))}
@@ -182,7 +182,7 @@ export default function AuditHistoryPage() {
         <section className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant" htmlFor="audit-search">
+              <label className="mb-1 block text-label-sm text-on-surface-variant" htmlFor="audit-search">
                 Tìm kiếm
               </label>
               <div className="relative">
@@ -199,7 +199,7 @@ export default function AuditHistoryPage() {
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant" htmlFor="audit-module">
+              <label className="mb-1 block text-label-sm text-on-surface-variant" htmlFor="audit-module">
                 Module
               </label>
               <div className="relative">
@@ -218,7 +218,7 @@ export default function AuditHistoryPage() {
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant" htmlFor="audit-action">
+              <label className="mb-1 block text-label-sm text-on-surface-variant" htmlFor="audit-action">
                 Hành động
               </label>
               <div className="relative">
@@ -237,7 +237,7 @@ export default function AuditHistoryPage() {
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant" htmlFor="audit-date">
+              <label className="mb-1 block text-label-sm text-on-surface-variant" htmlFor="audit-date">
                 Ngày
               </label>
               <input
@@ -324,7 +324,7 @@ export default function AuditHistoryPage() {
                             <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4 space-y-3">
                               {row.oldData && (
                                     <div>
-                                      <p className="text-[11px] font-semibold uppercase tracking-wider text-error mb-1">Dữ liệu cũ</p>
+                                      <p className="text-label-sm text-error mb-1">Dữ liệu cũ</p>
                                       <pre className="text-[12px] text-on-surface-variant whitespace-pre-wrap break-all bg-surface-container-low p-2 rounded">
                                         {row.oldData}
                                       </pre>
@@ -332,7 +332,7 @@ export default function AuditHistoryPage() {
                                   )}
                                   {row.newData && (
                                     <div>
-                                      <p className="text-[11px] font-semibold uppercase tracking-wider text-secondary mb-1">Dữ liệu mới</p>
+                                      <p className="text-label-sm text-secondary mb-1">Dữ liệu mới</p>
                                       <pre className="text-[12px] text-on-surface-variant whitespace-pre-wrap break-all bg-surface-container-low p-2 rounded">
                                         {row.newData}
                                       </pre>
