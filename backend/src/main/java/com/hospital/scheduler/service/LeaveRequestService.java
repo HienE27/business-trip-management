@@ -6,6 +6,7 @@ import com.hospital.scheduler.dto.response.ReplacementProposal;
 import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.CompensationDay;
 import com.hospital.scheduler.entity.LeaveRequest;
+import com.hospital.scheduler.entity.RoleName;
 import com.hospital.scheduler.entity.Schedule;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.exception.BadRequestException;
@@ -92,8 +93,8 @@ public class LeaveRequestService {
         // Notify managers about the new leave request
         List<Staff> managers = staffRepository.findAll().stream()
                 .filter(s -> s.getStaffRoles().stream()
-                        .anyMatch(sr -> sr.getRole() != null &&
-                                ("ADMIN".equals(sr.getRole().getName()) || "MANAGER".equals(sr.getRole().getName()))))
+                        .anyMatch(sr -> sr.getRole() != null && (
+                                RoleName.ADMIN.equals(sr.getRole().getName()) || RoleName.MANAGER.equals(sr.getRole().getName()))))
                 .collect(Collectors.toList());
         for (Staff manager : managers) {
             notificationService.createNotification(manager.getId(),
@@ -183,7 +184,7 @@ public class LeaveRequestService {
         boolean canCancel = leaveRequest.getStaff().getId().equals(currentStaff.getId())
                 || currentStaff.getStaffRoles().stream()
                 .map(role -> role.getRole() != null ? role.getRole().getName() : null)
-                .anyMatch(roleName -> "ADMIN".equals(roleName) || "MANAGER".equals(roleName));
+                .anyMatch(roleName -> RoleName.ADMIN.equals(roleName) || RoleName.MANAGER.equals(roleName));
         if (!canCancel) {
             throw new BadRequestException("Bạn không có quyền hủy yêu cầu nghỉ phép này");
         }
@@ -253,7 +254,8 @@ public class LeaveRequestService {
                 .filter(sr -> sr.getRole() != null)
                 .map(sr -> sr.getRole().getName())
                 .findFirst()
-                .orElse("STAFF");
+                .map(RoleName::name)
+                .orElse(RoleName.STAFF.name());
         return ReplacementProposal.StaffCandidate.builder()
                 .id(staff.getId())
                 .fullName(staff.getFullName())

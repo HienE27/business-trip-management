@@ -18,8 +18,11 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
             FROM Schedule s
             JOIN FETCH s.staff st
             LEFT JOIN FETCH st.specialty
+            LEFT JOIN FETCH st.staffRoles sr
+            LEFT JOIN FETCH sr.role
             JOIN FETCH s.shiftType
             JOIN FETCH s.period
+            LEFT JOIN FETCH s.requirement
             WHERE s.period.id = :periodId
             ORDER BY s.workDate
             """)
@@ -28,7 +31,19 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
     @Query("SELECT s FROM Schedule s WHERE s.period.id = :periodId AND s.workDate = :workDate")
     List<Schedule> findByPeriodIdAndWorkDate(@Param("periodId") Integer periodId, @Param("workDate") LocalDate workDate);
 
-    @Query("SELECT s FROM Schedule s WHERE s.staff.id = :staffId ORDER BY s.workDate")
+    @Query("""
+            SELECT s
+            FROM Schedule s
+            JOIN FETCH s.staff st
+            LEFT JOIN FETCH st.specialty
+            LEFT JOIN FETCH st.staffRoles sr
+            LEFT JOIN FETCH sr.role
+            JOIN FETCH s.shiftType
+            JOIN FETCH s.period
+            LEFT JOIN FETCH s.requirement
+            WHERE st.id = :staffId
+            ORDER BY s.workDate
+            """)
     List<Schedule> findByStaffId(@Param("staffId") Integer staffId);
 
     @Query("SELECT s FROM Schedule s WHERE s.staff.id = :staffId AND s.workDate = :workDate")

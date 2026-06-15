@@ -5,9 +5,11 @@ import com.hospital.scheduler.dto.request.StaffSearchRequest;
 import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.entity.AppRole;
 import com.hospital.scheduler.entity.AuditHistory;
+import com.hospital.scheduler.entity.RoleName;
 import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.entity.StaffRole;
+import com.hospital.scheduler.entity.StaffStatus;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
@@ -41,6 +43,7 @@ public class StaffService {
     private final AuditHistoryService auditHistoryService;
     private final AuthContextService authContextService;
     private final PasswordEncoder passwordEncoder;
+    private final StaffImportParser staffImportParser;
 
     public List<StaffResponse> getAllStaff() {
         return staffRepository.findAll().stream()
@@ -86,8 +89,9 @@ public class StaffService {
             specialty = specialtyRepository.findById(request.getSpecialtyId()).orElse(null);
         }
 
-        String status = request.getStatus() != null ? request.getStatus() : "ACTIVE";
-        boolean isActive = !"INACTIVE".equalsIgnoreCase(status);
+        String statusStr = request.getStatus() != null ? request.getStatus() : "ACTIVE";
+        boolean isActive = !"INACTIVE".equalsIgnoreCase(statusStr);
+        StaffStatus status = "INACTIVE".equalsIgnoreCase(statusStr) ? StaffStatus.INACTIVE : StaffStatus.ACTIVE;
 
         Staff staff = Staff.builder()
                 .username(request.getUsername())
@@ -107,7 +111,7 @@ public class StaffService {
         // Assign roles
         if (roles != null && !roles.isEmpty()) {
             for (String roleName : roles) {
-                AppRole role = appRoleRepository.findByName(roleName)
+                AppRole role = appRoleRepository.findByName(RoleName.valueOf(roleName.toUpperCase()))
                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy role: " + roleName));
                 StaffRole sr = StaffRole.builder()
                         .staffId(saved.getId())
@@ -168,7 +172,8 @@ public class StaffService {
         }
 
         if (request.getStatus() != null) {
-            staff.setStatus(request.getStatus());
+            StaffStatus newStatus = "INACTIVE".equalsIgnoreCase(request.getStatus()) ? StaffStatus.INACTIVE : StaffStatus.ACTIVE;
+            staff.setStatus(newStatus);
             staff.setIsActive(!"INACTIVE".equalsIgnoreCase(request.getStatus()));
         }
 
@@ -176,7 +181,7 @@ public class StaffService {
         if (request.getRoles() != null) {
             List<AppRole> targetRoles = new java.util.ArrayList<>();
             for (String roleName : request.getRoles()) {
-                AppRole role = appRoleRepository.findByName(roleName)
+                AppRole role = appRoleRepository.findByName(RoleName.valueOf(roleName.toUpperCase()))
                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy role: " + roleName));
                 targetRoles.add(role);
             }
@@ -225,7 +230,7 @@ public class StaffService {
                 .build();
 
         staff.setIsActive(false);
-        staff.setStatus("INACTIVE");
+        staff.setStatus(StaffStatus.INACTIVE);
         staff.setUpdatedAt(java.time.LocalDateTime.now());
         staffRepository.save(staff);
 
@@ -248,7 +253,7 @@ public class StaffService {
         }
 
         List<String> roleNames = staff.getStaffRoles().stream()
-                .map(sr -> sr.getRole() != null ? sr.getRole().getName() : null)
+                .map(sr -> sr.getRole() != null ? sr.getRole().getName().name() : null)
                 .filter(r -> r != null)
                 .collect(Collectors.toList());
 
@@ -261,7 +266,7 @@ public class StaffService {
                 .specialty(specialtyResp)
                 .maxShiftsPerMonth(staff.getMaxShiftsPerMonth())
                 .isActive(staff.getIsActive())
-                .status(staff.getStatus())
+                .status(staff.getStatus().name())
                 .createdAt(staff.getCreatedAt())
                 .updatedAt(staff.getUpdatedAt())
                 .roles(roleNames)
@@ -293,7 +298,7 @@ public class StaffService {
 
         Map<String, AppRole> roleMap = new HashMap<>();
         for (AppRole r : appRoleRepository.findAll()) {
-            roleMap.put(r.getName().toUpperCase().trim(), r);
+            roleMap.put(r.getName().name().toUpperCase().trim(), r);
         }
 
         Map<String, Staff> existingUsernames = new HashMap<>();
@@ -309,9 +314,9 @@ public class StaffService {
         }
 
         if (extension.equals("csv")) {
-            parseCsvFile(file, requests, errorMessages);
+            staffImportParser.parseFile(file, extension, requests, errorMessages);
         } else {
-            parseExcelFile(file, requests, errorMessages);
+            staffImportParser.parseFile(file, extension, requests, errorMessages);
         }
 
         if (!errorMessages.isEmpty()) {
@@ -398,19 +403,17 @@ public class StaffService {
             }
 
             // Map Status
-            String normalizedStatus = "ACTIVE";
+            StaffStatus normalizedStatus = StaffStatus.ACTIVE;
             if (!status.isEmpty()) {
                 if (status.equalsIgnoreCase("Đang làm việc") || status.equalsIgnoreCase("ACTIVE")) {
-                    normalizedStatus = "ACTIVE";
-                } else if (status.equalsIgnoreCase("Nghỉ phép") || status.equalsIgnoreCase("ON_LEAVE")) {
-                    normalizedStatus = "ON_LEAVE";
-                } else if (status.equalsIgnoreCase("Đã nghỉ") || status.equalsIgnoreCase("INACTIVE")) {
-                    normalizedStatus = "INACTIVE";
+                    normalizedStatus = StaffStatus.ACTIVE;
+                } else if (status.equalsIgnoreCase("Nghỉ phép") || status.equalsIgnoreCase("ON_LEAVE") || status.equalsIgnoreCase("Đã nghỉ") || status.equalsIgnoreCase("INACTIVE")) {
+                    normalizedStatus = StaffStatus.INACTIVE;
                 } else {
                     errorMessages.add("Dòng " + lineNum + " - Cột Trạng thái: Trạng thái '" + status + "' không hợp lệ");
                 }
             }
-            boolean isActive = !normalizedStatus.equals("INACTIVE");
+            boolean isActive = normalizedStatus == StaffStatus.ACTIVE;
 
             // Look up existing staff in DB
             Staff existing = null;

@@ -1,6 +1,7 @@
 package com.hospital.scheduler.security;
 
 import com.hospital.scheduler.entity.AppRole;
+import com.hospital.scheduler.entity.RoleName;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.entity.StaffRole;
 import com.hospital.scheduler.exception.ForbiddenOperationException;
@@ -67,7 +68,7 @@ public class AuthContextService {
                 .map(StaffRole::getRole)
                 .filter(role -> role != null && role.getName() != null)
                 .map(AppRole::getName)
-                .anyMatch(roleName -> "ADMIN".equals(roleName) || "MANAGER".equals(roleName));
+                .anyMatch(roleName -> RoleName.ADMIN.equals(roleName) || RoleName.MANAGER.equals(roleName));
     }
 
     public void requireSelfOrManager(Integer targetStaffId) {

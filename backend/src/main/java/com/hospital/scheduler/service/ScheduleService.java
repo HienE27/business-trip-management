@@ -327,6 +327,7 @@ public class ScheduleService {
                 .filter(java.util.Objects::nonNull)
                 .map(AppRole::getName)
                 .filter(java.util.Objects::nonNull)
+                .map(RoleName::name)
                 .distinct()
                 .sorted()
                 .collect(Collectors.toList());

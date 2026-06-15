@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.AutoScheduleRequestDTO;
+import com.hospital.scheduler.dto.response.AlgorithmMetricsDTO;
 import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.BadRequestException;
@@ -241,76 +242,27 @@ public class AutoSchedulingService {
                                      List<Staff> activeStaff, boolean save,
                                      Set<Integer> excludedStaffIds) {
         List<Schedule> createdSchedules = new ArrayList<>();
-
-        // Group requirements by date for efficient per-day processing
-        Map<LocalDate, List<ShiftRequirement>> requirementsByDate = requirements.stream()
-                .collect(Collectors.groupingBy(ShiftRequirement::getWorkDate));
+        Map<LocalDate, List<ShiftRequirement>> requirementsByDate = groupRequirementsByDate(requirements);
 
         LocalDate currentDate = period.getStartDate();
         while (!currentDate.isAfter(period.getEndDate())) {
-            List<ShiftRequirement> todayReqs = requirementsByDate.getOrDefault(currentDate, Collections.emptyList());
-            if (!todayReqs.isEmpty()) {
-                // Sort: L01 first, then L02, L03, L04 (P2-8 enforcement)
-                todayReqs.sort(Comparator.comparingInt((ShiftRequirement r) -> {
-                    String id = r.getShiftType().getId();
-                    if (ConflictDetectionService.SHIFT_TYPE_L01.equals(id)) return 0;
-                    if (ConflictDetectionService.SHIFT_TYPE_L02.equals(id)) return 1;
-                    if (ConflictDetectionService.SHIFT_TYPE_L03.equals(id)) return 2;
-                    return 3;
-                }));
+            List<ShiftRequirement> todayReqs = sortRequirementsByPriority(
+                    requirementsByDate.getOrDefault(currentDate, Collections.emptyList()));
 
-                // Build per-day staff pool, filtered by specialty and exclusions
-                Set<Integer> assignedStaffIds = new HashSet<>();
-                for (ShiftRequirement req : todayReqs) {
-                    final LocalDate workDate = currentDate;
-                    List<Staff> eligibleStaff = activeStaff.stream()
-                            .filter(s -> !assignedStaffIds.contains(s.getId()))
-                            .filter(s -> excludedStaffIds == null || !excludedStaffIds.contains(s.getId()))
-                            .filter(s -> {
-                                if (req.getSpecialty() != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(req.getSpecialty().getId()))) {
-                                    return false;
-                                }
-                                // In preview mode (save=false), skip compensation day check since they're not created yet
-                                // In save mode (save=true), check DB for existing compensation days
-                                if (conflictDetectionService.hasAnyConflict(s.getId(), workDate, req.getShiftType().getId(), null, !save)) {
-                                    return false;
-                                }
-                                if (hasInMemoryConflict(s.getId(), workDate, req.getShiftType().getId())) {
-                                    return false;
-                                }
-                                return true;
-                            })
-                            .collect(Collectors.toList());
+            Set<Integer> assignedStaffIds = new HashSet<>();
+            for (ShiftRequirement req : todayReqs) {
+                final LocalDate workDate = currentDate;
+                List<Staff> eligibleStaff = filterAndSortEligibleStaff(activeStaff, req, excludedStaffIds, !save,
+                        Comparator.comparingLong(s -> scheduleRepository.countByStaffIdAndPeriodId(s.getId(), period.getId())));
 
-                    eligibleStaff.sort(Comparator.comparingLong(s ->
-                            scheduleRepository.countByStaffIdAndPeriodId(s.getId(), period.getId())));
-
-                    int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
-                    for (int i = 0; i < toAssign; i++) {
-                        Staff staff = eligibleStaff.get(i);
-                        Schedule schedule = Schedule.builder()
-                                .period(period)
-                                .staff(staff)
-                                .shiftType(req.getShiftType())
-                                .workDate(workDate)
-                                .requirement(req)
-                                .hasConflict(false)
-                                .build();
-
-                        trackAssignment(staff, workDate, req.getShiftType().getId());
-                        assignedStaffIds.add(staff.getId());
-
-                        if (save) {
-                            Schedule saved = scheduleRepository.save(schedule);
-                            createdSchedules.add(saved);
-                            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
-                                createCompensationDayForAuto(saved);
-                            }
-                            auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
-                        } else {
-                            schedule.setId(null);
-                            createdSchedules.add(schedule);
-                        }
+                int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
+                for (int i = 0; i < toAssign; i++) {
+                    Staff staff = eligibleStaff.get(i);
+                    Schedule saved = buildAndSaveSchedule(period, staff, req, workDate, save, createdSchedules);
+                    trackAssignment(staff, workDate, req.getShiftType().getId());
+                    assignedStaffIds.add(staff.getId());
+                    if (save && ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
+                        createCompensationDayForAuto(saved);
                     }
                 }
             }
@@ -324,79 +276,33 @@ public class AutoSchedulingService {
                                           List<Staff> activeStaff, boolean save,
                                           Set<Integer> excludedStaffIds) {
         List<Schedule> createdSchedules = new ArrayList<>();
-        // Global rotation counter: lower = assigned fewer times
         Map<Integer, Integer> staffRotationIndex = new HashMap<>();
         for (Staff staff : activeStaff) {
             staffRotationIndex.put(staff.getId(), 0);
         }
 
-        // Group requirements by date
-        Map<LocalDate, List<ShiftRequirement>> requirementsByDate = requirements.stream()
-                .collect(Collectors.groupingBy(ShiftRequirement::getWorkDate));
+        Map<LocalDate, List<ShiftRequirement>> requirementsByDate = groupRequirementsByDate(requirements);
 
         LocalDate currentDate = period.getStartDate();
         while (!currentDate.isAfter(period.getEndDate())) {
-            List<ShiftRequirement> todayReqs = requirementsByDate.getOrDefault(currentDate, Collections.emptyList());
-            if (!todayReqs.isEmpty()) {
-                todayReqs.sort(Comparator.comparingInt((ShiftRequirement r) -> {
-                    String id = r.getShiftType().getId();
-                    if (ConflictDetectionService.SHIFT_TYPE_L01.equals(id)) return 0;
-                    if (ConflictDetectionService.SHIFT_TYPE_L02.equals(id)) return 1;
-                    if (ConflictDetectionService.SHIFT_TYPE_L03.equals(id)) return 2;
-                    return 3;
-                }));
+            List<ShiftRequirement> todayReqs = sortRequirementsByPriority(
+                    requirementsByDate.getOrDefault(currentDate, Collections.emptyList()));
 
-                Set<Integer> assignedStaffIds = new HashSet<>();
-                for (ShiftRequirement req : todayReqs) {
-                    final LocalDate workDate = currentDate;
-                    List<Staff> eligibleStaff = activeStaff.stream()
-                            .filter(s -> !assignedStaffIds.contains(s.getId()))
-                            .filter(s -> excludedStaffIds == null || !excludedStaffIds.contains(s.getId()))
-                            .filter(s -> {
-                                if (req.getSpecialty() != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(req.getSpecialty().getId()))) {
-                                    return false;
-                                }
-                                // In preview mode (save=false), skip compensation day check since they're not created yet
-                                // In save mode (save=true), check DB for existing compensation days
-                                if (conflictDetectionService.hasAnyConflict(s.getId(), workDate, req.getShiftType().getId(), null, !save)) {
-                                    return false;
-                                }
-                                if (hasInMemoryConflict(s.getId(), workDate, req.getShiftType().getId())) {
-                                    return false;
-                                }
-                                return true;
-                            })
-                            .collect(Collectors.toList());
+            Set<Integer> assignedStaffIds = new HashSet<>();
+            for (ShiftRequirement req : todayReqs) {
+                final LocalDate workDate = currentDate;
+                List<Staff> eligibleStaff = filterAndSortEligibleStaff(activeStaff, req, excludedStaffIds, !save,
+                        Comparator.comparingInt(s -> staffRotationIndex.getOrDefault(s.getId(), 0)));
 
-                    eligibleStaff.sort(Comparator.comparingInt(s -> staffRotationIndex.getOrDefault(s.getId(), 0)));
-
-                    int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
-                    for (int i = 0; i < toAssign; i++) {
-                        Staff staff = eligibleStaff.get(i);
-                        Schedule schedule = Schedule.builder()
-                                .period(period)
-                                .staff(staff)
-                                .shiftType(req.getShiftType())
-                                .workDate(workDate)
-                                .requirement(req)
-                                .hasConflict(false)
-                                .build();
-
-                        trackAssignment(staff, workDate, req.getShiftType().getId());
-                        assignedStaffIds.add(staff.getId());
-                        staffRotationIndex.merge(staff.getId(), 1, Integer::sum);
-
-                        if (save) {
-                            Schedule saved = scheduleRepository.save(schedule);
-                            createdSchedules.add(saved);
-                            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
-                                createCompensationDayForAuto(saved);
-                            }
-                            auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
-                        } else {
-                            schedule.setId(null);
-                            createdSchedules.add(schedule);
-                        }
+                int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
+                for (int i = 0; i < toAssign; i++) {
+                    Staff staff = eligibleStaff.get(i);
+                    Schedule saved = buildAndSaveSchedule(period, staff, req, workDate, save, createdSchedules);
+                    trackAssignment(staff, workDate, req.getShiftType().getId());
+                    assignedStaffIds.add(staff.getId());
+                    staffRotationIndex.merge(staff.getId(), 1, Integer::sum);
+                    if (save && ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
+                        createCompensationDayForAuto(saved);
                     }
                 }
             }
@@ -933,5 +839,88 @@ public class AutoSchedulingService {
             case 7 -> "Chủ Nhật";
             default -> "";
         };
+    }
+
+    public List<AlgorithmMetricsDTO> getMetricsByPeriod(Integer periodId) {
+        return metricsRepository.findByPeriodId(periodId).stream()
+                .map(this::metricsToDTO)
+                .toList();
+    }
+
+    public List<AlgorithmMetricsDTO> getAllMetrics() {
+        return metricsRepository.findAll().stream()
+                .map(this::metricsToDTO)
+                .toList();
+    }
+
+    private AlgorithmMetricsDTO metricsToDTO(AlgorithmMetrics m) {
+        return AlgorithmMetricsDTO.builder()
+                .id(m.getId())
+                .algorithmType(m.getAlgorithmType())
+                .executionTimeMs(m.getExecutionTimeMs())
+                .coverageRate(m.getCoverageRate())
+                .balanceScore(m.getBalanceScore())
+                .conflictCount(m.getConflictCount())
+                .createdAt(m.getCreatedAt())
+                .build();
+    }
+
+    private List<ShiftRequirement> sortRequirementsByPriority(List<ShiftRequirement> requirements) {
+        return requirements.stream()
+                .sorted(Comparator.comparingInt((ShiftRequirement r) -> {
+                    String id = r.getShiftType().getId();
+                    if (ConflictDetectionService.SHIFT_TYPE_L01.equals(id)) return 0;
+                    if (ConflictDetectionService.SHIFT_TYPE_L02.equals(id)) return 1;
+                    if (ConflictDetectionService.SHIFT_TYPE_L03.equals(id)) return 2;
+                    return 3;
+                }))
+                .collect(Collectors.toList());
+    }
+
+    private Map<LocalDate, List<ShiftRequirement>> groupRequirementsByDate(List<ShiftRequirement> requirements) {
+        return requirements.stream().collect(Collectors.groupingBy(ShiftRequirement::getWorkDate));
+    }
+
+    private List<Staff> filterAndSortEligibleStaff(List<Staff> pool, ShiftRequirement req,
+                                                    Set<Integer> excludedStaffIds, boolean skipCompensationCheck,
+                                                    Comparator<Staff> sortComparator) {
+        return pool.stream()
+                .filter(s -> excludedStaffIds == null || !excludedStaffIds.contains(s.getId()))
+                .filter(s -> {
+                    if (req.getSpecialty() != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(req.getSpecialty().getId()))) {
+                        return false;
+                    }
+                    if (conflictDetectionService.hasAnyConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId(), null, skipCompensationCheck)) {
+                        return false;
+                    }
+                    if (hasInMemoryConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId())) {
+                        return false;
+                    }
+                    return true;
+                })
+                .sorted(sortComparator)
+                .collect(Collectors.toList());
+    }
+
+    private Schedule buildAndSaveSchedule(SchedulePeriod period, Staff staff, ShiftRequirement req,
+                                         LocalDate workDate, boolean save, List<Schedule> list) {
+        Schedule schedule = Schedule.builder()
+                .period(period)
+                .staff(staff)
+                .shiftType(req.getShiftType())
+                .workDate(workDate)
+                .requirement(req)
+                .hasConflict(false)
+                .build();
+        if (save) {
+            Schedule saved = scheduleRepository.save(schedule);
+            auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+            list.add(saved);
+            return saved;
+        } else {
+            schedule.setId(null);
+            list.add(schedule);
+            return schedule;
+        }
     }
 }

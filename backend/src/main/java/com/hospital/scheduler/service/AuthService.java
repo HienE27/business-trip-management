@@ -36,7 +36,7 @@ public class AuthService {
         }
 
         List<String> roles = staff.getStaffRoles().stream()
-                .map(sr -> sr.getRole() != null ? sr.getRole().getName() : null)
+                .map(sr -> sr.getRole() != null ? sr.getRole().getName().name() : null)
                 .filter(r -> r != null)
                 .collect(Collectors.toList());
 

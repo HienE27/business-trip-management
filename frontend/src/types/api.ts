@@ -323,15 +323,6 @@ export interface AutoScheduleResult {
   excludedStaffIds?: number[];
 }
 
-export interface AutoScheduleSummary {
-  scheduleId: number | null;
-  staffId: number;
-  staffName: string;
-  workDate: string;
-  shiftTypeId: string;
-  shiftTypeName: string;
-}
-
 export interface UnassignedDayItem {
   workDate: string;
   dayOfWeek: string;
@@ -381,29 +372,6 @@ export interface AlgorithmMetrics {
   balanceScore: number;
   conflictCount: number;
   createdAt: string;
-}
-
-// ============================================================
-// Shift Requirement Types
-// ============================================================
-export interface ShiftRequirement {
-  id: number;
-  periodId: number;
-  workDate: string;
-  shiftType: { id: string; name: string };
-  specialty: { id: number; name: string };
-  requiredStaffCount: number;
-  assignedStaffCount: number;
-  note?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface DayCoverage {
-  date: string;
-  shiftTypeId: string;
-  required: number;
-  assigned: number;
 }
 
 // ============================================================

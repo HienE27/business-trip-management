@@ -46,9 +46,9 @@ public class DataSeeder implements CommandLineRunner {
     private void seedRoles() {
         if (appRoleRepository.count() > 0) return;
 
-        appRoleRepository.save(AppRole.builder().name("ADMIN").description("Quản trị hệ thống").isActive(true).build());
-        appRoleRepository.save(AppRole.builder().name("MANAGER").description("Quản lý và duyệt lịch").isActive(true).build());
-        appRoleRepository.save(AppRole.builder().name("STAFF").description("Nhân viên sử dụng hệ thống").isActive(true).build());
+        appRoleRepository.save(AppRole.builder().name(RoleName.ADMIN).description("Quản trị hệ thống").isActive(true).build());
+        appRoleRepository.save(AppRole.builder().name(RoleName.MANAGER).description("Quản lý và duyệt lịch").isActive(true).build());
+        appRoleRepository.save(AppRole.builder().name(RoleName.STAFF).description("Nhân viên sử dụng hệ thống").isActive(true).build());
 
         System.out.println("✅ Seeded roles: ADMIN, MANAGER, STAFF");
     }
@@ -145,9 +145,9 @@ public class DataSeeder implements CommandLineRunner {
     private void seedAdminUser() {
         if (staffRepository.count() > 0) return;
 
-        AppRole adminRole = appRoleRepository.findByName("ADMIN").orElse(null);
-        AppRole managerRole = appRoleRepository.findByName("MANAGER").orElse(null);
-        AppRole staffRole = appRoleRepository.findByName("STAFF").orElse(null);
+        AppRole adminRole = appRoleRepository.findByName(RoleName.ADMIN).orElse(null);
+        AppRole managerRole = appRoleRepository.findByName(RoleName.MANAGER).orElse(null);
+        AppRole staffRole = appRoleRepository.findByName(RoleName.STAFF).orElse(null);
         Specialty doctorSpecialty = specialtyRepository.findByName("Bác sĩ").orElse(null);
         Specialty nurseSpecialty = specialtyRepository.findByName("Điều dưỡng").orElse(null);
         Specialty techSpecialty = specialtyRepository.findByName("Kỹ thuật viên").orElse(null);
