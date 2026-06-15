@@ -10,6 +10,7 @@ import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.entity.ShiftType;
 import com.hospital.scheduler.entity.AppRole;
+import com.hospital.scheduler.entity.RoleName;
 import com.hospital.scheduler.entity.StaffRole;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
@@ -63,9 +64,9 @@ class LeaveRequestServiceTest {
 
     @BeforeEach
     void setUp() {
-        AppRole adminRole = AppRole.builder().id(1).name("ADMIN").build();
-        AppRole managerRole = AppRole.builder().id(2).name("MANAGER").build();
-        AppRole staffRoleType = AppRole.builder().id(3).name("STAFF").build();
+        AppRole adminRole = AppRole.builder().id(1).name(RoleName.ADMIN).build();
+        AppRole managerRole = AppRole.builder().id(2).name(RoleName.MANAGER).build();
+        AppRole staffRoleType = AppRole.builder().id(3).name(RoleName.STAFF).build();
 
         StaffRole adminSr = StaffRole.builder().staffId(2).roleId(1).build();
         adminSr.setRole(adminRole);
@@ -530,7 +531,7 @@ class LeaveRequestServiceTest {
         @Test
         @DisplayName("STAFF thường hủy của người khác -> throw BadRequestException")
         void staffCannotCancelOthers_shouldThrow() {
-            AppRole staffRoleType = AppRole.builder().id(3).name("STAFF").build();
+            AppRole staffRoleType = AppRole.builder().id(3).name(RoleName.STAFF).build();
             StaffRole staffSr = StaffRole.builder().staffId(5).roleId(3).build();
             staffSr.setRole(staffRoleType);
 
