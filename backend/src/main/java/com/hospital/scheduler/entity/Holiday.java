@@ -27,9 +27,6 @@ public class Holiday {
     @Column(name = "holiday_date", nullable = false, unique = true)
     private LocalDate holidayDate;
 
-    @Column(name = "date", nullable = false)
-    private LocalDate date;
-
     @Column(name = "year", nullable = false)
     private Integer year;
 

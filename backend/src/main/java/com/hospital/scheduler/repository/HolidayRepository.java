@@ -12,11 +12,12 @@ import java.util.Optional;
 
 @Repository
 public interface HolidayRepository extends JpaRepository<Holiday, Integer> {
-    Optional<Holiday> findByDate(LocalDate date);
+    Optional<Holiday> findByHolidayDate(LocalDate holidayDate);
     List<Holiday> findByIsActiveTrue();
-    List<Holiday> findByDateBetween(LocalDate start, LocalDate end);
-    boolean existsByDate(LocalDate date);
+    List<Holiday> findByYear(Integer year);
+    List<Holiday> findByHolidayDateBetween(LocalDate start, LocalDate end);
+    boolean existsByHolidayDate(LocalDate holidayDate);
 
-    @Query("SELECT h FROM Holiday h WHERE h.date BETWEEN :start AND :end AND h.isActive = true")
+    @Query("SELECT h FROM Holiday h WHERE h.holidayDate BETWEEN :start AND :end AND h.isActive = true")
     List<Holiday> findActiveHolidaysBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
 }
