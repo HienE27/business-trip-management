@@ -1,6 +1,8 @@
 "use client";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Toggle } from "@/components/auto-scheduling/Toggle";
+import { getRoleLabel } from "@/lib/roleLabels";
 import type { Staff } from "@/types/api";
 
 const AVATAR_COLORS = [
@@ -23,18 +25,6 @@ function getInitials(fullName: string): string {
     .slice(0, 2)
     .join("")
     .toUpperCase();
-}
-
-function getRoleLabel(roles: string[]): string {
-  if (!roles || roles.length === 0) return "Nhân viên";
-  return roles
-    .map((r) => {
-      if (r === "ADMIN") return "Quản trị";
-      if (r === "MANAGER") return "Quản lý";
-      if (r === "STAFF") return "Nhân viên";
-      return r;
-    })
-    .join(", ");
 }
 
 type StaffExclusionTableProps = {
@@ -70,9 +60,11 @@ export function StaffExclusionTable({
 
   if (staff.length === 0) {
     return (
-      <p className="text-body-sm text-on-surface-variant py-6 text-center">
-        Không có nhân sự nào.
-      </p>
+      <EmptyState
+        icon="group_off"
+        title="Không có nhân sự nào"
+        description="Danh sách nhân sự hiện đang trống."
+      />
     );
   }
 

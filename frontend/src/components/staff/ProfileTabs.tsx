@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
-
 const TABS = [
-  { id: "info", label: "Thong tin chung" },
-  { id: "schedule", label: "Lich cong tac gan day" },
-  { id: "stats", label: "Thong ke workload" },
-  { id: "history", label: "Nhat ky thay doi" },
+  { id: "info", label: "Thông tin chung" },
+  { id: "schedule", label: "Lịch công tác gần đây" },
+  { id: "stats", label: "Thống kê workload" },
+  { id: "history", label: "Nhật ký thay đổi" },
 ];
 
 type ProfileTabsProps = {
@@ -17,7 +15,7 @@ type ProfileTabsProps = {
 
 export function ProfileTabs({ activeTab = "info", onTabChange, children }: ProfileTabsProps) {
   return (
-    <div className="bg-surface-container-lowest rounded-xl shadow-[0_1px_3px_0_rgba(0,0,0,0.1),_0_1px_2px_-1px_rgba(0,0,0,0.1)] overflow-hidden flex-1 flex flex-col">
+    <div className="bg-surface-container-lowest rounded-lg shadow-sm overflow-hidden flex-1 flex flex-col">
       <div className="border-b border-outline-variant flex overflow-x-auto bg-surface-container-low px-4">
         {TABS.map((tab) => (
           <button

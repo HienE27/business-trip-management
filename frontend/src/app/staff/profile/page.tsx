@@ -1,6 +1,7 @@
 "use client";
+/* eslint-disable react-hooks/exhaustive-deps */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/layout/DashboardShell";
@@ -32,11 +33,11 @@ const ROLE_LABELS: Record<string, string> = {
   STAFF: "Nhân viên",
 };
 
-const SHIFT_TYPE_COLORS: Record<string, string> = {
-  L01: "bg-red-50 border-red-400 text-red-800",
-  L02: "bg-blue-50 border-blue-400 text-blue-800",
-  L03: "bg-green-50 border-green-400 text-green-800",
-  L04: "bg-purple-50 border-purple-400 text-purple-800",
+const SHIFT_TYPE_BADGE: Record<string, string> = {
+  L01: "bg-red-50 text-red-700 border border-red-200",
+  L02: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  L03: "bg-amber-50 text-amber-700 border border-amber-200",
+  L04: "bg-violet-50 text-violet-700 border border-violet-200",
 };
 
 const SHIFT_TYPE_ICONS: Record<string, string> = {
@@ -109,28 +110,29 @@ export default function StaffProfilePage() {
   }, [router]);
 
   // Load schedules for selected period
-  let cancelled = false;
+  const cancelledRef = useRef(false);
 
   const loadSchedules = async () => {
     if (!userId || !selectedPeriodId) return;
     try {
       setSchedulesLoading(true);
       const data = await api.get<Schedule[]>(`/schedules/staff/${userId}`);
-      if (cancelled) return;
+      if (cancelledRef.current) return;
       const filtered = (data ?? []).filter((s) => s.periodId === selectedPeriodId);
       setSchedules(filtered);
     } catch {
-      if (!cancelled) setSchedules([]);
+      if (!cancelledRef.current) { setSchedules([]); setMessage("Không thể tải lịch trực của bạn."); }
     } finally {
-      if (!cancelled) setSchedulesLoading(false);
+      if (!cancelledRef.current) setSchedulesLoading(false);
     }
   };
 
   // Reload schedules when period changes (after profile is loaded)
   useEffect(() => {
     if (!userId || !selectedPeriodId) return;
+    cancelledRef.current = false;
     void loadSchedules();
-    return () => { cancelled = true; };
+    return () => { cancelledRef.current = true; };
   }, [userId, selectedPeriodId]);
 
   if (loading) {
@@ -176,21 +178,21 @@ export default function StaffProfilePage() {
       description="Xem và cập nhật thông tin tài khoản của bạn."
     >
       {message && (
-        <div className="rounded-xl border border-tertiary-container bg-tertiary-container/30 px-4 py-3 text-sm text-on-surface">
+        <div className="rounded-xl border border-tertiary-container bg-tertiary-container/30 px-3 py-2.5 text-[13px] text-on-surface">
           {message}
         </div>
       )}
 
       {/* Profile Header Card */}
-      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm p-6">
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm p-4">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
           {/* Avatar */}
           <div className="relative shrink-0">
-            <div className="h-24 w-24 rounded-full bg-primary-fixed flex items-center justify-center text-3xl font-bold text-on-primary-fixed-variant select-none">
+            <div className="h-20 w-20 rounded-full bg-primary-fixed flex items-center justify-center text-2xl font-bold text-on-primary-fixed-variant select-none">
               {getInitials(staff.fullName)}
             </div>
             <span
-              className={`absolute bottom-1 right-1 h-4 w-4 rounded-full border-2 border-surface-container-lowest ${
+              className={`absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-surface-container-lowest ${
                 staff.isActive ? "bg-secondary" : "bg-outline"
               }`}
             />
@@ -199,14 +201,14 @@ export default function StaffProfilePage() {
           {/* Info */}
           <div className="flex-1 text-center sm:text-left">
             <h1 className="font-headline-lg text-on-surface">{staff.fullName}</h1>
-            <p className="text-body-md text-on-surface-variant mt-1">@{staff.username}</p>
+            <p className="text-[13px] text-on-surface-variant mt-0.5">@{staff.username}</p>
 
             {/* Role badges */}
-            <div className="flex flex-wrap gap-2 mt-3 justify-center sm:justify-start">
+            <div className="flex flex-wrap gap-1.5 mt-2 justify-center sm:justify-start">
               {staff.roles.map((role) => (
                 <span
                   key={role}
-                  className="px-3 py-1 rounded-full text-label-sm font-semibold bg-primary-fixed/30 text-primary border border-primary/20"
+                  className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-primary-fixed/30 text-primary border border-primary/20"
                 >
                   {ROLE_LABELS[role] ?? role}
                 </span>
@@ -214,9 +216,9 @@ export default function StaffProfilePage() {
             </div>
 
             {/* Status */}
-            <div className="mt-3">
+            <div className="mt-2">
               <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
                   staff.isActive
                     ? "bg-secondary-container text-on-secondary-container border border-secondary/20"
                     : "bg-surface-container-highest text-outline border border-outline"
@@ -235,16 +237,16 @@ export default function StaffProfilePage() {
             <button
               type="button"
               onClick={() => router.push(`/staff/${staff?.id}/edit`)}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors text-body-sm font-medium"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors text-[12px] font-medium"
             >
-              <span className="material-symbols-outlined text-[18px]">edit</span>
+              <span className="material-symbols-outlined text-[16px]">edit</span>
               Chỉnh sửa
             </button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Main content */}
         <div className="lg:col-span-8 flex flex-col">
           {/* Tab Header */}
@@ -255,7 +257,7 @@ export default function StaffProfilePage() {
               { key: "stats", label: "Thống kê", icon: "bar_chart" },
             ].map((tab) => (
               <button
-                className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium transition-colors ${
                   activeTab === tab.key
                     ? "bg-surface-container-lowest text-primary border-b-2 border-primary"
                     : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
@@ -264,37 +266,37 @@ export default function StaffProfilePage() {
                 onClick={() => setActiveTab(tab.key as typeof activeTab)}
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+                <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
                 {tab.label}
               </button>
             ))}
           </div>
 
-          <div className="bg-surface-container-lowest border border-outline-variant border-t-0 rounded-b-xl p-6 shadow-sm">
+          <div className="bg-surface-container-lowest border border-outline-variant border-t-0 rounded-b-xl p-4 shadow-sm">
 
             {/* Tab: Info */}
             {activeTab === "info" && (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div>
-                  <h3 className="font-title-lg text-on-surface mb-4">Thông tin cá nhân</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <h3 className="font-title-lg text-on-surface mb-3">Thông tin cá nhân</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
                       { label: "Họ và tên", value: staff.fullName },
                       { label: "Tên đăng nhập", value: staff.username },
                       { label: "Email", value: staff.email ?? "—" },
                       { label: "Số điện thoại", value: staff.phone ?? "—" },
                     ].map((item) => (
-                      <div key={item.label} className="bg-surface-container-low rounded-lg p-4">
-                        <p className="text-label-sm text-on-surface-variant">{item.label}</p>
-                        <p className="font-label-md text-on-surface mt-1">{item.value}</p>
+                      <div key={item.label} className="bg-surface rounded-lg p-3">
+                        <p className="text-[11px] text-on-surface-variant">{item.label}</p>
+                        <p className="font-label-md text-on-surface mt-0.5">{item.value}</p>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="font-title-lg text-on-surface mb-4">Thông tin công việc</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <h3 className="font-title-lg text-on-surface mb-3">Thông tin công việc</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
                       { label: "Chuyên khoa", value: staff.specialty?.name ?? "Chưa phân khoa" },
                       { label: "Số ca trực tối đa/tháng", value: `${staff.maxShiftsPerMonth} ca` },
@@ -382,7 +384,7 @@ export default function StaffProfilePage() {
                               </div>
                             </td>
                             <td className="py-3 px-4">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-label-sm font-medium border ${SHIFT_TYPE_COLORS[s.shiftType.id] ?? "bg-surface-container-low border-outline-variant text-on-surface"}`}>
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-label-sm font-medium ${SHIFT_TYPE_BADGE[s.shiftType.id] ?? "bg-surface-container-low border-outline-variant text-on-surface"}`}>
                                 <span className="material-symbols-outlined text-[14px]">{SHIFT_TYPE_ICONS[s.shiftType.id] ?? "event"}</span>
                                 {s.shiftType.name}
                               </span>

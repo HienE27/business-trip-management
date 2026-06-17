@@ -61,12 +61,6 @@ export default function ReportsConflictsPage() {
     return grouped;
   }, [conflictData]);
 
-  const typeColors: Record<string, string> = {
-    "L01 vs L02": "border-l-red-500",
-    "L03 vs L04": "border-l-orange-500",
-    "compensation": "border-l-purple-500",
-  };
-
   return (
     <DashboardShell
       activeSection="reports"
@@ -94,7 +88,7 @@ export default function ReportsConflictsPage() {
             <option value="">Chọn kỳ lịch</option>
             {periods.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.periodName} ({p.status})
+                {p.periodName} ({p.status === "PUBLISHED" ? "Đã công bố" : p.status === "DRAFT" ? "Nháp" : "Đã lưu trữ"})
               </option>
             ))}
           </select>

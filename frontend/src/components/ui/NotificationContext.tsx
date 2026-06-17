@@ -11,6 +11,7 @@ import {
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { formatDate } from "@/lib/date";
 import type { Notification } from "@/types/api";
 
 export type NotificationItem = {
@@ -44,7 +45,7 @@ function formatRelativeTime(dateStr: string) {
     if (diffMins < 60) return `${Math.max(diffMins, 0)} phút trước`;
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours} giờ trước`;
-    return date.toLocaleDateString("vi-VN");
+    return formatDate(dateStr);
   } catch {
     return dateStr;
   }

@@ -69,10 +69,16 @@ function persistAuthUser(user: AuthUser | null) {
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
+function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(() => getStoredToken());
   const router = useRouter();
 
   const refreshUser = useCallback(async () => {
@@ -145,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (token) {
       window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      setToken(token);
     }
     persistAuthUser(fallbackUser);
     setUser(fallbackUser);
@@ -163,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api.logout();
     } finally {
       window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+      setToken(null);
       persistAuthUser(null);
       setUser(null);
       setIsLoading(false);
@@ -172,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      token: null,
+      token,
       user,
       isAuthenticated: Boolean(mounted && user),
       isLoading: !mounted || isLoading,
@@ -180,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       refreshUser,
     }),
-    [isLoading, login, logout, mounted, refreshUser, user],
+    [isLoading, login, logout, mounted, refreshUser, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

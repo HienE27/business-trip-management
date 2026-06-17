@@ -32,8 +32,14 @@ function GlobalSearch() {
     setQuery(q ?? "");
   }, [searchParams]);
 
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   return (
-    <div className="relative w-32 sm:w-40 md:w-64">
+    <div className="relative w-64">
       <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">
         search
       </span>
@@ -59,7 +65,7 @@ export function DashboardHeader(props: {
   const { notifications, markAllRead } = useNotifications();
 
   return (
-    <header className="sticky top-0 z-40 h-16 border-b border-outline-variant bg-surface shadow-sm flex items-center justify-between px-4 md:px-6 shrink-0">
+    <header className="sticky top-0 z-40 h-16 border-b border-outline-variant bg-surface-container-low shadow-sm flex items-center justify-between px-4 md:px-6 shrink-0">
       {/* Left */}
       <div className="flex-1 flex items-center gap-3 min-w-0">
         {props.onMenuToggle && (
@@ -72,7 +78,7 @@ export function DashboardHeader(props: {
           </button>
         )}
         <Suspense fallback={
-          <div className="relative w-32 sm:w-40 md:w-64">
+          <div className="relative w-64">
             <div className="h-10 bg-surface-container-low border border-outline-variant rounded-lg animate-pulse" />
           </div>
         }>

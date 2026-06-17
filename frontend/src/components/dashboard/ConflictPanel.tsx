@@ -11,7 +11,7 @@ export function ConflictPanel({ conflicts, maxItems = 5, className = "", onResol
   const displayConflicts = conflicts.slice(0, maxItems);
 
   return (
-    <section className={`bg-surface-container-lowest border-error-container rounded-xl shadow-[0_1px_3px_0_rgba(0,0,0,0.05)] overflow-hidden ${className}`}>
+    <section className={`bg-surface-container-lowest border-error-container rounded-lg shadow-sm overflow-hidden ${className}`}>
       {/* Header */}
       <div className="p-4 border-b border-error-container bg-error/5 flex items-center gap-2">
           <span aria-hidden="true" className="material-symbols-outlined text-[20px] text-error" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -29,7 +29,7 @@ export function ConflictPanel({ conflicts, maxItems = 5, className = "", onResol
             <span aria-hidden="true" className="material-symbols-outlined text-[40px] text-secondary/30">
               check_circle
             </span>
-            <p className="text-label-md text-label-md text-on-surface-variant">Không có xung đột</p>
+            <p className="text-label-md text-on-surface-variant">Không có xung đột</p>
           </div>
         ) : (
           displayConflicts.map((conflict) => (
@@ -38,14 +38,14 @@ export function ConflictPanel({ conflicts, maxItems = 5, className = "", onResol
               key={conflict.id}
               onClick={() => onResolve?.(conflict)}
             >
-              <p className="text-label-md text-label-md text-on-surface font-medium">
+              <p className="text-label-md text-on-surface font-medium">
                 {conflict.staffName}
               </p>
-              <p className="text-body-sm text-body-sm text-on-surface-variant mt-1 leading-relaxed line-clamp-2">
+              <p className="text-body-sm text-on-surface-variant mt-1 leading-relaxed line-clamp-2">
                 {conflict.detail}
               </p>
               <button
-                className="mt-2 text-error text-label-sm text-label-sm font-medium hover:underline"
+                className="mt-2 text-error text-label-sm font-medium hover:underline"
                 onClick={(e) => { e.stopPropagation(); onResolve?.(conflict); }}
               >
                 Xử lý ngay
@@ -55,7 +55,7 @@ export function ConflictPanel({ conflicts, maxItems = 5, className = "", onResol
         )}
 
         {conflicts.length > maxItems && (
-          <button className="mt-2 text-center text-label-sm text-label-sm text-primary hover:underline font-medium">
+          <button type="button" className="mt-2 text-center text-label-sm text-primary hover:underline font-medium">
             Xem tất cả ({conflicts.length})
           </button>
         )}

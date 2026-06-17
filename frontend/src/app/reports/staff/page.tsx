@@ -24,7 +24,7 @@ export default function ReportsStaffPage() {
         setSelectedPeriodId(published[0].id);
       }
     } catch {
-      // Silently fail
+      setMessage("Không thể tải danh sách kỳ lịch.");
     }
   }, [selectedPeriodId]);
 
@@ -60,7 +60,7 @@ export default function ReportsStaffPage() {
     if (selectedPeriodId) {
       void fetchData();
     }
-  }, [fetchData]);
+  }, [fetchData, selectedPeriodId]);
 
   const enriched = useMemo(() => {
     const workMap = new Map(workloads.map((w) => [w.staffId, w]));
@@ -136,8 +136,7 @@ export default function ReportsStaffPage() {
       </section>
 
       {/* Summary */}
-      <section className="flex items-center justify-between">
-      <section className="grid gap-4 md:grid-cols-4 flex-1">
+      <section className="grid gap-4 md:grid-cols-4 flex-1 items-center">
         {[
           { label: "Tổng phân công", value: summary.total, icon: "event_available", accent: "bg-primary-fixed text-primary" },
           { label: "Trung bình / người", value: summary.avg, icon: "analytics", accent: "bg-secondary-container text-secondary" },
@@ -152,18 +151,17 @@ export default function ReportsStaffPage() {
             <p className="mt-3 text-display-lg font-bold text-on-surface">{loading ? "—" : kpi.value}</p>
           </article>
         ))}
-      </section>
-      {selectedPeriodId && (
-        <a
-          href={`/api/v1/dashboard/export/workload/${selectedPeriodId}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="ml-4 inline-flex items-center gap-1.5 rounded-lg border border-primary px-3 py-1.5 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors shrink-0"
-        >
-          <span className="material-symbols-outlined text-[16px]">table_view</span>
-          Xuất Excel
-        </a>
-      )}
+        {selectedPeriodId && (
+          <a
+            href={`/api/v1/dashboard/export/workload/${selectedPeriodId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-5 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[16px]">table_view</span>
+            Xuất Excel
+          </a>
+        )}
       </section>
 
       {/* Search */}

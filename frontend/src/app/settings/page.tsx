@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/useToast";
 
 type ThemeMode = "light" | "dark" | "system";
 type DensityMode = "compact" | "comfortable" | "spacious";
 
 export default function SettingsPage() {
+  const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; });
   // Email section
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [conflictEmailEnabled, setConflictEmailEnabled] = useState(false);
@@ -41,7 +45,7 @@ export default function SettingsPage() {
       setEmailEnabled(data.emailEnabled);
       setConflictEmailEnabled(data.conflictEmailEnabled);
     } catch {
-      // Config not available - show defaults
+      toastRef.current.error("Không thể tải cấu hình email. Hiển thị giá trị mặc định.");
     } finally {
       setLoadingEmail(false);
     }
@@ -107,7 +111,7 @@ export default function SettingsPage() {
   const handleSaveDensity = async (d: DensityMode) => {
     setDensity(d);
     localStorage.setItem("medschedule.density", d);
-    document.documentElement.dataset.density = d;
+    document.documentElement.setAttribute("data-density", d);
     setSavingPrefs(true);
     setTimeout(() => setSavingPrefs(false), 500);
   };
@@ -150,17 +154,17 @@ export default function SettingsPage() {
       title="Cài đặt"
       description="Quản lý cấu hình hệ thống và tùy chọn thông báo."
     >
-      <div className="flex flex-col gap-6 pb-8">
+      <div className="flex flex-col gap-4 pb-6">
 
         {/* ── Email Notification Settings ──────────────────────────────── */}
-        <section className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-fixed/40 text-primary">
-              <span className="material-symbols-outlined text-[20px]">mail</span>
+        <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed/40 text-primary">
+              <span className="material-symbols-outlined text-[18px]">mail</span>
             </div>
             <div>
-              <h2 className="text-title-lg font-semibold text-on-surface">Thông báo Email</h2>
-              <p className="text-label-sm text-on-surface-variant">Bật/tắt các thông báo qua email của hệ thống.</p>
+              <h2 className="text-title-lg font-semibold text-on-surface leading-tight">Thông báo Email</h2>
+              <p className="text-[11px] text-on-surface-variant">Bật/tắt thông báo qua email.</p>
             </div>
           </div>
 
@@ -234,25 +238,25 @@ export default function SettingsPage() {
         </section>
 
         {/* ── UI Preferences ───────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-fixed/40 text-primary">
-              <span className="material-symbols-outlined text-[20px]">palette</span>
+        <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed/40 text-primary">
+              <span className="material-symbols-outlined text-[18px]">palette</span>
             </div>
             <div>
-              <h2 className="text-title-lg font-semibold text-on-surface">Tùy chọn giao diện</h2>
-              <p className="text-label-sm text-on-surface-variant">Cá nhân hóa giao diện hiển thị của ứng dụng.</p>
+              <h2 className="text-title-lg font-semibold text-on-surface leading-tight">Tùy chọn giao diện</h2>
+              <p className="text-[11px] text-on-surface-variant">Cá nhân hóa hiển thị.</p>
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Theme */}
-            <div className="flex items-center justify-between rounded-xl border border-outline-variant bg-surface p-4">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-on-surface-variant text-[20px]">contrast</span>
+            <div className="flex items-center justify-between rounded-lg border border-outline-variant bg-surface p-3">
+              <div className="flex items-center gap-2.5">
+                <span className="material-symbols-outlined text-on-surface-variant text-[18px]">contrast</span>
                 <div>
-                  <p className="text-label-md font-medium text-on-surface">Chế độ giao diện</p>
-                  <p className="text-label-sm text-on-surface-variant">Chọn giao diện sáng, tối hoặc theo hệ thống.</p>
+                  <p className="text-[13px] font-medium text-on-surface">Chế độ giao diện</p>
+                  <p className="text-[11px] text-on-surface-variant">Sáng, tối hoặc theo hệ thống.</p>
                 </div>
               </div>
               <div className="flex gap-1 bg-surface-container-low rounded-lg p-0.5">
@@ -261,13 +265,13 @@ export default function SettingsPage() {
                     key={t}
                     type="button"
                     onClick={() => void handleSaveTheme(t)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-sm font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                       theme === t
                         ? "bg-surface-container-lowest text-on-surface shadow-sm"
                         : "text-on-surface-variant hover:text-on-surface"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[16px]">
+                    <span className="material-symbols-outlined text-[14px]">
                       {t === "light" ? "light_mode" : t === "dark" ? "dark_mode" : "brightness_auto"}
                     </span>
                     {t === "light" ? "Sáng" : t === "dark" ? "Tối" : "Hệ thống"}
@@ -277,12 +281,12 @@ export default function SettingsPage() {
             </div>
 
             {/* Density */}
-            <div className="flex items-center justify-between rounded-xl border border-outline-variant bg-surface p-4">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-on-surface-variant text-[20px]">view_compact</span>
+            <div className="flex items-center justify-between rounded-lg border border-outline-variant bg-surface p-3">
+              <div className="flex items-center gap-2.5">
+                <span className="material-symbols-outlined text-on-surface-variant text-[18px]">view_compact</span>
                 <div>
-                  <p className="text-label-md font-medium text-on-surface">Mật độ hiển thị</p>
-                  <p className="text-label-sm text-on-surface-variant">Điều chỉnh khoảng cách và kích thước phần tử trên giao diện.</p>
+                  <p className="text-[13px] font-medium text-on-surface">Mật độ hiển thị</p>
+                  <p className="text-[11px] text-on-surface-variant">Điều chỉnh khoảng cách phần tử.</p>
                 </div>
               </div>
               <div className="flex gap-1 bg-surface-container-low rounded-lg p-0.5">
@@ -291,7 +295,7 @@ export default function SettingsPage() {
                     key={d}
                     type="button"
                     onClick={() => void handleSaveDensity(d)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-sm font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                       density === d
                         ? "bg-surface-container-lowest text-on-surface shadow-sm"
                         : "text-on-surface-variant hover:text-on-surface"
@@ -304,7 +308,7 @@ export default function SettingsPage() {
             </div>
 
             {savingPrefs && (
-              <div className="rounded-lg px-4 py-3 text-label-sm bg-secondary-container text-on-secondary-container">
+              <div className="rounded-lg px-3 py-2 text-[12px] bg-secondary-container text-on-secondary-container">
                 Đã lưu tùy chọn hiển thị.
               </div>
             )}
@@ -312,26 +316,26 @@ export default function SettingsPage() {
         </section>
 
         {/* ── Account Settings ──────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-fixed/40 text-primary">
-              <span className="material-symbols-outlined text-[20px]">manage_accounts</span>
+        <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed/40 text-primary">
+              <span className="material-symbols-outlined text-[18px]">manage_accounts</span>
             </div>
             <div>
-              <h2 className="text-title-lg font-semibold text-on-surface">Thiết lập tài khoản</h2>
-              <p className="text-label-sm text-on-surface-variant">Quản lý thông tin và bảo mật tài khoản cá nhân.</p>
+              <h2 className="text-title-lg font-semibold text-on-surface leading-tight">Thiết lập tài khoản</h2>
+              <p className="text-[11px] text-on-surface-variant">Quản lý thông tin và bảo mật.</p>
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Profile info */}
             {loadingAccount ? (
-              <div className="space-y-3">
-                <div className="h-16 rounded-lg bg-surface-container-low animate-pulse" />
-                <div className="h-16 rounded-lg bg-surface-container-low animate-pulse" />
+              <div className="space-y-2">
+                <div className="h-14 rounded-lg bg-surface-container-low animate-pulse" />
+                <div className="h-14 rounded-lg bg-surface-container-low animate-pulse" />
               </div>
             ) : currentStaff ? (
-              <div className="rounded-xl border border-outline-variant bg-surface p-4 space-y-3">
+              <div className="rounded-lg border border-outline-variant bg-surface p-3 space-y-2">
                 <div className="flex justify-between">
                   <span className="text-label-sm text-on-surface-variant">Họ tên</span>
                   <span className="text-label-md text-on-surface font-medium">{currentStaff.fullName}</span>

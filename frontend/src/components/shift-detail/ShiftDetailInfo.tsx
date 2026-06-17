@@ -6,8 +6,8 @@ type ShiftDetailInfoProps = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  approved: "bg-surface-container-high text-on-surface border border-outline-variant",
-  pending: "bg-tertiary-container text-on-tertiary-container border border-tertiary/20",
+  approved: "bg-secondary-container text-secondary border border-secondary/20",
+  pending: "bg-tertiary-fixed text-on-tertiary border border-tertiary/20",
   draft: "bg-surface-container-low text-on-surface-variant border border-outline-variant",
 };
 
@@ -29,7 +29,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
             <span className="material-symbols-outlined text-[20px] text-primary">calendar_month</span>
             <div>
               <p>{shift.periodName ?? "—"}</p>
-              <p className="text-[12px] font-normal text-on-surface-variant">{shift.periodRange ?? "—"}</p>
+              <p className="text-label-md font-normal text-on-surface-variant">{shift.periodRange ?? "—"}</p>
             </div>
           </div>
         </div>

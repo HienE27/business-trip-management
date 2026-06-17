@@ -29,7 +29,7 @@ export function ConflictInspector({
   const canResolve = canManage(role) && !!onResolve;
   return (
     <>
-      <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-[0_1px_3px_0_rgba(0,0,0,0.05)]">
+      <section className="overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm">
         <div className="border-b border-outline-variant bg-error/5 px-4 py-4">
           <h3 className="flex items-center gap-2 text-title-lg font-semibold text-on-surface">
             <span className="material-symbols-outlined text-error">warning</span>
@@ -56,10 +56,10 @@ export function ConflictInspector({
                   <span className="material-symbols-outlined mt-0.5 text-[18px] text-error">warning</span>
                   <div className="min-w-0 flex-1">
                     <p className="text-label-md font-semibold text-on-surface">{conflict.staffName}</p>
-                    <p className="mt-0.5 text-[12px] text-on-surface-variant">
+                    <p className="mt-0.5 text-label-sm text-on-surface-variant">
                       {new Date(conflict.workDate).toLocaleDateString("vi-VN")} · {conflict.shiftTypeName}
                     </p>
-                    <p className="mt-1 line-clamp-2 text-[12px] text-error">{conflict.conflictReasons.join(" • ")}</p>
+                    <p className="mt-1 line-clamp-2 text-label-sm text-error">{conflict.conflictReasons.join(" • ")}</p>
                   </div>
                 </div>
               </button>
@@ -81,7 +81,7 @@ export function ConflictInspector({
       >
         {selectedConflict ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+            <div className="rounded-lg border border-error bg-error-container p-4">
               <p className="text-label-md font-semibold text-error">Lý do xung đột</p>
               <ul className="mt-2 space-y-2 text-label-sm text-on-surface-variant">
                 {selectedConflict.conflictReasons.map((reason) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WorkflowShell } from "@/components/layout/WorkflowShell";
 import { SkeletonCalendar, SkeletonKPI, SkeletonTable } from "@/components/ui/Skeleton";
 import { ConflictResolutionModal } from "@/components/ui/ConflictResolutionModal";
@@ -29,6 +29,7 @@ import { downloadBlob, getInitialCalendar } from "@/components/monthly-schedule/
 export default function MonthlySchedulePage() {
   const role = useRole();
   const [wsState, wsActions] = useScheduleWorkspace();
+  const scrollYRef = useRef(0);
   const {
     selectedTab,
     selectedPanel,
@@ -36,10 +37,26 @@ export default function MonthlySchedulePage() {
     parsedScheduleId,
     parsedStaffId,
     parsedSpecialtyId,
+    periodId: periodIdFromUrl,
     setQueryState,
     openScheduleDetail,
     closeScheduleDetail,
   } = useMonthlyScheduleUrlState();
+
+  useEffect(() => {
+    const saved = scrollYRef.current;
+    if (saved > 0) {
+      scrollYRef.current = 0;
+      requestAnimationFrame(() => window.scrollTo(0, saved));
+    }
+  }, [selectedTab]);
+
+  // Sync workspace khi URL periodId thay đổi
+  useEffect(() => {
+    if (periodIdFromUrl && periodIdFromUrl !== wsState.selectedPeriodId) {
+      wsActions.setSelectedPeriodId(periodIdFromUrl);
+    }
+  }, [periodIdFromUrl, wsState.selectedPeriodId, wsActions]);
 
   const {
     periods,
@@ -99,17 +116,13 @@ export default function MonthlySchedulePage() {
     focusDate,
   });
 
-  const clearTransientMessages = useCallback(() => {
-    setLocalMessage(null);
-    wsActions.clearMessage();
-  }, [wsActions]);
-
   const handlePeriodChange = useCallback((periodId: number) => {
     wsActions.setSelectedPeriodId(periodId);
     setNotified(false);
     setFocusDate(null);
     setSelectedConflict(null);
-  }, [wsActions]);
+    setQueryState({ periodId });
+  }, [wsActions, setQueryState]);
 
   const handleRefresh = useCallback(() => {
     setLocalMessage(null);
@@ -139,6 +152,7 @@ export default function MonthlySchedulePage() {
 
   const handleSendNotifications = useCallback(async () => {
     if (!selectedPeriodId) return;
+    if (!canManage(role)) return;
     setNotifying(true);
     setLocalMessage(null);
     try {
@@ -207,36 +221,43 @@ export default function MonthlySchedulePage() {
       title="Lập lịch tháng"
       description="Điều phối kỳ lịch theo workflow: auto schedule, conflict check, review, publish và notify."
     >
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <ScheduleHeader
-          periods={periods}
-          selectedPeriodId={selectedPeriodId}
-          selectedPeriod={selectedPeriod}
-          refreshing={refreshing}
-          exporting={exporting}
-          checkingConflicts={checkingConflicts}
-          publishing={publishing}
-          canPublish={canManage(role)}
-          onPeriodChange={handlePeriodChange}
-          onRefresh={handleRefresh}
-          onExport={handleExport}
-          onCheckConflicts={handleCheckConflicts}
-          onPublish={handlePublish}
-          onShowSummary={() => showPanel("summary")}
-        />
+      {/* Row 1: ScheduleHeader + WorkflowStepper */}
+      <div className="flex flex-col xl:flex-row gap-3">
+        {/* Left: ScheduleHeader — full width on mobile, flex-1 on xl */}
+        <div className="flex-1 min-w-0">
+          <ScheduleHeader
+            periods={periods}
+            selectedPeriodId={selectedPeriodId}
+            selectedPeriod={selectedPeriod}
+            refreshing={refreshing}
+            exporting={exporting}
+            checkingConflicts={checkingConflicts}
+            publishing={publishing}
+            canPublish={canManage(role)}
+            onPeriodChange={handlePeriodChange}
+            onRefresh={handleRefresh}
+            onExport={handleExport}
+            onCheckConflicts={handleCheckConflicts}
+            onPublish={handlePublish}
+            onShowSummary={() => showPanel("summary")}
+          />
+        </div>
 
-        <WorkflowStepper
-          selectedPanel={selectedPanel}
-          selectedPeriod={selectedPeriod}
-          schedules={schedules}
-          conflictData={conflictData}
-          checkingConflicts={checkingConflicts}
-          publishing={publishing}
-          notifying={notifying}
-          notified={notified}
-          onStepSelect={handleWorkflowStep}
-        />
-      </section>
+        {/* Right: WorkflowStepper — narrow strip on xl */}
+        <div className="w-full xl:w-72 shrink-0">
+          <WorkflowStepper
+            selectedPanel={selectedPanel}
+            selectedPeriod={selectedPeriod}
+            schedules={schedules}
+            conflictData={conflictData}
+            checkingConflicts={checkingConflicts}
+            publishing={publishing}
+            notifying={notifying}
+            notified={notified}
+            onStepSelect={handleWorkflowStep}
+          />
+        </div>
+      </div>
 
       {displayMessage && (
         <div className="rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 text-body-sm text-on-surface shadow-sm" role="status" aria-live="polite">
@@ -246,14 +267,17 @@ export default function MonthlySchedulePage() {
 
       <KPISection kpis={kpis} />
 
+      {/* Row 2: Calendar + Right Sidebar */}
       <ScheduleTabs
         selectedTab={selectedTab}
-        viewMode={viewMode}
-        onTabChange={(tab) => setQueryState({ tab })}
-        onViewChange={(view) => setQueryState({ view })}
+        onTabChange={(tab) => {
+          scrollYRef.current = window.scrollY;
+          setQueryState({ tab });
+        }}
       >
-        <div className="grid gap-4 p-5 md:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3">
+          {/* Left: Calendar */}
+          <div className="overflow-hidden rounded-xl">
             <ScheduleCalendarSection
               schedules={filteredSchedules}
               calendarAnnotations={calendarAnnotations}
@@ -266,6 +290,7 @@ export default function MonthlySchedulePage() {
               initialYear={initialCalendar.year}
               initialMonth={initialCalendar.month}
               viewMode={viewMode}
+              compensationDays={compensationDays}
               onRefresh={handleRefresh}
               onFocusDate={setFocusDate}
               onAddDate={setAddModalDate}
@@ -276,7 +301,8 @@ export default function MonthlySchedulePage() {
             />
           </div>
 
-          <div className="space-y-4">
+          {/* Right: Stacked info panels */}
+          <div className="flex flex-col gap-3">
             <ConflictSection
               conflicts={conflictList}
               selectedConflict={selectedConflict}
@@ -304,6 +330,7 @@ export default function MonthlySchedulePage() {
         periodId={selectedPeriodId}
         defaultShiftTypeId={selectedTab}
         staffList={activeStaff}
+        compensationDays={compensationDays}
         onSuccess={() => {
           setAddModalDate(null);
           setNotified(false);
@@ -316,12 +343,17 @@ export default function MonthlySchedulePage() {
         scheduleId={detailScheduleId}
         schedule={detailSchedule}
         loading={detailLoading}
+        canEdit={canManage(role)}
         onClose={closeDetail}
+        onSave={() => { void wsActions.refreshWorkspace(); closeDetail(); }}
       />
 
       <ConflictResolutionModal
         open={resolvingConflict !== null}
-        onClose={() => setResolvingConflict(null)}
+        onClose={() => {
+          setResolvingConflict(null);
+          setSelectedConflict(null);
+        }}
         conflict={resolvingConflict}
         onRefresh={handleConflictRefresh}
       />

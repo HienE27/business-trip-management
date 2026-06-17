@@ -1,25 +1,25 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import type { Schedule } from "@/types/api";
 import type { ScheduleTone } from "@/types/schedule";
 
-// ─── Color tokens ────────────────────────────────────────────────────────────
+// ─── Color tokens — Material-like design system ─────────────────────────────────
 const TONE: Record<ScheduleTone, {
   bg: string;
   text: string;
   border: string;
   dot: string;
 }> = {
-  duty24:       { bg: "bg-red-50",         text: "text-red-700",       border: "border-l-red-500",       dot: "bg-red-500"       },
-  allDay:       { bg: "bg-emerald-50",     text: "text-emerald-700",    border: "border-l-emerald-500",    dot: "bg-emerald-500"    },
-  serviceClinic:{ bg: "bg-amber-50",       text: "text-amber-700",      border: "border-l-amber-500",      dot: "bg-amber-500"      },
-  expertClinic: { bg: "bg-violet-50",     text: "text-violet-700",     border: "border-l-violet-500",     dot: "bg-violet-500"    },
-  compLeave:    { bg: "bg-slate-100",     text: "text-slate-600",      border: "border-l-slate-400",      dot: "bg-slate-400"     },
-  warning:      { bg: "bg-orange-50",      text: "text-orange-700",     border: "border-l-orange-500",     dot: "bg-orange-500"    },
-  conflict:     { bg: "bg-red-50",        text: "text-red-700",       border: "border-l-red-500",        dot: "bg-red-500"       },
-  neutral:      { bg: "bg-gray-50",       text: "text-gray-600",      border: "border-l-gray-400",       dot: "bg-gray-400"      },
-  empty:        { bg: "",                  text: "",                   border: "",                         dot: ""                 },
+  duty24:       { bg: "bg-shift-24",       text: "text-on-shift-24",       border: "border-l-primary",       dot: "bg-primary" },
+  allDay:       { bg: "bg-shift-all-day", text: "text-on-shift-all-day", border: "border-l-secondary",    dot: "bg-secondary" },
+  serviceClinic:{ bg: "bg-shift-service", text: "text-on-shift-service", border: "border-l-tertiary",    dot: "bg-tertiary" },
+  expertClinic: { bg: "bg-shift-expert", text: "text-on-shift-expert", border: "border-l-shift-expert", dot: "bg-shift-expert" },
+  compLeave:    { bg: "bg-surface-container-high", text: "text-on-surface-variant", border: "border-l-outline", dot: "bg-outline" },
+  warning:      { bg: "bg-tertiary-fixed", text: "text-on-tertiary-fixed", border: "border-l-tertiary", dot: "bg-tertiary" },
+  conflict:     { bg: "bg-error-container", text: "text-on-error-container", border: "border-l-error", dot: "bg-error" },
+  neutral:      { bg: "bg-surface-container-low", text: "text-on-surface-variant", border: "border-l-outline", dot: "bg-outline" },
+  empty:        { bg: "", text: "", border: "", dot: "" },
 };
 
 const SHIFT_SHORT: Record<string, string> = {
@@ -53,6 +53,7 @@ type CalendarItem = {
   staffCode: string;    // "NV1"
   tone: ScheduleTone;
   shiftTypeId: string;
+  isOvernight: boolean;  // true for L01
   schedule: Schedule;
 };
 
@@ -99,6 +100,8 @@ type DashboardCalendarProps = {
   onAddClick?: (date: Date) => void;
   onStaffFilterChange?: (staffId: number | null) => void;
   onSpecialtyFilterChange?: (specialtyId: number | null) => void;
+  /** Khi true: ẩn toolbar filter (dashboard read-only). */
+  hideFilters?: boolean;
 };
 
 export type CalendarViewMode = "month" | "week";
@@ -209,6 +212,7 @@ function buildCalendar(schedules: Schedule[], annotations: CalendarAnnotation[] 
       staffCode:   getStaffCode(s.staff.fullName),
       tone:        shiftTypeToTone(s.shiftType.id),
       shiftTypeId: s.shiftType.id,
+      isOvernight: s.shiftType.id === "L01",
       schedule:    s,
     }));
     cells.push({
@@ -293,7 +297,7 @@ function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, canEdit
         </div>
         <div>
           <p className={`text-label-lg font-semibold ${t.text}`}>{s.shiftType.name}</p>
-          <p className="text-[11px] text-on-surface-variant">{data.item.shiftLabel}</p>
+          <p className="text-label-sm text-on-surface-variant">{data.item.shiftLabel}</p>
         </div>
         {s.hasConflict && (
           <span className="ml-auto material-symbols-outlined text-error text-[18px]" title="Xung đột">warning</span>
@@ -412,11 +416,11 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, onViewDet
           return (
             <div key={`${item.schedule.id}-${i}`} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border-l-2 ${t.bg} ${t.border}`}>
               <div className={`w-6 h-6 rounded-full ${t.bg} flex items-center justify-center shrink-0`}>
-                <span className={`text-[10px] font-bold ${t.text}`}>{item.staffCode}</span>
+                <span className={`text-label-sm font-bold ${t.text}`}>{item.staffCode}</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className={`text-label-sm font-medium ${t.text} truncate`}>{item.staffName}</p>
-                <p className="text-[11px] text-on-surface-variant">{item.shiftLabel}</p>
+                <p className="text-label-sm text-on-surface-variant">{item.shiftLabel}</p>
               </div>
               {s.hasConflict && (
                 <span key={`conflict-${s.id}`} className="material-symbols-outlined text-error text-[14px] shrink-0" title="Xung đột">warning</span>
@@ -431,7 +435,7 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, onViewDet
                   <span className="material-symbols-outlined text-[14px] text-on-surface-variant">visibility</span>
                 </button>
                 {canEdit && (
-                  <React.Fragment key={s.id}>
+                  <>
                     <button
                       type="button"
                       onClick={() => handleEdit(s)}
@@ -458,7 +462,7 @@ function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, onViewDet
                     >
                       <span className="material-symbols-outlined text-[14px] text-error">delete</span>
                     </button>
-                  </React.Fragment>
+                  </>
                 )}
               </div>
             </div>
@@ -488,6 +492,7 @@ export function DashboardCalendar({
   onAddClick,
   onStaffFilterChange,
   onSpecialtyFilterChange,
+  hideFilters = false,
 }: DashboardCalendarProps) {
   const [filterType, setFilterType] = useState<string>("all");
   const [internalStaffFilter, setInternalStaffFilter] = useState<number | null>(null);
@@ -580,10 +585,11 @@ export function DashboardCalendar({
         dayLabel: WEEKDAYS[i],
         items: daySchedules.map((s) => ({
           shiftLabel: SHIFT_SHORT[s.shiftType.id] ?? s.shiftType.id,
-          staffName: s.staff.fullName,
-          staffCode: getStaffCode(s.staff.fullName),
+          staffName: s.staff.fullName ?? "—",
+          staffCode: getStaffCode(s.staff.fullName ?? ""),
           tone: shiftTypeToTone(s.shiftType.id),
           shiftTypeId: s.shiftType.id,
+          isOvernight: s.shiftType.id === "L01",
           schedule: s,
         })),
         annotations: annotations.filter((a) => a.date === dateStr),
@@ -592,6 +598,11 @@ export function DashboardCalendar({
       };
     });
   }, [currentWeekStart, filteredSchedules, annotations]);
+
+  const monthLabel = useMemo(() => {
+    const months = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
+    return `${months[currentMonth]} năm ${currentYear}`;
+  }, [currentMonth, currentYear]);
 
   const weekLabel = useMemo(() => {
     const start = new Date(currentWeekStart);
@@ -615,79 +626,59 @@ export function DashboardCalendar({
   return (
     <section className="flex flex-col h-full" ref={calendarRef}>
       {/* ── Toolbar ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-outline-variant bg-surface-container-low shrink-0 flex-wrap">
+        {/* Left: sidebar toggle + label + nav */}
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setSidebarOpen((v) => !v)}
-            className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hidden xl:flex"
+            className="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label={sidebarOpen ? "Ẩn sidebar" : "Hiện sidebar"}
           >
             <span className="material-symbols-outlined text-[20px]">{sidebarOpen ? "visibility_off" : "visibility"}</span>
           </button>
-          <h3 className="text-title-lg text-on-surface font-semibold">
-            {viewMode === "week" ? weekLabel : month}
+
+          <h3
+            className="text-title-lg text-on-surface font-semibold min-w-[180px]"
+            aria-live="polite"
+          >
+            {viewMode === "week" ? weekLabel : monthLabel}
           </h3>
-          <div className="flex gap-0.5">
-            <button type="button" onClick={() => navigateMonth(-1)} className="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label={viewMode === "week" ? "Tuần trước" : "Tháng trước"}>
+
+          <div className="flex items-center bg-surface-container-low rounded-lg p-0.5 gap-0.5">
+            <button
+              type="button"
+              onClick={() => navigateMonth(-1)}
+              className="p-2 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              aria-label={viewMode === "week" ? "Tuần trước" : "Tháng trước"}
+            >
               <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
-            <button type="button" onClick={() => { const now = new Date(); setCurrentYear(now.getFullYear()); setCurrentMonth(now.getMonth()); }} className="px-2.5 py-1 rounded-md hover:bg-surface-container-high text-on-surface text-label-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset">
-              Hom nay
+            <button
+              type="button"
+              onClick={() => { const now = new Date(); setCurrentYear(now.getFullYear()); setCurrentMonth(now.getMonth()); }}
+              className="px-3 py-2 rounded-md hover:bg-surface-container-high text-on-surface text-label-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset whitespace-nowrap"
+              aria-label=" Quay về hôm nay"
+            >
+              Hôm nay
             </button>
-            <button type="button" onClick={() => navigateMonth(1)} className="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label={viewMode === "week" ? "Tuần sau" : "Tháng sau"}>
+            <button
+              type="button"
+              onClick={() => navigateMonth(1)}
+              className="p-2 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              aria-label={viewMode === "week" ? "Tuần sau" : "Tháng sau"}
+            >
               <span className="material-symbols-outlined text-[18px]">chevron_right</span>
             </button>
           </div>
         </div>
 
-        {/* Staff filter */}
-        {staffList.length > 0 && (
-          <div className="relative">
-            <select
-              className="h-8 pl-3 pr-8 bg-surface-container-low border border-transparent rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all max-w-[180px]"
-              value={staffFilter ?? ""}
-              onChange={(e) => {
-                const val = e.target.value ? Number(e.target.value) : null;
-                if (externalStaffFilter === undefined) setInternalStaffFilter(val);
-                onStaffFilterChange?.(val);
-              }}
-            >
-              <option value="">Tất cả nhân sự</option>
-              {staffList.map((s) => (
-                <option key={s.id} value={s.id}>{s.fullName}</option>
-              ))}
-            </select>
-            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px]">expand_more</span>
-          </div>
-        )}
-
-        {/* Specialty filter */}
-        {specialtyList.length > 0 && (
-          <div className="relative">
-            <select
-              className="h-8 pl-3 pr-8 bg-surface-container-low border border-transparent rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all max-w-[160px]"
-              value={specialtyFilter ?? ""}
-              onChange={(e) => {
-                const val = e.target.value ? Number(e.target.value) : null;
-                if (externalSpecialtyFilter === undefined) setInternalSpecialtyFilter(val);
-                onSpecialtyFilterChange?.(val);
-              }}
-            >
-              <option value="">Tất cả chuyên khoa</option>
-              {specialtyList.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px]">expand_more</span>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          {/* View mode toggle */}
-          <div className="flex gap-1 bg-surface-container-low rounded-lg p-0.5">
+        {/* Right: filters + view toggle */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* View mode */}
+          <div className="flex items-center gap-1 bg-surface-container-low rounded-lg p-0.5">
             {([
-              { value: "month" as CalendarViewMode, label: "Tháng", icon: "calendar_view_month" },
+              { value: "month" as CalendarViewMode, label: "Tháng", icon: "calendar_month" },
               { value: "week" as CalendarViewMode, label: "Tuần", icon: "view_week" },
             ]).map((v) => (
               <button
@@ -695,9 +686,9 @@ export function DashboardCalendar({
                 type="button"
                 onClick={() => setViewMode(v.value)}
                 aria-pressed={viewMode === v.value}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-label-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-label-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary whitespace-nowrap ${
                   viewMode === v.value
-                    ? "bg-surface-container-lowest text-on-surface shadow-sm"
+                    ? "bg-surface-container-lowest text-primary shadow-sm"
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
@@ -708,13 +699,13 @@ export function DashboardCalendar({
           </div>
 
           {/* Filter chips */}
-          <div className="flex gap-1 bg-surface-container-low rounded-lg p-0.5">
+          <div className="flex items-center gap-1 bg-surface-container-low rounded-lg p-0.5">
             {[
               { value: "all", label: "Tất cả" },
-              { value: "L01", label: "24/24", color: "bg-blue-500" },
-              { value: "L02", label: "TT", color: "bg-emerald-500" },
-              { value: "L03", label: "DV", color: "bg-amber-500" },
-              { value: "L04", label: "CG", color: "bg-violet-500" },
+              { value: "L01", label: "24/24", color: "bg-primary" },
+              { value: "L02", label: "TT", color: "bg-secondary" },
+              { value: "L03", label: "DV", color: "bg-tertiary" },
+              { value: "L04", label: "CG", color: "bg-expert" },
             ].map((f) => (
               <button
                 key={f.value}
@@ -722,19 +713,63 @@ export function DashboardCalendar({
                 onClick={() => setFilterType(f.value)}
                 aria-pressed={filterType === f.value}
                 aria-label={`Lọc theo loại lịch ${f.label}`}
-                className={`px-2.5 py-1 rounded-md text-label-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md text-label-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary whitespace-nowrap ${
                   filterType === f.value
                     ? "bg-surface-container-lowest text-on-surface shadow-sm"
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
                 {f.color && (
-                  <span className={`inline-block w-2 h-2 rounded-full ${f.color} mr-1.5`} aria-hidden="true" />
+                  <span className={`inline-block w-2 h-2 rounded-full ${f.color}`} aria-hidden="true" />
                 )}
                 {f.label}
               </button>
             ))}
           </div>
+
+          {/* Staff filter */}
+          {!hideFilters && staffList.length > 0 && (
+            <div className="relative">
+              <select
+                className="h-10 pl-3 pr-8 bg-surface-container-low border border-outline-variant rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all max-w-[180px]"
+                value={staffFilter ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : null;
+                  if (externalStaffFilter === undefined) setInternalStaffFilter(val);
+                  onStaffFilterChange?.(val);
+                }}
+                aria-label="Lọc theo nhân sự"
+              >
+                <option value="">Tất cả nhân sự</option>
+                {staffList.map((s) => (
+                  <option key={s.id} value={s.id}>{s.fullName}</option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px]" aria-hidden="true">expand_more</span>
+            </div>
+          )}
+
+          {/* Specialty filter */}
+          {!hideFilters && specialtyList.length > 0 && (
+            <div className="relative">
+              <select
+                className="h-10 pl-3 pr-8 bg-surface-container-low border border-outline-variant rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all max-w-[160px]"
+                value={specialtyFilter ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : null;
+                  if (externalSpecialtyFilter === undefined) setInternalSpecialtyFilter(val);
+                  onSpecialtyFilterChange?.(val);
+                }}
+                aria-label="Lọc theo chuyên khoa"
+              >
+                <option value="">Tất cả chuyên khoa</option>
+                {specialtyList.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px]" aria-hidden="true">expand_more</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -748,7 +783,7 @@ export function DashboardCalendar({
                 <div
                   key={cell.dayLabel}
                   className={`py-2 text-center text-label-sm font-semibold border-b border-r border-outline-variant bg-surface-container-low ${
-                    i >= 5 ? "text-red-500" : "text-on-surface-variant"
+                    i >= 5 ? "text-error" : "text-on-surface-variant"
                   }`}
                 >
                   <div>{cell.dayLabel}</div>
@@ -775,20 +810,20 @@ export function DashboardCalendar({
                       border-r border-b border-outline-variant flex flex-col
                       min-h-[200px] cursor-pointer group relative
                       transition-colors hover:bg-surface-container-low
-                      ${cell.date.toDateString() === today.toDateString() ? "bg-primary-fixed/10" : ""}
-                      ${cell.hasConflict ? "ring-2 ring-inset ring-red-300" : ""}
+                      ${cell.date.toDateString() === today.toDateString() ? "bg-primary/5" : ""}
+                      ${cell.hasConflict ? "ring-2 ring-inset ring-error" : ""}
                     `}
                   >
                     {/* Conflict indicator */}
                     {cell.hasConflict && (
-                      <div className="absolute top-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-100 text-error text-[10px] font-bold z-10">
-                        <span className="material-symbols-outlined text-[10px]">warning</span>
+                      <div className="absolute top-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-error-container text-error text-label-sm font-bold z-10">
+                        <span className="material-symbols-outlined text-label-sm">warning</span>
                       </div>
                     )}
                     {/* Compensation indicator */}
                     {cell.isCompensation && (
-                      <div className="absolute top-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-surface-container-high text-outline text-[10px] font-bold z-10">
-                        <span className="material-symbols-outlined text-[10px]">lock</span>
+                      <div className="absolute top-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-surface-container-high text-outline text-label-sm font-bold z-10">
+                        <span className="material-symbols-outlined text-label-sm">lock</span>
                       </div>
                     )}
 
@@ -803,30 +838,40 @@ export function DashboardCalendar({
                             className={`flex items-center gap-1 px-1.5 py-0.5 rounded border-l-2 min-h-[22px] max-h-[22px] overflow-hidden ${annTone.bg} ${annTone.border}`}
                           >
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${annTone.dot}`} />
-                            <span className={`text-[11px] font-semibold leading-none truncate ${annTone.text}`}>{ann.label}</span>
+                            <span className={`text-label-sm font-semibold leading-none truncate ${annTone.text}`}>{ann.label}</span>
                           </div>
                         );
                       })}
                       {cell.items.map((item, i) => {
                         const st = t[item.tone] ?? t.neutral;
+                        const workDate = new Date(item.schedule.workDate);
+                        const nextDate = new Date(workDate);
+                        nextDate.setDate(nextDate.getDate() + 1);
+                        const dateFmt = (d: Date) =>
+                          `${d.getDate()}/${d.getMonth() + 1}`;
                         return (
                           <div
                             key={`week-item-${item.schedule.id}-${i}`}
                             onMouseEnter={(e) => handleMouseEnter(e, item)}
                             onMouseLeave={handleMouseLeave}
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border-l-2 min-h-[22px] max-h-[22px] overflow-hidden cursor-pointer transition-colors hover:brightness-95 ${st.bg} ${st.border}`}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border-l-2 min-h-[22px] max-h-[28px] overflow-hidden cursor-pointer transition-colors hover:brightness-95 ${st.bg} ${st.border}`}
                           >
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot}`} />
-                            <span className={`text-[11px] font-semibold leading-none truncate ${st.text}`}>{item.shiftLabel}</span>
-                            <span className="text-[11px] leading-none text-on-surface-variant shrink-0">·</span>
-                            <span className="text-[11px] leading-none text-on-surface font-medium truncate">{item.staffCode}</span>
+                            <span className={`text-label-sm font-semibold leading-none truncate ${st.text}`}>{item.shiftLabel}</span>
+                            <span className="text-label-sm leading-none text-on-surface-variant shrink-0">·</span>
+                            <span className="text-label-sm leading-none text-on-surface font-medium truncate">{item.staffCode}</span>
+                            {item.isOvernight && (
+                              <span className="text-label-sm leading-none text-on-surface-variant/70 shrink-0 truncate">
+                                7h30→{dateFmt(nextDate)}
+                              </span>
+                            )}
                           </div>
                         );
                       })}
                       {cell.items.length === 0 && cell.annotations.length === 0 && !cell.isCompensation && (
                         <button
                           type="button"
-                          className="flex items-center justify-center min-h-[24px] text-[14px] text-on-surface-variant/40 hover:text-primary/60 transition-colors w-full"
+                          className="flex items-center justify-center min-h-[24px] text-body-sm text-on-surface-variant/60 hover:text-primary/80 transition-colors w-full"
                           onClick={() => onAddClick?.(cell.date)}
                           aria-label={`Thêm lịch cho ngày ${cell.date.getDate()}`}
                         >
@@ -841,7 +886,7 @@ export function DashboardCalendar({
           </div>
           {/* Sidebar — Week summary */}
           {sidebarOpen && (
-            <aside className="w-64 xl:w-72 shrink-0 border-l border-outline-variant bg-surface-container-low overflow-y-auto hidden xl:flex flex-col gap-3 p-3">
+            <aside className="w-64 shrink-0 border-l border-outline-variant bg-surface-container-low overflow-y-auto hidden lg:flex flex-col gap-3 p-3">
               <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
                 <p className="text-label-sm font-semibold text-on-surface-variant mb-2">Tổng kết tuần</p>
                 <div className="space-y-2">
@@ -862,10 +907,10 @@ export function DashboardCalendar({
                 <p className="text-label-sm font-semibold text-on-surface-variant mb-2">Loại lịch</p>
                 <div className="space-y-1.5">
                   {[
-                    { label: "Trực 24/24", color: "bg-red-500" },
-                    { label: "Thông tầm", color: "bg-emerald-500" },
-                    { label: "Dịch vụ", color: "bg-amber-500" },
-                    { label: "Chuyên gia", color: "bg-violet-500" },
+                    { label: "Trực 24/24", color: "bg-primary" },
+                    { label: "Thông tầm", color: "bg-secondary" },
+                    { label: "Dịch vụ", color: "bg-tertiary" },
+                    { label: "Chuyên gia", color: "bg-expert" },
                   ].map((l) => (
                     <div key={l.label} className="flex items-center gap-2">
                       <div className={`w-5 h-3 rounded-sm ${l.color}`} />
@@ -882,14 +927,14 @@ export function DashboardCalendar({
       {/* ── Calendar Grid ──────────────────────────────────────────── */}
       {viewMode === "month" && (
         <div className="flex-1 flex min-h-0">
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 min-h-[400px]">
           {/* Day headers */}
           <div className="grid grid-cols-7 shrink-0">
             {WEEKDAYS.map((d, i) => (
               <div
                 key={d}
                 className={`py-2 text-center text-label-sm font-semibold border-b border-r border-outline-variant bg-surface-container-low ${
-                  i >= 5 ? "text-red-500" : "text-on-surface-variant"
+                  i >= 5 ? "text-error" : "text-on-surface-variant"
                 }`}
               >
                 {d}
@@ -924,7 +969,7 @@ export function DashboardCalendar({
                     min-h-[120px] cursor-pointer group relative
                     transition-colors hover:bg-surface-container-low
                     ${!cell.isCurrentMonth ? "bg-surface-variant/20" : ""}
-                    ${cell.hasConflict ? "ring-2 ring-inset ring-red-300" : ""}
+                    ${cell.hasConflict ? "ring-2 ring-inset ring-error" : ""}
                     ${isCompLocked ? "bg-[repeating-linear-gradient(45deg,transparent,transparent_6px,rgba(0,0,0,0.04)_6px,rgba(0,0,0,0.04)_12px)]" : ""}
                   `}
                 >
@@ -933,7 +978,7 @@ export function DashboardCalendar({
                     <div
                       className="absolute inset-0 pointer-events-none z-10 opacity-30"
                       style={{
-                        backgroundImage: "repeating-linear-gradient(45deg, #94a3b8 0px, #94a3b8 1px, transparent 1px, transparent 10px)",
+                        backgroundImage: "repeating-linear-gradient(45deg, var(--color-outline, #c3c6d7) 0px, var(--color-outline, #c3c6d7) 1px, transparent 1px, transparent 10px)",
                         backgroundSize: "14px 14px",
                       }}
                       aria-hidden="true"
@@ -943,15 +988,15 @@ export function DashboardCalendar({
                   {/* Day number */}
                   <div className={`shrink-0 px-1.5 py-1 flex items-center justify-between z-20 ${
                     isToday(cell)
-                      ? "bg-primary text-on-primary rounded-tl-sm"
+                      ? "bg-primary text-on-primary rounded-tl-lg"
                       : cell.isWeekend
-                      ? "text-red-500"
+                      ? "text-error"
                       : cell.hasConflict
-                      ? "text-red-600"
+                      ? "text-error font-semibold"
                       : isCompLocked
-                      ? "text-slate-500"
+                      ? "text-on-surface-variant"
                       : hasAnnotations
-                      ? "text-slate-700"
+                      ? "text-on-surface"
                       : cell.isCurrentMonth
                       ? "text-on-surface"
                       : "text-on-surface-variant"
@@ -962,11 +1007,11 @@ export function DashboardCalendar({
                       {cell.day}
                     </span>
                     {cell.hasConflict && !isToday(cell) ? (
-                      <span className="material-symbols-outlined text-[11px] text-red-500">warning</span>
+                      <span className="material-symbols-outlined text-[11px] text-error">warning</span>
                     ) : isCompLocked ? (
-                      <span className="material-symbols-outlined text-[11px] text-slate-400" title="Ngày nghỉ bù — khóa">lock</span>
+                      <span className="material-symbols-outlined text-[11px] text-outline" title="Ngày nghỉ bù — khóa">lock</span>
                     ) : primaryAnnotation ? (
-                      <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-600">
+                      <span className="rounded-full bg-surface-container-high px-1.5 py-0.5 text-label-sm font-semibold text-on-surface-variant truncate max-w-[80px]" title={primaryAnnotation.label}>
                         {primaryAnnotation.label}
                       </span>
                     ) : null}
@@ -984,7 +1029,7 @@ export function DashboardCalendar({
                           title={annotation.description ?? annotation.label}
                         >
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${annotationTone.dot}`} />
-                          <span className={`text-[11px] font-semibold leading-none truncate ${annotationTone.text}`}>
+                          <span className={`text-label-sm font-semibold leading-none truncate ${annotationTone.text}`}>
                             {annotation.label}
                           </span>
                         </div>
@@ -999,7 +1044,7 @@ export function DashboardCalendar({
                           title={`${summary.label}: ${summary.count} nhân sự`}
                         >
                           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${st.dot}`} aria-hidden="true" />
-                          <span className={`truncate text-[11px] font-semibold leading-none ${st.text}`}>
+                          <span className={`truncate text-label-sm font-semibold leading-none ${st.text}`}>
                             {summary.label} ({summary.count})
                           </span>
                         </div>
@@ -1012,9 +1057,9 @@ export function DashboardCalendar({
                         type="button"
                         onClick={(e) => handleOverflowClick(e, cell.items)}
                         aria-label={`Xem thêm ${hiddenStaffCount} nhân sự khác trong ngày ${cell.day}`}
-                        className="flex items-center justify-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-colors min-h-[22px] max-h-[22px] w-full"
+                        className="flex items-center justify-center gap-1 px-1.5 py-0.5 rounded text-label-sm font-medium text-on-surface-variant hover:bg-surface-container-high transition-colors min-h-[22px] max-h-[22px] w-full"
                       >
-                        <span className="material-symbols-outlined text-[12px]" aria-hidden="true">expand_more</span>
+                        <span className="material-symbols-outlined text-[20px]" aria-hidden="true">expand_more</span>
                         +{hiddenStaffCount} nhân sự khác
                       </button>
                     )}
@@ -1023,7 +1068,7 @@ export function DashboardCalendar({
                     {!hasMore && cell.items.length === 0 && cell.annotations.length === 0 && !cell.isCompensation && cell.isCurrentMonth && (
                       <button
                         type="button"
-                        className="flex items-center justify-center min-h-[24px] text-[14px] text-on-surface-variant/40 hover:text-primary/60 transition-colors w-full"
+                        className="flex items-center justify-center min-h-[24px] text-body-sm text-on-surface-variant/60 hover:text-primary/80 transition-colors w-full"
                         onClick={() => onAddClick?.(cell.date)}
                         aria-label={`Thêm lịch cho ngày ${cell.day}`}
                       >
@@ -1035,10 +1080,10 @@ export function DashboardCalendar({
                     {/* Conflict count badge */}
                     {cell.hasConflict && (
                       <div
-                        className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-100 text-error text-[10px] font-bold"
+                        className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-error-container text-error text-label-sm font-bold"
                         aria-label={`${cell.items.length} xung đột trong ngày này`}
                       >
-                        <span className="material-symbols-outlined text-[10px]" aria-hidden="true">warning</span>
+                        <span className="material-symbols-outlined text-label-sm" aria-hidden="true">warning</span>
                         {cell.items.length}
                       </div>
                     )}
@@ -1052,10 +1097,10 @@ export function DashboardCalendar({
                     if (isFull && cell.items.length > 0) return null;
                     return (
                       <div
-                        className={`absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-label-sm font-bold ${
                           isFull ? "bg-secondary-container text-on-secondary-container" :
                           isEmpty ? "bg-surface-container-high text-on-surface-variant" :
-                          "bg-amber-50 text-amber-700"
+                          "bg-tertiary-fixed text-on-tertiary-fixed"
                         }`}
                         aria-label={`Phủ ${cov.assigned} trên ${cov.required} ca cần thiết`}
                       >
@@ -1072,15 +1117,15 @@ export function DashboardCalendar({
 
         {/* ── Sidebar (collapsible) ──────────────────────────────────── */}
         {sidebarOpen && (
-          <aside className="w-64 xl:w-72 shrink-0 border-l border-outline-variant bg-surface-container-low overflow-y-auto hidden xl:flex flex-col gap-3 p-3">
+          <aside className="w-64 shrink-0 border-l border-outline-variant bg-surface-container-low overflow-y-auto flex flex-col gap-3 p-3">
             {/* Legend */}
             <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
               <p className="text-label-sm font-semibold text-on-surface-variant mb-2">Loại lịch</p>
               <div className="space-y-1.5">
                 {[
-                  { label: "Trực 24/24", color: "bg-blue-500",      id: "duty24"       },
-                  { label: "Thông tầm",   color: "bg-emerald-500",  id: "allDay"       },
-                  { label: "Dịch vụ",     color: "bg-amber-500",    id: "serviceClinic"},
+                  { label: "Trực 24/24", color: "bg-primary",       id: "duty24"       },
+                  { label: "Thông tầm",   color: "bg-secondary",  id: "allDay"       },
+                  { label: "Dịch vụ",     color: "bg-tertiary",    id: "serviceClinic"},
                   { label: "Chuyên gia",  color: "bg-violet-500",   id: "expertClinic" },
                 ].map((l) => (
                   <div key={l.id} className="flex items-center gap-2">
@@ -1095,7 +1140,7 @@ export function DashboardCalendar({
             <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-label-sm font-semibold text-on-surface-variant">Xung đột</p>
-                <span className="px-2 py-0.5 rounded-full bg-red-100 text-error text-[11px] font-bold">
+                <span className="px-2 py-0.5 rounded-full bg-error-container text-error text-label-sm font-bold">
                   {cells.filter((c) => c.hasConflict).length} ngày
                 </span>
               </div>
@@ -1107,14 +1152,48 @@ export function DashboardCalendar({
                     <div key={c.dateStr} className="flex items-center gap-2 text-label-sm">
                       <span className="material-symbols-outlined text-error text-[14px]">warning</span>
                       <span className="text-on-surface font-medium">{c.day}/{today.getMonth() + 1}</span>
-                      <span className="text-on-surface-variant truncate">{c.items.length} xung dot</span>
+                      <span className="text-on-surface-variant truncate">{c.items.length} xung đột</span>
                     </div>
                   ))}
                 {cells.filter((c) => c.hasConflict).length === 0 && (
                   <p className="text-label-sm text-on-surface-variant flex items-center gap-2">
-                    <span className="material-symbols-outlined text-emerald-500 text-[14px]">check_circle</span>
+                    <span className="material-symbols-outlined text-secondary text-[14px]">check_circle</span>
                     Không có xung đột
                   </p>
+                )}
+              </div>
+            </div>
+
+            {/* Compensation days legend */}
+            <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-label-sm font-semibold text-on-surface-variant">Ngày nghỉ bù</p>
+                <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface text-label-sm font-bold">
+                  {cells.filter((c) => c.isCompensation).length} ngày
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {cells
+                  .filter((c) => c.isCompensation && c.isCurrentMonth)
+                  .slice(0, 5)
+                  .map((c) => {
+                    const compAnn = c.annotations.find((a) => a.tone === "compLeave" || a.isCompensation);
+                    return (
+                      <div key={c.dateStr} className="flex items-center justify-between">
+                        <span className="text-label-sm text-on-surface">
+                          {new Date(c.dateStr).toLocaleDateString("vi-VN", { day: "numeric", month: "short" })}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[10px] text-outline">lock</span>
+                          <span className="text-label-sm text-outline truncate max-w-[100px]" title={compAnn?.description}>
+                            {compAnn?.label ?? "Nghỉ bù"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                {cells.filter((c) => c.isCompensation && c.isCurrentMonth).length === 0 && (
+                  <p className="text-label-sm text-on-surface-variant italic">Không có ngày nghỉ bù</p>
                 )}
               </div>
             </div>

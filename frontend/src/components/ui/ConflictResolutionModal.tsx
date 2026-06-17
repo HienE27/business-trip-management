@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { api } from "@/lib/api-client";
+import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { ConflictItem } from "@/types/schedule";
 import type { Staff } from "@/types/api";
@@ -179,11 +179,12 @@ export function ConflictResolutionModal({
                           Đang tìm nhân sự thay thế...
                         </div>
                       ) : replacements.length > 0 ? (
-                        <select
-                          className="w-full mt-1 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-label-md text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
-                          value={selectedReplacementId ?? ""}
-                          onChange={(e) => setSelectedReplacementId(Number(e.target.value) || null)}
-                        >
+                    <select
+                      aria-label="Nhan su thay the"
+                      className="w-full mt-1 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-label-md text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                      value={selectedReplacementId ?? ""}
+                      onChange={(e) => setSelectedReplacementId(Number(e.target.value) || null)}
+                    >
                           <option value="">-- Chọn nhân sự thay thế --</option>
                           {replacements.map((r) => (
                             <option key={r.id} value={r.id}>
@@ -217,7 +218,7 @@ export function ConflictResolutionModal({
 
           {/* Error */}
           {error && (
-            <div className="mt-4 rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+            <div className="mt-4 rounded-lg border border-error/20 bg-error-container px-4 py-3 text-body-sm text-error">
               {error}
             </div>
           )}

@@ -50,7 +50,7 @@ export function FAB({ actions = [] }: FABProps) {
       {/* Main FAB */}
       <button
         type="button"
-        aria-label={open ? "Dong menu" : "Mo menu hanh dong"}
+        aria-label={open ? "Đóng menu" : "Mở menu hành động"}
         onClick={() => setOpen((v) => !v)}
         className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           open

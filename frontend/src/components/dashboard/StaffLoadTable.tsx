@@ -7,7 +7,7 @@ type StaffLoadTableProps = {
 
 export function StaffLoadTable({ loads, className = "" }: StaffLoadTableProps) {
   return (
-    <section className={`flex flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-[0_1px_3px_0_rgba(0,0,0,0.05)] overflow-hidden ${className}`}>
+    <section className={`flex flex-col rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden ${className}`}>
       <div className="p-5 border-b border-outline-variant bg-surface-container-low">
         <h3 className="font-title-lg text-on-surface">Thống kê phân bổ (Tuần)</h3>
         <p className="text-label-sm text-on-surface-variant mt-1">
@@ -21,7 +21,7 @@ export function StaffLoadTable({ loads, className = "" }: StaffLoadTableProps) {
             <div className="flex items-center justify-between gap-4">
               <p className="font-label-md text-on-surface">{load.department}</p>
               <div className="flex items-center gap-3">
-                <span className="text-[14px] font-bold text-primary">{load.percentage}%</span>
+                <span className="text-label-md font-bold text-primary">{load.percentage}%</span>
               </div>
             </div>
             <div className="w-full bg-surface-container-high rounded-full h-2 overflow-hidden">

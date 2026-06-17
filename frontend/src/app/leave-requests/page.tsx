@@ -1,15 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { WorkflowShell } from "@/components/layout/WorkflowShell";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { formatDateRange, formatDateTime } from "@/lib/date";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/hooks/useToast";
-import type { LeaveRequest, LeaveRequestCreate, ConflictCheckResponse, SchedulePeriod } from "@/types/api";
+import type { LeaveRequest, ConflictCheckResponse, SchedulePeriod } from "@/types/api";
 
 type FilterStatus = LeaveRequest["status"] | "ALL";
 
@@ -27,21 +28,11 @@ const STATUS_CLASS: Record<LeaveRequest["status"], string> = {
   CANCELLED: "bg-surface-container-high text-on-surface-variant border border-outline-variant",
 };
 
-function formatDateRange(startDate: string, endDate: string) {
-  const start = new Date(startDate).toLocaleDateString("vi-VN");
-  const end = new Date(endDate).toLocaleDateString("vi-VN");
-  return start === end ? start : `${start} \u2013 ${end}`;
-}
-
-function formatDateTime(dateStr: string) {
-  return new Date(dateStr).toLocaleString("vi-VN");
-}
-
 function getStaffDisplayName(req: LeaveRequest) {
-  return req.staff?.fullName ?? req.staffName ?? `Nhân s\u1ef1 #${req.staffId ?? "?"}`;
+  return req.staff?.fullName ?? req.staffName ?? `Nhân sự #${req.staffId ?? "?"}`;
 }
 
-export default function LeaveRequestsPage() {
+function LeaveRequestsContent() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const isManager = user?.roles?.some((r) => r === "ADMIN" || r === "MANAGER") ?? false;
@@ -50,6 +41,12 @@ export default function LeaveRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("ALL");
   const toast = useToast();
+  const ignoreRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Keep toast ref in sync — avoids stale closure while keeping deps clean
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; });
 
   // Sync global search ?q= URL param
   const globalQuery = searchParams.get("q") ?? "";
@@ -72,25 +69,52 @@ export default function LeaveRequestsPage() {
   const [createReason, setCreateReason] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Debounce same-message toasts to prevent duplicates (React Strict Mode double-invoke)
+  const lastToastRef = useRef<{ msg: string; time: number } | null>(null);
+  function safeToast(method: "success" | "error" | "info", message: string) {
+    const now = Date.now();
+    if (lastToastRef.current?.msg === message && now - lastToastRef.current.time < 500) return;
+    lastToastRef.current = { msg: message, time: now };
+    toastRef.current[method](message);
+  }
+
   const fetchRequests = useCallback(async () => {
+    // Cancel any in-flight request
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       setLoading(true);
-      const data = await api.get<LeaveRequest[]>("/leave-requests");
+      const data = await api.get<LeaveRequest[]>(
+        "/leave-requests",
+        undefined,
+        { signal: controller.signal }
+      );
+      if (ignoreRef.current || controller.signal.aborted) return;
       setRequests(data ?? []);
     } catch (err) {
-      toast.error(getErrorMessage(err, "Không thể tải danh sách yêu cầu nghỉ phép."));
+      if (ignoreRef.current || controller.signal.aborted) return;
+      safeToast("error", getErrorMessage(err, "Không thể tải danh sách yêu cầu nghỉ phép."));
       setRequests([]);
     } finally {
-      setLoading(false);
+      if (!ignoreRef.current && !controller.signal.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    ignoreRef.current = false;
+    abortControllerRef.current?.abort();
     void fetchRequests();
+    return () => {
+      ignoreRef.current = true;
+      abortControllerRef.current?.abort();
+    };
   }, [fetchRequests]);
 
   const filteredRequests = useMemo(() => {
-    return requests.filter((r) => {
+    const visible = requests.filter((r) => {
+      if (!isManager && r.staff?.id !== user?.userId) return false;
       if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
       if (searchKeyword.trim()) {
         const kw = searchKeyword.toLowerCase();
@@ -100,7 +124,8 @@ export default function LeaveRequestsPage() {
       }
       return true;
     });
-  }, [requests, statusFilter, searchKeyword]);
+    return visible;
+  }, [requests, statusFilter, searchKeyword, isManager, user]);
 
   const stats = useMemo(() => ({
     total: requests.length,
@@ -111,6 +136,7 @@ export default function LeaveRequestsPage() {
 
   const handleApprove = useCallback(async () => {
     if (!detailRequest || !user?.userId) return;
+    ignoreRef.current = false;
     try {
       setProcessing(true);
       setConflictWarning(null);
@@ -131,7 +157,7 @@ export default function LeaveRequestsPage() {
         );
         if (conflictRes.hasConflicts && conflictRes.totalConflicts > 0) {
           setConflictWarning({ periodId: coveringPeriod.id, totalConflicts: conflictRes.totalConflicts });
-          toast.error(
+          toastRef.current.error(
             `Phát hiện ${conflictRes.totalConflicts} xung đột lịch trong kỳ "${coveringPeriod.periodName}". Vui lòng giải quyết xung đột trước khi duyệt nghỉ phép.`,
           );
           setProcessing(false);
@@ -140,38 +166,43 @@ export default function LeaveRequestsPage() {
       }
 
       await api.put(`/leave-requests/${detailRequest.id}/approve?reviewerId=${user.userId}&reviewNote=${encodeURIComponent(reviewNote)}`, {});
-      toast.success(`Đã duyệt yêu cầu của ${getStaffDisplayName(detailRequest)}.`);
+      if (ignoreRef.current) return;
+      toastRef.current.success(`Đã duyệt yêu cầu của ${getStaffDisplayName(detailRequest)}.`);
       setDetailRequest(null);
       setReviewNote("");
       await fetchRequests();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Lỗi duyệt yêu cầu."));
+      if (ignoreRef.current) return;
+      toastRef.current.error(getErrorMessage(err, "Lỗi duyệt yêu cầu."));
     } finally {
-      setProcessing(false);
+      if (!ignoreRef.current) setProcessing(false);
     }
   }, [detailRequest, reviewNote, user, fetchRequests]);
 
   const handleReject = useCallback(async () => {
     if (!detailRequest || !user?.userId) return;
+    ignoreRef.current = false;
     try {
       setProcessing(true);
       await api.put(`/leave-requests/${detailRequest.id}/reject?reviewerId=${user.userId}&reviewNote=${encodeURIComponent(reviewNote)}`, {});
-      toast.success(`Đã từ chối yêu cầu của ${getStaffDisplayName(detailRequest)}.`);
+      if (ignoreRef.current) return;
+      toastRef.current.success(`Đã từ chối yêu cầu của ${getStaffDisplayName(detailRequest)}.`);
       setDetailRequest(null);
       setReviewNote("");
       setConflictWarning(null);
       await fetchRequests();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Lỗi từ chối yêu cầu."));
+      if (ignoreRef.current) return;
+      toastRef.current.error(getErrorMessage(err, "Lỗi từ chối yêu cầu."));
     } finally {
-      setProcessing(false);
+      if (!ignoreRef.current) setProcessing(false);
     }
   }, [detailRequest, reviewNote, user, fetchRequests]);
 
   const handleCreateLeaveRequest = useCallback(async () => {
     if (!user?.userId || !createStartDate || !createEndDate) return;
     if (new Date(createEndDate) < new Date(createStartDate)) {
-      toast.error("Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.");
+      toastRef.current.error("Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.");
       return;
     }
     setCreating(true);
@@ -181,14 +212,14 @@ export default function LeaveRequestsPage() {
         endDate: createEndDate,
         reason: createReason || null,
       });
-      toast.success("Đã gửi yêu cầu nghỉ phép thành công.");
+      toastRef.current.success("Đã gửi yêu cầu nghỉ phép thành công.");
       setShowCreateModal(false);
       setCreateStartDate("");
       setCreateEndDate("");
       setCreateReason("");
       await fetchRequests();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Không thể gửi yêu cầu nghỉ phép."));
+      toastRef.current.error(getErrorMessage(err, "Không thể gửi yêu cầu nghỉ phép."));
     } finally {
       setCreating(false);
     }
@@ -198,10 +229,10 @@ export default function LeaveRequestsPage() {
     if (!confirm("Bạn có chắc muốn hủy yêu cầu này?")) return;
     try {
       await api.put(`/leave-requests/${id}/cancel`, {});
-      toast.success("Đã hủy yêu cầu nghỉ phép.");
+      toastRef.current.success("Đã hủy yêu cầu nghỉ phép.");
       await fetchRequests();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Lỗi hủy yêu cầu."));
+      toastRef.current.error(getErrorMessage(err, "Lỗi hủy yêu cầu."));
     }
   }, [fetchRequests]);
 
@@ -228,7 +259,7 @@ export default function LeaveRequestsPage() {
       )}
 
       {/* Stats row */}
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="grid gap-3 md:grid-cols-4">
         {[
           { label: "Tổng yêu cầu", value: stats.total, accent: "border-l-outline" },
           { label: "Chờ duyệt", value: stats.pending, accent: "border-l-tertiary" },
@@ -237,10 +268,10 @@ export default function LeaveRequestsPage() {
         ].map((item) => (
           <article
             key={item.label}
-            className={`rounded-lg border border-t-2 border-r border-b border-outline-variant bg-surface-container-lowest p-5 shadow-sm hover:bg-surface-container-low transition-colors ${item.accent}`}
+            className={`rounded-lg border border-t-2 border-r border-b border-outline-variant bg-surface-container-lowest p-3 shadow-sm hover:bg-surface-container-low transition-colors ${item.accent}`}
           >
-            <p className="text-label-sm text-on-surface-variant">{item.label}</p>
-            <p className="mt-3 text-display-lg text-on-surface font-bold">{loading ? "\u2014" : item.value}</p>
+            <p className="text-[11px] font-medium text-on-surface-variant">{item.label}</p>
+            <p className="mt-1 text-[22px] font-bold leading-none text-on-surface">{loading ? "\u2014" : item.value}</p>
           </article>
         ))}
       </section>
@@ -284,7 +315,7 @@ export default function LeaveRequestsPage() {
       >
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : filteredRequests.length === 0 ? (
           <EmptyState
@@ -301,49 +332,40 @@ export default function LeaveRequestsPage() {
             {filteredRequests.map((request) => (
               <article
                 key={request.id}
-                className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start"
+                className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start"
               >
                 <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-title-lg font-semibold text-on-surface">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-title-lg font-semibold text-on-surface leading-tight">
                       {getStaffDisplayName(request)}
                     </h3>
-                    <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${STATUS_CLASS[request.status]}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_CLASS[request.status]}`}>
                       {STATUS_LABEL[request.status]}
                     </span>
                   </div>
-                  <p className="mt-2 text-body-sm leading-6 text-on-surface-variant">
+                  <p className="mt-1 text-[12px] leading-5 text-on-surface-variant">
                     {request.reason ?? "Không có lý do bổ sung."}
                   </p>
                   {request.reviewNote ? (
-                    <div className="mt-2 rounded-lg bg-surface-container-low px-3 py-2">
-                      <p className="text-label-sm text-on-surface-variant">Ghi chú duyệt</p>
-                      <p className="text-body-sm text-on-surface">{request.reviewNote}</p>
+                    <div className="mt-1.5 rounded-lg bg-surface-container-low px-2.5 py-1.5">
+                      <p className="text-[11px] text-on-surface-variant">Ghi chú: {request.reviewNote}</p>
                     </div>
                   ) : null}
-                  <p className="mt-2 text-label-sm text-outline">
-                    Tạo lúc {formatDateTime(request.createdAt)}
+                  <p className="mt-1 text-[11px] text-outline">
+                    {formatDateTime(request.createdAt)}
                     {request.reviewedBy && (
-                      <span> &bull; Duyệt bởi {request.reviewedBy.fullName}</span>
+                      <span> · Duyệt bởi {request.reviewedBy.fullName}</span>
                     )}
                   </p>
                 </div>
-                <div className="space-y-2 rounded-lg border border-outline-variant bg-surface p-4 text-body-sm text-on-surface">
+                <div className="space-y-1.5 rounded-lg border border-outline-variant bg-surface p-3 text-[12px] text-on-surface">
                   <div className="flex justify-between gap-3">
                     <span className="text-on-surface-variant">Khoảng nghỉ</span>
-                    <span className="text-right font-medium">
-                      {formatDateRange(request.startDate, request.endDate)}
-                    </span>
+                    <span className="font-medium">{formatDateRange(request.startDate, request.endDate)}</span>
                   </div>
-                  <div className="flex justify-between gap-3">
-                    <span className="text-on-surface-variant">Cập nhật</span>
-                    <span className="text-right font-medium">
-                      {formatDateRange(request.updatedAt, request.updatedAt)}
-                    </span>
-                  </div>
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-1.5 pt-1">
                     <button
-                      className="flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-md text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                      className="flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-2.5 py-1.5 text-[12px] text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
                       onClick={() => handleOpenDetail(request)}
                       type="button"
                     >
@@ -351,7 +373,7 @@ export default function LeaveRequestsPage() {
                     </button>
                     {request.status === "PENDING" && isManager && (
                       <button
-                        className="flex-1 rounded-lg bg-primary px-3 py-2 text-label-md text-on-primary transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                        className="flex-1 rounded-lg bg-primary px-2.5 py-1.5 text-[12px] text-on-primary transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
                         onClick={() => handleOpenDetail(request)}
                         type="button"
                       >
@@ -360,11 +382,11 @@ export default function LeaveRequestsPage() {
                     )}
                     {request.status === "PENDING" && !isManager && request.staff?.id === user?.userId && (
                       <button
-                        className="flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-md text-error transition-colors hover:bg-error-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/20"
+                        className="flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-2.5 py-1.5 text-[12px] text-error transition-colors hover:bg-error-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/20"
                         onClick={() => handleCancel(request.id)}
                         type="button"
                       >
-                        Hủy yêu cầu
+                        Hủy
                       </button>
                     )}
                   </div>
@@ -386,6 +408,7 @@ export default function LeaveRequestsPage() {
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => setDetailRequest(null)}
+            aria-hidden="true"
           />
           <div className="relative w-full max-w-lg rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
@@ -509,7 +532,7 @@ export default function LeaveRequestsPage() {
           role="dialog"
           className="fixed inset-0 z-50 flex items-center justify-center"
         >
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCreateModal(false)} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCreateModal(false)} aria-hidden="true" />
           <div className="relative w-full max-w-md rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
@@ -606,5 +629,19 @@ export default function LeaveRequestsPage() {
         </div>
       )}
     </WorkflowShell>
+  );
+}
+
+export default function LeaveRequestsPage() {
+  return (
+    <Suspense fallback={
+      <WorkflowShell section="leave-requests" title="Yêu cầu nghỉ phép" description="Theo dõi yêu cầu nghỉ phép từ nhân sự, phê duyệt và cân đối lịch trực.">
+        <div className="flex items-center justify-center py-16">
+          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </div>
+      </WorkflowShell>
+    }>
+      <LeaveRequestsContent />
+    </Suspense>
   );
 }

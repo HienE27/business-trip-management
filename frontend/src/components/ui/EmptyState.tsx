@@ -1,3 +1,5 @@
+import type React from "react";
+
 type EmptyStateProps = {
   icon?: string;
   title: string;

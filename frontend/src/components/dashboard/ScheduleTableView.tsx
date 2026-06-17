@@ -2,13 +2,14 @@
 
 import { useState, useMemo, useCallback, useId } from "react";
 import type { Schedule } from "@/types/api";
+import { SHIFT_COLORS } from "@/lib/shift-colors";
 
 // ─── Color tokens ────────────────────────────────────────────────────────────
 const TONE: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-  L01: { bg: "bg-red-50",      text: "text-red-700",    dot: "bg-red-500",    label: "Trực 24/24" },
-  L02: { bg: "bg-emerald-50",text: "text-emerald-700",dot: "bg-emerald-500",label: "Thông tầm"      },
-  L03: { bg: "bg-amber-50",  text: "text-amber-700",  dot: "bg-amber-500",  label: "Dịch vụ"      },
-  L04: { bg: "bg-violet-50", text: "text-violet-700", dot: "bg-violet-500", label: "Chuyên gia"    },
+  L01: { bg: SHIFT_COLORS.L01.bg, text: SHIFT_COLORS.L01.text, dot: SHIFT_COLORS.L01.dot, label: SHIFT_COLORS.L01.label },
+  L02: { bg: SHIFT_COLORS.L02.bg, text: SHIFT_COLORS.L02.text, dot: SHIFT_COLORS.L02.dot, label: SHIFT_COLORS.L02.label },
+  L03: { bg: SHIFT_COLORS.L03.bg, text: SHIFT_COLORS.L03.text, dot: SHIFT_COLORS.L03.dot, label: SHIFT_COLORS.L03.label },
+  L04: { bg: SHIFT_COLORS.L04.bg, text: SHIFT_COLORS.L04.text, dot: SHIFT_COLORS.L04.dot, label: SHIFT_COLORS.L04.label },
 };
 
 const WEEKDAY_VN = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"] as const;
@@ -16,7 +17,6 @@ const WEEKDAY_VN = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"] as const;
 type SortKey = "workDate" | "shiftType" | "staffName" | "hasConflict";
 type SortDir = "asc" | "desc";
 type FilterConflict = "all" | "conflict" | "clean";
-type FilterStatus = "all" | "active" | "archived";
 
 type ScheduleTableViewProps = {
   schedules: Schedule[];
@@ -44,7 +44,6 @@ export function ScheduleTableView({
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStaff, setFilterStaff] = useState<string>("all");
   const [filterConflict, setFilterConflict] = useState<FilterConflict>("all");
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -60,11 +59,6 @@ export function ScheduleTableView({
     const map = new Map<number, string>();
     schedules.forEach((s) => map.set(s.staff.id, s.staff.fullName));
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [schedules]);
-
-  const allDates = useMemo(() => {
-    const dates = new Set(schedules.map((s) => s.workDate.split("T")[0]));
-    return Array.from(dates).sort();
   }, [schedules]);
 
   // ── Filter + Sort ────────────────────────────────────────────────────────
@@ -113,21 +107,19 @@ export function ScheduleTableView({
   const pageData = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const handleSort = useCallback((key: SortKey) => {
-    setSortKey((prev) => {
-      if (prev === key) {
-        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-        return key;
-      }
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
       setSortDir("asc");
-      return key;
-    });
-  }, []);
+    }
+  }, [sortKey]);
 
   const SortIcon = ({ col }: { col: SortKey }) =>
     sortKey === col ? (
-      <span className="material-symbols-outlined text-[12px]">{sortDir === "asc" ? "expand_less" : "expand_more"}</span>
+      <span className="material-symbols-outlined text-[20px]">{sortDir === "asc" ? "expand_less" : "expand_more"}</span>
     ) : (
-      <span className="material-symbols-outlined text-[12px] opacity-0 group-hover:opacity-40">unfold_more</span>
+      <span className="material-symbols-outlined text-[20px] opacity-0 group-hover:opacity-40">unfold_more</span>
     );
 
   const conflictCount = filtered.filter((s) => s.hasConflict).length;
@@ -139,7 +131,7 @@ export function ScheduleTableView({
         {/* Search row */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-sm">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant">search</span>
             <input
               id={`${uid}-search`}
               type="text"
@@ -163,7 +155,7 @@ export function ScheduleTableView({
             {filtered.length} kết quả
           </span>
           {conflictCount > 0 && (
-            <span className="shrink-0 px-2 py-0.5 rounded-full bg-red-50 border border-red-200 text-error text-[11px] font-semibold">
+            <span className="shrink-0 px-2 py-0.5 rounded-full bg-error-container border border-error/20 text-error text-label-sm font-semibold">
               {conflictCount} xung đột
             </span>
           )}
@@ -179,7 +171,7 @@ export function ScheduleTableView({
               type="date"
               value={dateFrom}
               onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-              className="h-8 pl-2 pr-1 rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 cursor-pointer"
+              className="h-10 pl-2 pr-1 rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
             />
           </div>
           <div className="flex items-center gap-1.5">
@@ -189,60 +181,65 @@ export function ScheduleTableView({
               type="date"
               value={dateTo}
               onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-              className="h-8 pl-2 pr-1 rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 cursor-pointer"
+              className="h-10 pl-2 pr-1 rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
             />
           </div>
 
           <div className="w-px h-5 bg-outline-variant mx-1 hidden sm:block" />
 
           {/* Shift type */}
-          <select
-            value={filterType}
-            onChange={(e) => { setFilterType(e.target.value); setPage(1); }}
-            className="h-8 pl-2 pr-7 appearance-none rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 cursor-pointer"
-            style={{ backgroundImage: "none" }}
-            aria-label="Lọc theo loại ca"
-          >
-            <option value="all">Tất cả loại ca</option>
-            <option value="L01">Trực 24/24</option>
-            <option value="L02">Thông tầm</option>
-            <option value="L03">Dịch vụ</option>
-            <option value="L04">Chuyên gia</option>
-          </select>
+          <div className="relative">
+            <select
+              value={filterType}
+              onChange={(e) => { setFilterType(e.target.value); setPage(1); }}
+              className="h-10 pl-2 pr-8 appearance-none rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
+              aria-label="Lọc theo loại ca"
+            >
+              <option value="all">Tất cả loại ca</option>
+              <option value="L01">Trực 24/24</option>
+              <option value="L02">Thông tầm</option>
+              <option value="L03">Dịch vụ</option>
+              <option value="L04">Chuyên gia</option>
+            </select>
+            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px]">expand_more</span>
+          </div>
 
-          {/* Staff */}
-          <select
-            value={filterStaff}
-            onChange={(e) => { setFilterStaff(e.target.value); setPage(1); }}
-            className="h-8 pl-2 pr-7 appearance-none rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 cursor-pointer max-w-36"
-            style={{ backgroundImage: "none" }}
-            aria-label="Lọc theo nhân sự"
-          >
-            <option value="all">Tất cả nhân sự</option>
-            {allStaff.map(([id, name]) => (
-              <option key={id} value={id}>{name}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={filterStaff}
+              onChange={(e) => { setFilterStaff(e.target.value); setPage(1); }}
+              className="h-10 pl-2 pr-8 appearance-none rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer max-w-36"
+              aria-label="Lọc theo nhân sự"
+            >
+              <option value="all">Tất cả nhân sự</option>
+              {allStaff.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px]">expand_more</span>
+          </div>
 
           {/* Conflict */}
-          <select
-            value={filterConflict}
-            onChange={(e) => { setFilterConflict(e.target.value as FilterConflict); setPage(1); }}
-            className="h-8 pl-2 pr-7 appearance-none rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 cursor-pointer"
-            style={{ backgroundImage: "none" }}
-            aria-label="Lọc theo xung đột"
-          >
-            <option value="all">Tất cả trạng thái</option>
-            <option value="conflict">Có xung đột</option>
-            <option value="clean">Không xung đột</option>
-          </select>
+          <div className="relative">
+            <select
+              value={filterConflict}
+              onChange={(e) => { setFilterConflict(e.target.value as FilterConflict); setPage(1); }}
+              className="h-10 pl-2 pr-8 appearance-none rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
+              aria-label="Lọc theo xung đột"
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="conflict">Có xung đột</option>
+              <option value="clean">Không xung đột</option>
+            </select>
+            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px]">expand_more</span>
+          </div>
 
           {/* Reset */}
           {(search || filterType !== "all" || filterStaff !== "all" || filterConflict !== "all" || dateFrom || dateTo) && (
             <button
               type="button"
               onClick={() => { setSearch(""); setFilterType("all"); setFilterStaff("all"); setFilterConflict("all"); setDateFrom(""); setDateTo(""); setPage(1); }}
-              className="h-8 px-3 rounded-lg border border-outline-variant bg-surface text-label-sm text-error hover:bg-red-50 transition-colors shrink-0"
+              className="h-10 px-3 rounded-lg border border-outline-variant bg-surface text-label-sm text-error hover:bg-error-container transition-colors shrink-0"
             >
               Xóa lọc
             </button>
@@ -253,7 +250,7 @@ export function ScheduleTableView({
       {/* ── Table ────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto">
         <table className="w-full border-collapse text-label-sm">
-          <thead className="sticky top-0 z-10 bg-surface-container-low shadow-[0_1px_0_0_var(--color-outline-variant)]">
+          <thead className="sticky top-0 z-10 bg-surface-container-low border-b border-outline-variant">
             <tr>
               {([
                 { key: "workDate",    label: "Ngày",         className: "w-24" },
@@ -289,7 +286,7 @@ export function ScheduleTableView({
               </tr>
             ) : (
               pageData.map((s, idx) => {
-                const tone = TONE[s.shiftType.id] ?? { bg: "bg-gray-50", text: "text-gray-700", dot: "bg-gray-500", label: s.shiftType.name };
+                const tone = TONE[s.shiftType.id] ?? { bg: "bg-surface-container-low", text: "text-on-surface", dot: "bg-outline", label: s.shiftType.name };
                 const dateObj = new Date(s.workDate + "T00:00:00");
                 const dow = WEEKDAY_VN[dateObj.getDay()];
 
@@ -307,7 +304,7 @@ export function ScheduleTableView({
 
                     {/* Weekday */}
                     <td className="px-3 py-2.5 whitespace-nowrap border-r border-outline-variant/40">
-                      <span className={`text-label-sm font-semibold ${dow === "CN" || dow === "T7" ? "text-red-500" : "text-on-surface"}`}>
+                      <span className={`text-label-sm font-semibold ${dow === "CN" || dow === "T7" ? "text-error" : "text-on-surface"}`}>
                         {dow}
                       </span>
                     </td>
@@ -326,7 +323,7 @@ export function ScheduleTableView({
                     <td className="px-3 py-2.5 border-r border-outline-variant/40">
                       <div className="flex items-center gap-2">
                         <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center ${tone.bg}`}>
-                          <span className={`text-[10px] font-bold ${tone.text}`}>
+                          <span className={`text-label-sm font-bold ${tone.text}`}>
                             {s.staff.fullName.trim().split(/\s+/).slice(-1)[0]?.slice(0, 2).toUpperCase()}
                           </span>
                         </div>
@@ -342,14 +339,14 @@ export function ScheduleTableView({
                         <button
                           type="button"
                           onClick={() => onResolveConflict?.(s)}
-                          className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-50 border border-red-200 text-error text-label-sm font-semibold hover:bg-red-100 transition-colors"
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-error-container border border-error/20 text-error text-label-sm font-semibold hover:bg-error-container/70 transition-colors"
                           title="Có xung đột - Click để xử lý"
                         >
-                          <span className="material-symbols-outlined text-[12px]">warning</span>
+                          <span className="material-symbols-outlined text-[20px]">warning</span>
                           Xung đột
                         </button>
                       ) : (
-                        <div className="flex items-center gap-1 text-label-sm text-emerald-600">
+                        <div className="flex items-center gap-1 text-label-sm text-secondary">
                           <span className="material-symbols-outlined text-[14px]">check_circle</span>
                           OK
                         </div>
@@ -387,7 +384,7 @@ export function ScheduleTableView({
                             <button
                               type="button"
                               onClick={() => onDelete?.(s)}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-on-surface-variant hover:text-error transition-colors"
+                              className="p-1.5 rounded-lg hover:bg-error-container text-on-surface-variant hover:text-error transition-colors"
                               title="Xóa"
                             >
                               <span className="material-symbols-outlined text-[16px]">delete</span>
@@ -429,7 +426,7 @@ export function ScheduleTableView({
             >
               <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
-            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+            {Array.from({ length: totalPages }, (_, i) => {
               let p: number;
               if (totalPages <= 7) {
                 p = i + 1;

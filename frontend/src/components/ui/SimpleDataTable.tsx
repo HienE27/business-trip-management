@@ -1,4 +1,4 @@
-import { StatusBadge } from "./StatusBadge";
+import { Badge } from "./Badge";
 
 type SimpleDataTableProps = {
   headers: string[];
@@ -24,7 +24,7 @@ export function SimpleDataTable({ headers, rows, statusColumn }: SimpleDataTable
           <tr className="border-b border-outline-variant bg-surface-container-low">
             {headers.map((header) => (
               <th
-                className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant font-bold"
+                className="px-5 py-3 font-label-sm text-label-sm text-on-surface-variant"
                 key={header}
                 scope="col"
               >
@@ -46,7 +46,7 @@ export function SimpleDataTable({ headers, rows, statusColumn }: SimpleDataTable
                     key={ci}
                   >
                     {statusColumn === ci ? (
-                      <StatusBadge tone={badgeTone(cell)} showDot>{cell}</StatusBadge>
+                      <Badge tone={badgeTone(cell)} showDot>{cell}</Badge>
                     ) : (
                       cell
                     )}

@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useNotifications } from "@/components/ui/NotificationContext";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { formatRelativeTime } from "@/lib/date";
 import type { Notification } from "@/types/api";
 
 type NotifTab = "all" | "unread" | "conflict" | "exchange" | "published" | "system";
@@ -18,24 +20,6 @@ const TABS: { label: string; value: NotifTab }[] = [
   { label: "Lịch đã công bố", value: "published" },
   { label: "Hệ thống", value: "system" },
 ];
-
-function formatTime(dateStr: string) {
-  try {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) return "Vừa xong";
-    if (diffMins < 60) return `${diffMins} phút trước`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} giờ trước`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays} ngày trước`;
-    return date.toLocaleDateString("vi-VN");
-  } catch {
-    return dateStr;
-  }
-}
 
 function getNotificationIcon(title: string) {
   const lower = title.toLowerCase();
@@ -137,11 +121,11 @@ export default function NotificationsPage() {
 
   async function handleDelete(id: number) {
     if (!confirm("Xóa thông báo này?")) return;
+    const wasUnread = notifications.find((n) => n.id === id) && !notifications.find((n) => n.id === id)!.isRead;
     try {
       await api.delete(`/notifications/${id}`);
-      const deleted = notifications.find((n) => n.id === id);
       setNotifications((prev) => prev.filter((n) => n.id !== id));
-      if (deleted && !deleted.isRead) {
+      if (wasUnread) {
         await refreshCount(Math.max(0, unreadCount - 1));
       }
     } catch (err) {
@@ -155,7 +139,7 @@ export default function NotificationsPage() {
       description="Quản lý và theo dõi các luồng thông tin hệ thống, cảnh báo xếp lịch."
       title="Trung tâm Thông báo"
     >
-      <div className="flex flex-col gap-6 pb-8">
+      <div className="flex flex-col gap-4 pb-6">
         {/* Header bar */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
           <div className="flex items-center gap-3">
@@ -190,12 +174,12 @@ export default function NotificationsPage() {
         </div>
 
         {/* Filter tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
+        <div className="flex gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
           {TABS.map((tab) => (
             <button
-              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-label-md shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 ${
+              className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 ${
                 activeTab === tab.value
-                  ? "bg-primary text-on-primary font-semibold"
+                  ? "bg-primary text-on-primary font-semibold shadow-sm"
                   : "border border-outline-variant/50 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low"
               }`}
               key={tab.value}
@@ -204,7 +188,7 @@ export default function NotificationsPage() {
             >
               {tab.label}
               {tab.value === "unread" && unreadCount > 0 ? (
-                <span className="rounded-full bg-error px-1.5 py-0.5 text-[10px] font-bold text-on-error leading-tight">
+                <span className="rounded-full bg-error px-1 py-0.5 text-[9px] font-bold text-on-error leading-tight">
                   {unreadCount}
                 </span>
               ) : null}
@@ -213,36 +197,53 @@ export default function NotificationsPage() {
         </div>
 
         {message && (
-          <div className="rounded-lg border border-primary/20 bg-primary-container/30 px-4 py-3 text-sm text-on-surface">
+          <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-on-surface">
             {message}
           </div>
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <div className="flex flex-col gap-3" aria-busy={true} aria-live="polite">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-5 animate-pulse"
+              >
+                <div className="size-10 shrink-0 rounded-lg bg-surface-container" />
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="h-4 w-2/5 rounded bg-surface-container" />
+                    <div className="h-3 w-12 rounded-full bg-surface-container" />
+                  </div>
+                  <div className="h-3 w-full rounded bg-surface-container" />
+                  <div className="h-3 w-4/5 rounded bg-surface-container" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16">
-            <span className="material-symbols-outlined text-5xl text-outline">notifications_none</span>
-            <p className="mt-4 text-on-surface-variant">Không có thông báo nào.</p>
-            <button
-              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-2 text-[13px] font-medium text-on-surface shadow-sm transition-colors hover:bg-surface-container-low"
-              onClick={() => void fetchNotifications()}
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[18px]">sync</span>
-              Tải lại
-            </button>
-          </div>
+          <EmptyState
+              icon="notifications_none"
+              title="Không có thông báo nào"
+              action={
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-2 text-label-md font-medium text-on-surface shadow-sm transition-colors hover:bg-surface-container-low"
+                  onClick={() => void fetchNotifications()}
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[18px]">sync</span>
+                  Tải lại
+                </button>
+              }
+            />
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2" aria-busy={loading} aria-live="polite">
             {filtered.map((notif) => {
               const { icon, wrapClass } = getNotificationIcon(notif.title);
               const badge = getBadge(notif.title);
               return (
                 <div
-                  className={`group relative flex gap-4 rounded-lg border bg-surface-container-lowest p-5 transition-all hover:bg-surface-container-low ${
+                  className={`group relative flex gap-3 rounded-lg border bg-surface-container-lowest p-3 transition-all hover:bg-surface-container-low ${
                     !notif.isRead ? "border-primary/20 ring-1 ring-primary/10" : "border-outline-variant"
                   }`}
                   key={notif.id}
@@ -251,56 +252,56 @@ export default function NotificationsPage() {
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-l-lg" />
                   )}
 
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg shadow-sm ${wrapClass}`}>
-                    <span className={`material-symbols-outlined text-[20px] ${!notif.isRead ? "fill" : ""}`}>
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-sm ${wrapClass}`}>
+                    <span className={`material-symbols-outlined text-[18px] ${!notif.isRead ? "fill" : ""}`}>
                       {icon}
                     </span>
                   </div>
 
-                  <div className="min-w-0 flex-1 pr-6">
-                    <div className="mb-1.5 flex items-start justify-between gap-2">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <h3 className={`truncate font-title-lg ${!notif.isRead ? "text-on-surface font-semibold" : "text-on-surface font-medium"}`}>
+                  <div className="min-w-0 flex-1 pr-5">
+                    <div className="mb-1 flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <h3 className={`truncate text-[13px] leading-tight ${!notif.isRead ? "text-on-surface font-semibold" : "text-on-surface font-medium"}`}>
                           {notif.title}
                         </h3>
                         {badge && (
-                          <span className={`shrink-0 rounded px-2 py-0.5 text-[10px] uppercase tracking-wider ${badge.badgeClass}`}>
+                          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wider ${badge.badgeClass}`}>
                             {badge.badge}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[11px] font-semibold text-on-surface-variant">
-                          {formatTime(notif.createdAt)}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-medium text-on-surface-variant">
+                          {formatRelativeTime(notif.createdAt)}
                         </span>
                         {!notif.isRead && (
-                          <span className="h-2.5 w-2.5 rounded-full bg-primary shadow-sm" />
+                          <span className="h-2 w-2 rounded-full bg-primary" />
                         )}
                       </div>
                     </div>
 
-                    <p className="mb-3 font-body-md text-on-surface leading-relaxed">
+                    <p className="mb-1.5 text-[12px] text-on-surface-variant leading-snug">
                       {notif.message}
                     </p>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1.5">
                       {!notif.isRead && (
                         <button
-                          className="flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-[12px] font-medium text-on-surface transition-colors hover:bg-surface-container"
+                          className="flex items-center gap-1 rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1 text-[11px] font-medium text-on-surface transition-colors hover:bg-surface-container"
                           onClick={() => handleMarkAsRead(notif.id)}
                           type="button"
                         >
-                          <span className="material-symbols-outlined text-[14px]">check</span>
-                          Đánh dấu đã đọc
+                          <span className="material-symbols-outlined text-[12px]">check</span>
+                          Đã đọc
                         </button>
                       )}
                       <button
-                        className="flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-[12px] font-medium text-error transition-colors hover:bg-error-container"
+                        className="flex items-center gap-1 rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1 text-[11px] font-medium text-error transition-colors hover:bg-error-container"
                         onClick={() => handleDelete(notif.id)}
                         type="button"
                       >
-                        <span className="material-symbols-outlined text-[14px]">delete</span>
+                        <span className="material-symbols-outlined text-[12px]">delete</span>
                         Xóa
                       </button>
                     </div>
@@ -311,17 +312,6 @@ export default function NotificationsPage() {
           </div>
         )}
 
-        {/* Refresh button */}
-        <div className="flex justify-center">
-          <button
-            className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-6 py-2.5 text-label-md text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 shadow-sm"
-            onClick={() => void fetchNotifications()}
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px]">sync</span>
-            Tải lại thông báo
-          </button>
-        </div>
       </div>
     </DashboardShell>
   );

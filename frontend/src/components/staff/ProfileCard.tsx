@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 type ProfileCardProps = {
   id: string;
@@ -8,9 +9,9 @@ type ProfileCardProps = {
   avatarUrl?: string;
 };
 
-export function ProfileCard({ id, name, namePrefix, role, specialty, avatarUrl }: ProfileCardProps & { namePrefix?: string }) {
+export function ProfileCard({ id, name, namePrefix, specialty, avatarUrl }: ProfileCardProps & { namePrefix?: string }) {
   return (
-    <div className="bg-surface-container-lowest rounded-xl shadow-[0_1px_3px_0_rgba(0,0,0,0.1),_0_1px_2px_-1px_rgba(0,0,0,0.1)] p-6 flex flex-col items-center text-center">
+    <div className="bg-surface-container-lowest rounded-lg shadow-sm p-6 flex flex-col items-center text-center">
       <div className="w-32 h-32 rounded-full overflow-hidden mb-4 border-4 border-surface-container-low relative">
         {avatarUrl ? (
           <img alt={name} className="w-full h-full object-cover" src={avatarUrl} />
@@ -28,18 +29,18 @@ export function ProfileCard({ id, name, namePrefix, role, specialty, avatarUrl }
 
       <div className="w-full space-y-3">
         <button
-          className="w-full bg-primary-container text-on-primary-container h-10 rounded-lg font-label-md text-label-md hover:bg-primary hover:text-on-primary transition-colors flex items-center justify-center gap-2"
+          className="w-full bg-primary-container text-on-primary-container h-10 rounded-lg font-label-md hover:bg-primary hover:text-on-primary transition-colors flex items-center justify-center gap-2"
           type="button"
         >
           <span className="material-symbols-outlined text-sm">edit</span>
-          Chinh sua ho so
+          Chỉnh sửa hồ sơ
         </button>
         <button
-          className="w-full bg-transparent text-primary border border-primary h-10 rounded-lg font-label-md text-label-md hover:bg-primary-fixed transition-colors flex items-center justify-center gap-2"
+          className="w-full bg-transparent text-primary border border-primary h-10 rounded-lg font-label-md hover:bg-primary-fixed transition-colors flex items-center justify-center gap-2"
           type="button"
         >
           <span className="material-symbols-outlined text-sm">lock_reset</span>
-          Dat lai mat khau
+          Đặt lại mật khẩu
         </button>
       </div>
     </div>

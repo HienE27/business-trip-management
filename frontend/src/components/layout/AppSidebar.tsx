@@ -36,7 +36,7 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
             <span aria-hidden="true" className="material-symbols-outlined text-[20px]">medical_services</span>
           </div>
           <div>
-            <h1 className="font-title-lg text-primary font-bold leading-tight">Quản lý Lịch</h1>
+            <h1 className="font-bold text-title-lg leading-tight text-primary">Quản lý Lịch</h1>
             <p className="text-label-sm text-on-surface-variant">Hệ thống điều phối</p>
           </div>
         </div>
@@ -53,7 +53,7 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
                   <Link
                     className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all font-medium text-body-sm ${
                       isActive
-                        ? "bg-primary-container text-on-primary-container border-l-4 border-primary font-semibold"
+                        ? "bg-primary text-on-primary border-l-4 border-primary font-semibold"
                         : "text-on-surface-variant hover:bg-surface-container-high"
                     }`}
                     href={item.href}

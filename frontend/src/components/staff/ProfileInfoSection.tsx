@@ -1,14 +1,10 @@
 "use client";
 
+import { translateRoleListToDisplay } from "@/lib/roleLabels";
+
 type InfoField = {
   label: string;
   value: string;
-};
-
-type InfoSection = {
-  title: string;
-  icon: string;
-  fields: InfoField[];
 };
 
 type ProfileInfoProps = {
@@ -23,7 +19,7 @@ export function ProfileInfoSection({ personalInfo, workInfo, systemRoles }: Prof
       <section>
         <h3 className="font-title-lg text-on-surface mb-6 flex items-center gap-2">
           <span className="material-symbols-outlined text-primary">person_outline</span>
-          Thong tin ca nhan
+          Thông tin cá nhân
         </h3>
         <div className="space-y-4">
           {personalInfo.map((field) => (
@@ -52,10 +48,10 @@ export function ProfileInfoSection({ personalInfo, workInfo, systemRoles }: Prof
             <div>
               <p className="font-label-sm text-outline mb-2">Vai trò hệ thống</p>
               <div className="flex gap-2 mt-2">
-                {systemRoles.map((role) => (
+                {translateRoleListToDisplay(systemRoles).map((role, idx) => (
                   <span
                     className={`font-label-sm text-label-sm px-3 py-1 rounded-full ${
-                      role.includes("Truong") || role.includes("ADMIN")
+                      systemRoles[idx] === "ADMIN" || systemRoles[idx] === "MANAGER"
                         ? "bg-primary-fixed text-primary font-semibold"
                         : "bg-surface-container-high text-on-surface"
                     }`}

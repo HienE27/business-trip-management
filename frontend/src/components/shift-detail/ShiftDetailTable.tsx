@@ -6,9 +6,9 @@ type ShiftDetailTableProps = {
 };
 
 const ROLE_BADGE_STYLES: Record<string, string> = {
-  primary: "bg-tertiary-fixed text-on-tertiary-fixed text-label-sm border border-tertiary/20",
-  secondary: "bg-secondary-fixed text-on-secondary-fixed text-label-sm border border-secondary/20",
-  neutral: "bg-surface-container-high text-on-surface text-label-sm border border-outline-variant",
+  primary: "bg-primary-fixed text-primary border border-primary/20",
+  secondary: "bg-secondary-container text-secondary border border-secondary/20",
+  neutral: "bg-surface-container-high text-on-surface border border-outline-variant",
 };
 
 function StaffAvatar({ initials, avatarColor }: { initials: string; avatarColor: string }) {
@@ -22,10 +22,10 @@ function StaffAvatar({ initials, avatarColor }: { initials: string; avatarColor:
 export function ShiftDetailTable({ shift, className = "" }: ShiftDetailTableProps) {
   return (
     <section
-      className={`bg-surface-container-lowest rounded-lg border border-outline-variant shadow-[0_1px_3px_0_rgba(0,0,0,0.05)] overflow-hidden flex flex-col ${className}`}
+      className={`bg-surface-container-lowest rounded-lg border border-outline-variant shadow-sm overflow-hidden flex flex-col ${className}`}
     >
       {/* Header */}
-      <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+      <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
         <h2 className="text-title-lg text-on-surface flex items-center gap-2">
           <span className="material-symbols-outlined text-primary">groups</span>
           Danh sách chi tiết nhân sự tham gia
@@ -39,7 +39,7 @@ export function ShiftDetailTable({ shift, className = "" }: ShiftDetailTableProp
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50 border-b border-outline-variant text-on-surface-variant text-label-sm">
+            <tr className="bg-surface-container-low border-b border-outline-variant text-on-surface-variant text-label-sm">
               <th className="p-4 font-semibold w-12 text-center align-middle">STT</th>
               <th className="p-4 font-semibold align-middle">Họ và tên</th>
               <th className="p-4 font-semibold align-middle">Chức danh / Vai trò</th>
@@ -63,7 +63,7 @@ export function ShiftDetailTable({ shift, className = "" }: ShiftDetailTableProp
                       <p className="text-label-md text-on-surface group-hover:text-primary transition-colors">
                         {staff.name}
                       </p>
-                      <p className="text-[12px] text-on-surface-variant">{staff.department}</p>
+                      <p className="text-label-md text-on-surface-variant">{staff.department}</p>
                     </div>
                   </div>
                 </td>

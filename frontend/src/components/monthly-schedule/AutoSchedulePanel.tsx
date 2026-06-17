@@ -102,7 +102,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             </div>
             <div className="rounded-lg border border-outline-variant bg-surface p-3">
               <p className="text-label-sm text-on-surface-variant">Coverage</p>
-              <p className="mt-1 text-title-lg font-bold text-on-surface">{previewResult.coverageRate}%</p>
+              <p className="mt-1 text-title-lg font-bold text-on-surface">{Math.round(previewResult.coverageRate * 100)}%</p>
             </div>
             <div className="rounded-lg border border-outline-variant bg-surface p-3">
               <p className="text-label-sm text-on-surface-variant">Balance</p>
@@ -174,7 +174,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                           {new Date(item.workDate).toLocaleDateString("vi-VN")}
                         </td>
                         <td className="px-3 py-2 text-label-sm text-on-surface">
-                          <span className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] font-semibold ${badge}`}>
+                          <span className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-label-sm font-semibold ${badge}`}>
                             {item.shiftTypeName}
                           </span>
                         </td>
@@ -194,7 +194,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                           </div>
                         </td>
                         <td className="px-3 py-2 text-center">
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${hasPotentialConflict ? "bg-error-container text-error" : isEdited ? "bg-amber-50 text-amber-700" : "bg-secondary-container text-on-secondary-container"}`}>
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-label-sm font-semibold ${hasPotentialConflict ? "bg-error-container text-error" : isEdited ? "bg-tertiary-fixed text-on-tertiary-fixed" : "bg-secondary-container text-on-secondary-container"}`}>
                             <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{hasPotentialConflict ? "warning" : isEdited ? "edit" : "auto_mode"}</span>
                             {hasPotentialConflict ? "Cần kiểm tra" : isEdited ? "Đã sửa" : "Tự động"}
                           </span>

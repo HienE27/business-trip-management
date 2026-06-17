@@ -62,7 +62,7 @@ export function MonthDateGrid({
   const title = `${MONTH_LABELS[month.getMonth()]} ${month.getFullYear()}`;
 
   return (
-    <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+    <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-3">
         <button
           type="button"
@@ -107,7 +107,7 @@ export function MonthDateGrid({
               disabled={disabled || isBlocked}
               onClick={() => onToggleDate(cell.iso)}
               className={[
-                "flex aspect-square items-center justify-center rounded-lg border text-sm transition-all",
+                "flex aspect-square items-center justify-center rounded-lg border text-body-sm transition-all",
                 cell.inCurrentMonth
                   ? "border-outline-variant bg-surface text-on-surface"
                   : "border-outline-variant/50 bg-surface-container-low text-outline",
@@ -125,7 +125,7 @@ export function MonthDateGrid({
         })}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3 text-[12px] text-on-surface-variant">
+      <div className="mt-4 flex flex-wrap items-center gap-3 text-label-sm text-on-surface-variant">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-3 w-3 rounded border border-outline-variant bg-surface" /> Ngày khả dụng
         </span>
@@ -140,7 +140,7 @@ export function MonthDateGrid({
         </span>
       </div>
 
-      {helperText ? <p className="mt-3 text-[12px] text-on-surface-variant">{helperText}</p> : null}
+      {helperText ? <p className="mt-3 text-label-sm text-on-surface-variant">{helperText}</p> : null}
     </div>
   );
 }

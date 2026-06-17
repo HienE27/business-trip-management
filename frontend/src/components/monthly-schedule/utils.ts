@@ -1,20 +1,19 @@
 import type { ConflictCheckResponse, ConflictDetail, CompensationDay, Schedule, SchedulePeriod, ShiftRequirement, Staff } from "@/types/api";
-import { SHIFT_TYPE_COLORS, SHIFT_TYPE_LABELS, WEEKDAYS } from "./constants";
+import { getRoleBadge, getRoleLabel } from "@/lib/roleLabels";
+import { formatDate } from "@/lib/date";
+import { SHIFT_COLORS, SHIFT_TYPE_LABELS, WEEKDAYS } from "./constants";
 import type { CalendarAnnotation, OperationalKpi, ScheduleTab, WorkloadRow } from "./types";
 
 const AVATAR_COLORS = [
-  "bg-blue-100 text-blue-700",
-  "bg-green-100 text-green-700",
-  "bg-purple-100 text-purple-700",
-  "bg-orange-100 text-orange-700",
-  "bg-pink-100 text-pink-700",
-  "bg-teal-100 text-teal-700",
+  "bg-primary-fixed text-on-primary-fixed-variant",
+  "bg-secondary-container text-on-secondary-container",
+  "bg-tertiary-fixed text-on-tertiary-fixed-variant",
+  "bg-surface-container-high text-on-surface",
+  "bg-primary/10 text-primary",
+  "bg-secondary/10 text-secondary",
 ];
 
-export function formatDate(date?: string | null) {
-  if (!date) return "";
-  return new Date(date).toLocaleDateString("vi-VN");
-}
+export { formatDate };
 
 export function formatDateRange(period: SchedulePeriod | null) {
   if (!period) return "Chưa chọn kỳ lịch";
@@ -61,7 +60,7 @@ function getAvatarColor(id: number): string {
 export function buildShiftDetailViewModel(schedule: Schedule) {
   const shiftTypeId = schedule.shiftType.id as ScheduleTab;
   const shiftTypeName = schedule.shiftType.name ?? getShiftTypeLabel(shiftTypeId);
-  const shiftColor = SHIFT_TYPE_COLORS[shiftTypeId] ?? "bg-gray-500";
+  const shiftColor = SHIFT_COLORS[shiftTypeId]?.bg ?? "bg-surface-container-low";
   const weekday = getWeekday(schedule.workDate);
   const dateFormatted = schedule.workDate ? schedule.workDate.split("-").reverse().join("/") : "";
   const shiftTime = schedule.shiftType.startTime && schedule.shiftType.endTime
@@ -101,16 +100,8 @@ export function buildShiftDetailViewModel(schedule: Schedule) {
         id: String(schedule.staff.id),
         name: schedule.staff.fullName,
         initials: staffInitials,
-        role: schedule.staff.roles?.includes("ADMIN")
-          ? "Quản trị viên"
-          : schedule.staff.roles?.includes("MANAGER")
-            ? "Quản lý"
-            : "Nhân viên",
-        roleBadge: schedule.staff.roles?.includes("ADMIN")
-          ? "primary"
-          : schedule.staff.roles?.includes("MANAGER")
-            ? "secondary"
-            : "neutral",
+        role: getRoleLabel(schedule.staff.roles ?? []),
+        roleBadge: getRoleBadge(schedule.staff.roles ?? []),
         department: schedule.staff.specialtyName ?? "Chưa phân khoa",
         departmentFull: schedule.staff.specialtyName ?? "Chưa xác định",
         position: shiftTypeName,
@@ -124,19 +115,38 @@ export function buildShiftDetailViewModel(schedule: Schedule) {
 }
 
 export function buildCalendarAnnotations(compensationDays: CompensationDay[], conflicts: ConflictDetail[]): CalendarAnnotation[] {
-  const compAnnotations = compensationDays.map((cd) => ({
-    date: cd.compensationDate.split("T")[0],
-    label: `Nghỉ bù · ${cd.staffName}`,
-    tone: "compLeave" as const,
-    description: `Ngày nghỉ bù của ${cd.staffName} — không thể xếp lịch`,
-  }));
+  // Group compensation days by date, list all staff on that date
+  const compByDate = new Map<string, CompensationDay[]>();
+  for (const cd of compensationDays) {
+    const key = cd.compensationDate.split("T")[0];
+    if (!compByDate.has(key)) compByDate.set(key, []);
+    compByDate.get(key)!.push(cd);
+  }
+  const compAnnotations = Array.from(compByDate.entries()).map(([date, days]) => {
+    const staffNames = days.map((d) => d.staffName);
+    const label = staffNames.length === 1
+      ? `Nghỉ bù · ${staffNames[0]}`
+      : `Nghỉ bù · ${staffNames[0]}${staffNames.length > 1 ? ` (+${staffNames.length - 1})` : ""}`;
+    const description = staffNames.length === 1
+      ? `Ngày nghỉ bù của ${staffNames[0]} — không thể xếp lịch`
+      : `Ngày nghỉ bù của ${staffNames.join(", ")} — không thể xếp lịch`;
+    return { date, label, tone: "compLeave" as const, description, isCompensation: true, locked: true };
+  });
 
-  const conflictAnnotations = conflicts.map((conflict) => ({
-    date: conflict.workDate.split("T")[0],
-    label: `Xung đột · ${conflict.staffName}`,
-    tone: "warning" as const,
-    description: conflict.conflictReasons.join(" • "),
-  }));
+  // Group conflicts by date
+  const conflictByDate = new Map<string, ConflictDetail[]>();
+  for (const conflict of conflicts) {
+    const key = conflict.workDate.split("T")[0];
+    if (!conflictByDate.has(key)) conflictByDate.set(key, []);
+    conflictByDate.get(key)!.push(conflict);
+  }
+  const conflictAnnotations = Array.from(conflictByDate.entries()).map(([date, items]) => {
+    const staffNames = items.map((c) => c.staffName);
+    const label = staffNames.length === 1
+      ? `Xung đột · ${staffNames[0]}`
+      : `Xung đột · ${staffNames[0]}${staffNames.length > 1 ? ` (+${staffNames.length - 1})` : ""}`;
+    return { date, label, tone: "warning" as const, description: items.flatMap((c) => c.conflictReasons).join(" • ") };
+  });
 
   return [...compAnnotations, ...conflictAnnotations];
 }
@@ -197,7 +207,7 @@ export function buildOperationalKpis(params: {
 
   return [
     {
-      label: "Coverage %",
+      label: "Tỷ lệ phủ",
       value: `${coverage}%`,
       helper: required > 0 ? `${assigned}/${required} nhu cầu đã phủ` : "Chưa có yêu cầu nhân sự",
       tone: coverage >= 95 ? "success" : coverage >= 80 ? "warning" : "danger",
@@ -205,7 +215,7 @@ export function buildOperationalKpis(params: {
       icon: "donut_large",
     },
     {
-      label: "Understaffed Days",
+      label: "Ngày thiếu nhân sự",
       value: understaffedDays,
       helper: understaffedDays > 0 ? "Ngày thiếu nhân sự so với yêu cầu" : "Không có ngày thiếu nhân sự",
       tone: understaffedDays > 0 ? "warning" : "success",
@@ -213,7 +223,7 @@ export function buildOperationalKpis(params: {
       icon: "group_remove",
     },
     {
-      label: "Fatigue Risk",
+      label: "Nguy cơ quá tải",
       value: fatigueRisk,
       helper: activeStaff.length > 0 ? "Nhân sự có từ 4 ca L01 trong kỳ" : "Chưa có dữ liệu nhân sự",
       tone: fatigueRisk > 0 ? "danger" : "success",
@@ -221,7 +231,7 @@ export function buildOperationalKpis(params: {
       icon: "battery_alert",
     },
     {
-      label: "Pending Leave Impact",
+      label: "Ảnh hưởng nghỉ phép",
       value: "N/A",
       helper: "Workspace hiện chưa nạp dữ liệu nghỉ phép chờ duyệt",
       tone: "neutral",
@@ -229,7 +239,7 @@ export function buildOperationalKpis(params: {
       icon: "event_busy",
     },
     {
-      label: "Open Conflicts",
+      label: "Xung đột mở",
       value: openConflicts,
       helper: openConflicts > 0 ? "Chặn publish kỳ lịch" : "Không có xung đột mở",
       tone: openConflicts > 0 ? "danger" : "success",

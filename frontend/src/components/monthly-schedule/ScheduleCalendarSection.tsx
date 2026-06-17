@@ -1,10 +1,8 @@
 "use client";
 
 import { memo } from "react";
-import Link from "next/link";
 import { ScheduleCalendarWidget } from "@/components/dashboard/ScheduleCalendarWidget";
-import { EmptyState } from "@/components/ui/EmptyState";
-import type { Schedule, Specialty, Staff } from "@/types/api";
+import type { CompensationDay, Schedule, Specialty, Staff } from "@/types/api";
 import type { CalendarAnnotation, ViewMode } from "./types";
 
 export type ScheduleCalendarSectionProps = {
@@ -19,6 +17,7 @@ export type ScheduleCalendarSectionProps = {
   initialYear: number;
   initialMonth: number;
   viewMode: ViewMode;
+  compensationDays?: CompensationDay[];
   onRefresh: () => void;
   onFocusDate: (date: string) => void;
   onAddDate: (date: Date) => void;
@@ -26,6 +25,8 @@ export type ScheduleCalendarSectionProps = {
   onSpecialtyFilterChange: (specialtyId: number | null) => void;
   onViewDetail: (schedule: Schedule) => void;
   onViewModeChange: (view: ViewMode) => void;
+  /** Khi true: ẩn filter trên toolbar calendar (dashboard). Mặc định false (monthly-schedule hiển thị filter). */
+  hideFilters?: boolean;
 };
 
 export const ScheduleCalendarSection = memo(function ScheduleCalendarSection({
@@ -40,6 +41,7 @@ export const ScheduleCalendarSection = memo(function ScheduleCalendarSection({
   initialYear,
   initialMonth,
   viewMode,
+  compensationDays,
   onRefresh,
   onFocusDate,
   onAddDate,
@@ -47,26 +49,8 @@ export const ScheduleCalendarSection = memo(function ScheduleCalendarSection({
   onSpecialtyFilterChange,
   onViewDetail,
   onViewModeChange,
+  hideFilters = false,
 }: ScheduleCalendarSectionProps) {
-  if (schedules.length === 0) {
-    return (
-      <EmptyState
-        icon="calendar_month"
-        title="Chưa có phân công cho loại lịch này"
-        description="Hãy dùng tính năng Tự động xếp lịch hoặc thêm lịch thủ công."
-        action={
-          <Link
-            href="/auto-scheduling"
-            className="rounded-lg bg-primary px-4 py-2 text-label-md font-medium text-on-primary transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <span className="material-symbols-outlined align-middle mr-1 text-[18px]">auto_mode</span>
-            Tự động xếp lịch
-          </Link>
-        }
-      />
-    );
-  }
-
   return (
     <ScheduleCalendarWidget
       schedules={schedules}
@@ -88,6 +72,8 @@ export const ScheduleCalendarSection = memo(function ScheduleCalendarSection({
       viewMode={viewMode}
       onViewModeChange={onViewModeChange}
       showViewToggle={false}
+      compensationDays={compensationDays}
+      hideFilters={hideFilters}
     />
   );
 });

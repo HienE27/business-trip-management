@@ -4,7 +4,7 @@ import { memo, useEffect, useId, useState } from "react";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { Staff } from "@/types/api";
+import type { CompensationDay, Staff } from "@/types/api";
 import type { ScheduleTab } from "./types";
 import { TAB_OPTIONS } from "./constants";
 
@@ -13,22 +13,25 @@ export type QuickAddModalProps = {
   periodId: number | null;
   defaultShiftTypeId: ScheduleTab;
   staffList: Staff[];
+  compensationDays?: CompensationDay[];
   onSuccess: () => void;
   onClose: () => void;
 };
 
-export const QuickAddModal = memo(function QuickAddModal({ date, periodId, defaultShiftTypeId, staffList, onSuccess, onClose }: QuickAddModalProps) {
+export const QuickAddModal = memo(function QuickAddModal({ date, periodId, defaultShiftTypeId, staffList, compensationDays, onSuccess, onClose }: QuickAddModalProps) {
   const id = useId();
   const [shiftTypeId, setShiftTypeId] = useState(defaultShiftTypeId);
   const [staffId, setStaffId] = useState<number | "">("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const dateKey = date ? date.toISOString().slice(0, 10) : null;
+
   useEffect(() => {
     setShiftTypeId(defaultShiftTypeId);
     setStaffId("");
     setError(null);
-  }, [date, defaultShiftTypeId]);
+  }, [dateKey, defaultShiftTypeId]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -37,6 +40,17 @@ export const QuickAddModal = memo(function QuickAddModal({ date, periodId, defau
     setSubmitting(true);
     setError(null);
     try {
+      if (compensationDays && staffId) {
+        const dateStr = date.toISOString().slice(0, 10);
+        const isCompDay = compensationDays.some(
+          (cd) => cd.staffId === Number(staffId) && cd.compensationDate === dateStr
+        );
+        if (isCompDay) {
+          setError("Ngày này là ngày nghỉ bù của nhân sự này. Không thể xếp lịch.");
+          setSubmitting(false);
+          return;
+        }
+      }
       await api.post("/schedules", {
         periodId,
         workDate: date.toISOString().slice(0, 10),
@@ -119,7 +133,8 @@ export const QuickAddModal = memo(function QuickAddModal({ date, periodId, defau
             </button>
             <button
               type="submit"
-              disabled={submitting || staffId === ""}
+              aria-label="Tạo lịch"
+              disabled={submitting || staffId === "" || !periodId}
               className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary transition-colors hover:bg-primary/90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               {submitting ? (

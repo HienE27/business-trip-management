@@ -87,7 +87,7 @@ export function Modal({ open, onClose, title, description, children, size = "md"
       {/* Dialog */}
       <div
         ref={dialogRef}
-        className={`relative w-full ${SIZE_CLASS[size]} bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200`}
+        className={`relative w-full ${SIZE_CLASS[size]} bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200`}
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-outline-variant flex items-start justify-between gap-4">

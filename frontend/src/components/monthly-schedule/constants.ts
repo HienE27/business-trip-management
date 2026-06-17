@@ -1,4 +1,6 @@
 import type { ScheduleTab, WorkflowDefinition } from "./types";
+export { SHIFT_COLORS, SHIFT_TYPE_BADGES } from "@/lib/shift-colors";
+export type { ShiftColorSet } from "@/lib/shift-colors";
 
 export const TAB_OPTIONS: { id: ScheduleTab; label: string; shortLabel: string; description: string }[] = [
   { id: "L01", label: "Trực 24/24", shortLabel: "24/24", description: "Ca trực xuyên ngày, có nghỉ bù và ràng buộc fatigue cao nhất." },
@@ -20,20 +22,6 @@ export const SHIFT_TYPE_LABELS: Record<ScheduleTab, string> = {
   L02: "Thông tầm",
   L03: "Phòng khám DV",
   L04: "Phòng khám CG",
-};
-
-export const SHIFT_TYPE_COLORS: Record<ScheduleTab, string> = {
-  L01: "bg-red-500",
-  L02: "bg-blue-500",
-  L03: "bg-green-500",
-  L04: "bg-purple-500",
-};
-
-export const SHIFT_TYPE_BADGES: Record<ScheduleTab, string> = {
-  L01: "bg-red-50 text-red-700 border-red-200",
-  L02: "bg-blue-50 text-blue-700 border-blue-200",
-  L03: "bg-green-50 text-green-700 border-green-200",
-  L04: "bg-purple-50 text-purple-700 border-purple-200",
 };
 
 export const ALGORITHM_OPTIONS = [

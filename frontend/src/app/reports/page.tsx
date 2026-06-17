@@ -37,32 +37,32 @@ export default function ReportsPage() {
       title="Báo cáo"
       description="Điểm vào trung tâm báo cáo vận hành: kỳ lịch, khối lượng nhân sự và xung đột."
     >
-      <div className="space-y-6">
-        <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 md:p-6 shadow-sm">
-          <p className="text-label-sm text-on-surface-variant">Reports hub</p>
-          <h2 className="mt-2 text-headline-md text-on-surface">Trung tâm báo cáo</h2>
-          <p className="mt-2 max-w-3xl text-body-md leading-6 text-on-surface-variant">
+      <div className="space-y-4">
+        <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3 shadow-sm">
+          <p className="text-label-sm font-medium text-on-surface-variant">Trung tâm báo cáo</p>
+          <h2 className="mt-1 text-headline-md text-on-surface">Báo cáo vận hành</h2>
+          <p className="mt-1 text-label-sm leading-5 text-on-surface-variant max-w-3xl">
             Chọn loại báo cáo để xem chi tiết. Các báo cáo sử dụng dữ liệu thực từ backend.
           </p>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {REPORT_CARDS.map((card) => (
             <article
               key={card.title}
-              className={`flex h-full flex-col rounded-xl border border-l-4 ${card.accent} bg-surface-container-lowest p-5 shadow-sm transition-colors hover:bg-surface-container-low`}
+              className={`flex h-full flex-col rounded-xl border border-l-4 ${card.accent} bg-surface-container-lowest p-4 shadow-sm transition-colors hover:bg-surface-container-low`}
             >
-              <span className="material-symbols-outlined w-fit rounded-lg bg-primary-fixed px-2 py-2 text-[22px] text-primary">
+              <span className="material-symbols-outlined w-fit rounded-lg bg-primary-fixed px-1.5 py-1.5 text-[18px] text-primary">
                 {card.icon}
               </span>
-              <h3 className="mt-4 text-title-lg font-semibold text-on-surface">{card.title}</h3>
-              <p className="mt-2 flex-1 text-body-sm leading-6 text-on-surface-variant">{card.description}</p>
+              <h3 className="mt-3 text-title-lg font-semibold text-on-surface leading-tight">{card.title}</h3>
+              <p className="mt-1 flex-1 text-label-sm leading-5 text-on-surface-variant">{card.description}</p>
               <Link
                 href={card.href}
-                className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary transition-colors hover:bg-primary/90"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-label-sm font-medium text-on-primary transition-colors hover:bg-primary/90"
               >
                 {card.cta}
-                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
               </Link>
             </article>
           ))}

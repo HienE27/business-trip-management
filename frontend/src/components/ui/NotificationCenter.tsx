@@ -62,9 +62,9 @@ export function NotificationCenter({
         onClick={() => setOpen((v) => !v)}
         className="relative rounded-lg p-2 text-on-surface-variant transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
-        <span className="material-symbols-outlined text-[20px]">notifications</span>
+        <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-on-error ring-2 ring-surface">
+          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-error px-1 text-label-sm font-bold text-on-error ring-2 ring-surface">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -100,13 +100,13 @@ export function NotificationCenter({
                     n.unread ? "bg-primary/5" : ""
                   }`}
                 >
-                  <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${n.iconColor}`}>
+                  <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${n.iconColor ?? "bg-surface-container-low"}`}>
                     <span className="material-symbols-outlined text-[18px]">{n.icon}</span>
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-label-md font-medium text-on-surface">{n.title}</p>
                     <p className="mt-0.5 line-clamp-2 text-label-sm leading-relaxed text-on-surface-variant">{n.detail}</p>
-                    <p className="mt-1 text-[11px] text-on-surface-variant opacity-70">{n.time}</p>
+                    <p className="mt-1 text-label-sm text-on-surface-variant opacity-70">{n.time}</p>
                   </div>
                   {n.unread && <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />}
                 </div>

@@ -2,70 +2,34 @@
 
 import { memo, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { SectionCard } from "@/components/ui/SectionCard";
-import { WORKFLOW_STEPS } from "./constants";
 import type { MonthlyPanel, WorkflowContext, WorkflowStatus, WorkflowStepId, WorkflowStepView } from "./types";
 
-const STATUS_META: Record<WorkflowStatus, { label: string; icon: string; className: string; marker: string }> = {
-  pending: {
-    label: "Chờ xử lý",
-    icon: "radio_button_unchecked",
-    className: "border-outline-variant bg-surface hover:bg-surface-container-low",
-    marker: "bg-surface-container-high text-on-surface-variant",
-  },
-  active: {
-    label: "Đang xử lý",
-    icon: "play_arrow",
-    className: "border-primary bg-primary-fixed/40",
-    marker: "bg-primary text-on-primary",
-  },
-  completed: {
-    label: "Hoàn tất",
-    icon: "check",
-    className: "border-secondary/30 bg-secondary-container/40",
-    marker: "bg-secondary-container text-on-secondary-container",
-  },
-  error: {
-    label: "Lỗi",
-    icon: "error",
-    className: "border-error/30 bg-error-container/40",
-    marker: "bg-error text-on-error",
-  },
+const STATUS_META: Record<WorkflowStatus, { label: string; icon: string; dot: string; line: string }> = {
+  pending:  { label: "Chờ",     icon: "radio_button_unchecked", dot: "bg-surface-variant",       line: "bg-surface-variant" },
+  active:   { label: "Đang xử lý", icon: "play_arrow",         dot: "bg-primary",              line: "bg-primary/30" },
+  completed: { label: "Hoàn tất", icon: "check",               dot: "bg-secondary",            line: "bg-secondary/40" },
+  error:    { label: "Lỗi",     icon: "error",                 dot: "bg-error",                line: "bg-error/30" },
 };
 
-function buildWorkflowSteps(context: WorkflowContext): WorkflowStepView[] {
+function buildSteps(context: WorkflowContext): WorkflowStepView[] {
   const hasConflicts = Boolean(context.conflictData?.hasConflicts);
   const hasConflictCheck = context.conflictData !== null;
   const hasSchedules = context.schedules.length > 0;
   const isPublished = context.selectedPeriod?.status === "PUBLISHED";
-  const activeFromPanel: Partial<Record<MonthlyPanel, WorkflowStepId>> = {
+  const panelMap: Partial<Record<MonthlyPanel, WorkflowStepId>> = {
     conflicts: "conflicts",
     overview: "review",
     summary: "review",
   };
-  const activeStep = activeFromPanel[context.selectedPanel];
+  const activeFromPanel = panelMap[context.selectedPanel];
 
-  return WORKFLOW_STEPS.map((step) => {
-    let status: WorkflowStatus = "pending";
-
-    if (step.id === "auto-schedule") {
-      status = hasSchedules ? "completed" : "pending";
-    } else if (step.id === "conflicts") {
-      status = context.checkingConflicts || activeStep === step.id ? "active" : hasConflicts ? "error" : hasConflictCheck ? "completed" : "pending";
-    } else if (step.id === "review") {
-      status = activeStep === step.id ? "active" : hasSchedules && !hasConflicts ? "completed" : "pending";
-    } else if (step.id === "publish") {
-      status = context.publishing ? "active" : isPublished ? "completed" : hasConflicts ? "error" : "pending";
-    } else if (step.id === "notify") {
-      status = context.notifying ? "active" : context.notified ? "completed" : "pending";
-    }
-
-    return {
-      ...step,
-      status,
-      statusLabel: STATUS_META[status].label,
-    };
-  });
+  return [
+    { id: "auto-schedule" as WorkflowStepId, title: "Auto", description: "Tự động xếp lịch", status: hasSchedules ? "completed" : "pending", statusLabel: "" },
+    { id: "conflicts" as WorkflowStepId, title: "Xung đột", description: "Kiểm tra xung đột", status: context.checkingConflicts || activeFromPanel === "conflicts" ? "active" : hasConflicts ? "error" : hasConflictCheck ? "completed" : "pending", statusLabel: "" },
+    { id: "review" as WorkflowStepId, title: "Rà soát", description: "Tổng hợp & báo cáo", status: activeFromPanel === "review" ? "active" : hasSchedules && !hasConflicts ? "completed" : "pending", statusLabel: "" },
+    { id: "publish" as WorkflowStepId, title: "Công bố", description: "Công bố kỳ lịch", status: context.publishing ? "active" : isPublished ? "completed" : hasConflicts ? "error" : "pending", statusLabel: "" },
+    { id: "notify" as WorkflowStepId, title: "Thông báo", description: "Gửi thông báo", status: context.notifying ? "active" : context.notified ? "completed" : "pending", statusLabel: "" },
+  ];
 }
 
 export type WorkflowStepperProps = WorkflowContext & {
@@ -74,77 +38,85 @@ export type WorkflowStepperProps = WorkflowContext & {
 
 export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStepperProps) {
   const router = useRouter();
-  const steps = useMemo(() => buildWorkflowSteps(props), [props]);
-  const completedCount = steps.filter((step) => step.status === "completed").length;
+  const steps = useMemo(() => buildSteps(props), [props]);
+  const completedCount = steps.filter((s) => s.status === "completed").length;
   const progress = Math.round((completedCount / steps.length) * 100);
 
-  function handleStepClick(stepId: WorkflowStepId) {
-    if (stepId === "auto-schedule") {
-      router.push("/auto-scheduling");
-      return;
-    }
+  function handleClick(stepId: WorkflowStepId) {
+    if (stepId === "auto-schedule") { router.push("/auto-scheduling"); return; }
     props.onStepSelect(stepId);
   }
 
   return (
-    <SectionCard
-      title="Workflow vận hành"
-      description="Stepper thể hiện rõ trạng thái từng checkpoint trước khi công bố kỳ lịch."
-    >
-      <div className="space-y-4 p-5">
-        <div>
-          <div className="flex items-center justify-between text-label-sm text-on-surface-variant">
-            <span>{completedCount}/{steps.length} bước hoàn tất</span>
-            <span>{progress}%</span>
-          </div>
-          <div className="mt-2 h-2 rounded-full bg-surface-container-high" aria-hidden="true">
-            <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+    <div className="bg-surface-container-lowest rounded-lg border border-outline-variant shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-2.5 border-b border-outline-variant flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary text-[18px]">account_tree</span>
+          <span className="text-label-md font-semibold text-on-surface">Workflow</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-label-sm text-on-surface-variant">{completedCount}/{steps.length}</span>
+          <div className="w-16 h-1.5 bg-surface-variant rounded-full overflow-hidden">
+            <div className="h-1.5 bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
           </div>
         </div>
+      </div>
 
-        <ol className="space-y-3" aria-label="Quy trình lập lịch tháng">
+      {/* Compact step bar */}
+      <div className="px-4 py-3">
+        <div className="flex items-center gap-0">
           {steps.map((step, index) => {
             const meta = STATUS_META[step.status];
-            const descriptionId = `workflow-${step.id}-description`;
+            const isClickable = step.id !== "auto-schedule" || true;
             return (
-              <li key={step.id}>
+              <div key={step.id} className="flex items-center flex-1 last:flex-none">
+                {/* Step dot */}
                 <button
                   type="button"
-                  onClick={() => handleStepClick(step.id)}
-                  aria-current={step.status === "active" ? "step" : undefined}
-                  aria-describedby={descriptionId}
-                  className={`flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${meta.className}`}
+                  onClick={() => handleClick(step.id)}
+                  title={`${step.title} — ${step.description} (${meta.label})`}
+                  className={`relative flex flex-col items-center gap-1 group ${isClickable ? "cursor-pointer" : "cursor-default"}`}
                 >
-                  <span
-                    aria-label={`Bước ${index + 1}: ${step.statusLabel}`}
-                    className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${meta.marker}`}
-                  >
-                    {step.status === "completed" || step.status === "error" ? (
-                      <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{meta.icon}</span>
-                    ) : (
-                      index + 1
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center justify-between gap-3">
-                      <span className="text-label-md font-semibold text-on-surface">{step.title}</span>
-                      <span className="rounded-full bg-surface-container-low px-2 py-0.5 text-[11px] font-semibold text-on-surface-variant">
-                        {step.statusLabel}
-                      </span>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${meta.dot} transition-all group-hover:scale-110`}>
+                    <span className="material-symbols-outlined text-white" style={{ fontSize: "13px" }}>
+                      {meta.icon}
                     </span>
-                    <span id={descriptionId} className="mt-1 block text-body-sm leading-5 text-on-surface-variant">
-                      {step.description}
-                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-on-surface-variant group-hover:text-primary transition-colors whitespace-nowrap leading-tight">
+                    {step.title}
                   </span>
                 </button>
+                {/* Connector line */}
                 {index < steps.length - 1 && (
-                  <div className="ml-8 h-3 w-px bg-outline-variant" aria-hidden="true" />
+                  <div className={`flex-1 h-0.5 mx-1 mb-3 rounded-full ${meta.line} transition-all`} />
                 )}
-              </li>
+              </div>
             );
           })}
-        </ol>
+        </div>
       </div>
-    </SectionCard>
+
+      {/* Status summary */}
+      <div className="px-4 pb-3">
+        <div className="bg-surface-container-low rounded-lg p-2.5">
+          <p className="text-[11px] text-on-surface-variant leading-relaxed">
+            {isPublished(props) ? (
+              <span className="text-secondary font-semibold">Kỳ lịch đã công bố.</span>
+            ) : hasConflicts(props) ? (
+              <span className="text-error font-semibold">Còn xung đột chưa xử lý.</span>
+            ) : hasSchedules(props) ? (
+              <span className="text-primary font-semibold">Sẵn sàng công bố.</span>
+            ) : (
+              <span>Chưa xếp lịch. Chạy auto-scheduling trước.</span>
+            )}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 });
+
+function isPublished(props: WorkflowContext) { return props.selectedPeriod?.status === "PUBLISHED"; }
+function hasConflicts(props: WorkflowContext) { return Boolean(props.conflictData?.hasConflicts); }
+function hasSchedules(props: WorkflowContext) { return props.schedules.length > 0; }

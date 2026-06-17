@@ -4,29 +4,64 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { SchedulePeriod, Schedule, ConflictCheckResponse } from "@/types/api";
+import type { SchedulePeriod, ShiftStatistics } from "@/types/api";
+
+const SHIFT_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+  L01: { label: "Trực 24/24", color: "text-red-600", bg: "bg-red-50" },
+  L02: { label: "Thông tầm", color: "text-blue-600", bg: "bg-blue-50" },
+  L03: { label: "PK Dịch vụ", color: "text-green-600", bg: "bg-green-50" },
+  L04: { label: "PK Chuyên gia", color: "text-purple-600", bg: "bg-purple-50" },
+};
 
 export default function ReportsMonthlyPage() {
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<SchedulePeriod | null>(null);
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [conflictData, setConflictData] = useState<ConflictCheckResponse | null>(null);
+  const [stats, setStats] = useState<ShiftStatistics | null>(null);
+  const [scheduleCount, setScheduleCount] = useState(0);
+  const [staffCount, setStaffCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [loadingPeriod, setLoadingPeriod] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const fetchPeriods = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.get<SchedulePeriod[]>("/periods");
-      const all = data ?? [];
-      setPeriods(all);
-      const active = all.find((p) => p.status === "PUBLISHED" || p.status === "DRAFT");
+      setPeriods(data ?? []);
+      const active = data?.find((p) => p.status === "PUBLISHED" || p.status === "DRAFT");
       if (active) setSelectedPeriod(active);
     } catch (err) {
-      setMessage(getErrorMessage(err, "Không thể tải danh sách kỳ lịch."));
+      setMessage(getErrorMessage(err, "Lỗi tải danh sách kỳ lịch."));
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const fetchReport = useCallback(async (periodId: number) => {
+    try {
+      setChecking(true);
+      setMessage(null);
+      const [statsRes, scheduleData] = await Promise.allSettled([
+        api.get<ShiftStatistics>("/dashboard/statistics/shifts", { periodId }),
+        api.get<unknown[]>(`/schedules/period/${periodId}`),
+      ]);
+      if (statsRes.status === "fulfilled") setStats(statsRes.value ?? null);
+      if (scheduleData.status === "fulfilled") {
+        setScheduleCount(Array.isArray(scheduleData.value) ? scheduleData.value.length : 0);
+      }
+      // Staff count from active endpoint filtered by period is approximated via schedule unique staff
+      const uniqueStaff = new Set<string>();
+      if (scheduleData.status === "fulfilled" && Array.isArray(scheduleData.value)) {
+        for (const s of scheduleData.value as Record<string, unknown>[]) {
+          if (s["staffId"] != null) uniqueStaff.add(String(s["staffId"]));
+        }
+      }
+      setStaffCount(uniqueStaff.size);
+    } catch (err) {
+      setMessage(getErrorMessage(err, "Lỗi tải báo cáo kỳ lịch."));
+    } finally {
+      setChecking(false);
     }
   }, []);
 
@@ -34,44 +69,44 @@ export default function ReportsMonthlyPage() {
     void fetchPeriods();
   }, [fetchPeriods]);
 
-  const fetchPeriodData = useCallback(async (periodId: number) => {
-    try {
-      setLoadingPeriod(true);
-      const [schedRes, conflictRes] = await Promise.allSettled([
-        api.get<Schedule[]>(`/schedules/period/${periodId}`),
-        api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`),
-      ]);
-      if (schedRes.status === "fulfilled") setSchedules(schedRes.value ?? []);
-      if (conflictRes.status === "fulfilled") setConflictData(conflictRes.value);
-    } catch (err) {
-      setMessage(getErrorMessage(err, "Lỗi tải dữ liệu kỳ lịch."));
-    } finally {
-      setLoadingPeriod(false);
-    }
-  }, []);
-
   useEffect(() => {
-    if (selectedPeriod) void fetchPeriodData(selectedPeriod.id);
-  }, [selectedPeriod, fetchPeriodData]);
+    if (selectedPeriod) void fetchReport(selectedPeriod.id);
+  }, [selectedPeriod, fetchReport]);
 
-  const stats = useMemo(() => {
-    const L01 = schedules.filter((s) => s.shiftType.id === "L01").length;
-    const L02 = schedules.filter((s) => s.shiftType.id === "L02").length;
-    const L03 = schedules.filter((s) => s.shiftType.id === "L03").length;
-    const L04 = schedules.filter((s) => s.shiftType.id === "L04").length;
-    const uniqueStaff = new Set(schedules.map((s) => s.staff.id)).size;
-    const conflicts = conflictData?.totalConflicts ?? 0;
-    return { L01, L02, L03, L04, uniqueStaff, conflicts, total: schedules.length };
-  }, [schedules, conflictData]);
+  const handleExport = useCallback(async () => {
+    if (!selectedPeriod) return;
+    setExportLoading(true);
+    try {
+      const blob = await api.exportScheduleExcel(selectedPeriod.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lich-cong-tac-${selectedPeriod.periodName}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setMessage("Không thể xuất file. Vui lòng thử lại.");
+    } finally {
+      setExportLoading(false);
+    }
+  }, [selectedPeriod]);
 
-  const coverageRate = useMemo(() => {
-    if (!selectedPeriod) return 0;
-    const days = Math.ceil(
-      (new Date(selectedPeriod.endDate).getTime() - new Date(selectedPeriod.startDate).getTime()) /
-        (1000 * 60 * 60 * 24),
-    ) + 1;
-    return Math.min(100, Math.round((stats.L01 / days) * 100));
-  }, [selectedPeriod, stats.L01]);
+  const shiftItems = useMemo(() => {
+    if (!stats) return [];
+    return [
+      { key: "L01", label: SHIFT_LABELS.L01.label, color: SHIFT_LABELS.L01.color, bg: SHIFT_LABELS.L01.bg, count: stats.L01Count },
+      { key: "L02", label: SHIFT_LABELS.L02.label, color: SHIFT_LABELS.L02.color, bg: SHIFT_LABELS.L02.bg, count: stats.L02Count },
+      { key: "L03", label: SHIFT_LABELS.L03.label, color: SHIFT_LABELS.L03.color, bg: SHIFT_LABELS.L03.bg, count: stats.L03Count },
+      { key: "L04", label: SHIFT_LABELS.L04.label, color: SHIFT_LABELS.L04.color, bg: SHIFT_LABELS.L04.bg, count: stats.L04Count },
+    ];
+  }, [stats]);
+
+  const totalShift = useMemo(() => {
+    if (!stats) return 0;
+    return stats.L01Count + stats.L02Count + stats.L03Count + stats.L04Count;
+  }, [stats]);
+
+  const maxShift = useMemo(() => Math.max(...shiftItems.map((i) => i.count), 1), [shiftItems]);
 
   return (
     <DashboardShell
@@ -79,13 +114,19 @@ export default function ReportsMonthlyPage() {
       title="Báo cáo kỳ lịch"
       description="Tổng hợp phân bổ lịch, trạng thái và xung đột của kỳ lịch được chọn."
     >
-      {/* Period selector */}
-      <section className="flex items-center justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
-        <div className="flex items-center gap-4">
+      {message && (
+        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+          {message}
+        </div>
+      )}
+
+      {/* Period Selector */}
+      <section className="flex items-center justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm flex-wrap">
+        <div className="flex items-center gap-3">
           <span className="material-symbols-outlined text-[22px] text-primary">calendar_month</span>
           <div>
-            <h2 className="text-[16px] font-semibold text-on-surface">Chọn kỳ lịch</h2>
-            <p className="text-[12px] text-on-surface-variant">Xem báo cáo chi tiết theo kỳ xếp lịch.</p>
+            <h2 className="text-[16px] font-semibold text-on-surface">Báo cáo kỳ lịch</h2>
+            <p className="text-[12px] text-on-surface-variant">Chọn kỳ lịch để xem báo cáo tổng hợp.</p>
           </div>
         </div>
         <div className="relative min-w-[280px]">
@@ -100,201 +141,217 @@ export default function ReportsMonthlyPage() {
             <option value="">Chọn kỳ lịch</option>
             {periods.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.periodName} ({p.status})
+                {p.periodName}{" "}
+                (
+                {p.status === "PUBLISHED" ? "Đã công bố" : p.status === "DRAFT" ? "Nháp" : "Đã lưu trữ"}
+                )
               </option>
             ))}
           </select>
-          <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
+          <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">
+            expand_more
+          </span>
         </div>
       </section>
 
-      {message && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
-          {message}
-        </div>
-      )}
-
       {!selectedPeriod && !loading ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant bg-surface py-20 gap-4">
-          <span className="material-symbols-outlined text-5xl text-outline">calendar_month</span>
+          <span className="material-symbols-outlined text-5xl text-outline">bar_chart</span>
           <p className="text-on-surface-variant">Chọn một kỳ lịch để xem báo cáo.</p>
         </div>
-      ) : loading || loadingPeriod ? (
-        <div className="flex items-center justify-center py-20">
+      ) : loading ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant bg-surface py-20 gap-4">
           <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-on-surface-variant">Đang tải kỳ lịch...</p>
         </div>
-      ) : selectedPeriod ? (
-        <div className="space-y-6">
+      ) : (
+        <div className="space-y-5">
           {/* Period info */}
-          <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-[18px] font-semibold text-on-surface">{selectedPeriod.periodName}</h3>
-                <p className="mt-1 text-[13px] text-on-surface-variant">
-                  {new Date(selectedPeriod.startDate).toLocaleDateString("vi-VN")} —{" "}
-                  {new Date(selectedPeriod.endDate).toLocaleDateString("vi-VN")}
-                </p>
-              </div>
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold ${
-                selectedPeriod.status === "PUBLISHED"
-                  ? "bg-secondary-container text-secondary"
-                  : selectedPeriod.status === "DRAFT"
-                    ? "bg-primary-fixed text-primary"
-                    : "bg-surface-container-high text-outline"
-              }`}>
-                <span className={`h-2 w-2 rounded-full ${
-                  selectedPeriod.status === "PUBLISHED" ? "bg-secondary" :
-                  selectedPeriod.status === "DRAFT" ? "bg-primary" : "bg-outline"
-                }`} />
-                {selectedPeriod.status}
-              </span>
-              <div className="flex gap-2">
-                <a
-                  href={`/api/v1/dashboard/export/schedule/${selectedPeriod.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-primary px-3 py-1.5 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[16px]">table_view</span>
-                  Xuất Excel
-                </a>
-                <a
-                  href={`/api/v1/dashboard/export/schedule/${selectedPeriod.id}/pdf`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-tertiary px-3 py-1.5 text-[12px] font-medium text-tertiary hover:bg-tertiary-fixed transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
-                  Xuất PDF
-                </a>
+          {selectedPeriod && (
+            <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h3 className="text-[18px] font-bold text-on-surface">{selectedPeriod.periodName}</h3>
+                  <p className="text-[13px] text-on-surface-variant mt-0.5">
+                    {new Date(selectedPeriod.startDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "long", year: "numeric" })}
+                    {" — "}
+                    {new Date(selectedPeriod.endDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "long", year: "numeric" })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold ${
+                      selectedPeriod.status === "PUBLISHED"
+                        ? "bg-secondary-container text-on-secondary-container"
+                        : selectedPeriod.status === "DRAFT"
+                        ? "bg-primary-fixed text-primary"
+                        : "bg-surface-container-high text-outline"
+                    }`}
+                  >
+                    {selectedPeriod.status === "PUBLISHED"
+                      ? "Đã công bố"
+                      : selectedPeriod.status === "DRAFT"
+                      ? "Nháp"
+                      : "Đã lưu trữ"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleExport}
+                    disabled={exportLoading || checking}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-[13px] font-medium text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">download</span>
+                    {exportLoading ? "Đang xuất..." : "Xuất Excel"}
+                  </button>
+                </div>
               </div>
             </div>
-          </section>
-
-          {/* KPI Grid */}
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { label: "Tổng phân công", value: stats.total, icon: "event_available", accent: "bg-primary-fixed text-primary" },
-              { label: "Số nhân sự", value: stats.uniqueStaff, icon: "groups", accent: "bg-secondary-container text-secondary" },
-              { label: "Phủ lịch", value: `${coverageRate}%`, icon: "check_circle", accent: "bg-surface-container text-on-surface-variant" },
-              { label: "Xung đột", value: stats.conflicts, icon: "warning", accent: stats.conflicts > 0 ? "bg-error-container text-error" : "bg-surface-container text-outline" },
-            ].map((kpi) => (
-              <article key={kpi.label} className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm hover:bg-surface-container-low transition-colors">
-                <div className="flex justify-between items-start">
-                  <p className="text-label-sm text-on-surface-variant">{kpi.label}</p>
-                  <span className={`material-symbols-outlined p-1.5 rounded-md ${kpi.accent} text-[18px]`}>
-                    {kpi.icon}
-                  </span>
-                </div>
-                <p className="mt-3 text-display-lg font-bold text-on-surface">{kpi.value}</p>
-              </article>
-            ))}
-          </section>
-
-          {/* Shift breakdown */}
-          <section className="grid gap-4 sm:grid-cols-4">
-            {[
-              { label: "Trực 24/24", count: stats.L01, color: "border-l-red-500 bg-red-50" },
-              { label: "Thông tầm", count: stats.L02, color: "border-l-blue-500 bg-blue-50" },
-              { label: "PK dịch vụ", count: stats.L03, color: "border-l-green-500 bg-green-50" },
-              { label: "PK chuyên gia", count: stats.L04, color: "border-l-purple-500 bg-purple-50" },
-            ].map((stat) => (
-              <div key={stat.label} className={`flex items-center justify-between rounded-lg border border-l-4 p-4 ${stat.color}`}>
-                <span className="text-[13px] font-medium text-on-surface">{stat.label}</span>
-                <span className="text-headline-md font-bold text-on-surface">{stat.count}</span>
-              </div>
-            ))}
-          </section>
-
-          {/* Conflict list */}
-          {conflictData && conflictData.conflicts.length > 0 && (
-            <section className="rounded-xl border border-error/30 bg-error-container/10 p-5 shadow-sm">
-              <h3 className="text-[16px] font-semibold text-error mb-4 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[20px]">warning</span>
-                Xung đột ({conflictData.totalConflicts})
-              </h3>
-              <div className="space-y-3">
-                {conflictData.conflicts.slice(0, 5).map((c) => (
-                  <div key={c.scheduleId} className="flex items-start gap-3 rounded-lg border border-error/20 bg-surface-container-lowest p-3">
-                    <span className="material-symbols-outlined text-[18px] text-error shrink-0 mt-0.5">error</span>
-                    <div>
-                      <p className="text-[13px] font-medium text-on-surface">{c.staffName}</p>
-                      <p className="text-[12px] text-on-surface-variant">
-                        {new Date(c.workDate).toLocaleDateString("vi-VN")} — {c.shiftTypeName}
-                      </p>
-                      {c.conflictReasons.map((reason, i) => (
-                        <p key={i} className="text-[11px] text-error mt-0.5">{reason}</p>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                {conflictData.conflicts.length > 5 && (
-                  <p className="text-center text-[12px] text-outline pt-1">
-                    +{conflictData.conflicts.length - 5} xung đột khác
-                  </p>
-                )}
-              </div>
-            </section>
           )}
 
-          {/* Recent assignments */}
-          <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-            <h3 className="text-[16px] font-semibold text-on-surface mb-4">Phân công gần đây</h3>
-            {schedules.length === 0 ? (
-              <p className="text-center text-on-surface-variant py-8">Chưa có phân công nào trong kỳ này.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-left">
-                  <thead>
-                    <tr className="border-b border-outline-variant bg-surface-container-low">
-                      <th className="px-4 py-3 text-label-sm text-on-surface-variant">Nhân sự</th>
-                      <th className="px-4 py-3 text-label-sm text-on-surface-variant">Loại lịch</th>
-                      <th className="px-4 py-3 text-label-sm text-on-surface-variant">Ngày</th>
-                      <th className="px-4 py-3 text-label-sm text-on-surface-variant">Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-outline-variant">
-                    {schedules.slice(0, 20).map((s) => (
-                      <tr key={s.id} className="transition-colors hover:bg-surface-container-lowest">
-                        <td className="px-4 py-3 text-[13px] font-medium text-on-surface">{s.staff.fullName}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                            s.shiftType.id === "L01" ? "bg-red-50 text-red-700" :
-                            s.shiftType.id === "L02" ? "bg-blue-50 text-blue-700" :
-                            s.shiftType.id === "L03" ? "bg-green-50 text-green-700" :
-                            "bg-purple-50 text-purple-700"
-                          }`}>
-                            {s.shiftType.id}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-[13px] text-on-surface-variant">
-                          {new Date(s.workDate).toLocaleDateString("vi-VN")}
-                        </td>
-                        <td className="px-4 py-3">
-                          {s.hasConflict ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-error-container px-2.5 py-0.5 text-[11px] font-semibold text-error">
-                              <span className="h-1.5 w-1.5 rounded-full bg-error" /> Có xung đột
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-secondary-container px-2.5 py-0.5 text-[11px] font-semibold text-secondary">
-                              <span className="h-1.5 w-1.5 rounded-full bg-secondary" /> OK
-                            </span>
-                          )}
-                        </td>
-                      </tr>
+          {/* KPI Row */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                label: "Tổng ca trực",
+                value: checking ? "—" : totalShift,
+                icon: "event_available",
+                accent: "bg-primary-fixed text-primary",
+              },
+              {
+                label: "Nhân sự được phân",
+                value: checking ? "—" : staffCount,
+                icon: "groups",
+                accent: "bg-secondary-container text-secondary",
+              },
+              {
+                label: "Tỷ lệ phủ (%)",
+                value: checking ? "—" : `${totalShift > 0 && staffCount > 0 ? Math.round((totalShift / (staffCount * 4)) * 100) : 0}%`,
+                icon: "donut_large",
+                accent: "bg-tertiary-fixed text-tertiary",
+              },
+              {
+                label: "Trạng thái",
+                value: selectedPeriod?.status === "PUBLISHED" ? "Đã công bố" : selectedPeriod?.status === "DRAFT" ? "Nháp" : "Lưu trữ",
+                icon: selectedPeriod?.status === "PUBLISHED" ? "check_circle" : "edit_note",
+                accent:
+                  selectedPeriod?.status === "PUBLISHED"
+                    ? "bg-secondary-container text-secondary"
+                    : "bg-primary-fixed text-primary",
+              },
+            ].map((kpi) => (
+              <article
+                key={kpi.label}
+                className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm"
+              >
+                <div className="flex justify-between items-start">
+                  <p className="text-label-sm text-on-surface-variant">{kpi.label}</p>
+                  <span className={`material-symbols-outlined p-1.5 rounded-md ${kpi.accent} text-[18px]`}>{kpi.icon}</span>
+                </div>
+                <p className="mt-3 text-display-lg font-bold text-on-surface">
+                  {checking ? "—" : kpi.value}
+                </p>
+              </article>
+            ))}
+          </div>
+
+          {/* Shift Breakdown */}
+          {checking ? (
+            <div className="flex items-center justify-center rounded-xl border border-outline-variant bg-surface py-16">
+              <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : stats ? (
+            <>
+              <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+                <h3 className="text-[16px] font-semibold text-on-surface mb-5">Phân bổ theo loại ca</h3>
+                <div className="space-y-4">
+                  {shiftItems.map((item) => (
+                    <div key={item.key} className="flex items-center gap-4">
+                      <div className="w-36 shrink-0">
+                        <p className={`text-[13px] font-semibold ${item.color}`}>{item.label}</p>
+                        <p className="text-[12px] text-outline">
+                          #{item.key}
+                        </p>
+                      </div>
+                      <div className="flex-1 bg-surface-variant rounded-full h-4 overflow-hidden">
+                        <div
+                          className={`h-4 rounded-full transition-all ${item.bg.replace("bg-", "bg-")}`}
+                          style={{
+                            width: `${Math.max((item.count / maxShift) * 100, 2)}%`,
+                            backgroundColor:
+                              item.key === "L01" ? "#ef4444"
+                              : item.key === "L02" ? "#3b82f6"
+                              : item.key === "L03" ? "#22c55e"
+                              : "#a855f7",
+                          }}
+                        />
+                      </div>
+                      <span className="text-[14px] font-bold text-on-surface min-w-[40px] text-right">
+                        {item.count}
+                      </span>
+                      <span className="text-[12px] text-outline min-w-[50px]">
+                        ({totalShift > 0 ? Math.round((item.count / totalShift) * 100) : 0}%)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 pt-4 border-t border-outline-variant flex items-center justify-between">
+                  <span className="text-[14px] font-semibold text-on-surface">Tổng cộng</span>
+                  <span className="text-[16px] font-bold text-primary">{totalShift} ca</span>
+                </div>
+              </section>
+
+              {/* Schedule count detail */}
+              <section className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+                  <h3 className="text-[16px] font-semibold text-on-surface mb-4">Chi tiết thống kê</h3>
+                  <div className="space-y-3">
+                    {[
+                      { label: "Tổng bản ghi lịch", value: scheduleCount },
+                      { label: "Trực 24/24 (L01)", value: stats.L01Count },
+                      { label: "Thông tầm (L02)", value: stats.L02Count },
+                      { label: "PK Dịch vụ (L03)", value: stats.L03Count },
+                      { label: "PK Chuyên gia (L04)", value: stats.L04Count },
+                      { label: "Nhân sự liên quan", value: staffCount },
+                    ].map((row) => (
+                      <div key={row.label} className="flex items-center justify-between py-2 border-b border-outline-variant last:border-0">
+                        <span className="text-[13px] text-on-surface-variant">{row.label}</span>
+                        <span className="text-[14px] font-semibold text-on-surface">{row.value}</span>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-                {schedules.length > 20 && (
-                  <p className="text-center text-[12px] text-outline pt-3 py-3">
-                    Hiển thị 20 / {schedules.length} phân công
-                  </p>
-                )}
-              </div>
-            )}
-          </section>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+                  <h3 className="text-[16px] font-semibold text-on-surface mb-4">Thông tin kỳ lịch</h3>
+                  <div className="space-y-3">
+                    {[
+                      { label: "Tên kỳ lịch", value: selectedPeriod?.periodName },
+                      {
+                        label: "Ngày bắt đầu",
+                        value: selectedPeriod ? new Date(selectedPeriod.startDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "long", year: "numeric" }) : "—",
+                      },
+                      {
+                        label: "Ngày kết thúc",
+                        value: selectedPeriod ? new Date(selectedPeriod.endDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "long", year: "numeric" }) : "—",
+                      },
+                      { label: "Trạng thái", value: selectedPeriod?.status === "PUBLISHED" ? "Đã công bố" : selectedPeriod?.status === "DRAFT" ? "Nháp" : "Đã lưu trữ" },
+                      {
+                        label: "Ngày tạo",
+                        value: selectedPeriod ? new Date(selectedPeriod.createdAt).toLocaleDateString("vi-VN") : "—",
+                      },
+                    ].map((row) => (
+                      <div key={row.label} className="flex items-center justify-between py-2 border-b border-outline-variant last:border-0">
+                        <span className="text-[13px] text-on-surface-variant">{row.label}</span>
+                        <span className="text-[14px] font-semibold text-on-surface text-right">{row.value ?? "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            </>
+          ) : null}
         </div>
-      ) : null}
+      )}
     </DashboardShell>
   );
 }

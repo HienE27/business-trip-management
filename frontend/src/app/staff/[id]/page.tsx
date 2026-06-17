@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { api } from "@/lib/api";
@@ -32,16 +32,15 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("vi-VN");
 }
 
-const SHIFT_COLORS: Record<string, { badge: string; border: string; text: string }> = {
-  L01: { badge: "bg-red-50 text-red-700", border: "border-red-400", text: "Trực 24/24" },
-  L02: { badge: "bg-blue-50 text-blue-700", border: "border-blue-400", text: "Thông tầm" },
-  L03: { badge: "bg-green-50 text-green-700", border: "border-green-400", text: "PK dịch vụ" },
-  L04: { badge: "bg-purple-50 text-purple-700", border: "border-purple-400", text: "PK chuyên gia" },
+const SHIFT_BADGE: Record<string, string> = {
+  L01: "bg-red-50 text-red-700 border border-red-200",
+  L02: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  L03: "bg-amber-50 text-amber-700 border border-amber-200",
+  L04: "bg-violet-50 text-violet-700 border border-violet-200",
 };
 
 export default function StaffDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const staffId = Number(params.id);
 
   const [staff, setStaff] = useState<Staff | null>(null);
@@ -73,6 +72,8 @@ export default function StaffDetailPage() {
 
       if (scheduleRes.status === "fulfilled") {
         setSchedules(scheduleRes.value ?? []);
+      } else {
+        setMessage((prev) => prev || getErrorMessage(scheduleRes.reason, "Không thể tải lịch trực của nhân sự này."));
       }
     } catch (err) {
       setMessage(getErrorMessage(err, "Lỗi tải dữ liệu."));
@@ -160,69 +161,76 @@ export default function StaffDetailPage() {
       </div>
 
       {/* Profile Card */}
-      <section className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <article className="flex flex-col items-center rounded-xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-on-primary text-2xl font-bold">
+      <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
+        <article className="flex flex-col items-center rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-on-primary text-xl font-bold">
             {getInitials(staff.fullName)}
           </div>
-          <h2 className="mt-4 text-headline-md font-semibold text-on-surface">{staff.fullName}</h2>
-          <p className="mt-1 text-body-sm text-on-surface-variant">{getRoleLabel(staff.roles)}</p>
-          <span className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold ${
+          <h2 className="mt-3 text-headline-md font-semibold text-on-surface">{staff.fullName}</h2>
+          <p className="mt-0.5 text-[12px] text-on-surface-variant">{getRoleLabel(staff.roles)}</p>
+          <span className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
             staff.isActive
               ? "bg-secondary-container text-secondary"
               : "bg-surface-container-high text-outline"
           }`}>
-            <span className={`h-2 w-2 rounded-full ${staff.isActive ? "bg-secondary" : "bg-outline"}`} />
+            <span className={`h-1.5 w-1.5 rounded-full ${staff.isActive ? "bg-secondary" : "bg-outline"}`} />
             {getStatusLabel(staff.isActive)}
           </span>
 
-          <div className="mt-6 w-full space-y-3 text-left">
+          <div className="mt-4 w-full space-y-2 text-left">
             {[
               { icon: "mail", label: "Email", value: staff.email ?? "Chưa cập nhật" },
               { icon: "phone", label: "Điện thoại", value: staff.phone ?? "Chưa cập nhật" },
               { icon: "local_hospital", label: "Chuyên khoa", value: staff.specialty?.name ?? "Chưa phân khoa" },
               { icon: "event", label: "Ngày vào làm", value: formatDate(staff.createdAt) },
             ].map((item) => (
-              <div key={item.label} className="flex items-start gap-3 rounded-lg bg-surface px-3 py-2.5">
-                <span className="material-symbols-outlined text-[18px] text-outline shrink-0 mt-0.5">
+              <div key={item.label} className="flex items-start gap-2.5 rounded-lg bg-surface px-2.5 py-2">
+                <span className="material-symbols-outlined text-[16px] text-outline shrink-0 mt-0.5">
                   {item.icon}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-label-sm text-on-surface-variant">{item.label}</p>
-                  <p className="text-[13px] text-on-surface truncate">{item.value}</p>
+                  <p className="text-[11px] text-on-surface-variant">{item.label}</p>
+                  <p className="text-[12px] text-on-surface truncate">{item.value}</p>
                 </div>
               </div>
             ))}
           </div>
         </article>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Workload Stats */}
-          <section className="grid gap-4 sm:grid-cols-3">
+          <section className="grid gap-3 sm:grid-cols-3">
             {[
               { label: "Tổng ca trực", value: schedules.length, icon: "event_available", accent: "bg-primary-fixed text-primary" },
               { label: "Giờ làm việc ước tính", value: `${totalHours}h`, icon: "schedule", accent: "bg-secondary-container text-secondary" },
               { label: "Giới hạn/tháng", value: staff.maxShiftsPerMonth, icon: "speed", accent: "bg-tertiary-fixed text-tertiary" },
             ].map((item) => (
-              <article key={item.label} className="rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+              <article key={item.label} className="rounded-lg border border-outline-variant bg-surface-container-lowest p-3 shadow-sm">
                 <div className="flex justify-between items-start">
-                  <p className="text-label-sm text-on-surface-variant">{item.label}</p>
-                  <span className={`material-symbols-outlined p-1.5 rounded-md ${item.accent} text-[18px]`}>
+                  <p className="text-[11px] text-on-surface-variant">{item.label}</p>
+                  <span className={`material-symbols-outlined p-1 rounded ${item.accent} text-[14px]`}>
                     {item.icon}
                   </span>
                 </div>
-                <p className="mt-3 text-display-lg font-bold text-on-surface">{item.value}</p>
+                <p className="mt-1 text-[20px] font-bold leading-none text-on-surface">{item.value}</p>
               </article>
             ))}
           </section>
 
           {/* Shift breakdown */}
-          <section className="rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-            <h3 className="text-title-lg font-semibold text-on-surface mb-4">Phân bổ loại lịch</h3>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {(Object.entries(SHIFT_COLORS) as [string, typeof SHIFT_COLORS[string]][]).map(([type, color]) => (
-                <div key={type} className={`rounded-lg border-l-4 p-3 ${color.border} bg-surface`}>
-                  <p className="text-label-sm text-on-surface-variant">{color.text}</p>
+          <section className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+            <h3 className="text-title-lg font-semibold text-on-surface mb-3">Phân bổ loại lịch</h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {(Object.entries(SHIFT_BADGE) as [string, string][]).map(([type]) => (
+                <div key={type} className={`rounded-lg border-l-4 p-3 bg-surface ${
+                  type === "L01" ? "border-l-red-500" :
+                  type === "L02" ? "border-l-emerald-500" :
+                  type === "L03" ? "border-l-amber-500" :
+                  "border-l-violet-500"
+                }`}>
+                  <p className="text-label-sm text-on-surface-variant">
+                    {type === "L01" ? "Trực 24/24" : type === "L02" ? "Thông tầm" : type === "L03" ? "PK dịch vụ" : "PK chuyên gia"}
+                  </p>
                   <p className="mt-1 text-headline-md font-bold text-on-surface">{shiftByType[type] ?? 0} ca</p>
                 </div>
               ))}
@@ -241,24 +249,29 @@ export default function StaffDetailPage() {
             ) : (
               <div className="space-y-3">
                 {schedules.slice(0, 10).map((schedule) => {
-                  const color = SHIFT_COLORS[schedule.shiftType.id] ?? SHIFT_COLORS.L01;
+                  const badge = SHIFT_BADGE[schedule.shiftType.id] ?? "bg-surface-container-low text-on-surface border-outline-variant";
                   return (
                     <div
                       key={schedule.id}
-                      className={`flex items-center justify-between rounded-lg border-l-4 p-3 ${color.border} bg-surface`}
+                      className={`flex items-center justify-between rounded-lg border-l-4 p-3 bg-surface ${
+                        schedule.shiftType.id === "L01" ? "border-l-red-500" :
+                        schedule.shiftType.id === "L02" ? "border-l-emerald-500" :
+                        schedule.shiftType.id === "L03" ? "border-l-amber-500" :
+                        "border-l-violet-500"
+                      }`}
                     >
                       <div className="flex items-center gap-3">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${color.badge}`}>
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-label-sm font-semibold ${badge}`}>
                           {schedule.shiftType.id}
                         </span>
                         <div>
-                          <p className="text-[13px] font-medium text-on-surface">{color.text}</p>
-                          <p className="text-[12px] text-on-surface-variant">
+                          <p className="text-label-md font-medium text-on-surface">{schedule.shiftType.name}</p>
+                          <p className="text-label-md text-on-surface-variant">
                             {schedule.period?.periodName ?? `Kỳ #${schedule.periodId}`}
                           </p>
                         </div>
                       </div>
-                      <span className="text-[13px] font-medium text-on-surface-variant">
+                      <span className="text-label-md font-medium text-on-surface-variant">
                         {formatDate(schedule.workDate)}
                       </span>
                     </div>

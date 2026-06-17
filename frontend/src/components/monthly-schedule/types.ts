@@ -58,6 +58,7 @@ export type MonthlyScheduleQueryState = {
   parsedScheduleId: number | null;
   parsedStaffId: number | null;
   parsedSpecialtyId: number | null;
+  periodId: number | null;
 };
 
 export type ScheduleHeaderPeriod = Pick<SchedulePeriod, "id" | "periodName" | "startDate" | "endDate" | "status">;
