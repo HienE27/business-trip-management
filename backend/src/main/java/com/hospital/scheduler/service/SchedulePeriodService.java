@@ -1,19 +1,26 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.dto.request.SchedulePeriodRequest;
+import com.hospital.scheduler.dto.response.ConflictCheckResponse;
 import com.hospital.scheduler.dto.response.SchedulePeriodResponse;
 import com.hospital.scheduler.entity.AuditHistory;
+import com.hospital.scheduler.entity.CompensationDay;
+import com.hospital.scheduler.entity.Schedule;
 import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
+import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
+import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,6 +30,8 @@ import java.util.stream.Collectors;
 public class SchedulePeriodService {
 
     private final SchedulePeriodRepository periodRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final CompensationDayRepository compensationDayRepository;
     private final StaffRepository staffRepository;
     private final AuditHistoryService auditHistoryService;
     private final ConflictDetectionService conflictDetectionService;
@@ -101,9 +110,13 @@ public class SchedulePeriodService {
             throw new BadRequestException("Chỉ có thể công bố kỳ lịch ở trạng thái DRAFT");
         }
 
-        List<String> conflicts = conflictDetectionService.detectAllConflictsForPeriod(id);
-        if (!conflicts.isEmpty()) {
-            throw new BadRequestException("Kỳ lịch có xung đột, không thể công bố: " + String.join("; ", conflicts));
+        ConflictCheckResponse conflictCheck = conflictDetectionService.checkPeriodConflicts(id);
+        if (conflictCheck.isHasConflicts()) {
+            String msg = conflictCheck.getConflicts().stream()
+                    .map(c -> c.getStaffName() + " (" + c.getWorkDate() + "): " + String.join(", ", c.getConflictReasons()))
+                    .reduce((a, b) -> a + "; " + b)
+                    .orElse("Có xung đột");
+            throw new BadRequestException("Kỳ lịch có xung đột, không thể công bố: " + msg);
         }
 
         Staff publishedBy = null;
@@ -112,18 +125,40 @@ public class SchedulePeriodService {
         }
 
         period.setStatus(SchedulePeriod.PeriodStatus.PUBLISHED);
-        period.setPublishedBy(publishedBy);
+        period.setPublishedBy(publishedBy != null ? publishedBy.getUsername() : null);
         period.setPublishedAt(LocalDateTime.now());
         SchedulePeriod saved = periodRepository.save(period);
 
-        String notifTitle = "Lịch công tác đã được công bố";
-        String notifMsg = "Kỳ lịch \"" + period.getPeriodName() + "\" (" + period.getStartDate() + " - " + period.getEndDate() + ") đã được công bố. Vui lòng kiểm tra lịch trực của bạn.";
-        notificationService.createNotificationForAllStaff(notifTitle, notifMsg);
+        List<Schedule> periodSchedules = scheduleRepository.findByPeriodId(saved.getId());
+        List<CompensationDay> periodCompDays = compensationDayRepository.findByPeriodId(saved.getId());
 
-        // Send email notifications to all active staff
+        // Send per-staff notifications with individual schedule details
         List<Staff> activeStaff = staffRepository.findByIsActiveTrue();
+        for (Staff staff : activeStaff) {
+            List<Schedule> staffSchedules = periodSchedules.stream()
+                    .filter(s -> s.getStaff().getId().equals(staff.getId()))
+                    .toList();
+            List<CompensationDay> staffCompDays = periodCompDays.stream()
+                    .filter(cd -> cd.getStaff().getId().equals(staff.getId()))
+                    .toList();
+
+            String dutyList = staffSchedules.stream()
+                    .map(s -> s.getWorkDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + " (" + s.getShiftType().getName() + ")")
+                    .collect(Collectors.joining("; "));
+            String compList = staffCompDays.stream()
+                    .map(cd -> cd.getCompensationDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                    .collect(Collectors.joining(", "));
+
+            String notifMsg = "Kỳ lịch \"" + saved.getPeriodName() + "\" (" + saved.getStartDate() + " - " + saved.getEndDate() + ") đã được công bố.\n" +
+                    "Danh sách trực của bạn: " + (dutyList.isEmpty() ? "không có" : dutyList) + "\n" +
+                    "Ngày nghỉ bù: " + (compList.isEmpty() ? "không có" : compList);
+            notificationService.createNotification(staff.getId(),
+                    new NotificationDTO("Lịch công tác đã được công bố", notifMsg));
+        }
+
+        // Send email notifications to all active staff with individual details
         emailService.sendSchedulePublishedEmail(activeStaff, period.getPeriodName(),
-                period.getStartDate(), period.getEndDate());
+                period.getStartDate(), period.getEndDate(), periodSchedules, periodCompDays);
 
         return toResponse(saved);
     }
@@ -161,14 +196,6 @@ public class SchedulePeriodService {
                     .build();
         }
 
-        SchedulePeriodResponse.StaffSummary publishedBySummary = null;
-        if (period.getPublishedBy() != null) {
-            publishedBySummary = SchedulePeriodResponse.StaffSummary.builder()
-                    .id(period.getPublishedBy().getId())
-                    .fullName(period.getPublishedBy().getFullName())
-                    .build();
-        }
-
         return SchedulePeriodResponse.builder()
                 .id(period.getId())
                 .periodName(period.getPeriodName())
@@ -177,7 +204,7 @@ public class SchedulePeriodService {
                 .status(period.getStatus().name())
                 .generatedBy(generatedBySummary)
                 .generatedAt(period.getGeneratedAt())
-                .publishedBy(publishedBySummary)
+                .publishedBy(period.getPublishedBy())
                 .publishedAt(period.getPublishedAt())
                 .createdAt(period.getCreatedAt())
                 .updatedAt(period.getUpdatedAt())

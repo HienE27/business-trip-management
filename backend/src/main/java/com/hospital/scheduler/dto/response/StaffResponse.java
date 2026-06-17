@@ -15,6 +15,7 @@ public class StaffResponse {
     private String fullName;
     private String phone;
     private String email;
+    private String position;
     private SpecialtyResponse specialty;
     private Integer maxShiftsPerMonth;
     private Boolean isActive;

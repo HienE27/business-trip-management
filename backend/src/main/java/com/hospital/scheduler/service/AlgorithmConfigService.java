@@ -1,7 +1,11 @@
 package com.hospital.scheduler.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.scheduler.dto.request.AlgoConfigRequest;
+import com.hospital.scheduler.dto.request.SaveAlgorithmTemplateRequest;
 import com.hospital.scheduler.dto.response.AlgorithmConfigDTO;
+import com.hospital.scheduler.dto.response.AlgorithmConfigResponse;
 import com.hospital.scheduler.entity.AlgorithmConfig;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
@@ -18,6 +22,7 @@ import java.util.List;
 public class AlgorithmConfigService {
 
     private final AlgorithmConfigRepository configRepository;
+    private final ObjectMapper objectMapper;
 
     public List<AlgorithmConfigDTO> getAllConfigs() {
         return configRepository.findAll().stream()
@@ -65,6 +70,40 @@ public class AlgorithmConfigService {
                     "Không tìm thấy cấu hình với paramKey: " + paramKey);
         }
         configRepository.deleteById(paramKey);
+    }
+
+    /**
+     * Save algorithm configuration as a reusable template.
+     * Stores the template configuration as a JSON entry in the algorithm_config table.
+     */
+    public AlgorithmConfigResponse saveAsTemplate(SaveAlgorithmTemplateRequest request) {
+        String paramsJson = null;
+        if (request.getParams() != null && !request.getParams().isEmpty()) {
+            try {
+                paramsJson = objectMapper.writeValueAsString(request.getParams());
+            } catch (JsonProcessingException e) {
+                throw new BadRequestException("Lỗi khi serialize params: " + e.getMessage());
+            }
+        }
+
+        // Use template name as prefix for paramKey to ensure uniqueness
+        String paramKey = "TEMPLATE_" + request.getName().toUpperCase().replaceAll("\\s+", "_");
+
+        AlgorithmConfig config = configRepository.save(AlgorithmConfig.builder()
+                .paramKey(paramKey)
+                .paramValue(paramsJson)
+                .valueType(AlgorithmConfig.ValueType.JSON)
+                .description(request.getDescription() + " [Template: " + request.getAlgorithmType() + "]")
+                .build());
+
+        return AlgorithmConfigResponse.builder()
+                .name(request.getName())
+                .description(request.getDescription())
+                .algorithmType(request.getAlgorithmType())
+                .params(request.getParams())
+                .createdAt(config.getCreatedAt())
+                .updatedAt(config.getUpdatedAt())
+                .build();
     }
 
     private AlgorithmConfigDTO toDTO(AlgorithmConfig c) {

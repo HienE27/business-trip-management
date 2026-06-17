@@ -2,10 +2,12 @@ package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.SpecialtyRequest;
 import com.hospital.scheduler.dto.response.SpecialtyResponse;
+import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.SpecialtyRepository;
+import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,8 @@ import java.util.stream.Collectors;
 public class SpecialtyService {
 
     private final SpecialtyRepository specialtyRepository;
+    private final AuditHistoryService auditHistoryService;
+    private final AuthContextService authContextService;
 
     public List<SpecialtyResponse> getAllSpecialties() {
         return specialtyRepository.findAll().stream()
@@ -50,6 +54,10 @@ public class SpecialtyService {
                 .build();
 
         Specialty saved = specialtyRepository.save(specialty);
+
+        auditHistoryService.logAction("specialty", saved.getId(), AuditHistory.ActionType.INSERT,
+                null, saved, authContextService.getCurrentStaff().getId());
+
         return toResponse(saved);
     }
 
@@ -66,12 +74,26 @@ public class SpecialtyService {
         specialty.setName(request.getName());
         specialty.setDescription(request.getDescription());
 
-        return toResponse(specialtyRepository.save(specialty));
+        Specialty oldSpecialty = Specialty.builder()
+                .name(specialty.getName())
+                .description(specialty.getDescription())
+                .build();
+
+        Specialty saved = specialtyRepository.save(specialty);
+
+        auditHistoryService.logAction("specialty", id, AuditHistory.ActionType.UPDATE,
+                oldSpecialty, saved, authContextService.getCurrentStaff().getId());
+
+        return toResponse(saved);
     }
 
     public void deleteSpecialty(Integer id) {
         Specialty specialty = specialtyRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chuyên khoa với ID: " + id));
+
+        auditHistoryService.logAction("specialty", id, AuditHistory.ActionType.DELETE,
+                specialty, null, authContextService.getCurrentStaff().getId());
+
         specialty.setIsActive(false);
         specialtyRepository.save(specialty);
     }

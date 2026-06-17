@@ -2,10 +2,12 @@ package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.ShiftTypeRequest;
 import com.hospital.scheduler.dto.response.ShiftTypeResponse;
+import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.ShiftType;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.ShiftTypeRepository;
+import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,8 @@ import java.util.stream.Collectors;
 public class ShiftTypeService {
 
     private final ShiftTypeRepository shiftTypeRepository;
+    private final AuditHistoryService auditHistoryService;
+    private final AuthContextService authContextService;
 
     public List<ShiftTypeResponse> getAllShiftTypes() {
         return shiftTypeRepository.findAll().stream()
@@ -55,6 +59,10 @@ public class ShiftTypeService {
                 .build();
 
         ShiftType saved = shiftTypeRepository.save(shiftType);
+
+        auditHistoryService.logAction("shift_type", saved.getId(), AuditHistory.ActionType.INSERT,
+                null, saved, authContextService.getCurrentStaff().getId());
+
         return toResponse(saved);
     }
 
@@ -73,12 +81,31 @@ public class ShiftTypeService {
             shiftType.setFatigueScore(request.getFatigueScore());
         }
 
-        return toResponse(shiftTypeRepository.save(shiftType));
+        ShiftType oldShiftType = ShiftType.builder()
+                .id(shiftType.getId())
+                .name(shiftType.getName())
+                .description(shiftType.getDescription())
+                .startTime(shiftType.getStartTime())
+                .endTime(shiftType.getEndTime())
+                .isOvernight(shiftType.getIsOvernight())
+                .fatigueScore(shiftType.getFatigueScore())
+                .build();
+
+        ShiftType saved = shiftTypeRepository.save(shiftType);
+
+        auditHistoryService.logAction("shift_type", saved.getId(), AuditHistory.ActionType.UPDATE,
+                oldShiftType, saved, authContextService.getCurrentStaff().getId());
+
+        return toResponse(saved);
     }
 
     public void deleteShiftType(String id) {
         ShiftType shiftType = shiftTypeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + id));
+
+        auditHistoryService.logAction("shift_type", id, AuditHistory.ActionType.DELETE,
+                shiftType, null, authContextService.getCurrentStaff().getId());
+
         shiftType.setIsActive(false);
         shiftTypeRepository.save(shiftType);
     }

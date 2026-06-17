@@ -1,18 +1,22 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.response.ConflictCheckResponse;
+import com.hospital.scheduler.dto.response.CoverageReportDTO;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.util.DateUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -73,6 +77,27 @@ public class ConflictDetectionService {
         return conflicts;
     }
 
+    /**
+     * Check if staff has exceeded their max shifts per month for the given period.
+     *
+     * @param staffId   The staff member ID
+     * @param periodId  The schedule period ID
+     * @return true if the staff has reached or exceeded their maxShiftsPerMonth limit
+     */
+    public boolean hasExceededMaxShifts(Integer staffId, Integer periodId) {
+        if (periodId == null) {
+            return false;
+        }
+
+        return staffRepository.findById(staffId)
+                .map(staff -> {
+                    long currentCount = scheduleRepository.countByStaffIdAndPeriodId(staffId, periodId);
+                    int maxShifts = staff.getMaxShiftsPerMonth() != null ? staff.getMaxShiftsPerMonth() : 5;
+                    return currentCount >= maxShifts;
+                })
+                .orElse(false);
+    }
+
     public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
         return !detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId).isEmpty();
     }
@@ -102,24 +127,6 @@ public class ConflictDetectionService {
         if (!conflicts.isEmpty()) {
             throw new ConflictException("Phát hiện xung đột: " + String.join("; ", conflicts));
         }
-    }
-
-    public List<String> detectAllConflictsForPeriod(Integer periodId) {
-        List<String> allConflicts = new ArrayList<>();
-        List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
-
-        for (Schedule schedule : schedules) {
-            Staff staff = schedule.getStaff();
-            LocalDate workDate = schedule.getWorkDate();
-            String shiftTypeId = schedule.getShiftType().getId();
-
-            List<String> conflicts = detectAllConflicts(staff.getId(), workDate, shiftTypeId, schedule.getId());
-            if (!conflicts.isEmpty()) {
-                allConflicts.add("Staff " + staff.getFullName() + " ngày " + workDate + " (" + shiftTypeId + "): " + String.join("; ", conflicts));
-            }
-        }
-
-        return allConflicts;
     }
 
     public ConflictCheckResponse checkPeriodConflicts(Integer periodId) {
@@ -308,5 +315,136 @@ public class ConflictDetectionService {
         }
 
         return gaps;
+    }
+
+    public CoverageReportDTO validateStaffingCoverage(Integer periodId) {
+        SchedulePeriod period = scheduleRepository.findByPeriodId(periodId).stream()
+                .findFirst()
+                .map(Schedule::getPeriod)
+                .orElse(null);
+
+        if (period == null) {
+            throw new IllegalArgumentException("Không tìm thấy kỳ lịch với ID: " + periodId);
+        }
+
+        List<ShiftRequirement> requirements = shiftRequirementRepository.findByPeriodId(periodId);
+        List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
+
+        Map<String, Map<String, CoverageReportDTO.DayCoverage>> dailyCoverageMap = new LinkedHashMap<>();
+        Map<String, CoverageReportDTO.ShiftTypeSummary> shiftTypeSummaryMap = new LinkedHashMap<>();
+        Map<String, Integer> shiftTypeRequiredCount = new HashMap<>();
+        Map<String, Integer> shiftTypeAssignedCount = new HashMap<>();
+        Map<String, Integer> shiftTypeUnderstaffedDays = new HashMap<>();
+
+        List<String> shiftTypeIds = Arrays.asList(SHIFT_TYPE_L01, SHIFT_TYPE_L02, SHIFT_TYPE_L03, SHIFT_TYPE_L04);
+        for (String id : shiftTypeIds) {
+            shiftTypeRequiredCount.put(id, 0);
+            shiftTypeAssignedCount.put(id, 0);
+            shiftTypeUnderstaffedDays.put(id, 0);
+        }
+
+        Map<String, List<ShiftRequirement>> requirementsByDate = requirements.stream()
+                .collect(Collectors.groupingBy(r -> r.getWorkDate().toString()));
+
+        Map<String, List<Schedule>> schedulesByDateAndShift = schedules.stream()
+                .collect(Collectors.groupingBy(s -> s.getWorkDate() + "_" + s.getShiftType().getId()));
+
+        LocalDate currentDate = period.getStartDate();
+        int fullyCoveredDays = 0;
+        int understaffedDays = 0;
+        int overstaffedDays = 0;
+
+        while (!currentDate.isAfter(period.getEndDate())) {
+            String dateKey = currentDate.toString();
+            Map<String, CoverageReportDTO.DayCoverage> dayCoverages = new LinkedHashMap<>();
+
+            for (String shiftTypeId : shiftTypeIds) {
+                String lookupKey = dateKey + "_" + shiftTypeId;
+                List<ShiftRequirement> dayReqs = requirementsByDate.getOrDefault(dateKey, Collections.emptyList());
+                ShiftRequirement requirement = dayReqs.stream()
+                        .filter(r -> shiftTypeId.equals(r.getShiftType().getId()))
+                        .findFirst()
+                        .orElse(null);
+
+                List<Schedule> daySchedules = schedulesByDateAndShift.getOrDefault(lookupKey, Collections.emptyList());
+                int requiredStaff = requirement != null ? requirement.getRequiredStaffCount() : 0;
+                int assignedStaff = daySchedules.size();
+                int difference = assignedStaff - requiredStaff;
+
+                CoverageReportDTO.CoverageStatus status;
+                if (requirement == null) {
+                    status = CoverageReportDTO.CoverageStatus.NO_REQUIREMENT;
+                } else if (assignedStaff < requiredStaff) {
+                    status = CoverageReportDTO.CoverageStatus.UNDERSTAFFED;
+                    understaffedDays++;
+                    shiftTypeUnderstaffedDays.merge(shiftTypeId, 1, Integer::sum);
+                } else if (assignedStaff > requiredStaff) {
+                    status = CoverageReportDTO.CoverageStatus.OVERSTAFFED;
+                    overstaffedDays++;
+                } else {
+                    status = CoverageReportDTO.CoverageStatus.SUFFICIENT;
+                    fullyCoveredDays++;
+                }
+
+                CoverageReportDTO.DayCoverage dayCoverage = CoverageReportDTO.DayCoverage.builder()
+                        .date(currentDate)
+                        .dayOfWeek(DateUtils.getDayOfWeekVietnamese(currentDate.getDayOfWeek()))
+                        .shiftTypeId(shiftTypeId)
+                        .shiftTypeName(requirement != null ? requirement.getShiftType().getName() : shiftTypeId)
+                        .status(status)
+                        .requiredStaff(requiredStaff)
+                        .assignedStaff(assignedStaff)
+                        .difference(difference)
+                        .build();
+                dayCoverages.put(shiftTypeId, dayCoverage);
+
+                shiftTypeRequiredCount.merge(shiftTypeId, requiredStaff, Integer::sum);
+                shiftTypeAssignedCount.merge(shiftTypeId, assignedStaff, Integer::sum);
+            }
+
+            dailyCoverageMap.put(dateKey, dayCoverages);
+            currentDate = currentDate.plusDays(1);
+        }
+
+        for (String shiftTypeId : shiftTypeIds) {
+            int totalRequired = shiftTypeRequiredCount.get(shiftTypeId);
+            int totalAssigned = shiftTypeAssignedCount.get(shiftTypeId);
+            BigDecimal coverageRate = totalRequired > 0
+                    ? BigDecimal.valueOf((double) totalAssigned / totalRequired * 100).setScale(2, RoundingMode.HALF_UP)
+                    : BigDecimal.valueOf(100);
+
+            ShiftType shiftType = shiftTypeRepository.findById(shiftTypeId).orElse(null);
+            String shiftTypeName = shiftType != null ? shiftType.getName() : shiftTypeId;
+
+            CoverageReportDTO.ShiftTypeSummary summary = CoverageReportDTO.ShiftTypeSummary.builder()
+                    .shiftTypeId(shiftTypeId)
+                    .shiftTypeName(shiftTypeName)
+                    .totalRequired(totalRequired)
+                    .totalAssigned(totalAssigned)
+                    .coverageRate(coverageRate)
+                    .understaffedDays(shiftTypeUnderstaffedDays.get(shiftTypeId))
+                    .build();
+            shiftTypeSummaryMap.put(shiftTypeId, summary);
+        }
+
+        int totalDays = dailyCoverageMap.size();
+        int totalRequired = shiftTypeRequiredCount.values().stream().mapToInt(Integer::intValue).sum();
+        int totalAssigned = shiftTypeAssignedCount.values().stream().mapToInt(Integer::intValue).sum();
+        BigDecimal overallCoverageRate = totalRequired > 0
+                ? BigDecimal.valueOf((double) totalAssigned / totalRequired * 100).setScale(2, RoundingMode.HALF_UP)
+                : BigDecimal.valueOf(100);
+
+        return CoverageReportDTO.builder()
+                .periodId(periodId)
+                .periodName(period.getPeriodName())
+                .generatedAt(LocalDateTime.now())
+                .totalDays(totalDays)
+                .fullyCoveredDays(fullyCoveredDays)
+                .understaffedDays(understaffedDays)
+                .overstaffedDays(overstaffedDays)
+                .overallCoverageRate(overallCoverageRate)
+                .dailyCoverage(dailyCoverageMap)
+                .shiftTypeSummary(shiftTypeSummaryMap)
+                .build();
     }
 }

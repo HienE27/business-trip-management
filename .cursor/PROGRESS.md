@@ -1,5 +1,24 @@
 # Hospital Scheduler - Development Progress
 
+## Trellis Workflow
+
+Repo này dùng [Trellis](https://github.com/mindfold-ai/trellis) cho task management + spec library. Đọc `.cursor/rules/TRELLIS_WORKFLOW.mdc` để biết chi tiết.
+
+Workflow 3 pha: **Plan** → **Execute** → **Finish**.
+
+```bash
+# Tạo task mới
+python ./.trellis/scripts/task.py create "Tên task" --slug ten-task
+
+# Bắt đầu implement (sau khi review prd.md)
+python ./.trellis/scripts/task.py start .trellis/tasks/MM-DD-ten-task
+
+# Hoàn thành
+python ./.trellis/scripts/task.py archive .trellis/tasks/MM-DD-ten-task
+```
+
+Spec library tại `.trellis/spec/`: mỗi agent (trellis-implement, trellis-check) tự load spec tương ứng với package.
+
 ## Branch Convention
 ```
 main (production)

@@ -45,7 +45,7 @@ public class AppConfigController {
      */
     @GetMapping("/email")
     @Operation(summary = "Lấy cấu hình email hiện tại")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<EmailConfigDTO>> getEmailConfig() {
         log.info("Fetching email configuration");
 

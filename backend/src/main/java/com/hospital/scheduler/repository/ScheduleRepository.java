@@ -28,8 +28,34 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
             """)
     List<Schedule> findByPeriodId(@Param("periodId") Integer periodId);
 
-    @Query("SELECT s FROM Schedule s WHERE s.period.id = :periodId AND s.workDate = :workDate")
+    @Query("""
+            SELECT s
+            FROM Schedule s
+            JOIN FETCH s.staff st
+            LEFT JOIN FETCH st.specialty
+            LEFT JOIN FETCH st.staffRoles sr
+            LEFT JOIN FETCH sr.role
+            JOIN FETCH s.shiftType
+            JOIN FETCH s.period
+            LEFT JOIN FETCH s.requirement
+            WHERE s.period.id = :periodId AND s.workDate = :workDate
+            ORDER BY s.workDate
+            """)
     List<Schedule> findByPeriodIdAndWorkDate(@Param("periodId") Integer periodId, @Param("workDate") LocalDate workDate);
+
+    @Query("""
+            SELECT s
+            FROM Schedule s
+            JOIN FETCH s.staff st
+            LEFT JOIN FETCH st.specialty
+            LEFT JOIN FETCH st.staffRoles sr
+            LEFT JOIN FETCH sr.role
+            JOIN FETCH s.shiftType
+            JOIN FETCH s.period
+            LEFT JOIN FETCH s.requirement
+            WHERE s.id = :id
+            """)
+    Optional<Schedule> findByIdWithDetails(@Param("id") Integer id);
 
     @Query("""
             SELECT s
@@ -75,4 +101,22 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
             @Param("staffId") Integer staffId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
+
+    @Query("""
+            SELECT s
+            FROM Schedule s
+            JOIN FETCH s.staff st
+            LEFT JOIN FETCH st.specialty
+            LEFT JOIN FETCH st.staffRoles sr
+            LEFT JOIN FETCH sr.role
+            JOIN FETCH s.shiftType
+            JOIN FETCH s.period
+            WHERE s.period.id = :periodId
+            AND s.shiftType.id = 'L04'
+            AND (:specialtyId IS NULL OR st.specialty.id = :specialtyId)
+            ORDER BY s.workDate
+            """)
+    List<Schedule> findExpertClinicByPeriodAndSpecialty(
+            @Param("periodId") Integer periodId,
+            @Param("specialtyId") Integer specialtyId);
 }

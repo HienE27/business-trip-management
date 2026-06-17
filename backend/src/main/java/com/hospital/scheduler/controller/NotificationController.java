@@ -3,6 +3,8 @@ package com.hospital.scheduler.controller;
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.dto.response.NotificationResponse;
+import com.hospital.scheduler.entity.Notification;
+import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,6 +29,13 @@ public class NotificationController {
 
     private final NotificationService notificationService;
     private final AuthContextService authContextService;
+
+    private void validateNotificationOwnership(Integer notificationId, String username) {
+        Notification notification = notificationService.findById(notificationId);
+        if (notification == null || !notification.getStaff().getUsername().equals(username)) {
+            throw new ResourceNotFoundException("Không tìm thấy thông báo");
+        }
+    }
 
     @GetMapping("/staff/{staffId}")
     @Operation(summary = "Lấy thông báo theo nhân sự")
@@ -81,8 +91,9 @@ public class NotificationController {
 
     @PutMapping("/{id}/read")
     @Operation(summary = "Đánh dấu đã đọc")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<ApiResponse<NotificationResponse>> markAsRead(@PathVariable Integer id) {
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaffOwner(#id)")
+    public ResponseEntity<ApiResponse<NotificationResponse>> markAsRead(
+            @PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(
                 notificationService.markAsRead(id), "Đã đánh dấu là đã đọc"));
     }
@@ -98,9 +109,9 @@ public class NotificationController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa thông báo")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaffOwner(#id)")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Integer id) {
         notificationService.deleteNotification(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Xóa thông báo thành công"));
+        return ResponseEntity.ok(ApiResponse.success(null, "Đã xóa thông báo."));
     }
 }

@@ -84,6 +84,15 @@ public class ScheduleController {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByStaff(staffId)));
     }
 
+    @GetMapping("/expert-clinic")
+    @Operation(summary = "Lấy lịch phòng khám chuyên gia theo kỳ và chuyên khoa (M05-F04)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getExpertClinicSchedules(
+            @RequestParam Integer periodId,
+            @RequestParam(required = false) Integer specialtyId) {
+        return ResponseEntity.ok(ApiResponse.success(scheduleService.getExpertClinicSchedules(periodId, specialtyId)));
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết lịch")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")

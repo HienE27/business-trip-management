@@ -17,7 +17,7 @@ public class SchedulePeriodResponse {
     private String status;
     private StaffSummary generatedBy;
     private LocalDateTime generatedAt;
-    private StaffSummary publishedBy;
+    private String publishedBy;
     private LocalDateTime publishedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

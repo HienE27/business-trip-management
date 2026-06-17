@@ -90,6 +90,8 @@ class ScheduleExchangeServiceTest {
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
+
+        when(exchangeRepository.findByIdWithLock(1)).thenReturn(Optional.of(testExchange));
     }
 
     // ==================== getAllExchanges ====================

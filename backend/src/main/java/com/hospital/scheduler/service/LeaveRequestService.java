@@ -8,11 +8,13 @@ import com.hospital.scheduler.entity.CompensationDay;
 import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.entity.RoleName;
 import com.hospital.scheduler.entity.Schedule;
+import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.LeaveRequestRepository;
+import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.dto.request.NotificationDTO;
@@ -37,6 +39,7 @@ public class LeaveRequestService {
     private final AuditHistoryService auditHistoryService;
     private final ScheduleRepository scheduleRepository;
     private final CompensationDayRepository compensationDayRepository;
+    private final SchedulePeriodRepository periodRepository;
     private final NotificationService notificationService;
     private final EmailService emailService;
     @Lazy
@@ -79,12 +82,22 @@ public class LeaveRequestService {
         validateLeaveRequest(staffId, dto);
         validateNoScheduleConflict(staff, dto.getStartDate(), dto.getEndDate());
 
+        SchedulePeriod period = null;
+        if (dto.getPeriodId() != null) {
+            period = periodRepository.findById(dto.getPeriodId()).orElse(null);
+        }
+        if (period == null) {
+            period = periodRepository.findByStatusOrderByStartDateDesc(SchedulePeriod.PeriodStatus.DRAFT)
+                    .stream().findFirst().orElse(null);
+        }
+
         LeaveRequest leaveRequest = LeaveRequest.builder()
                 .staff(staff)
                 .startDate(dto.getStartDate())
                 .endDate(dto.getEndDate())
                 .reason(dto.getReason())
                 .status(LeaveRequest.LeaveStatus.PENDING)
+                .period(period)
                 .build();
 
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
@@ -174,6 +187,11 @@ public class LeaveRequestService {
         notificationService.createNotification(leaveRequest.getStaff().getId(),
                 new NotificationDTO("Yêu cầu nghỉ phép bị từ chối", rejectMsg));
 
+        // Send email notification
+        emailService.sendLeaveRejectedEmail(leaveRequest.getStaff(),
+                leaveRequest.getStartDate(), leaveRequest.getEndDate(),
+                reviewer.getFullName(), reviewNote);
+
         return LeaveRequestResponse.fromEntity(saved);
     }
 
@@ -198,6 +216,14 @@ public class LeaveRequestService {
 
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
         auditHistoryService.logAction("leave_request", leaveRequestId, AuditHistory.ActionType.UPDATE, prev, saved, currentStaff.getId());
+
+        // Notify staff about cancellation
+        notificationService.createNotification(leaveRequest.getStaff().getId(),
+                new NotificationDTO("Yêu cầu nghỉ phép đã bị hủy",
+                        "Yêu cầu nghỉ phép từ " + leaveRequest.getStartDate() + " đến " + leaveRequest.getEndDate() + " đã bị hủy."));
+        emailService.sendLeaveCancelledEmail(leaveRequest.getStaff(),
+                leaveRequest.getStartDate(), leaveRequest.getEndDate());
+
         return LeaveRequestResponse.fromEntity(saved);
     }
 

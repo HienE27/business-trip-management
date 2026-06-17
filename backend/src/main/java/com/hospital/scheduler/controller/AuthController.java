@@ -7,6 +7,7 @@ import com.hospital.scheduler.dto.LoginRequest;
 import com.hospital.scheduler.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,8 +38,9 @@ public class AuthController {
     )
     public ResponseEntity<ApiResponse<AuthResponse>> login(
             @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest,
             HttpServletResponse response) {
-        AuthResponse authResponse = authService.login(request);
+        AuthResponse authResponse = authService.login(request, httpRequest);
         response.addHeader(HttpHeaders.SET_COOKIE, buildAuthCookie(authResponse.getToken(), authResponse.getExpiresIn()).toString());
         response.setHeader(AUTH_TOKEN_HEADER, authResponse.getToken());
         return ResponseEntity.ok(ApiResponse.success(authResponse, "Login successful"));

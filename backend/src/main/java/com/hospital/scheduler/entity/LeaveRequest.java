@@ -43,6 +43,10 @@ public class LeaveRequest {
     @JoinColumn(name = "reviewed_by")
     private Staff reviewedBy;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "period_id")
+    private SchedulePeriod period;
+
     @Column(name = "reviewed_at")
     private LocalDateTime reviewedAt;
 

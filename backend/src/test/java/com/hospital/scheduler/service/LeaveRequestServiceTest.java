@@ -16,6 +16,7 @@ import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.LeaveRequestRepository;
+import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +51,7 @@ class LeaveRequestServiceTest {
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private ScheduleRepository scheduleRepository;
     @Mock private CompensationDayRepository compensationDayRepository;
+    @Mock private SchedulePeriodRepository periodRepository;
     @Mock private NotificationService notificationService;
     @Mock private EmailService emailService;
 

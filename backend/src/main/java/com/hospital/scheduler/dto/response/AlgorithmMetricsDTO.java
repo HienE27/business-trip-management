@@ -19,5 +19,7 @@ public class AlgorithmMetricsDTO {
     private BigDecimal coverageRate;
     private BigDecimal balanceScore;
     private Integer conflictCount;
+    private Integer periodId;
+    private String periodName;
     private LocalDateTime createdAt;
 }

@@ -102,16 +102,14 @@ Nếu không cấu hình biến này, frontend đang fallback về `http://local
 
 ## Tài khoản seed mặc định
 
-`DataSeeder` sẽ seed dữ liệu mẫu khi database còn trống.
+`DataSeeder` sẽ seed dữ liệu mẫu khi database còn trống. Tạo tổng cộng **20 nhân sự**: 1 admin, 2 manager, 17 staff.
 
-Tài khoản có sẵn:
+Tài khoản có sẵn (thường dùng):
 
-- `admin / admin123`
-- `staff1 / 123456`
-- `staff2 / 123456`
-- `staff3 / 123456`
-- `staff4 / 123456`
-- `staff5 / 123456`
+- `admin / admin123` — có vai trò ADMIN + MANAGER
+- `manager1 / 123456` — MANAGER
+- `manager2 / 123456` — MANAGER
+- `nurse1 / 123456` … `nurse17 / 123456` — STAFF
 
 Role hiện có trong hệ thống:
 
@@ -146,6 +144,7 @@ Các route quan trọng trong `frontend/src/app`:
 - `/service-clinic` — lịch phòng khám dịch vụ `L03`
 - `/expert-clinic` — lịch phòng khám chuyên gia `L04`
 - `/schedule-summary` — tổng hợp lịch + export Excel/PDF
+- `/monthly-schedule` — bảng lịch tháng với compensation days + xung đột + coverage
 - `/conflict-check` — kiểm tra xung đột
 - `/swap-requests` — yêu cầu đổi ca
 - `/notifications` — thông báo
@@ -221,10 +220,11 @@ Những phần đã thấy rõ trong code:
 - CRUD lịch cơ bản cho `L01`-`L04`
 - Kiểm tra conflict theo kỳ
 - Tự tính và trả `compensationDate` từ backend
+- Hiển thị ngày nghỉ bù trên bảng lịch tháng (`/monthly-schedule`), khóa thao tác trên ô nghỉ bù
 - Export Excel cho lịch và workload
 - Export PDF cho lịch tổng hợp nếu service PDF khả dụng trong môi trường chạy
 - Auto scheduling với các luồng preview, run, báo cáo unassigned, workload chart, metrics
-- Seed dữ liệu mẫu để demo nhanh
+- Seed dữ liệu mẫu để demo nhanh (20 nhân sự, 2 kỳ lịch)
 
 Các điểm cần hiểu đúng khi đọc tài liệu:
 
@@ -234,17 +234,27 @@ Các điểm cần hiểu đúng khi đọc tài liệu:
 
 ## Test hiện có
 
-Backend đang có test ở các vùng chính:
+Backend đang có test ở các vùng chính (131 tests, 0 failures):
 
 - `backend/src/test/java/com/hospital/scheduler/service/ConflictDetectionServiceTest.java`
 - `backend/src/test/java/com/hospital/scheduler/service/ScheduleServiceBusinessRulesTest.java`
 - `backend/src/test/java/com/hospital/scheduler/service/AutoSchedulingServiceTest.java`
+- `backend/src/test/java/com/hospital/scheduler/service/LeaveRequestServiceTest.java`
+- `backend/src/test/java/com/hospital/scheduler/service/ScheduleServiceTest.java`
+- `frontend/tests/e2e/*.spec.ts` — 14 Playwright E2E tests
 
 Chạy test backend:
 
 ```bash
 cd backend
 ./mvnw test
+```
+
+Chạy E2E (cần backend chạy trên port 8080 và frontend trên port 3000):
+
+```bash
+cd frontend
+pnpm playwright test
 ```
 
 ## Tài liệu liên quan

@@ -29,8 +29,10 @@ public class AuditHistoryService {
                 .collect(Collectors.toList());
     }
 
-    public List<AuditHistoryResponse> getAuditHistoryByTableAndRecord(String tableName, Integer recordId) {
-        return auditHistoryRepository.findByTableNameAndRecordId(tableName, recordId).stream()
+    public List<AuditHistoryResponse> getAuditHistoryByTableAndRecord(String tableName, Object recordId) {
+        Integer id = recordId instanceof Integer ? (Integer) recordId
+                  : recordId instanceof String ? Integer.parseInt((String) recordId) : null;
+        return auditHistoryRepository.findByTableNameAndRecordId(tableName, id).stream()
                 .map(AuditHistoryResponse::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -48,7 +50,7 @@ public class AuditHistoryService {
     }
 
     @Transactional
-    public AuditHistory logAction(String tableName, Integer recordId, AuditHistory.ActionType actionType,
+    public AuditHistory logAction(String tableName, Object recordId, AuditHistory.ActionType actionType,
                                   Object oldData, Object newData, Integer changedById) {
         Staff changedBy = null;
         if (changedById != null) {
@@ -57,7 +59,8 @@ public class AuditHistoryService {
 
         AuditHistory auditHistory = AuditHistory.builder()
                 .tableName(tableName)
-                .recordId(recordId != null ? recordId : 0)
+                .recordId(recordId instanceof Integer ? (Integer) recordId
+                        : recordId instanceof String ? Integer.parseInt((String) recordId) : 0)
                 .actionType(actionType)
                 .changedBy(changedBy)
                 .oldData(safeToJson(oldData))

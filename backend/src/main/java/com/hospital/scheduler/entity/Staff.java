@@ -41,6 +41,9 @@ public class Staff {
     @Column(unique = true, length = 100)
     private String email;
 
+    @Column(length = 100)
+    private String position;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "specialty_id")
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})

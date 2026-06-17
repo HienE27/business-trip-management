@@ -7,6 +7,7 @@ import com.hospital.scheduler.entity.StaffRole;
 import com.hospital.scheduler.exception.ForbiddenOperationException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.LeaveRequestRepository;
+import com.hospital.scheduler.repository.NotificationRepository;
 import com.hospital.scheduler.repository.ScheduleExchangeRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class AuthContextService {
     private final StaffRepository staffRepository;
     private final LeaveRequestRepository leaveRequestRepository;
     private final ScheduleExchangeRepository scheduleExchangeRepository;
+    private final NotificationRepository notificationRepository;
 
     public Staff getCurrentStaff() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -57,6 +59,17 @@ public class AuthContextService {
             return scheduleExchangeRepository.findById(exchangeId)
                     .map(e -> e.getRequester().getId().equals(current.getId())
                             || e.getTarget().getId().equals(current.getId()))
+                    .orElse(false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean isCurrentStaffOwner(Integer notificationId) {
+        try {
+            Staff current = getCurrentStaff();
+            return notificationRepository.findById(notificationId)
+                    .map(n -> n.getStaff().getId().equals(current.getId()))
                     .orElse(false);
         } catch (Exception e) {
             return false;

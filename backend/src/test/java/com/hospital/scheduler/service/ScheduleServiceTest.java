@@ -46,6 +46,7 @@ class ScheduleServiceTest {
     @Mock private AuthContextService authContextService;
     @Mock private CompensationDateCalculator compensationDateCalculator;
     @Mock private NotificationService notificationService;
+    @Mock private com.hospital.scheduler.repository.HolidayRepository holidayRepository;
 
     @InjectMocks
     private ScheduleService scheduleService;
@@ -552,9 +553,13 @@ class ScheduleServiceTest {
                     .id(100).period(draftPeriod).workDate(LocalDate.of(2026, 6, 15))
                     .staff(testStaff).shiftType(shiftL01).hasConflict(true)
                     .build();
-            when(scheduleRepository.findById(100)).thenReturn(Optional.of(conflictSchedule));
+            when(scheduleRepository.findByIdWithDetails(100)).thenReturn(Optional.of(conflictSchedule));
             when(scheduleRepository.save(any(Schedule.class)))
-                    .thenAnswer(inv -> inv.getArgument(0));
+                    .thenAnswer(inv -> {
+                        Schedule s = inv.getArgument(0);
+                        s.setId(100);
+                        return s;
+                    });
             when(authContextService.getCurrentStaff()).thenReturn(adminStaff);
             when(conflictDetectionService.detectAllConflicts(anyInt(), any(), any(), any(), anyInt()))
                     .thenReturn(Collections.emptyList());

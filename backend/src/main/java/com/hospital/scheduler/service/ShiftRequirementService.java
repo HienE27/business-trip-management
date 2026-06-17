@@ -8,7 +8,9 @@ import com.hospital.scheduler.entity.ShiftType;
 import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
+import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.repository.ShiftRequirementRepository;
+import com.hospital.scheduler.service.AuditHistoryService;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.ShiftTypeRepository;
 import com.hospital.scheduler.repository.SpecialtyRepository;
@@ -31,6 +33,7 @@ public class ShiftRequirementService {
     private final SchedulePeriodRepository periodRepository;
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
+    private final AuditHistoryService auditHistoryService;
 
     public List<ShiftRequirementResponse> getAllRequirements() {
         return requirementRepository.findAll().stream()
@@ -108,18 +111,19 @@ public class ShiftRequirementService {
                 .build();
 
         ShiftRequirement saved = requirementRepository.save(requirement);
+        auditHistoryService.logAction("shift_requirement", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
         return ShiftRequirementResponse.fromEntityWithAssignedCount(saved, 0);
     }
 
     public ShiftRequirementResponse updateRequirement(Integer id, ShiftRequirementDTO dto) {
-        ShiftRequirement requirement = requirementRepository.findById(id)
+        ShiftRequirement existing = requirementRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu nhân sự với ID: " + id));
 
-        if (requirement.getPeriod().getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
+        if (existing.getPeriod().getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
             throw new BadRequestException("Chỉ có thể cập nhật yêu cầu nhân sự khi kỳ lịch ở trạng thái DRAFT");
         }
 
-        if (dto.getWorkDate().isBefore(requirement.getPeriod().getStartDate()) || dto.getWorkDate().isAfter(requirement.getPeriod().getEndDate())) {
+        if (dto.getWorkDate().isBefore(existing.getPeriod().getStartDate()) || dto.getWorkDate().isAfter(existing.getPeriod().getEndDate())) {
             throw new BadRequestException("Ngày làm việc phải nằm trong kỳ lịch");
         }
 
@@ -129,26 +133,29 @@ public class ShiftRequirementService {
         Specialty specialty = specialtyRepository.findById(dto.getSpecialtyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chuyên môn với ID: " + dto.getSpecialtyId()));
 
-        requirement.setWorkDate(dto.getWorkDate());
-        requirement.setShiftType(shiftType);
-        requirement.setSpecialty(specialty);
-        requirement.setRequiredStaffCount(dto.getRequiredStaffCount());
-        requirement.setNote(dto.getNote());
+        existing.setWorkDate(dto.getWorkDate());
+        existing.setShiftType(shiftType);
+        existing.setSpecialty(specialty);
+        existing.setRequiredStaffCount(dto.getRequiredStaffCount());
+        existing.setNote(dto.getNote());
 
-        ShiftRequirement saved = requirementRepository.save(requirement);
+        ShiftRequirement saved = requirementRepository.save(existing);
+        auditHistoryService.logAction("shift_requirement", saved.getId(), AuditHistory.ActionType.UPDATE, existing, saved, null);
+
         long count = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
                 saved.getPeriod().getId(), saved.getWorkDate(), saved.getShiftType().getId());
         return ShiftRequirementResponse.fromEntityWithAssignedCount(saved, count);
     }
 
     public void deleteRequirement(Integer id) {
-        ShiftRequirement requirement = requirementRepository.findById(id)
+        ShiftRequirement existing = requirementRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu nhân sự với ID: " + id));
 
-        if (requirement.getPeriod().getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
+        if (existing.getPeriod().getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
             throw new BadRequestException("Chỉ có thể xóa yêu cầu nhân sự khi kỳ lịch ở trạng thái DRAFT");
         }
 
-        requirementRepository.delete(requirement);
+        auditHistoryService.logAction("shift_requirement", id, AuditHistory.ActionType.DELETE, existing, null, null);
+        requirementRepository.delete(existing);
     }
 }

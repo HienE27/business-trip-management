@@ -4,6 +4,8 @@ import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -30,6 +32,7 @@ public class DataSeeder implements CommandLineRunner {
     private final ScheduleTemplateRepository scheduleTemplateRepository;
     private final CompensationDateCalculator compensationDateCalculator;
     private final HolidayRepository holidayRepository;
+    private static final Logger log = LoggerFactory.getLogger(DataSeeder.class);
 
     // ⚠️  Muốn re-seed (thêm staff mới) → drop database + restart backend
     @Override
@@ -50,7 +53,7 @@ public class DataSeeder implements CommandLineRunner {
         appRoleRepository.save(AppRole.builder().name(RoleName.MANAGER).description("Quản lý và duyệt lịch").isActive(true).build());
         appRoleRepository.save(AppRole.builder().name(RoleName.STAFF).description("Nhân viên sử dụng hệ thống").isActive(true).build());
 
-        System.out.println("✅ Seeded roles: ADMIN, MANAGER, STAFF");
+        log.info("✅ Seeded roles: ADMIN, MANAGER, STAFF");
     }
 
     private void seedSpecialties() {
@@ -61,7 +64,7 @@ public class DataSeeder implements CommandLineRunner {
         specialtyRepository.save(Specialty.builder().name("Kỹ thuật viên").description("Kỹ thuật viên xét nghiệm").isActive(true).build());
         specialtyRepository.save(Specialty.builder().name("Dược sĩ").description("Dược sĩ bệnh viện").isActive(true).build());
 
-        System.out.println("✅ Seeded specialties");
+        log.info("✅ Seeded specialties");
     }
 
     private void seedShiftTypes() {
@@ -87,7 +90,7 @@ public class DataSeeder implements CommandLineRunner {
                 .description("Ca khám chuyên sâu")
                 .isOvernight(false).fatigueScore(2).isActive(true).build());
 
-        System.out.println("✅ Seeded shift types: L01, L02, L03, L04");
+        log.info("✅ Seeded shift types: L01, L02, L03, L04");
     }
 
     private void seedHolidays() {
@@ -107,12 +110,12 @@ public class DataSeeder implements CommandLineRunner {
 
         for (HolidaySeed h : holidays) {
             LocalDate date = LocalDate.of(2026, h.month, h.day);
-            if (!holidayRepository.findByDate(date).isPresent()) {
+            if (!holidayRepository.findByHolidayDate(date).isPresent()) {
                 holidayRepository.save(Holiday.builder()
-                        .name(h.name).holidayDate(date).date(date).year(date.getYear()).description(h.description).isActive(true).build());
+                        .name(h.name).holidayDate(date).year(date.getYear()).description(h.description).isActive(true).build());
             }
         }
-        System.out.println("✅ Seeded " + holidays.length + " holidays for 2026");
+        log.info("✅ Seeded " + holidays.length + " holidays for 2026");
     }
 
     private void seedScheduleTemplates() {
@@ -139,7 +142,7 @@ public class DataSeeder implements CommandLineRunner {
                     .specialty(t.specialty).requiredStaffCount(t.count)
                     .isActive(true).build());
         }
-        System.out.println("✅ Seeded " + templates.length + " schedule templates");
+        log.info("✅ Seeded " + templates.length + " schedule templates");
     }
 
     private void seedAdminUser() {
@@ -210,7 +213,7 @@ public class DataSeeder implements CommandLineRunner {
             addRoles(staff, staffRole);
         }
 
-        System.out.println("✅ Seeded: 1 admin + 2 manager + 17 staff = 20 total users");
+        log.info("✅ Seeded: 1 admin + 2 manager + 17 staff = 20 total users");
     }
 
     private void addRoles(Staff staff, AppRole... roles) {
@@ -279,30 +282,25 @@ public class DataSeeder implements CommandLineRunner {
                 scheduleRepository.save(Schedule.builder()
                         .period(savedPeriod).workDate(LocalDate.of(2026, 6, 1)).staff(s5).shiftType(l03).hasConflict(false).build());
 
-                // Day 2: s2 has L01, s1 has L02 (conflict)
+                // Day 2: s2 has L01, s1 has L02 (different staff — not a conflict)
                 Schedule sch2 = scheduleRepository.save(Schedule.builder()
                         .period(savedPeriod).workDate(LocalDate.of(2026, 6, 2)).staff(s2).shiftType(l01).hasConflict(false).build());
                 createCompensationDayForSeed(sch2);
 
                 scheduleRepository.save(Schedule.builder()
-                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 2)).staff(s1).shiftType(l02).hasConflict(true).build());
+                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 2)).staff(s1).shiftType(l02).hasConflict(false).build());
 
                 // Day 3: s3 has L01
                 Schedule sch3 = scheduleRepository.save(Schedule.builder()
                         .period(savedPeriod).workDate(LocalDate.of(2026, 6, 3)).staff(s3).shiftType(l01).hasConflict(false).build());
                 createCompensationDayForSeed(sch3);
 
-                // Day 4: s2 has L02 on June 4th
+                // Day 4: s2 has L02 (no conflict, different staff from L01 on other days)
                 scheduleRepository.save(Schedule.builder()
                         .period(savedPeriod).workDate(LocalDate.of(2026, 6, 4)).staff(s2).shiftType(l02).hasConflict(false).build());
 
-                // Day 5: s2 has L01 and s2 has L02 (conflict)
-                scheduleRepository.save(Schedule.builder()
-                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 5)).staff(s2).shiftType(l01).hasConflict(true).build());
-                scheduleRepository.save(Schedule.builder()
-                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 5)).staff(s2).shiftType(l02).hasConflict(true).build());
             }
-            System.out.println("✅ Seeded sample published period June 2026");
+            log.info("✅ Seeded sample published period June 2026");
         }
 
         // 2. Create period July 2026 (DRAFT status for M07 auto scheduling tests)
@@ -329,7 +327,7 @@ public class DataSeeder implements CommandLineRunner {
                 shiftRequirementRepository.save(ShiftRequirement.builder()
                         .period(savedDraftPeriod).workDate(date).shiftType(l04).specialty(doctor).requiredStaffCount(1).build());
             }
-            System.out.println("✅ Seeded sample draft period July 2026 with requirements");
+            log.info("✅ Seeded sample draft period July 2026 with requirements");
         }
     }
 

@@ -28,6 +28,7 @@ public class StaffRequest {
     @Email(message = "Email không hợp lệ")
     private String email;
 
+    private String position;
     private Integer specialtyId;
     @Builder.Default
     private Integer maxShiftsPerMonth = 5;

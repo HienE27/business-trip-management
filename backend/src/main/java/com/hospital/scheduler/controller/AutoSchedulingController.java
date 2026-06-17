@@ -4,8 +4,10 @@ import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.AlgoConfigRequest;
 import com.hospital.scheduler.dto.request.AutoScheduleApplyPreviewRequestDTO;
 import com.hospital.scheduler.dto.request.AutoScheduleRequestDTO;
+import com.hospital.scheduler.dto.request.SaveAlgorithmTemplateRequest;
 import com.hospital.scheduler.dto.request.SaveTemplateRequest;
 import com.hospital.scheduler.dto.response.AlgorithmConfigDTO;
+import com.hospital.scheduler.dto.response.AlgorithmConfigResponse;
 import com.hospital.scheduler.dto.response.AlgorithmMetricsDTO;
 import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.service.AlgorithmConfigService;
@@ -70,6 +72,16 @@ public class AutoSchedulingController {
         var result = scheduleTemplateService.saveTemplateFromGenerated(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(result, "Lưu mẫu lịch thành công"));
+    }
+
+    @PostMapping("/templates")
+    @Operation(summary = "M07-F10b: Lưu cấu hình thuật toán thành mẫu có thể tái sử dụng")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<AlgorithmConfigResponse>> saveAlgorithmAsTemplate(
+            @Valid @RequestBody SaveAlgorithmTemplateRequest request) {
+        AlgorithmConfigResponse result = configService.saveAsTemplate(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(result, "Lưu mẫu cấu hình thuật toán thành công"));
     }
 
     @GetMapping("/unassigned/{periodId}")

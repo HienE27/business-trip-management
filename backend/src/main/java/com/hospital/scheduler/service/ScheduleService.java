@@ -63,8 +63,23 @@ public class ScheduleService {
                 .collect(Collectors.toList());
     }
 
+    public List<ScheduleResponse> getExpertClinicSchedules(Integer periodId, Integer specialtyId) {
+        List<Schedule> schedules = scheduleRepository.findExpertClinicByPeriodAndSpecialty(periodId, specialtyId);
+        if (schedules.isEmpty()) return List.of();
+        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByPeriodIdWithStaff(periodId)
+                .stream()
+                .collect(Collectors.toMap(
+                        cd -> cd.getSchedule().getId(),
+                        CompensationDay::getCompensationDate,
+                        (a, b) -> a
+                ));
+        return schedules.stream()
+                .map(s -> toResponse(s, compDateMap.get(s.getId())))
+                .collect(Collectors.toList());
+    }
+
     public ScheduleResponse getScheduleById(Integer id) {
-        Schedule schedule = scheduleRepository.findById(id)
+        Schedule schedule = scheduleRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + id));
         LocalDate compDate = compensationDayRepository.findByScheduleId(id).stream()
                 .map(CompensationDay::getCompensationDate)
@@ -123,32 +138,32 @@ public class ScheduleService {
 
         Schedule saved = scheduleRepository.save(schedule);
 
-        // Auto create compensation day for L01
+        // Auto create compensation day for L01 and compute for response + notification
+        LocalDate compDate = null;
         if (ConflictDetectionService.SHIFT_TYPE_L01.equals(request.getShiftTypeId())) {
             createCompensationDay(saved);
+            compDate = compensationDayRepository.findByScheduleId(saved.getId()).stream()
+                    .map(CompensationDay::getCompensationDate)
+                    .filter(java.util.Objects::nonNull)
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
         }
 
         auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT,
                 null, saved, authContextService.getCurrentStaff().getId());
 
         // Notify staff about new schedule assignment
-        String shiftTypeName = shiftType.getName();
-        String compDateStr = "";
-        if (ConflictDetectionService.SHIFT_TYPE_L01.equals(request.getShiftTypeId())) {
-            LocalDate compDate = compensationDayRepository.findByScheduleId(saved.getId()).stream()
-                    .map(CompensationDay::getCompensationDate)
-                    .filter(java.util.Objects::nonNull)
-                    .min(Comparator.naturalOrder())
-                    .orElse(null);
-            if (compDate != null) {
-                compDateStr = " Ngày nghỉ bù: " + compDate + ".";
-            }
+        if (compDate != null) {
+            notificationService.createNotification(staff.getId(),
+                    new NotificationDTO("Phân công lịch mới",
+                            "Bạn được phân công lịch " + shiftType.getName() + " vào ngày " + request.getWorkDate() + ". Ngày nghỉ bù: " + compDate + "."));
+        } else {
+            notificationService.createNotification(staff.getId(),
+                    new NotificationDTO("Phân công lịch mới",
+                            "Bạn được phân công lịch " + shiftType.getName() + " vào ngày " + request.getWorkDate() + "."));
         }
-        notificationService.createNotification(staff.getId(),
-                new NotificationDTO("Phân công lịch mới",
-                        "Bạn được phân công lịch " + shiftTypeName + " vào ngày " + request.getWorkDate() + "." + compDateStr));
 
-        return toResponse(saved, null);
+        return toResponse(saved, compDate);
     }
 
     public ScheduleResponse updateSchedule(Integer id, ScheduleRequest request) {
@@ -228,6 +243,10 @@ public class ScheduleService {
                 String.format("staffId=%d,shiftTypeId=%s,workDate=%s", oldStaffId, oldShiftTypeId, oldWorkDate),
                 updated, authContextService.getCurrentStaff().getId());
 
+        notificationService.createNotification(updated.getStaff().getId(),
+                new NotificationDTO("Cập nhật lịch trực",
+                        "Lịch trực ngày " + updated.getWorkDate() + " đã được cập nhật."));
+
         LocalDate compDate = null;
         if (willBeL01) {
             compDate = compensationDayRepository.findByScheduleId(id).stream()
@@ -250,10 +269,17 @@ public class ScheduleService {
 
         // If L01, delete related compensation days first
         if (ConflictDetectionService.SHIFT_TYPE_L01.equals(schedule.getShiftType().getId())) {
-            compensationDayRepository.deleteAll(compensationDayRepository.findByScheduleId(id));
+            List<CompensationDay> compDays = compensationDayRepository.findByScheduleId(id);
+            for (CompensationDay cd : compDays) {
+                auditHistoryService.logAction("compensation_day", cd.getId(), AuditHistory.ActionType.DELETE, cd, null, authContextService.getCurrentStaff().getId());
+            }
+            compensationDayRepository.deleteAll(compDays);
         }
 
         auditHistoryService.logAction("schedule", id, AuditHistory.ActionType.DELETE, schedule, null, authContextService.getCurrentStaff().getId());
+        notificationService.createNotification(schedule.getStaff().getId(),
+                new NotificationDTO("Xóa lịch trực",
+                        "Lịch trực ngày " + schedule.getWorkDate() + " đã bị xóa."));
         scheduleRepository.delete(schedule);
     }
 
@@ -286,7 +312,7 @@ public class ScheduleService {
     }
 
     public ScheduleResponse overrideConflict(Integer scheduleId, String reason) {
-        Schedule schedule = scheduleRepository.findById(scheduleId)
+        Schedule schedule = scheduleRepository.findByIdWithDetails(scheduleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + scheduleId));
 
         schedule.setHasConflict(false);
@@ -314,7 +340,10 @@ public class ScheduleService {
                 .note("Ngày nghỉ bù tự động từ ca L01")
                 .build();
 
-        compensationDayRepository.save(compDay);
+        CompensationDay saved = compensationDayRepository.save(compDay);
+        if (saved != null && saved.getId() != null) {
+            auditHistoryService.logAction("compensation_day", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, authContextService.getCurrentStaff().getId());
+        }
     }
 
     private ScheduleResponse toResponse(Schedule schedule) {

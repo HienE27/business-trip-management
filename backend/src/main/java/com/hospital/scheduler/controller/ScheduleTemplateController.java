@@ -3,6 +3,7 @@ package com.hospital.scheduler.controller;
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.ScheduleTemplateRequest;
 import com.hospital.scheduler.dto.response.ScheduleTemplateResponse;
+import com.hospital.scheduler.dto.response.TemplatePreviewItem;
 import com.hospital.scheduler.service.ScheduleTemplateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -82,5 +83,15 @@ public class ScheduleTemplateController {
         return ResponseEntity.ok(ApiResponse.success(
                 Map.of("templateId", templateId, "periodId", periodId, "appliedCount", count),
                 "Áp dụng mẫu lịch thành công, đã tạo " + count + " yêu cầu nhân sự"));
+    }
+
+    @GetMapping("/{templateId}/preview/{periodId}")
+    @Operation(summary = "Xem trước mẫu lịch trước khi áp dụng — trả về danh sách ca dự kiến")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<List<TemplatePreviewItem>>> previewTemplate(
+            @PathVariable Integer templateId,
+            @PathVariable Integer periodId) {
+        List<TemplatePreviewItem> preview = templateService.previewTemplate(templateId, periodId);
+        return ResponseEntity.ok(ApiResponse.success(preview, "Xem trước mẫu lịch thành công"));
     }
 }

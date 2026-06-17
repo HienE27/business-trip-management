@@ -21,6 +21,8 @@ public class LeaveRequestResponse {
     private StaffSummary reviewedBy;
     private LocalDateTime reviewedAt;
     private String reviewNote;
+    private Integer periodId;
+    private String periodName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -55,6 +57,8 @@ public class LeaveRequestResponse {
                         .build() : null)
                 .reviewedAt(entity.getReviewedAt())
                 .reviewNote(entity.getReviewNote())
+                .periodId(entity.getPeriod() != null ? entity.getPeriod().getId() : null)
+                .periodName(entity.getPeriod() != null ? entity.getPeriod().getPeriodName() : null)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

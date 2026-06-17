@@ -21,4 +21,6 @@ public class LeaveRequestDTO {
 
     @Size(max = 500, message = "Lý do không quá 500 ký tự")
     private String reason;
+
+    private Integer periodId;
 }

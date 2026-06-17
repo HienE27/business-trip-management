@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.SchedulePeriodRequest;
+import com.hospital.scheduler.dto.response.ConflictCheckResponse;
 import com.hospital.scheduler.dto.response.SchedulePeriodResponse;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.BadRequestException;
@@ -270,8 +271,8 @@ class SchedulePeriodServiceTest {
         @DisplayName("DRAFT, không conflict -> PUBLISHED + gửi thông báo")
         void draftWithoutConflicts_shouldPublish() {
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
-            when(conflictDetectionService.detectAllConflictsForPeriod(1))
-                    .thenReturn(Collections.emptyList());
+            when(conflictDetectionService.checkPeriodConflicts(1))
+                    .thenReturn(ConflictCheckResponse.builder().hasConflicts(false).conflicts(List.of()).build());
             when(periodRepository.save(any(SchedulePeriod.class)))
                     .thenAnswer(inv -> inv.getArgument(0));
             doNothing().when(notificationService).createNotificationForAllStaff(anyString(), anyString());
@@ -297,8 +298,12 @@ class SchedulePeriodServiceTest {
         @DisplayName("Có xung đột -> throw BadRequestException")
         void hasConflicts_shouldThrow() {
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
-            when(conflictDetectionService.detectAllConflictsForPeriod(1))
-                    .thenReturn(List.of("Trùng với lịch thông tầm"));
+            when(conflictDetectionService.checkPeriodConflicts(1))
+                    .thenReturn(ConflictCheckResponse.builder().hasConflicts(true)
+                            .conflicts(List.of(ConflictCheckResponse.ConflictDetail.builder()
+                                    .staffName("BS. Test").workDate(LocalDate.of(2026, 1, 15))
+                                    .conflictReasons(List.of("Trùng với lịch thông tầm")).build()))
+                            .build());
 
             assertThatThrownBy(() -> periodService.publishPeriod(1, 1))
                     .isInstanceOf(BadRequestException.class)

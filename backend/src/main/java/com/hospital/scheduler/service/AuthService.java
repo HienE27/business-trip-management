@@ -1,5 +1,7 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.config.AuthCookieProperties;
+import com.hospital.scheduler.config.RateLimitingFilter;
 import com.hospital.scheduler.dto.AuthResponse;
 import com.hospital.scheduler.dto.LoginRequest;
 import com.hospital.scheduler.entity.Staff;
@@ -11,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,17 +24,22 @@ public class AuthService {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final StaffRepository staffRepository;
+    private final RateLimitingFilter rateLimitingFilter;
 
     @Transactional(readOnly = true)
-    public AuthResponse login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest) {
         Staff staff = staffRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new BadCredentialsException("Tên đăng nhập hoặc mật khẩu không đúng"));
+                .orElseThrow(() -> {
+                    rateLimitingFilter.recordFailedLogin(getClientIp(httpRequest));
+                    return new BadCredentialsException("Tên đăng nhập hoặc mật khẩu không đúng");
+                });
 
         if (!staff.getIsActive()) {
             throw new BadCredentialsException("Tài khoản của bạn đã bị vô hiệu hóa");
         }
 
         if (!passwordEncoder.matches(request.getPassword(), staff.getPasswordHash())) {
+            rateLimitingFilter.recordFailedLogin(getClientIp(httpRequest));
             throw new BadCredentialsException("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
@@ -50,5 +58,10 @@ public class AuthService {
                 .username(staff.getUsername())
                 .roles(roles)
                 .build();
+    }
+
+    private String getClientIp(HttpServletRequest req) {
+        String xf = req.getHeader("X-Forwarded-For");
+        return xf != null ? xf.split(",")[0].trim() : req.getRemoteAddr();
     }
 }
