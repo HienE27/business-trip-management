@@ -13,4 +13,5 @@ public class StaffSearchRequest {
     private Integer specialtyId;
     private String status;
     private String role;
+    private String position;
 }

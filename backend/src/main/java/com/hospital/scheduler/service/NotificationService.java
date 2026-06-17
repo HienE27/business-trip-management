@@ -73,6 +73,10 @@ public class NotificationService {
         return notificationRepository.countUnreadByStaffId(staffId);
     }
 
+    public Notification findById(Integer notificationId) {
+        return notificationRepository.findById(notificationId).orElse(null);
+    }
+
     public NotificationResponse markAsRead(Integer notificationId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông báo với ID: " + notificationId));
@@ -89,16 +93,11 @@ public class NotificationService {
     }
 
     public void markAllAsRead(Integer staffId) {
-        List<Notification> unreadNotifications = notificationRepository.findUnreadByStaffId(staffId);
-        for (Notification notification : unreadNotifications) {
-            notification.setIsRead(true);
-            notification.setReadAt(LocalDateTime.now());
-        }
-        notificationRepository.saveAll(unreadNotifications);
+        int count = notificationRepository.markAllAsReadBulk(staffId);
         Integer currentId = null;
         try { currentId = authContextService.getCurrentStaff().getId(); } catch (Exception ignored) {}
         auditHistoryService.logAction("notification", null, AuditHistory.ActionType.UPDATE,
-                null, Map.of("markAllRead", true, "staffId", staffId, "count", unreadNotifications.size()), currentId);
+                null, Map.of("markAllRead", true, "staffId", staffId, "count", count), currentId);
     }
 
     public NotificationResponse createNotification(Integer staffId, NotificationDTO dto) {

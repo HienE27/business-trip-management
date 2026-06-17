@@ -1,5 +1,6 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.dto.request.StaffRequest;
 import com.hospital.scheduler.dto.request.StaffSearchRequest;
 import com.hospital.scheduler.dto.response.StaffResponse;
@@ -44,6 +45,7 @@ public class StaffService {
     private final AuthContextService authContextService;
     private final PasswordEncoder passwordEncoder;
     private final StaffImportParser staffImportParser;
+    private final NotificationService notificationService;
 
     public List<StaffResponse> getAllStaff() {
         return staffRepository.findAll().stream()
@@ -67,8 +69,9 @@ public class StaffService {
         String keyword = (request.getKeyword() != null && !request.getKeyword().isBlank()) ? request.getKeyword() : null;
         String status = (request.getStatus() != null && !request.getStatus().isBlank()) ? request.getStatus().toUpperCase() : null;
         String role = (request.getRole() != null && !request.getRole().isBlank()) ? request.getRole().toUpperCase() : null;
+        String position = (request.getPosition() != null && !request.getPosition().isBlank()) ? request.getPosition() : null;
 
-        return staffRepository.searchStaffs(keyword, request.getSpecialtyId(), status, role).stream()
+        return staffRepository.searchStaffs(keyword, request.getSpecialtyId(), status, role, position).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -91,7 +94,11 @@ public class StaffService {
 
         String statusStr = request.getStatus() != null ? request.getStatus() : "ACTIVE";
         boolean isActive = !"INACTIVE".equalsIgnoreCase(statusStr);
-        StaffStatus status = "INACTIVE".equalsIgnoreCase(statusStr) ? StaffStatus.INACTIVE : StaffStatus.ACTIVE;
+        StaffStatus status = switch (statusStr.toUpperCase()) {
+            case "ON_LEAVE" -> StaffStatus.ON_LEAVE;
+            case "INACTIVE" -> StaffStatus.INACTIVE;
+            default -> StaffStatus.ACTIVE;
+        };
 
         Staff staff = Staff.builder()
                 .username(request.getUsername())
@@ -99,6 +106,7 @@ public class StaffService {
                 .fullName(request.getFullName())
                 .phone(request.getPhone())
                 .email(request.getEmail())
+                .position(request.getPosition())
                 .specialty(specialty)
                 .maxShiftsPerMonth(request.getMaxShiftsPerMonth() != null ? request.getMaxShiftsPerMonth() : 5)
                 .isActive(isActive)
@@ -150,6 +158,7 @@ public class StaffService {
                 .fullName(staff.getFullName())
                 .phone(staff.getPhone())
                 .email(staff.getEmail())
+                .position(staff.getPosition())
                 .maxShiftsPerMonth(staff.getMaxShiftsPerMonth())
                 .specialty(staff.getSpecialty())
                 .isActive(staff.getIsActive())
@@ -164,6 +173,7 @@ public class StaffService {
         staff.setFullName(request.getFullName());
         staff.setPhone(request.getPhone());
         staff.setEmail(request.getEmail());
+        staff.setPosition(request.getPosition());
         staff.setMaxShiftsPerMonth(request.getMaxShiftsPerMonth() != null ? request.getMaxShiftsPerMonth() : 5);
 
         if (request.getSpecialtyId() != null) {
@@ -172,7 +182,11 @@ public class StaffService {
         }
 
         if (request.getStatus() != null) {
-            StaffStatus newStatus = "INACTIVE".equalsIgnoreCase(request.getStatus()) ? StaffStatus.INACTIVE : StaffStatus.ACTIVE;
+            StaffStatus newStatus = switch (request.getStatus().toUpperCase()) {
+                case "ON_LEAVE" -> StaffStatus.ON_LEAVE;
+                case "INACTIVE" -> StaffStatus.INACTIVE;
+                default -> StaffStatus.ACTIVE;
+            };
             staff.setStatus(newStatus);
             staff.setIsActive(!"INACTIVE".equalsIgnoreCase(request.getStatus()));
         }
@@ -214,6 +228,11 @@ public class StaffService {
         Staff saved = staffRepository.save(staff);
 
         auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, saved, authContextService.getCurrentStaff().getId());
+
+        // Notify staff that their profile was updated
+        notificationService.createNotification(staff.getId(),
+                new NotificationDTO("Cập nhật hồ sơ",
+                        "Hồ sơ của bạn đã được cập nhật bởi quản lý."));
 
         return toResponse(saved);
     }
@@ -263,6 +282,7 @@ public class StaffService {
                 .fullName(staff.getFullName())
                 .phone(staff.getPhone())
                 .email(staff.getEmail())
+                .position(staff.getPosition())
                 .specialty(specialtyResp)
                 .maxShiftsPerMonth(staff.getMaxShiftsPerMonth())
                 .isActive(staff.getIsActive())
@@ -273,10 +293,15 @@ public class StaffService {
                 .build();
     }
 
+    private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
     @Transactional
     public Map<String, Object> importStaffs(MultipartFile file) {
         if (file.isEmpty()) {
             throw new BadRequestException("Tệp tải lên không được để trống");
+        }
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new BadRequestException("Kích thước tệp không được vượt quá 5MB");
         }
         String filename = file.getOriginalFilename();
         if (filename == null) {

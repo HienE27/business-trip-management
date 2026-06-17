@@ -8,6 +8,7 @@ import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
+import com.hospital.scheduler.util.DateUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,26 +35,35 @@ public class AutoSchedulingService {
     private final AuditHistoryService auditHistoryService;
     private final CompensationDateCalculator compensationDateCalculator;
 
-    // Track assignments within current preview/schedule run for conflict detection
-    // Key: "staffId_workDate", Value: set of assigned shiftTypeIds
-    private Map<String, Set<String>> inMemoryAssignments = new HashMap<>();
-    // Track compensation days for current run (shiftDate) for each staff to prevent L02/L03/L04 on those days
-    private Set<String> inMemoryCompensationShiftDates = new HashSet<>();
-    // Track ALL compensation days (shiftDate) - both from existing DB and current run - to prevent L01 assignment
-    private Set<String> allCompensationShiftDates = new HashSet<>();
+    // Thread-local so concurrent requests don't share state
+    private final ThreadLocal<Map<String, Set<String>>> inMemoryAssignments = ThreadLocal.withInitial(HashMap::new);
+    private final ThreadLocal<Set<String>> inMemoryCompensationShiftDates = ThreadLocal.withInitial(HashSet::new);
+    private final ThreadLocal<Set<String>> allCompensationShiftDates = ThreadLocal.withInitial(HashSet::new);
 
     public AutoScheduleResponse previewSchedule(AutoScheduleRequestDTO request) {
-        inMemoryAssignments = new HashMap<>();
-        inMemoryCompensationShiftDates = new HashSet<>();
-        allCompensationShiftDates = new HashSet<>();
-        return runScheduling(request, false);
+        inMemoryAssignments.set(new HashMap<>());
+        inMemoryCompensationShiftDates.set(new HashSet<>());
+        allCompensationShiftDates.set(new HashSet<>());
+        try {
+            return runScheduling(request, false);
+        } finally {
+            inMemoryAssignments.remove();
+            inMemoryCompensationShiftDates.remove();
+            allCompensationShiftDates.remove();
+        }
     }
 
     public AutoScheduleResponse autoSchedule(AutoScheduleRequestDTO request) {
-        inMemoryAssignments = new HashMap<>();
-        inMemoryCompensationShiftDates = new HashSet<>();
-        allCompensationShiftDates = new HashSet<>();
-        return runScheduling(request, true);
+        inMemoryAssignments.set(new HashMap<>());
+        inMemoryCompensationShiftDates.set(new HashSet<>());
+        allCompensationShiftDates.set(new HashSet<>());
+        try {
+            return runScheduling(request, true);
+        } finally {
+            inMemoryAssignments.remove();
+            inMemoryCompensationShiftDates.remove();
+            allCompensationShiftDates.remove();
+        }
     }
 
     public AutoScheduleResponse applyPreviewSchedule(com.hospital.scheduler.dto.request.AutoScheduleApplyPreviewRequestDTO request) {
@@ -158,11 +168,11 @@ public class AutoSchedulingService {
         }
         List<ShiftRequirement> requirements = new ArrayList<>(requirementRepository.findByPeriodId(period.getId()));
 
-        // Pre-load all existing compensation days (from published periods) so greedy doesn't assign L01 on a day
-        // that is a compensation day for any staff member (from their L01 in a previous period)
-        List<CompensationDay> existingCompDays = compensationDayRepository.findAll();
+        // Pre-load existing compensation days from the same period so greedy doesn't assign L01 on a day
+        // that is already someone's compensation day (confirmed day off — cannot assign L01)
+        List<CompensationDay> existingCompDays = compensationDayRepository.findByPeriodId(period.getId());
         for (CompensationDay cd : existingCompDays) {
-            allCompensationShiftDates.add(cd.getStaff().getId() + "_" + cd.getCompensationDate().toString());
+            allCompensationShiftDates.get().add(cd.getStaff().getId() + "_" + cd.getCompensationDate().toString());
         }
 
         // P2-8: Enforce L01→L02→L03→L04 processing order per spec
@@ -259,6 +269,7 @@ public class AutoSchedulingService {
                 for (int i = 0; i < toAssign; i++) {
                     Staff staff = eligibleStaff.get(i);
                     Schedule saved = buildAndSaveSchedule(period, staff, req, workDate, save, createdSchedules);
+                    if (saved == null) continue;
                     trackAssignment(staff, workDate, req.getShiftType().getId());
                     assignedStaffIds.add(staff.getId());
                     if (save && ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
@@ -353,7 +364,7 @@ public class AutoSchedulingService {
             }
         }
 
-        return save ? bestSolution : bestSolution;
+        return bestSolution;
     }
 
     private void backtrack(SchedulePeriod period, List<ShiftRequirement> requirements,
@@ -419,25 +430,42 @@ public class AutoSchedulingService {
                                                     Map<String, Set<String>> assignments) {
         String key = staffId + "_" + workDate;
         Set<String> existingShifts = assignments.get(key);
-        if (existingShifts == null) return false;
-
-        for (String existingId : existingShifts) {
-            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
-                if (ConflictDetectionService.SHIFT_TYPE_L02.equals(existingId) || ConflictDetectionService.SHIFT_TYPE_L03.equals(existingId) || ConflictDetectionService.SHIFT_TYPE_L04.equals(existingId)) {
-                    return true;
+        if (existingShifts != null) {
+            for (String existingId : existingShifts) {
+                if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
+                    if (ConflictDetectionService.SHIFT_TYPE_L02.equals(existingId) || ConflictDetectionService.SHIFT_TYPE_L03.equals(existingId) || ConflictDetectionService.SHIFT_TYPE_L04.equals(existingId)) {
+                        return true;
+                    }
                 }
-            }
-            if (ConflictDetectionService.SHIFT_TYPE_L02.equals(shiftTypeId)) {
-                if (ConflictDetectionService.SHIFT_TYPE_L01.equals(existingId)) return true;
-            }
-            if (ConflictDetectionService.SHIFT_TYPE_L03.equals(shiftTypeId) || ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
-                if ((ConflictDetectionService.SHIFT_TYPE_L03.equals(existingId) && ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) ||
-                    (ConflictDetectionService.SHIFT_TYPE_L04.equals(existingId) && ConflictDetectionService.SHIFT_TYPE_L03.equals(shiftTypeId))) {
-                    return true;
+                if (ConflictDetectionService.SHIFT_TYPE_L02.equals(shiftTypeId)) {
+                    if (ConflictDetectionService.SHIFT_TYPE_L01.equals(existingId)) return true;
                 }
-                if (ConflictDetectionService.SHIFT_TYPE_L01.equals(existingId)) return true;
+                if (ConflictDetectionService.SHIFT_TYPE_L03.equals(shiftTypeId) || ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
+                    if ((ConflictDetectionService.SHIFT_TYPE_L03.equals(existingId) && ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) ||
+                        (ConflictDetectionService.SHIFT_TYPE_L04.equals(existingId) && ConflictDetectionService.SHIFT_TYPE_L03.equals(shiftTypeId))) {
+                        return true;
+                    }
+                    if (ConflictDetectionService.SHIFT_TYPE_L01.equals(existingId)) return true;
+                }
             }
         }
+
+        // L02/L03/L04 cannot be assigned on a day that is a compensation day for this staff
+        if (!ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
+            String compKey = staffId + "_" + workDate.toString();
+            if (inMemoryCompensationShiftDates.get().contains(compKey)) {
+                return true;
+            }
+        }
+
+        // L01 cannot be assigned on a day that is already a compensation day for this staff
+        if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
+            String compKey = staffId + "_" + workDate.toString();
+            if (allCompensationShiftDates.get().contains(compKey)) {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -489,7 +517,7 @@ public class AutoSchedulingService {
                 if (assignedCount < required) {
                     Map<String, Object> dayInfo = new LinkedHashMap<>();
                     dayInfo.put("workDate", req.getWorkDate());
-                    dayInfo.put("dayOfWeek", getDayOfWeekVietnamese(req.getWorkDate().getDayOfWeek().getValue()));
+                    dayInfo.put("dayOfWeek", DateUtils.getDayOfWeekVietnamese(req.getWorkDate().getDayOfWeek()));
                     dayInfo.put("shiftTypeId", req.getShiftType().getId());
                     dayInfo.put("shiftTypeName", req.getShiftType().getName());
                     dayInfo.put("specialty", req.getSpecialty() != null ? req.getSpecialty().getName() : null);
@@ -545,6 +573,7 @@ public class AutoSchedulingService {
                 suggestion.put("currentWorkload", currentWorkload);
                 suggestion.put("conflicts", conflicts);
                 suggestion.put("isAvailable", true);
+                suggestion.put("reason", "Không có xung đột");
                 suggestions.add(suggestion);
             } else {
                 Map<String, Object> suggestion = new LinkedHashMap<>();
@@ -555,6 +584,7 @@ public class AutoSchedulingService {
                         candidate.getId(), original.getPeriod().getId()));
                 suggestion.put("conflicts", conflicts);
                 suggestion.put("isAvailable", false);
+                suggestion.put("reason", String.join(", ", conflicts));
                 suggestions.add(suggestion);
             }
         }
@@ -655,7 +685,7 @@ public class AutoSchedulingService {
             long assigned = assignedCount.getOrDefault(key, 0L);
             if (assigned < req.getRequiredStaffCount()) {
                 warnings.add(String.format("Ngày %s (%s), ca %s: thiếu %d nhân sự (có %d)",
-                        req.getWorkDate(), getDayOfWeekVietnamese(req.getWorkDate().getDayOfWeek().getValue()),
+                        req.getWorkDate(), DateUtils.getDayOfWeekVietnamese(req.getWorkDate().getDayOfWeek()),
                         req.getShiftType().getName(),
                         req.getRequiredStaffCount() - assigned, assigned));
             }
@@ -710,7 +740,7 @@ public class AutoSchedulingService {
 
     private boolean hasInMemoryConflict(Integer staffId, LocalDate workDate, String shiftTypeId) {
         String key = staffId + "_" + workDate;
-        Set<String> existingShifts = inMemoryAssignments.get(key);
+        Set<String> existingShifts = inMemoryAssignments.get().get(key);
         if (existingShifts != null) {
             // L01 vs L02/L03/L04: overnight cannot coexist with non-overnight
             // L02 vs L01: L01 already assigned → conflict
@@ -742,7 +772,7 @@ public class AutoSchedulingService {
         // L02/L03/L04 cannot be assigned on a day that is a compensation day for this staff
         if (!ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
             String compKey = staffId + "_" + workDate.toString();
-            if (inMemoryCompensationShiftDates.contains(compKey)) {
+            if (inMemoryCompensationShiftDates.get().contains(compKey)) {
                 return true;
             }
         }
@@ -751,7 +781,7 @@ public class AutoSchedulingService {
         // (from L01 in a previous published period)
         if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
             String compKey = staffId + "_" + workDate.toString();
-            if (allCompensationShiftDates.contains(compKey)) {
+            if (allCompensationShiftDates.get().contains(compKey)) {
                 return true;
             }
         }
@@ -761,15 +791,16 @@ public class AutoSchedulingService {
 
     private void trackAssignment(Staff staff, LocalDate workDate, String shiftTypeId) {
         String key = staff.getId() + "_" + workDate;
-        inMemoryAssignments.computeIfAbsent(key, k -> new HashSet<>()).add(shiftTypeId);
+        inMemoryAssignments.get().computeIfAbsent(key, k -> new HashSet<>()).add(shiftTypeId);
         // Also track compensation day if this is L01, so later L02/L03/L04 can't be assigned on that day
         // AND so we know not to assign L01 on this staff's compensation day
         if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
-            LocalDate compDate = compensationDateCalculator.calculateWithoutHolidays(workDate);
-            String compKey = staff.getId() + "_" + compDate;
-            inMemoryCompensationShiftDates.add(compKey);
-            // Also add to all compensation shiftDates to prevent L01 on this day
-            allCompensationShiftDates.add(staff.getId() + "_" + compDate.toString());
+            LocalDate compDate = compensationDateCalculator.calculate(workDate);
+            if (compDate != null) {
+                String compKey = staff.getId() + "_" + compDate;
+                inMemoryCompensationShiftDates.get().add(compKey);
+                allCompensationShiftDates.get().add(staff.getId() + "_" + compDate.toString());
+            }
         }
     }
 
@@ -828,19 +859,6 @@ public class AutoSchedulingService {
         metricsRepository.save(metrics);
     }
 
-    private String getDayOfWeekVietnamese(int day) {
-        return switch (day) {
-            case 1 -> "Thứ 2";
-            case 2 -> "Thứ 3";
-            case 3 -> "Thứ 4";
-            case 4 -> "Thứ 5";
-            case 5 -> "Thứ 6";
-            case 6 -> "Thứ 7";
-            case 7 -> "Chủ Nhật";
-            default -> "";
-        };
-    }
-
     public List<AlgorithmMetricsDTO> getMetricsByPeriod(Integer periodId) {
         return metricsRepository.findByPeriodId(periodId).stream()
                 .map(this::metricsToDTO)
@@ -861,6 +879,8 @@ public class AutoSchedulingService {
                 .coverageRate(m.getCoverageRate())
                 .balanceScore(m.getBalanceScore())
                 .conflictCount(m.getConflictCount())
+                .periodId(m.getPeriod() != null ? m.getPeriod().getId() : null)
+                .periodName(m.getPeriod() != null ? m.getPeriod().getPeriodName() : null)
                 .createdAt(m.getCreatedAt())
                 .build();
     }
@@ -872,7 +892,8 @@ public class AutoSchedulingService {
                     if (ConflictDetectionService.SHIFT_TYPE_L01.equals(id)) return 0;
                     if (ConflictDetectionService.SHIFT_TYPE_L02.equals(id)) return 1;
                     if (ConflictDetectionService.SHIFT_TYPE_L03.equals(id)) return 2;
-                    return 3;
+                    if (ConflictDetectionService.SHIFT_TYPE_L04.equals(id)) return 3;
+                    return 4;
                 }))
                 .collect(Collectors.toList());
     }
@@ -914,9 +935,12 @@ public class AutoSchedulingService {
                 .build();
         if (save) {
             Schedule saved = scheduleRepository.save(schedule);
-            auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
-            list.add(saved);
-            return saved;
+            if (saved != null) {
+                auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+                list.add(saved);
+                return saved;
+            }
+            return null;
         } else {
             schedule.setId(null);
             list.add(schedule);

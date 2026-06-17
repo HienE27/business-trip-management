@@ -350,6 +350,7 @@ export interface ReplacementCandidate {
   currentWorkload: number;
   conflicts: string[];
   isAvailable: boolean;
+  reason: string;
 }
 
 export interface ReplacementSuggestion {
@@ -371,6 +372,8 @@ export interface AlgorithmMetrics {
   coverageRate: number;
   balanceScore: number;
   conflictCount: number;
+  periodId?: number;
+  periodName?: string;
   createdAt: string;
 }
 
@@ -380,6 +383,21 @@ export interface AlgorithmMetrics {
 export interface Specialty {
   id: number;
   name: string;
+  description?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================================
+// Holiday Types
+// ============================================================
+export interface Holiday {
+  id: number;
+  name: string;
+  holidayDate: string;
+  year: number;
+  isNationalHoliday?: boolean;
   description?: string;
   isActive: boolean;
   createdAt: string;
@@ -407,12 +425,25 @@ export interface ScheduleTemplate {
   description?: string;
   dayOfWeek: number;
   shiftTypeId: string;
+  shiftTypeName?: string;
   specialtyId?: number | null;
   specialtyName?: string | null;
   requiredStaffCount: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TemplatePreviewItem {
+  id: number;
+  workDate: string;
+  dayOfWeek: string;
+  shiftTypeId: string;
+  shiftTypeName: string;
+  specialtyName: string | null;
+  requiredStaffCount: number;
+  assignedStaffId: number | null;
+  assignedStaffName: string | null;
 }
 
 export interface ScheduleTemplateRequest {

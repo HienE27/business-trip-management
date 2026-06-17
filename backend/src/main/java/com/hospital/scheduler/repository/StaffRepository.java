@@ -26,9 +26,15 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
            "OR LOWER(s.username) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:specialtyId IS NULL OR s.specialty.id = :specialtyId) " +
            "AND (:status IS NULL OR s.status = :status) " +
-           "AND (:role IS NULL OR UPPER(sr.role.name) = UPPER(:role))")
+           "AND (:role IS NULL OR UPPER(sr.role.name) = UPPER(:role)) " +
+           "AND (:position IS NULL OR LOWER(s.position) LIKE LOWER(CONCAT('%', :position, '%')))")
     List<Staff> searchStaffs(@Param("keyword") String keyword,
                               @Param("specialtyId") Integer specialtyId,
                               @Param("status") String status,
-                              @Param("role") String role);
+                              @Param("role") String role,
+                              @Param("position") String position);
+
+    @Query("SELECT DISTINCT s FROM Staff s LEFT JOIN FETCH s.staffRoles sr LEFT JOIN FETCH sr.role " +
+           "WHERE sr.role.name IN ('MANAGER', 'ADMIN')")
+    List<Staff> findManagers();
 }

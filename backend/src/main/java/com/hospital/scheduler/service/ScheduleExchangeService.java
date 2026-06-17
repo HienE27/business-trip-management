@@ -14,7 +14,6 @@ import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
-import com.hospital.scheduler.service.ConflictDetectionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -116,6 +115,16 @@ public class ScheduleExchangeService {
             throw new BadRequestException("Chỉ hỗ trợ đổi ca L01 (trực 24/24). Vui lòng chọn ca trực 24/24.");
         }
 
+        compensationDayRepository.findByStaffIdAndCompensationDate(requesterId, targetSchedule.getWorkDate())
+                .ifPresent(cd -> {
+                    throw new BadRequestException("Không thể đổi ca: nhân sự yêu cầu có ngày nghỉ bù vào ngày " + targetSchedule.getWorkDate());
+                });
+
+        compensationDayRepository.findByStaffIdAndCompensationDate(targetStaff.getId(), requesterSchedule.getWorkDate())
+                .ifPresent(cd -> {
+                    throw new BadRequestException("Không thể đổi ca: nhân sự được đổi có ngày nghỉ bù vào ngày " + requesterSchedule.getWorkDate());
+                });
+
         ScheduleExchange exchange = ScheduleExchange.builder()
                 .period(requesterSchedule.getPeriod())
                 .requester(requester)
@@ -134,11 +143,23 @@ public class ScheduleExchangeService {
                 new NotificationDTO("Yêu cầu đổi trực mới",
                         "Nhân sự " + requester.getFullName() + " yêu cầu đổi trực ngày " + requesterSchedule.getWorkDate() + " với bạn. Vui lòng kiểm tra và chờ quản lý duyệt."));
 
+        // Notify all managers about the pending exchange request for review
+        List<Staff> managers = staffRepository.findManagers();
+        for (Staff manager : managers) {
+            if (!manager.getId().equals(requesterId) && !manager.getId().equals(targetStaff.getId())) {
+                notificationService.createNotification(manager.getId(),
+                        new NotificationDTO("Yêu cầu đổi trực chờ duyệt",
+                                "Nhân sự " + requester.getFullName() + " yêu cầu đổi trực với " + targetStaff.getFullName()
+                                        + " ngày " + requesterSchedule.getWorkDate() + ". Vui lòng kiểm tra và duyệt."));
+            }
+        }
+
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 
+    @Transactional
     public ScheduleExchangeResponse approveExchange(Integer exchangeId, Integer reviewerId, String reviewNote) {
-        ScheduleExchange exchange = exchangeRepository.findById(exchangeId)
+        ScheduleExchange exchange = exchangeRepository.findByIdWithLock(exchangeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu đổi ca với ID: " + exchangeId));
 
         Staff reviewer = staffRepository.findById(reviewerId)
@@ -205,12 +226,20 @@ public class ScheduleExchangeService {
 
         // Delete existing compensation days for affected staff + date combinations
         if (requesterIsL01) {
-            compensationDayRepository.findByStaffIdAndCompensationDate(requesterOldStaff.getId(), requesterWorkDate)
-                    .ifPresent(compensationDayRepository::delete);
+                    compensationDayRepository.findByStaffIdAndCompensationDate(requesterOldStaff.getId(), requesterWorkDate)
+                    .ifPresent(cd -> {
+                        auditHistoryService.logAction("compensation_day", cd.getId(), AuditHistory.ActionType.DELETE,
+                                cd, null, reviewerId);
+                        compensationDayRepository.delete(cd);
+                    });
         }
         if (targetIsL01) {
             compensationDayRepository.findByStaffIdAndCompensationDate(targetOldStaff.getId(), targetWorkDate)
-                    .ifPresent(compensationDayRepository::delete);
+                    .ifPresent(cd -> {
+                        auditHistoryService.logAction("compensation_day", cd.getId(), AuditHistory.ActionType.DELETE,
+                                cd, null, reviewerId);
+                        compensationDayRepository.delete(cd);
+                    });
         }
 
         // Swap staff on schedules
@@ -283,11 +312,9 @@ public class ScheduleExchangeService {
 
         // Send email notifications to both staff
         emailService.sendSwapApprovedEmail(requesterOldStaff,
-                requesterSchedule.getWorkDate().toString(),
                 targetSchedule.getWorkDate().toString(),
                 requesterSchedule.getShiftType().getName());
         emailService.sendSwapApprovedEmail(targetOldStaff,
-                targetSchedule.getWorkDate().toString(),
                 requesterSchedule.getWorkDate().toString(),
                 targetSchedule.getShiftType().getName());
 

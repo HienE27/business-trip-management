@@ -49,12 +49,14 @@ public class StaffController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer specialtyId,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String role) {
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String position) {
         StaffSearchRequest request = StaffSearchRequest.builder()
                 .keyword(keyword)
                 .specialtyId(specialtyId)
                 .status(status)
                 .role(role)
+                .position(position)
                 .build();
         return ResponseEntity.ok(ApiResponse.success(staffService.searchStaffs(request)));
     }
@@ -68,6 +70,7 @@ public class StaffController {
 
     @GetMapping("/me")
     @Operation(summary = "Lấy thông tin nhân sự hiện tại")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<StaffResponse>> getCurrentStaff(
             @AuthenticationPrincipal String username) {
         return ResponseEntity.ok(ApiResponse.success(staffService.getStaffByUsername(username)));

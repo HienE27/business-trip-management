@@ -20,6 +20,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Inte
     @Query("SELECT n FROM Notification n WHERE n.staff.id = :staffId AND n.isRead = false ORDER BY n.createdAt DESC")
     List<Notification> findUnreadByStaffId(@Param("staffId") Integer staffId);
 
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE Notification n SET n.isRead = true, n.readAt = CURRENT_TIMESTAMP WHERE n.staff.id = :staffId AND n.isRead = false")
+    int markAllAsReadBulk(@Param("staffId") Integer staffId);
+
     @Query("SELECT COUNT(n) FROM Notification n WHERE n.staff.id = :staffId AND n.isRead = false")
     long countUnreadByStaffId(@Param("staffId") Integer staffId);
 
