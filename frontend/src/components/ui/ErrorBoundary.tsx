@@ -47,7 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
             this.props.className
           )}
         >
-          <div className="bg-surface-container-lowest border border-error-container rounded-xl p-6 max-w-md w-full text-center shadow-sm">
+          <div className="bg-surface-container-lowest border border-error-container rounded-lg p-6 max-w-md w-full text-center shadow-sm">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-error-container flex items-center justify-center">
               <span className="material-symbols-outlined text-error text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
                 error

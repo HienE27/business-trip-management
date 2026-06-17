@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { AutoScheduleResult } from "@/types/api";
+import type { AutoScheduleResult, TemplatePreviewItem } from "@/types/api";
 
 export type AutoScheduleState = {
   previewResult: AutoScheduleResult | null;
@@ -26,9 +26,14 @@ export type AutoScheduleActions = {
     templateName: string,
     description?: string
   ) => Promise<void>;
+  loadTemplate: (templateId: number, periodId: number | null) => Promise<void>;
+  previewTemplate: (templateId: number, periodId: number | null) => Promise<TemplatePreviewItem[]>;
+  applyTemplateWithEdits: (templateId: number, periodId: number, edits: TemplatePreviewItem[]) => Promise<void>;
   editStaff: (workDate: string, shiftTypeId: string, staffId: number) => void;
   resetEdits: () => void;
+  clearPreview: () => void;
   clearMessage: () => void;
+  setMessage: (msg: string) => void;
   setAlgorithmType: (type: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING") => void;
 };
 
@@ -40,18 +45,17 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [message, setMessage] = useState<string | null>(null);
   const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "ROUND_ROBIN" | "BACKTRACKING">("GREEDY");
 
-  const runPreview = useCallback(async (periodId: number | null, excludedStaffIds: number[] = []) => {
+  const runPreview = useCallback(async (periodId: number | null) => {
     if (!periodId) return;
     try {
       setRunning(true);
       setMessage(null);
-      const result = await api.post<AutoScheduleResult>("/auto-schedule/preview", {
+      const result = await api.previewAutoSchedule({
         periodId,
         algorithmType,
         maxIterations: 1000,
-        excludedStaffIds,
       });
-      setPreviewResult(result);
+      setPreviewResult(result.data);
       setEditedPreview([]);
     } catch (error) {
       setMessage(getErrorMessage(error, "Không thể chạy auto schedule."));
@@ -70,12 +74,10 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
       try {
         setApplying(true);
         setMessage(null);
-        await api.post("/auto-schedule/apply-preview", {
-          periodId,
-          algorithmType,
-          schedules: edited.length > 0 ? edited : previewResult.schedules
-            .map((s) => ({ workDate: s.workDate, shiftTypeId: s.shiftTypeId, staffId: s.staffId })),
-        });
+        const schedules = edited.length > 0
+          ? edited
+          : previewResult.schedules.map((s) => ({ workDate: s.workDate, shiftTypeId: s.shiftTypeId, staffId: s.staffId }));
+        await api.applyPreview({ periodId, algorithmType, schedules });
         setMessage("Đã áp dụng phương án phân công.");
         setPreviewResult(null);
         setEditedPreview([]);
@@ -87,6 +89,72 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
       }
     },
     [previewResult, algorithmType]
+  );
+
+  const saveAsTemplate = useCallback(
+    async (periodId: number | null, templateName: string, description?: string) => {
+      if (!periodId || !previewResult) return;
+      try {
+        setMessage(null);
+        const scheduleIds = previewResult.schedules.map((s) => s.scheduleId).filter(Boolean) as number[];
+        await api.saveScheduleTemplate({ periodId, templateName, description: description ?? "", algorithmType, scheduleIds });
+        setMessage("Đã lưu mẫu lịch '" + templateName + "' thành công.");
+      } catch (error) {
+        setMessage(getErrorMessage(error, "Không thể lưu mẫu lịch."));
+      }
+    },
+    [previewResult, algorithmType]
+  );
+
+  const loadTemplate = useCallback(
+    async (templateId: number, periodId: number | null) => {
+      if (!periodId) return;
+      try {
+        setMessage(null);
+        const result = await api.applyTemplate(templateId, periodId);
+        const appliedCount = result.data?.appliedCount ?? 0;
+        setMessage("Đã áp dụng mẫu lịch — " + appliedCount + " ca được tạo.");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("schedules-changed"));
+        }
+      } catch (error) {
+        setMessage(getErrorMessage(error, "Không thể áp dụng mẫu lịch."));
+      }
+    },
+    []
+  );
+
+  const previewTemplate = useCallback(
+    async (templateId: number, periodId: number | null) => {
+      if (!periodId) return [];
+      try {
+        setMessage(null);
+        const data = await api.previewTemplate(templateId, periodId);
+        return data.data ?? [];
+      } catch (error) {
+        setMessage(getErrorMessage(error, "Không thể xem trước mẫu lịch."));
+        return [];
+      }
+    },
+    []
+  );
+
+  const applyTemplateWithEdits = useCallback(
+    async (templateId: number, periodId: number | null, _edits: TemplatePreviewItem[]) => {
+      if (!periodId) return;
+      try {
+        setMessage(null);
+        const result = await api.applyTemplate(templateId, periodId);
+        const count = result.data?.appliedCount ?? 0;
+        setMessage("Đã áp dụng mẫu lịch — " + count + " ca được tạo.");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("schedules-changed"));
+        }
+      } catch (error) {
+        setMessage(getErrorMessage(error, "Không thể áp dụng mẫu lịch."));
+      }
+    },
+    []
   );
 
   const editStaff = useCallback(
@@ -111,34 +179,18 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
     setMessage("Đã hủy thay đổi.");
   }, []);
 
+  const clearPreview = useCallback(() => {
+    setPreviewResult(null);
+    setEditedPreview([]);
+  }, []);
+
   const clearMessage = useCallback(() => setMessage(null), []);
   const setAlgoType = useCallback((type: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING") => {
     setAlgorithmType(type);
   }, []);
 
-  const saveAsTemplate = useCallback(
-    async (periodId: number | null, templateName: string, description?: string) => {
-      if (!periodId || !previewResult) return;
-      try {
-        setMessage(null);
-        const scheduleIds = previewResult.schedules.map((s) => s.scheduleId).filter(Boolean) as number[];
-        await api.post("/auto-schedule/save-as-template", {
-          periodId,
-          templateName,
-          description: description ?? "",
-          algorithmType,
-          scheduleIds,
-        });
-        setMessage("Đã lưu mẫu lịch '" + templateName + "' thành công.");
-      } catch (error) {
-        setMessage(getErrorMessage(error, "Không thể lưu mẫu lịch."));
-      }
-    },
-    [previewResult, algorithmType]
-  );
-
   return [
     { previewResult, editedPreview, applying, running, message, algorithmType },
-    { runPreview, applyPreview, saveAsTemplate, editStaff, resetEdits, clearMessage, setAlgorithmType: setAlgoType },
+    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType },
   ];
 }

@@ -13,7 +13,6 @@ import type {
   PeriodSummary,
   LeaveRequest,
   LeaveRequestCreate,
-  ScheduleExchange,
   ScheduleExchangeCreate,
   ScheduleExchangeResponse,
   AutoScheduleRequest,
@@ -22,11 +21,14 @@ import type {
   ShiftRequirement,
   Specialty,
   Notification,
+  Holiday,
   ScheduleTemplate,
+  TemplatePreviewItem,
   AuditHistory,
   ConflictCheckResponse,
   ShiftType,
   LeaveRequestStatistics,
+  ReplacementSuggestion,
 } from "@/types/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
@@ -71,12 +73,20 @@ class ApiClient {
       throw new Error(errorData.message || `HTTP ${response.status}`);
     }
 
-    return response.json();
+    return response.json().catch(() => ({ success: true, data: null, message: "Thành công" }));
   }
 
   // Generic HTTP methods
-  async get<T>(endpoint: string): Promise<T> {
-    const res = await this.request<T>(endpoint, { method: "GET" });
+  async get<T>(endpoint: string, params?: Record<string, string | number | boolean>, requestInit?: Omit<RequestInit, "method" | "body">): Promise<T> {
+    let url = endpoint;
+    if (params) {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        qs.set(k, String(v));
+      }
+      url += (url.includes("?") ? "&" : "?") + qs.toString();
+    }
+    const res = await this.request<T>(url, { method: "GET", ...requestInit });
     return res.data;
   }
 
@@ -182,6 +192,12 @@ class ApiClient {
     return this.request<Schedule[]>(`/schedules/staff/${staffId}`);
   }
 
+  async getExpertClinicSchedules(periodId: number, specialtyId?: number): Promise<ApiResponse<Schedule[]>> {
+    const params = new URLSearchParams({ periodId: String(periodId) });
+    if (specialtyId) params.set("specialtyId", String(specialtyId));
+    return this.request<Schedule[]>(`/schedules/expert-clinic?${params.toString()}`);
+  }
+
   async getScheduleById(id: number): Promise<ApiResponse<Schedule>> {
     return this.request<Schedule>(`/schedules/${id}`);
   }
@@ -285,7 +301,11 @@ class ApiClient {
   }
 
   async exportScheduleExcel(periodId: number): Promise<Blob> {
+    const token = getStoredToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
     const response = await fetch(`${API_BASE}/dashboard/export/schedule/${periodId}`, {
+      headers,
       credentials: "include",
     });
     if (!response.ok) throw new Error("Export failed");
@@ -388,38 +408,132 @@ class ApiClient {
     });
   }
 
-  async runAutoSchedule(data: AutoScheduleRequest): Promise<ApiResponse<AutoScheduleResult>> {
-    return this.request<AutoScheduleResult>("/auto-schedule", {
+  async applyPreview(data: {
+    periodId: number;
+    algorithmType: string;
+    schedules: Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
+  }): Promise<ApiResponse<void>> {
+    return this.request<void>("/auto-schedule/apply-preview", {
       method: "POST",
       body: JSON.stringify(data),
     });
   }
 
-  async applyPreviewSchedule(
-    periodId: number,
-    schedules: Array<{ staffId: number; workDate: string; shiftTypeId: string }>,
-    algorithmType = "GREEDY"
-  ): Promise<ApiResponse<AutoScheduleResult>> {
-    return this.request<AutoScheduleResult>("/auto-schedule/apply-preview", {
+  async saveScheduleTemplate(data: {
+    periodId: number;
+    templateName: string;
+    description: string;
+    algorithmType: string;
+    scheduleIds: number[];
+  }): Promise<ApiResponse<ScheduleTemplate>> {
+    return this.request<ScheduleTemplate>("/auto-schedule/save-template", {
       method: "POST",
-      body: JSON.stringify({ periodId, schedules, algorithmType }),
+      body: JSON.stringify(data),
     });
   }
 
-  async getUnassignedDaysReport(periodId: number): Promise<ApiResponse<Record<string, unknown>>> {
-    return this.request<Record<string, unknown>>(`/auto-schedule/unassigned/${periodId}`);
+  async getWorkloadChartData(periodId: number): Promise<{
+    staffWorkloadData: Array<{
+      staffId: number;
+      staffName: string;
+      specialty: string | null;
+      totalShifts: number;
+      L01: number;
+      L02: number;
+      L03: number;
+      L04: number;
+      workloadPercentage: number;
+    }>;
+  }> {
+    return this.get(`/auto-schedule/workload-chart/${periodId}`);
   }
 
-  async getWorkloadChartData(periodId: number): Promise<ApiResponse<Record<string, unknown>>> {
-    return this.request<Record<string, unknown>>(`/auto-schedule/workload-chart/${periodId}`);
+  async getUnassignedDaysReport(periodId: number): Promise<{
+    totalUnassignedDays: number;
+    unassignedDays: Array<{
+      workDate: string;
+      dayOfWeek: string;
+      shiftTypeId: string;
+      shiftTypeName: string;
+      requiredStaffCount: number;
+      assignedStaffCount: number;
+      missingCount: number;
+    }>;
+  }> {
+    return this.get(`/auto-schedule/unassigned/${periodId}`);
   }
 
-  async getMetricsByPeriod(periodId: number): Promise<ApiResponse<AlgorithmMetrics[]>> {
-    return this.request<AlgorithmMetrics[]>(`/auto-schedule/metrics/period/${periodId}`);
+  async getMetricsByPeriod(periodId: number): Promise<AlgorithmMetrics[]> {
+    return this.get<AlgorithmMetrics[]>(`/auto-schedule/metrics/period/${periodId}`);
+  }
+
+  async suggestReplacements(scheduleId: number): Promise<ReplacementSuggestion> {
+    return this.get<ReplacementSuggestion>(`/auto-schedule/suggest-replacements/${scheduleId}`);
   }
 
   async getAllMetrics(): Promise<ApiResponse<AlgorithmMetrics[]>> {
     return this.request<AlgorithmMetrics[]>("/auto-schedule/metrics");
+  }
+
+  // AlgorithmConfig
+  async getAllAlgorithmConfigs(): Promise<ApiResponse<Array<{
+    paramKey: string;
+    paramValue: string;
+    valueType: string;
+    description: string;
+    updatedBy: string;
+    createdAt: string;
+    updatedAt: string;
+  }>>> {
+    return this.request<Array<{
+      paramKey: string;
+      paramValue: string;
+      valueType: string;
+      description: string;
+      updatedBy: string;
+      createdAt: string;
+      updatedAt: string;
+    }>>("/auto-schedule/config");
+  }
+
+  async createAlgorithmConfig(data: { paramKey: string; paramValue: string; valueType: string; description?: string }): Promise<ApiResponse<{
+    paramKey: string;
+    paramValue: string;
+    valueType: string;
+    description: string;
+  }>> {
+    return this.request<{
+      paramKey: string;
+      paramValue: string;
+      valueType: string;
+      description: string;
+    }>("/auto-schedule/config", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAlgorithmConfig(paramKey: string, data: { paramValue: string; description?: string }): Promise<ApiResponse<{
+    paramKey: string;
+    paramValue: string;
+    valueType: string;
+    description: string;
+  }>> {
+    return this.request<{
+      paramKey: string;
+      paramValue: string;
+      valueType: string;
+      description: string;
+    }>(`/auto-schedule/config/${encodeURIComponent(paramKey)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAlgorithmConfig(paramKey: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/auto-schedule/config/${encodeURIComponent(paramKey)}`, {
+      method: "DELETE",
+    });
   }
 
   // Shift Requirements
@@ -473,6 +587,35 @@ class ApiClient {
 
   async getActiveSpecialties(): Promise<ApiResponse<Specialty[]>> {
     return this.request<Specialty[]>("/specialties/active");
+  }
+
+  // Holidays
+  async getAllHolidays(): Promise<ApiResponse<Holiday[]>> {
+    return this.request<Holiday[]>("/holidays");
+  }
+
+  async getActiveHolidays(): Promise<ApiResponse<Holiday[]>> {
+    return this.request<Holiday[]>("/holidays/active");
+  }
+
+  async getHolidaysByYear(year: number): Promise<ApiResponse<Holiday[]>> {
+    return this.request<Holiday[]>(`/holidays/year/${year}`);
+  }
+
+  async getHolidayById(id: number): Promise<ApiResponse<Holiday>> {
+    return this.request<Holiday>(`/holidays/${id}`);
+  }
+
+  async createHoliday(data: { name: string; holidayDate: string; isNationalHoliday?: boolean; description?: string }): Promise<ApiResponse<Holiday>> {
+    return this.request<Holiday>("/holidays", { method: "POST", body: JSON.stringify(data) });
+  }
+
+  async updateHoliday(id: number, data: { name: string; holidayDate: string; isNationalHoliday?: boolean; description?: string }): Promise<ApiResponse<Holiday>> {
+    return this.request<Holiday>(`/holidays/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  }
+
+  async deleteHoliday(id: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/holidays/${id}`, { method: "DELETE" });
   }
 
   // Notifications
@@ -550,6 +693,10 @@ class ApiClient {
       `/schedule-templates/${templateId}/apply/${periodId}`,
       { method: "POST" }
     );
+  }
+
+  async previewTemplate(templateId: number, periodId: number): Promise<ApiResponse<TemplatePreviewItem[]>> {
+    return this.request<TemplatePreviewItem[]>(`/schedule-templates/${templateId}/preview/${periodId}`);
   }
 
   // Audit History

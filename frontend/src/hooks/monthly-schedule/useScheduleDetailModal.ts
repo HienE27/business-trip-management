@@ -1,41 +1,49 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { Schedule } from "@/types/api";
 
 export function useScheduleDetailModal(scheduleId: number | null, onCloseRoute: () => void) {
   const [detailSchedule, setDetailSchedule] = useState<Schedule | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const ignore = useRef(false);
 
   useEffect(() => {
-    if (scheduleId === null) return;
-
-    let active = true;
-    queueMicrotask(() => {
-      if (!active) return;
+    if (scheduleId === null) {
       setDetailSchedule(null);
-      setDetailLoading(true);
-    });
+      setDetailError(null);
+      return;
+    }
+
+    ignore.current = false;
+    setDetailSchedule(null);
+    setDetailError(null);
+    setDetailLoading(true);
 
     void api.getScheduleById(scheduleId)
       .then((res) => {
-        if (active) setDetailSchedule(res.data);
+        if (ignore.current) return;
+        setDetailSchedule(res.data);
       })
-      .catch(() => {
-        if (active) setDetailSchedule(null);
+      .catch((err) => {
+        if (ignore.current) return;
+        setDetailError("Không thể tải chi tiết ca trực.");
       })
       .finally(() => {
-        if (active) setDetailLoading(false);
+        if (ignore.current) return;
+        setDetailLoading(false);
       });
 
     return () => {
-      active = false;
+      ignore.current = true;
     };
   }, [scheduleId]);
 
   const closeDetail = () => {
     setDetailSchedule(null);
+    setDetailError(null);
     onCloseRoute();
   };
 
@@ -43,6 +51,7 @@ export function useScheduleDetailModal(scheduleId: number | null, onCloseRoute: 
     detailScheduleId: scheduleId,
     detailSchedule,
     detailLoading,
+    detailError,
     closeDetail,
   };
 }

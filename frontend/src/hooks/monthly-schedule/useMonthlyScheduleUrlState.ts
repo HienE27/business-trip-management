@@ -27,6 +27,10 @@ function getNumberParam(searchParams: URLSearchParams, key: string) {
   return Number.isFinite(value) ? value : null;
 }
 
+function getPeriodId(searchParams: URLSearchParams): number | null {
+  return getNumberParam(searchParams, "periodId");
+}
+
 function toMonthlyScheduleUrl(params: URLSearchParams) {
   const query = params.toString();
   return query ? `/monthly-schedule?${query}` : "/monthly-schedule";
@@ -43,14 +47,22 @@ export function useMonthlyScheduleUrlState() {
     parsedScheduleId: getNumberParam(searchParams, "scheduleId"),
     parsedStaffId: getNumberParam(searchParams, "staffId"),
     parsedSpecialtyId: getNumberParam(searchParams, "specialtyId"),
+    periodId: getPeriodId(searchParams),
   }), [searchParams]);
 
   const setQueryState = useCallback(
-    (next: { tab?: ScheduleTab; panel?: MonthlyPanel; view?: ViewMode }) => {
+    (next: { tab?: ScheduleTab; panel?: MonthlyPanel; view?: ViewMode; periodId?: number | null }) => {
       const params = new URLSearchParams(searchParams.toString());
       if (next.tab) params.set("tab", next.tab);
       if (next.panel) params.set("panel", next.panel);
       if (next.view) params.set("view", next.view);
+      if (next.periodId !== undefined) {
+        if (next.periodId === null) {
+          params.delete("periodId");
+        } else {
+          params.set("periodId", String(next.periodId));
+        }
+      }
       router.replace(toMonthlyScheduleUrl(params));
     },
     [router, searchParams],

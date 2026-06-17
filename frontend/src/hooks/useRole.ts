@@ -17,7 +17,7 @@ export function canManage(role: UserRole): boolean {
 }
 
 export function canApprove(role: UserRole): boolean {
-  return role === "ADMIN";
+  return role === "ADMIN" || role === "MANAGER";
 }
 
 export function canEditSchedule(role: UserRole): boolean {

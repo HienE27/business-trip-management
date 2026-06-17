@@ -8,9 +8,11 @@ export type AppSectionKey =
   | "shift-swaps"
   | "auto-scheduling"
   | "reports"
+  | "holidays"
   | "notifications"
   | "audit-history"
-  | "settings";
+  | "settings"
+  | "expert-clinic";
 
 export type AppSectionDefinition = {
   key: AppSectionKey;
@@ -71,6 +73,13 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     description: "Xem báo cáo kỳ lịch, tải nhân sự và thống kê xung đột theo góc nhìn vận hành.",
   },
   {
+    key: "holidays",
+    label: "Ngày lễ",
+    href: "/holidays",
+    icon: "celebration",
+    description: "Quản lý ngày lễ quốc gia và ngày nghỉ đặc biệt trong năm.",
+  },
+  {
     key: "notifications",
     label: "Thông báo",
     href: "/notifications",
@@ -112,6 +121,7 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/reports/monthly": "reports",
   "/reports/staff": "reports",
   "/reports/conflicts": "reports",
+  "/holidays": "holidays",
   "/notifications": "notifications",
   "/audit-history": "audit-history",
   "/audit-logs": "audit-history",

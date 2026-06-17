@@ -11,7 +11,6 @@ import type {
   ShiftRequirement,
   Specialty,
   Staff,
-  UnassignedDayReport,
 } from "@/types/api";
 
 export type ScheduleWorkspaceState = {
@@ -71,27 +70,27 @@ export function useScheduleWorkspace(): [ScheduleWorkspaceState, ScheduleWorkspa
     try {
       scheduleData = await api.get<Schedule[]>(`/schedules/period/${periodId}`);
     } catch {
-      console.warn(`Failed to load schedules for period ${periodId}`);
+      // schedules will be empty array
     }
     try {
       conflictResult = await api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`);
     } catch {
-      console.warn(`Failed to load conflicts for period ${periodId}`);
+      // conflict data will be null
     }
     try {
       compDaysData = await api.get<CompensationDay[]>(`/schedules/compensation-days/${periodId}`) ?? [];
     } catch {
-      console.warn(`Failed to load compensation days for period ${periodId}`);
+      // compensation days will be empty
     }
     try {
       reqData = await api.get<ShiftRequirement[]>(`/shift-requirements/period/${periodId}`) ?? [];
     } catch {
-      console.warn(`Failed to load shift requirements for period ${periodId}`);
+      // requirements will be empty
     }
     try {
       specialtyData = await api.get<Specialty[]>("/specialties") ?? [];
     } catch {
-      console.warn(`Failed to load specialties`);
+      // specialties will be empty
     }
 
     setSchedules(scheduleData);
@@ -190,32 +189,13 @@ export function useScheduleWorkspace(): [ScheduleWorkspaceState, ScheduleWorkspa
     try {
       setMessage(null);
       await api.post(`/periods/${selectedPeriodId}/publish`, {});
-
-      await Promise.all(
-        activeStaff.map((staff) => {
-          const staffSchedules = schedules.filter((s) => s.staff.id === staff.id);
-          const staffCompDays = compensationDays.filter((cd) => cd.staffId === staff.id);
-          const dutyList = staffSchedules
-            .map((s) => `${new Date(s.workDate).toLocaleDateString("vi-VN")} – ${s.shiftType.name}`)
-            .join("; ");
-          const compList = staffCompDays
-            .map((cd) => new Date(cd.compensationDate).toLocaleDateString("vi-VN"))
-            .join(", ");
-          return api.post("/notifications", {
-            recipientId: staff.id,
-            title: `Thông báo lịch trực – ${selectedPeriod?.periodName ?? ""}`,
-            message: `Lịch trực của bạn đã được công bố.\nDanh sách trực: ${dutyList || "không có"}\nNgày nghỉ bù: ${compList || "không có"}`,
-          });
-        })
-      );
-
-      setMessage("Kỳ lịch đã được publish và thông báo đã gửi đến nhân sự.");
+      setMessage("Kỳ lịch đã được công bố. Thông báo chi tiết đã được gửi đến nhân sự.");
       const nextPeriods = await api.get<SchedulePeriod[]>("/periods");
       setPeriods(nextPeriods ?? []);
     } catch (error) {
       setMessage(getErrorMessage(error, "Không thể công bố kỳ lịch."));
     }
-  }, [selectedPeriodId, conflictData, activeStaff, schedules, compensationDays, selectedPeriod]);
+  }, [selectedPeriodId, conflictData]);
 
   const sendNotifications = useCallback(async () => {
     if (!selectedPeriodId || activeStaff.length === 0) return;
@@ -232,7 +212,7 @@ export function useScheduleWorkspace(): [ScheduleWorkspaceState, ScheduleWorkspa
             .map((cd) => new Date(cd.compensationDate).toLocaleDateString("vi-VN"))
             .join(", ");
           return api.post("/notifications", {
-            recipientId: staff.id,
+            staffId: staff.id,
             title: `Thông báo lịch trực – ${selectedPeriod?.periodName ?? ""}`,
             message: `Lịch trực của bạn đã được công bố.\nDanh sách trực: ${dutyList || "không có"}\nNgày nghỉ bù: ${compList || "không có"}`,
           });
