@@ -165,10 +165,10 @@ verify_*.png
 ~$*.docx
 backend/target/
 
-# Spring Boot JAR artifacts (root-level build output)
+# Spring Boot JAR artifacts (root-level build output only - use */app/ to avoid ignoring frontend/src/app/)
 BOOT-INF/
 META-INF/
-app/
+*/app/
 org/
 tests/
 *.class
