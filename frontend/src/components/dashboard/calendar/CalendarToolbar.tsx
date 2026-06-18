@@ -1,6 +1,6 @@
 "use client";
 
-import { weekStartOf, type CalendarViewMode } from "./constants";
+import { type CalendarViewMode } from "./constants";
 
 export type CalendarToolbarProps = {
   viewMode: CalendarViewMode;
@@ -150,6 +150,3 @@ export function CalendarToolbar({
     </div>
   );
 }
-
-// Re-export for back-compat with code that imports from this file
-export { weekStartOf };

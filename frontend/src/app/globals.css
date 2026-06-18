@@ -488,19 +488,6 @@ html.dark .dark\:border-outline-variant { border-color: var(--color-outline-vari
 .stagger-children > *:nth-child(7)  { animation-delay: 360ms; }
 .stagger-children > *:nth-child(8)  { animation-delay: 420ms; }
 
-@media (prefers-reduced-motion: reduce) {
-  .animate-fade-in,
-  .animate-slide-up,
-  .animate-slide-down,
-  .animate-scale-in,
-  .animate-slide-in-right,
-  .animate-pulse-soft,
-  .animate-notification-bell,
-  .stagger-children > * {
-    animation: none;
-  }
-}
-
 /* ── Emergency Pulse ── */
 @keyframes emergency-pulse {
   0%   { box-shadow: 0 0 0 0 rgba(186,26,26,0.4); }
@@ -535,6 +522,11 @@ html.dark .dark\:border-outline-variant { border-color: var(--color-outline-vari
 .border-l-shift-24      { border-left-color: var(--color-shift-24);       }
 .border-l-shift-all-day  { border-left-color: var(--color-shift-all-day);  }
 .border-l-shift-service  { border-left-color: var(--color-shift-service);  }
+.border-l-shift-expert   { border-left-color: var(--color-shift-expert);   }
+.border-l-shift-24:hover      { border-left-color: var(--color-shift-24);       }
+.border-l-shift-all-day:hover  { border-left-color: var(--color-shift-all-day);  }
+.border-l-shift-service:hover  { border-left-color: var(--color-shift-service);  }
+.border-l-shift-expert:hover   { border-left-color: var(--color-shift-expert);   }
 /* ── Locked / Compensated day diagonal stripes pattern ── */
 .comp-locked-stripes {
   background-color: var(--color-surface-container-high);
@@ -562,5 +554,3 @@ html.dark .dark\:border-outline-variant { border-color: var(--color-outline-vari
 .border-chart-tt   { border-color: var(--color-chart-tt); }
 .border-chart-dv   { border-color: var(--color-chart-dv); }
 .border-chart-cg   { border-color: var(--color-chart-cg); }
-
-/* Respect user's motion preferences for accessibility (vestibular disorders) */

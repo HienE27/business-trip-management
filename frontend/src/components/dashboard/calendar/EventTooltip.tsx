@@ -60,8 +60,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
         left: Math.max(16, (window.innerWidth - 256) / 2),
         top: Math.min(Math.max(16, data.y - 60), window.innerHeight - 320),
       } : undefined}
-      role="dialog"
-      aria-modal="false"
+      role="tooltip"
       aria-label={`Chi tiết ca trực ngày ${new Date(s.workDate).toLocaleDateString("vi-VN")}`}
     >
       <div className="flex items-center gap-2 mb-3">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   type ScheduleTableViewProps,
@@ -29,6 +29,23 @@ export function ScheduleTableView({
 
   const [filters, setFilters] = useState<TableFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState(""); // live input, debounced into filters.search
+
+  // Debounce: update filters.search 300ms after user stops typing.
+  // Uses a ref flag so that pressing Escape can cancel a pending timer.
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSearchRef = useRef<string | null>(null);
+  useEffect(() => {
+    pendingSearchRef.current = searchInput;
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setFilters((p) => p.search !== pendingSearchRef.current
+        ? { ...p, search: pendingSearchRef.current ?? "" }
+        : p
+      );
+    }, 300);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [searchInput]);
 
   const { pageData, safePage, totalPages, totalFiltered } = useMemo(
     () => applyTablePipeline(schedules, filters, page),
@@ -45,6 +62,7 @@ export function ScheduleTableView({
 
   const handleReset = useCallback(() => {
     setPage(1);
+    setSearchInput("");
     setFilters(EMPTY_FILTERS);
   }, []);
 
@@ -59,8 +77,9 @@ export function ScheduleTableView({
         document.getElementById(searchId)?.focus();
       } else if (e.key === "Escape" && isSearchFocused) {
         target.blur();
-      } else if (e.key === "Escape" && filters.search) {
-        setFilters((p) => ({ ...p, search: "" }));
+      } else if (e.key === "Escape" && searchInput) {
+        setSearchInput("");
+        setFilters((p) => p.search ? { ...p, search: "" } : p);
       } else if (e.key === "/" && target.tagName !== "INPUT" && target.tagName !== "TEXTAREA" && target.tagName !== "SELECT") {
         e.preventDefault();
         document.getElementById(searchId)?.focus();
@@ -68,14 +87,15 @@ export function ScheduleTableView({
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [uid, filters.search]);
+  }, [uid, searchInput]);
 
   return (
     <div className="flex flex-col h-full">
       <ScheduleTableToolbar
         schedules={schedules}
         filters={filters}
-        onSearchChange={(v) => { setPage(1); setFilters((p) => ({ ...p, search: v })); }}
+        searchValue={searchInput}
+        onSearchChange={(v) => { setPage(1); setSearchInput(v); }}
         onTypeChange={(v) => { setPage(1); setFilters((p) => ({ ...p, filterType: v })); }}
         onStaffChange={(v) => { setPage(1); setFilters((p) => ({ ...p, filterStaff: v })); }}
         onConflictChange={(v: FilterConflict) => { setPage(1); setFilters((p) => ({ ...p, filterConflict: v })); }}

@@ -76,6 +76,7 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
         workDate,
         staffId: Number(selectedStaffId),
         shiftTypeId: selectedShiftType,
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
       });
       setDone(true);
       setTimeout(() => {
@@ -290,6 +291,7 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
       </div>
 
       <div className="px-3 pb-3">
+        <div key={view} className="animate-fade-in">
         {view === "calendar" ? (
           <DashboardCalendar
             schedules={schedules}
@@ -347,6 +349,7 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
             onViewDetail={onViewDetail}
           />
         )}
+        </div>
       </div>
 
       {!isReadOnly && <FAB actions={fabActions} />}

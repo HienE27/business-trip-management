@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useMemo } from "react";
 import {
   CONFLICT_OPTIONS,
   SHIFT_TYPE_OPTIONS,
@@ -13,6 +13,8 @@ import type { Schedule } from "@/types/api";
 export type ScheduleTableToolbarProps = {
   schedules: Schedule[];
   filters: TableFilters;
+  /** Live search input value (updated on every keystroke, before debounce). */
+  searchValue: string;
   onSearchChange: (v: string) => void;
   onTypeChange: (v: string) => void;
   onStaffChange: (v: string) => void;
@@ -27,6 +29,7 @@ export type ScheduleTableToolbarProps = {
 export function ScheduleTableToolbar({
   schedules,
   filters,
+  searchValue,
   onSearchChange,
   onTypeChange,
   onStaffChange,
@@ -38,7 +41,7 @@ export function ScheduleTableToolbar({
   conflictCount,
 }: ScheduleTableToolbarProps) {
   const uid = useId();
-  const allStaff = getUniqueStaff(schedules);
+  const allStaff = useMemo(() => getUniqueStaff(schedules), [schedules]);
   const activeCount = countActiveFilters(filters);
 
   return (
@@ -50,17 +53,17 @@ export function ScheduleTableToolbar({
           <input
             id={`${uid}-search`}
             type="text"
-            value={filters.search}
+            value={searchValue}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Tìm theo tên nhân sự, loại ca, mã lịch..."
             className="w-full h-10 pl-9 pr-20 rounded-lg border border-outline-variant bg-surface text-label-md text-on-surface placeholder:text-on-surface-variant/50 outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
-          {!filters.search && (
+          {!searchValue && (
             <kbd aria-hidden="true" className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-0.5 text-label-sm text-on-surface-variant bg-surface-container-highest border border-outline-variant rounded px-1.5 h-5 font-mono">
               Ctrl K
             </kbd>
           )}
-          {filters.search && (
+          {searchValue && (
             <button
               type="button"
               onClick={() => onSearchChange("")}
@@ -91,8 +94,7 @@ export function ScheduleTableToolbar({
         </div>
       </div>
 
-      <fieldset className="flex flex-wrap items-center gap-2">
-        <legend className="sr-only">Bộ lọc lịch trực</legend>
+      <div role="group" aria-label="Bộ lọc lịch trực" className="flex flex-wrap items-center gap-2">
 
         <div className="flex items-center gap-1.5 bg-surface-container-lowest rounded-lg border border-outline-variant p-1">
           <span className="flex items-center gap-1 px-2 text-label-sm text-on-surface-variant font-medium">
@@ -191,7 +193,7 @@ export function ScheduleTableToolbar({
             Xóa lọc
           </button>
         )}
-      </fieldset>
+      </div>
     </div>
   );
 }

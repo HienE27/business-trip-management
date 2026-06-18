@@ -10,10 +10,10 @@ export const TONE: Record<
 > = {
   duty24: { bg: "bg-shift-24", text: "text-on-shift-24", border: "border-l-primary", dot: "bg-primary" },
   allDay: { bg: "bg-shift-all-day", text: "text-on-shift-all-day", border: "border-l-secondary", dot: "bg-secondary" },
-  serviceClinic: { bg: "bg-shift-service", text: "text-on-shift-service", border: "border-l-tertiary", dot: "bg-tertiary" },
+  serviceClinic: { bg: "bg-shift-service", text: "text-on-shift-service", border: "border-l-error", dot: "bg-tertiary" },
   expertClinic: { bg: "bg-shift-expert", text: "text-on-shift-expert", border: "border-l-shift-expert", dot: "bg-shift-expert" },
   compLeave: { bg: "bg-surface-container-high", text: "text-on-surface-variant", border: "border-l-outline", dot: "bg-outline" },
-  warning: { bg: "bg-tertiary-fixed", text: "text-on-tertiary-fixed", border: "border-l-tertiary", dot: "bg-tertiary" },
+  warning: { bg: "bg-tertiary-fixed", text: "text-on-tertiary-fixed", border: "border-l-error", dot: "bg-tertiary" },
   conflict: { bg: "bg-error-container", text: "text-on-error-container", border: "border-l-error", dot: "bg-error" },
   neutral: { bg: "bg-surface-container-low", text: "text-on-surface-variant", border: "border-l-outline", dot: "bg-outline" },
   empty: { bg: "", text: "", border: "", dot: "" },

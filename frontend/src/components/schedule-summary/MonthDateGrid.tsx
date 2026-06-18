@@ -216,6 +216,7 @@ export function MonthDateGrid({
               role="gridcell"
               aria-selected={isSelected}
               aria-disabled={disabled || isBlocked}
+              aria-current={isToday ? "date" : undefined}
               aria-label={ariaLabel}
               disabled={disabled || isBlocked}
               onClick={() => onToggleDate(cell.iso)}
