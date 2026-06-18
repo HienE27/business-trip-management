@@ -15,20 +15,21 @@ import type { Schedule } from "@/types/api";
 const baseSchedule = (overrides: Partial<Schedule> = {}): Schedule => ({
   id: 1,
   periodId: 1,
-  staff: { id: 1, fullName: "Nguyễn Văn A", specialtyId: null, specialtyName: null },
+  staff: { id: 1, fullName: "Nguyễn Văn A", specialtyName: null },
   shiftType: { id: "L01", name: "Trực 24/24", isOvernight: true },
   workDate: "2026-06-15T00:00:00",
   notes: null,
   hasConflict: false,
-  isPublished: false,
+  createdAt: "",
+  updatedAt: "",
   ...overrides,
 });
 
 describe("filterSchedules", () => {
   const data = [
-    baseSchedule({ id: 1, staff: { id: 1, fullName: "Nguyễn Văn A", specialtyId: null, specialtyName: null }, shiftType: { id: "L01", name: "Trực 24/24", isOvernight: true }, workDate: "2026-06-15T00:00:00" }),
-    baseSchedule({ id: 2, staff: { id: 2, fullName: "Trần Thị B", specialtyId: null, specialtyName: null }, shiftType: { id: "L02", name: "Thông tầm", isOvernight: false }, workDate: "2026-06-16T00:00:00" }),
-    baseSchedule({ id: 3, staff: { id: 1, fullName: "Nguyễn Văn A", specialtyId: null, specialtyName: null }, shiftType: { id: "L03", name: "Dịch vụ", isOvernight: false }, workDate: "2026-06-20T00:00:00", hasConflict: true }),
+    baseSchedule({ id: 1, staff: { id: 1, fullName: "Nguyễn Văn A", specialtyName: null }, shiftType: { id: "L01", name: "Trực 24/24", isOvernight: true }, workDate: "2026-06-15T00:00:00" }),
+    baseSchedule({ id: 2, staff: { id: 2, fullName: "Trần Thị B", specialtyName: null }, shiftType: { id: "L02", name: "Thông tầm", isOvernight: false }, workDate: "2026-06-16T00:00:00" }),
+    baseSchedule({ id: 3, staff: { id: 1, fullName: "Nguyễn Văn A", specialtyName: null }, shiftType: { id: "L03", name: "Dịch vụ", isOvernight: false }, workDate: "2026-06-20T00:00:00", hasConflict: true }),
   ];
 
   it("search theo tên nhân sự", () => {
@@ -147,7 +148,7 @@ describe("applyTablePipeline", () => {
       baseSchedule({
         id: i + 1,
         workDate: `2026-06-${String((i % 30) + 1).padStart(2, "0")}T00:00:00`,
-        staff: { id: i % 5, fullName: `Staff ${i % 5}`, specialtyId: null, specialtyName: null },
+        staff: { id: i % 5, fullName: `Staff ${i % 5}`, specialtyName: null },
       }),
     );
     const { pageData, totalPages, totalFiltered } = applyTablePipeline(data, { ...EMPTY_FILTERS, sortKey: "workDate", sortDir: "asc" }, 1);
@@ -173,9 +174,9 @@ describe("applyTablePipeline", () => {
 describe("getUniqueStaff", () => {
   it("dedupe theo staff id và sort theo tên", () => {
     const data = [
-      baseSchedule({ staff: { id: 1, fullName: "B", specialtyId: null, specialtyName: null } }),
-      baseSchedule({ id: 2, staff: { id: 2, fullName: "A", specialtyId: null, specialtyName: null } }),
-      baseSchedule({ id: 3, staff: { id: 1, fullName: "B", specialtyId: null, specialtyName: null } }),
+      baseSchedule({ staff: { id: 1, fullName: "B", specialtyName: null } }),
+      baseSchedule({ id: 2, staff: { id: 2, fullName: "A", specialtyName: null } }),
+      baseSchedule({ id: 3, staff: { id: 1, fullName: "B", specialtyName: null } }),
     ];
     const r = getUniqueStaff(data);
     expect(r).toEqual([

@@ -30,58 +30,64 @@ export function ScheduleTableView({
   const [filters, setFilters] = useState<TableFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
 
-  // Reset page về 1 khi filter thay đổi
-  useEffect(() => {
-    setPage(1);
-  }, [filters]);
-
   const { pageData, safePage, totalPages, totalFiltered } = useMemo(
     () => applyTablePipeline(schedules, filters, page),
     [schedules, filters, page],
   );
 
-  const conflictCount = useMemo(() => schedules.filter((s) => s.hasConflict).length, [schedules]);
+  const conflictCount = useMemo(() => pageData.filter((s) => s.hasConflict).length, [pageData]);
   const activeCount = countActiveFilters(filters);
 
   const handleSort = useCallback((key: SortKey) => {
+    setPage(1);
     setFilters((prev) => (prev.sortKey === key ? { ...prev, sortDir: prev.sortDir === "asc" ? "desc" : "asc" } : { ...prev, sortKey: key, sortDir: "asc" }));
   }, []);
 
-  const handleReset = useCallback(() => setFilters(EMPTY_FILTERS), []);
+  const handleReset = useCallback(() => {
+    setPage(1);
+    setFilters(EMPTY_FILTERS);
+  }, []);
 
-  // Ctrl+K / "/" focus search
+  // Ctrl+K / "/" focus search, Escape clears search
   useEffect(() => {
+    const searchId = `${uid}-search`;
     const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isSearchFocused = target.id === searchId;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        document.getElementById(`${uid}-search`)?.focus();
-      } else if (e.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+        document.getElementById(searchId)?.focus();
+      } else if (e.key === "Escape" && isSearchFocused) {
+        target.blur();
+      } else if (e.key === "Escape" && filters.search) {
+        setFilters((p) => ({ ...p, search: "" }));
+      } else if (e.key === "/" && target.tagName !== "INPUT" && target.tagName !== "TEXTAREA" && target.tagName !== "SELECT") {
         e.preventDefault();
-        document.getElementById(`${uid}-search`)?.focus();
+        document.getElementById(searchId)?.focus();
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [uid]);
+  }, [uid, filters.search]);
 
   return (
     <div className="flex flex-col h-full">
       <ScheduleTableToolbar
         schedules={schedules}
         filters={filters}
-        onSearchChange={(v) => setFilters((p) => ({ ...p, search: v }))}
-        onTypeChange={(v) => setFilters((p) => ({ ...p, filterType: v }))}
-        onStaffChange={(v) => setFilters((p) => ({ ...p, filterStaff: v }))}
-        onConflictChange={(v: FilterConflict) => setFilters((p) => ({ ...p, filterConflict: v }))}
-        onDateFromChange={(v) => setFilters((p) => ({ ...p, dateFrom: v }))}
-        onDateToChange={(v) => setFilters((p) => ({ ...p, dateTo: v }))}
+        onSearchChange={(v) => { setPage(1); setFilters((p) => ({ ...p, search: v })); }}
+        onTypeChange={(v) => { setPage(1); setFilters((p) => ({ ...p, filterType: v })); }}
+        onStaffChange={(v) => { setPage(1); setFilters((p) => ({ ...p, filterStaff: v })); }}
+        onConflictChange={(v: FilterConflict) => { setPage(1); setFilters((p) => ({ ...p, filterConflict: v })); }}
+        onDateFromChange={(v) => { setPage(1); setFilters((p) => ({ ...p, dateFrom: v })); }}
+        onDateToChange={(v) => { setPage(1); setFilters((p) => ({ ...p, dateTo: v })); }}
         onReset={handleReset}
         resultCount={totalFiltered}
         conflictCount={conflictCount}
       />
 
       <div className="flex-1 overflow-auto">
-        <table className="w-full border-collapse text-label-sm">
+        <table className="w-full border-collapse border border-outline-variant text-label-sm">
           <ScheduleTableHeader sortKey={filters.sortKey} sortDir={filters.sortDir} onSort={handleSort} />
           <tbody className="divide-y divide-outline-variant/40">
             {pageData.length === 0 ? (
@@ -123,7 +129,7 @@ export function ScheduleTableView({
         </table>
       </div>
 
-      <ScheduleTablePagination totalItems={totalFiltered} page={safePage} totalPages={totalPages} onPageChange={setPage} />
+      <ScheduleTablePagination totalFiltered={totalFiltered} page={safePage} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );
 }

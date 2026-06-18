@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* ══════════════════════════════════════════════════════════════
+   Design Token Architecture
+   ─────────────────────────────────────────────────────────────
+   Core surface tokens are defined as CSS variables referencing
+   a "theme role" property. This allows dark mode to override
+   the ROLE without touching every component class.
+
+   Dark mode activation:
+     - Automatic: @media (prefers-color-scheme: dark)
+     - Manual:    class="dark" on <html>
+   ══════════════════════════════════════════════════════════════ */
+
 @theme {
   /* ── Primary ── */
   --color-primary: #004ac6;
@@ -39,14 +51,14 @@
   --color-on-expert-container: #3b1c07;
 
   /* ── Shift-type Containers (used in calendar tones) ── */
-  --color-shift-24:       #dbe1ff;
-  --color-on-shift-24:    #00174b;
-  --color-shift-all-day:  #dcfce7;
+  --color-shift-24:        #dbe1ff;
+  --color-on-shift-24:     #00174b;
+  --color-shift-all-day:   #dcfce7;
   --color-on-shift-all-day:#14532d;
   --color-shift-service:   #ffedd5;
   --color-on-shift-service:#7c2d12;
-  --color-shift-expert:   #f3e8ff;
-  --color-on-shift-expert:#4c1d95;
+  --color-shift-expert:    #f3e8ff;
+  --color-on-shift-expert: #4c1d95;
 
   /* ── Error ── */
   --color-error: #ba1a1a;
@@ -54,7 +66,7 @@
   --color-error-container: #ffdad6;
   --color-on-error-container: #93000a;
 
-  /* ── Surface ── */
+  /* ── Surface (Light — overridden in dark mode) ── */
   --color-surface: #f7f9fb;
   --color-surface-bright: #f7f9fb;
   --color-surface-dim: #d8dadc;
@@ -81,13 +93,165 @@
   --color-outline: #737686;
   --color-outline-variant: #c3c6d7;
 
-  /* ── Border Radius — matches Stitch tailwind.config exactly ── */
+  /* ── Border Radius ── */
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-2xl: 1.5rem;
   --radius-full: 9999px;
+
+  /* ── Chart Colors ── */
+  --color-chart-24:      #ef4444;
+  --color-chart-tt:      #10b981;
+  --color-chart-dv:      #f59e0b;
+  --color-chart-cg:      #8b5cf6;
+  --color-chart-profit:   #22c55e;
+  --color-chart-loss:    #ef4444;
+  --color-chart-neutral: #737686;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Dark Mode — overrides surface tokens
+   ══════════════════════════════════════════════════════════════ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Surface */
+    --color-surface:                    #121317;
+    --color-surface-bright:             #1a1c22;
+    --color-surface-dim:                #0d0f14;
+    --color-surface-container-lowest:   #1a1c22;
+    --color-surface-container-low:       #1f2127;
+    --color-surface-container:           #24262c;
+    --color-surface-container-high:      #2a2d33;
+    --color-surface-container-highest:   #32363f;
+    --color-surface-variant:            #43474f;
+    --color-surface-hover:              #252830;
+
+    /* Background / Foreground */
+    --color-background:                 #0d0f14;
+    --color-foreground:                 #e3e5e8;
+
+    /* On-surface */
+    --color-on-surface:                 #e3e5e8;
+    --color-on-surface-variant:         #c3c7cf;
+    --color-inverse-surface:            #e3e5e8;
+    --color-inverse-on-surface:         #1a1c22;
+    --color-surface-tint:               #a0b4ff;
+
+    /* Borders */
+    --color-outline:                    #8d9299;
+    --color-outline-variant:            #43474f;
+
+    /* Shift containers (keep light tint colors readable on dark) */
+    --color-shift-24:                  #1e2d5e;
+    --color-on-shift-24:               #c7d4ff;
+    --color-shift-all-day:             #0e3319;
+    --color-on-shift-all-day:          #86efac;
+    --color-shift-service:             #3d1c07;
+    --color-on-shift-service:          #fed7aa;
+    --color-shift-expert:              #2e1c55;
+    --color-on-shift-expert:           #d8b4fe;
+  }
+}
+
+/* Manual dark mode via data-theme attribute (ThemeToggle component) */
+[data-theme="dark"] {
+  --color-surface:                    #121317;
+  --color-surface-bright:              #1a1c22;
+  --color-surface-dim:                #0d0f14;
+  --color-surface-container-lowest:    #1a1c22;
+  --color-surface-container-low:       #1f2127;
+  --color-surface-container:           #24262c;
+  --color-surface-container-high:      #2a2d33;
+  --color-surface-container-highest:   #32363f;
+  --color-surface-variant:             #43474f;
+  --color-surface-hover:               #252830;
+  --color-background:                  #0d0f14;
+  --color-foreground:                  #e3e5e8;
+  --color-on-surface:                  #e3e5e8;
+  --color-on-surface-variant:          #c3c7cf;
+  --color-inverse-surface:             #e3e5e8;
+  --color-inverse-on-surface:          #1a1c22;
+  --color-surface-tint:                #a0b4ff;
+  --color-outline:                    #8d9299;
+  --color-outline-variant:             #43474f;
+  --color-shift-24:                   #1e2d5e;
+  --color-on-shift-24:               #c7d4ff;
+  --color-shift-all-day:              #0e3319;
+  --color-on-shift-all-day:           #86efac;
+  --color-shift-service:              #3d1c07;
+  --color-on-shift-service:           #fed7aa;
+  --color-shift-expert:              #2e1c55;
+  --color-on-shift-expert:            #d8b4fe;
+}
+
+[data-theme="dark"] .dark\:surface-lowest    { background-color: var(--color-surface-container-lowest); }
+[data-theme="dark"] .dark\:surface-low       { background-color: var(--color-surface-container-low); }
+[data-theme="dark"] .dark\:surface           { background-color: var(--color-surface-container); }
+[data-theme="dark"] .dark\:surface-high      { background-color: var(--color-surface-container-high); }
+[data-theme="dark"] .dark\:surface-highest   { background-color: var(--color-surface-container-highest); }
+[data-theme="dark"] .dark\:text-on-surface    { color: var(--color-on-surface); }
+[data-theme="dark"] .dark\:text-on-surface-variant { color: var(--color-on-surface-variant); }
+[data-theme="dark"] .dark\:bg-background     { background-color: var(--color-background); }
+[data-theme="dark"] .dark\:border-outline    { border-color: var(--color-outline); }
+[data-theme="dark"] .dark\:border-outline-variant { border-color: var(--color-outline-variant); }
+
+/* Manual dark mode class override (opt-in) */
+html.dark {
+  --color-surface:                    #121317;
+  --color-surface-bright:              #1a1c22;
+  --color-surface-dim:                #0d0f14;
+  --color-surface-container-lowest:    #1a1c22;
+  --color-surface-container-low:       #1f2127;
+  --color-surface-container:           #24262c;
+  --color-surface-container-high:      #2a2d33;
+  --color-surface-container-highest:   #32363f;
+  --color-surface-variant:             #43474f;
+  --color-surface-hover:               #252830;
+  --color-background:                  #0d0f14;
+  --color-foreground:                  #e3e5e8;
+  --color-on-surface:                  #e3e5e8;
+  --color-on-surface-variant:          #c3c7cf;
+  --color-inverse-surface:             #e3e5e8;
+  --color-inverse-on-surface:          #1a1c22;
+  --color-surface-tint:                #a0b4ff;
+  --color-outline:                    #8d9299;
+  --color-outline-variant:             #43474f;
+  --color-shift-24:                   #1e2d5e;
+  --color-on-shift-24:               #c7d4ff;
+  --color-shift-all-day:              #0e3319;
+  --color-on-shift-all-day:           #86efac;
+  --color-shift-service:              #3d1c07;
+  --color-on-shift-service:           #fed7aa;
+  --color-shift-expert:              #2e1c55;
+  --color-on-shift-expert:            #d8b4fe;
+}
+
+/* Dark mode surface utility classes */
+html.dark .dark\:surface-lowest    { background-color: var(--color-surface-container-lowest); }
+html.dark .dark\:surface-low       { background-color: var(--color-surface-container-low); }
+html.dark .dark\:surface           { background-color: var(--color-surface-container); }
+html.dark .dark\:surface-high      { background-color: var(--color-surface-container-high); }
+html.dark .dark\:surface-highest   { background-color: var(--color-surface-container-highest); }
+html.dark .dark\:text-on-surface    { color: var(--color-on-surface); }
+html.dark .dark\:text-on-surface-variant { color: var(--color-on-surface-variant); }
+html.dark .dark\:bg-background     { background-color: var(--color-background); }
+html.dark .dark\:border-outline    { border-color: var(--color-outline); }
+html.dark .dark\:border-outline-variant { border-color: var(--color-outline-variant); }
+
+/* Prefer dark scheme surface utilities */
+@media (prefers-color-scheme: dark) {
+  .md-dark\:surface-lowest    { background-color: var(--color-surface-container-lowest); }
+  .md-dark\:surface-low       { background-color: var(--color-surface-container-low); }
+  .md-dark\:surface           { background-color: var(--color-surface-container); }
+  .md-dark\:surface-high      { background-color: var(--color-surface-container-high); }
+  .md-dark\:surface-highest   { background-color: var(--color-surface-container-highest); }
+  .md-dark\:text-on-surface   { color: var(--color-on-surface); }
+  .md-dark\:text-on-surface-variant { color: var(--color-on-surface-variant); }
+  .md-dark\:bg-background    { background-color: var(--color-background); }
+  .md-dark\:border-outline   { border-color: var(--color-outline); }
+  .md-dark\:border-outline-variant { border-color: var(--color-outline-variant); }
 }
 
 /* ── Base ── */
@@ -217,6 +381,126 @@
 }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 
+/* ── Button Loading Spinner ── */
+@keyframes btn-spinner-anim {
+  to { transform: rotate(360deg); }
+}
+.btn-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, var(--color-on-primary) 30%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: btn-spinner-anim 0.7s linear infinite;
+  flex-shrink: 0;
+}
+.btn-spinner:not([aria-label]) {
+  /* If no aria-label on parent, provide sr-only text */
+  position: relative;
+}
+
+/* ── Empty State fade-in animation ── */
+@keyframes empty-state-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.empty-state-fade-in {
+  animation: empty-state-fade-in 0.3s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-state-fade-in {
+    animation: none;
+  }
+}
+
+/* ── Skeleton shimmer animation — respects prefers-reduced-motion ── */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-container) 25%,
+    var(--color-surface-container-high) 50%,
+    var(--color-surface-container) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+  }
+}
+
+/* ── Animation Utilities — respect prefers-reduced-motion ── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+@keyframes notification-bell {
+  0%, 100% { transform: rotate(0deg); }
+  15%       { transform: rotate(12deg); }
+  30%       { transform: rotate(-10deg); }
+  45%       { transform: rotate(8deg); }
+  60%       { transform: rotate(-6deg); }
+  75%       { transform: rotate(4deg); }
+}
+
+.animate-fade-in          { animation: fade-in 0.25s ease-out both; }
+.animate-slide-up         { animation: slide-up 0.3s ease-out both; }
+.animate-slide-down       { animation: slide-down 0.25s ease-out both; }
+.animate-scale-in         { animation: scale-in 0.2s ease-out both; }
+.animate-slide-in-right   { animation: slide-in-right 0.3s ease-out both; }
+.animate-pulse-soft       { animation: pulse-soft 2s ease-in-out infinite; }
+.animate-notification-bell { animation: notification-bell 0.6s ease-in-out; }
+
+/* stagger children */
+.stagger-children > * { animation: slide-up 0.3s ease-out both; }
+.stagger-children > *:nth-child(1)  { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2)  { animation-delay: 60ms; }
+.stagger-children > *:nth-child(3)  { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4)  { animation-delay: 180ms; }
+.stagger-children > *:nth-child(5)  { animation-delay: 240ms; }
+.stagger-children > *:nth-child(6)  { animation-delay: 300ms; }
+.stagger-children > *:nth-child(7)  { animation-delay: 360ms; }
+.stagger-children > *:nth-child(8)  { animation-delay: 420ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-slide-down,
+  .animate-scale-in,
+  .animate-slide-in-right,
+  .animate-pulse-soft,
+  .animate-notification-bell,
+  .stagger-children > * {
+    animation: none;
+  }
+}
+
 /* ── Emergency Pulse ── */
 @keyframes emergency-pulse {
   0%   { box-shadow: 0 0 0 0 rgba(186,26,26,0.4); }
@@ -251,4 +535,32 @@
 .border-l-shift-24      { border-left-color: var(--color-shift-24);       }
 .border-l-shift-all-day  { border-left-color: var(--color-shift-all-day);  }
 .border-l-shift-service  { border-left-color: var(--color-shift-service);  }
-.border-l-shift-expert   { border-left-color: var(--color-shift-expert);  }
+/* ── Locked / Compensated day diagonal stripes pattern ── */
+.comp-locked-stripes {
+  background-color: var(--color-surface-container-high);
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--color-outline-variant) 0px,
+    var(--color-outline-variant) 1px,
+    transparent 1px,
+    transparent 10px
+  );
+  background-size: 14px 14px;
+}
+
+/* ── Chart Color Utilities — for WorkloadChart, reports, analytics ── */
+/* Uses --color-chart-* tokens from @theme above */
+.bg-chart-24  { background-color: var(--color-chart-24);  color: #fff; }
+.bg-chart-tt   { background-color: var(--color-chart-tt);   color: #fff; }
+.bg-chart-dv   { background-color: var(--color-chart-dv);   color: #fff; }
+.bg-chart-cg   { background-color: var(--color-chart-cg);   color: #fff; }
+.text-chart-24  { color: var(--color-chart-24); }
+.text-chart-tt   { color: var(--color-chart-tt); }
+.text-chart-dv   { color: var(--color-chart-dv); }
+.text-chart-cg   { color: var(--color-chart-cg); }
+.border-chart-24  { border-color: var(--color-chart-24); }
+.border-chart-tt   { border-color: var(--color-chart-tt); }
+.border-chart-dv   { border-color: var(--color-chart-dv); }
+.border-chart-cg   { border-color: var(--color-chart-cg); }
+
+/* Respect user's motion preferences for accessibility (vestibular disorders) */

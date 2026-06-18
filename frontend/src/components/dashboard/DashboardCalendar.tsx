@@ -19,7 +19,7 @@ import {
   type CalendarItem,
   type CalendarViewMode,
 } from "./calendar/constants";
-import { buildCalendar, buildWeekCells } from "./calendar/buildCalendar";
+import { buildCalendar } from "./calendar/buildCalendar";
 import { MobileHint } from "./calendar/MobileHint";
 import { EventTooltip, type TooltipData } from "./calendar/EventTooltip";
 import { OverflowPopover } from "./calendar/OverflowPopover";
@@ -85,6 +85,10 @@ export function DashboardCalendar({
   const [focusedCellIndex, setFocusedCellIndex] = useState(0);
   const calendarRef = useRef<HTMLDivElement>(null);
   const cellRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const currentMonthRef = useRef(currentMonth);
+  useEffect(() => {
+    currentMonthRef.current = currentMonth;
+  }, [currentMonth]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -236,37 +240,54 @@ export function DashboardCalendar({
   }, [currentYear, currentMonth]);
 
   // Keyboard shortcuts: ←/→ for prev/next month, Home for today
-  const calendarShortcutHandler = useCallback((e: KeyboardEvent) => {
-    const tag = (document.activeElement?.tagName ?? "").toLowerCase();
-    if (tag === "input" || tag === "textarea" || tag === "select") return;
-    if (e.altKey || e.ctrlKey || e.metaKey) return;
-    if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      if (viewMode === "week") setCurrentWeekStart((d) => addDays(d, -7));
-      else navigateMonth(-1);
-    } else if (e.key === "ArrowRight") {
-      e.preventDefault();
-      if (viewMode === "week") setCurrentWeekStart((d) => addDays(d, 7));
-      else navigateMonth(1);
-    } else if (e.key === "Home") {
-      e.preventDefault();
-      const now = new Date();
-      setCurrentYear(now.getFullYear());
-      setCurrentMonth(now.getMonth());
-      setCurrentWeekStart(weekStartOf(now));
-    } else if (e.key === "t" || e.key === "T") {
-      e.preventDefault();
-      setViewMode("month");
-    } else if (e.key === "w" || e.key === "W") {
-      e.preventDefault();
-      setViewMode("week");
-    }
-  }, [viewMode, navigateMonth]);
-
   useEffect(() => {
-    document.addEventListener("keydown", calendarShortcutHandler);
-    return () => document.removeEventListener("keydown", calendarShortcutHandler);
-  }, [calendarShortcutHandler]);
+    const handler = (e: KeyboardEvent) => {
+      const tag = (document.activeElement?.tagName ?? "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (viewMode === "week") setCurrentWeekStart((d) => addDays(d, -7));
+        else {
+          setCurrentMonth((m) => {
+            const nm = m === 0 ? 11 : m - 1;
+            return nm;
+          });
+          setCurrentYear((y) => {
+            if (currentMonthRef.current === 0) return y - 1;
+            return y;
+          });
+        }
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (viewMode === "week") setCurrentWeekStart((d) => addDays(d, 7));
+        else {
+          setCurrentMonth((m) => {
+            const nm = m === 11 ? 0 : m + 1;
+            return nm;
+          });
+          setCurrentYear((y) => {
+            if (currentMonthRef.current === 11) return y + 1;
+            return y;
+          });
+        }
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        const now = new Date();
+        setCurrentYear(now.getFullYear());
+        setCurrentMonth(now.getMonth());
+        setCurrentWeekStart(weekStartOf(now));
+      } else if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        setViewMode("month");
+      } else if (e.key === "w" || e.key === "W") {
+        e.preventDefault();
+        setViewMode("week");
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [viewMode]);
 
   return (
     <section className="flex flex-col h-full" ref={calendarRef}>
@@ -410,7 +431,7 @@ export function DashboardCalendar({
             isMobile ? (
               <>
                 <div
-                  className="fixed inset-0 bg-scrim/50 z-40"
+                  className="fixed inset-0 bg-black/50 z-40"
                   onClick={() => setSidebarOpen(false)}
                   aria-hidden="true"
                 />
@@ -536,6 +557,8 @@ export function DashboardCalendar({
               />
             </div>
           ) : (
+          /* Outer wrapper: provides missing left border and last-row bottom border */
+          <div className="border-l border-t border-b border-outline-variant">
           <div
             className="flex-1 grid grid-cols-7 flex-1 auto-rows-fr"
             style={{ minHeight: 0 }}
@@ -779,6 +802,7 @@ export function DashboardCalendar({
               );
             })}
           </div>
+          </div>
           )}
         </div>
 
@@ -786,14 +810,14 @@ export function DashboardCalendar({
         {sidebarOpen && (
           isMobile ? (
             <>
-              <div
-                className="fixed inset-0 bg-scrim/50 z-40"
-                onClick={() => setSidebarOpen(false)}
-                aria-hidden="true"
-              />
-              <aside id="calendar-sidebar" className="fixed right-0 top-0 bottom-0 z-50 w-80 max-w-[calc(100vw-32px)] bg-surface-container-low border-l border-outline-variant overflow-y-auto flex flex-col gap-3 p-3 shadow-2xl">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-title-md text-on-surface font-semibold">Thống kê tháng</p>
+                <div
+                  className="fixed inset-0 bg-black/50 z-40"
+                  onClick={() => setSidebarOpen(false)}
+                  aria-hidden="true"
+                />
+                <aside id="calendar-sidebar" className="fixed right-0 top-0 bottom-0 z-50 w-80 max-w-[calc(100vw-32px)] bg-surface-container-low border-l border-outline-variant overflow-y-auto flex flex-col gap-3 p-3 shadow-2xl">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-title-md text-on-surface font-semibold">Thống kê tháng</p>
                   <button
                     type="button"
                     onClick={() => setSidebarOpen(false)}
@@ -811,7 +835,7 @@ export function DashboardCalendar({
                       { label: "Trực 24/24", color: "bg-primary", id: "duty24" },
                       { label: "Thông tầm", color: "bg-secondary", id: "allDay" },
                       { label: "Dịch vụ", color: "bg-tertiary", id: "serviceClinic" },
-                      { label: "Chuyên gia", color: "bg-violet-500", id: "expertClinic" },
+                      { label: "Chuyên gia", color: "bg-expert", id: "expertClinic" },
                     ].map((l) => (
                       <div key={l.id} className="flex items-center gap-2">
                         <div aria-hidden="true" className={`w-5 h-3 rounded-sm ${l.color}`} />
@@ -876,7 +900,7 @@ export function DashboardCalendar({
                   { label: "Trực 24/24", color: "bg-primary",       id: "duty24"       },
                   { label: "Thông tầm",   color: "bg-secondary",  id: "allDay"       },
                   { label: "Dịch vụ",     color: "bg-tertiary",    id: "serviceClinic"},
-                  { label: "Chuyên gia",  color: "bg-violet-500",   id: "expertClinic" },
+                  { label: "Chuyên gia",  color: "bg-expert",   id: "expertClinic" },
                 ].map((l) => (
                   <div key={l.id} className="flex items-center gap-2">
                     <div aria-hidden="true" className={`w-5 h-3 rounded-sm ${l.color}`} />
@@ -961,6 +985,7 @@ export function DashboardCalendar({
           onResolve={onResolveConflict ?? (() => {})}
           onViewDetail={onViewDetail ?? (() => {})}
           canEdit={!!onEditSchedule}
+          onClose={() => setTooltip(null)}
         />
       )}
 
@@ -974,6 +999,7 @@ export function DashboardCalendar({
           onResolve={onResolveConflict ?? (() => {})}
           onViewDetail={onViewDetail ?? (() => {})}
           canEdit={!!onEditSchedule}
+          onClose={() => setOverflow(null)}
         />
       )}
     </section>

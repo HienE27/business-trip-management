@@ -117,7 +117,7 @@ export function useSchedulePeriodData(
 
     const [scheduleData, conflictResult, compDaysData, reqData] = await Promise.all([
       fetchOne<Schedule[]>(() => api.get<Schedule[]>(`/schedules/period/${periodId}`), []),
-      fetchOne<ConflictCheckResponse>(
+      fetchOne<ConflictCheckResponse | null>(
         () => api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`),
         null
       ),

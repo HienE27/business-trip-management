@@ -20,35 +20,43 @@ const fakePeriod: SchedulePeriod = {
   endDate: "2026-06-30",
   status: "DRAFT",
   createdAt: "2026-05-01",
+  updatedAt: "2026-05-01",
 };
 
-const fakeStaff: Staff = {
+const fakeStaff = {
   id: 1,
+  username: "nvana",
   fullName: "Nguyễn Văn A",
   email: "a@hospital.vn",
   phone: "0901",
-  role: "STAFF",
+  maxShiftsPerMonth: 15,
   isActive: true,
-  specialtyId: null,
-  specialtyName: null,
+  specialty: undefined,
+  roles: ["STAFF"],
   createdAt: "2026-01-01",
+  updatedAt: "2026-01-01",
 };
 
 const fakeSchedule: Schedule = {
   id: 1,
   periodId: 1,
-  staff: { id: 1, fullName: "Nguyễn Văn A", specialtyId: null, specialtyName: null },
+  staff: { id: 1, fullName: "Nguyễn Văn A", specialtyName: null },
   shiftType: { id: "L01", name: "Trực 24/24", isOvernight: true },
   workDate: "2026-06-15T00:00:00",
   notes: null,
   hasConflict: false,
-  isPublished: false,
+  createdAt: "",
+  updatedAt: "",
 };
 
 const fakeConflict: ConflictCheckResponse = {
+  periodId: 1,
   hasConflicts: false,
   totalConflicts: 0,
   conflicts: [],
+  coverageGaps: [],
+  hasCoverageGaps: false,
+  totalCoverageGaps: 0,
 };
 
 describe("useSchedulePeriodData", () => {

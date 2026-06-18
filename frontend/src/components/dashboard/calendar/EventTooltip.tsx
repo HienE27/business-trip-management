@@ -16,38 +16,53 @@ export type EventTooltipProps = {
   onDelete: (s: Schedule) => void;
   onResolve: (s: Schedule) => void;
   onViewDetail: (s: Schedule) => void;
+  onClose: () => void;
   canEdit: boolean;
 };
 
-export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, canEdit }: EventTooltipProps) {
+export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, onClose, canEdit }: EventTooltipProps) {
   const ref = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
     const vp = window.innerWidth;
-    if (rect.right > vp - 8) el.style.left = "auto";
-    if (rect.bottom > window.innerHeight - 8) el.style.top = "auto";
-  }, []);
+    const vh = window.innerHeight;
+    const rect = el.getBoundingClientRect();
+    const TIP_W = 256;
+    const TIP_H = Math.min(rect.height, 320);
+
+    // Clamp so tooltip stays within viewport
+    let left = data.x + 8;
+    let top = data.y + 8;
+    if (rect.right > vp - 8) left = Math.max(16, vp - TIP_W - 16);
+    if (rect.bottom > vh - 8) top = Math.max(16, vh - TIP_H - 16);
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+  }, [data.x, data.y]);
+
+  // Escape to dismiss
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
 
   const s = data.item.schedule;
   const t = TONE[data.item.tone];
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
   return (
     <div
       ref={ref}
-      className="fixed z-[100] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl p-4 w-64 max-w-[calc(100vw-32px)] pointer-events-auto"
-      style={(() => {
-        const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-        if (isMobile) {
-          const w = 256;
-          const left = Math.max(16, (window.innerWidth - w) / 2);
-          const top = Math.min(Math.max(16, data.y - 60), window.innerHeight - 320);
-          return { left, top };
-        }
-        return { left: data.x + 8, top: data.y + 8 };
-      })()}
-      role="tooltip"
+      className="fixed z-[100] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl p-4 w-64 max-w-[calc(100vw-32px)]"
+      style={isMobile ? {
+        left: Math.max(16, (window.innerWidth - 256) / 2),
+        top: Math.min(Math.max(16, data.y - 60), window.innerHeight - 320),
+      } : undefined}
+      role="dialog"
+      aria-modal="false"
+      aria-label={`Chi tiết ca trực ngày ${new Date(s.workDate).toLocaleDateString("vi-VN")}`}
     >
       <div className="flex items-center gap-2 mb-3">
         <div className={`w-8 h-8 rounded-full ${t.bg} flex items-center justify-center`}>
@@ -84,27 +99,27 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
       <div className="flex gap-2 pt-2 border-t border-outline-variant">
         <button
           type="button"
-          onClick={() => onViewDetail(s)}
+          onClick={() => { onViewDetail(s); onClose(); }}
           className="flex-1 px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container-low text-on-surface hover:bg-surface-container-high transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span className="flex items-center justify-center gap-1.5">
             <span aria-hidden="true" className="material-symbols-outlined text-[16px]">visibility</span>
-            Xem chi tiết
+            Chi tiết
           </span>
         </button>
         {canEdit && (
           <button
             type="button"
-            onClick={() => onEdit(s)}
+            onClick={() => { onEdit(s); onClose(); }}
             className="flex-1 px-3 py-1.5 rounded-lg text-label-sm font-medium bg-primary text-on-primary hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            Chỉnh sửa
+            Sửa
           </button>
         )}
         {canEdit && s.hasConflict && (
           <button
             type="button"
-            onClick={() => onResolve(s)}
+            onClick={() => { onResolve(s); onClose(); }}
             className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-error text-on-error hover:bg-error/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error"
           >
             Xử lý
@@ -113,7 +128,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
         {canEdit && (
           <button
             type="button"
-            onClick={() => onDelete(s)}
+            onClick={() => { onDelete(s); onClose(); }}
             className="px-3 py-1.5 rounded-lg text-label-sm font-medium border border-outline-variant text-on-surface hover:bg-surface-container-low transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             Xóa

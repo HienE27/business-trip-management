@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
 import { ScheduleTableView } from "@/components/dashboard/ScheduleTableView";
 import { FAB } from "@/components/ui/FAB";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Button, FormSelect, FormInput, FormTextarea } from "@/components/ui";
 import { ConflictResolutionModal } from "@/components/ui/ConflictResolutionModal";
 import { useRole, canEditSchedule } from "@/hooks/useRole";
+import { useToast } from "@/components/ui/ToastProvider";
 import { api } from "@/lib/api";
 import type { CompensationDay, Schedule } from "@/types/api";
 import type { ConflictItem } from "@/types/schedule";
@@ -102,98 +105,61 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
               {message}
             </div>
           )}
-          <div>
-            <label className="text-label-sm text-on-surface-variant block mb-2" htmlFor="q-shift-type">
-              Loại lịch
-            </label>
-            <div className="relative">
-              <select
-                id="q-shift-type"
-                name="shift-type"
-                className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-outline-variant bg-surface px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-                value={selectedShiftType}
-                onChange={(e) => setSelectedShiftType(e.target.value)}
-                required
-              >
-                <option value="L01">Trực 24/24</option>
-                <option value="L02">Thông tầm</option>
-                <option value="L03">Phòng khám dịch vụ</option>
-                <option value="L04">Phòng khám chuyên gia</option>
-              </select>
-              <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">expand_more</span>
-            </div>
-          </div>
+          <FormSelect
+            label="Loại lịch"
+            id="q-shift-type"
+            value={selectedShiftType}
+            onChange={(e) => setSelectedShiftType(e.target.value)}
+            options={[
+              { value: "L01", label: "Trực 24/24" },
+              { value: "L02", label: "Thông tầm" },
+              { value: "L03", label: "Phòng khám dịch vụ" },
+              { value: "L04", label: "Phòng khám chuyên gia" },
+            ]}
+            required
+          />
 
-          <div>
-            <label className="text-label-sm text-on-surface-variant block mb-2" htmlFor="q-staff">
-              Nhân sự
-            </label>
-            <div className="relative">
-              <select
-                id="q-staff"
-                name="staff"
-                className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-outline-variant bg-surface px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-                value={selectedStaffId}
-                onChange={(e) => setSelectedStaffId(e.target.value)}
-                required
-              >
-                <option value="">Chọn nhân sự...</option>
-                {staffList.map((s) => (
-                  <option key={s.id} value={s.id}>{s.fullName}</option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">expand_more</span>
-            </div>
-          </div>
+          <FormSelect
+            label="Nhân sự"
+            id="q-staff"
+            placeholder="Chọn nhân sự..."
+            value={selectedStaffId}
+            onChange={(e) => setSelectedStaffId(e.target.value)}
+            options={staffList.map((s) => ({ value: String(s.id), label: s.fullName }))}
+            required
+          />
 
-          <div>
-            <label className="text-label-sm text-on-surface-variant block mb-2" htmlFor="q-date">
-              Ngày
-            </label>
-            <input
-              id="q-date"
-              name="date"
-              type="date"
-              className="h-10 w-full cursor-pointer rounded-lg border border-outline-variant bg-surface px-3 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-              value={workDate}
-              onChange={(e) => setWorkDate(e.target.value)}
-              required
-            />
-          </div>
+          <FormInput
+            label="Ngày"
+            id="q-date"
+            type="date"
+            value={workDate}
+            onChange={(e) => setWorkDate(e.target.value)}
+            required
+          />
 
-          <div>
-            <label className="text-label-sm text-on-surface-variant block mb-2" htmlFor="q-notes">
-              Ghi chú
-            </label>
-            <textarea
-              id="q-notes"
-              className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-              rows={2}
-              placeholder="Ghi chú (nếu có)..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
+          <FormTextarea
+            label="Ghi chú"
+            id="q-notes"
+            rows={2}
+            placeholder="Ghi chú (nếu có)..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
 
           <ModalFooter>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
+            <Button type="button" variant="secondary" onClick={onClose}>
               Hủy
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              disabled={submitting}
-              className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-md hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              variant="primary"
+              loading={submitting}
+              disabled={!selectedStaffId || !workDate}
+              icon={<span className="material-symbols-outlined" aria-hidden="true">add</span>}
             >
-              {submitting ? (
-                <><div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Đang xử lý…</>
-              ) : (
-                <><span className="material-symbols-outlined text-[18px]">add</span>Tạo lịch</>
-              )}
-            </button>
+              Tạo lịch
+            </Button>
           </ModalFooter>
         </form>
       )}
@@ -221,6 +187,8 @@ type ScheduleCalendarWidgetProps = {
   onSpecialtyFilterChange?: (specialtyId: number | null) => void;
   onViewDetail?: (schedule: Schedule) => void;
   onViewModeChange?: (view: "calendar" | "table") => void;
+  selectedTab?: string;
+  onFilterTypeChange?: (filter: string) => void;
   compensationDays?: CompensationDay[];
   /** Khi true: chỉ xem (dashboard), ẩn mọi thao tác CRUD. Khi false/undefined: cho phép sửa/xóa (monthly-schedule). */
   isReadOnly?: boolean;
@@ -228,7 +196,7 @@ type ScheduleCalendarWidgetProps = {
   hideFilters?: boolean;
 };
 
-export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, viewMode: externalViewMode, showViewToggle = true, isReadOnly = false, hideFilters = false, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail, onViewModeChange, compensationDays }: ScheduleCalendarWidgetProps) {
+export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, viewMode: externalViewMode, showViewToggle = true, isReadOnly = false, hideFilters = false, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail, onViewModeChange, selectedTab, onFilterTypeChange, compensationDays }: ScheduleCalendarWidgetProps) {
   const [internalView, setInternalView] = useState<"calendar" | "table">("calendar");
   const view = externalViewMode ?? internalView;
   const scrollYRef = useRef(0);
@@ -254,6 +222,8 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
   const [conflictItem, setConflictItem] = useState<ConflictItem | null>(null);
   const role = useRole();
   const canEdit = canEditSchedule(role) && !isReadOnly;
+  const router = useRouter();
+  const toast = useToast();
 
   const fabActions = canEdit ? [
     {
@@ -283,31 +253,37 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
   };
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col pt-1">
       <div className="flex items-center justify-end px-4 pt-3 pb-2">
-        <div className="flex items-center gap-1 rounded-lg bg-surface-container-low p-1" aria-label="Chọn chế độ xem">
+        <div
+          role="group"
+          aria-label="Chọn chế độ xem"
+          className="flex items-center gap-1 rounded-lg bg-surface-container-low p-1"
+        >
           <button
             type="button"
             onClick={() => setView("calendar")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm font-medium transition-all ${
+            aria-pressed={view === "calendar"}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               view === "calendar"
                 ? "bg-surface-container-lowest text-primary shadow-sm"
                 : "text-on-surface-variant hover:text-on-surface"
             }`}
           >
-            <i className="material-symbols-outlined text-[16px] select-none leading-none" aria-hidden="true">calendar_month</i>
+            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">calendar_month</span>
             Lịch biểu
           </button>
           <button
             type="button"
             onClick={() => setView("table")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm font-medium transition-all ${
+            aria-pressed={view === "table"}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               view === "table"
                 ? "bg-surface-container-lowest text-primary shadow-sm"
                 : "text-on-surface-variant hover:text-on-surface"
             }`}
           >
-            <i className="material-symbols-outlined text-[16px] select-none leading-none" aria-hidden="true">table</i>
+            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">table</span>
             Bảng dữ liệu
           </button>
         </div>
@@ -345,6 +321,8 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
             onStaffFilterChange={onStaffFilterChange}
             onSpecialtyFilterChange={onSpecialtyFilterChange}
             onViewDetail={onViewDetail}
+            selectedTab={selectedTab}
+            onFilterTypeChange={onFilterTypeChange}
             hideFilters={isReadOnly || hideFilters}
           />
         ) : (
@@ -386,7 +364,7 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
       />
       )}
 
-      {/* Edit Modal */}
+      {/* Edit Modal — redirects to detail page for full editing */}
       {!isReadOnly && (
         <Modal
           open={!!editSchedule}
@@ -407,49 +385,42 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
                   <span className="text-label-md text-on-surface font-medium">{editSchedule.staff.fullName}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-label-sm text-on-surface-variant">Ngay</span>
+                  <span className="text-label-sm text-on-surface-variant">Ngày</span>
                   <span className="text-label-md text-on-surface font-medium">{new Date(editSchedule.workDate).toLocaleDateString("vi-VN")}</span>
                 </div>
               </div>
-              <ModalFooter>
-                <button
-                  type="button"
-                  onClick={() => setEditSchedule(null)}
-                  className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  disabled={editing}
-                  onClick={async () => {
-                    if (!editSchedule) return;
-                    setEditing(true);
-                    try {
-                      await api.put(`/schedules/${editSchedule.id}`, {
-                        periodId: editSchedule.periodId,
-                        workDate: editSchedule.workDate,
-                        staffId: editSchedule.staff.id,
-                        shiftTypeId: editSchedule.shiftType.id,
-                      });
-                      setEditSchedule(null);
-                      onRefresh?.();
-                    } catch {
-                      setEditing(false);
-                      setEditSchedule(null);
-                    } finally {
-                      setEditing(false);
-                    }
-                  }}
-                  className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-md hover:bg-primary/90 transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  {editing ? (
-                    <><div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Đang xử lý…</>
-                  ) : (
-                    <>Lưu thay đổi</>
-                  )}
-                </button>
-              </ModalFooter>
+              <div className="bg-primary-fixed/30 rounded-lg border border-primary/20 px-4 py-3 text-label-sm text-on-primary-fixed-variant">
+                <span className="material-symbols-outlined text-[16px] align-text-bottom mr-1">info</span>
+                Chỉnh sửa chi tiết tại trang chuyên biệt — nơi có đầy đủ form và ràng buộc.
+              </div>
+            <ModalFooter>
+              <Button type="button" variant="secondary" onClick={() => setEditSchedule(null)}>
+                Hủy
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                loading={editing}
+                onClick={async () => {
+                  if (!editSchedule) return;
+                  setEditing(true);
+                  try {
+                    // Delete the schedule (same as QuickScheduleModal flow — clear slot, re-create)
+                    await api.delete(`/schedules/${editSchedule.id}`);
+                    toast.success("Đã xóa ca trực. Tạo lại với thông tin mới tại form bên dưới.");
+                    setEditSchedule(null);
+                    onRefresh?.();
+                    // Open quick add pre-filled
+                    setQuickOpen(true);
+                  } catch {
+                    toast.error("Không thể xóa ca trực. Vui lòng thử lại.");
+                    setEditing(false);
+                  }
+                }}
+              >
+                Xóa & Tạo mới
+              </Button>
+            </ModalFooter>
             </div>
           )}
         </Modal>
@@ -469,25 +440,17 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
               Bạn có chắc muốn xóa ca trực này? Hành động này không thể hoàn tác.
             </p>
             <ModalFooter>
-              <button
-                type="button"
-                onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
+              <Button type="button" variant="secondary" onClick={() => setDeleteConfirm(null)}>
                 Hủy
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                disabled={deleting}
+                variant="danger"
+                loading={deleting}
                 onClick={confirmDelete}
-                className="px-4 py-2 rounded-lg bg-error text-on-error text-label-md hover:bg-error/90 transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                {deleting ? (
-                  <><div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Đang xóa…</>
-                ) : (
-                  <>Xóa</>
-                )}
-              </button>
+                Xóa
+              </Button>
             </ModalFooter>
           </div>
         </Modal>

@@ -5,12 +5,13 @@ import type { Schedule } from "@/types/api";
 const baseSchedule = (overrides: Partial<Schedule> = {}): Schedule => ({
   id: 1,
   periodId: 1,
-  staff: { id: 1, fullName: "Nguyễn Văn A", specialtyId: null, specialtyName: null },
+  staff: { id: 1, fullName: "Nguyễn Văn A", specialtyName: null },
   shiftType: { id: "L01", name: "Trực 24/24", isOvernight: true },
   workDate: "2026-06-15T00:00:00",
   notes: null,
   hasConflict: false,
-  isPublished: false,
+  createdAt: "",
+  updatedAt: "",
   ...overrides,
 });
 
@@ -64,7 +65,7 @@ describe("buildCalendar", () => {
   });
 
   it("staffCode lấy 3 ký tự đầu của họ (giữ nguyên dấu)", () => {
-    const schedules = [baseSchedule({ staff: { id: 1, fullName: "Trần Thị Bích", specialtyId: null, specialtyName: null } })];
+    const schedules = [baseSchedule({ staff: { id: 1, fullName: "Trần Thị Bích", specialtyName: null } })];
     const { cells } = buildCalendar(schedules, [], 2026, 5);
     const cell = cells.find((c) => c.items.length > 0);
     // Hàm không loại bỏ dấu; tên "Bích" → "BÍC" viết hoa

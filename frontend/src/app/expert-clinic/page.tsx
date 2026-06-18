@@ -9,6 +9,7 @@ import { useRole, canManage } from "@/hooks/useRole";
 import { api } from "@/lib/api";
 import { getInitialCalendar } from "@/components/monthly-schedule/utils";
 import type { Schedule, Specialty, CompensationDay, SchedulePeriod, Staff } from "@/types/api";
+import type { ScheduleTab, ViewMode } from "@/components/monthly-schedule/types";
 
 export default function ExpertClinicPage() {
   const role = useRole();
@@ -24,6 +25,8 @@ export default function ExpertClinicPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [addModalDate, setAddModalDate] = useState<Date | null>(null);
+  const [selectedTab, setSelectedTab] = useState<ScheduleTab>("ALL");
+  const [viewMode, setViewMode] = useState<ViewMode>("calendar");
 
   const loadBaseData = useCallback(async () => {
     try {
@@ -109,9 +112,10 @@ export default function ExpertClinicPage() {
       {/* Period + Specialty selector */}
       <section className="flex flex-wrap items-end gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
         <div className="min-w-[200px]">
-          <label className="mb-1.5 block text-label-sm text-on-surface-variant">Kỳ lịch</label>
+          <label htmlFor="expert-period-select" className="mb-1.5 block text-label-sm text-on-surface-variant">Kỳ lịch</label>
           <div className="relative">
             <select
+              id="expert-period-select"
               className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
               value={selectedPeriodId ?? ""}
               onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
@@ -127,9 +131,10 @@ export default function ExpertClinicPage() {
           </div>
         </div>
         <div className="min-w-[200px]">
-          <label className="mb-1.5 block text-label-sm text-on-surface-variant">Chuyên khoa</label>
+          <label htmlFor="expert-specialty-filter" className="mb-1.5 block text-label-sm text-on-surface-variant">Chuyên khoa</label>
           <div className="relative">
             <select
+              id="expert-specialty-filter"
               className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
               value={selectedSpecialtyId ?? ""}
               onChange={(e) => setSelectedSpecialtyId(e.target.value ? Number(e.target.value) : null)}
@@ -141,7 +146,7 @@ export default function ExpertClinicPage() {
                 </option>
               ))}
             </select>
-            <span className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]">expand_more</span>
+            <span aria-hidden="true" className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]">expand_more</span>
           </div>
         </div>
         {isManager && (
@@ -159,10 +164,10 @@ export default function ExpertClinicPage() {
       {/* Stats */}
       <section className="grid gap-3 grid-cols-2 sm:grid-cols-4">
         {[
-          { label: "Tổng ca PK Chuyên gia", value: schedules.length, icon: "stethoscope", accent: "bg-purple-50 text-purple-700" },
-          { label: "Chuyên khoa", value: specialties.length, icon: "local_hospital", accent: "bg-blue-50 text-blue-700" },
-          { label: "Nhân sự tham gia", value: new Set(schedules.map((s) => s.staff.id)).size, icon: "groups", accent: "bg-green-50 text-green-700" },
-          { label: "Xung đột", value: schedules.filter((s) => s.hasConflict).length, icon: "warning", accent: "bg-red-50 text-red-700" },
+          { label: "Tổng ca PK Chuyên gia", value: schedules.length, icon: "stethoscope", accent: "bg-[var(--color-shift-expert)]/10 text-[var(--color-on-shift-expert)]" },
+          { label: "Chuyên khoa", value: specialties.length, icon: "local_hospital", accent: "bg-[var(--color-primary)]/10 text-[var(--color-primary)]" },
+          { label: "Nhân sự tham gia", value: new Set(schedules.map((s) => s.staff.id)).size, icon: "groups", accent: "bg-[var(--color-shift-all-day)]/10 text-[var(--color-on-shift-all-day)]" },
+          { label: "Xung đột", value: schedules.filter((s) => s.hasConflict).length, icon: "warning", accent: "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]" },
         ].map((kpi) => (
           <div key={kpi.label} className={`rounded-xl border border-outline-variant p-4 ${kpi.accent}`}>
             <p className="text-label-sm opacity-80 mb-1">{kpi.label}</p>
@@ -191,7 +196,8 @@ export default function ExpertClinicPage() {
           selectedPeriodId={selectedPeriodId}
           initialYear={initialCalendar.year}
           initialMonth={initialCalendar.month}
-          viewMode="calendar"
+          viewMode={viewMode}
+          selectedTab={selectedTab}
           compensationDays={compensationDays}
           onRefresh={handleRefresh}
           onFocusDate={() => {}}
@@ -199,7 +205,8 @@ export default function ExpertClinicPage() {
           onStaffFilterChange={() => {}}
           onSpecialtyFilterChange={setSelectedSpecialtyId}
           onViewDetail={() => {}}
-          onViewModeChange={() => {}}
+          onViewModeChange={setViewMode}
+          onFilterTypeChange={(filter: string) => setSelectedTab(filter as ScheduleTab)}
         />
       )}
 

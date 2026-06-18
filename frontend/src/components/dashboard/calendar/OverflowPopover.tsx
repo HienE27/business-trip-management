@@ -30,11 +30,6 @@ export function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, on
     return () => document.removeEventListener("mousedown", handleClick);
   }, [onClose]);
 
-  const wrap = (fn: (s: Schedule) => void) => (s: Schedule) => {
-    fn(s);
-    onClose();
-  };
-
   return (
     <div
       ref={ref}
@@ -65,20 +60,20 @@ export function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, on
                 <span className="material-symbols-outlined text-error text-[14px] shrink-0" title="Xung đột">warning</span>
               )}
               <div className="flex gap-1 shrink-0">
-                <button type="button" onClick={wrap(onViewDetail)} className="p-1 rounded hover:bg-surface-container-high transition-colors" aria-label="Xem chi tiết">
+                <button type="button" onClick={() => { onViewDetail(item.schedule); onClose(); }} className="p-1 rounded hover:bg-surface-container-high transition-colors" aria-label="Xem chi tiết">
                   <span className="material-symbols-outlined text-[14px] text-on-surface-variant">visibility</span>
                 </button>
                 {canEdit && (
                   <>
-                    <button type="button" onClick={wrap(onEdit)} className="p-1 rounded hover:bg-surface-container-high transition-colors" aria-label="Chỉnh sửa">
+                    <button type="button" onClick={() => { onEdit(item.schedule); onClose(); }} className="p-1 rounded hover:bg-surface-container-high transition-colors" aria-label="Chỉnh sửa">
                       <span className="material-symbols-outlined text-[14px] text-on-surface-variant">edit</span>
                     </button>
                     {s.hasConflict && (
-                      <button type="button" onClick={wrap(onResolve)} className="p-1 rounded hover:bg-error-container/30 transition-colors" aria-label="Xử lý xung đột">
+                      <button type="button" onClick={() => { onResolve(item.schedule); onClose(); }} className="p-1 rounded hover:bg-error-container/30 transition-colors" aria-label="Xử lý xung đột">
                         <span className="material-symbols-outlined text-[14px] text-error">warning</span>
                       </button>
                     )}
-                    <button type="button" onClick={wrap(onDelete)} className="p-1 rounded hover:bg-error-container/30 transition-colors" aria-label="Xóa">
+                    <button type="button" onClick={() => { onDelete(item.schedule); onClose(); }} className="p-1 rounded hover:bg-error-container/30 transition-colors" aria-label="Xóa">
                       <span className="material-symbols-outlined text-[14px] text-error">delete</span>
                     </button>
                   </>

@@ -22,6 +22,7 @@ export const SHIFT_TYPE_LABELS: Record<ScheduleTab, string> = {
   L02: "Thông tầm",
   L03: "Phòng khám DV",
   L04: "Phòng khám CG",
+  ALL: "Tất cả",
 };
 
 export const ALGORITHM_OPTIONS = [
