@@ -3,6 +3,10 @@ import type { NavigationItem } from "@/types/schedule";
 export type AppSectionKey =
   | "dashboard"
   | "monthly-schedule"
+  | "duty-24"
+  | "all-day"
+  | "service-clinic"
+  | "expert-clinic"
   | "staff"
   | "leave-requests"
   | "shift-swaps"
@@ -11,8 +15,7 @@ export type AppSectionKey =
   | "holidays"
   | "notifications"
   | "audit-history"
-  | "settings"
-  | "expert-clinic";
+  | "settings";
 
 export type AppSectionDefinition = {
   key: AppSectionKey;
@@ -38,11 +41,32 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     description: "Điều phối kỳ lịch theo workflow: auto schedule, conflict check, review, publish và export.",
   },
   {
+    key: "duty-24",
+    label: "Lịch trực 24/24",
+    href: "/duty-24",
+    icon: "emergency",
+    description: "M02 — Xếp lịch trực 24/24 theo tháng. Hệ thống tự động tính ngày nghỉ bù sau ca trực.",
+  },
+  {
+    key: "all-day",
+    label: "Lịch thông tầm",
+    href: "/all-day",
+    icon: "schedule",
+    description: "M03 — Xếp lịch thông tầm theo tháng. Ca liên tục không nghỉ trưa, không trùng lịch trực 24/24.",
+  },
+  {
+    key: "service-clinic",
+    label: "Lịch PK dịch vụ",
+    href: "/service-clinic",
+    icon: "medical_services",
+    description: "M04 — Xếp lịch phòng khám dịch vụ theo tháng. Không trùng lịch phòng khám chuyên gia.",
+  },
+  {
     key: "expert-clinic",
-    label: "Phòng khám chuyên gia",
+    label: "Lịch PK chuyên gia",
     href: "/expert-clinic",
     icon: "stethoscope",
-    description: "Lịch khám chuyên gia theo chuyên khoa và phân công ca khám chuyên sâu.",
+    description: "M05 — Xếp lịch phòng khám chuyên gia theo chuyên khoa. Lọc theo Ngoại, Nội, Sản, Nhi, Mắt, Răng…",
   },
   {
     key: "auto-scheduling",
@@ -115,10 +139,10 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/staff": "staff",
   "/staff/create": "staff",
   "/staff/profile": "staff",
-  "/duty-24": "monthly-schedule",
-  "/all-day": "monthly-schedule",
-  "/service-clinic": "monthly-schedule",
-  "/expert-clinic": "monthly-schedule",
+  "/duty-24": "duty-24",
+  "/all-day": "all-day",
+  "/service-clinic": "service-clinic",
+  "/expert-clinic": "expert-clinic",
   "/schedule-summary": "monthly-schedule",
   "/auto-scheduling": "auto-scheduling",
   "/conflict-check": "monthly-schedule",
