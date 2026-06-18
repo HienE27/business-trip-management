@@ -2,85 +2,31 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import type { Schedule } from "@/types/api";
-import type { ScheduleTone } from "@/types/schedule";
+import { EmptyState } from "@/components/ui/EmptyState";
+import {
+  addDays,
+  formatFullDate,
+  getStaffCode,
+  MAX_VISIBLE_GROUPS,
+  shiftTypeToTone,
+  SHIFT_SHORT,
+  summarizeItems,
+  TONE,
+  WEEKDAYS,
+  weekStartOf,
+  type CalendarAnnotation,
+  type CalendarCell,
+  type CalendarItem,
+  type CalendarViewMode,
+} from "./calendar/constants";
+import { buildCalendar, buildWeekCells } from "./calendar/buildCalendar";
+import { MobileHint } from "./calendar/MobileHint";
+import { EventTooltip, type TooltipData } from "./calendar/EventTooltip";
+import { OverflowPopover } from "./calendar/OverflowPopover";
+import { CalendarToolbar } from "./calendar/CalendarToolbar";
 
-// ─── Color tokens — Material-like design system ─────────────────────────────────
-const TONE: Record<ScheduleTone, {
-  bg: string;
-  text: string;
-  border: string;
-  dot: string;
-}> = {
-  duty24:       { bg: "bg-shift-24",       text: "text-on-shift-24",       border: "border-l-primary",       dot: "bg-primary" },
-  allDay:       { bg: "bg-shift-all-day", text: "text-on-shift-all-day", border: "border-l-secondary",    dot: "bg-secondary" },
-  serviceClinic:{ bg: "bg-shift-service", text: "text-on-shift-service", border: "border-l-tertiary",    dot: "bg-tertiary" },
-  expertClinic: { bg: "bg-shift-expert", text: "text-on-shift-expert", border: "border-l-shift-expert", dot: "bg-shift-expert" },
-  compLeave:    { bg: "bg-surface-container-high", text: "text-on-surface-variant", border: "border-l-outline", dot: "bg-outline" },
-  warning:      { bg: "bg-tertiary-fixed", text: "text-on-tertiary-fixed", border: "border-l-tertiary", dot: "bg-tertiary" },
-  conflict:     { bg: "bg-error-container", text: "text-on-error-container", border: "border-l-error", dot: "bg-error" },
-  neutral:      { bg: "bg-surface-container-low", text: "text-on-surface-variant", border: "border-l-outline", dot: "bg-outline" },
-  empty:        { bg: "", text: "", border: "", dot: "" },
-};
-
-const SHIFT_SHORT: Record<string, string> = {
-  L01: "24/24",
-  L02: "TT",
-  L03: "DV",
-  L04: "CG",
-};
-
-const MAX_VISIBLE_GROUPS = 2;
-const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"] as const;
-
-const SHIFT_FULL_LABEL: Record<string, string> = {
-  L01: "Trực 24/24",
-  L02: "Thông tầm",
-  L03: "PK dịch vụ",
-  L04: "PK chuyên gia",
-};
-
-const SHIFT_ORDER: Record<string, number> = {
-  L01: 1,
-  L02: 2,
-  L03: 3,
-  L04: 4,
-};
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-type CalendarItem = {
-  shiftLabel: string;   // "24/24"
-  staffName: string;    // "Nguyen Van A"
-  staffCode: string;    // "NV1"
-  tone: ScheduleTone;
-  shiftTypeId: string;
-  isOvernight: boolean;  // true for L01
-  schedule: Schedule;
-};
-
-export type CalendarAnnotationTone = "compLeave" | "warning" | "neutral";
-
-export type CalendarAnnotation = {
-  date: string;
-  label: string;
-  tone?: CalendarAnnotationTone;
-  description?: string;
-  isCompensation?: boolean;
-  locked?: boolean;
-  coverage?: { required: number; assigned: number };
-  coverageShiftTypeId?: string;
-};
-
-type CalendarCell = {
-  day: number;
-  isWeekend: boolean;
-  isCurrentMonth: boolean;
-  hasConflict: boolean;
-  isCompensation: boolean;
-  items: CalendarItem[];
-  annotations: CalendarAnnotation[];
-  dateStr: string;
-  date: Date;
-};
+// ─── Tooltip ─────────────────────────────────────────────────────────────────
+// Sub-components (MobileHint, EventTooltip, OverflowPopover) đã được tách ra folder ./calendar/.
 
 type DashboardCalendarProps = {
   schedules?: Schedule[];
@@ -102,386 +48,16 @@ type DashboardCalendarProps = {
   onSpecialtyFilterChange?: (specialtyId: number | null) => void;
   /** Khi true: ẩn toolbar filter (dashboard read-only). */
   hideFilters?: boolean;
+  /** Tab hiện tại (L01..L04 / ALL). Khi truyền, dùng để sync active state của chip filter. */
+  selectedTab?: string;
+  /** Callback khi user click chip filter. Khi truyền, click chip sẽ gọi callback này thay vì set state nội bộ. */
+  onFilterTypeChange?: (filter: string) => void;
 };
-
-export type CalendarViewMode = "month" | "week";
-
-function getStaffCode(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
-  const last = parts[parts.length - 1];
-  return last.slice(0, 3).toUpperCase();
-}
-
-function shiftTypeToTone(id: string): ScheduleTone {
-  switch (id) {
-    case "L01": return "duty24";
-    case "L02": return "allDay";
-    case "L03": return "serviceClinic";
-    case "L04": return "expertClinic";
-    default:    return "neutral";
-  }
-}
-
-function summarizeItems(items: CalendarItem[]) {
-  const map = new Map<string, { shiftTypeId: string; label: string; count: number; tone: ScheduleTone }>();
-  for (const item of items) {
-    const current = map.get(item.shiftTypeId) ?? {
-      shiftTypeId: item.shiftTypeId,
-      label: SHIFT_FULL_LABEL[item.shiftTypeId] ?? item.shiftLabel,
-      count: 0,
-      tone: item.tone,
-    };
-    current.count += 1;
-    map.set(item.shiftTypeId, current);
-  }
-  return Array.from(map.values()).sort((a, b) => (SHIFT_ORDER[a.shiftTypeId] ?? 99) - (SHIFT_ORDER[b.shiftTypeId] ?? 99));
-}
-
-function formatFullDate(date: Date) {
-  return date.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-// ─── Data computation ─────────────────────────────────────────────────────────
-function buildCalendar(schedules: Schedule[], annotations: CalendarAnnotation[] = [], year: number, month: number) {
-  const firstDay = new Date(year, month, 1);
-  const lastDay  = new Date(year, month + 1, 0);
-  const startDayOfWeek = (firstDay.getDay() + 6) % 7;
-  const daysInMonth = lastDay.getDate();
-
-  const prevMonth = month === 0 ? 12 : month;
-  const prevYear  = month === 0 ? year - 1 : year;
-  const prevMonthLastDay = new Date(prevYear, prevMonth, 0).getDate();
-
-  const prevDays: number[] = [];
-  for (let i = startDayOfWeek - 1; i >= 0; i--) prevDays.push(prevMonthLastDay - i);
-
-  const totalCells = prevDays.length + daysInMonth;
-  const remaining  = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-
-  const scheduleMap = new Map<string, Schedule[]>();
-  for (const s of schedules) {
-    const key = s.workDate.split("T")[0];
-    if (!scheduleMap.has(key)) scheduleMap.set(key, []);
-    scheduleMap.get(key)!.push(s);
-  }
-
-  const annotationMap = new Map<string, CalendarAnnotation[]>();
-  for (const annotation of annotations) {
-    const key = annotation.date;
-    if (!annotationMap.has(key)) annotationMap.set(key, []);
-    annotationMap.get(key)!.push(annotation);
-  }
-
-  const fmt = (y: number, m: number, d: number) =>
-    `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-
-  const cells: CalendarCell[] = [];
-
-  const isCompDay = (anns: CalendarAnnotation[]) =>
-    anns.some((a) => a.tone === "compLeave" || a.isCompensation);
-
-  for (const d of prevDays) {
-    const m = prevMonth - 1;
-    const y = m < 0 ? prevYear - 1 : prevYear;
-    const mm = m < 0 ? 11 : m;
-    const dateStr = fmt(y, mm, d);
-    const dow = new Date(y, mm, d).getDay();
-    const anns = annotationMap.get(dateStr) ?? [];
-    cells.push({
-      day: d,
-      isWeekend: dow === 0 || dow === 6,
-      isCurrentMonth: false,
-      hasConflict: false,
-      isCompensation: isCompDay(anns),
-      items: [],
-      annotations: anns,
-      dateStr,
-      date: new Date(y, mm, d),
-    });
-  }
-
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = fmt(year, month, d);
-    const daySchedules = scheduleMap.get(dateStr) ?? [];
-    const hasConflict  = daySchedules.some((s) => s.hasConflict);
-    const anns = annotationMap.get(dateStr) ?? [];
-    const items: CalendarItem[] = daySchedules.map((s) => ({
-      shiftLabel:  SHIFT_SHORT[s.shiftType.id] ?? s.shiftType.id,
-      staffName:   s.staff.fullName,
-      staffCode:   getStaffCode(s.staff.fullName),
-      tone:        shiftTypeToTone(s.shiftType.id),
-      shiftTypeId: s.shiftType.id,
-      isOvernight: s.shiftType.id === "L01",
-      schedule:    s,
-    }));
-    cells.push({
-      day: d,
-      isWeekend: false,
-      isCurrentMonth: true,
-      hasConflict,
-      isCompensation: isCompDay(anns),
-      items,
-      annotations: anns,
-      dateStr,
-      date: new Date(year, month, d),
-    });
-  }
-
-  for (let d = 1; d <= remaining; d++) {
-    const nm = month === 11 ? 0 : month + 1;
-    const ny = month === 11 ? year + 1 : year;
-    const dateStr = fmt(ny, nm, d);
-    const dow = new Date(ny, nm, d).getDay();
-    const anns = annotationMap.get(dateStr) ?? [];
-    cells.push({
-      day: d,
-      isWeekend: dow === 0 || dow === 6,
-      isCurrentMonth: false,
-      hasConflict: false,
-      isCompensation: isCompDay(anns),
-      items: [],
-      annotations: anns,
-      dateStr,
-      date: new Date(ny, nm, d),
-    });
-  }
-
-  const monthName = new Date(year, month, 1).toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
-  return {
-    month: monthName.charAt(0).toUpperCase() + monthName.slice(1),
-    cells,
-    today: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()),
-  };
-}
-
-// ─── Tooltip ─────────────────────────────────────────────────────────────────
-type TooltipData = {
-  x: number;
-  y: number;
-  item: CalendarItem;
-};
-
-function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, canEdit }: {
-  data: TooltipData;
-  onEdit: (s: Schedule) => void;
-  onDelete: (s: Schedule) => void;
-  onResolve: (s: Schedule) => void;
-  onViewDetail: (s: Schedule) => void;
-  canEdit: boolean;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const vp = window.innerWidth;
-    if (rect.right > vp - 8) el.style.left = "auto";
-    if (rect.bottom > window.innerHeight - 8) el.style.top = "auto";
-  }, []);
-
-  const s = data.item.schedule;
-  const t = TONE[data.item.tone];
-
-  return (
-    <div
-      ref={ref}
-      className="fixed z-[100] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl p-4 w-64 pointer-events-auto"
-      style={{ left: data.x + 8, top: data.y + 8 }}
-      role="tooltip"
-    >
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-3">
-        <div className={`w-8 h-8 rounded-full ${t.bg} flex items-center justify-center`}>
-          <span className={`material-symbols-outlined text-sm ${t.text}`}>schedule</span>
-        </div>
-        <div>
-          <p className={`text-label-lg font-semibold ${t.text}`}>{s.shiftType.name}</p>
-          <p className="text-label-sm text-on-surface-variant">{data.item.shiftLabel}</p>
-        </div>
-        {s.hasConflict && (
-          <span className="ml-auto material-symbols-outlined text-error text-[18px]" title="Xung đột">warning</span>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="space-y-1.5 mb-3 text-label-sm">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[14px] text-on-surface-variant w-4">person</span>
-          <span className="text-on-surface">{s.staff.fullName}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[14px] text-on-surface-variant w-4">event</span>
-          <span className="text-on-surface">
-            {new Date(s.workDate).toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}
-          </span>
-        </div>
-        {s.notes && (
-          <div className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-[14px] text-on-surface-variant w-4 mt-0.5">notes</span>
-            <span className="text-on-surface-variant">{s.notes}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="flex gap-2 pt-2 border-t border-outline-variant">
-        <button
-          type="button"
-          onClick={() => onViewDetail(s)}
-          className="flex-1 px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container-low text-on-surface hover:bg-surface-container-high transition-colors"
-        >
-          <span className="flex items-center justify-center gap-1.5">
-            <span className="material-symbols-outlined text-[16px]">visibility</span>
-            Xem chi tiet
-          </span>
-        </button>
-        {canEdit && (
-          <button
-            type="button"
-            onClick={() => onEdit(s)}
-            className="flex-1 px-3 py-1.5 rounded-lg text-label-sm font-medium bg-primary text-on-primary hover:bg-primary/90 transition-colors"
-          >
-            Chinh sua
-          </button>
-        )}
-        {canEdit && s.hasConflict && (
-          <button
-            type="button"
-            onClick={() => onResolve(s)}
-            className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-error text-on-error hover:bg-error/90 transition-colors"
-          >
-            Xu ly
-          </button>
-        )}
-        {canEdit && (
-          <button
-            type="button"
-            onClick={() => onDelete(s)}
-            className="px-3 py-1.5 rounded-lg text-label-sm font-medium border border-outline-variant text-on-surface hover:bg-surface-container-low transition-colors"
-          >
-            Xoa
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Overflow Popover ─────────────────────────────────────────────────────────
-function OverflowPopover({ items, anchor, onEdit, onDelete, onResolve, onViewDetail, canEdit }: {
-  items: CalendarItem[];
-  anchor: { x: number; y: number };
-  onEdit: (s: Schedule) => void;
-  onDelete: (s: Schedule) => void;
-  onResolve: (s: Schedule) => void;
-  onViewDetail: (s: Schedule) => void;
-  canEdit: boolean;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(true);
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setVisible(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  if (!visible) return null;
-
-  const handleEdit = (s: Schedule) => { onEdit(s); setVisible(false); };
-  const handleDelete = (s: Schedule) => { onDelete(s); setVisible(false); };
-  const handleResolve = (s: Schedule) => { onResolve(s); setVisible(false); };
-  const handleViewDetail = (s: Schedule) => { onViewDetail(s); setVisible(false); };
-
-  return (
-    <div
-      ref={ref}
-      className="fixed z-[90] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl w-72 max-h-80 overflow-y-auto"
-      style={{ left: Math.min(anchor.x, window.innerWidth - 300), top: Math.min(anchor.y, window.innerHeight - 350) }}
-      role="dialog"
-      aria-label="Danh sách lịch trong ngày"
-    >
-      <div className="p-3 border-b border-outline-variant sticky top-0 bg-surface-container-lowest">
-        <p className="text-label-md font-semibold text-on-surface">
-          Chi tiết ngày ({items.length})
-        </p>
-      </div>
-      <div className="p-2 space-y-1">
-        {items.map((item, i) => {
-          const t = TONE[item.tone];
-          const s = item.schedule;
-          return (
-            <div key={`${item.schedule.id}-${i}`} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border-l-2 ${t.bg} ${t.border}`}>
-              <div className={`w-6 h-6 rounded-full ${t.bg} flex items-center justify-center shrink-0`}>
-                <span className={`text-label-sm font-bold ${t.text}`}>{item.staffCode}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-label-sm font-medium ${t.text} truncate`}>{item.staffName}</p>
-                <p className="text-label-sm text-on-surface-variant">{item.shiftLabel}</p>
-              </div>
-              {s.hasConflict && (
-                <span key={`conflict-${s.id}`} className="material-symbols-outlined text-error text-[14px] shrink-0" title="Xung đột">warning</span>
-              )}
-              <div className="flex gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleViewDetail(s)}
-                  className="p-1 rounded hover:bg-surface-container-high transition-colors"
-                  aria-label="Xem chi tiết"
-                >
-                  <span className="material-symbols-outlined text-[14px] text-on-surface-variant">visibility</span>
-                </button>
-                {canEdit && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleEdit(s)}
-                      className="p-1 rounded hover:bg-surface-container-high transition-colors"
-                      aria-label="Chỉnh sửa"
-                    >
-                      <span className="material-symbols-outlined text-[14px] text-on-surface-variant">edit</span>
-                    </button>
-                    {s.hasConflict && (
-                      <button
-                        type="button"
-                        onClick={() => handleResolve(s)}
-                        className="p-1 rounded hover:bg-error-container/30 transition-colors"
-                        aria-label="Xử lý xung đột"
-                      >
-                        <span className="material-symbols-outlined text-[14px] text-error">warning</span>
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(s)}
-                      className="p-1 rounded hover:bg-error-container/30 transition-colors"
-                      aria-label="Xóa"
-                    >
-                      <span className="material-symbols-outlined text-[14px] text-error">delete</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ─── Main Calendar ────────────────────────────────────────────────────────────
 export function DashboardCalendar({
   schedules = [],
   annotations = [],
   coverages = {},
-  staffList = [],
-  staffFilter: externalStaffFilter,
-  specialtyList = [],
-  specialtyFilter: externalSpecialtyFilter,
   initialYear,
   initialMonth,
   onEditSchedule,
@@ -490,41 +66,57 @@ export function DashboardCalendar({
   onViewDetail,
   onDayClick,
   onAddClick,
-  onStaffFilterChange,
-  onSpecialtyFilterChange,
   hideFilters = false,
+  selectedTab,
+  onFilterTypeChange,
 }: DashboardCalendarProps) {
   const [filterType, setFilterType] = useState<string>("all");
-  const [internalStaffFilter, setInternalStaffFilter] = useState<number | null>(null);
-  const [internalSpecialtyFilter, setInternalSpecialtyFilter] = useState<number | null>(null);
-  const staffFilter = externalStaffFilter === undefined ? internalStaffFilter : externalStaffFilter;
-  const specialtyFilter = externalSpecialtyFilter === undefined ? internalSpecialtyFilter : externalSpecialtyFilter;
+  const activeFilter = selectedTab ?? filterType;
+  const setActiveFilter = onFilterTypeChange ?? setFilterType;
   const [currentYear, setCurrentYear] = useState(() => initialYear ?? new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => initialMonth ?? new Date().getMonth());
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => weekStartOf(new Date()));
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [overflow, setOverflow] = useState<{ items: CalendarItem[]; anchor: { x: number; y: number } } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  // Roving tabindex: track focused cell index for arrow-key navigation
+  const [focusedCellIndex, setFocusedCellIndex] = useState(0);
   const calendarRef = useRef<HTMLDivElement>(null);
+  const cellRefs = useRef<Map<number, HTMLElement>>(new Map());
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   const filteredSchedules = useMemo(() => {
-    let result = filterType === "all" ? schedules : schedules.filter((s) => s.shiftType.id === filterType);
-    if (staffFilter !== null) {
-      result = result.filter((s) => s.staff.id === staffFilter);
-    }
-    if (specialtyFilter !== null) {
-      result = result.filter((s) => s.staff.specialtyName != null && s.staff.specialtyName.includes(String(specialtyFilter)));
-    }
-    return result;
-  }, [schedules, filterType, staffFilter, specialtyFilter]);
+    const f = activeFilter;
+    if (!f || f === "all" || f === "ALL") return schedules;
+    return schedules.filter((s) => s.shiftType.id === f);
+  }, [schedules, activeFilter]);
 
-  const { cells, month, today } = useMemo(() => buildCalendar(filteredSchedules, annotations, currentYear, currentMonth), [annotations, filteredSchedules, currentYear, currentMonth]);
+  const { cells, today } = useMemo(() => buildCalendar(filteredSchedules, annotations, currentYear, currentMonth), [annotations, filteredSchedules, currentYear, currentMonth]);
 
-  // Close tooltip on scroll
+  // Reset focused cell when month/year changes
+  useEffect(() => {
+    setFocusedCellIndex(0);
+  }, [currentYear, currentMonth]);
+
+  // Close tooltip on scroll and Escape
   useEffect(() => {
     const handleScroll = () => setTooltip(null);
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") setTooltip(null); };
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, []);
 
   const handleMouseEnter = useCallback((e: React.MouseEvent, item: CalendarItem) => {
@@ -552,24 +144,26 @@ export function DashboardCalendar({
   }, [onAddClick, onDayClick]);
 
   const handleCellClick = useCallback((event: React.MouseEvent, cell: CalendarCell) => {
+    if (cell.isCompensation) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     openCell(cell, { x: event.clientX, y: event.clientY });
   }, [openCell]);
 
   const handleCellKeyDown = useCallback((event: React.KeyboardEvent, cell: CalendarCell) => {
     if (event.key !== "Enter" && event.key !== " ") return;
+    if (cell.isCompensation) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     openCell(cell);
   }, [openCell]);
 
   const isToday = (cell: CalendarCell) =>
     cell.date.getTime() === today.getTime();
-
-  const currentWeekStart = useMemo(() => {
-    const now = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const dow = (now.getDay() + 6) % 7; // Mon=0
-    now.setDate(now.getDate() - dow);
-    return now;
-  }, [today]);
 
   const weekCells = useMemo(() => {
     const start = new Date(currentWeekStart);
@@ -612,7 +206,7 @@ export function DashboardCalendar({
     return `${fmt(start)} – ${fmt(end)}`;
   }, [currentWeekStart]);
 
-  const navigateMonth = (direction: -1 | 1) => {
+  const navigateMonth = useCallback((direction: -1 | 1) => {
     const nm = direction === -1
       ? (currentMonth === 0 ? 11 : currentMonth - 1)
       : (currentMonth === 11 ? 0 : currentMonth + 1);
@@ -621,157 +215,77 @@ export function DashboardCalendar({
       : (currentMonth === 11 ? currentYear + 1 : currentYear);
     setCurrentMonth(nm);
     setCurrentYear(ny);
-  };
+  }, [currentMonth, currentYear]);
+
+  const goToToday = useCallback(() => {
+    const now = new Date();
+    setCurrentYear(now.getFullYear());
+    setCurrentMonth(now.getMonth());
+    setCurrentWeekStart(weekStartOf(now));
+  }, []);
+
+  // Show a brief skeleton when month changes to indicate work is happening
+  const [isSwitchingMonth, setIsSwitchingMonth] = useState(false);
+  useEffect(() => {
+    if (!isSwitchingMonth) return;
+    const t = setTimeout(() => setIsSwitchingMonth(false), 150);
+    return () => clearTimeout(t);
+  }, [isSwitchingMonth]);
+  useEffect(() => {
+    setIsSwitchingMonth(true);
+  }, [currentYear, currentMonth]);
+
+  // Keyboard shortcuts: ←/→ for prev/next month, Home for today
+  const calendarShortcutHandler = useCallback((e: KeyboardEvent) => {
+    const tag = (document.activeElement?.tagName ?? "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return;
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (viewMode === "week") setCurrentWeekStart((d) => addDays(d, -7));
+      else navigateMonth(-1);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      if (viewMode === "week") setCurrentWeekStart((d) => addDays(d, 7));
+      else navigateMonth(1);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      const now = new Date();
+      setCurrentYear(now.getFullYear());
+      setCurrentMonth(now.getMonth());
+      setCurrentWeekStart(weekStartOf(now));
+    } else if (e.key === "t" || e.key === "T") {
+      e.preventDefault();
+      setViewMode("month");
+    } else if (e.key === "w" || e.key === "W") {
+      e.preventDefault();
+      setViewMode("week");
+    }
+  }, [viewMode, navigateMonth]);
+
+  useEffect(() => {
+    document.addEventListener("keydown", calendarShortcutHandler);
+    return () => document.removeEventListener("keydown", calendarShortcutHandler);
+  }, [calendarShortcutHandler]);
 
   return (
     <section className="flex flex-col h-full" ref={calendarRef}>
-      {/* ── Toolbar ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-outline-variant bg-surface-container-low shrink-0 flex-wrap">
-        {/* Left: sidebar toggle + label + nav */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((v) => !v)}
-            className="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            aria-label={sidebarOpen ? "Ẩn sidebar" : "Hiện sidebar"}
-          >
-            <span className="material-symbols-outlined text-[20px]">{sidebarOpen ? "visibility_off" : "visibility"}</span>
-          </button>
+      <CalendarToolbar
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        monthLabel={monthLabel}
+        weekLabel={weekLabel}
+        onPrev={() => navigateMonth(-1)}
+        onNext={() => navigateMonth(1)}
+        onToday={goToToday}
+        activeFilter={activeFilter}
+        onFilterChange={setActiveFilter}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
+      />
 
-          <h3
-            className="text-title-lg text-on-surface font-semibold min-w-[180px]"
-            aria-live="polite"
-          >
-            {viewMode === "week" ? weekLabel : monthLabel}
-          </h3>
-
-          <div className="flex items-center bg-surface-container-low rounded-lg p-0.5 gap-0.5">
-            <button
-              type="button"
-              onClick={() => navigateMonth(-1)}
-              className="p-2 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              aria-label={viewMode === "week" ? "Tuần trước" : "Tháng trước"}
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { const now = new Date(); setCurrentYear(now.getFullYear()); setCurrentMonth(now.getMonth()); }}
-              className="px-3 py-2 rounded-md hover:bg-surface-container-high text-on-surface text-label-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset whitespace-nowrap"
-              aria-label=" Quay về hôm nay"
-            >
-              Hôm nay
-            </button>
-            <button
-              type="button"
-              onClick={() => navigateMonth(1)}
-              className="p-2 rounded-md hover:bg-surface-container-high text-on-surface-variant transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              aria-label={viewMode === "week" ? "Tuần sau" : "Tháng sau"}
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Right: filters + view toggle */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* View mode */}
-          <div className="flex items-center gap-1 bg-surface-container-low rounded-lg p-0.5">
-            {([
-              { value: "month" as CalendarViewMode, label: "Tháng", icon: "calendar_month" },
-              { value: "week" as CalendarViewMode, label: "Tuần", icon: "view_week" },
-            ]).map((v) => (
-              <button
-                key={v.value}
-                type="button"
-                onClick={() => setViewMode(v.value)}
-                aria-pressed={viewMode === v.value}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-label-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary whitespace-nowrap ${
-                  viewMode === v.value
-                    ? "bg-surface-container-lowest text-primary shadow-sm"
-                    : "text-on-surface-variant hover:text-on-surface"
-                }`}
-              >
-                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{v.icon}</span>
-                {v.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Filter chips */}
-          <div className="flex items-center gap-1 bg-surface-container-low rounded-lg p-0.5">
-            {[
-              { value: "all", label: "Tất cả" },
-              { value: "L01", label: "24/24", color: "bg-primary" },
-              { value: "L02", label: "TT", color: "bg-secondary" },
-              { value: "L03", label: "DV", color: "bg-tertiary" },
-              { value: "L04", label: "CG", color: "bg-expert" },
-            ].map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => setFilterType(f.value)}
-                aria-pressed={filterType === f.value}
-                aria-label={`Lọc theo loại lịch ${f.label}`}
-                className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md text-label-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary whitespace-nowrap ${
-                  filterType === f.value
-                    ? "bg-surface-container-lowest text-on-surface shadow-sm"
-                    : "text-on-surface-variant hover:text-on-surface"
-                }`}
-              >
-                {f.color && (
-                  <span className={`inline-block w-2 h-2 rounded-full ${f.color}`} aria-hidden="true" />
-                )}
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Staff filter */}
-          {!hideFilters && staffList.length > 0 && (
-            <div className="relative">
-              <select
-                className="h-10 pl-3 pr-8 bg-surface-container-low border border-outline-variant rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all max-w-[180px]"
-                value={staffFilter ?? ""}
-                onChange={(e) => {
-                  const val = e.target.value ? Number(e.target.value) : null;
-                  if (externalStaffFilter === undefined) setInternalStaffFilter(val);
-                  onStaffFilterChange?.(val);
-                }}
-                aria-label="Lọc theo nhân sự"
-              >
-                <option value="">Tất cả nhân sự</option>
-                {staffList.map((s) => (
-                  <option key={s.id} value={s.id}>{s.fullName}</option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px]" aria-hidden="true">expand_more</span>
-            </div>
-          )}
-
-          {/* Specialty filter */}
-          {!hideFilters && specialtyList.length > 0 && (
-            <div className="relative">
-              <select
-                className="h-10 pl-3 pr-8 bg-surface-container-low border border-outline-variant rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all max-w-[160px]"
-                value={specialtyFilter ?? ""}
-                onChange={(e) => {
-                  const val = e.target.value ? Number(e.target.value) : null;
-                  if (externalSpecialtyFilter === undefined) setInternalSpecialtyFilter(val);
-                  onSpecialtyFilterChange?.(val);
-                }}
-                aria-label="Lọc theo chuyên khoa"
-              >
-                <option value="">Tất cả chuyên khoa</option>
-                {specialtyList.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px]" aria-hidden="true">expand_more</span>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Mobile hint banner (first-time) */}
+      {isMobile && <MobileHint />}
 
       {/* ── Week View ─────────────────────────────────────────────────── */}
       {viewMode === "week" && (
@@ -805,13 +319,20 @@ export function DashboardCalendar({
                     onKeyDown={(event) => handleCellKeyDown(event, cell as unknown as CalendarCell)}
                     role="button"
                     tabIndex={cell.isCompensation ? -1 : 0}
-                    aria-label={`${formatFullDate(cell.date)}: ${cell.items.length} lịch, ${cell.annotations.length} ghi chú`}
+                    aria-label={
+                      cell.isCompensation
+                        ? `${formatFullDate(cell.date)}: ngày nghỉ bù (khóa)`
+                        : `${formatFullDate(cell.date)}: ${cell.items.length} lịch${cell.hasConflict ? ", có xung đột" : ""}${cell.annotations.length > 0 ? `, ${cell.annotations.length} ghi chú` : ""}`
+                    }
+                    aria-disabled={cell.isCompensation}
                     className={`
                       border-r border-b border-outline-variant flex flex-col
-                      min-h-[200px] cursor-pointer group relative
+                      min-h-[200px] group relative
                       transition-colors hover:bg-surface-container-low
+                      ${cell.isCompensation ? "cursor-not-allowed" : "cursor-pointer"}
                       ${cell.date.toDateString() === today.toDateString() ? "bg-primary/5" : ""}
                       ${cell.hasConflict ? "ring-2 ring-inset ring-error" : ""}
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary
                     `}
                   >
                     {/* Conflict indicator */}
@@ -838,7 +359,7 @@ export function DashboardCalendar({
                             className={`flex items-center gap-1 px-1.5 py-0.5 rounded border-l-2 min-h-[22px] max-h-[22px] overflow-hidden ${annTone.bg} ${annTone.border}`}
                           >
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${annTone.dot}`} />
-                            <span className={`text-label-sm font-semibold leading-none truncate ${annTone.text}`}>{ann.label}</span>
+                            <span className={`text-label-sm font-bold leading-tight truncate ${annTone.text}`}>{ann.label}</span>
                           </div>
                         );
                       })}
@@ -854,14 +375,14 @@ export function DashboardCalendar({
                             key={`week-item-${item.schedule.id}-${i}`}
                             onMouseEnter={(e) => handleMouseEnter(e, item)}
                             onMouseLeave={handleMouseLeave}
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border-l-2 min-h-[22px] max-h-[28px] overflow-hidden cursor-pointer transition-colors hover:brightness-95 ${st.bg} ${st.border}`}
+                            className={`flex items-center gap-1 px-1.5 py-1 rounded border-l-2 min-h-[24px] max-h-[32px] overflow-hidden cursor-pointer transition-colors hover:filter-[brightness-0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary relative before:content-[''] before:absolute before:inset-x-0 before:-inset-y-2 before:z-10 ${st.bg} ${st.border}`}
                           >
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot}`} />
-                            <span className={`text-label-sm font-semibold leading-none truncate ${st.text}`}>{item.shiftLabel}</span>
-                            <span className="text-label-sm leading-none text-on-surface-variant shrink-0">·</span>
-                            <span className="text-label-sm leading-none text-on-surface font-medium truncate">{item.staffCode}</span>
+                            <span className={`text-label-sm font-bold leading-tight truncate ${st.text}`}>{item.shiftLabel}</span>
+                            <span className="text-label-sm leading-tight text-on-surface-variant/60 shrink-0">·</span>
+                            <span className="text-label-sm leading-tight text-on-surface font-semibold truncate">{item.staffCode}</span>
                             {item.isOvernight && (
-                              <span className="text-label-sm leading-none text-on-surface-variant/70 shrink-0 truncate">
+                              <span className="text-label-sm leading-tight text-on-surface-variant/80 shrink-0 truncate tabular-nums">
                                 7h30→{dateFmt(nextDate)}
                               </span>
                             )}
@@ -884,9 +405,62 @@ export function DashboardCalendar({
               })}
             </div>
           </div>
-          {/* Sidebar — Week summary */}
+          {/* Sidebar — Week summary (mobile: drawer overlay, desktop: inline) */}
           {sidebarOpen && (
-            <aside className="w-64 shrink-0 border-l border-outline-variant bg-surface-container-low overflow-y-auto hidden lg:flex flex-col gap-3 p-3">
+            isMobile ? (
+              <>
+                <div
+                  className="fixed inset-0 bg-scrim/50 z-40"
+                  onClick={() => setSidebarOpen(false)}
+                  aria-hidden="true"
+                />
+                <aside id="calendar-sidebar" className="fixed right-0 top-0 bottom-0 z-50 w-80 max-w-[calc(100vw-32px)] bg-surface-container-low border-l border-outline-variant overflow-y-auto flex flex-col gap-3 p-3 shadow-2xl">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-title-md text-on-surface font-semibold">Tổng kết tuần</p>
+                    <button
+                      type="button"
+                      onClick={() => setSidebarOpen(false)}
+                      className="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      aria-label="Đóng thanh bên"
+                    >
+                      <span aria-hidden="true" className="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                  </div>
+                  <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
+                    <p className="text-label-sm font-semibold text-on-surface-variant mb-2">Tổng kết</p>
+                    <div className="space-y-2">
+                      {[
+                        { label: "Tổng ca", value: weekCells.reduce((s, c) => s + c.items.length, 0), color: "text-primary" },
+                        { label: "Xung đột", value: weekCells.filter((c) => c.hasConflict).length, color: "text-error" },
+                        { label: "Ngày nghỉ bù", value: weekCells.filter((c) => c.isCompensation).length, color: "text-outline" },
+                      ].map((m) => (
+                        <div key={m.label} className="flex justify-between items-center">
+                          <span className="text-label-sm text-on-surface-variant">{m.label}</span>
+                          <span className={`text-label-md font-bold tabular-nums ${m.color}`}>{m.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
+                    <p className="text-label-sm font-bold text-on-surface-variant mb-2 leading-tight">Loại lịch</p>
+                    <div className="space-y-1.5">
+                      {[
+                        { label: "Trực 24/24", color: "bg-primary" },
+                        { label: "Thông tầm", color: "bg-secondary" },
+                        { label: "Dịch vụ", color: "bg-tertiary" },
+                        { label: "Chuyên gia", color: "bg-expert" },
+                      ].map((l) => (
+                        <div key={l.label} className="flex items-center gap-2">
+                          <div aria-hidden="true" className={`w-5 h-3 rounded-sm ${l.color}`} />
+                          <span className="text-label-sm font-medium text-on-surface leading-tight">{l.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </aside>
+              </>
+            ) : (
+            <aside id="calendar-sidebar" className="hidden lg:flex w-64 shrink-0 border-l border-outline-variant bg-surface-container-low overflow-y-auto flex-col gap-3 p-3">
               <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
                 <p className="text-label-sm font-semibold text-on-surface-variant mb-2">Tổng kết tuần</p>
                 <div className="space-y-2">
@@ -897,7 +471,7 @@ export function DashboardCalendar({
                   ].map((m) => (
                     <div key={m.label} className="flex justify-between items-center">
                       <span className="text-label-sm text-on-surface-variant">{m.label}</span>
-                      <span className={`text-label-md font-bold ${m.color}`}>{m.value}</span>
+                      <span className={`text-label-md font-bold tabular-nums ${m.color}`}>{m.value}</span>
                     </div>
                   ))}
                 </div>
@@ -913,27 +487,27 @@ export function DashboardCalendar({
                     { label: "Chuyên gia", color: "bg-expert" },
                   ].map((l) => (
                     <div key={l.label} className="flex items-center gap-2">
-                      <div className={`w-5 h-3 rounded-sm ${l.color}`} />
+                      <div aria-hidden="true" className={`w-5 h-3 rounded-sm ${l.color}`} />
                       <span className="text-label-sm text-on-surface">{l.label}</span>
                     </div>
                   ))}
                 </div>
               </div>
             </aside>
-          )}
+            ))}
         </div>
       )}
 
       {/* ── Calendar Grid ──────────────────────────────────────────── */}
       {viewMode === "month" && (
         <div className="flex-1 flex min-h-0">
-        <div className="flex-1 flex flex-col min-w-0 min-h-[400px]">
+        <div className="flex-1 flex flex-col min-w-0 min-h-[400px] relative">
           {/* Day headers */}
           <div className="grid grid-cols-7 shrink-0">
             {WEEKDAYS.map((d, i) => (
               <div
                 key={d}
-                className={`py-2 text-center text-label-sm font-semibold border-b border-r border-outline-variant bg-surface-container-low ${
+                className={`py-2.5 text-center text-label-md font-bold uppercase tracking-wider border-b border-r border-outline-variant bg-surface-container-low leading-tight ${
                   i >= 5 ? "text-error" : "text-on-surface-variant"
                 }`}
               >
@@ -942,9 +516,33 @@ export function DashboardCalendar({
             ))}
           </div>
 
-          {/* Cells */}
-          <div className="flex-1 grid grid-cols-7 flex-1 auto-rows-fr" style={{ minHeight: 0 }}>
-            {cells.map((cell) => {
+          {/* Skeleton overlay during month switch */}
+          {isSwitchingMonth && (
+            <div className="absolute inset-0 z-30 bg-surface/60 backdrop-blur-[1px] flex items-center justify-center pointer-events-none" role="status" aria-live="polite">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-lowest border border-outline-variant shadow-sm">
+                <span aria-hidden="true" className="material-symbols-outlined text-primary text-[18px] animate-spin">progress_activity</span>
+                <span className="text-label-sm text-on-surface font-medium">Đang tải...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Cells / Empty state */}
+          {filteredSchedules.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center p-8 bg-surface-container-low/30">
+              <EmptyState
+                icon="event_busy"
+                title="Chưa có lịch nào trong tháng này"
+                description="Lịch trực sẽ hiển thị ở đây khi được tạo. Hãy thử chuyển sang tháng khác hoặc tạo lịch mới."
+              />
+            </div>
+          ) : (
+          <div
+            className="flex-1 grid grid-cols-7 flex-1 auto-rows-fr"
+            style={{ minHeight: 0 }}
+            role="grid"
+            aria-label="Lịch tháng"
+          >
+            {cells.map((cell, cellIndex) => {
               const summaries = summarizeItems(cell.items);
               const visibleSummaries = summaries.slice(0, MAX_VISIBLE_GROUPS);
               const visibleStaffCount = visibleSummaries.reduce((sum, item) => sum + item.count, 0);
@@ -955,22 +553,77 @@ export function DashboardCalendar({
               const hasAnnotations = cell.annotations.length > 0;
               const primaryAnnotation = cell.annotations[0] ?? null;
               const isCompLocked = cell.isCompensation;
+              const isFocused = cellIndex === focusedCellIndex;
 
               return (
                 <div
                   key={cell.dateStr}
-                  onClick={(event) => handleCellClick(event, cell)}
-                  onKeyDown={(event) => handleCellKeyDown(event, cell)}
-                  role="button"
-                  tabIndex={isCompLocked ? -1 : 0}
-                  aria-label={`${formatFullDate(cell.date)}: ${cell.items.length} lịch, ${cell.annotations.length} ghi chú`}
+                  ref={(el) => {
+                    if (el) cellRefs.current.set(cellIndex, el);
+                    else cellRefs.current.delete(cellIndex);
+                  }}
+                  onClick={(event) => {
+                    setFocusedCellIndex(cellIndex);
+                    handleCellClick(event, cell);
+                  }}
+                  onKeyDown={(event) => {
+                    setFocusedCellIndex(cellIndex);
+                    // Arrow key navigation (roving tabindex)
+                    const cols = 7;
+                    let next = cellIndex;
+                    if (event.key === "ArrowRight") next = Math.min(cells.length - 1, cellIndex + 1);
+                    else if (event.key === "ArrowLeft") next = Math.max(0, cellIndex - 1);
+                    else if (event.key === "ArrowDown") next = Math.min(cells.length - 1, cellIndex + cols);
+                    else if (event.key === "ArrowUp") next = Math.max(0, cellIndex - cols);
+                    else if (event.key === "Home") {
+                      event.preventDefault();
+                      const firstOfWeek = Math.floor(cellIndex / cols) * cols;
+                      next = firstOfWeek;
+                    } else if (event.key === "End") {
+                      event.preventDefault();
+                      const firstOfWeek = Math.floor(cellIndex / cols) * cols;
+                      next = Math.min(cells.length - 1, firstOfWeek + cols - 1);
+                    } else if (event.key === "PageUp") {
+                      event.preventDefault();
+                      const m = currentMonth === 0 ? 11 : currentMonth - 1;
+                      const y = currentMonth === 0 ? currentYear - 1 : currentYear;
+                      setCurrentMonth(m);
+                      setCurrentYear(y);
+                      return;
+                    } else if (event.key === "PageDown") {
+                      event.preventDefault();
+                      const m = currentMonth === 11 ? 0 : currentMonth + 1;
+                      const y = currentMonth === 11 ? currentYear + 1 : currentYear;
+                      setCurrentMonth(m);
+                      setCurrentYear(y);
+                      return;
+                    } else {
+                      handleCellKeyDown(event, cell);
+                      return;
+                    }
+                    if (next !== cellIndex) {
+                      event.preventDefault();
+                      setFocusedCellIndex(next);
+                      cellRefs.current.get(next)?.focus();
+                    }
+                  }}
+                  role="gridcell"
+                  tabIndex={isCompLocked ? -1 : (isFocused ? 0 : -1)}
+                  aria-label={
+                    isCompLocked
+                      ? `${formatFullDate(cell.date)}: ngày nghỉ bù (khóa)`
+                      : `${formatFullDate(cell.date)}: ${cell.items.length} lịch${cell.hasConflict ? ", có xung đột" : ""}${cell.annotations.length > 0 ? `, ${cell.annotations.length} ghi chú` : ""}`
+                  }
+                  aria-disabled={isCompLocked}
                   className={`
                     border-r border-b border-outline-variant flex flex-col
-                    min-h-[120px] cursor-pointer group relative
+                    min-h-[120px] group relative
                     transition-colors hover:bg-surface-container-low
+                    ${isCompLocked ? "cursor-not-allowed" : "cursor-pointer"}
                     ${!cell.isCurrentMonth ? "bg-surface-variant/20" : ""}
                     ${cell.hasConflict ? "ring-2 ring-inset ring-error" : ""}
-                    ${isCompLocked ? "bg-[repeating-linear-gradient(45deg,transparent,transparent_6px,rgba(0,0,0,0.04)_6px,rgba(0,0,0,0.04)_12px)]" : ""}
+                    ${isCompLocked ? "comp-locked-stripes" : ""}
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary
                   `}
                 >
                   {/* Diagonal stripes overlay for locked comp days */}
@@ -978,7 +631,7 @@ export function DashboardCalendar({
                     <div
                       className="absolute inset-0 pointer-events-none z-10 opacity-30"
                       style={{
-                        backgroundImage: "repeating-linear-gradient(45deg, var(--color-outline, #c3c6d7) 0px, var(--color-outline, #c3c6d7) 1px, transparent 1px, transparent 10px)",
+                        backgroundImage: "repeating-linear-gradient(45deg, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent 10px)",
                         backgroundSize: "14px 14px",
                       }}
                       aria-hidden="true"
@@ -986,7 +639,7 @@ export function DashboardCalendar({
                   )}
 
                   {/* Day number */}
-                  <div className={`shrink-0 px-1.5 py-1 flex items-center justify-between z-20 ${
+                  <div className={`shrink-0 px-2 py-1.5 flex items-center justify-between z-20 leading-tight ${
                     isToday(cell)
                       ? "bg-primary text-on-primary rounded-tl-lg"
                       : cell.isWeekend
@@ -1001,7 +654,7 @@ export function DashboardCalendar({
                       ? "text-on-surface"
                       : "text-on-surface-variant"
                   }`}>
-                    <span className={`text-label-md font-semibold leading-none ${
+                    <span className={`text-label-md font-bold leading-tight ${
                       isToday(cell) ? "" : "group-hover:text-primary"
                     }`}>
                       {cell.day}
@@ -1029,7 +682,7 @@ export function DashboardCalendar({
                           title={annotation.description ?? annotation.label}
                         >
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${annotationTone.dot}`} />
-                          <span className={`text-label-sm font-semibold leading-none truncate ${annotationTone.text}`}>
+                          <span className={`text-label-sm font-bold leading-tight truncate ${annotationTone.text}`}>
                             {annotation.label}
                           </span>
                         </div>
@@ -1040,12 +693,15 @@ export function DashboardCalendar({
                       return (
                         <div
                           key={`month-summary-${cell.dateStr}-${summary.shiftTypeId}`}
+                          onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY, item: cell.items.find(i => i.shiftTypeId === summary.shiftTypeId) ?? cell.items[0] })}
+                          onMouseLeave={() => setTooltip(null)}
+                          onMouseMove={(e) => setTooltip((t) => t ? { ...t, x: e.clientX, y: e.clientY } : t)}
                           className={`flex items-center gap-1 rounded border-l-2 px-1.5 py-0.5 min-h-[24px] max-h-[24px] overflow-hidden ${st.bg} ${st.border}`}
                           title={`${summary.label}: ${summary.count} nhân sự`}
                         >
                           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${st.dot}`} aria-hidden="true" />
-                          <span className={`truncate text-label-sm font-semibold leading-none ${st.text}`}>
-                            {summary.label} ({summary.count})
+                          <span className={`truncate text-label-sm font-bold leading-tight ${st.text}`}>
+                            {summary.label}
                           </span>
                         </div>
                       );
@@ -1078,33 +734,43 @@ export function DashboardCalendar({
                   </div>
 
                     {/* Conflict count badge */}
-                    {cell.hasConflict && (
-                      <div
-                        className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-error-container text-error text-label-sm font-bold"
-                        aria-label={`${cell.items.length} xung đột trong ngày này`}
-                      >
-                        <span className="material-symbols-outlined text-label-sm" aria-hidden="true">warning</span>
-                        {cell.items.length}
-                      </div>
-                    )}
+                    {cell.hasConflict && (() => {
+                      const conflictCount = cell.items.filter((i) => i.schedule.hasConflict).length;
+                      return (
+                        <div
+                          className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-error-container text-error text-label-sm font-bold"
+                          aria-label={`${conflictCount} xung đột trong ngày này`}
+                        >
+                          <span className="material-symbols-outlined text-label-sm" aria-hidden="true">warning</span>
+                          {conflictCount}
+                        </div>
+                      );
+                    })()}
 
-                  {/* Coverage indicator badge */}
+                  {/* Coverage indicator badge - chỉ hiện khi thiếu/cần chú ý */}
                   {!cell.isCompensation && (() => {
                     const cov = coverages[cell.dateStr];
                     if (!cov) return null;
                     const isFull = cov.assigned >= cov.required;
                     const isEmpty = cov.assigned === 0;
-                    if (isFull && cell.items.length > 0) return null;
+                    if (isFull) return null;
+                    const missing = cov.required - cov.assigned;
+                    const tooltip = isEmpty
+                      ? `Chưa phân công ai (yêu cầu ${cov.required})`
+                      : `Thiếu ${missing} người (đã có ${cov.assigned}/${cov.required})`;
                     return (
                       <div
                         className={`absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-label-sm font-bold ${
-                          isFull ? "bg-secondary-container text-on-secondary-container" :
-                          isEmpty ? "bg-surface-container-high text-on-surface-variant" :
-                          "bg-tertiary-fixed text-on-tertiary-fixed"
+                          isEmpty
+                            ? "bg-surface-container-high text-on-surface-variant"
+                            : "bg-tertiary-fixed text-on-tertiary-fixed"
                         }`}
-                        aria-label={`Phủ ${cov.assigned} trên ${cov.required} ca cần thiết`}
+                        title={tooltip}
+                        aria-label={tooltip}
                       >
-                        <span className="material-symbols-outlined text-[10px]" aria-hidden="true">group</span>
+                        <span className="material-symbols-outlined text-[10px]" aria-hidden="true">
+                          {isEmpty ? "person_off" : "warning"}
+                        </span>
                         {cov.assigned}/{cov.required}
                       </div>
                     );
@@ -1113,11 +779,95 @@ export function DashboardCalendar({
               );
             })}
           </div>
+          )}
         </div>
 
-        {/* ── Sidebar (collapsible) ──────────────────────────────────── */}
+        {/* ── Sidebar (collapsible, mobile: drawer, desktop: inline) ──── */}
         {sidebarOpen && (
-          <aside className="w-64 shrink-0 border-l border-outline-variant bg-surface-container-low overflow-y-auto flex flex-col gap-3 p-3">
+          isMobile ? (
+            <>
+              <div
+                className="fixed inset-0 bg-scrim/50 z-40"
+                onClick={() => setSidebarOpen(false)}
+                aria-hidden="true"
+              />
+              <aside id="calendar-sidebar" className="fixed right-0 top-0 bottom-0 z-50 w-80 max-w-[calc(100vw-32px)] bg-surface-container-low border-l border-outline-variant overflow-y-auto flex flex-col gap-3 p-3 shadow-2xl">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-title-md text-on-surface font-semibold">Thống kê tháng</p>
+                  <button
+                    type="button"
+                    onClick={() => setSidebarOpen(false)}
+                    className="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    aria-label="Đóng thanh bên"
+                  >
+                    <span aria-hidden="true" className="material-symbols-outlined text-[20px]">close</span>
+                  </button>
+                </div>
+                {/* Legend, Conflicts, Compensation — same as desktop but inside drawer */}
+                <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
+                  <p className="text-label-sm font-bold text-on-surface-variant mb-2 leading-tight">Loại lịch</p>
+                  <div className="space-y-1.5">
+                    {[
+                      { label: "Trực 24/24", color: "bg-primary", id: "duty24" },
+                      { label: "Thông tầm", color: "bg-secondary", id: "allDay" },
+                      { label: "Dịch vụ", color: "bg-tertiary", id: "serviceClinic" },
+                      { label: "Chuyên gia", color: "bg-violet-500", id: "expertClinic" },
+                    ].map((l) => (
+                      <div key={l.id} className="flex items-center gap-2">
+                        <div aria-hidden="true" className={`w-5 h-3 rounded-sm ${l.color}`} />
+                        <span className="text-label-sm font-medium text-on-surface leading-tight">{l.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-label-sm font-semibold text-on-surface-variant">Xung đột</p>
+                    <span className="px-2 py-0.5 rounded-full bg-error-container text-error text-label-sm font-bold tabular-nums">
+                      {cells.filter((c) => c.hasConflict).length} ngày
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {cells.filter((c) => c.hasConflict).slice(0, 5).map((c) => (
+                      <div key={c.dateStr} className="flex items-center gap-2 text-label-sm">
+                        <span aria-hidden="true" className="material-symbols-outlined text-error text-[14px]">warning</span>
+                        <span className="text-on-surface font-medium tabular-nums">{c.day}/{today.getMonth() + 1}</span>
+                        <span className="text-on-surface-variant truncate">{c.items.length} xung đột</span>
+                      </div>
+                    ))}
+                    {cells.filter((c) => c.hasConflict).length === 0 && (
+                      <p className="text-label-sm text-on-surface-variant flex items-center gap-2">
+                        <span aria-hidden="true" className="material-symbols-outlined text-secondary text-[14px]">check_circle</span>
+                        Không có xung đột
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-label-sm font-bold text-on-surface-variant leading-tight">Ngày nghỉ bù</p>
+                    <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface text-label-sm font-bold tabular-nums">
+                      {cells.filter((c) => c.isCompensation).length} ngày
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {cells.filter((c) => c.isCompensation && c.isCurrentMonth).slice(0, 5).map((c) => (
+                      <div key={c.dateStr} className="flex items-center justify-between">
+                        <span className="text-label-sm text-on-surface">
+                          {new Date(c.dateStr).toLocaleDateString("vi-VN", { day: "numeric", month: "short" })}
+                        </span>
+                        <span className="material-symbols-outlined text-outline text-[14px]">lock</span>
+                      </div>
+                    ))}
+                    {cells.filter((c) => c.isCompensation && c.isCurrentMonth).length === 0 && (
+                      <p className="text-label-sm text-on-surface-variant italic">Không có ngày nghỉ bù</p>
+                    )}
+                  </div>
+                </div>
+              </aside>
+            </>
+          ) : (
+          <aside id="calendar-sidebar" className="hidden lg:flex w-64 shrink-0 border-l border-outline-variant bg-surface-container-low overflow-y-auto flex-col gap-3 p-3">
             {/* Legend */}
             <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
               <p className="text-label-sm font-semibold text-on-surface-variant mb-2">Loại lịch</p>
@@ -1129,7 +879,7 @@ export function DashboardCalendar({
                   { label: "Chuyên gia",  color: "bg-violet-500",   id: "expertClinic" },
                 ].map((l) => (
                   <div key={l.id} className="flex items-center gap-2">
-                    <div className={`w-5 h-3 rounded-sm ${l.color}`} />
+                    <div aria-hidden="true" className={`w-5 h-3 rounded-sm ${l.color}`} />
                     <span className="text-label-sm text-on-surface">{l.label}</span>
                   </div>
                 ))}
@@ -1139,8 +889,8 @@ export function DashboardCalendar({
             {/* Conflict summary */}
             <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-label-sm font-semibold text-on-surface-variant">Xung đột</p>
-                <span className="px-2 py-0.5 rounded-full bg-error-container text-error text-label-sm font-bold">
+                <p className="text-label-sm font-bold text-on-surface-variant leading-tight">Xung đột</p>
+                <span className="px-2 py-0.5 rounded-full bg-error-container text-error text-label-sm font-bold tabular-nums">
                   {cells.filter((c) => c.hasConflict).length} ngày
                 </span>
               </div>
@@ -1150,14 +900,14 @@ export function DashboardCalendar({
                   .slice(0, 5)
                   .map((c) => (
                     <div key={c.dateStr} className="flex items-center gap-2 text-label-sm">
-                      <span className="material-symbols-outlined text-error text-[14px]">warning</span>
-                      <span className="text-on-surface font-medium">{c.day}/{today.getMonth() + 1}</span>
+                      <span aria-hidden="true" className="material-symbols-outlined text-error text-[14px]">warning</span>
+                      <span className="text-on-surface font-medium tabular-nums">{c.day}/{today.getMonth() + 1}</span>
                       <span className="text-on-surface-variant truncate">{c.items.length} xung đột</span>
                     </div>
                   ))}
                 {cells.filter((c) => c.hasConflict).length === 0 && (
                   <p className="text-label-sm text-on-surface-variant flex items-center gap-2">
-                    <span className="material-symbols-outlined text-secondary text-[14px]">check_circle</span>
+                    <span aria-hidden="true" className="material-symbols-outlined text-secondary text-[14px]">check_circle</span>
                     Không có xung đột
                   </p>
                 )}
@@ -1167,8 +917,8 @@ export function DashboardCalendar({
             {/* Compensation days legend */}
             <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-3">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-label-sm font-semibold text-on-surface-variant">Ngày nghỉ bù</p>
-                <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface text-label-sm font-bold">
+                <p className="text-label-sm font-bold text-on-surface-variant leading-tight">Ngày nghỉ bù</p>
+                <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface text-label-sm font-bold tabular-nums">
                   {cells.filter((c) => c.isCompensation).length} ngày
                 </span>
               </div>
@@ -1198,7 +948,7 @@ export function DashboardCalendar({
               </div>
             </div>
           </aside>
-        )}
+          ))}
         </div>
       )}
 

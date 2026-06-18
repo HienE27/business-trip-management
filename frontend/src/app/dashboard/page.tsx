@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/layout/DashboardShell";
@@ -9,13 +9,12 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonDashboardKPIGrid } from "@/components/ui/Skeleton";
 import { KPICard } from "@/components/ui/KPICard";
 import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
-import type {
-  DashboardData,
-  Schedule,
-  SchedulePeriod,
-  ConflictCheckResponse,
-} from "@/types/api";
+import { buildCalendarAnnotations, buildCoverageMap } from "@/components/monthly-schedule/utils";
+import { useSchedulePeriodData } from "@/hooks/useSchedulePeriodData";
+import { useScheduleFilters } from "@/hooks/useScheduleFilters";
+import type { DashboardData } from "@/types/api";
 
 type WorkflowStep = {
   label: string;
@@ -72,262 +71,126 @@ const QUICK_ACTIONS: WorkflowStep[] = [
 
 export default function DashboardPage() {
   const router = useRouter();
+  const data = useSchedulePeriodData({ conflictPollMs: 60000 });
+
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
-  const [allSchedules, setAllSchedules] = useState<Schedule[]>([]);
-  const [conflictData, setConflictData] = useState<ConflictCheckResponse | null>(null);
-  const [compensationDays, setCompensationDays] = useState<import("@/types/api").CompensationDay[]>([]);
-  const [requirements, setRequirements] = useState<import("@/types/api").ShiftRequirement[]>([]);
-  const [staffList, setStaffList] = useState<{ id: number; fullName: string }[]>([]);
-  const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
-  const ignoreRef = useRef(false);
+  const filters = useScheduleFilters({ basePath: "/dashboard" });
+  const { selectedTab, selectedStaffId, setStaffId, setDate } = filters;
 
-  const load = useCallback(async (periodId?: number) => {
-    setLoading(true);
-    setMessage(null);
+  const {
+    periods,
+    selectedPeriodId,
+    selectedPeriod,
+    schedules,
+    activeStaff,
+    conflictData,
+    compensationDays,
+    requirements,
+    loading,
+    message,
+    setSelectedPeriodId,
+    refresh,
+    setMessage,
+  } = data;
 
-    try {
-      const [dashboardRes, periodsRes] = await Promise.allSettled([
-        api.get<DashboardData>("/dashboard"),
-        api.get<SchedulePeriod[]>("/periods"),
-      ]);
-
-      const dashboard =
-        dashboardRes.status === "fulfilled" ? dashboardRes.value : null;
-      const periodList =
-        periodsRes.status === "fulfilled" ? periodsRes.value ?? [] : [];
-
-      if (dashboardRes.status === "rejected") {
-        setMessage((prev) => prev || "Không thể tải dữ liệu dashboard.");
-      }
-      if (periodsRes.status === "rejected") {
-        setMessage((prev) => prev || "Không thể tải danh sách kỳ lịch.");
-      }
-
-      setDashboardData(dashboard);
-      setPeriods(periodList);
-
-      const activePeriod = periodList.find(
-        (p) => p.status === "DRAFT" || p.status === "PUBLISHED"
-      );
-
-      const targetPeriodId = periodId ?? activePeriod?.id;
-      const targetPeriod = targetPeriodId
-        ? periodList.find((p) => p.id === targetPeriodId) ?? activePeriod
-        : activePeriod;
-
-      if (targetPeriod) {
-        if (periodId !== undefined) {
-          setSelectedPeriodId(targetPeriod.id);
-        }
-
-        const [scheduleRes, conflictRes, compDaysRes, reqRes, staffRes] = await Promise.allSettled([
-          api.get<Schedule[]>(`/schedules/period/${targetPeriod.id}`),
-          api.get<ConflictCheckResponse>(
-            `/schedules/conflicts/check/${targetPeriod.id}`
-          ),
-          api.get<import("@/types/api").CompensationDay[]>(
-            `/schedules/compensation-days/${targetPeriod.id}`
-          ),
-          api.get<import("@/types/api").ShiftRequirement[]>(
-            `/shift-requirements/period/${targetPeriod.id}`
-          ),
-          api.get<import("@/types/api").Staff[]>("/staff/active"),
-        ]);
-
-        if (scheduleRes.status === "fulfilled") {
-          const all = scheduleRes.value ?? [];
-          setAllSchedules(all);
-        } else {
-          setMessage((prev) => prev || "Không thể tải danh sách phân công.");
-        }
-        if (conflictRes.status === "fulfilled") {
-          setConflictData(conflictRes.value);
-        } else {
-          setMessage((prev) => prev || "Không thể tải dữ liệu xung đột.");
-        }
-        if (compDaysRes.status === "fulfilled") {
-          setCompensationDays(compDaysRes.value ?? []);
-        }
-        if (reqRes.status === "fulfilled") {
-          setRequirements(reqRes.value ?? []);
-        }
-        if (staffRes.status === "fulfilled") {
-          setStaffList(
-            (staffRes.value ?? []).map((s) => ({
-              id: s.id,
-              fullName: s.fullName,
-            }))
-          );
-        } else {
-          setMessage((prev) => prev || "Không thể tải danh sách nhân sự.");
-        }
-      }
-    } catch {
-      setMessage("Đã xảy ra lỗi khi tải dữ liệu dashboard.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const handlePeriodChange = useCallback(
-    (periodId: number) => {
-      setSelectedPeriodId(periodId);
-      void load(periodId);
-    },
-    [load]
-  );
+  // Dashboard summary fetch (KPIs, shift statistics) — chỉ dashboard cần.
+  useEffect(() => {
+    let active = true;
+    api
+      .get<DashboardData>("/dashboard")
+      .then((res) => {
+        if (active) setDashboardData(res);
+      })
+      .catch((error: unknown) => {
+        if (active) setMessage(getErrorMessage(error, "Không thể tải dữ liệu dashboard."));
+      });
+    return () => {
+      active = false;
+    };
+  }, [setMessage]);
 
   const handleExport = useCallback(async () => {
-    const periodId = selectedPeriodId;
-    if (!periodId) return;
-
+    if (!selectedPeriodId) return;
     setExporting(true);
     try {
       const token = localStorage.getItem("medschedule.token");
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1"}/dashboard/export/schedule/${periodId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token ?? ""}`,
-          },
-        }
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1"}/dashboard/export/schedule/${selectedPeriodId}`,
+        { headers: { Authorization: `Bearer ${token ?? ""}` } }
       );
       if (!response.ok) throw new Error("Export failed");
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `schedule-export-${periodId}.xlsx`;
+      a.download = `schedule-export-${selectedPeriodId}.xlsx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch {
-      setMessage("Xuất file thất bại. Vui lòng thử lại.");
+    } catch (error) {
+      setMessage(getErrorMessage(error, "Xuất file thất bại. Vui lòng thử lại."));
     } finally {
       setExporting(false);
     }
-  }, [selectedPeriodId]);
+  }, [selectedPeriodId, setMessage]);
 
   const handleExportPdf = useCallback(async () => {
-    const periodId = selectedPeriodId;
-    if (!periodId) return;
-
+    if (!selectedPeriodId) return;
     setExporting(true);
     try {
       const token = localStorage.getItem("medschedule.token");
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1"}/dashboard/export/schedule/${periodId}/pdf`,
-        {
-          headers: {
-            Authorization: `Bearer ${token ?? ""}`,
-          },
-        }
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1"}/dashboard/export/schedule/${selectedPeriodId}/pdf`,
+        { headers: { Authorization: `Bearer ${token ?? ""}` } }
       );
       if (!response.ok) throw new Error("Export PDF failed");
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `lich-cong-tac-${periodId}.pdf`;
+      a.download = `lich-cong-tac-${selectedPeriodId}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch {
-      setMessage("Xuất PDF thất bại. Vui lòng thử lại.");
+    } catch (error) {
+      setMessage(getErrorMessage(error, "Xuất PDF thất bại. Vui lòng thử lại."));
     } finally {
       setExporting(false);
     }
-  }, [selectedPeriodId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // Real-time conflict polling every 60s
-  useEffect(() => {
-    if (!selectedPeriodId) return;
-    ignoreRef.current = false;
-    const interval = setInterval(async () => {
-      if (ignoreRef.current) return;
-      try {
-        const data = await api.get<ConflictCheckResponse>(
-          `/schedules/conflicts/check/${selectedPeriodId}`
-        );
-        if (!ignoreRef.current) setConflictData(data);
-      } catch {
-        // polling errors are silently skipped to avoid spamming the UI
-      }
-    }, 60000);
-    return () => {
-      ignoreRef.current = true;
-      clearInterval(interval);
-    };
-  }, [selectedPeriodId]);
+  }, [selectedPeriodId, setMessage]);
 
   const totalConflicts = conflictData?.totalConflicts ?? 0;
   const pendingExchanges = dashboardData?.summary.pendingScheduleExchanges ?? 0;
   const pendingLeave = dashboardData?.summary.pendingLeaveRequests ?? 0;
-  const activeStaff = dashboardData?.summary.activeStaff ?? 0;
+  const activeStaffCount = dashboardData?.summary.activeStaff ?? 0;
   const totalSchedules = dashboardData?.summary.totalSchedules ?? 0;
   const L01Count = dashboardData?.shiftStatistics?.L01Count ?? 0;
   const L02Count = dashboardData?.shiftStatistics?.L02Count ?? 0;
 
-  const activePeriod = useMemo(() => {
-    if (selectedPeriodId) {
-      return periods.find((p) => p.id === selectedPeriodId) ?? null;
-    }
-    return periods.find((p) => p.status === "DRAFT" || p.status === "PUBLISHED") ?? null;
-  }, [periods, selectedPeriodId]);
+  const calendarAnnotations = useMemo(
+    () => buildCalendarAnnotations(compensationDays, conflictData?.conflicts ?? []),
+    [compensationDays, conflictData]
+  );
 
-  const calendarAnnotations = useMemo(() => {
-    const compAnnotations = compensationDays.map((cd) => ({
-      date: cd.compensationDate.split("T")[0],
-      label: `Nghỉ bù · ${cd.staffName}`,
-      tone: "compLeave" as const,
-      description: `Ngày nghỉ bù của ${cd.staffName} — không thể xếp lịch`,
-    }));
-    const conflictAnnotations = (conflictData?.conflicts ?? []).map((conflict) => ({
-      date: conflict.workDate.split("T")[0],
-      label: `Xung đột · ${conflict.staffName}`,
-      tone: "warning" as const,
-      description: conflict.conflictReasons.join(" • "),
-    }));
-    return [...compAnnotations, ...conflictAnnotations];
-  }, [compensationDays, conflictData]);
-
-  const computedCoverages = useMemo(() => {
-    const map: Record<string, { required: number; assigned: number }> = {};
-    for (const req of requirements) {
-      const key = req.workDate.split("T")[0];
-      const prev = map[key] ?? { required: 0, assigned: 0 };
-      map[key] = {
-        required: prev.required + req.requiredStaffCount,
-        assigned: prev.assigned + req.assignedStaffCount,
-      };
-    }
-    return map;
-  }, [requirements]);
+  const computedCoverages = useMemo(() => buildCoverageMap(requirements), [requirements]);
 
   const initialCalendarYear = useMemo(() => {
-    if (activePeriod?.startDate) {
-      return new Date(activePeriod.startDate).getFullYear();
-    }
+    if (selectedPeriod?.startDate) return new Date(selectedPeriod.startDate).getFullYear();
     return new Date().getFullYear();
-  }, [activePeriod]);
+  }, [selectedPeriod]);
 
   const initialCalendarMonth = useMemo(() => {
-    if (activePeriod?.startDate) {
-      return new Date(activePeriod.startDate).getMonth();
-    }
+    if (selectedPeriod?.startDate) return new Date(selectedPeriod.startDate).getMonth();
     return new Date().getMonth();
-  }, [activePeriod]);
+  }, [selectedPeriod]);
+
+  const staffList = useMemo(
+    () => activeStaff.map((s) => ({ id: s.id, fullName: s.fullName })),
+    [activeStaff]
+  );
 
   return (
     <DashboardShell
@@ -364,7 +227,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Period Selector */}
       {periods.length === 0 && !loading ? (
         <EmptyState
           icon="calendar_month"
@@ -380,10 +242,10 @@ export default function DashboardPage() {
           <div className="relative">
             <select
               className="h-7 pl-2.5 pr-7 bg-surface-container-low border border-transparent rounded-md text-[12px] text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all min-w-[180px]"
-              value={selectedPeriodId ?? activePeriod?.id ?? ""}
+              value={selectedPeriodId ?? ""}
               onChange={(e) => {
                 const val = Number(e.target.value);
-                if (val) handlePeriodChange(val);
+                if (val) setSelectedPeriodId(val);
               }}
             >
               {periods.map((p) => (
@@ -394,15 +256,15 @@ export default function DashboardPage() {
             </select>
             <span className="material-symbols-outlined pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-outline text-[14px]">expand_more</span>
           </div>
-          {activePeriod && (
+          {selectedPeriod && (
             <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-label-sm font-semibold ${
-              activePeriod.status === "PUBLISHED"
+              selectedPeriod.status === "PUBLISHED"
                 ? "bg-secondary-container text-on-secondary-container"
-                : activePeriod.status === "ARCHIVED"
+                : selectedPeriod.status === "ARCHIVED"
                 ? "bg-surface-container-highest text-outline"
                 : "bg-primary-fixed text-primary"
             }`}>
-              {activePeriod.status === "PUBLISHED" ? "Đã công bố" : activePeriod.status === "ARCHIVED" ? "Đã lưu trữ" : "Nháp"}
+              {selectedPeriod.status === "PUBLISHED" ? "Đã công bố" : selectedPeriod.status === "ARCHIVED" ? "Đã lưu trữ" : "Nháp"}
             </span>
           )}
           <div className="ml-auto flex items-center gap-1.5">
@@ -437,77 +299,28 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      {/* KPI Grid */}
       {loading ? (
         <SkeletonDashboardKPIGrid />
       ) : (
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <KPICard
-            label="Nhân sự đang hoạt động"
-            value={activeStaff}
-            icon="groups"
-            tone="info"
-            helper="Trên tổng nhân sự"
-          />
-          <KPICard
-            label="Tổng phân công"
-            value={totalSchedules}
-            icon="event_available"
-            tone="success"
-            helper="Trong kỳ đang vận hành"
-          />
-          <KPICard
-            label="Xung đột phát hiện"
-            value={totalConflicts}
-            icon="warning"
-            tone={totalConflicts > 0 ? "error" : "neutral"}
-            helper={totalConflicts > 0 ? "Cần xử lý trước publish" : "Không phát hiện"}
-          />
-          <KPICard
-            label="Yêu cầu chờ duyệt"
-            value={pendingExchanges + pendingLeave}
-            icon="pending_actions"
-            tone={pendingExchanges + pendingLeave > 0 ? "warning" : "neutral"}
-            helper="Đổi trực + nghỉ phép"
-          />
+          <KPICard label="Nhân sự đang hoạt động" value={activeStaffCount} icon="groups" tone="info" helper="Trên tổng nhân sự" />
+          <KPICard label="Tổng phân công" value={totalSchedules} icon="event_available" tone="success" helper="Trong kỳ đang vận hành" />
+          <KPICard label="Xung đột phát hiện" value={totalConflicts} icon="warning" tone={totalConflicts > 0 ? "error" : "neutral"} helper={totalConflicts > 0 ? "Cần xử lý trước publish" : "Không phát hiện"} />
+          <KPICard label="Yêu cầu chờ duyệt" value={pendingExchanges + pendingLeave} icon="pending_actions" tone={pendingExchanges + pendingLeave > 0 ? "warning" : "neutral"} helper="Đổi trực + nghỉ phép" />
         </section>
       )}
 
-      {/* Shift Stats Row */}
       {!loading && (
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <KPICard
-            label="Trực 24/24"
-            value={L01Count}
-            icon="emergency"
-            tone="info"
-          />
-          <KPICard
-            label="Thông tầm"
-            value={L02Count}
-            icon="schedule"
-            tone="success"
-          />
-          <KPICard
-            label="PK dịch vụ"
-            value={dashboardData?.shiftStatistics?.L03Count ?? 0}
-            icon="medical_services"
-            tone="warning"
-          />
-          <KPICard
-            label="PK chuyên gia"
-            value={dashboardData?.shiftStatistics?.L04Count ?? 0}
-            icon="stethoscope"
-            tone="neutral"
-          />
+          <KPICard label="Trực 24/24" value={L01Count} icon="emergency" tone="info" />
+          <KPICard label="Thông tầm" value={L02Count} icon="schedule" tone="success" />
+          <KPICard label="PK dịch vụ" value={dashboardData?.shiftStatistics?.L03Count ?? 0} icon="medical_services" tone="warning" />
+          <KPICard label="PK chuyên gia" value={dashboardData?.shiftStatistics?.L04Count ?? 0} icon="stethoscope" tone="neutral" />
         </section>
       )}
 
-      {/* Quick Actions Grid */}
       <section>
-        <h2 className="mb-3 text-title-lg text-on-surface">
-          Thao tác nhanh
-        </h2>
+        <h2 className="mb-3 text-title-lg text-on-surface">Thao tác nhanh</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {QUICK_ACTIONS.map((action) => (
             <Link
@@ -534,15 +347,13 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* Schedule Calendar Widget */}
-      {activePeriod && (
+      {selectedPeriod && (
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-title-lg text-on-surface">
-              Lịch kỳ {activePeriod.periodName}
+              Lịch kỳ {selectedPeriod.periodName}
             </h2>
             <div className="flex items-center gap-2">
-              {/* Staff filter */}
               {staffList.length > 0 && (
                 <div className="relative">
                   <select
@@ -550,7 +361,7 @@ export default function DashboardPage() {
                     value={selectedStaffId ?? ""}
                     onChange={(e) => {
                       const val = e.target.value ? Number(e.target.value) : null;
-                      setSelectedStaffId(val);
+                      setStaffId(val);
                     }}
                   >
                     <option value="">Tất cả nhân sự</option>
@@ -566,15 +377,13 @@ export default function DashboardPage() {
                 className="inline-flex items-center gap-1 text-label-sm text-primary hover:underline"
               >
                 Mở lịch tháng
-                <span className="material-symbols-outlined text-[16px]">
-                  chevron_right
-                </span>
+                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
               </Link>
             </div>
           </div>
           <div className="rounded-lg border border-outline-variant bg-surface-container-lowest overflow-hidden shadow-sm">
             <ScheduleCalendarWidget
-              schedules={allSchedules}
+              schedules={schedules}
               calendarAnnotations={calendarAnnotations}
               coverages={computedCoverages}
               staffList={staffList}
@@ -582,18 +391,21 @@ export default function DashboardPage() {
               specialtyList={[]}
               initialYear={initialCalendarYear}
               initialMonth={initialCalendarMonth}
-              periodId={activePeriod.id}
+              periodId={selectedPeriod.id}
               isReadOnly={true}
-              onRefresh={() => void load()}
+              selectedTab={selectedTab}
+              onFilterTypeChange={(filter) => filters.setTab(filter as "L01" | "L02" | "L03" | "L04" | "ALL")}
+              onRefresh={() => void refresh()}
               onDayClick={(date) => {
-                router.push(`/monthly-schedule?date=${date.toISOString().slice(0, 10)}`);
+                const dateStr = date.toISOString().slice(0, 10);
+                setDate(dateStr);
+                router.push(`/monthly-schedule?date=${dateStr}`);
               }}
-              onStaffFilterChange={(staffId) => setSelectedStaffId(staffId)}
+              onStaffFilterChange={(staffId) => setStaffId(staffId)}
             />
           </div>
         </section>
       )}
-
     </DashboardShell>
   );
 }
