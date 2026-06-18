@@ -14,13 +14,13 @@ const TONE_CLASS: Record<OperationalKpi["tone"], string> = {
 export const KPISection = memo(function KPISection({ kpis }: { kpis: OperationalKpi[] }) {
   return (
     <section
-      className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5"
+      className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 stagger-children"
       aria-label="Chỉ số vận hành lập lịch tháng"
     >
       {kpis.map((item) => (
         <article
           key={item.label}
-          className={`rounded-xl border p-3 shadow-sm flex flex-col justify-between min-h-[88px] ${TONE_CLASS[item.tone]}`}
+          className={`rounded-xl border p-3 shadow-sm flex flex-col justify-between min-h-[88px] transition-colors hover:shadow-md animate-slide-up ${TONE_CLASS[item.tone]}`}
         >
           <div className="flex items-start justify-between gap-2">
             <p className="text-label-sm opacity-80 leading-tight">{item.label}</p>

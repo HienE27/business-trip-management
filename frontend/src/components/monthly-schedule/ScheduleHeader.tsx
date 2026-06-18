@@ -5,17 +5,21 @@ import Link from "next/link";
 import { SectionCard } from "@/components/ui/SectionCard";
 import type { SchedulePeriod } from "@/types/api";
 import { formatDateRange, getStatusBadgeClass } from "./utils";
+import { TAB_OPTIONS, SHIFT_TYPE_LABELS } from "./constants";
+import type { ScheduleTab } from "./types";
 
 export type ScheduleHeaderProps = {
   periods: SchedulePeriod[];
   selectedPeriodId: number | null;
   selectedPeriod: SchedulePeriod | null;
+  selectedTab: ScheduleTab;
   refreshing: boolean;
   exporting: boolean;
   checkingConflicts: boolean;
   publishing: boolean;
   canPublish: boolean;
   onPeriodChange: (periodId: number) => void;
+  onTabChange: (tab: ScheduleTab) => void;
   onRefresh: () => void;
   onExport: () => void;
   onCheckConflicts: () => void;
@@ -27,12 +31,14 @@ export const ScheduleHeader = memo(function ScheduleHeader({
   periods,
   selectedPeriodId,
   selectedPeriod,
+  selectedTab,
   refreshing,
   exporting,
   checkingConflicts,
   publishing,
   canPublish,
   onPeriodChange,
+  onTabChange,
   onRefresh,
   onExport,
   onCheckConflicts,
@@ -62,6 +68,17 @@ export const ScheduleHeader = memo(function ScheduleHeader({
           >
             {periods.map((period) => (
               <option key={period.id} value={period.id}>{period.periodName}</option>
+            ))}
+          </select>
+          <select
+            className="h-10 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-label-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+            value={selectedTab}
+            onChange={(event) => onTabChange(event.target.value as ScheduleTab)}
+            aria-label="Chọn loại lịch"
+          >
+            <option value="ALL">Tất cả loại lịch</option>
+            {TAB_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>{SHIFT_TYPE_LABELS[option.id] ?? option.label}</option>
             ))}
           </select>
           <button

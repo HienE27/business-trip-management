@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 import type { AuditHistory } from "@/types/api";
@@ -528,7 +529,7 @@ export default function AuditHistoryPage() {
               onChange={(e) => onSearch(e.target.value)}
             />
             {search && (
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-surface-container-low" onClick={() => onSearch("")} type="button">
+              <button className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-surface-container-low" onClick={() => onSearch("")} type="button" aria-label="Xóa tìm kiếm">
                 <span className="material-symbols-outlined text-[11px] text-outline">close</span>
               </button>
             )}
@@ -571,6 +572,7 @@ export default function AuditHistoryPage() {
           <button
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-outline-variant bg-surface hover:bg-surface-container-low transition-colors"
             onClick={() => fetchData(true)} type="button"
+            aria-label={refreshing ? "Đang làm mới" : "Làm mới"}
           >
             <span className={`material-symbols-outlined text-[14px] text-on-surface-variant ${refreshing ? "animate-spin" : ""}`}>sync</span>
           </button>
@@ -598,7 +600,9 @@ export default function AuditHistoryPage() {
         <section className="flex items-center gap-2 flex-wrap rounded-xl border border-outline-variant bg-surface-container-lowest px-3 py-2 shadow-sm">
 
           {/* Module */}
+          <label htmlFor="audit-module-filter" className="sr-only">Lọc theo module</label>
           <select
+            id="audit-module-filter"
             className="appearance-none rounded-lg border border-outline-variant bg-surface px-2 h-8 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer pr-6 shrink-0 min-w-[120px]"
             value={module}
             onChange={(e) => { setModule(e.target.value); setPage(1); }}
@@ -650,9 +654,23 @@ export default function AuditHistoryPage() {
           </div>
 
           {loading ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-12">
-              <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              <p className="text-[12px] text-outline">Đang tải…</p>
+            <div className="divide-y divide-outline-variant">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-start gap-3 px-4 py-3">
+                  <div className="flex h-6 w-8 shrink-0 items-center justify-center rounded">
+                    <Skeleton className="h-6 w-6 rounded" />
+                  </div>
+                  <div className="flex flex-col min-w-0 flex-1 gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-3 w-16 rounded" />
+                      <Skeleton className="h-3 w-24 rounded" />
+                      <Skeleton className="h-3 w-12 rounded" />
+                    </div>
+                    <Skeleton className="h-3 w-full rounded" />
+                  </div>
+                  <Skeleton className="h-3 w-12 rounded shrink-0" />
+                </div>
+              ))}
             </div>
           ) : filtered.length === 0 ? (
             <EmptyState
@@ -688,6 +706,8 @@ export default function AuditHistoryPage() {
                       <button
                         className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high transition-colors"
                         onClick={() => toggleGroup(dateKey)} type="button"
+                        aria-label={collapsed ? "Mở rộng" : "Thu gọn"}
+                        aria-expanded={!collapsed}
                       >
                         <span className={`material-symbols-outlined text-[14px] transition-transform ${collapsed ? "" : "rotate-90"}`}>chevron_right</span>
                       </button>

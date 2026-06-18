@@ -10,6 +10,7 @@ import com.hospital.scheduler.dto.response.AlgorithmConfigDTO;
 import com.hospital.scheduler.dto.response.AlgorithmConfigResponse;
 import com.hospital.scheduler.dto.response.AlgorithmMetricsDTO;
 import com.hospital.scheduler.dto.response.AutoScheduleResponse;
+import com.hospital.scheduler.dto.response.ScheduleTemplateResponse;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.service.AutoSchedulingService;
 import com.hospital.scheduler.service.ScheduleTemplateService;
@@ -67,11 +68,25 @@ public class AutoSchedulingController {
     @PostMapping("/save-template")
     @Operation(summary = "M07-F10: Lưu lịch đã xếp tự động thành mẫu để tái sử dụng")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<ApiResponse<com.hospital.scheduler.dto.response.ScheduleTemplateResponse>> saveAsTemplate(
+    public ResponseEntity<ApiResponse<ScheduleTemplateResponse>> saveAsTemplate(
             @Valid @RequestBody SaveTemplateRequest request) {
         var result = scheduleTemplateService.saveTemplateFromGenerated(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(result, "Lưu mẫu lịch thành công"));
+    }
+
+    @GetMapping("/templates")
+    @Operation(summary = "M07-F10c: Liệt kê tất cả mẫu lịch đang hoạt động")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<List<ScheduleTemplateResponse>>> listTemplates() {
+        return ResponseEntity.ok(ApiResponse.success(scheduleTemplateService.getActiveTemplates()));
+    }
+
+    @GetMapping("/templates/{templateId}")
+    @Operation(summary = "M07-F10d: Tải chi tiết một mẫu lịch theo ID")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<ScheduleTemplateResponse>> getTemplate(@PathVariable Integer templateId) {
+        return ResponseEntity.ok(ApiResponse.success(scheduleTemplateService.getTemplateById(templateId)));
     }
 
     @PostMapping("/templates")

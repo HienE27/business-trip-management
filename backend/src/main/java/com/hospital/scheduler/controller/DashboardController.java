@@ -2,6 +2,7 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.response.DashboardResponse;
+import com.hospital.scheduler.dto.response.ScheduleAggregationResponse;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.service.DashboardService;
 import com.hospital.scheduler.service.ReportExportService;
@@ -94,13 +95,18 @@ public class DashboardController {
     }
 
     @GetMapping("/export/schedule/{periodId}/pdf")
-    @Operation(summary = "Xuất báo cáo lịch công tác ra PDF")
+    @Operation(summary = "Xuất báo cáo lịch công tác ra PDF với bộ lọc")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<byte[]> exportScheduleToPdf(@PathVariable Integer periodId) throws Exception {
+    public ResponseEntity<byte[]> exportScheduleToPdf(
+            @PathVariable Integer periodId,
+            @RequestParam(required = false) String shiftTypeId,
+            @RequestParam(required = false) Integer staffId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) throws Exception {
         SchedulePdfExportService pdfExportService = schedulePdfExportService
                 .orElseThrow(() -> new BadRequestException("PDF export chưa khả dụng trong môi trường hiện tại"));
 
-        byte[] pdfData = pdfExportService.exportScheduleToPdf(periodId);
+        byte[] pdfData = pdfExportService.exportScheduleToPdf(periodId, shiftTypeId, staffId, startDate, endDate);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDispositionFormData("attachment", "lich_cong_tac_" + periodId + ".pdf");
@@ -119,5 +125,15 @@ public class DashboardController {
         headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
         headers.setContentDispositionFormData("attachment", "thong_ke_tai_" + periodId + ".xlsx");
         return ResponseEntity.ok().headers(headers).body(excelData);
+    }
+
+    @GetMapping("/aggregate")
+    @Operation(summary = "Tổng hợp lịch theo khoảng ngày (dùng cho view tuần/tháng không theo kỳ lịch)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    public ApiResponse<ScheduleAggregationResponse> aggregateByDateRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Integer staffId) {
+        return ApiResponse.success(dashboardService.aggregateByDateRange(startDate, endDate, staffId));
     }
 }

@@ -5,6 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { WorkflowShell } from "@/components/layout/WorkflowShell";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateRange, formatDateTime } from "@/lib/date";
@@ -68,6 +71,8 @@ function LeaveRequestsContent() {
   const [createEndDate, setCreateEndDate] = useState("");
   const [createReason, setCreateReason] = useState("");
   const [creating, setCreating] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   // Debounce same-message toasts to prevent duplicates (React Strict Mode double-invoke)
   const lastToastRef = useRef<{ msg: string; time: number } | null>(null);
@@ -225,14 +230,17 @@ function LeaveRequestsContent() {
     }
   }, [user, createStartDate, createEndDate, createReason, fetchRequests]);
 
-  const handleCancel = useCallback(async (id: number) => {
-    if (!confirm("Bạn có chắc muốn hủy yêu cầu này?")) return;
+  const confirmCancel = useCallback(async () => {
+    if (deleteTargetId === null) return;
     try {
-      await api.put(`/leave-requests/${id}/cancel`, {});
+      await api.put(`/leave-requests/${deleteTargetId}/cancel`, {});
       toastRef.current.success("Đã hủy yêu cầu nghỉ phép.");
       await fetchRequests();
     } catch (err) {
       toastRef.current.error(getErrorMessage(err, "Lỗi hủy yêu cầu."));
+    } finally {
+      setConfirmOpen(false);
+      setDeleteTargetId(null);
     }
   }, [fetchRequests]);
 
@@ -243,6 +251,7 @@ function LeaveRequestsContent() {
   }, []);
 
   return (
+    <ErrorBoundary>
     <WorkflowShell
       section="leave-requests"
       title="Yêu cầu nghỉ phép"
@@ -282,7 +291,9 @@ function LeaveRequestsContent() {
         action={
           <div className="flex items-center gap-3">
             <div className="relative">
+              <label htmlFor="leave-status-filter" className="sr-only">Lọc theo trạng thái</label>
               <select
+                id="leave-status-filter"
                 className="h-10 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-label-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 cursor-pointer appearance-none pr-8"
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as FilterStatus)}
@@ -293,7 +304,7 @@ function LeaveRequestsContent() {
                 <option value="REJECTED">Từ chối</option>
                 <option value="CANCELLED">Đã hủy</option>
               </select>
-              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
+              <span aria-hidden="true" className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
             </div>
             <button
               type="button"
@@ -314,8 +325,20 @@ function LeaveRequestsContent() {
         }
       >
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <div className="divide-y divide-outline-variant">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start">
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-48 rounded" />
+                  <Skeleton className="h-3 w-full rounded" />
+                  <Skeleton className="h-3 w-2/3 rounded" />
+                </div>
+                <div className="flex gap-1.5 items-center">
+                  <Skeleton className="h-7 w-16 rounded-lg" />
+                  <Skeleton className="h-7 w-20 rounded-lg" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : filteredRequests.length === 0 ? (
           <EmptyState
@@ -383,7 +406,7 @@ function LeaveRequestsContent() {
                     {request.status === "PENDING" && !isManager && request.staff?.id === user?.userId && (
                       <button
                         className="flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-2.5 py-1.5 text-[12px] text-error transition-colors hover:bg-error-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/20"
-                        onClick={() => handleCancel(request.id)}
+                        onClick={() => { setDeleteTargetId(request.id); setConfirmOpen(true); }}
                         type="button"
                       >
                         Hủy
@@ -629,6 +652,17 @@ function LeaveRequestsContent() {
         </div>
       )}
     </WorkflowShell>
+
+    <ConfirmDialog
+      open={confirmOpen}
+      onClose={() => { setConfirmOpen(false); setDeleteTargetId(null); }}
+      onConfirm={confirmCancel}
+      title="Hủy yêu cầu nghỉ phép?"
+      description="Bạn có chắc muốn hủy yêu cầu này?"
+      confirmLabel="Hủy yêu cầu"
+      variant="danger"
+    />
+    </ErrorBoundary>
   );
 }
 

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
@@ -15,6 +17,8 @@ export default function HolidaysPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   // Form state
   const [name, setName] = useState("");
@@ -93,14 +97,21 @@ export default function HolidaysPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Bạn có chắc muốn xóa ngày lễ này?")) return;
+    setDeleteTargetId(id);
+    setConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteTargetId === null) return;
     try {
-      await api.deleteHoliday(id);
+      await api.deleteHoliday(deleteTargetId);
       setMessage("Đã xóa ngày lễ thành công.");
-      // Immediately remove from local state so UI updates instantly
-      setHolidays((prev) => prev.filter((h) => h.id !== id));
+      setHolidays((prev) => prev.filter((h) => h.id !== deleteTargetId));
     } catch (err) {
       setMessage(getErrorMessage(err, "Không thể xóa ngày lễ."));
+    } finally {
+      setConfirmOpen(false);
+      setDeleteTargetId(null);
     }
   };
 
@@ -108,11 +119,12 @@ export default function HolidaysPage() {
   const sorted = [...activeHolidays].sort((a, b) => a.holidayDate.localeCompare(b.holidayDate));
 
   return (
-    <DashboardShell
-      activeSection="holidays"
-      title="Quản lý ngày lễ"
-      description="Thêm, sửa, xóa ngày nghỉ lễ và ngày nghỉ bù để hệ thống tự động tính ngày nghỉ bù chính xác."
-    >
+    <>
+      <DashboardShell
+        activeSection="holidays"
+        title="Quản lý ngày lễ"
+        description="Thêm, sửa, xóa ngày nghỉ lễ và ngày nghỉ bù để hệ thống tự động tính ngày nghỉ bù chính xác."
+      >
       {message && (
         <div className={`rounded-lg border px-4 py-3 text-sm ${
           message.includes("thành công") || message.includes("Đã xóa")
@@ -144,9 +156,28 @@ export default function HolidaysPage() {
       <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm">
         <div className="overflow-x-auto">
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            </div>
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-outline-variant bg-surface-container-low">
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Ngày lễ</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Tên ngày lễ</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Loại</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Mô tả</th>
+                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="hover:bg-surface-container-low/50">
+                    <td className="px-5 py-3"><Skeleton className="h-3 w-20 rounded" /></td>
+                    <td className="px-5 py-3"><Skeleton className="h-3 w-32 rounded" /></td>
+                    <td className="px-5 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
+                    <td className="px-5 py-3"><Skeleton className="h-3 w-full rounded" /></td>
+                    <td className="px-5 py-3"><Skeleton className="h-7 w-24 rounded-lg ml-auto" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : sorted.length === 0 ? (
             <div className="py-20 text-center">
               <span className="material-symbols-outlined text-5xl text-outline">event_busy</span>
@@ -296,5 +327,19 @@ export default function HolidaysPage() {
         </ModalFooter>
       </Modal>
     </DashboardShell>
+
+    <ConfirmDialog
+      open={confirmOpen}
+      onClose={() => {
+        setConfirmOpen(false);
+        setDeleteTargetId(null);
+      }}
+      onConfirm={confirmDelete}
+      title="Xóa ngày lễ?"
+      description="Hành động này không thể hoàn tác."
+      confirmLabel="Xóa"
+      variant="danger"
+    />
+    </>
   );
 }

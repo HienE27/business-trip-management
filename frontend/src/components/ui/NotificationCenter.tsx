@@ -60,7 +60,7 @@ export function NotificationCenter({
       <button
         aria-label={`Thông báo${unreadCount > 0 ? ` (${unreadCount} chưa đọc)` : ""}`}
         onClick={() => setOpen((v) => !v)}
-        className="relative rounded-lg p-2 text-on-surface-variant transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="relative rounded-lg p-3 text-on-surface-variant transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
         {unreadCount > 0 && (
@@ -86,22 +86,22 @@ export function NotificationCenter({
             )}
           </div>
 
-          <div className="max-h-[360px] overflow-y-auto">
+          <ul className="max-h-[360px] overflow-y-auto" aria-label="Danh sách thông báo">
             {displayNotifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-10 text-on-surface-variant">
-                <span className="material-symbols-outlined text-[40px] opacity-40">notifications_none</span>
+              <li className="flex flex-col items-center justify-center gap-3 py-10 text-on-surface-variant">
+                <span className="material-symbols-outlined text-[40px] opacity-40" aria-hidden="true">notifications_none</span>
                 <p className="text-label-md">Không có thông báo nào</p>
-              </div>
+              </li>
             ) : (
               displayNotifications.map((n) => (
-                <div
+                <li
                   key={n.id}
                   className={`flex cursor-pointer items-start gap-3 border-b border-outline-variant/50 px-4 py-3 transition-colors hover:bg-surface-container-low last:border-b-0 ${
                     n.unread ? "bg-primary/5" : ""
                   }`}
                 >
                   <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${n.iconColor ?? "bg-surface-container-low"}`}>
-                    <span className="material-symbols-outlined text-[18px]">{n.icon}</span>
+                    <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{n.icon}</span>
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-label-md font-medium text-on-surface">{n.title}</p>
@@ -109,10 +109,10 @@ export function NotificationCenter({
                     <p className="mt-1 text-label-sm text-on-surface-variant opacity-70">{n.time}</p>
                   </div>
                   {n.unread && <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />}
-                </div>
+                </li>
               ))
             )}
-          </div>
+          </ul>
 
           {notifications.length > 0 && (
             <Link

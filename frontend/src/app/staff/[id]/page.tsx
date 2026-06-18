@@ -33,10 +33,17 @@ function formatDate(dateStr: string) {
 }
 
 const SHIFT_BADGE: Record<string, string> = {
-  L01: "bg-red-50 text-red-700 border border-red-200",
-  L02: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  L03: "bg-amber-50 text-amber-700 border border-amber-200",
-  L04: "bg-violet-50 text-violet-700 border border-violet-200",
+  L01: "bg-[var(--color-shift-24)]/10 text-[var(--color-on-shift-24)] border border-[var(--color-shift-24)]/30",
+  L02: "bg-[var(--color-shift-all-day)]/10 text-[var(--color-on-shift-all-day)] border border-[var(--color-shift-all-day)]/30",
+  L03: "bg-[var(--color-shift-service)]/10 text-[var(--color-on-shift-service)] border border-[var(--color-shift-service)]/30",
+  L04: "bg-[var(--color-shift-expert)]/10 text-[var(--color-on-shift-expert)] border border-[var(--color-shift-expert)]/30",
+};
+
+const SHIFT_BORDER: Record<string, string> = {
+  L01: "border-l-[var(--color-shift-24)]",
+  L02: "border-l-[var(--color-shift-all-day)]",
+  L03: "border-l-[var(--color-shift-service)]",
+  L04: "border-l-[var(--color-shift-expert)]",
 };
 
 export default function StaffDetailPage() {
@@ -222,12 +229,7 @@ export default function StaffDetailPage() {
             <h3 className="text-title-lg font-semibold text-on-surface mb-3">Phân bổ loại lịch</h3>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {(Object.entries(SHIFT_BADGE) as [string, string][]).map(([type]) => (
-                <div key={type} className={`rounded-lg border-l-4 p-3 bg-surface ${
-                  type === "L01" ? "border-l-red-500" :
-                  type === "L02" ? "border-l-emerald-500" :
-                  type === "L03" ? "border-l-amber-500" :
-                  "border-l-violet-500"
-                }`}>
+                <div key={type} className={`rounded-lg border-l-4 p-3 bg-surface ${SHIFT_BORDER[type] ?? "border-l-[var(--color-outline)]"}`}>
                   <p className="text-label-sm text-on-surface-variant">
                     {type === "L01" ? "Trực 24/24" : type === "L02" ? "Thông tầm" : type === "L03" ? "PK dịch vụ" : "PK chuyên gia"}
                   </p>
@@ -253,12 +255,7 @@ export default function StaffDetailPage() {
                   return (
                     <div
                       key={schedule.id}
-                      className={`flex items-center justify-between rounded-lg border-l-4 p-3 bg-surface ${
-                        schedule.shiftType.id === "L01" ? "border-l-red-500" :
-                        schedule.shiftType.id === "L02" ? "border-l-emerald-500" :
-                        schedule.shiftType.id === "L03" ? "border-l-amber-500" :
-                        "border-l-violet-500"
-                      }`}
+                      className={`flex items-center justify-between rounded-lg border-l-4 p-3 bg-surface ${SHIFT_BORDER[schedule.shiftType.id] ?? "border-l-[var(--color-outline)]"}`}
                     >
                       <div className="flex items-center gap-3">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-label-sm font-semibold ${badge}`}>

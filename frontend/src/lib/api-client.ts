@@ -312,6 +312,18 @@ class ApiClient {
     return response.blob();
   }
 
+  async exportSchedulePdf(periodId: number): Promise<Blob> {
+    const token = getStoredToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const response = await fetch(`${API_BASE}/dashboard/export/schedule/${periodId}/pdf`, {
+      headers,
+      credentials: "include",
+    });
+    if (!response.ok) throw new Error("Export PDF failed");
+    return response.blob();
+  }
+
   // Leave Requests
   async getAllLeaveRequests(): Promise<ApiResponse<LeaveRequest[]>> {
     return this.request<LeaveRequest[]>("/leave-requests");

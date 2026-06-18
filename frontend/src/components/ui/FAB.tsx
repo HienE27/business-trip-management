@@ -17,7 +17,7 @@ export function FAB({ actions = [] }: FABProps) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-2">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-30 flex flex-col items-end gap-2">
       {/* Backdrop */}
       {open && (
         <div
@@ -38,7 +38,7 @@ export function FAB({ actions = [] }: FABProps) {
                 action.onClick();
                 setOpen(false);
               }}
-              className="flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 shadow-lg hover:bg-surface-container-low transition-colors text-label-md text-on-surface"
+              className="flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 shadow-lg hover:bg-surface-container-low transition-colors text-label-md text-on-surface cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <span className="text-label-md text-on-surface">{action.label}</span>
               <span className="material-symbols-outlined text-[20px] text-primary">{action.icon}</span>
@@ -52,13 +52,9 @@ export function FAB({ actions = [] }: FABProps) {
         type="button"
         aria-label={open ? "Đóng menu" : "Mở menu hành động"}
         onClick={() => setOpen((v) => !v)}
-        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-          open
-            ? "bg-surface-container-high rotate-45 text-primary"
-            : "bg-primary text-on-primary hover:bg-primary/90"
-        }`}
+        className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary animate-slide-up"
       >
-        <span className="material-symbols-outlined text-[24px]">add</span>
+        <span className="material-symbols-outlined text-[24px] transition-transform duration-200" style={open ? { transform: "rotate(45deg)" } : {}}>add</span>
       </button>
     </div>
   );

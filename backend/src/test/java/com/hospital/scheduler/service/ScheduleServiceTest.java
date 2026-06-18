@@ -46,7 +46,7 @@ class ScheduleServiceTest {
     @Mock private AuthContextService authContextService;
     @Mock private CompensationDateCalculator compensationDateCalculator;
     @Mock private NotificationService notificationService;
-    @Mock private com.hospital.scheduler.repository.HolidayRepository holidayRepository;
+    @Mock private ConflictBroadcastService conflictBroadcastService;
 
     @InjectMocks
     private ScheduleService scheduleService;
@@ -476,6 +476,61 @@ class ScheduleServiceTest {
 
             verify(compensationDayRepository).deleteAll(anyList());
         }
+
+        @Test
+        @DisplayName("Reassign sang nhân sự khác không conflict -> cập nhật thành công")
+        void reassignStaff_shouldSucceed() {
+            Staff newStaff = Staff.builder()
+                    .id(3).username("nurse2").fullName("Tran Thi B").isActive(true)
+                    .maxShiftsPerMonth(5)
+                    .build();
+            newStaff.setStaffRoles(new HashSet<>());
+
+            ScheduleRequest request = ScheduleRequest.builder()
+                    .periodId(1).staffId(3).shiftTypeId("L01")
+                    .workDate(LocalDate.of(2026, 6, 15))
+                    .build();
+
+            when(scheduleRepository.findById(100)).thenReturn(Optional.of(testSchedule));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(newStaff));
+            when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(shiftL01));
+            doNothing().when(conflictDetectionService).validateAndThrow(anyInt(), any(), any(), anyInt(), anyInt());
+            when(scheduleRepository.save(any(Schedule.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(authContextService.getCurrentStaff()).thenReturn(adminStaff);
+            when(compensationDayRepository.findByScheduleId(100)).thenReturn(Collections.emptyList());
+            when(compensationDateCalculator.calculate(any())).thenReturn(LocalDate.of(2026, 6, 16));
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(3), any()))
+                    .thenReturn(Optional.empty());
+            when(conflictDetectionService.detectAllConflicts(anyInt(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(Collections.emptyList());
+
+            ScheduleResponse result = scheduleService.updateSchedule(100, request);
+
+            assertThat(result.getStaff().getId()).isEqualTo(3);
+            // The notification must go to the NEW staff (id=3), not the original one (id=1).
+            verify(notificationService).createNotification(eq(3), any(NotificationDTO.class));
+        }
+
+        @Test
+        @DisplayName("Reassign sang nhân sự khác có conflict L01↔L02 -> throw ConflictException")
+        void reassignStaffWithConflict_shouldThrow() {
+            ScheduleRequest request = ScheduleRequest.builder()
+                    .periodId(1).staffId(3).shiftTypeId("L02")
+                    .workDate(LocalDate.of(2026, 6, 15))
+                    .build();
+
+            when(scheduleRepository.findById(100)).thenReturn(Optional.of(testSchedule));
+            doThrow(new ConflictException("Trùng loại ca"))
+                    .when(conflictDetectionService).validateAndThrow(anyInt(), any(), any(), anyInt(), anyInt());
+
+            assertThatThrownBy(() -> scheduleService.updateSchedule(100, request))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("Trùng loại ca");
+
+            // CRITICAL: schedule must NOT be saved when conflict is detected.
+            verify(scheduleRepository, never()).save(any(Schedule.class));
+        }
     }
 
     // ==================== deleteSchedule ====================
@@ -547,7 +602,7 @@ class ScheduleServiceTest {
     class OverrideConflict {
 
         @Test
-        @DisplayName("Override thành công -> set hasConflict = false")
+        @DisplayName("Override thành công -> set hasConflict = false + notify staff")
         void override_shouldSetHasConflictFalse() {
             Schedule conflictSchedule = Schedule.builder()
                     .id(100).period(draftPeriod).workDate(LocalDate.of(2026, 6, 15))
@@ -568,6 +623,8 @@ class ScheduleServiceTest {
             ScheduleResponse result = scheduleService.overrideConflict(100, "Override by manager");
 
             assertThat(result.getHasConflict()).isFalse();
+            // NEW: staff must be notified that their conflict was overridden.
+            verify(notificationService).createNotification(eq(1), any(NotificationDTO.class));
         }
 
         @Test

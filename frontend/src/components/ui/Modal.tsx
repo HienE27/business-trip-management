@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 type ModalProps = {
   open: boolean;
-  onClose: () => void;
+  onClose?: () => void;
   title: string;
   description?: string;
   children: ReactNode;
@@ -40,7 +40,7 @@ export function Modal({ open, onClose, title, description, children, size = "md"
   // Close on Escape
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && onClose) onClose();
       // Focus trap
       if (e.key === "Tab" && dialogRef.current) {
         const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
@@ -79,8 +79,8 @@ export function Modal({ open, onClose, title, description, children, size = "md"
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
+        className="absolute inset-0 bg-[var(--color-surface-dim)]/60 backdrop-blur-sm"
+        onClick={onClose ? () => onClose() : undefined}
         aria-hidden="true"
       />
 
@@ -101,8 +101,8 @@ export function Modal({ open, onClose, title, description, children, size = "md"
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shrink-0"
+            onClick={onClose ? () => onClose() : undefined}
+            className="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shrink-0 cursor-pointer"
             aria-label="Đóng"
             title="Đóng"
           >
@@ -111,7 +111,7 @@ export function Modal({ open, onClose, title, description, children, size = "md"
         </div>
 
         {/* Body */}
-        <div className="p-6 max-h-[70vh] overflow-y-auto">{children}</div>
+        <div className="p-4 sm:p-6 max-h-[70vh] overflow-y-auto">{children}</div>
       </div>
     </div>
   );

@@ -244,7 +244,7 @@ public class LeaveRequestService {
             Integer periodId = schedule.getPeriod().getId();
 
             List<Staff> candidates = conflictDetectionService.findReplacements(
-                    periodId, workDate, shiftTypeId, absentStaff.getId(), 3, null);
+                    periodId, workDate, shiftTypeId, absentStaff.getId(), 3, null, true);
 
             ReplacementProposal.StaffCandidate primary = null;
             ReplacementProposal.StaffCandidate secondary = null;

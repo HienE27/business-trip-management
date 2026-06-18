@@ -107,7 +107,7 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
               <>
                 {/* Header bar */}
                 <div className="flex items-center gap-3 flex-wrap">
-                  <span className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-body-sm font-semibold text-white ${vm.shiftColor}`}>
+                  <span className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-body-sm font-semibold text-[var(--color-on-primary)] ${vm.shiftColor}`}>
                     <span className="material-symbols-outlined text-[16px]" aria-hidden="true">emergency</span>
                     {vm.shiftType}
                   </span>
@@ -218,7 +218,7 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
                       >
                         {saving ? (
                           <>
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-on-primary)] border-t-transparent" />
                             Đang lưu...
                           </>
                         ) : (

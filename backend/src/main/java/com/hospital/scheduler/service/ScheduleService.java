@@ -1,7 +1,10 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.dto.request.BulkL01Request;
 import com.hospital.scheduler.dto.request.ScheduleRequest;
+import com.hospital.scheduler.dto.response.BulkL01Response;
 import com.hospital.scheduler.dto.response.ConflictCheckResponse;
+import com.hospital.scheduler.dto.response.ExpertClinicWeeklyResponse;
 import com.hospital.scheduler.dto.response.ScheduleResponse;
 import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.entity.*;
@@ -12,15 +15,14 @@ import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
+import com.hospital.scheduler.util.DateUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -104,6 +106,10 @@ public class ScheduleService {
         Staff staff = staffRepository.findById(request.getStaffId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + request.getStaffId()));
 
+        if (!Boolean.TRUE.equals(staff.getIsActive())) {
+            throw new BadRequestException("Không thể xếp lịch cho nhân sự đang ngừng hoạt động");
+        }
+
         ShiftType shiftType = shiftTypeRepository.findById(request.getShiftTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + request.getShiftTypeId()));
 
@@ -175,6 +181,10 @@ public class ScheduleService {
             throw new BadRequestException("Chỉ có thể cập nhật lịch khi kỳ lịch ở trạng thái DRAFT");
         }
 
+        if (request.getWorkDate().isBefore(period.getStartDate()) || request.getWorkDate().isAfter(period.getEndDate())) {
+            throw new BadRequestException("Ngày làm việc phải nằm trong kỳ lịch");
+        }
+
         // Snapshot old state for audit before any mutation
         Integer oldStaffId = schedule.getStaff().getId();
         String oldShiftTypeId = schedule.getShiftType().getId();
@@ -184,29 +194,42 @@ public class ScheduleService {
         boolean willBeL01 = ConflictDetectionService.SHIFT_TYPE_L01.equals(request.getShiftTypeId());
         boolean shiftTypeChanged = !oldShiftTypeId.equals(request.getShiftTypeId());
         boolean dateChanged = !oldWorkDate.equals(request.getWorkDate());
-
-        if (request.getWorkDate().isBefore(period.getStartDate()) || request.getWorkDate().isAfter(period.getEndDate())) {
-            throw new BadRequestException("Ngày làm việc phải nằm trong kỳ lịch");
-        }
+        boolean staffChanged = !oldStaffId.equals(request.getStaffId());
 
         Integer targetStaffId = request.getStaffId();
         LocalDate targetWorkDate = request.getWorkDate();
         String targetShiftTypeId = request.getShiftTypeId();
+        Integer targetPeriodId = request.getPeriodId();
 
-        if (!schedule.getStaff().getId().equals(targetStaffId)) {
+        // Resolve the new period (without mutating the entity) so the conflict check
+        // runs against the post-change period.
+        SchedulePeriod targetPeriod = period;
+        if (!targetPeriodId.equals(period.getId())) {
+            targetPeriod = periodRepository.findById(targetPeriodId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + targetPeriodId));
+            if (targetPeriod.getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
+                throw new BadRequestException("Chỉ có thể chuyển lịch sang kỳ lịch ở trạng thái DRAFT");
+            }
+        }
+
+        // CRITICAL FIX: Run conflict validation BEFORE mutating the entity. Use raw request
+        // values so the check sees the new staff, new date, and new shift type together.
+        conflictDetectionService.validateAndThrow(
+                targetStaffId, targetWorkDate, targetShiftTypeId, id, targetPeriod.getId());
+
+        // Validation passed — now commit the new state.
+        if (staffChanged) {
             Staff newStaff = staffRepository.findById(targetStaffId)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + targetStaffId));
+            if (!Boolean.TRUE.equals(newStaff.getIsActive())) {
+                throw new BadRequestException("Không thể chuyển lịch cho nhân sự đang ngừng hoạt động");
+            }
             schedule.setStaff(newStaff);
         }
-
-        if (!request.getPeriodId().equals(period.getId())) {
-            SchedulePeriod newPeriod = periodRepository.findById(request.getPeriodId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + request.getPeriodId()));
-            schedule.setPeriod(newPeriod);
-            period = newPeriod;
+        if (!targetPeriodId.equals(period.getId())) {
+            schedule.setPeriod(targetPeriod);
+            period = targetPeriod;
         }
-
-        conflictDetectionService.validateAndThrow(targetStaffId, targetWorkDate, targetShiftTypeId, id, period.getId());
 
         if (wasL01 && shiftTypeChanged) {
             List<CompensationDay> compDays = compensationDayRepository.findByScheduleId(id);
@@ -296,7 +319,7 @@ public class ScheduleService {
     public List<StaffResponse> findReplacements(Integer periodId, LocalDate workDate, String shiftTypeId,
                                                  Integer originalStaffId, Integer requiredCount) {
         List<Staff> replacements = conflictDetectionService.findReplacements(
-                periodId, workDate, shiftTypeId, originalStaffId, requiredCount, null);
+                periodId, workDate, shiftTypeId, originalStaffId, requiredCount, null, true);
         return replacements.stream().map(s -> StaffResponse.builder()
                     .id(s.getId())
                     .fullName(s.getFullName())
@@ -315,11 +338,23 @@ public class ScheduleService {
         Schedule schedule = scheduleRepository.findByIdWithDetails(scheduleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + scheduleId));
 
+        Integer staffId = schedule.getStaff().getId();
+        LocalDate workDate = schedule.getWorkDate();
+        String shiftTypeName = schedule.getShiftType().getName();
+
         schedule.setHasConflict(false);
         scheduleRepository.save(schedule);
 
         auditHistoryService.logAction("schedule", scheduleId, AuditHistory.ActionType.UPDATE,
-                schedule, Map.of("override", true, "reason", reason), null);
+                schedule, Map.of("override", true, "reason", reason),
+                authContextService.getCurrentStaff().getId());
+
+        // Notify the affected staff so they are aware their conflict was overridden by a manager.
+        notificationService.createNotification(staffId, new NotificationDTO(
+                "Xung đột lịch trực đã được xử lý",
+                "Lịch " + shiftTypeName + " ngày " + workDate
+                        + " của bạn đã được ghi đè xung đột. Lý do: " + reason));
+
         return toResponse(schedule, null);
     }
 
@@ -344,6 +379,207 @@ public class ScheduleService {
         if (saved != null && saved.getId() != null) {
             auditHistoryService.logAction("compensation_day", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, authContextService.getCurrentStaff().getId());
         }
+    }
+
+    /**
+     * Bulk create L01 (trực 24/24) schedules.
+     * Validates: all entries must use L01, all staff must be ACTIVE.
+     * For each entry: creates schedule + auto-creates compensation_day.
+     */
+    @Transactional
+    public BulkL01Response createBulkL01(BulkL01Request request) {
+        List<String> errors = new java.util.ArrayList<>();
+        List<BulkL01Response.BulkL01ScheduleResult> results = new java.util.ArrayList<>();
+        int successCount = 0;
+
+        SchedulePeriod period = periodRepository.findById(request.getPeriodId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + request.getPeriodId()));
+
+        if (period.getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
+            throw new BadRequestException("Chỉ có thể thêm lịch khi kỳ lịch ở trạng thái DRAFT");
+        }
+
+        ShiftType l01ShiftType = shiftTypeRepository.findById(ConflictDetectionService.SHIFT_TYPE_L01)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca L01"));
+
+        // Track in-loop assignments to catch sibling L01↔L02 conflicts
+        Map<String, Set<String>> inLoopAssignments = new java.util.HashMap<>();
+
+        for (BulkL01Request.L01Entry entry : request.getEntries()) {
+            Integer staffId = entry.getStaffId();
+            LocalDate workDate = entry.getWorkDate();
+            String key = staffId + "_" + workDate;
+
+            // Validate period date range
+            if (workDate.isBefore(period.getStartDate()) || workDate.isAfter(period.getEndDate())) {
+                errors.add("Ngày " + workDate + " nằm ngoài kỳ lịch");
+                results.add(BulkL01Response.BulkL01ScheduleResult.builder()
+                        .staffId(staffId)
+                        .workDate(workDate.toString())
+                        .error("Ngày nằm ngoài kỳ lịch")
+                        .build());
+                continue;
+            }
+
+            // Validate staff exists and is ACTIVE
+            Staff staff;
+            try {
+                staff = staffRepository.findById(staffId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + staffId));
+            } catch (ResourceNotFoundException e) {
+                errors.add("Nhân sự ID " + staffId + " không tồn tại");
+                results.add(BulkL01Response.BulkL01ScheduleResult.builder()
+                        .staffId(staffId)
+                        .workDate(workDate.toString())
+                        .error("Nhân sự không tồn tại")
+                        .build());
+                continue;
+            }
+            if (!Boolean.TRUE.equals(staff.getIsActive())) {
+                errors.add("Nhân sự ID " + staffId + " không hoạt động");
+                results.add(BulkL01Response.BulkL01ScheduleResult.builder()
+                        .staffId(staffId)
+                        .workDate(workDate.toString())
+                        .error("Nhân sự không hoạt động")
+                        .build());
+                continue;
+            }
+
+            // Check unique constraint
+            if (scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                    request.getPeriodId(), staffId, ConflictDetectionService.SHIFT_TYPE_L01, workDate).isPresent()) {
+                errors.add("Nhân sự " + staffId + " đã có L01 ngày " + workDate);
+                results.add(BulkL01Response.BulkL01ScheduleResult.builder()
+                        .staffId(staffId)
+                        .workDate(workDate.toString())
+                        .error("Đã có L01 trong ngày")
+                        .build());
+                continue;
+            }
+
+            // Check in-loop conflict (L01 vs L02 in same batch)
+            Set<String> existingShifts = inLoopAssignments.get(key);
+            if (existingShifts != null && !existingShifts.isEmpty()) {
+                String errMsg = "Nhân sự " + staffId + " đã có lịch xung đột trong batch ngày " + workDate;
+                errors.add(errMsg);
+                results.add(BulkL01Response.BulkL01ScheduleResult.builder()
+                        .staffId(staffId)
+                        .workDate(workDate.toString())
+                        .error(errMsg)
+                        .build());
+                continue;
+            }
+
+            // Validate conflicts against DB state
+            try {
+                conflictDetectionService.validateAndThrow(staffId, workDate,
+                        ConflictDetectionService.SHIFT_TYPE_L01, null, request.getPeriodId());
+            } catch (ConflictException e) {
+                errors.add("Nhân sự " + staffId + " ngày " + workDate + ": " + e.getMessage());
+                results.add(BulkL01Response.BulkL01ScheduleResult.builder()
+                        .staffId(staffId)
+                        .workDate(workDate.toString())
+                        .error(e.getMessage())
+                        .build());
+                continue;
+            }
+
+            // Create schedule
+            Schedule schedule = Schedule.builder()
+                    .period(period)
+                    .workDate(workDate)
+                    .staff(staff)
+                    .shiftType(l01ShiftType)
+                    .hasConflict(false)
+                    .build();
+
+            Schedule saved = scheduleRepository.save(schedule);
+            inLoopAssignments.computeIfAbsent(key, k -> new java.util.HashSet<>()).add(ConflictDetectionService.SHIFT_TYPE_L01);
+
+            // Auto-create compensation day
+            createCompensationDay(saved);
+
+            auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT,
+                    null, saved, authContextService.getCurrentStaff().getId());
+
+            notificationService.createNotification(staffId,
+                    new NotificationDTO("Phân công lịch mới",
+                            "Bạn được phân công lịch L01 ngày " + workDate));
+
+            results.add(BulkL01Response.BulkL01ScheduleResult.builder()
+                    .scheduleId(saved.getId())
+                    .staffId(staffId)
+                    .workDate(workDate.toString())
+                    .build());
+            successCount++;
+        }
+
+        return BulkL01Response.builder()
+                .successCount(successCount)
+                .failureCount(request.getEntries().size() - successCount)
+                .totalCount(request.getEntries().size())
+                .errors(errors)
+                .results(results)
+                .build();
+    }
+
+    /**
+     * Get L04 (expert clinic) schedules for a specific week, grouped by day.
+     */
+    public ExpertClinicWeeklyResponse getExpertClinicWeeklyView(
+            Integer periodId, LocalDate weekStart, Integer specialtyId) {
+
+        SchedulePeriod period = periodRepository.findById(periodId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + periodId));
+
+        LocalDate effectiveWeekStart = (weekStart != null) ? weekStart : period.getStartDate();
+        LocalDate weekEnd = effectiveWeekStart.plusDays(6);
+
+        // Get all L04 schedules within the period, filtered by specialty if provided
+        List<Schedule> allL04 = scheduleRepository.findExpertClinicByPeriodAndSpecialty(periodId, specialtyId);
+
+        // Filter by week range
+        List<Schedule> weekSchedules = allL04.stream()
+                .filter(s -> !s.getWorkDate().isBefore(effectiveWeekStart) && !s.getWorkDate().isAfter(weekEnd))
+                .collect(java.util.stream.Collectors.toList());
+
+        // Build compensation day map
+        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByPeriodIdWithStaff(periodId)
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        cd -> cd.getSchedule().getId(),
+                        CompensationDay::getCompensationDate,
+                        (a, b) -> a
+                ));
+
+        // Group schedules by date
+        Map<LocalDate, List<Schedule>> byDate = weekSchedules.stream()
+                .collect(java.util.stream.Collectors.groupingBy(Schedule::getWorkDate));
+
+        // Build week schedule (all 7 days, even if empty)
+        List<ExpertClinicWeeklyResponse.DaySchedule> weekSchedule = new java.util.ArrayList<>();
+        LocalDate current = effectiveWeekStart;
+        while (!current.isAfter(weekEnd)) {
+            List<ScheduleResponse> dayResponses = byDate.getOrDefault(current, java.util.Collections.emptyList()).stream()
+                    .map(s -> toResponse(s, compDateMap.get(s.getId())))
+                    .collect(java.util.stream.Collectors.toList());
+
+            weekSchedule.add(ExpertClinicWeeklyResponse.DaySchedule.builder()
+                    .date(current)
+                    .dayOfWeek(DateUtils.getDayOfWeekVietnamese(current.getDayOfWeek()))
+                    .dayOfWeekIndex(current.getDayOfWeek().getValue())
+                    .schedules(dayResponses)
+                    .build());
+            current = current.plusDays(1);
+        }
+
+        return ExpertClinicWeeklyResponse.builder()
+                .periodId(periodId)
+                .periodName(period.getPeriodName())
+                .weekStart(effectiveWeekStart)
+                .weekEnd(weekEnd)
+                .weekSchedule(weekSchedule)
+                .build();
     }
 
     private ScheduleResponse toResponse(Schedule schedule) {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { FormInput, FormTextarea, FormSelect, Button } from "@/components/ui";
 
 type RuleType = "required" | "preference";
 
@@ -51,9 +52,14 @@ export function BusinessRulesPanel({ onAddRule }: { onAddRule?: () => void }) {
   const [newDesc, setNewDesc] = useState("");
   const [newType, setNewType] = useState<RuleType>("preference");
   const [saving, setSaving] = useState(false);
+  const [titleError, setTitleError] = useState("");
 
   const handleAddRule = async () => {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim()) {
+      setTitleError("Tên quy tắc không được để trống");
+      return;
+    }
+    setTitleError("");
     setSaving(true);
     try {
       await api.createAlgorithmConfig({
@@ -75,10 +81,10 @@ export function BusinessRulesPanel({ onAddRule }: { onAddRule?: () => void }) {
       ]);
       setNewTitle("");
       setNewDesc("");
+      setNewType("preference");
       setShowAddForm(false);
       onAddRule?.();
     } catch {
-      // Silently fail — rule still added locally
       setRules((prev) => [
         ...prev,
         {
@@ -92,6 +98,7 @@ export function BusinessRulesPanel({ onAddRule }: { onAddRule?: () => void }) {
       ]);
       setNewTitle("");
       setNewDesc("");
+      setNewType("preference");
       setShowAddForm(false);
       onAddRule?.();
     } finally {
@@ -105,9 +112,13 @@ export function BusinessRulesPanel({ onAddRule }: { onAddRule?: () => void }) {
         <span className="material-symbols-outlined text-primary shrink-0">rule</span>
         Luật nghiệp vụ đang áp dụng
       </h2>
+
       <div className="flex flex-col gap-4">
         {rules.map((rule) => (
-          <div className="bg-surface-container-low p-4 rounded-lg border border-outline-variant/30 hover:border-primary/50 transition-colors" key={rule.id}>
+          <div
+            className="bg-surface-container-low p-4 rounded-lg border border-outline-variant/30 hover:border-primary/50 transition-colors"
+            key={rule.id}
+          >
             <div className="flex items-start gap-3">
               <span className={`material-symbols-outlined ${rule.iconColor} mt-0.5`}>{rule.icon}</span>
               <div className="flex-1 min-w-0">
@@ -136,53 +147,78 @@ export function BusinessRulesPanel({ onAddRule }: { onAddRule?: () => void }) {
       </div>
 
       {showAddForm ? (
-        <div className="mt-4 p-4 bg-surface-container-lowest rounded-lg border border-outline-variant space-y-3">
-          <input
-            className="w-full h-10 px-3 border border-outline-variant bg-surface-container-low text-body-md text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-            placeholder="Tên quy tắc..."
+        <div className="mt-4 p-4 bg-surface-container-lowest rounded-lg border border-outline-variant space-y-4">
+          <FormInput
+            label="Tên quy tắc"
             value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
+            onChange={(e) => {
+              setNewTitle(e.target.value);
+              if (titleError) setTitleError("");
+            }}
+            error={titleError}
+            placeholder="Nhập tên quy tắc..."
+            required
+            disabled={saving}
           />
-          <textarea
-            className="w-full p-3 border border-outline-variant bg-surface-container-low text-body-md text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
-            placeholder="Mô tả quy tắc..."
-            rows={2}
+
+          <FormTextarea
+            label="Mô tả"
             value={newDesc}
             onChange={(e) => setNewDesc(e.target.value)}
+            placeholder="Mô tả quy tắc (tùy chọn)..."
+            rows={2}
+            disabled={saving}
           />
+
           <div className="flex items-center gap-2">
-            <select
-              className="h-10 pl-3 pr-8 border border-outline-variant bg-surface-container-low text-body-md text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary appearance-none cursor-pointer"
-              value={newType}
-              onChange={(e) => setNewType(e.target.value as RuleType)}
-            >
-              <option value="required">Bắt buộc</option>
-              <option value="preference">Ưu tiên</option>
-            </select>
-            <button
+            <div className="flex-1">
+              <FormSelect
+                label="Loại quy tắc"
+                value={newType}
+                onChange={(e) => setNewType(e.target.value as RuleType)}
+                options={[
+                  { value: "required", label: "Bắt buộc" },
+                  { value: "preference", label: "Ưu tiên" },
+                ]}
+                disabled={saving}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <Button
               type="button"
-              onClick={() => { setShowAddForm(false); setNewTitle(""); setNewDesc(""); }}
-              className="px-4 h-10 rounded-lg border border-outline-variant text-label-sm text-on-surface hover:bg-surface-container-low transition-colors"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setShowAddForm(false);
+                setNewTitle("");
+                setNewDesc("");
+                setTitleError("");
+              }}
+              disabled={saving}
             >
               Hủy
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              disabled={!newTitle.trim() || saving}
+              variant="primary"
+              size="sm"
+              loading={saving}
               onClick={handleAddRule}
-              className="px-4 h-10 rounded-lg bg-primary text-on-primary text-label-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 ml-auto"
             >
-              {saving ? "Đang lưu..." : "Lưu"}
-            </button>
+              Lưu
+            </Button>
           </div>
         </div>
       ) : (
         <button
-          className="w-full mt-4 py-2 text-primary font-label-sm border border-dashed border-primary/40 rounded-lg hover:bg-primary/5 transition-colors"
+          className="w-full mt-4 py-2 text-primary font-label-sm border border-dashed border-primary/40 rounded-lg hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
           onClick={() => setShowAddForm(true)}
           type="button"
         >
-          + Thêm luật tùy chỉnh
+          <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>add</span>
+          Thêm luật tùy chỉnh
         </button>
       )}
     </div>

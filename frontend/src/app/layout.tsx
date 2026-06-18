@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-page-custom-font */
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { AuthProvider } from "@/components/auth/AuthProvider";
@@ -24,6 +24,14 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
+const materialSymbolsStylesheet =
+  "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,-50..12&display=swap";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -32,15 +40,15 @@ export default function RootLayout({
   return (
     <html lang="vi" className={`${inter.variable} h-full antialiased`}>
       <head>
+        {/* eslint-disable-next-line @next/next/google-font-display */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
+        {/* eslint-disable-next-line @next/next/google-font-display */}
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* eslint-disable-next-line @next/next/google-font-display */}
         <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,-50..12&display=swap"
+          href={materialSymbolsStylesheet}
           rel="stylesheet"
+          precedence="default"
         />
       </head>
       <body className="min-h-full flex flex-col">
@@ -48,9 +56,9 @@ export default function RootLayout({
           <AuthGuard>
             <NotificationProvider>
               <ToastProvider>
-              <ErrorBoundary>
-                {children}
-              </ErrorBoundary>
+                <ErrorBoundary>
+                  {children}
+                </ErrorBoundary>
               </ToastProvider>
             </NotificationProvider>
           </AuthGuard>

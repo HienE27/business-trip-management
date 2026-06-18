@@ -15,9 +15,9 @@ const ALGO_LABELS: Record<string, string> = {
 };
 
 const ALGO_COLORS: Record<string, string> = {
-  GREEDY: "bg-blue-100 text-blue-800 border-blue-300",
-  ROUND_ROBIN: "bg-green-100 text-green-800 border-green-300",
-  BACKTRACKING: "bg-purple-100 text-purple-800 border-purple-300",
+  GREEDY: "bg-primary-fixed text-primary border-primary/30",
+  ROUND_ROBIN: "bg-secondary-container text-on-secondary-container border-secondary/30",
+  BACKTRACKING: "bg-tertiary-fixed text-on-tertiary border-tertiary/30",
 };
 
 function formatDateTime(iso: string) {
@@ -33,7 +33,7 @@ function formatDateTime(iso: string) {
 
 function CoverageBar({ value }: { value: number }) {
   const pct = Math.round(value * 100);
-  const color = pct >= 90 ? "bg-secondary" : pct >= 70 ? "bg-primary" : pct >= 50 ? "bg-orange-400" : "bg-error";
+  const color = pct >= 90 ? "bg-secondary" : pct >= 70 ? "bg-primary" : pct >= 50 ? "bg-tertiary" : "bg-error";
   return (
     <div className="flex items-center gap-2">
       <div className="w-20 bg-surface-container-low rounded-full h-1.5 overflow-hidden">
@@ -295,7 +295,9 @@ export default function AlgorithmHistoryPage() {
       <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative">
+            <label htmlFor="history-period-select" className="sr-only">Lọc theo kỳ lịch</label>
             <select
+              id="history-period-select"
               className="h-10 pl-3 pr-8 bg-surface-container-low border border-transparent focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-1 focus:ring-primary/20 cursor-pointer rounded-lg font-label-md text-label-md text-on-surface appearance-none"
               value={selectedPeriodId ?? ""}
               onChange={(e) => setSelectedPeriodId(e.target.value ? Number(e.target.value) : null)}

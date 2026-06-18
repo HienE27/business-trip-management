@@ -5,6 +5,7 @@ import { WorkflowShell } from "@/components/layout/WorkflowShell";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useRole } from "@/hooks/useRole";
@@ -91,6 +92,7 @@ function ConfigRow({
     description: config.description,
   });
   const [saveMsg, setSaveMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleSave = async () => {
     if (form.paramValue === config.paramValue && form.description === config.description) {
@@ -103,7 +105,7 @@ function ConfigRow({
         paramValue: form.paramValue ?? config.paramValue,
         description: form.description ?? config.description,
       });
-      setSaveMsg({ type: "success", text: "Đã lưu thay đổi." });
+      setSaveMsg({ type: "success", text: "�ã lưu thay đổi." });
       setEditing(false);
       setTimeout(() => setSaveMsg(null), 3000);
       onSave(form);
@@ -112,8 +114,7 @@ function ConfigRow({
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm(`Xóa cấu hình "${config.paramKey}"?`)) return;
+  const handleDeleteConfirm = async () => {
     try {
       await api.deleteAlgorithmConfig(config.paramKey);
       onDelete();
@@ -192,21 +193,32 @@ function ConfigRow({
                 onClick={() => setEditing(true)}
                 className="p-2 rounded-lg hover:bg-surface-container-low transition-colors"
                 title="Chỉnh sửa"
+                aria-label="Chỉnh sửa"
               >
-                <span className="material-symbols-outlined text-[18px] text-on-surface-variant">edit</span>
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">edit</span>
               </button>
               <button
                 type="button"
-                onClick={() => void handleDelete()}
+                onClick={() => setConfirmOpen(true)}
                 className="p-2 rounded-lg hover:bg-error-container transition-colors"
                 title="Xóa"
+                aria-label="Xóa"
               >
-                <span className="material-symbols-outlined text-[18px] text-error">delete</span>
+                <span className="material-symbols-outlined text-[18px] text-error" aria-hidden="true">delete</span>
               </button>
             </>
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        title={`Xóa cấu hình "${config.paramKey}"?`}
+        description="Hành động này không thể hoàn tác."
+        confirmLabel="Xóa"
+        variant="danger"
+      />
     </div>
   );
 }

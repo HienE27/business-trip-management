@@ -29,10 +29,10 @@ export type ScheduleTableViewProps = {
 
 export const SHIFT_TYPE_OPTIONS = [
   { value: "all", label: "Tất cả", dot: "bg-outline-variant", title: "Tất cả loại ca" },
-  { value: "L01", label: "24/24", dot: "bg-primary", title: "Trực 24/24" },
-  { value: "L02", label: "TT", dot: "bg-secondary", title: "Thông tầm" },
-  { value: "L03", label: "DV", dot: "bg-tertiary", title: "Dịch vụ" },
-  { value: "L04", label: "CG", dot: "bg-expert", title: "Chuyên gia" },
+  { value: "L01", label: "24/24", dot: SHIFT_COLORS.L01.dot, title: "Trực 24/24" },
+  { value: "L02", label: "TT",    dot: SHIFT_COLORS.L02.dot, title: "Thông tầm" },
+  { value: "L03", label: "DV",    dot: SHIFT_COLORS.L03.dot, title: "Dịch vụ" },
+  { value: "L04", label: "CG",    dot: SHIFT_COLORS.L04.dot, title: "Chuyên gia" },
 ] as const;
 
 export const CONFLICT_OPTIONS: { value: FilterConflict; label: string }[] = [

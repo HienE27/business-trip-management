@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -51,6 +52,10 @@ export default function NotificationsPage() {
   const [activeTab, setActiveTab] = useState<NotifTab>("all");
   const [message, setMessage] = useState("");
   const [markingAll, setMarkingAll] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) {
@@ -79,6 +84,10 @@ export default function NotificationsPage() {
     void fetchNotifications();
   }, [fetchNotifications]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab]);
+
   const filtered = notifications.filter((n) => {
     if (activeTab === "all") return true;
     if (activeTab === "unread") return !n.isRead;
@@ -88,6 +97,9 @@ export default function NotificationsPage() {
     if (activeTab === "system") return n.title.toLowerCase().includes("tự động") || n.title.toLowerCase().includes("auto");
     return true;
   });
+
+  const pagedNotifs = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -120,7 +132,13 @@ export default function NotificationsPage() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("Xóa thông báo này?")) return;
+    setDeleteTargetId(id);
+    setConfirmOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (deleteTargetId === null) return;
+    const id = deleteTargetId;
     const wasUnread = notifications.find((n) => n.id === id) && !notifications.find((n) => n.id === id)!.isRead;
     try {
       await api.delete(`/notifications/${id}`);
@@ -130,6 +148,9 @@ export default function NotificationsPage() {
       }
     } catch (err) {
       setMessage(getErrorMessage(err, "Lỗi xóa thông báo."));
+    } finally {
+      setConfirmOpen(false);
+      setDeleteTargetId(null);
     }
   }
 
@@ -145,7 +166,7 @@ export default function NotificationsPage() {
           <div className="flex items-center gap-3">
             {unreadCount > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-error px-3 py-1 text-[12px] font-bold text-on-error">
-                <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                <span className="h-2 w-2 rounded-full bg-on-error animate-pulse" />
                 {unreadCount} chưa đọc
               </span>
             )}
@@ -238,7 +259,7 @@ export default function NotificationsPage() {
             />
         ) : (
           <div className="flex flex-col gap-2" aria-busy={loading} aria-live="polite">
-            {filtered.map((notif) => {
+            {pagedNotifs.map((notif) => {
               const { icon, wrapClass } = getNotificationIcon(notif.title);
               const badge = getBadge(notif.title);
               return (
@@ -309,10 +330,47 @@ export default function NotificationsPage() {
                 </div>
               );
             })}
+
+            {/* Pagination */}
+            {filtered.length > pageSize && (
+              <div className="flex items-center justify-center gap-2 pt-4">
+                <button
+                  className="flex items-center gap-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-[12px] font-medium text-on-surface transition-colors hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[14px]">chevron_left</span>
+                  Trước
+                </button>
+                <span className="text-[12px] text-on-surface-variant">
+                  Trang {page} / {totalPages}
+                </span>
+                <button
+                  className="flex items-center gap-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-[12px] font-medium text-on-surface transition-colors hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  type="button"
+                >
+                  Sau
+                  <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => { setConfirmOpen(false); setDeleteTargetId(null); }}
+        onConfirm={confirmDelete}
+        title="Xóa thông báo?"
+        description="Hành động này không thể hoàn tác."
+        confirmLabel="Xóa"
+        variant="danger"
+      />
     </DashboardShell>
   );
 }

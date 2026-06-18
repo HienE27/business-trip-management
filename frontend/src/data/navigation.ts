@@ -38,6 +38,13 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     description: "Điều phối kỳ lịch theo workflow: auto schedule, conflict check, review, publish và export.",
   },
   {
+    key: "expert-clinic",
+    label: "Phòng khám chuyên gia",
+    href: "/expert-clinic",
+    icon: "stethoscope",
+    description: "Lịch khám chuyên gia theo chuyên khoa và phân công ca khám chuyên sâu.",
+  },
+  {
     key: "auto-scheduling",
     label: "Tự động xếp lịch",
     href: "/auto-scheduling",

@@ -1,6 +1,6 @@
 import type { ConflictCheckResponse, ConflictDetail, Schedule, SchedulePeriod, Staff } from "@/types/api";
 
-export type ScheduleTab = "L01" | "L02" | "L03" | "L04";
+export type ScheduleTab = "L01" | "L02" | "L03" | "L04" | "ALL";
 export type ViewMode = "calendar" | "table";
 export type MonthlyPanel = "overview" | "conflicts" | "summary";
 export type WorkflowStepId = "auto-schedule" | "conflicts" | "review" | "publish" | "notify";

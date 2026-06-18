@@ -5,6 +5,7 @@ import { WorkflowShell } from "@/components/layout/WorkflowShell";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AlgorithmTip } from "@/components/auto-scheduling/AlgorithmTip";
 import { BusinessRulesPanel } from "@/components/auto-scheduling/BusinessRulesPanel";
 import { StaffExclusionTable } from "@/components/auto-scheduling/StaffExclusionTable";
@@ -250,8 +251,9 @@ function EditableScheduleRow({
                 onClick={() => onSuggestReplacement(schedule)}
                 className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-primary-fixed text-on-surface-variant hover:text-primary transition-colors shrink-0"
                 title="Đề xuất người thay thế"
+                aria-label="Đề xuất người thay thế"
               >
-                <span className="material-symbols-outlined text-[16px]">swap_horiz</span>
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">swap_horiz</span>
               </button>
             )}
             {onRemove && (
@@ -260,8 +262,9 @@ function EditableScheduleRow({
                 onClick={onRemove}
                 className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-error-container text-on-surface-variant hover:text-error transition-colors shrink-0"
                 title="Xóa ca trực"
+                aria-label="Xóa ca trực"
               >
-                <span className="material-symbols-outlined text-[16px]">delete</span>
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span>
               </button>
             )}
           </div>
@@ -627,6 +630,7 @@ export default function AutoSchedulingPage() {
   }
 
   return (
+    <ErrorBoundary>
     <WorkflowShell
       section="auto-scheduling"
       title="Tự động xếp lịch"
@@ -644,7 +648,9 @@ export default function AutoSchedulingPage() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
+              <label htmlFor="auto-period-select" className="sr-only">Kỳ xếp lịch</label>
               <select
+                id="auto-period-select"
                 className="h-10 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-label-md text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 min-w-[200px]"
                 value={selectedPeriodId ?? ""}
                 onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
@@ -700,9 +706,9 @@ export default function AutoSchedulingPage() {
           description="Chọn thuật toán và giới hạn trước khi chạy."
         >
           <div className="p-4 space-y-4">
-            <div>
-              <p className="text-label-md font-semibold text-on-surface mb-2">Thuật toán</p>
-              <div className="space-y-2">
+            <fieldset>
+              <legend className="text-label-md font-semibold text-on-surface mb-2">Thuật toán</legend>
+              <div className="space-y-2" role="radiogroup" aria-label="Chọn thuật toán">
                 {ALGO_OPTIONS.map((opt) => (
                   <label
                     key={opt.id}
@@ -714,7 +720,7 @@ export default function AutoSchedulingPage() {
                   >
                     <input
                       type="radio"
-                      className="mt-0.5 accent-primary"
+                      className="mt-0.5 accent-primary cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       name="algo-type"
                       value={opt.id}
                       checked={algorithmType === opt.id}
@@ -727,7 +733,7 @@ export default function AutoSchedulingPage() {
                   </label>
                 ))}
               </div>
-            </div>
+            </fieldset>
           </div>
         </SectionCard>
 
@@ -1274,5 +1280,6 @@ export default function AutoSchedulingPage() {
         </ModalFooter>
       </Modal>
     </WorkflowShell>
+    </ErrorBoundary>
   );
 }

@@ -258,7 +258,9 @@ export default function StaffEditPage() {
                 <label className="flex flex-col gap-1.5 col-span-2">
                   <span className="text-[13px] font-semibold text-on-surface">Chuyên khoa</span>
                   <div className="relative">
+                    <label htmlFor="edit-staff-specialty" className="sr-only">Chuyên khoa</label>
                     <select
+                      id="edit-staff-specialty"
                       className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-low px-3 pr-10 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 cursor-pointer"
                       name="specialty"
                       onChange={(e) => updateField("specialtyId", e.target.value ? parseInt(e.target.value) : null)}
@@ -269,7 +271,7 @@ export default function StaffEditPage() {
                         <option key={spec.id} value={spec.id}>{spec.name}</option>
                       ))}
                     </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
+                    <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
                   </div>
                 </label>
 
@@ -277,12 +279,21 @@ export default function StaffEditPage() {
                   <span className="text-[13px] font-semibold text-on-surface">Trạng thái hoạt động</span>
                   <div className="flex items-center gap-3">
                     <button
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.isActive ? "bg-secondary" : "bg-surface-variant"}`}
+                      aria-checked={form.isActive}
+                      aria-label="Trạng thái hoạt động"
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 cursor-pointer ${form.isActive ? "bg-secondary" : "bg-surface-variant"}`}
+                      role="switch"
                       type="button"
                       onClick={() => updateField("isActive", !form.isActive)}
+                      onKeyDown={(e) => {
+                        if (e.key === " " || e.key === "Enter") {
+                          e.preventDefault();
+                          updateField("isActive", !form.isActive);
+                        }
+                      }}
                     >
                       <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.isActive ? "translate-x-6" : "translate-x-1"}`}
+                        className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-container-lowest)] shadow transition-transform ${form.isActive ? "translate-x-6" : "translate-x-1"}`}
                       />
                     </button>
                     <span className="text-[13px] font-medium text-on-surface">

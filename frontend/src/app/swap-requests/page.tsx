@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -445,9 +446,30 @@ function SwapRequestsContent() {
         <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm">
           <div className="overflow-x-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              </div>
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-outline-variant bg-surface-container-low">
+                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Người yêu cầu</th>
+                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Người đổi cùng</th>
+                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Ca ban đầu</th>
+                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Ca đề xuất</th>
+                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Trạng thái</th>
+                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/50">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i} className="hover:bg-surface-container-lowest h-10">
+                      <td className="px-4 py-2"><Skeleton className="h-3 w-32 rounded" /></td>
+                      <td className="px-4 py-2"><Skeleton className="h-3 w-32 rounded" /></td>
+                      <td className="px-4 py-2"><Skeleton className="h-3 w-24 rounded" /></td>
+                      <td className="px-4 py-2"><Skeleton className="h-3 w-24 rounded" /></td>
+                      <td className="px-4 py-2"><Skeleton className="h-5 w-20 rounded-full" /></td>
+                      <td className="px-4 py-2 text-right"><Skeleton className="h-7 w-7 rounded-lg ml-auto" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             ) : filtered.length === 0 ? (
               <EmptyState
                 icon="swap_horiz"
@@ -521,10 +543,11 @@ function SwapRequestsContent() {
                                 className="flex h-7 w-7 items-center justify-center rounded bg-secondary-container/20 text-secondary transition-colors hover:bg-secondary-container disabled:opacity-50"
                                 disabled={processing !== null}
                                 onClick={() => { setSelectedExchange(req); setReviewNote(req.reviewNote ?? ""); }}
-                                title="Xem chi tiết &amp; duyệt"
+                                title="Xem chi tiết & duyệt"
                                 type="button"
+                                aria-label="Xem chi tiết & duyệt"
                               >
-                                <span className="material-symbols-outlined text-[16px]">visibility</span>
+                                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">visibility</span>
                               </button>
                             </div>
                           ) : (
@@ -545,8 +568,9 @@ function SwapRequestsContent() {
                                   onClick={() => { setSelectedExchange(req); setReviewNote(req.reviewNote ?? ""); }}
                                   title="Xem chi tiết"
                                   type="button"
+                                  aria-label="Xem chi tiết"
                                 >
-                                  <span className="material-symbols-outlined text-[16px]">visibility</span>
+                                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">visibility</span>
                                 </button>
                               )}
                             </span>

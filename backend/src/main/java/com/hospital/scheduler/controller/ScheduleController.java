@@ -1,8 +1,11 @@
 package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
+import com.hospital.scheduler.dto.request.BulkL01Request;
 import com.hospital.scheduler.dto.request.ScheduleRequest;
+import com.hospital.scheduler.dto.response.BulkL01Response;
 import com.hospital.scheduler.dto.response.ConflictCheckResponse;
+import com.hospital.scheduler.dto.response.ExpertClinicWeeklyResponse;
 import com.hospital.scheduler.dto.response.ScheduleResponse;
 import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.security.AuthContextService;
@@ -93,6 +96,17 @@ public class ScheduleController {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getExpertClinicSchedules(periodId, specialtyId)));
     }
 
+    @GetMapping("/expert-clinic/weekly")
+    @Operation(summary = "Lấy lịch phòng khám chuyên gia theo tuần (M05-F04)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<ExpertClinicWeeklyResponse>> getExpertClinicWeeklyView(
+            @RequestParam Integer periodId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
+            @RequestParam(required = false) Integer specialtyId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                scheduleService.getExpertClinicWeeklyView(periodId, weekStart, specialtyId)));
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết lịch")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
@@ -134,5 +148,16 @@ public class ScheduleController {
         String reason = body.getOrDefault("reason", "Override by manager");
         return ResponseEntity.ok(ApiResponse.success(
                 scheduleService.overrideConflict(id, reason), "Đã ghi nhận override xung đột"));
+    }
+
+    @PostMapping("/bulk-l01")
+    @Operation(summary = "Bulk tạo lịch L01 (trực 24/24)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<BulkL01Response>> createBulkL01(
+            @Valid @RequestBody BulkL01Request request) {
+        BulkL01Response response = scheduleService.createBulkL01(request);
+        String msg = String.format("Tạo thành công %d/%d lịch L01",
+                response.getSuccessCount(), response.getTotalCount());
+        return ResponseEntity.ok(ApiResponse.success(response, msg));
     }
 }

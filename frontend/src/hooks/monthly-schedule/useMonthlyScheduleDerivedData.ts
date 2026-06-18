@@ -21,15 +21,16 @@ export function useMonthlyScheduleDerivedData(params: {
   focusDate: string | null;
 }) {
   const { selectedTab, schedules, activeStaff, conflictData, compensationDays, requirements, focusDate } = params;
+  const showAll = selectedTab === "ALL";
 
   const filteredSchedules = useMemo(
-    () => schedules.filter((schedule) => schedule.shiftType.id === selectedTab),
-    [schedules, selectedTab],
+    () => (showAll ? schedules : schedules.filter((schedule) => schedule.shiftType.id === selectedTab)),
+    [schedules, selectedTab, showAll],
   );
 
   const conflictList = useMemo(
-    () => (conflictData?.conflicts ?? []).filter((item) => item.shiftTypeId === selectedTab),
-    [conflictData, selectedTab],
+    () => (showAll ? (conflictData?.conflicts ?? []) : (conflictData?.conflicts ?? []).filter((item) => item.shiftTypeId === selectedTab)),
+    [conflictData, selectedTab, showAll],
   );
 
   const calendarAnnotations = useMemo(
@@ -38,13 +39,32 @@ export function useMonthlyScheduleDerivedData(params: {
   );
 
   const computedCoverages = useMemo(
-    () => buildCoverageMap(requirements),
-    [requirements],
+    () => buildCoverageMap(requirements, { shiftTypeId: selectedTab }),
+    [requirements, selectedTab],
   );
 
+  const filteredRequirements = useMemo(
+    () => (showAll ? requirements : requirements.filter((req) => req.shiftType.id === selectedTab)),
+    [requirements, selectedTab, showAll],
+  );
+
+  const coverageGapsByTab = useMemo(() => {
+    const gaps: string[] = [];
+    const seen = new Set<string>();
+    for (const req of filteredRequirements) {
+      if (req.assignedStaffCount >= req.requiredStaffCount) continue;
+      const key = req.workDate.split("T")[0];
+      if (seen.has(key)) continue;
+      seen.add(key);
+      gaps.push(key);
+    }
+    gaps.sort();
+    return gaps;
+  }, [filteredRequirements]);
+
   const kpis = useMemo(
-    () => buildOperationalKpis({ schedules, requirements, conflictData, activeStaff }),
-    [schedules, requirements, conflictData, activeStaff],
+    () => buildOperationalKpis({ schedules: filteredSchedules, requirements: filteredRequirements, conflictList, activeStaff }),
+    [filteredSchedules, filteredRequirements, conflictList, activeStaff],
   );
 
   const workloadSnapshot = useMemo(
@@ -67,6 +87,7 @@ export function useMonthlyScheduleDerivedData(params: {
     conflictList,
     calendarAnnotations,
     computedCoverages,
+    coverageGapsByTab,
     kpis,
     workloadSnapshot,
     focusSchedules,

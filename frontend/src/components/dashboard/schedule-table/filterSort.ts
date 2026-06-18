@@ -107,6 +107,7 @@ export function getInitials(fullName: string): string {
   return parts[parts.length - 1]?.slice(0, 2).toUpperCase() ?? "";
 }
 
-export function isSameDay(d: Date, ref: Date = new Date()): boolean {
-  return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth() && d.getDate() === ref.getDate();
+export function isSameDay(d: Date, ref?: Date): boolean {
+  const now = ref ?? new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 }

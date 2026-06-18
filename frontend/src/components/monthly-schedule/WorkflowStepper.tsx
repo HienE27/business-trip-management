@@ -74,12 +74,13 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
                 {/* Step dot */}
                 <button
                   type="button"
+                  aria-label={`${step.title} — ${step.description} (${meta.label})`}
                   onClick={() => handleClick(step.id)}
                   title={`${step.title} — ${step.description} (${meta.label})`}
                   className={`relative flex flex-col items-center gap-1 group ${isClickable ? "cursor-pointer" : "cursor-default"}`}
                 >
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center ${meta.dot} transition-all group-hover:scale-110`}>
-                    <span className="material-symbols-outlined text-white" style={{ fontSize: "13px" }}>
+                    <span className="material-symbols-outlined text-[var(--color-on-primary)]" style={{ fontSize: "13px" }}>
                       {meta.icon}
                     </span>
                   </div>

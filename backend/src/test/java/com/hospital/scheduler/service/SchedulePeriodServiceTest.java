@@ -6,7 +6,9 @@ import com.hospital.scheduler.dto.response.SchedulePeriodResponse;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
+import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
+import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +37,8 @@ import static org.mockito.Mockito.*;
 class SchedulePeriodServiceTest {
 
     @Mock private SchedulePeriodRepository periodRepository;
+    @Mock private ScheduleRepository scheduleRepository;
+    @Mock private CompensationDayRepository compensationDayRepository;
     @Mock private StaffRepository staffRepository;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private ConflictDetectionService conflictDetectionService;
@@ -268,20 +272,25 @@ class SchedulePeriodServiceTest {
     class PublishPeriod {
 
         @Test
-        @DisplayName("DRAFT, không conflict -> PUBLISHED + gửi thông báo")
+        @DisplayName("DRAFT, không conflict -> PUBLISHED + gửi thông báo cho staff")
         void draftWithoutConflicts_shouldPublish() {
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(conflictDetectionService.checkPeriodConflicts(1))
                     .thenReturn(ConflictCheckResponse.builder().hasConflicts(false).conflicts(List.of()).build());
             when(periodRepository.save(any(SchedulePeriod.class)))
                     .thenAnswer(inv -> inv.getArgument(0));
-            doNothing().when(notificationService).createNotificationForAllStaff(anyString(), anyString());
+            when(scheduleRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(adminStaff));
 
             SchedulePeriodResponse result = periodService.publishPeriod(1, 1);
 
             assertThat(result.getStatus()).isEqualTo("PUBLISHED");
-            verify(notificationService).createNotificationForAllStaff(
-                    eq("Lịch công tác đã được công bố"), anyString());
+            // The publish flow now sends per-staff notifications (with each staff's
+            // personal schedule) and a bulk email, not a generic createNotificationForAllStaff.
+            verify(notificationService).createNotification(eq(adminStaff.getId()), any());
+            verify(emailService).sendSchedulePublishedEmail(
+                    eq(List.of(adminStaff)), anyString(), any(), any(), anyList(), anyList());
         }
 
         @Test

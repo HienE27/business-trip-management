@@ -1,34 +1,36 @@
-// Re-export from single source of truth
+// Single source of truth for shift color utilities.
 export { SHIFT_COLORS, SHIFT_TYPE_BADGES } from "@/lib/shift-colors";
 export type { ShiftColorSet } from "@/lib/shift-colors";
 
-// Legacy shift object — used by dashboard/page.tsx
+// shift object — used by dashboard/page.tsx
+// All colors now reference CSS custom properties from globals.css @theme block.
+// This is the ONLY place that should define shift color utilities.
 import { SHIFT_COLORS } from "@/lib/shift-colors";
 
 export const shift = {
   L01: {
-    bg: SHIFT_COLORS.L01.bg,
-    border: "border-l-blue-500",
-    badge: "bg-blue-50 text-blue-700 border border-blue-200",
-    text: SHIFT_COLORS.L01.text,
+    bg: "bg-shift-24",
+    border: "border-l-[--color-shift-24]",        // references --color-shift-24
+    badge: "bg-shift-24 text-on-shift-24 border border-shift-24",
+    text: "text-on-shift-24",
   },
   L02: {
-    bg: SHIFT_COLORS.L02.bg,
-    border: "border-l-green-500",
-    badge: "bg-green-50 text-green-700 border border-green-200",
-    text: SHIFT_COLORS.L02.text,
+    bg: "bg-shift-all-day",
+    border: "border-l-[--color-shift-all-day]",
+    badge: "bg-shift-all-day text-on-shift-all-day border border-shift-all-day",
+    text: "text-on-shift-all-day",
   },
   L03: {
-    bg: SHIFT_COLORS.L03.bg,
-    border: "border-l-orange-500",
-    badge: "bg-orange-50 text-orange-700 border border-orange-200",
-    text: SHIFT_COLORS.L03.text,
+    bg: "bg-shift-service",
+    border: "border-l-[--color-shift-service]",
+    badge: "bg-shift-service text-on-shift-service border border-shift-service",
+    text: "text-on-shift-service",
   },
   L04: {
-    bg: SHIFT_COLORS.L04.bg,
-    border: "border-l-purple-500",
-    badge: "bg-purple-50 text-purple-700 border border-purple-200",
-    text: SHIFT_COLORS.L04.text,
+    bg: "bg-shift-expert",
+    border: "border-l-[--color-shift-expert]",
+    badge: "bg-shift-expert text-on-shift-expert border border-shift-expert",
+    text: "text-on-shift-expert",
   },
 } as const;
 

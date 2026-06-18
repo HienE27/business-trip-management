@@ -460,6 +460,50 @@ class AutoSchedulingServiceTest {
 
             assertThat(report.get("totalUnassignedDays")).isEqualTo(0);
         }
+
+        @Test
+        @DisplayName("F06: Sắp xếp unassignedDays theo missingCount DESC, workDate ASC")
+        void unassignedDays_shouldBeSortedByMissingCountDescAndWorkDateAsc() {
+            // Tạo 3 requirements: 2 người thiếu (missing=2), 1 người thiếu (missing=1)
+            // Trong cùng missingCount=2, ưu tiên ngày sớm hơn
+            // requiredStaffCount=3 nhưng chỉ có 1 staff -> missingCount = 2
+            ShiftRequirement req1 = ShiftRequirement.builder()
+                    .id(1).period(testPeriod).workDate(LocalDate.of(2026, 6, 5))
+                    .shiftType(shiftL01).specialty(testSpecialty).requiredStaffCount(3).build();
+            ShiftRequirement req2 = ShiftRequirement.builder()
+                    .id(2).period(testPeriod).workDate(LocalDate.of(2026, 6, 1))
+                    .shiftType(shiftL01).specialty(testSpecialty).requiredStaffCount(3).build();
+            ShiftRequirement req3 = ShiftRequirement.builder()
+                    .id(3).period(testPeriod).workDate(LocalDate.of(2026, 6, 10))
+                    .shiftType(shiftL02).specialty(testSpecialty).requiredStaffCount(2).build();
+
+            // Add 1 schedule for each requirement so assignedCount=1
+            Schedule s1 = Schedule.builder().id(100).period(testPeriod).workDate(LocalDate.of(2026, 6, 5))
+                    .shiftType(shiftL01).staff(testStaffList.get(0)).build();
+            Schedule s2 = Schedule.builder().id(101).period(testPeriod).workDate(LocalDate.of(2026, 6, 1))
+                    .shiftType(shiftL01).staff(testStaffList.get(0)).build();
+            Schedule s3 = Schedule.builder().id(102).period(testPeriod).workDate(LocalDate.of(2026, 6, 10))
+                    .shiftType(shiftL02).staff(testStaffList.get(0)).build();
+
+            when(periodRepository.findById(1)).thenReturn(Optional.of(testPeriod));
+            when(requirementRepository.findByPeriodId(1)).thenReturn(List.of(req1, req2, req3));
+            when(scheduleRepository.findByPeriodId(1)).thenReturn(List.of(s1, s2, s3));
+
+            Map<String, Object> report = autoSchedulingService.getUnassignedDaysReport(1);
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> unassignedDays = (List<Map<String, Object>>) report.get("unassignedDays");
+
+            assertThat(unassignedDays).hasSize(3);
+            // First: missingCount=2, workDate=2026-06-01 (earliest date among missingCount=2)
+            assertThat(unassignedDays.get(0).get("missingCount")).isEqualTo(2);
+            assertThat(unassignedDays.get(0).get("workDate")).isEqualTo(LocalDate.of(2026, 6, 1));
+            // Second: missingCount=2, workDate=2026-06-05
+            assertThat(unassignedDays.get(1).get("missingCount")).isEqualTo(2);
+            assertThat(unassignedDays.get(1).get("workDate")).isEqualTo(LocalDate.of(2026, 6, 5));
+            // Third: missingCount=1
+            assertThat(unassignedDays.get(2).get("missingCount")).isEqualTo(1);
+        }
     }
 
     // ==================== M07-F08: Suggest Replacements ====================

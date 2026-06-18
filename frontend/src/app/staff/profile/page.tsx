@@ -34,10 +34,17 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const SHIFT_TYPE_BADGE: Record<string, string> = {
-  L01: "bg-red-50 text-red-700 border border-red-200",
-  L02: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  L03: "bg-amber-50 text-amber-700 border border-amber-200",
-  L04: "bg-violet-50 text-violet-700 border border-violet-200",
+  L01: "bg-[var(--color-shift-24)]/10 text-[var(--color-on-shift-24)] border border-[var(--color-shift-24)]/30",
+  L02: "bg-[var(--color-shift-all-day)]/10 text-[var(--color-on-shift-all-day)] border border-[var(--color-shift-all-day)]/30",
+  L03: "bg-[var(--color-shift-service)]/10 text-[var(--color-on-shift-service)] border border-[var(--color-shift-service)]/30",
+  L04: "bg-[var(--color-shift-expert)]/10 text-[var(--color-on-shift-expert)] border border-[var(--color-shift-expert)]/30",
+};
+
+const SHIFT_TYPE_BORDER: Record<string, string> = {
+  L01: "border-l-[var(--color-shift-24)]",
+  L02: "border-l-[var(--color-shift-all-day)]",
+  L03: "border-l-[var(--color-shift-service)]",
+  L04: "border-l-[var(--color-shift-expert)]",
 };
 
 const SHIFT_TYPE_ICONS: Record<string, string> = {
@@ -250,29 +257,38 @@ export default function StaffProfilePage() {
         {/* Main content */}
         <div className="lg:col-span-8 flex flex-col">
           {/* Tab Header */}
-          <div className="flex border-b border-outline-variant bg-surface-container-lowest rounded-t-xl overflow-hidden">
+          <div className="flex border-b border-outline-variant bg-surface-container-lowest rounded-t-xl overflow-hidden" role="tablist" aria-label="Hồ sơ cá nhân">
             {[
               { key: "info", label: "Thông tin", icon: "person" },
               { key: "schedule", label: "Lịch công tác", icon: "calendar_month" },
               { key: "stats", label: "Thống kê", icon: "bar_chart" },
             ].map((tab) => (
               <button
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium transition-colors ${
+                aria-selected={activeTab === tab.key}
+                aria-controls={`profile-tabpanel-${tab.key}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                   activeTab === tab.key
                     ? "bg-surface-container-lowest text-primary border-b-2 border-primary"
                     : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
                 }`}
+                id={`profile-tab-${tab.key}`}
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key as typeof activeTab)}
+                role="tab"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-[16px]">{tab.icon}</span>
                 {tab.label}
               </button>
             ))}
           </div>
 
-          <div className="bg-surface-container-lowest border border-outline-variant border-t-0 rounded-b-xl p-4 shadow-sm">
+          <div
+            className="bg-surface-container-lowest border border-outline-variant border-t-0 rounded-b-xl p-4 shadow-sm"
+            id={`profile-tabpanel-${activeTab}`}
+            role="tabpanel"
+            aria-labelledby={`profile-tab-${activeTab}`}
+          >
 
             {/* Tab: Info */}
             {activeTab === "info" && (
@@ -319,8 +335,10 @@ export default function StaffProfilePage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <h3 className="font-title-lg text-on-surface">Lịch công tác</h3>
                   <div className="relative w-full sm:w-64">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">date_range</span>
+                    <span aria-hidden="true" className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">date_range</span>
+                    <label htmlFor="profile-schedule-period" className="sr-only">Chọn kỳ xếp lịch</label>
                     <select
+                      id="profile-schedule-period"
                       className="w-full pl-10 pr-8 py-2 bg-surface-container-low border border-outline-variant text-body-sm text-on-surface rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary appearance-none cursor-pointer"
                       value={selectedPeriodId ?? ""}
                       onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
@@ -332,7 +350,7 @@ export default function StaffProfilePage() {
                         </option>
                       ))}
                     </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[20px] pointer-events-none">expand_more</span>
+                    <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[20px] pointer-events-none">expand_more</span>
                   </div>
                 </div>
 
@@ -455,10 +473,10 @@ export default function StaffProfilePage() {
                   <h4 className="font-title-md text-on-surface mb-3">Chi tiết theo loại lịch</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
-                      { label: "Trực 24/24", value: stats.L01, color: "bg-red-500", bg: "bg-red-50 border-red-200" },
-                      { label: "Thông tầm", value: stats.L02, color: "bg-blue-500", bg: "bg-blue-50 border-blue-200" },
-                      { label: "Khám dịch vụ", value: stats.L03, color: "bg-green-500", bg: "bg-green-50 border-green-200" },
-                      { label: "Khám chuyên gia", value: stats.L04, color: "bg-purple-500", bg: "bg-purple-50 border-purple-200" },
+                      { label: "Trực 24/24", value: stats.L01, color: "bg-[var(--color-shift-24)]", bg: "bg-[var(--color-shift-24)]/10 border-[var(--color-shift-24)]/30" },
+                      { label: "Thông tầm", value: stats.L02, color: "bg-[var(--color-shift-all-day)]", bg: "bg-[var(--color-shift-all-day)]/10 border-[var(--color-shift-all-day)]/30" },
+                      { label: "Khám dịch vụ", value: stats.L03, color: "bg-[var(--color-shift-service)]", bg: "bg-[var(--color-shift-service)]/10 border-[var(--color-shift-service)]/30" },
+                      { label: "Khám chuyên gia", value: stats.L04, color: "bg-[var(--color-shift-expert)]", bg: "bg-[var(--color-shift-expert)]/10 border-[var(--color-shift-expert)]/30" },
                     ].map((item) => (
                       <div key={item.label} className={`rounded-xl border p-4 ${item.bg}`}>
                         <div className="flex items-center gap-2 mb-2">

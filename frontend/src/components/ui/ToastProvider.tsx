@@ -1,9 +1,28 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { cn } from "@/lib/utils";
 
-export type ToastType = "success" | "error" | "info";
+/* ── Toast Notification System ──
+ *
+ * Types: success / error / warning / info
+ * Position: fixed bottom-right (desktop), bottom-center (mobile)
+ * Animation: slide-in from right, fade-out on dismiss
+ * Auto-dismiss: 4s (configurable via `duration` param)
+ * Accessibility: role="status" for success/info, role="alert" for error/warning
+ *
+ * Design tokens: surface, outline-variant, secondary, error, primary
+ */
+
+export type ToastType = "success" | "error" | "warning" | "info";
 
 export interface Toast {
   id: string;
@@ -13,65 +32,115 @@ export interface Toast {
 
 type ToastContextType = {
   toasts: Toast[];
-  success: (message: string) => void;
-  error: (message: string) => void;
-  info: (message: string) => void;
+  success: (message: string, duration?: number) => void;
+  error: (message: string, duration?: number) => void;
+  warning: (message: string, duration?: number) => void;
+  info: (message: string, duration?: number) => void;
   dismiss: (id: string) => void;
+  dismissAll: () => void;
 };
 
 const ToastContext = createContext<ToastContextType | null>(null);
 
 function createId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
-  const [visible, setVisible] = useState(false);
+const TOAST_ICONS: Record<ToastType, string> = {
+  success: "check_circle",
+  error: "error",
+  warning: "warning",
+  info: "info",
+};
 
-  // Stable refs so timer callbacks never go stale
+const TOAST_ICON_BG: Record<ToastType, string> = {
+  success: "bg-secondary-container",
+  error: "bg-error-container",
+  warning: "bg-tertiary-fixed",
+  info: "bg-primary-fixed",
+};
+
+const TOAST_ICON_COLOR: Record<ToastType, string> = {
+  success: "text-secondary",
+  error: "text-error",
+  warning: "text-on-tertiary-fixed-variant",
+  info: "text-primary",
+};
+
+const TOAST_DEFAULT_DURATION = 4000;
+
+function ToastItem({
+  toast,
+  onDismiss,
+  duration = TOAST_DEFAULT_DURATION,
+}: {
+  toast: Toast;
+  onDismiss: (id: string) => void;
+  duration?: number;
+}) {
+  const [visible, setVisible] = useState(false);
   const onDismissRef = useRef(onDismiss);
   const toastIdRef = useRef(toast.id);
 
-  // Keep refs current — these run on every render
   onDismissRef.current = onDismiss;
   toastIdRef.current = toast.id;
 
   useEffect(() => {
-    // Fade in immediately
-    setVisible(true);
+    requestAnimationFrame(() => setVisible(true));
     return () => setVisible(false);
   }, []);
 
   useEffect(() => {
-    // Auto-dismiss after 3 seconds
     const timer = setTimeout(() => {
-      onDismissRef.current(toastIdRef.current);
-    }, 3000);
+      setVisible(false);
+      setTimeout(() => onDismissRef.current(toastIdRef.current), 300);
+    }, duration);
     return () => clearTimeout(timer);
-  }, []); // empty — set up once on mount
+  }, [duration]);
 
-  const handleClose = () => onDismissRef.current(toastIdRef.current);
-
-  const icons = { success: "check_circle", error: "error", info: "info" };
-  const iconBg = { success: "bg-secondary-container", error: "bg-error-container", info: "bg-primary-fixed" };
-  const iconColor = { success: "text-secondary", error: "text-error", info: "text-primary" };
+  const handleClose = () => {
+    setVisible(false);
+    setTimeout(() => onDismissRef.current(toastIdRef.current), 300);
+  };
 
   return (
     <div
+      role={toast.type === "error" || toast.type === "warning" ? "alert" : "status"}
+      aria-live={toast.type === "error" ? "assertive" : "polite"}
       className={cn(
-        "flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3 shadow-lg min-w-72 max-w-96",
+        "flex items-center gap-3 bg-surface-container-lowest border border-outline-variant",
+        "rounded-xl px-4 py-3 shadow-xl min-w-72 max-w-[420px]",
         "transition-all duration-300 ease-out",
         visible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-8"
       )}
     >
-      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", iconBg[toast.type])}>
-        <span className={cn("material-symbols-outlined text-[18px]", iconColor[toast.type])} style={{ fontVariationSettings: "'FILL' 1" }}>
-          {icons[toast.type]}
+      <div
+        className={cn(
+          "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+          TOAST_ICON_BG[toast.type]
+        )}
+      >
+        <span
+          className={cn("material-symbols-outlined text-[18px]", TOAST_ICON_COLOR[toast.type])}
+          style={{ fontVariationSettings: "'FILL' 1" }}
+          aria-hidden="true"
+        >
+          {TOAST_ICONS[toast.type]}
         </span>
       </div>
+
       <p className="text-body-sm text-on-surface flex-1 leading-tight">{toast.message}</p>
-      <button onClick={handleClose} className="w-6 h-6 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer" aria-label="Dismiss">
-        <span className="material-symbols-outlined text-[16px]">close</span>
+
+      <button
+        onClick={handleClose}
+        className={cn(
+          "w-7 h-7 flex items-center justify-center rounded-full",
+          "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface",
+          "transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+        )}
+        aria-label="Đóng thông báo"
+      >
+        <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
       </button>
     </div>
   );
@@ -80,24 +149,46 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // Stable identity — no useCallback, no deps change
   const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const addToast = useCallback((message: string, type: ToastType) => {
-    const id = createId();
-    setToasts((prev) => [...prev, { id, message, type }]);
+  const dismissAll = useCallback(() => {
+    setToasts([]);
   }, []);
 
-  const success = useCallback((message: string) => addToast(message, "success"), [addToast]);
-  const error = useCallback((message: string) => addToast(message, "error"), [addToast]);
-  const info = useCallback((message: string) => addToast(message, "info"), [addToast]);
+  const addToast = useCallback((message: string, type: ToastType, duration?: number) => {
+    const id = createId();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    return id;
+  }, []);
+
+  const success = useCallback(
+    (message: string, duration?: number) => addToast(message, "success", duration),
+    [addToast]
+  );
+  const error = useCallback(
+    (message: string, duration?: number) => addToast(message, "error", duration),
+    [addToast]
+  );
+  const warning = useCallback(
+    (message: string, duration?: number) => addToast(message, "warning", duration),
+    [addToast]
+  );
+  const info = useCallback(
+    (message: string, duration?: number) => addToast(message, "info", duration),
+    [addToast]
+  );
 
   return (
-    <ToastContext.Provider value={{ toasts, success, error, info, dismiss }}>
+    <ToastContext.Provider value={{ toasts, success, error, warning, info, dismiss, dismissAll }}>
       {children}
-      <div aria-live="polite" className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 pointer-events-none">
+
+      {/* Toast container — bottom-right desktop, bottom-center mobile */}
+      <div
+        aria-label="Thông báo"
+        className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 pointer-events-none sm:right-6 sm:left-auto left-1/2 sm:translate-x-0 -translate-x-1/2"
+      >
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto">
             <ToastItem toast={toast} onDismiss={dismiss} />

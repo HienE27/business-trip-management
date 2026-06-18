@@ -3,21 +3,21 @@
 import { PAGE_SIZE, type SortKey, type SortDir } from "./constants";
 
 export type ScheduleTablePaginationProps = {
-  totalItems: number;
+  totalFiltered: number;
   page: number;
   totalPages: number;
   onPageChange: (page: number) => void;
 };
 
-export function ScheduleTablePagination({ totalItems, page, totalPages, onPageChange }: ScheduleTablePaginationProps) {
+export function ScheduleTablePagination({ totalFiltered, page, totalPages, onPageChange }: ScheduleTablePaginationProps) {
   if (totalPages <= 1) return null;
   const start = (page - 1) * PAGE_SIZE + 1;
-  const end = Math.min(page * PAGE_SIZE, totalItems);
+  const end = Math.min(page * PAGE_SIZE, totalFiltered);
 
   return (
     <div className="px-4 py-3 border-t border-outline-variant bg-surface-container-low flex items-center justify-between gap-3 flex-wrap shrink-0">
       <span className="text-label-sm text-on-surface-variant">
-        Hiển {start}–{end} / {totalItems} lịch
+        Hiển {start}–{end} / {totalFiltered} lịch
       </span>
       <div className="flex items-center gap-1">
         <button type="button" onClick={() => onPageChange(1)} disabled={page === 1} className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant transition-colors disabled:opacity-30 disabled:cursor-not-allowed" aria-label="Trang đầu">
@@ -123,7 +123,6 @@ export function ScheduleTableHeader({ sortKey, sortDir, onSort }: SortHeaderProp
             : sortKey === key
             ? sortDir === "asc" ? "ascending" : "descending"
             : "none";
-          const sortKeyTyped = key as SortKey | null;
           return (
             <th
               key={label}
@@ -133,30 +132,30 @@ export function ScheduleTableHeader({ sortKey, sortDir, onSort }: SortHeaderProp
                 isSortable ? "cursor-pointer hover:bg-surface-container-high group select-none focus-within:bg-surface-container-high" : ""
               }`}
             >
-              {isSortable && sortKeyTyped ? (
-                <button
-                  type="button"
-                  onClick={() => onSort(sortKeyTyped)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onSort(sortKeyTyped);
-                    }
-                  }}
-                  className="flex items-center gap-1 bg-transparent p-0 text-label-sm font-semibold text-on-surface-variant focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
-                >
-                  {label}
-                  {sortKey === sortKeyTyped ? (
-                    <span aria-hidden="true" className="material-symbols-outlined text-[18px]">{sortDir === "asc" ? "expand_less" : "expand_more"}</span>
-                  ) : (
-                    <span aria-hidden="true" className="material-symbols-outlined text-[18px] opacity-0 group-hover:opacity-40">unfold_more</span>
-                  )}
-                  <span className="sr-only">
-                    {sortKey === sortKeyTyped
-                      ? `Đang sắp xếp ${sortDir === "asc" ? "tăng dần" : "giảm dần"}`
-                      : "Sắp xếp tăng dần"}
-                  </span>
-                </button>
+              {isSortable && key ? (
+                  <button
+                    type="button"
+                    onClick={() => onSort(key as SortKey)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onSort(key as SortKey);
+                      }
+                    }}
+                    className="flex items-center gap-1 bg-transparent p-0 text-label-sm font-semibold text-on-surface-variant focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                  >
+                    <span className="sr-only">{label}</span>
+                    {sortKey === key ? (
+                      <span aria-hidden="true" className="material-symbols-outlined text-[18px]">{sortDir === "asc" ? "expand_less" : "expand_more"}</span>
+                    ) : (
+                      <span aria-hidden="true" className="material-symbols-outlined text-[18px] opacity-0 group-hover:opacity-40">unfold_more</span>
+                    )}
+                    <span className="sr-only">
+                      {sortKey === key
+                        ? `, ${sortDir === "asc" ? "tăng dần" : "giảm dần"}`
+                        : ", sắp xếp tăng dần"}
+                    </span>
+                  </button>
               ) : (
                 <div className="flex items-center gap-1">{label}</div>
               )}

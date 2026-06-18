@@ -185,6 +185,7 @@ export default function SettingsPage() {
                 </div>
                 <ToggleSwitch
                   id="email-toggle"
+                  label="Bật thông báo Email"
                   checked={emailEnabled}
                   onChange={setEmailEnabled}
                 />
@@ -204,6 +205,7 @@ export default function SettingsPage() {
                 </div>
                 <ToggleSwitch
                   id="conflict-email-toggle"
+                  label="Thông báo xung đột lịch"
                   checked={conflictEmailEnabled}
                   onChange={setConflictEmailEnabled}
                   disabled={!emailEnabled}
@@ -227,7 +229,7 @@ export default function SettingsPage() {
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-label-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
                 >
                   {savingEmail ? (
-                    <><div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" /><span>Đang lưu...</span></>
+                    <><div className="size-4 animate-spin rounded-full border-2 border-[var(--color-on-primary)] border-t-transparent" /><span>Đang lưu...</span></>
                   ) : (
                     <><span className="material-symbols-outlined text-[18px]">save</span><span>Lưu cấu hình</span></>
                   )}
@@ -437,7 +439,7 @@ export default function SettingsPage() {
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-label-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
                 >
                   {savingPassword ? (
-                    <><div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" /><span>Đang đổi...</span></>
+                    <><div className="size-4 animate-spin rounded-full border-2 border-[var(--color-on-primary)] border-t-transparent" /><span>Đang đổi...</span></>
                   ) : (
                     <><span className="material-symbols-outlined text-[18px]">lock_reset</span><span>Đổi mật khẩu</span></>
                   )}
@@ -452,24 +454,33 @@ export default function SettingsPage() {
   );
 }
 
-function ToggleSwitch({ id, checked, onChange, disabled }: {
+function ToggleSwitch({ id, checked, onChange, disabled, label }: {
   id: string;
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  label?: string;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      aria-labelledby={id}
+      id={id}
+      aria-label={label}
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
+      onKeyDown={(e) => {
+        if (!disabled && (e.key === " " || e.key === "Enter")) {
+          e.preventDefault();
+          onChange(!checked);
+        }
+      }}
       className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${checked ? "bg-primary" : "bg-surface-container-high"}`}
     >
       <span
-        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${checked ? "translate-x-5" : "translate-x-0"}`}
+        aria-hidden="true"
+        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-[var(--color-surface-container-lowest)] border border-[var(--color-outline-variant)] shadow-sm transition-transform ${checked ? "translate-x-5" : "translate-x-0"}`}
       />
     </button>
   );

@@ -1,6 +1,8 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.response.DashboardResponse;
+import com.hospital.scheduler.dto.response.ScheduleAggregationResponse;
+import com.hospital.scheduler.dto.response.StaffDailyCount;
 import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.entity.Schedule;
 import com.hospital.scheduler.entity.ScheduleExchange;
@@ -161,5 +163,61 @@ public class DashboardService {
         result.put("totalStaff", schedules.stream().map(s -> s.getStaff().getId()).distinct().count());
 
         return result;
+    }
+
+    /**
+     * Aggregate schedule counts for an arbitrary date range, optionally filtered
+     * by staff. Used by dashboard week and month views that aren't bound to a
+     * {@code SchedulePeriod}.
+     */
+    public ScheduleAggregationResponse aggregateByDateRange(LocalDate startDate, LocalDate endDate, Integer staffId) {
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("startDate và endDate là bắt buộc");
+        }
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("startDate phải trước hoặc bằng endDate");
+        }
+        List<Schedule> all = scheduleRepository.findAll();
+        List<Schedule> filtered = all.stream()
+                .filter(s -> !s.getWorkDate().isBefore(startDate) && !s.getWorkDate().isAfter(endDate))
+                .filter(s -> staffId == null || staffId.equals(s.getStaff().getId()))
+                .toList();
+
+        Map<LocalDate, Map<String, Long>> dailyCounts = new LinkedHashMap<>();
+        for (Schedule schedule : filtered) {
+            LocalDate date = schedule.getWorkDate();
+            dailyCounts.computeIfAbsent(date, k -> new LinkedHashMap<>())
+                    .merge(schedule.getShiftType().getId(), 1L, Long::sum);
+        }
+
+        Map<String, Long> shiftTypeTotals = new HashMap<>();
+        for (Schedule schedule : filtered) {
+            shiftTypeTotals.merge(schedule.getShiftType().getId(), 1L, Long::sum);
+        }
+
+        Map<Integer, Long> perStaffMap = filtered.stream()
+                .collect(Collectors.groupingBy(s -> s.getStaff().getId(), Collectors.counting()));
+        List<StaffDailyCount> perStaff = perStaffMap.entrySet().stream()
+                .map(e -> {
+                    Staff staff = staffRepository.findById(e.getKey()).orElse(null);
+                    return StaffDailyCount.builder()
+                            .staffId(e.getKey())
+                            .staffFullName(staff != null ? staff.getFullName() : null)
+                            .scheduleCount(e.getValue())
+                            .build();
+                })
+                .sorted(Comparator.comparing(StaffDailyCount::getStaffFullName,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+
+        return ScheduleAggregationResponse.builder()
+                .rangeStart(startDate)
+                .rangeEnd(endDate)
+                .daysInRange((int) (endDate.toEpochDay() - startDate.toEpochDay()) + 1)
+                .totalSchedules(filtered.size())
+                .dailyCounts(dailyCounts)
+                .shiftTypeTotals(shiftTypeTotals)
+                .perStaff(perStaff)
+                .build();
     }
 }

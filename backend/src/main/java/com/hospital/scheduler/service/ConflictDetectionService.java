@@ -37,6 +37,8 @@ public class ConflictDetectionService {
     private final ShiftTypeRepository shiftTypeRepository;
     @Lazy
     private final EmailService emailService;
+    @Lazy
+    private final ConflictBroadcastService conflictBroadcastService;
 
     public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
         return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, false, false);
@@ -143,14 +145,34 @@ public class ConflictDetectionService {
                 schedule.setHasConflict(true);
                 scheduleRepository.save(schedule);
 
-                conflictDetails.add(ConflictCheckResponse.ConflictDetail.builder()
+                String description = String.join("; ", conflicts);
+                ConflictCheckResponse.ConflictDetail conflictDetail = ConflictCheckResponse.ConflictDetail.builder()
                         .scheduleId(schedule.getId())
                         .staffName(staff.getFullName())
                         .workDate(workDate)
                         .shiftTypeId(shiftTypeId)
                         .shiftTypeName(schedule.getShiftType().getName())
                         .conflictReasons(conflicts)
-                        .build());
+                        .build();
+                conflictDetails.add(conflictDetail);
+
+                // Persist the conflict record so the resolution flow can find it later, and
+                // notify both the staff member and the conflict channel.
+                ScheduleConflict savedConflict = saveConflictInternal(schedule, ScheduleConflict.ConflictType.OTHER, description);
+                emailService.sendConflictAlertToStaff(staff, schedule, description);
+
+                // Broadcast conflict via WebSocket so frontend can update the badge in real-time.
+                // Wrapped in try-catch so broadcast failure never breaks the conflict check flow.
+                try {
+                    conflictBroadcastService.broadcastConflict(savedConflict, conflictDetail);
+                } catch (Exception e) {
+                    org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
+                            .warn("Failed to broadcast conflict for schedule {}: {}", schedule.getId(), e.getMessage());
+                }
+            } else if (Boolean.TRUE.equals(schedule.getHasConflict())) {
+                // Conflict was resolved since the last check — clear the flag.
+                schedule.setHasConflict(false);
+                scheduleRepository.save(schedule);
             }
         }
 
@@ -177,6 +199,29 @@ public class ConflictDetectionService {
                 .build();
         scheduleConflictRepository.save(conflict);
         emailService.sendConflictAlert(schedule, description);
+    }
+
+    /**
+     * Persist a {@link ScheduleConflict} record without triggering an email. Used by
+     * {@link #checkPeriodConflicts(Integer)} where the email is fired separately via
+     * {@link EmailService#sendConflictAlertToStaff(Staff, Schedule, String)} so we don't
+     * notify twice.
+     */
+    @Transactional
+    public ScheduleConflict saveConflictInternal(Schedule schedule, ScheduleConflict.ConflictType conflictType, String description) {
+        // Skip persisting duplicate unresolved conflicts for the same schedule so repeated
+        // period checks don't spam the conflict log table.
+        List<ScheduleConflict> existing = scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(schedule.getId());
+        if (!existing.isEmpty()) {
+            return existing.get(0);
+        }
+        ScheduleConflict conflict = ScheduleConflict.builder()
+                .schedule(schedule)
+                .conflictType(conflictType)
+                .description(description)
+                .isResolved(false)
+                .build();
+        return scheduleConflictRepository.save(conflict);
     }
 
     public List<ScheduleConflict> getUnresolvedConflictsByPeriod(Integer periodId) {

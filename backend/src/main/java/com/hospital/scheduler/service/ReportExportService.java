@@ -99,7 +99,7 @@ public class ReportExportService {
                     createCell(row, 3, schedule.getStaff().getFullName(), dataStyle);
                     createCell(row, 4, schedule.getStaff().getSpecialty() != null ? schedule.getStaff().getSpecialty().getName() : "", dataStyle);
                     createCell(row, 5, schedule.getShiftType().getName(), dataStyle);
-                    createCell(row, 6, schedule.getHasConflict() ? "CO XUNG DOT" : "", dataStyle);
+                    createCell(row, 6, schedule.getHasConflict() ? "CÓ XUNG ĐỘT" : "", dataStyle);
                 }
             }
 

@@ -164,10 +164,10 @@ export default function ExpertClinicPage() {
       {/* Stats */}
       <section className="grid gap-3 grid-cols-2 sm:grid-cols-4">
         {[
-          { label: "Tổng ca PK Chuyên gia", value: schedules.length, icon: "stethoscope", accent: "bg-[var(--color-shift-expert)]/10 text-[var(--color-on-shift-expert)]" },
-          { label: "Chuyên khoa", value: specialties.length, icon: "local_hospital", accent: "bg-[var(--color-primary)]/10 text-[var(--color-primary)]" },
-          { label: "Nhân sự tham gia", value: new Set(schedules.map((s) => s.staff.id)).size, icon: "groups", accent: "bg-[var(--color-shift-all-day)]/10 text-[var(--color-on-shift-all-day)]" },
-          { label: "Xung đột", value: schedules.filter((s) => s.hasConflict).length, icon: "warning", accent: "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]" },
+          { label: "Tổng ca PK Chuyên gia", value: schedules.length, icon: "stethoscope", accent: "bg-shift-expert/10 text-on-shift-expert" },
+          { label: "Chuyên khoa", value: specialties.length, icon: "local_hospital", accent: "bg-primary/10 text-primary" },
+          { label: "Nhân sự tham gia", value: new Set(schedules.map((s) => s.staff.id)).size, icon: "groups", accent: "bg-shift-all-day/10 text-on-shift-all-day" },
+          { label: "Xung đột", value: schedules.filter((s) => s.hasConflict === true).length, icon: "warning", accent: "bg-error-container text-on-error-container" },
         ].map((kpi) => (
           <div key={kpi.label} className={`rounded-xl border border-outline-variant p-4 ${kpi.accent}`}>
             <p className="text-label-sm opacity-80 mb-1">{kpi.label}</p>

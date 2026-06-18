@@ -151,9 +151,14 @@ export function buildCalendarAnnotations(compensationDays: CompensationDay[], co
   return [...compAnnotations, ...conflictAnnotations];
 }
 
-export function buildCoverageMap(requirements: ShiftRequirement[]) {
+export function buildCoverageMap(
+  requirements: ShiftRequirement[],
+  filter?: { shiftTypeId?: ScheduleTab }
+) {
   const map: Record<string, { required: number; assigned: number }> = {};
+  const includeAll = !filter?.shiftTypeId || filter.shiftTypeId === "ALL";
   for (const req of requirements) {
+    if (!includeAll && req.shiftType.id !== filter?.shiftTypeId) continue;
     const key = req.workDate.split("T")[0];
     const prev = map[key] ?? { required: 0, assigned: 0 };
     map[key] = {
@@ -185,10 +190,10 @@ export function buildConflictKeys(conflicts: ConflictDetail[]) {
 export function buildOperationalKpis(params: {
   schedules: Schedule[];
   requirements: ShiftRequirement[];
-  conflictData: ConflictCheckResponse | null;
+  conflictList: { shiftTypeId: string }[];
   activeStaff: Staff[];
 }): OperationalKpi[] {
-  const { schedules, requirements, conflictData, activeStaff } = params;
+  const { schedules, requirements, conflictList, activeStaff } = params;
   const required = requirements.reduce((sum, req) => sum + req.requiredStaffCount, 0);
   const assigned = requirements.reduce((sum, req) => sum + req.assignedStaffCount, 0);
   const coverage = required > 0 ? Math.round((assigned / required) * 100) : schedules.length > 0 ? 100 : 0;
@@ -203,7 +208,9 @@ export function buildOperationalKpis(params: {
     l01ByStaff.set(schedule.staff.id, (l01ByStaff.get(schedule.staff.id) ?? 0) + 1);
   }
   const fatigueRisk = Array.from(l01ByStaff.values()).filter((count) => count >= 4).length;
-  const openConflicts = conflictData?.totalConflicts ?? schedules.filter((schedule) => schedule.hasConflict).length;
+  const openConflicts = conflictList.length > 0
+    ? conflictList.length
+    : schedules.filter((schedule) => schedule.hasConflict).length;
 
   return [
     {

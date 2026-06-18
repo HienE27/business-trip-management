@@ -32,6 +32,22 @@ export default function ReportsConflictsPage() {
     void fetchPeriods();
   }, [fetchPeriods]);
 
+  const handleExportExcel = async (periodId: number) => {
+    try {
+      const blob = await api.exportScheduleExcel(periodId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `schedule-export-${periodId}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // silent
+    }
+  };
+
   const checkConflicts = useCallback(async (periodId: number) => {
     try {
       setChecking(true);
@@ -77,7 +93,9 @@ export default function ReportsConflictsPage() {
           </div>
         </div>
         <div className="relative min-w-[280px]">
+          <label htmlFor="report-conflicts-period" className="sr-only">Chọn kỳ lịch</label>
           <select
+            id="report-conflicts-period"
             className="w-full appearance-none rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-[14px] text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer pr-10"
             value={selectedPeriod?.id ?? ""}
             onChange={(e) => {
@@ -149,15 +167,14 @@ export default function ReportsConflictsPage() {
             </article>
           </section>
           {selectedPeriod && (
-            <a
-              href={`/api/v1/dashboard/export/schedule/${selectedPeriod.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
               className="inline-flex items-center gap-1.5 rounded-lg border border-primary px-3 py-1.5 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors shrink-0"
+              onClick={() => void handleExportExcel(selectedPeriod.id)}
+              type="button"
             >
               <span className="material-symbols-outlined text-[16px]">table_view</span>
               Xuất Excel
-            </a>
+            </button>
           )}
           </section>
 

@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WorkflowShell } from "@/components/layout/WorkflowShell";
+import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonCalendar, SkeletonKPI, SkeletonTable } from "@/components/ui/Skeleton";
 import { ConflictResolutionModal } from "@/components/ui/ConflictResolutionModal";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ConflictSection } from "@/components/monthly-schedule/ConflictSection";
 import { CoverageSection } from "@/components/monthly-schedule/CoverageSection";
 import { KPISection } from "@/components/monthly-schedule/KPISection";
@@ -11,7 +13,6 @@ import { QuickAddModal } from "@/components/monthly-schedule/QuickAddModal";
 import { ReviewSnapshotPanel } from "@/components/monthly-schedule/ReviewSnapshotPanel";
 import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleCalendarSection";
 import { ScheduleHeader } from "@/components/monthly-schedule/ScheduleHeader";
-import { ScheduleTabs } from "@/components/monthly-schedule/ScheduleTabs";
 import { ShiftDetailModal } from "@/components/monthly-schedule/ShiftDetailModal";
 import { WorkflowStepper } from "@/components/monthly-schedule/WorkflowStepper";
 import { useRole, canManage } from "@/hooks/useRole";
@@ -35,21 +36,21 @@ export default function MonthlySchedulePage() {
     selectedPanel,
     viewMode,
     parsedScheduleId,
-    parsedStaffId,
-    parsedSpecialtyId,
     periodId: periodIdFromUrl,
     setQueryState,
     openScheduleDetail,
     closeScheduleDetail,
   } = useMonthlyScheduleUrlState();
 
+  // Only restore scroll when view actually changes (calendar ↔ table).
+  // Tab/filter changes do NOT change view — no scroll restore needed.
   useEffect(() => {
     const saved = scrollYRef.current;
     if (saved > 0) {
       scrollYRef.current = 0;
       requestAnimationFrame(() => window.scrollTo(0, saved));
     }
-  }, [selectedTab]);
+  }, [viewMode]);
 
   // Sync workspace khi URL periodId thay đổi
   useEffect(() => {
@@ -76,8 +77,6 @@ export default function MonthlySchedulePage() {
   const [resolvingConflict, setResolvingConflict] = useState<ConflictItem | null>(null);
   const [focusDate, setFocusDate] = useState<string | null>(null);
   const [addModalDate, setAddModalDate] = useState<Date | null>(null);
-  const [staffFilterId, setStaffFilterId] = useState<number | null>(parsedStaffId);
-  const [specialtyFilterId, setSpecialtyFilterId] = useState<number | null>(parsedSpecialtyId);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [notifying, setNotifying] = useState(false);
@@ -104,6 +103,7 @@ export default function MonthlySchedulePage() {
     conflictList,
     calendarAnnotations,
     computedCoverages,
+    coverageGapsByTab,
     kpis,
     focusSchedules,
   } = useMonthlyScheduleDerivedData({
@@ -216,6 +216,7 @@ export default function MonthlySchedulePage() {
   }
 
   return (
+    <ErrorBoundary>
     <WorkflowShell
       section="monthly-schedule"
       title="Lập lịch tháng"
@@ -229,12 +230,17 @@ export default function MonthlySchedulePage() {
             periods={periods}
             selectedPeriodId={selectedPeriodId}
             selectedPeriod={selectedPeriod}
+            selectedTab={selectedTab}
             refreshing={refreshing}
             exporting={exporting}
             checkingConflicts={checkingConflicts}
             publishing={publishing}
             canPublish={canManage(role)}
             onPeriodChange={handlePeriodChange}
+            onTabChange={(tab) => {
+              scrollYRef.current = window.scrollY;
+              setQueryState({ tab });
+            }}
             onRefresh={handleRefresh}
             onExport={handleExport}
             onCheckConflicts={handleCheckConflicts}
@@ -267,63 +273,55 @@ export default function MonthlySchedulePage() {
 
       <KPISection kpis={kpis} />
 
-      {/* Row 2: Calendar + Right Sidebar */}
-      <ScheduleTabs
-        selectedTab={selectedTab}
-        onTabChange={(tab) => {
-          scrollYRef.current = window.scrollY;
-          setQueryState({ tab });
-        }}
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3">
-          {/* Left: Calendar */}
-          <div className="overflow-hidden rounded-xl">
-            <ScheduleCalendarSection
-              schedules={filteredSchedules}
-              calendarAnnotations={calendarAnnotations}
-              coverages={computedCoverages}
-              activeStaff={activeStaff}
-              specialties={specialties}
-              staffFilterId={staffFilterId}
-              specialtyFilterId={specialtyFilterId}
-              selectedPeriodId={selectedPeriodId}
-              initialYear={initialCalendar.year}
-              initialMonth={initialCalendar.month}
-              viewMode={viewMode}
-              compensationDays={compensationDays}
-              onRefresh={handleRefresh}
-              onFocusDate={setFocusDate}
-              onAddDate={setAddModalDate}
-              onStaffFilterChange={setStaffFilterId}
-              onSpecialtyFilterChange={setSpecialtyFilterId}
-              onViewDetail={(schedule) => openScheduleDetail(schedule.id)}
-              onViewModeChange={(view) => setQueryState({ view })}
-            />
-          </div>
+      {/* Row 2: Calendar — full width, then info panels below */}
+      <div className="border border-outline-variant overflow-hidden rounded-xl">
+        <ScheduleCalendarSection
+          schedules={schedules}
+          calendarAnnotations={calendarAnnotations}
+          coverages={computedCoverages}
+          activeStaff={activeStaff}
+          specialties={specialties}
+          staffFilterId={null}
+          specialtyFilterId={null}
+          selectedPeriodId={selectedPeriodId}
+          initialYear={initialCalendar.year}
+          initialMonth={initialCalendar.month}
+          viewMode={viewMode}
+          selectedTab={selectedTab}
+          compensationDays={compensationDays}
+          onRefresh={handleRefresh}
+          onFocusDate={setFocusDate}
+          onAddDate={setAddModalDate}
+          onStaffFilterChange={() => undefined}
+          onSpecialtyFilterChange={() => undefined}
+          onViewDetail={(schedule) => openScheduleDetail(schedule.id)}
+          onViewModeChange={(view) => setQueryState({ view })}
+          onFilterTypeChange={(filter) => setQueryState({ tab: filter as "L01" | "L02" | "L03" | "L04" | "ALL" })}
+          hideFilters
+        />
+      </div>
 
-          {/* Right: Stacked info panels */}
-          <div className="flex flex-col gap-3">
-            <ConflictSection
-              conflicts={conflictList}
-              selectedConflict={selectedConflict}
-              selectedPeriodId={selectedPeriodId}
-              onSelect={setSelectedConflict}
-              onClose={() => setSelectedConflict(null)}
-              onFocusDate={setFocusDate}
-              onShowConflicts={() => showPanel("conflicts")}
-              onResolve={setResolvingConflict}
-            />
+      {/* Bottom info panels — 3 columns */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        <ConflictSection
+          conflicts={conflictList}
+          selectedConflict={selectedConflict}
+          selectedPeriodId={selectedPeriodId}
+          onSelect={setSelectedConflict}
+          onClose={() => setSelectedConflict(null)}
+          onFocusDate={setFocusDate}
+          onShowConflicts={() => showPanel("conflicts")}
+          onResolve={setResolvingConflict}
+        />
 
-            <CoverageSection
-              coverageGaps={conflictData?.coverageGaps ?? []}
-              hasCoverageGaps={conflictData?.hasCoverageGaps ?? false}
-              totalCoverageGaps={conflictData?.totalCoverageGaps ?? 0}
-            />
+        <CoverageSection
+          coverageGaps={coverageGapsByTab}
+          hasCoverageGaps={coverageGapsByTab.length > 0}
+          totalCoverageGaps={coverageGapsByTab.length}
+        />
 
-            <ReviewSnapshotPanel focusDate={focusDate} schedules={focusSchedules} />
-          </div>
-        </div>
-      </ScheduleTabs>
+        <ReviewSnapshotPanel focusDate={focusDate} schedules={focusSchedules} />
+      </div>
 
       <QuickAddModal
         date={addModalDate}
@@ -358,5 +356,6 @@ export default function MonthlySchedulePage() {
         onRefresh={handleConflictRefresh}
       />
     </WorkflowShell>
+    </ErrorBoundary>
   );
 }

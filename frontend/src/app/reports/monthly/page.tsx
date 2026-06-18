@@ -2,15 +2,27 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { SchedulePeriod, ShiftStatistics } from "@/types/api";
 
+// Shift labels — references CSS custom properties from globals.css @theme.
+// bg-shift-* and text-on-shift-* are defined in globals.css.
 const SHIFT_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  L01: { label: "Trực 24/24", color: "text-red-600", bg: "bg-red-50" },
-  L02: { label: "Thông tầm", color: "text-blue-600", bg: "bg-blue-50" },
-  L03: { label: "PK Dịch vụ", color: "text-green-600", bg: "bg-green-50" },
-  L04: { label: "PK Chuyên gia", color: "text-purple-600", bg: "bg-purple-50" },
+  L01: { label: "Trực 24/24", color: "text-on-shift-24", bg: "bg-shift-24" },
+  L02: { label: "Thông tầm", color: "text-on-shift-all-day", bg: "bg-shift-all-day" },
+  L03: { label: "PK Dịch vụ", color: "text-on-shift-service", bg: "bg-shift-service" },
+  L04: { label: "PK Chuyên gia", color: "text-on-shift-expert", bg: "bg-shift-expert" },
+};
+
+// Chart bar colors — references CSS custom properties from globals.css @theme.
+// --color-chart-24 / chart-tt / chart-dv / chart-cg defined in @theme block.
+const CHART_COLORS: Record<string, string> = {
+  L01: "var(--color-chart-24)",
+  L02: "var(--color-chart-tt)",
+  L03: "var(--color-chart-dv)",
+  L04: "var(--color-chart-cg)",
 };
 
 export default function ReportsMonthlyPage() {
@@ -109,6 +121,7 @@ export default function ReportsMonthlyPage() {
   const maxShift = useMemo(() => Math.max(...shiftItems.map((i) => i.count), 1), [shiftItems]);
 
   return (
+    <ErrorBoundary>
     <DashboardShell
       activeSection="reports"
       title="Báo cáo kỳ lịch"
@@ -130,7 +143,9 @@ export default function ReportsMonthlyPage() {
           </div>
         </div>
         <div className="relative min-w-[280px]">
+          <label htmlFor="report-monthly-period" className="sr-only">Chọn kỳ lịch</label>
           <select
+            id="report-monthly-period"
             className="w-full appearance-none rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-[14px] text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer pr-10"
             value={selectedPeriod?.id ?? ""}
             onChange={(e) => {
@@ -277,11 +292,7 @@ export default function ReportsMonthlyPage() {
                           className={`h-4 rounded-full transition-all ${item.bg.replace("bg-", "bg-")}`}
                           style={{
                             width: `${Math.max((item.count / maxShift) * 100, 2)}%`,
-                            backgroundColor:
-                              item.key === "L01" ? "#ef4444"
-                              : item.key === "L02" ? "#3b82f6"
-                              : item.key === "L03" ? "#22c55e"
-                              : "#a855f7",
+                            backgroundColor: CHART_COLORS[item.key] ?? "var(--color-outline)",
                           }}
                         />
                       </div>
@@ -353,5 +364,6 @@ export default function ReportsMonthlyPage() {
         </div>
       )}
     </DashboardShell>
+    </ErrorBoundary>
   );
 }

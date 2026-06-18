@@ -180,7 +180,7 @@ export function ConflictResolutionModal({
                         </div>
                       ) : replacements.length > 0 ? (
                     <select
-                      aria-label="Nhan su thay the"
+                      aria-label="Nhân sự thay thế"
                       className="w-full mt-1 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-label-md text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
                       value={selectedReplacementId ?? ""}
                       onChange={(e) => setSelectedReplacementId(Number(e.target.value) || null)}
@@ -242,7 +242,7 @@ export function ConflictResolutionModal({
           >
             {submitting ? (
               <>
-                <div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                <div className="size-4 animate-spin rounded-full border-2 border-[var(--color-on-primary)] border-t-transparent" />
                 Đang xử lý...
               </>
             ) : (

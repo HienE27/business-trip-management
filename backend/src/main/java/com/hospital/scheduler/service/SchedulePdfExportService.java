@@ -27,7 +27,36 @@ public class SchedulePdfExportService {
     private final ScheduleRepository scheduleRepository;
 
     public byte[] exportScheduleToPdf(Integer periodId) throws IOException {
-        List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId).stream()
+        return exportScheduleToPdf(periodId, null, null, null, null);
+    }
+
+    public byte[] exportScheduleToPdf(Integer periodId, String shiftTypeId, Integer staffId,
+                                      java.time.LocalDate startDate, java.time.LocalDate endDate) throws IOException {
+        List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
+
+        // Apply the same filters as the Excel export for consistency.
+        if (shiftTypeId != null && !shiftTypeId.isBlank()) {
+            schedules = schedules.stream()
+                    .filter(s -> shiftTypeId.equals(s.getShiftType().getId()))
+                    .toList();
+        }
+        if (staffId != null) {
+            schedules = schedules.stream()
+                    .filter(s -> staffId.equals(s.getStaff().getId()))
+                    .toList();
+        }
+        if (startDate != null) {
+            schedules = schedules.stream()
+                    .filter(s -> !s.getWorkDate().isBefore(startDate))
+                    .toList();
+        }
+        if (endDate != null) {
+            schedules = schedules.stream()
+                    .filter(s -> !s.getWorkDate().isAfter(endDate))
+                    .toList();
+        }
+
+        schedules = schedules.stream()
                 .sorted(Comparator.comparing(Schedule::getWorkDate).thenComparing(s -> s.getStaff().getFullName()))
                 .toList();
 

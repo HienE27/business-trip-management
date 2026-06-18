@@ -20,7 +20,7 @@ public class AlgorithmConfig {
     @Column(name = "param_key", length = 50)
     private String paramKey;
 
-    @Column(name = "param_value", nullable = false, length = 500)
+    @Column(name = "param_value", nullable = false, length = 2000)
     private String paramValue;
 
     @Enumerated(EnumType.STRING)

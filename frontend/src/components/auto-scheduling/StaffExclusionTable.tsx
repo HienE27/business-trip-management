@@ -74,8 +74,9 @@ export function StaffExclusionTable({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-surface-container-low border-b border-outline-variant/50">
-              <th className="p-3 w-10 text-center">
+              <th scope="col" className="p-3 w-10 text-center">
                 <input
+                  aria-label="Chọn tất cả nhân sự"
                   className="rounded border-outline-variant text-primary focus:ring-primary"
                   type="checkbox"
                   checked={excludedIds.length === staff.length && staff.length > 0}
@@ -88,15 +89,15 @@ export function StaffExclusionTable({
                   }}
                 />
               </th>
-              <th className="p-3 font-label-sm text-on-surface-variant">Nhân sự</th>
-              <th className="p-3 font-label-sm text-on-surface-variant">Vai trò</th>
-              <th className="p-3 font-label-sm text-on-surface-variant text-center">
+              <th scope="col" className="p-3 font-label-sm text-on-surface-variant">Nhân sự</th>
+              <th scope="col" className="p-3 font-label-sm text-on-surface-variant">Vai trò</th>
+              <th scope="col" className="p-3 font-label-sm text-on-surface-variant text-center">
                 Loại trừ hoàn toàn
               </th>
-              <th className="p-3 font-label-sm text-on-surface-variant">
+              <th scope="col" className="p-3 font-label-sm text-on-surface-variant">
                 Số ca tối đa/tháng
               </th>
-              <th className="p-3 text-right" />
+              <th scope="col" className="p-3 text-right" />
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/30">
@@ -106,6 +107,7 @@ export function StaffExclusionTable({
                 <tr className="hover:bg-surface transition-colors" key={s.id}>
                   <td className="p-3 text-center">
                     <input
+                      aria-label={`Loại trừ nhân sự ${s.fullName}`}
                       className="rounded border-outline-variant text-primary focus:ring-primary"
                       type="checkbox"
                       checked={isExcluded}

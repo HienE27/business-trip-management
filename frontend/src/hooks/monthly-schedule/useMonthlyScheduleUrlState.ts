@@ -6,8 +6,8 @@ import type { MonthlyPanel, MonthlyScheduleQueryState, ScheduleTab, ViewMode } f
 
 function getTab(searchParams: URLSearchParams): ScheduleTab {
   const tab = searchParams.get("tab")?.toUpperCase();
-  if (tab === "L01" || tab === "L02" || tab === "L03" || tab === "L04") return tab;
-  return "L01";
+  if (tab === "L01" || tab === "L02" || tab === "L03" || tab === "L04" || tab === "ALL") return tab;
+  return "ALL";
 }
 
 function getPanel(searchParams: URLSearchParams): MonthlyPanel {
@@ -63,7 +63,7 @@ export function useMonthlyScheduleUrlState() {
           params.set("periodId", String(next.periodId));
         }
       }
-      router.replace(toMonthlyScheduleUrl(params));
+      router.replace(toMonthlyScheduleUrl(params), { scroll: false });
     },
     [router, searchParams],
   );
@@ -72,7 +72,7 @@ export function useMonthlyScheduleUrlState() {
     (scheduleId: number) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("scheduleId", String(scheduleId));
-      router.push(toMonthlyScheduleUrl(params));
+      router.push(toMonthlyScheduleUrl(params), { scroll: false });
     },
     [router, searchParams],
   );
@@ -80,7 +80,7 @@ export function useMonthlyScheduleUrlState() {
   const closeScheduleDetail = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("scheduleId");
-    router.replace(toMonthlyScheduleUrl(params));
+    router.replace(toMonthlyScheduleUrl(params), { scroll: false });
   }, [router, searchParams]);
 
   return {
