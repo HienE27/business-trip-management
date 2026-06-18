@@ -170,7 +170,11 @@ BOOT-INF/
 META-INF/
 */app/
 org/
+# Ignore Java test artifacts (e.g. JUnit), but keep frontend
+# Playwright specs in frontend/tests/e2e/.
 tests/
+!frontend/tests/
+!frontend/tests/**
 *.class
 
 # Debug and test scripts
