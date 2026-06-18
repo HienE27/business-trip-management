@@ -190,3 +190,18 @@ frontend/puppeteer-test-report.json
 frontend/puppeteer-test.js
 frontend/test-*.js
 stitch_medschedule_pro_dashboard/
+
+# Trellis workflow tooling (per-developer scratch space)
+# Uncomment to enable for your machine only.
+.trellis/
+AGENTS.md
+
+# Design system docs (duplicated in .cursor/rules/FRONTEND_UI_SYSTEM.mdc)
+design-system/
+
+# Local test/debug artifacts (NEVER commit — may contain credentials)
+health.json
+login_body.json
+test-report/
+frontend/test-results/
+frontend/playwright-report/
