@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { getRoleLabel } from "@/lib/roleLabels";
 import { useToast } from "@/hooks/useToast";
-import { FormInput, FormSelect, Button } from "@/components/ui";
+import { FormInput, FormSelect, Button, ConfirmDialog } from "@/components/ui";
 import type { Specialty } from "@/types/api";
 
 type SpecialtyInfo = {
@@ -124,6 +124,7 @@ export function StaffCrudPanel() {
   const [positionFilter, setPositionFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
+  const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
   const PAGE_SIZE = 10;
 
   // Sync global search ?q= URL param to local search state
@@ -304,10 +305,8 @@ export function StaffCrudPanel() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  function openAddForm() {
-    setForm({ ...emptyForm, roles: [] });
-    setEditingId(null);
-    setFormOpen(true);
+  function openEditPage(id: number) {
+    window.location.href = `/staff/${id}/edit`;
   }
 
   function editStaff(record: StaffResponse) {
@@ -390,15 +389,17 @@ export function StaffCrudPanel() {
     }
   }
 
-  async function deleteStaff(id: number, name: string) {
-    if (!confirm(`Bạn có chắc muốn dừng hoạt động nhân sự "${name}"?`)) return;
+  function requestDelete(id: number, name: string) {
+    setConfirmDelete({ id, name });
+  }
 
+  async function confirmDeleteStaff() {
+    if (!confirmDelete) return;
+    const { id, name } = confirmDelete;
+    setConfirmDelete(null);
     try {
       await api.delete(`/staff/${id}`);
       toast.success(`Đã dừng hoạt động ${name}.`);
-      if (editingId === id) {
-        closeForm();
-      }
       await fetchStaff();
     } catch (err) {
       toast.error(getErrorMessage(err, "Lỗi xóa nhân sự"));
@@ -613,14 +614,13 @@ export function StaffCrudPanel() {
             <span aria-hidden="true" className="material-symbols-outlined text-[18px]">download</span>
             Xuất Excel
           </button>
-          <button
+          <Link
             className="flex items-center gap-2 rounded-lg bg-primary px-4 h-10 text-label-md font-medium text-on-primary shadow-sm transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-            onClick={openAddForm}
-            type="button"
+            href="/staff/create"
           >
             <span aria-hidden="true" className="material-symbols-outlined text-[18px]">add</span>
             Thêm nhân viên
-          </button>
+          </Link>
         </div>
       </section>
 
@@ -783,7 +783,7 @@ export function StaffCrudPanel() {
                           <button
                             aria-label={`Chỉnh sửa ${record.fullName}`}
                             className="p-1 rounded text-outline hover:text-primary hover:bg-surface-container transition-colors"
-                            onClick={() => editStaff(record)}
+                            onClick={() => openEditPage(record.id)}
                             title="Chỉnh sửa"
                             type="button"
                           >
@@ -792,7 +792,7 @@ export function StaffCrudPanel() {
                           <button
                             aria-label={`Xóa ${record.fullName}`}
                             className="p-1 rounded text-outline hover:text-error hover:bg-error-container transition-colors"
-                            onClick={() => deleteStaff(record.id, record.fullName)}
+                            onClick={() => requestDelete(record.id, record.fullName)}
                             title="Xóa"
                             type="button"
                           >
@@ -863,6 +863,21 @@ export function StaffCrudPanel() {
           </div>
         </div>
       </section>
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={confirmDeleteStaff}
+        title="Dừng hoạt động nhân sự?"
+        description={
+          confirmDelete
+            ? `Bạn có chắc muốn dừng hoạt động nhân sự "${confirmDelete.name}"? Hành động này có thể hoàn tác bằng cách kích hoạt lại.`
+            : ""
+        }
+        confirmLabel="Dừng hoạt động"
+        cancelLabel="Hủy"
+        variant="danger"
+      />
     </div>
   );
 }

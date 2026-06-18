@@ -87,7 +87,7 @@ export default function ExpertClinicPage() {
   if (loading && periods.length === 0) {
     return (
       <DashboardShell
-        activeSection="monthly-schedule"
+        activeSection="expert-clinic"
         title="Phòng khám chuyên gia"
         description="Xem và quản lý lịch phòng khám chuyên gia theo chuyên khoa."
       >
@@ -101,7 +101,7 @@ export default function ExpertClinicPage() {
 
   return (
     <DashboardShell
-      activeSection="monthly-schedule"
+      activeSection="expert-clinic"
       title="Phòng khám chuyên gia"
       description="Xem và quản lý lịch phòng khám chuyên gia theo chuyên khoa."
     >
