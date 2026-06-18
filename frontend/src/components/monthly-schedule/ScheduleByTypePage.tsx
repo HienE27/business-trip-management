@@ -13,6 +13,7 @@ import type {
   CompensationDay,
   Schedule,
   SchedulePeriod,
+  Specialty,
   Staff,
 } from "@/types/api";
 import type { ScheduleTab, ViewMode } from "@/components/monthly-schedule/types";
@@ -42,8 +43,19 @@ export type ScheduleTypeConfig = {
   staffAccent: string;
   /** Message shown when the schedule fetch fails. */
   fetchErrorMessage: string;
-  /** Description printed on compensation-day calendar annotations. */
+  /**
+   * Description printed on compensation-day calendar annotations.
+   * Only relevant when compensation days are fetched.
+   */
   compDescription: string;
+  /**
+   * When true, the page loads schedules from the dedicated
+   * /schedules/expert-clinic endpoint and lets the user narrow
+   * them down by specialty. Compensation-day annotations and the
+   * detail modal are skipped because the endpoint already filters
+   * by shift type server-side.
+   */
+  expertClinicMode?: boolean;
 };
 
 export type ScheduleByTypePageProps = {
@@ -53,28 +65,37 @@ export type ScheduleByTypePageProps = {
 export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const role = useRole();
   const isManager = canManage(role);
+  const isExpertMode = config.expertClinicMode === true;
 
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [compensationDays, setCompensationDays] = useState<CompensationDay[]>([]);
   const [activeStaff, setActiveStaff] = useState<Staff[]>([]);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [selectedSpecialtyId, setSelectedSpecialtyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [addModalDate, setAddModalDate] = useState<Date | null>(null);
   const [detailScheduleId, setDetailScheduleId] = useState<number | null>(null);
+  const [selectedTab, setSelectedTab] = useState<ScheduleTab>(
+    isExpertMode ? "ALL" : (config.shiftTypeId as ScheduleTab)
+  );
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
 
   const loadBaseData = useCallback(async () => {
     try {
       setLoading(true);
-      const [periodData, staffData] = await Promise.all([
+      const requests: [Promise<SchedulePeriod[]>, Promise<Staff[]>, Promise<Specialty[]> | null] = [
         api.get<SchedulePeriod[]>("/periods"),
         api.get<Staff[]>("/staff/active"),
-      ]);
+        isExpertMode ? api.get<Specialty[]>("/specialties/active") : null,
+      ];
+      const [periodData, staffData, specialtyData] = await Promise.all(requests);
       const pList = periodData ?? [];
       setPeriods(pList);
       setActiveStaff(staffData ?? []);
+      setSpecialties(specialtyData ?? []);
       const draft = pList.find((p) => p.status === "DRAFT") ?? pList[0] ?? null;
       setSelectedPeriodId(draft?.id ?? null);
     } catch {
@@ -82,7 +103,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isExpertMode]);
 
   useEffect(() => {
     void loadBaseData();
@@ -99,6 +120,18 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     if (!selectedPeriodId) return;
     setLoading(true);
     setMessage(null);
+
+    if (isExpertMode) {
+      api.get<Schedule[]>("/schedules/expert-clinic", {
+        periodId: selectedPeriodId,
+        ...(selectedSpecialtyId ? { specialtyId: selectedSpecialtyId } : {}),
+      })
+        .then((data) => setSchedules(data ?? []))
+        .catch(() => setMessage(config.fetchErrorMessage))
+        .finally(() => setLoading(false));
+      return;
+    }
+
     Promise.all([
       api.get<Schedule[]>(`/schedules/period/${selectedPeriodId}`),
       api.get<CompensationDay[]>(`/schedules/compensation-days/${selectedPeriodId}`),
@@ -111,7 +144,13 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       })
       .catch(() => setMessage(config.fetchErrorMessage))
       .finally(() => setLoading(false));
-  }, [selectedPeriodId, config.shiftTypeId, config.fetchErrorMessage]);
+  }, [
+    selectedPeriodId,
+    selectedSpecialtyId,
+    isExpertMode,
+    config.shiftTypeId,
+    config.fetchErrorMessage,
+  ]);
 
   useEffect(() => {
     handleRefresh();
@@ -123,6 +162,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   );
 
   const calendarAnnotations = useMemo(() => {
+    if (isExpertMode) return [];
     const compByDate = new Map<string, CompensationDay[]>();
     for (const cd of compensationDays) {
       const key = cd.compensationDate.split("T")[0];
@@ -143,7 +183,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         description: config.compDescription,
       };
     });
-  }, [compensationDays, config.compDescription]);
+  }, [compensationDays, isExpertMode, config.compDescription]);
 
   if (loading && periods.length === 0) {
     return (
@@ -159,6 +199,23 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       </DashboardShell>
     );
   }
+
+  const totalKpiLabel = config.totalShiftLabel;
+  const totalKpiAccent = config.totalShiftAccent;
+  const totalKpiIcon = config.emptyIcon;
+  const secondKpi = isExpertMode
+    ? {
+        label: "Chuyên khoa",
+        value: specialties.length,
+        icon: "local_hospital",
+        accent: "bg-primary/10 text-primary",
+      }
+    : {
+        label: "Ngày nghỉ bù",
+        value: compensationDays.length,
+        icon: "bedtime",
+        accent: "bg-surface-container-high text-on-surface",
+      };
 
   return (
     <DashboardShell
@@ -205,6 +262,39 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
             </span>
           </div>
         </div>
+        {isExpertMode && (
+          <div className="min-w-[200px]">
+            <label
+              htmlFor={`${config.activeSection}-specialty-filter`}
+              className="mb-1.5 block text-label-sm text-on-surface-variant"
+            >
+              Chuyên khoa
+            </label>
+            <div className="relative">
+              <select
+                id={`${config.activeSection}-specialty-filter`}
+                className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+                value={selectedSpecialtyId ?? ""}
+                onChange={(e) =>
+                  setSelectedSpecialtyId(e.target.value ? Number(e.target.value) : null)
+                }
+              >
+                <option value="">Tất cả chuyên khoa</option>
+                {specialties.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <span
+                aria-hidden="true"
+                className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]"
+              >
+                expand_more
+              </span>
+            </div>
+          </div>
+        )}
         {isManager && (
           <button
             type="button"
@@ -222,17 +312,12 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       <section className="grid gap-3 grid-cols-2 sm:grid-cols-4">
         {[
           {
-            label: config.totalShiftLabel,
+            label: totalKpiLabel,
             value: schedules.length,
-            icon: config.emptyIcon,
-            accent: config.totalShiftAccent,
+            icon: totalKpiIcon,
+            accent: totalKpiAccent,
           },
-          {
-            label: "Ngày nghỉ bù",
-            value: compensationDays.length,
-            icon: "bedtime",
-            accent: "bg-surface-container-high text-on-surface",
-          },
+          secondKpi,
           {
             label: "Nhân sự tham gia",
             value: new Set(schedules.map((s) => s.staff.id)).size,
@@ -271,24 +356,34 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           calendarAnnotations={calendarAnnotations}
           coverages={{}}
           activeStaff={activeStaff}
-          specialties={[]}
+          specialties={isExpertMode ? specialties : []}
           staffFilterId={null}
-          specialtyFilterId={null}
+          specialtyFilterId={isExpertMode ? selectedSpecialtyId : null}
           selectedPeriodId={selectedPeriodId}
           initialYear={initialCalendar.year}
           initialMonth={initialCalendar.month}
           viewMode={viewMode}
-          selectedTab={config.shiftTypeId satisfies ScheduleTab}
+          selectedTab={isExpertMode ? selectedTab : (config.shiftTypeId satisfies ScheduleTab)}
           compensationDays={compensationDays}
           onRefresh={handleRefresh}
           onFocusDate={() => undefined}
           onAddDate={(date) => setAddModalDate(date)}
           onStaffFilterChange={() => undefined}
-          onSpecialtyFilterChange={() => undefined}
-          onViewDetail={(schedule) => setDetailScheduleId(schedule.id)}
+          onSpecialtyFilterChange={
+            isExpertMode ? setSelectedSpecialtyId : () => undefined
+          }
+          onViewDetail={
+            isExpertMode
+              ? () => undefined
+              : (schedule) => setDetailScheduleId(schedule.id)
+          }
           onViewModeChange={setViewMode}
-          onFilterTypeChange={() => undefined}
-          hideFilters
+          onFilterTypeChange={
+            isExpertMode
+              ? (filter: string) => setSelectedTab(filter as ScheduleTab)
+              : () => undefined
+          }
+          hideFilters={!isExpertMode}
         />
       )}
 
@@ -304,14 +399,16 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         />
       )}
 
-      <ShiftDetailModal
-        scheduleId={detailScheduleId}
-        schedule={selectedSchedule}
-        loading={false}
-        canEdit={isManager}
-        onClose={() => setDetailScheduleId(null)}
-        onSave={handleRefresh}
-      />
+      {!isExpertMode && (
+        <ShiftDetailModal
+          scheduleId={detailScheduleId}
+          schedule={selectedSchedule}
+          loading={false}
+          canEdit={isManager}
+          onClose={() => setDetailScheduleId(null)}
+          onSave={handleRefresh}
+        />
+      )}
     </DashboardShell>
   );
 }

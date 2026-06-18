@@ -271,3 +271,121 @@ describe('ScheduleByTypePage', () => {
     });
   });
 });
+
+const mockSpecialties = [
+  { id: 1, name: 'Nội khoa', active: true },
+  { id: 2, name: 'Ngoại khoa', active: true },
+];
+
+const mockExpertSchedules = [
+  {
+    id: 300,
+    workDate: '2026-06-10',
+    shiftType: { id: 'L04', name: 'PK Chuyên gia' },
+    staff: { id: 1, fullName: 'BS. Nguyễn Văn A', specialty: { id: 1, name: 'Nội khoa' } },
+    hasConflict: false,
+  },
+];
+
+const expertConfig: ScheduleTypeConfig = {
+  ...duty24Config,
+  activeSection: 'expert-clinic',
+  shiftTypeId: 'L04',
+  title: 'Phòng khám chuyên gia',
+  emptyMessage: 'Chọn một kỳ lịch để xem lịch phòng khám chuyên gia.',
+  emptyIcon: 'stethoscope',
+  ctaLabel: 'Thêm ca chuyên gia',
+  totalShiftLabel: 'Tổng ca PK Chuyên gia',
+  fetchErrorMessage: 'Không thể tải lịch phòng khám chuyên gia.',
+  expertClinicMode: true,
+};
+
+const setupExpertApiMock = (schedules: unknown[]) => {
+  (apiModule.api.get as ReturnType<typeof vi.fn>).mockImplementation(
+    (url: string, params?: Record<string, unknown>) => {
+      if (url === '/periods') return Promise.resolve(mockPeriods);
+      if (url === '/staff/active') return Promise.resolve(mockStaff);
+      if (url === '/specialties/active') return Promise.resolve(mockSpecialties);
+      if (url === '/schedules/expert-clinic') {
+        // Verify specialtyId param is forwarded when set
+        void params;
+        return Promise.resolve(schedules);
+      }
+      return Promise.resolve([]);
+    }
+  );
+};
+
+describe('ScheduleByTypePage (expert-clinic mode)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('also loads the active specialties on mount', async () => {
+    setupExpertApiMock(mockExpertSchedules);
+    await act(async () => {
+      render(<ScheduleByTypePage config={expertConfig} />);
+    });
+    await waitFor(() => {
+      expect(apiModule.api.get).toHaveBeenCalledWith('/specialties/active');
+    });
+  });
+
+  it('calls the expert-clinic endpoint with the selected period', async () => {
+    setupExpertApiMock(mockExpertSchedules);
+    await act(async () => {
+      render(<ScheduleByTypePage config={expertConfig} />);
+    });
+    await waitFor(() => {
+      expect(apiModule.api.get).toHaveBeenCalledWith(
+        '/schedules/expert-clinic',
+        expect.objectContaining({ periodId: 1 })
+      );
+    });
+  });
+
+  it('does NOT call the period or compensation-days endpoints', async () => {
+    setupExpertApiMock(mockExpertSchedules);
+    await act(async () => {
+      render(<ScheduleByTypePage config={expertConfig} />);
+    });
+    await waitFor(() => {
+      expect(apiModule.api.get).toHaveBeenCalledWith('/schedules/expert-clinic', expect.anything());
+    });
+    const calls = (apiModule.api.get as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[0] as string
+    );
+    expect(calls.some((c) => c.startsWith('/schedules/period/'))).toBe(false);
+    expect(calls.some((c) => c.startsWith('/schedules/compensation-days/'))).toBe(false);
+  });
+
+  it('renders the specialty filter dropdown', async () => {
+    setupExpertApiMock(mockExpertSchedules);
+    await act(async () => {
+      render(<ScheduleByTypePage config={expertConfig} />);
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Chuyên khoa/)).toBeInTheDocument();
+    });
+  });
+
+  it('shows the expert-clinic error message when the endpoint fails', async () => {
+    (apiModule.api.get as ReturnType<typeof vi.fn>).mockImplementation(
+      (url: string) => {
+        if (url === '/periods') return Promise.resolve(mockPeriods);
+        if (url === '/staff/active') return Promise.resolve(mockStaff);
+        if (url === '/specialties/active') return Promise.resolve(mockSpecialties);
+        if (url === '/schedules/expert-clinic') return Promise.reject(new Error('boom'));
+        return Promise.resolve([]);
+      }
+    );
+    await act(async () => {
+      render(<ScheduleByTypePage config={expertConfig} />);
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText('Không thể tải lịch phòng khám chuyên gia.')
+      ).toBeInTheDocument();
+    });
+  });
+});
