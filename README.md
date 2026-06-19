@@ -102,22 +102,20 @@ Nếu không cấu hình biến này, frontend đang fallback về `http://local
 
 ## Tài khoản seed mặc định
 
-`DataSeeder` sẽ seed dữ liệu mẫu khi database còn trống. Tạo tổng cộng **20 nhân sự**: 1 admin, 2 manager, 17 staff.
+`DataSeeder` seed dữ liệu mẫu khi database còn trống. Tổng cộng **20 nhân sự**: 1 admin, 2 manager, 17 staff.
 
-Tài khoản có sẵn (thường dùng):
+Tài khoản có sẵn:
 
-- `admin / admin123` — có vai trò ADMIN + MANAGER
-- `manager1 / 123456` — MANAGER
-- `manager2 / 123456` — MANAGER
-- `nurse1 / 123456` … `nurse17 / 123456` — STAFF
+| Username | Password | Role | Họ tên |
+|---|---|---|---|
+| `admin` | `admin123` | ADMIN + MANAGER | Nguyễn Văn An |
+| `manager1` | `123456` | MANAGER | Trần Thị Bình |
+| `manager2` | `123456` | MANAGER | Lê Hoàng Cường |
+| `nvminh` | `123456` | STAFF | Nguyễn Văn Minh |
+| `tthuhien` | `123456` | STAFF | Trần Thu Hiền |
+| *(+ 15 staff khác)* | `123456` | STAFF | … |
 
-Role hiện có trong hệ thống:
-
-- `ADMIN`
-- `MANAGER`
-- `STAFF`
-
-Lưu ý: user `admin` được seed với cả role `ADMIN` và `MANAGER`.
+Danh sách đầy đủ: xem `DataSeeder.java` method `seedAdminUser()`.
 
 ## Dữ liệu mẫu được seed
 
@@ -134,24 +132,33 @@ Khi database rỗng, hệ thống tự tạo:
 
 Các route quan trọng trong `frontend/src/app`:
 
-- `/login` — đăng nhập
-- `/` — dashboard tổng quan
-- `/staff` — danh sách nhân sự
-- `/staff/create` — tạo nhân sự
-- `/staff/profile` — hồ sơ cá nhân
-- `/duty-24` — lịch trực `L01`
-- `/all-day` — lịch thông tầm `L02`
-- `/service-clinic` — lịch phòng khám dịch vụ `L03`
-- `/expert-clinic` — lịch phòng khám chuyên gia `L04`
-- `/schedule-summary` — tổng hợp lịch + export Excel/PDF
-- `/monthly-schedule` — bảng lịch tháng với compensation days + xung đột + coverage
-- `/conflict-check` — kiểm tra xung đột
-- `/swap-requests` — yêu cầu đổi ca
-- `/notifications` — thông báo
-- `/reports` — báo cáo tải nhân sự
-- `/audit-history` — nhật ký thao tác
-- `/auto-scheduling` — chạy auto scheduling
-- `/settings` — cài đặt giao diện/màn hình
+| Route | Mô tả |
+|-------|-------|
+| `/login` | Đăng nhập |
+| `/dashboard` | Dashboard tổng quan |
+| `/staff` | Danh sách nhân sự |
+| `/staff/create` | Tạo nhân sự |
+| `/staff/profile` | Hồ sơ cá nhân |
+| `/duty-24` | Lịch trực `L01` |
+| `/all-day` | Lịch thông tầm `L02` |
+| `/service-clinic` | Lịch phòng khám dịch vụ `L03` |
+| `/expert-clinic` | Lịch phòng khám chuyên gia `L04` |
+| `/schedule-summary` | Tổng hợp lịch + export |
+| `/monthly-schedule` | Bảng lịch tháng + conflicts + coverage |
+| `/conflict-check` | Kiểm tra xung đột |
+| `/swap-requests` | Yêu cầu đổi ca |
+| `/leave-requests` | Đơn nghỉ phép |
+| `/notifications` | Thông báo |
+| `/reports` | Báo cáo |
+| `/reports/staff` | Báo cáo theo nhân sự |
+| `/reports/monthly` | Báo cáo theo tháng |
+| `/reports/conflicts` | Báo cáo xung đột |
+| `/audit-history` | Nhật ký thao tác |
+| `/auto-scheduling` | Auto scheduling (M07) |
+| `/auto-scheduling/algorithm-config` | Cấu hình thuật toán |
+| `/auto-scheduling/history` | Lịch sử chạy |
+| `/settings` | Cài đặt |
+| `/settings/roles` | **Ma trận phân quyền** (M01-F05) |
 
 ## API chính hiện có
 
@@ -196,10 +203,15 @@ Auth hiện dùng JWT lưu trong cookie HTTP-only tên `medschedule_access_token
 
 - `POST /api/v1/auto-schedule/preview`
 - `POST /api/v1/auto-schedule`
-- `GET /api/v1/auto-schedule/unassigned/{periodId}`
+- `GET /api/v1/auto-schedule/unassigned/{periodId}` (M07-F06)
 - `GET /api/v1/auto-schedule/suggest-replacements/{scheduleId}`
 - `GET /api/v1/auto-schedule/workload-chart/{periodId}`
 - `GET /api/v1/auto-schedule/metrics/period/{periodId}`
+
+### Roles & Permissions (M01-F05)
+
+- `GET /api/v1/roles/permissions/matrix` — full role × permission matrix (ADMIN only)
+- `POST /api/v1/roles/permissions/toggle` — grant or revoke a permission for a role
 
 ### Staff / exchange
 
@@ -234,14 +246,16 @@ Các điểm cần hiểu đúng khi đọc tài liệu:
 
 ## Test hiện có
 
-Backend đang có test ở các vùng chính (131 tests, 0 failures):
+Backend đang có test ở các vùng chính (206 tests, 0 failures):
 
 - `backend/src/test/java/com/hospital/scheduler/service/ConflictDetectionServiceTest.java`
 - `backend/src/test/java/com/hospital/scheduler/service/ScheduleServiceBusinessRulesTest.java`
 - `backend/src/test/java/com/hospital/scheduler/service/AutoSchedulingServiceTest.java`
 - `backend/src/test/java/com/hospital/scheduler/service/LeaveRequestServiceTest.java`
 - `backend/src/test/java/com/hospital/scheduler/service/ScheduleServiceTest.java`
-- `frontend/tests/e2e/*.spec.ts` — 14 Playwright E2E tests
+- `backend/src/test/java/com/hospital/scheduler/service/RoleServiceTest.java`
+- `frontend/src/lib/api-client.test.ts` (30 tests)
+- `frontend/tests/e2e/*.spec.ts` (Playwright E2E)
 
 Chạy test backend:
 

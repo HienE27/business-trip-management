@@ -269,7 +269,7 @@ Database file: `hospital_scheduler_business_final.sql`
 
 | Module | Mức độ khớp | Đã có trong dự án | Thiếu / lệch so với `QuanLyLichCongTac_v5.md` |
 | :--- | :--- | :--- | :--- |
-| `M01` | `Mostly Complete` | CRUD nhân sự, tìm kiếm, soft delete, import file, profile, ma trận phân quyền M01-F05, role kỹ thuật `ADMIN/MANAGER/STAFF` | Seed chưa phản ánh đủ quy mô 20 nhân sự |
+| `M01` | `Mostly Complete` | CRUD nhân sự, tìm kiếm, soft delete, import file, profile, ma trận phân quyền M01-F05, role kỹ thuật `ADMIN/MANAGER/STAFF`, seed đầy đủ 20 nhân sự | — |
 | `M02` | `Partial` | CRUD lịch `L01`, tự tính `compensationDate`, conflict check theo kỳ, đổi ca + duyệt/từ chối | Chưa có monthly planner đồng nhất với lưới thao tác hàng loạt, bước `Kiểm tra xung đột -> Lưu & Công bố`, khóa ô nghỉ bù trực quan đúng như spec |
 | `M03` | `Partial` | Màn quản lý riêng, CRUD qua API chung, chặn xung đột với `L01`, chặn ngày nghỉ bù | Chưa thấy luồng bảng tháng hoàn chỉnh với bulk assign, bulk validate, công bố lịch tháng như tài liệu gốc |
 | `M04` | `Partial` | Màn quản lý riêng, CRUD, chặn xung đột `L03/L04`, conflict check theo kỳ | Chưa khớp hoàn toàn luồng xếp lịch tháng, bảng lỗi tổng hợp, rồi `Lưu & Công bố` như mô tả chức năng |
