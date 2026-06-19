@@ -206,7 +206,7 @@ export function PermissionMatrixContent() {
           <tbody className="divide-y divide-outline-variant/30 bg-surface-container-lowest">
             {permissions.length === 0 && (
               <tr>
-                <td colSpan={roles.length + 1} className="px-4 py-8 text-center text-[13px] text-on-surface-variant">
+                <td colSpan={roles.length + 1} className="px-4 py-8 text-center text-[13px] text-on-surface-variant" role="status">
                   Chưa có quyền nào được định nghĩa.
                 </td>
               </tr>
@@ -263,11 +263,11 @@ export function PermissionMatrixContent() {
       {/* Legend */}
       <div className="flex flex-wrap gap-4 text-[12px] text-on-surface-variant">
         <span className="flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-[14px] text-secondary">check_circle</span>
+          <span className="material-symbols-outlined text-[14px] text-secondary" aria-hidden="true">check_circle</span>
           Đã cấp quyền
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-[14px] text-outline">remove_circle_outline</span>
+          <span className="material-symbols-outlined text-[14px] text-outline" aria-hidden="true">remove_circle_outline</span>
           Chưa cấp quyền
         </span>
         <span className="ml-auto italic opacity-70">M01-F05 · Phân quyền hệ thống</span>

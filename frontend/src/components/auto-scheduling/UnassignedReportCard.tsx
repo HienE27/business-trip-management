@@ -75,8 +75,8 @@ export function UnassignedReportCard({
 
   if (message) {
     return (
-      <div className="rounded-xl border border-error-container bg-error-container/10 p-5 flex items-center gap-3">
-        <span className="material-symbols-outlined text-error text-[22px]">error</span>
+      <div role="alert" className="rounded-xl border border-error-container bg-error-container/10 p-5 flex items-center gap-3">
+        <span className="material-symbols-outlined text-error text-[22px]" aria-hidden="true">error</span>
         <p className="text-body-sm text-error">{message}</p>
       </div>
     );
@@ -85,8 +85,8 @@ export function UnassignedReportCard({
   if (!report || report.totalUnassignedDays == null || report.totalUnassignedDays === 0) {
     return (
       <div className="rounded-xl border border-secondary-container bg-secondary-container/10 p-5 flex items-center gap-3">
-        <span className="material-symbols-outlined text-secondary text-[22px]">check_circle</span>
-        <p className="text-body-sm text-on-surface">
+        <span className="material-symbols-outlined text-secondary text-[22px]" aria-hidden="true">check_circle</span>
+        <p className="text-body-sm text-on-surface" role="status">
           Tất cả các ca trong kỳ đã được phân công đủ.
         </p>
       </div>
@@ -107,6 +107,7 @@ export function UnassignedReportCard({
             type="button"
             onClick={() => void load()}
             className="text-label-sm text-primary hover:underline"
+            aria-label="Làm mới báo cáo ngày chưa phân công"
           >
             Làm mới
           </button>

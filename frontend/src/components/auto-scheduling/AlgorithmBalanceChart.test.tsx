@@ -56,7 +56,7 @@ describe('AlgorithmBalanceChart', () => {
     expect(screen.getAllByTestId('algo-balance-row')).toHaveLength(1);
   });
 
-  it('marks overloaded staff (>1.5× cap) with a red badge', () => {
+  it('marks overloaded staff (>1.5x cap) with a red badge', () => {
     const heavy = Array.from({ length: 10 }, (_, i) => ({
       scheduleId: i, staffId: 99, staffName: 'BS. X',
       workDate: `2026-06-${String(i + 1).padStart(2, '0')}`,
@@ -64,8 +64,10 @@ describe('AlgorithmBalanceChart', () => {
     }));
     render(<AlgorithmBalanceChart schedules={heavy} staffCaps={{ 99: 6 }} />);
     const badges = screen.getAllByTestId('algo-balance-badge');
-    expect(badges[0].textContent).toBe('⚠');
+    // Badge uses Material Symbols warning icon + aria-label for status
     expect(badges[0].className).toContain('bg-error-container');
+    // aria-label should indicate overloaded
+    expect(badges[0]).toHaveAttribute('aria-label', expect.stringContaining('Quá tải'));
   });
 
   it('has a descriptive aria-label on the root element', () => {

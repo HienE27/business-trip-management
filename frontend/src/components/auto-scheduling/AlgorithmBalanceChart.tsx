@@ -195,7 +195,11 @@ export function AlgorithmBalanceChart({
                     : 'bg-secondary-container text-on-secondary-container'
                 }`}
               >
-                {row.status === 'overloaded' ? '⚠' : row.status === 'caution' ? '~' : '✓'}
+                {row.status === 'overloaded'
+                    ? <span className="material-symbols-outlined text-[14px]" aria-hidden="true">warning</span>
+                    : row.status === 'caution'
+                    ? <span className="material-symbols-outlined text-[14px]" aria-hidden="true">horizontal_rule</span>
+                    : <span className="material-symbols-outlined text-[14px]" aria-hidden="true">check</span>}
               </span>
             </li>
           );
@@ -204,15 +208,15 @@ export function AlgorithmBalanceChart({
 
       <footer className="flex flex-wrap items-center gap-3 pt-2 text-[12px] text-on-surface-variant border-t border-outline-variant">
         <span className="flex items-center gap-1">
-          <span className="inline-block h-2 w-4 rounded-sm bg-[var(--color-chart-tt,#10b981)]" />
+          <span aria-hidden="true" className="inline-block h-2 w-4 rounded-sm bg-[var(--color-chart-tt,#10b981)]" />
           Cân bằng
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block h-2 w-4 rounded-sm bg-[var(--color-chart-cg,#8b5cf6)]" />
+          <span aria-hidden="true" className="inline-block h-2 w-4 rounded-sm bg-[var(--color-chart-cg,#8b5cf6)]" />
           Vượt nhẹ
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block h-2 w-4 rounded-sm bg-[var(--color-chart-24,#ef4444)]" />
+          <span aria-hidden="true" className="inline-block h-2 w-4 rounded-sm bg-[var(--color-chart-24,#ef4444)]" />
           Quá tải
         </span>
         <span className="ml-auto">Cột dọc = ngưỡng cho phép mỗi nhân sự</span>

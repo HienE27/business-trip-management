@@ -388,4 +388,63 @@ describe('ApiClient methods used by the 4 refactored shift-type pages', () => {
 
     expect(mockFetch.mock.calls[0][0]).toMatch(/\/specialties\/active$/);
   });
+
+  describe('Role / Permission matrix (M01-F05)', () => {
+    const roleMatrixResponse = {
+      roles: [{ id: 1, name: 'ADMIN', description: 'Admin', isActive: true }],
+      permissions: [{ id: 1, name: 'SCHEDULE_READ', description: 'View schedule' }],
+      matrix: [{ roleId: 1, roleName: 'ADMIN', permissionId: 1, permissionName: 'SCHEDULE_READ', granted: true }],
+    };
+
+    it('getRolePermissionMatrix() hits GET /roles/permissions/matrix', async () => {
+      const { api } = await import('@/lib/api');
+      mockOk(roleMatrixResponse);
+
+      await api.getRolePermissionMatrix();
+
+      expect(mockFetch.mock.calls[0][0]).toMatch(/\/roles\/permissions\/matrix$/);
+    });
+
+    it('getRolePermissionMatrix() returns parsed data', async () => {
+      const { api } = await import('@/lib/api');
+      mockOk(roleMatrixResponse);
+
+      const result = await api.getRolePermissionMatrix();
+
+      expect(result.data.roles).toHaveLength(1);
+      expect(result.data.permissions).toHaveLength(1);
+      expect(result.data.matrix).toHaveLength(1);
+      expect(result.data.matrix[0].granted).toBe(true);
+    });
+
+    it('toggleRolePermission() hits POST /roles/permissions/toggle with correct body', async () => {
+      const { api } = await import('@/lib/api');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, data: null }),
+      });
+
+      await api.toggleRolePermission({ roleId: 1, permissionId: 2, granted: true });
+
+      expect(mockFetch.mock.calls[0][0]).toMatch(/\/roles\/permissions\/toggle$/);
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(opts.body as string) as Record<string, unknown>;
+      expect(body).toEqual({ roleId: 1, permissionId: 2, granted: true });
+      expect(opts.method).toBe('POST');
+    });
+
+    it('toggleRolePermission() sends granted=false for revoke', async () => {
+      const { api } = await import('@/lib/api');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, data: null }),
+      });
+
+      await api.toggleRolePermission({ roleId: 3, permissionId: 1, granted: false });
+
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(opts.body as string) as Record<string, unknown>;
+      expect(body).toEqual({ roleId: 3, permissionId: 1, granted: false });
+    });
+  });
 });
