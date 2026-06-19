@@ -1,22 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/auth.fixture';
 
 test.describe('Navigation', () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to login first and attempt to log in
-    await page.goto('/login');
-    
-    // Try to fill login form if it exists
-    const usernameInput = page.locator('input[name="username"]');
-    const passwordInput = page.locator('input[name="password"]');
-    
-    if (await usernameInput.isVisible()) {
-      await usernameInput.fill('admin');
-      await passwordInput.fill('admin123');
-      await page.getByRole('button', { name: /đăng nhập/i }).click();
-      
-      // Wait for navigation
-      await page.waitForTimeout(1000);
-    }
+  test.beforeEach(async ({ loginAs }) => {
+    await loginAs();
   });
 
   test('sidebar navigation links are present', async ({ page }) => {
@@ -111,9 +97,9 @@ test.describe('Dashboard Page', () => {
 test.describe('Page Routing', () => {
   test('can navigate to staff management page', async ({ page }) => {
     await page.goto('/staff');
-    
+
     await page.waitForLoadState('networkidle');
-    
+
     // Check page loaded
     const body = page.locator('body');
     await expect(body).toBeVisible();
@@ -121,9 +107,9 @@ test.describe('Page Routing', () => {
 
   test('can navigate to schedule page', async ({ page }) => {
     await page.goto('/schedule');
-    
+
     await page.waitForLoadState('networkidle');
-    
+
     // Check page loaded
     const body = page.locator('body');
     await expect(body).toBeVisible();
@@ -131,9 +117,9 @@ test.describe('Page Routing', () => {
 
   test('can navigate to auto-scheduling page', async ({ page }) => {
     await page.goto('/auto-scheduling');
-    
+
     await page.waitForLoadState('networkidle');
-    
+
     // Check page loaded
     const body = page.locator('body');
     await expect(body).toBeVisible();
@@ -141,7 +127,7 @@ test.describe('Page Routing', () => {
 
   test('404 page shows error message', async ({ page }) => {
     await page.goto('/nonexistent-page-12345');
-    
+
     // Should show error or redirect
     const body = page.locator('body');
     await expect(body).toBeVisible();

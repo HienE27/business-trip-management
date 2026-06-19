@@ -1,20 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/auth.fixture';
 
 test.describe('System Pages', () => {
-  test.beforeEach(async ({ page }) => {
-    // Login first
-    await page.goto('/login');
-    await page.waitForLoadState('networkidle');
-    
-    const usernameInput = page.locator('input[name="username"]');
-    const passwordInput = page.locator('input[name="password"]');
-    
-    if (await usernameInput.isVisible({ timeout: 10000 })) {
-      await usernameInput.fill('admin');
-      await passwordInput.fill('admin123');
-      await page.getByRole('button', { name: /đăng nhập/i }).click();
-      await page.waitForTimeout(2000);
-    }
+  test.beforeEach(async ({ loginAs }) => {
+    await loginAs();
   });
 
   test('holidays page loads correctly', async ({ page }) => {

@@ -1,22 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/auth.fixture';
 
 test.describe('Schedule CRUD Operations', () => {
-  test.beforeEach(async ({ page }) => {
-    // Login as admin
-    await page.goto('/login');
-    await page.waitForLoadState('networkidle');
-    
-    const usernameInput = page.locator('input[name="username"]');
-    const passwordInput = page.locator('input[name="password"]');
-    
-    // Wait for login form to be visible
-    if (await usernameInput.isVisible({ timeout: 10000 })) {
-      await usernameInput.fill('admin');
-      await passwordInput.fill('admin123');
-      await page.getByRole('button', { name: /đăng nhập/i }).click();
-      // Wait for redirect after login
-      await page.waitForTimeout(2000);
-    }
+  test.beforeEach(async ({ loginAs }) => {
+    await loginAs();
   });
 
   test('monthly schedule page loads without crash', async ({ page }) => {

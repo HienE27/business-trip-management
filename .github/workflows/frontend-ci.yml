@@ -119,6 +119,16 @@ jobs:
   e2e:
     name: E2E smoke (Playwright)
     runs-on: ubuntu-latest
+    env:
+      # Credentials for the dev backend the suite hits.
+      # Override per-environment via repository secrets. When
+      # unset, the fixture falls back to the placeholder
+      # 'admin' / 'change-me' so the suite still runs in
+      # environments without a real backend (the loginAs helper
+      # is a no-op if no login form is rendered).
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_LOGIN_PATH: ${{ vars.E2E_LOGIN_PATH || '/login' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
