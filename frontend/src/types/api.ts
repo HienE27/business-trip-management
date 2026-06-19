@@ -500,3 +500,30 @@ export interface CompensationDay {
   shiftDate: string;
   compensationDate: string;
 }
+
+export interface RoleMatrixRole {
+  id: number;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+}
+
+export interface RoleMatrixPermission {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+export interface RoleMatrixEntry {
+  roleId: number;
+  roleName: string;
+  permissionId: number;
+  permissionName: string;
+  granted: boolean;
+}
+
+export interface RolePermissionMatrix {
+  roles: RoleMatrixRole[];
+  permissions: RoleMatrixPermission[];
+  matrix: RoleMatrixEntry[];
+}

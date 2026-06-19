@@ -16,6 +16,7 @@ import { formatDate } from "@/lib/date";
 import { getErrorMessage } from "@/lib/errors";
 import type { SchedulePeriod, Staff, AlgorithmMetrics, ReplacementSuggestion, AutoScheduleSummary, ShiftType, ScheduleTemplate, TemplatePreviewItem } from "@/types/api";
 import { WorkloadChart } from "@/components/auto-scheduling/WorkloadChart";
+import { AlgorithmBalanceChart } from "@/components/auto-scheduling/AlgorithmBalanceChart";
 
 type AlgoType = "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING";
 
@@ -837,6 +838,11 @@ export default function AutoSchedulingPage() {
 
           {/* Unassigned Report (after preview) */}
           <UnassignedReportCard periodId={selectedPeriodId} />
+
+          {/* M07-F09 — algorithm balance chart driven by the in-memory preview */}
+          <AlgorithmBalanceChart
+            schedules={previewResult.schedules}
+          />
 
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Preview table with inline edit */}

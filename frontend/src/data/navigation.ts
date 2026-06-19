@@ -157,6 +157,7 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/audit-history": "audit-history",
   "/audit-logs": "audit-history",
   "/settings": "settings",
+  "/settings/roles": "settings",
 };
 
 export function resolveSectionKey(pathname: string): AppSectionKey {

@@ -317,6 +317,28 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {/* ── Role & Permission Management ──────────────────────────────── */}
+        <section
+          className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm cursor-pointer hover:bg-surface-container-low transition-colors group"
+          onClick={() => window.location.href = "/settings/roles"}
+          role="link"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter") window.location.href = "/settings/roles"; }}
+        >
+          <div className="flex items-center justify-between gap-2.5 mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-error-container/40 text-on-error-container">
+                <span className="material-symbols-outlined text-[18px]">shield</span>
+              </div>
+              <div>
+                <h2 className="text-title-lg font-semibold text-on-surface leading-tight">Phân quyền hệ thống</h2>
+                <p className="text-[11px] text-on-surface-variant">Quản lý quyền hệ thống cho từng vai trò.</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">chevron_right</span>
+          </div>
+        </section>
+
         {/* ── Account Settings ──────────────────────────────────────────── */}
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
           <div className="flex items-center gap-2.5 mb-3">

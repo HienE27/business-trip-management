@@ -562,6 +562,17 @@ class ApiClient {
     }>>("/auto-schedule/config");
   }
 
+  async getRolePermissionMatrix(): Promise<ApiResponse<import("@/types/api").RolePermissionMatrix>> {
+    return this.request<import("@/types/api").RolePermissionMatrix>("/roles/permissions/matrix");
+  }
+
+  async toggleRolePermission(data: { roleId: number; permissionId: number; granted: boolean }): Promise<ApiResponse<null>> {
+    return this.request<null>("/roles/permissions/toggle", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
   async createAlgorithmConfig(data: { paramKey: string; paramValue: string; valueType: string; description?: string }): Promise<ApiResponse<{
     paramKey: string;
     paramValue: string;
