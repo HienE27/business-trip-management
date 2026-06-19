@@ -7,6 +7,7 @@ import type {
   Schedule,
   ScheduleRequest,
   SchedulePeriod,
+  BulkPeriodResult,
   DashboardData,
   ShiftStatistics,
   StaffWorkloadStatistics,
@@ -299,6 +300,20 @@ class ApiClient {
 
   async publishPeriod(id: number): Promise<ApiResponse<SchedulePeriod>> {
     return this.request<SchedulePeriod>(`/periods/${id}/publish`, { method: "POST" });
+  }
+
+  async bulkPublishPeriods(ids: number[]): Promise<ApiResponse<BulkPeriodResult>> {
+    return this.request<BulkPeriodResult>("/periods/bulk/publish", {
+      method: "POST",
+      body: JSON.stringify({ periodIds: ids }),
+    });
+  }
+
+  async bulkArchivePeriods(ids: number[]): Promise<ApiResponse<BulkPeriodResult>> {
+    return this.request<BulkPeriodResult>("/periods/bulk/archive", {
+      method: "POST",
+      body: JSON.stringify({ periodIds: ids }),
+    });
   }
 
   async archivePeriod(id: number): Promise<ApiResponse<SchedulePeriod>> {

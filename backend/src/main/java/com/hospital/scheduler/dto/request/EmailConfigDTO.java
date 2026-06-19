@@ -13,7 +13,10 @@ import lombok.*;
 public class EmailConfigDTO {
 
     @Schema(description = "Whether email notifications are enabled", example = "false")
-    private Boolean enabled;
+    private Boolean emailEnabled;
+
+    @Schema(description = "Whether conflict email alerts are enabled", example = "false")
+    private Boolean conflictEmailEnabled;
 
     @Schema(description = "The from email address", example = "noreply@hospital-scheduler.com")
     @Email(message = "Email không hợp lệ")

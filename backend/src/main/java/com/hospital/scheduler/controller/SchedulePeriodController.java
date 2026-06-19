@@ -1,7 +1,9 @@
 package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
+import com.hospital.scheduler.dto.request.BulkPeriodRequest;
 import com.hospital.scheduler.dto.request.SchedulePeriodRequest;
+import com.hospital.scheduler.dto.response.BulkPeriodResponse;
 import com.hospital.scheduler.dto.response.SchedulePeriodResponse;
 import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.service.SchedulePeriodService;
@@ -79,6 +81,29 @@ public class SchedulePeriodController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<SchedulePeriodResponse>> archivePeriod(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(periodService.archivePeriod(id), "Lưu trữ kỳ lịch thành công"));
+    }
+
+    @PostMapping("/bulk/publish")
+    @Operation(summary = "Công bố hàng loạt nhiều kỳ lịch DRAFT")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<BulkPeriodResponse>> bulkPublish(
+            @Valid @RequestBody BulkPeriodRequest request,
+            @RequestParam(required = false) Integer publishedById) {
+        BulkPeriodResponse result = periodService.bulkPublish(request.getPeriodIds(), publishedById);
+        return ResponseEntity.ok(ApiResponse.success(result,
+                String.format("Đã xử lý %d kỳ lịch: %d thành công, %d thất bại",
+                        result.getTotalRequested(), result.getSuccessCount(), result.getFailureCount())));
+    }
+
+    @PostMapping("/bulk/archive")
+    @Operation(summary = "Lưu trữ hàng loạt nhiều kỳ lịch PUBLISHED")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<BulkPeriodResponse>> bulkArchive(
+            @Valid @RequestBody BulkPeriodRequest request) {
+        BulkPeriodResponse result = periodService.bulkArchive(request.getPeriodIds());
+        return ResponseEntity.ok(ApiResponse.success(result,
+                String.format("Đã xử lý %d kỳ lịch: %d thành công, %d thất bại",
+                        result.getTotalRequested(), result.getSuccessCount(), result.getFailureCount())));
     }
 
     @DeleteMapping("/{id}")

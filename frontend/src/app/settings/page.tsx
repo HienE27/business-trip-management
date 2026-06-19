@@ -42,8 +42,8 @@ export default function SettingsPage() {
   const loadEmailConfig = useCallback(async () => {
     try {
       const data = await api.get<{ emailEnabled: boolean; conflictEmailEnabled: boolean }>("/app-config/email");
-      setEmailEnabled(data.emailEnabled);
-      setConflictEmailEnabled(data.conflictEmailEnabled);
+      setEmailEnabled(data.emailEnabled ?? false);
+      setConflictEmailEnabled(data.conflictEmailEnabled ?? false);
     } catch {
       toastRef.current.error("Không thể tải cấu hình email. Hiển thị giá trị mặc định.");
     } finally {

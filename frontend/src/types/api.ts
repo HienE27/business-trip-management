@@ -150,6 +150,25 @@ export interface SchedulePeriod {
 }
 
 // ============================================================
+// Bulk Period Operations
+// ============================================================
+export interface BulkPeriodResult {
+  totalRequested: number;
+  successCount: number;
+  failureCount: number;
+  results: BulkPeriodItem[];
+}
+
+export interface BulkPeriodItem {
+  id: number;
+  periodName?: string;
+  success: boolean;
+  message: string;
+  data?: SchedulePeriod;
+  processedAt: string;
+}
+
+// ============================================================
 // Dashboard Types
 // ============================================================
 export interface DashboardSummary {

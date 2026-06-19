@@ -349,6 +349,11 @@ export default function AutoSchedulingPage() {
   const [applyTemplateModalOpen, setApplyTemplateModalOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [templatePreview, setTemplatePreview] = useState<TemplatePreviewItem[] | null>(null);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkOperation, setBulkOperation] = useState<"publish" | "archive">("publish");
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkResults, setBulkResults] = useState<{ success: number; failure: number; results: Array<{ id: number; periodName: string; success: boolean; message: string }> } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingStaffIds, setEditingStaffIds] = useState<Map<number, number>>(new Map());
 
@@ -585,6 +590,17 @@ export default function AutoSchedulingPage() {
               }`}>
                 {selectedPeriod.status === "DRAFT" ? "Nháp" : "Đã công bố"}
               </span>
+            )}
+            {isManager && (
+              <button
+                type="button"
+                onClick={() => setBulkModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-[11px] font-semibold hover:bg-primary/90 transition-colors"
+                title="Công bố hàng loạt nhiều kỳ lịch"
+              >
+                <span className="material-symbols-outlined text-[14px]">bolt</span>
+                Công bố hàng loạt
+              </button>
             )}
           </div>
         }
@@ -1197,6 +1213,197 @@ export default function AutoSchedulingPage() {
             </button>
           )}
         </ModalFooter>
+      </Modal>
+
+      {/* Bulk Publish / Archive Modal */}
+      <Modal
+        open={bulkModalOpen}
+        onClose={() => { setBulkModalOpen(false); setBulkResults(null); setBulkSelectedIds(new Set()); }}
+        title={bulkOperation === "publish" ? "Công bố hàng loạt kỳ lịch" : "Lưu trữ hàng loạt kỳ lịch"}
+        size="lg"
+      >
+        {!bulkResults ? (
+          <>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setBulkOperation("publish"); setBulkSelectedIds(new Set()); }}
+                  className={`flex-1 py-2 rounded-lg text-label-md font-medium transition-colors border ${
+                    bulkOperation === "publish"
+                      ? "border-primary bg-primary-fixed/20 text-primary"
+                      : "border-outline-variant text-on-surface-variant hover:border-primary/40"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px] align-middle mr-1">publish</span>
+                  Công bố hàng loạt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setBulkOperation("archive"); setBulkSelectedIds(new Set()); }}
+                  className={`flex-1 py-2 rounded-lg text-label-md font-medium transition-colors border ${
+                    bulkOperation === "archive"
+                      ? "border-secondary bg-secondary-container/20 text-on-secondary-container"
+                      : "border-outline-variant text-on-surface-variant hover:border-secondary/40"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px] align-middle mr-1">archive</span>
+                  Lưu trữ hàng loạt
+                </button>
+              </div>
+
+              <div>
+                <p className="text-label-sm text-on-surface-variant mb-2">
+                  {bulkOperation === "publish"
+                    ? "Chọn các kỳ lịch ở trạng thái Nháp để công bố:"
+                    : "Chọn các kỳ lịch ở trạng thái Đã công bố để lưu trữ:"}
+                </p>
+                <div className="border border-outline-variant rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                  {periods
+                    .filter((p) =>
+                      bulkOperation === "publish" ? p.status === "DRAFT" : p.status === "PUBLISHED"
+                    )
+                    .map((p) => (
+                      <label
+                        key={p.id}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low cursor-pointer border-b border-outline-variant last:border-b-0"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={bulkSelectedIds.has(p.id)}
+                          onChange={(e) => {
+                            setBulkSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(p.id);
+                              else next.delete(p.id);
+                              return next;
+                            });
+                          }}
+                          className="w-4 h-4 accent-primary"
+                        />
+                        <div className="flex-1">
+                          <p className="text-label-md text-on-surface font-medium">{p.periodName}</p>
+                          <p className="text-[11px] text-on-surface-variant">
+                            {formatDate(p.startDate)} – {formatDate(p.endDate)}
+                          </p>
+                        </div>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                          p.status === "DRAFT" ? "bg-primary-fixed text-primary" : "bg-secondary-container text-on-secondary-container"
+                        }`}>
+                          {p.status === "DRAFT" ? "Nháp" : "Đã công bố"}
+                        </span>
+                      </label>
+                    ))}
+                  {periods.filter((p) =>
+                    bulkOperation === "publish" ? p.status === "DRAFT" : p.status === "PUBLISHED"
+                  ).length === 0 && (
+                    <p className="px-4 py-6 text-label-sm text-on-surface-variant text-center">
+                      Không có kỳ lịch nào ở trạng thái phù hợp.
+                    </p>
+                  )}
+                </div>
+                {bulkSelectedIds.size > 0 && (
+                  <p className="text-label-sm text-on-surface-variant mt-2">
+                    Đã chọn <strong>{bulkSelectedIds.size}</strong> kỳ lịch.
+                  </p>
+                )}
+              </div>
+            </div>
+            <ModalFooter>
+              <button
+                type="button"
+                onClick={() => { setBulkModalOpen(false); setBulkSelectedIds(new Set()); }}
+                className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                disabled={bulkSelectedIds.size === 0 || bulkSubmitting}
+                onClick={async () => {
+                  const ids = [...bulkSelectedIds];
+                  setBulkSubmitting(true);
+                  try {
+                    const res = bulkOperation === "publish"
+                      ? await api.bulkPublishPeriods(ids)
+                      : await api.bulkArchivePeriods(ids);
+                    if (res.success && res.data) {
+                      setBulkResults({
+                        success: res.data.successCount,
+                        failure: res.data.failureCount,
+                        results: res.data.results.map((r) => ({
+                          id: r.id,
+                          periodName: r.periodName ?? `Kỳ #${r.id}`,
+                          success: r.success,
+                          message: r.message,
+                        })),
+                      });
+                      if (res.data.successCount > 0) void loadWorkspace();
+                    }
+                  } catch (err) {
+                    setBulkResults({
+                      success: 0,
+                      failure: ids.length,
+                      results: ids.map((id) => ({ id, periodName: `Kỳ #${id}`, success: false, message: getErrorMessage(err, "Lỗi không xác định") })),
+                    });
+                  } finally {
+                    setBulkSubmitting(false);
+                  }
+                }}
+                className={`inline-flex items-center gap-2 px-5 py-2 rounded-lg text-label-md font-semibold transition-colors disabled:opacity-50 ${
+                  bulkOperation === "publish"
+                    ? "bg-primary text-on-primary hover:bg-primary/90"
+                    : "bg-secondary text-on-secondary hover:bg-secondary/90"
+                }`}
+              >
+                {bulkSubmitting ? (
+                  <><div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /><span>Đang xử lý...</span></>
+                ) : (
+                  <><span className="material-symbols-outlined text-[16px]">check</span>
+                    {bulkOperation === "publish" ? `Công bố ${bulkSelectedIds.size} kỳ lịch` : `Lưu trữ ${bulkSelectedIds.size} kỳ lịch`}
+                  </>
+                )}
+              </button>
+            </ModalFooter>
+          </>
+        ) : (
+          <>
+            <div className="space-y-3">
+              <div className="flex gap-4">
+                <div className="flex-1 rounded-lg border border-secondary-container bg-secondary-container/10 p-3 text-center">
+                  <p className="text-display-lg text-secondary font-bold">{bulkResults.success}</p>
+                  <p className="text-label-sm text-on-secondary-container">Thành công</p>
+                </div>
+                <div className="flex-1 rounded-lg border border-error-container bg-error-container/10 p-3 text-center">
+                  <p className="text-display-lg text-error font-bold">{bulkResults.failure}</p>
+                  <p className="text-label-sm text-on-error-container">Thất bại</p>
+                </div>
+              </div>
+              <div className="border border-outline-variant rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                {bulkResults.results.map((r) => (
+                  <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-outline-variant last:border-b-0">
+                    <span className={`material-symbols-outlined text-[18px] ${r.success ? "text-secondary" : "text-error"}`}>
+                      {r.success ? "check_circle" : "error"}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-label-md text-on-surface truncate">{r.periodName}</p>
+                      {!r.success && <p className="text-[11px] text-error truncate">{r.message}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <ModalFooter>
+              <button
+                type="button"
+                onClick={() => { setBulkModalOpen(false); setBulkResults(null); setBulkSelectedIds(new Set()); }}
+                className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Đóng
+              </button>
+            </ModalFooter>
+          </>
+        )}
       </Modal>
     </WorkflowShell>
     </ErrorBoundary>

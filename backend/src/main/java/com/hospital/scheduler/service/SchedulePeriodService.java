@@ -2,6 +2,7 @@ package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.dto.request.SchedulePeriodRequest;
+import com.hospital.scheduler.dto.response.BulkPeriodResponse;
 import com.hospital.scheduler.dto.response.ConflictCheckResponse;
 import com.hospital.scheduler.dto.response.SchedulePeriodResponse;
 import com.hospital.scheduler.entity.AuditHistory;
@@ -173,6 +174,62 @@ public class SchedulePeriodService {
 
         period.setStatus(SchedulePeriod.PeriodStatus.ARCHIVED);
         return toResponse(periodRepository.save(period));
+    }
+
+    public BulkPeriodResponse bulkPublish(List<Integer> periodIds, Integer publishedById) {
+        List<BulkPeriodResponse.PeriodResult> results = periodIds.stream()
+                .map(id -> publishSingleResult(id, publishedById))
+                .toList();
+        return BulkPeriodResponse.of(results);
+    }
+
+    private BulkPeriodResponse.PeriodResult publishSingleResult(Integer id, Integer publishedById) {
+        try {
+            SchedulePeriodResponse published = publishPeriod(id, publishedById);
+            return BulkPeriodResponse.PeriodResult.builder()
+                    .id(id)
+                    .periodName(published.getPeriodName())
+                    .success(true)
+                    .message("Công bố thành công")
+                    .data(published)
+                    .processedAt(java.time.LocalDateTime.now())
+                    .build();
+        } catch (Exception e) {
+            return BulkPeriodResponse.PeriodResult.builder()
+                    .id(id)
+                    .success(false)
+                    .message(e.getMessage())
+                    .processedAt(java.time.LocalDateTime.now())
+                    .build();
+        }
+    }
+
+    public BulkPeriodResponse bulkArchive(List<Integer> periodIds) {
+        List<BulkPeriodResponse.PeriodResult> results = periodIds.stream()
+                .map(this::archiveSingleResult)
+                .toList();
+        return BulkPeriodResponse.of(results);
+    }
+
+    private BulkPeriodResponse.PeriodResult archiveSingleResult(Integer id) {
+        try {
+            SchedulePeriodResponse archived = archivePeriod(id);
+            return BulkPeriodResponse.PeriodResult.builder()
+                    .id(id)
+                    .periodName(archived.getPeriodName())
+                    .success(true)
+                    .message("Lưu trữ thành công")
+                    .data(archived)
+                    .processedAt(java.time.LocalDateTime.now())
+                    .build();
+        } catch (Exception e) {
+            return BulkPeriodResponse.PeriodResult.builder()
+                    .id(id)
+                    .success(false)
+                    .message(e.getMessage())
+                    .processedAt(java.time.LocalDateTime.now())
+                    .build();
+        }
     }
 
     public void deletePeriod(Integer id) {

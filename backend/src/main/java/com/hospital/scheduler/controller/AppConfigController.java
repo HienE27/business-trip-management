@@ -2,6 +2,7 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.EmailConfigDTO;
+import com.hospital.scheduler.service.AppConfigService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -27,8 +28,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "App Config", description = "Cấu hình ứng dụng")
 public class AppConfigController {
 
-    @Value("${app.email.enabled:false}")
-    private Boolean emailEnabled;
+    private final AppConfigService appConfigService;
 
     @Value("${app.email.from:noreply@hospital-scheduler.com}")
     private String emailFrom;
@@ -39,10 +39,6 @@ public class AppConfigController {
     @Value("${spring.mail.port:587}")
     private Integer smtpPort;
 
-    /**
-     * Get current email configuration.
-     * Values are read from application.properties / environment variables.
-     */
     @GetMapping("/email")
     @Operation(summary = "Lấy cấu hình email hiện tại")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
@@ -50,7 +46,8 @@ public class AppConfigController {
         log.info("Fetching email configuration");
 
         EmailConfigDTO config = EmailConfigDTO.builder()
-                .enabled(emailEnabled)
+                .emailEnabled(appConfigService.isEmailEnabled())
+                .conflictEmailEnabled(appConfigService.isConflictEmailEnabled())
                 .fromEmail(emailFrom)
                 .smtpHost(smtpHost)
                 .smtpPort(smtpPort)
@@ -59,37 +56,30 @@ public class AppConfigController {
         return ResponseEntity.ok(ApiResponse.success(config));
     }
 
-    /**
-     * Update email configuration.
-     * 
-     * NOTE: Changes are applied to in-memory values only and will NOT persist
-     * across application restarts. For production use, this should be refactored
-     * to store configuration in a database or external configuration store.
-     * 
-     * @param config the new email configuration
-     * @return the updated configuration
-     */
     @PutMapping("/email")
     @Operation(summary = "Cập nhật cấu hình email")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<EmailConfigDTO>> updateEmailConfig(
             @RequestBody EmailConfigDTO config) {
-        log.info("Updating email configuration - enabled: {}, from: {}, host: {}, port: {}",
-                config.getEnabled(), config.getFromEmail(), config.getSmtpHost(), config.getSmtpPort());
+        log.info("Updating email configuration - enabled: {}, conflictEnabled: {}, from: {}, host: {}, port: {}",
+                config.getEmailEnabled(), config.getConflictEmailEnabled(),
+                config.getFromEmail(), config.getSmtpHost(), config.getSmtpPort());
 
-        // NOTE: Since we're using @Value which binds at startup, we cannot
-        // dynamically update these values at runtime without additional infrastructure.
-        // This endpoint demonstrates the API contract; actual implementation would
-        // require a dynamic configuration service or storing config in the database.
+        if (config.getEmailEnabled() != null) {
+            appConfigService.setEmailEnabled(config.getEmailEnabled());
+        }
+        if (config.getConflictEmailEnabled() != null) {
+            appConfigService.setConflictEmailEnabled(config.getConflictEmailEnabled());
+        }
 
-        // For now, log the requested changes (in production, persist to DB or config file)
         EmailConfigDTO updatedConfig = EmailConfigDTO.builder()
-                .enabled(config.getEnabled())
-                .fromEmail(config.getFromEmail())
-                .smtpHost(config.getSmtpHost())
-                .smtpPort(config.getSmtpPort())
+                .emailEnabled(appConfigService.isEmailEnabled())
+                .conflictEmailEnabled(appConfigService.isConflictEmailEnabled())
+                .fromEmail(emailFrom)
+                .smtpHost(smtpHost)
+                .smtpPort(smtpPort)
                 .build();
 
-        return ResponseEntity.ok(ApiResponse.success(updatedConfig, "Cấu hình email đã được cập nhật (lưu ý: thay đổi sẽ không được lưu sau khi khởi động lại ứng dụng)"));
+        return ResponseEntity.ok(ApiResponse.success(updatedConfig, "Cấu hình email đã được cập nhật"));
     }
 }
