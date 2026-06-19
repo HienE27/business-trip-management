@@ -159,6 +159,9 @@ Các route quan trọng trong `frontend/src/app`:
 | `/auto-scheduling/history` | Lịch sử chạy |
 | `/settings` | Cài đặt |
 | `/settings/roles` | **Ma trận phân quyền** (M01-F05) |
+| `/requirements` | Yêu cầu nhân sự — cấu hình số nhân sự cần thiết cho từng ngày/loại ca (M07) |
+| `/periods` | Quản lý kỳ lịch — CRUD + publish/archive |
+| `/holidays` | Quản lý ngày lễ + ngày nghỉ bù |
 
 ## API chính hiện có
 
@@ -229,14 +232,34 @@ Auth hiện dùng JWT lưu trong cookie HTTP-only tên `medschedule_access_token
 
 Những phần đã thấy rõ trong code:
 
+### Backend
+
 - CRUD lịch cơ bản cho `L01`-`L04`
-- Kiểm tra conflict theo kỳ
+- Kiểm tra conflict theo kỳ (8 loại conflict: DUPLICATE_SHIFT, L01_L02_CONFLICT, L03_L04_CONFLICT, COMPENSATION_CONFLICT, MAX_SHIFTS_PER_MONTH, BACK_TO_BACK_SHIFT, INVALID_SHIFT_TYPE, UNAUTHORIZED_SHIFT)
 - Tự tính và trả `compensationDate` từ backend
-- Hiển thị ngày nghỉ bù trên bảng lịch tháng (`/monthly-schedule`), khóa thao tác trên ô nghỉ bù
+- `max_shifts_per_month` chỉ áp dụng cho L01 (tối đa 5 ca L01/tháng)
+- `BACK_TO_BACK_SHIFT` — từ chối tạo ca trực L01 ngay sau L01 của cùng nhân sự
+- Email alert gửi khi tạo/cập nhật schedule có conflict (qua `validateAndThrowWithEmail`)
+- Publish guard — cảnh báo coverage gaps (non-blocking warning) khi publish period
+- Thống kê L03/L04 tích hợp trong `/dashboard/workload/period/{id}`
 - Export Excel cho lịch và workload
 - Export PDF cho lịch tổng hợp nếu service PDF khả dụng trong môi trường chạy
 - Auto scheduling với các luồng preview, run, báo cáo unassigned, workload chart, metrics
 - Seed dữ liệu mẫu để demo nhanh (20 nhân sự, 2 kỳ lịch)
+- 204 unit tests trong backend, 0 failures
+
+### Frontend
+
+- Hiển thị ngày nghỉ bù trên bảng lịch tháng (`/monthly-schedule`), khóa thao tác trên ô nghỉ bù
+- Real-time conflict alerts qua WebSocket
+- Shift Requirement management (`/requirements`) — CRUD cấu hình nhân sự cần thiết cho từng ngày/loại ca
+- Period management (`/periods`) — CRUD kỳ lịch + publish/archive
+- Holiday management (`/holidays`) — CRUD ngày lễ + ngày nghỉ bù
+- Ma trận lịch trên Dashboard (hàng=ngày, cột=nhân sự)
+- Workflow Stepper cho Auto Scheduling
+- Ma trận phân quyền (`/settings/roles`) cho ADMIN
+- Inline quick-edit trên calendar
+- 30 unit tests + Playwright E2E tests
 
 Các điểm cần hiểu đúng khi đọc tài liệu:
 
@@ -246,13 +269,13 @@ Các điểm cần hiểu đúng khi đọc tài liệu:
 
 ## Test hiện có
 
-Backend đang có test ở các vùng chính (206 tests, 0 failures):
+Backend đang có test ở các vùng chính (204 tests, 0 failures):
 
-- `backend/src/test/java/com/hospital/scheduler/service/ConflictDetectionServiceTest.java`
+- `backend/src/test/java/com/hospital/scheduler/service/ConflictDetectionServiceTest.java` (8 loại conflict)
 - `backend/src/test/java/com/hospital/scheduler/service/ScheduleServiceBusinessRulesTest.java`
 - `backend/src/test/java/com/hospital/scheduler/service/AutoSchedulingServiceTest.java`
 - `backend/src/test/java/com/hospital/scheduler/service/LeaveRequestServiceTest.java`
-- `backend/src/test/java/com/hospital/scheduler/service/ScheduleServiceTest.java`
+- `backend/src/test/java/com/hospital/scheduler/service/ScheduleServiceTest.java` (max shifts L01-only, back-to-back)
 - `backend/src/test/java/com/hospital/scheduler/service/RoleServiceTest.java`
 - `frontend/src/lib/api-client.test.ts` (30 tests)
 - `frontend/tests/e2e/*.spec.ts` (Playwright E2E)
@@ -275,5 +298,7 @@ pnpm playwright test
 
 - `SPEC.md` — scope nghiệp vụ và constraints
 - `QuanLyLichCongTac_v5.md` — mô tả chức năng chi tiết
+- `DEMO_WALKTHROUGH.md` — kịch bản demo đầy đủ cho bảo vệ (15-20 phút)
 - `backend/HELP.md` — hướng dẫn backend current-state
 - `frontend/README.md` — hướng dẫn frontend current-state
+- `screenshots/` — ảnh chụp màn hình phục vụ demo và báo cáo
