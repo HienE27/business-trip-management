@@ -3,6 +3,7 @@ import type { NavigationItem } from "@/types/schedule";
 export type AppSectionKey =
   | "dashboard"
   | "monthly-schedule"
+  | "periods"
   | "duty-24"
   | "all-day"
   | "service-clinic"
@@ -40,6 +41,13 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/monthly-schedule",
     icon: "calendar_month",
     description: "Điều phối kỳ lịch theo workflow: auto schedule, conflict check, review, publish và export.",
+  },
+  {
+    key: "periods",
+    label: "Kỳ lịch công tác",
+    href: "/periods",
+    icon: "event_note",
+    description: "M02 — Quản lý các kỳ lịch theo tháng: tạo mới, chỉnh sửa, công bố và lưu trữ.",
   },
   {
     key: "duty-24",
@@ -152,6 +160,7 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/service-clinic": "service-clinic",
   "/expert-clinic": "expert-clinic",
   "/schedule-summary": "monthly-schedule",
+  "/periods": "periods",
   "/auto-scheduling": "auto-scheduling",
   "/conflict-check": "monthly-schedule",
   "/leave-requests": "leave-requests",

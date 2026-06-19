@@ -162,7 +162,7 @@ export default function PeriodsPage() {
   return (
     <>
       <DashboardShell
-        activeSection="monthly-schedule"
+        activeSection="periods"
         title="Quản lý kỳ lịch"
         description="Tạo, chỉnh sửa, công bố và lưu trữ các kỳ lịch công tác."
       >
