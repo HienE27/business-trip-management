@@ -8,6 +8,7 @@ import type { AutoScheduleResult, TemplatePreviewItem } from "@/types/api";
 export type AutoScheduleState = {
   previewResult: AutoScheduleResult | null;
   editedPreview: Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
+  removedShiftTypes: Set<string>;
   applying: boolean;
   running: boolean;
   message: string | null;
@@ -30,6 +31,7 @@ export type AutoScheduleActions = {
   previewTemplate: (templateId: number, periodId: number | null) => Promise<TemplatePreviewItem[]>;
   applyTemplateWithEdits: (templateId: number, periodId: number, edits: TemplatePreviewItem[]) => Promise<void>;
   editStaff: (workDate: string, shiftTypeId: string, staffId: number) => void;
+  editShiftType: (workDate: string, oldShiftTypeId: string, newShiftTypeId: string, staffId: number) => void;
   resetEdits: () => void;
   clearPreview: () => void;
   clearMessage: () => void;
@@ -40,6 +42,7 @@ export type AutoScheduleActions = {
 export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [previewResult, setPreviewResult] = useState<AutoScheduleResult | null>(null);
   const [editedPreview, setEditedPreview] = useState<Array<{ workDate: string; shiftTypeId: string; staffId: number }>>([]);
+  const [removedShiftTypes, setRemovedShiftTypes] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -57,6 +60,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
       });
       setPreviewResult(result.data);
       setEditedPreview([]);
+      setRemovedShiftTypes(new Set());
     } catch (error) {
       setMessage(getErrorMessage(error, "Không thể chạy auto schedule."));
     } finally {
@@ -81,6 +85,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         setMessage("Đã áp dụng phương án phân công.");
         setPreviewResult(null);
         setEditedPreview([]);
+        setRemovedShiftTypes(new Set());
         onSuccess();
       } catch (error) {
         setMessage(getErrorMessage(error, "Không thể áp dụng phương án."));
@@ -174,14 +179,42 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
     []
   );
 
+  /**
+   * Change the shift type of an existing (date, staff) assignment.
+   * Removes any entry keyed by (workDate, oldShiftTypeId) and adds one keyed by (workDate, newShiftTypeId).
+   * If newShiftTypeId is empty, removes the entry entirely.
+   */
+  const editShiftType = useCallback(
+    (workDate: string, oldShiftTypeId: string, newShiftTypeId: string, staffId: number) => {
+      const removeKey = `${workDate}_${oldShiftTypeId}_${staffId}`;
+      setRemovedShiftTypes((prev) => {
+        const next = new Set(prev);
+        next.add(removeKey);
+        return next;
+      });
+      setEditedPreview((prev) => {
+        const filtered = prev.filter(
+          (e) => !(e.workDate === workDate && e.shiftTypeId === oldShiftTypeId)
+        );
+        if (newShiftTypeId && newShiftTypeId !== oldShiftTypeId) {
+          return [...filtered, { workDate, shiftTypeId: newShiftTypeId, staffId }];
+        }
+        return filtered;
+      });
+    },
+    []
+  );
+
   const resetEdits = useCallback(() => {
     setEditedPreview([]);
+    setRemovedShiftTypes(new Set());
     setMessage("Đã hủy thay đổi.");
   }, []);
 
   const clearPreview = useCallback(() => {
     setPreviewResult(null);
     setEditedPreview([]);
+    setRemovedShiftTypes(new Set());
   }, []);
 
   const clearMessage = useCallback(() => setMessage(null), []);
@@ -190,7 +223,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   }, []);
 
   return [
-    { previewResult, editedPreview, applying, running, message, algorithmType },
-    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType },
+    { previewResult, editedPreview, removedShiftTypes, applying, running, message, algorithmType },
+    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType },
   ];
 }

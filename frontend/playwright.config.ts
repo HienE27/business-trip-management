@@ -18,13 +18,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    // Use the production build so the test run matches what the
-    // Docker image serves. `pnpm start` exits immediately on
-    // error, which Playwright treats as a failed boot.
+  webServer: process.env.CI ? undefined : ({
     command: 'pnpm start',
     url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
     timeout: 120_000,
-  },
+  }),
 });

@@ -68,8 +68,8 @@ function MetricsHistorySection({ periodId }: { periodId: number | null }) {
             <tr key={m.id} className="hover:bg-surface transition-colors">
               <td className="p-2 text-label-sm text-primary font-semibold">{m.algorithmType}</td>
               <td className="p-2 text-label-sm text-on-surface">{m.executionTimeMs}ms</td>
-              <td className="p-2 text-label-sm text-on-surface">{Math.round(m.coverageRate * 100)}%</td>
-              <td className="p-2 text-label-sm text-on-surface">{m.balanceScore.toFixed(2)}</td>
+              <td className="p-2 text-label-sm text-on-surface">{typeof m.coverageRate === 'number' ? `${Math.round(m.coverageRate * 100)}%` : '—'}</td>
+              <td className="p-2 text-label-sm text-on-surface">{typeof m.balanceScore === 'number' ? m.balanceScore.toFixed(2) : '—'}</td>
               <td className="p-2 text-label-sm">
                 <span className={m.conflictCount > 0 ? "text-error font-semibold" : "text-secondary"}>
                   {m.conflictCount}
@@ -86,30 +86,75 @@ function MetricsHistorySection({ periodId }: { periodId: number | null }) {
 function EditableScheduleRow({
   schedule,
   allStaff,
+  allShiftTypes,
   isEdited,
+  isShiftTypeEdited,
   isRemoved,
   isAdded,
   onEdit,
+  onShiftTypeChange,
   onRemove,
   onRestore,
   onSuggestReplacement,
 }: {
   schedule: AutoScheduleSummary;
   allStaff: Staff[];
+  allShiftTypes: ShiftType[];
   isEdited: boolean;
+  isShiftTypeEdited?: boolean;
   isRemoved?: boolean;
   isAdded?: boolean;
   onEdit: (staffId: number) => void;
+  onShiftTypeChange?: (newShiftTypeId: string) => void;
   onRemove?: () => void;
   onRestore?: () => void;
   onSuggestReplacement?: (schedule: AutoScheduleSummary) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [staffOpen, setStaffOpen] = useState(false);
+  const [typeOpen, setTypeOpen] = useState(false);
 
   return (
-    <tr className={`hover:bg-surface transition-colors ${isEdited ? "bg-primary-fixed/10" : ""} ${isAdded ? "bg-secondary-fixed/10" : ""} ${isRemoved ? "opacity-40 line-through" : ""}`}>
+    <tr className={`hover:bg-surface transition-colors ${isEdited || isShiftTypeEdited ? "bg-primary-fixed/10" : ""} ${isAdded ? "bg-secondary-fixed/10" : ""} ${isRemoved ? "opacity-40 line-through" : ""}`}>
       <td className="p-3 text-label-sm text-on-surface">{formatDate(schedule.workDate)}</td>
-      <td className="p-3 text-label-sm text-on-surface">{schedule.shiftTypeName}</td>
+      <td className="p-3">
+        {isRemoved ? (
+          <span className="text-label-sm text-outline line-through">{schedule.shiftTypeName}</span>
+        ) : (
+          <div className="relative">
+            <button
+              type="button"
+              className={`inline-flex items-center gap-1 text-label-sm rounded px-2 py-1 border transition-colors ${
+                isShiftTypeEdited
+                  ? "border-primary bg-primary-fixed/20 text-primary"
+                  : "border-transparent text-on-surface hover:bg-surface-container-low"
+              }`}
+              onClick={() => setTypeOpen((v) => !v)}
+            >
+              <span>{schedule.shiftTypeName}</span>
+              {isShiftTypeEdited && <span className="material-symbols-outlined text-[14px] text-primary">edit</span>}
+            </button>
+            {typeOpen && onShiftTypeChange && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setTypeOpen(false)} />
+                <div className="absolute left-0 top-full mt-1 z-50 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg w-44 max-h-52 overflow-y-auto">
+                  {allShiftTypes.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`w-full text-left px-3 py-2 text-label-sm hover:bg-primary-fixed/20 transition-colors ${
+                        t.id === schedule.shiftTypeId ? "bg-primary-fixed/10 text-primary font-semibold" : "text-on-surface"
+                      }`}
+                      onClick={() => { onShiftTypeChange(t.id); setTypeOpen(false); }}
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </td>
       <td className="p-3 text-label-sm">
         {isRemoved ? (
           <div className="flex items-center gap-2">
@@ -134,14 +179,14 @@ function EditableScheduleRow({
                     ? "border-primary bg-primary-fixed/20 text-primary"
                     : "border-transparent text-on-surface hover:bg-surface-container-low"
                 }`}
-                onClick={() => setOpen((v) => !v)}
+                onClick={() => setStaffOpen((v) => !v)}
               >
                 <span>{schedule.staffName}</span>
                 {isEdited && <span className="material-symbols-outlined text-[14px] text-primary">edit</span>}
               </button>
-              {open && (
+              {staffOpen && (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+                  <div className="fixed inset-0 z-40" onClick={() => setStaffOpen(false)} />
                   <div className="absolute left-0 top-full mt-1 z-50 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg w-48 max-h-56 overflow-y-auto">
                     {allStaff.map((s) => (
                       <button
@@ -150,7 +195,7 @@ function EditableScheduleRow({
                         className={`w-full text-left px-3 py-2 text-label-sm hover:bg-primary-fixed/20 transition-colors ${
                           s.id === schedule.staffId ? "bg-primary-fixed/10 text-primary font-semibold" : "text-on-surface"
                         }`}
-                        onClick={() => { onEdit(s.id); setOpen(false); }}
+                        onClick={() => { onEdit(s.id); setStaffOpen(false); }}
                       >
                         {s.fullName}
                       </button>
@@ -338,8 +383,8 @@ export default function AutoSchedulingPage() {
   const [addedShifts, setAddedShifts] = useState<AutoScheduleSummary[]>([]);
 
   const [autoState, autoActions] = useAutoSchedule();
-  const { previewResult, editedPreview, applying, running, message, algorithmType } = autoState;
-  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editStaff, resetEdits, clearPreview, setMessage: hookSetMessage, setAlgorithmType } = autoActions;
+  const { previewResult, editedPreview, removedShiftTypes, applying, running, message, algorithmType } = autoState;
+  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, resetEdits, clearPreview, setMessage: hookSetMessage, setAlgorithmType } = autoActions;
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
@@ -400,8 +445,11 @@ export default function AutoSchedulingPage() {
 
     // Build merged list: original minus removed, plus added, plus edited
     const removedKeys = removedShifts;
+    const removedShiftTypeKeys = removedShiftTypes;
     const originalSchedules = previewResult.schedules.filter(
-      (s) => !removedKeys.has(`${s.workDate}_${s.shiftTypeId}_${s.staffId}`)
+      (s) =>
+        !removedKeys.has(`${s.workDate}_${s.shiftTypeId}_${s.staffId}`) &&
+        !removedShiftTypeKeys.has(`${s.workDate}_${s.shiftTypeId}_${s.staffId}`)
     );
     const merged: Array<{ workDate: string; shiftTypeId: string; staffId: number }> = [
       ...originalSchedules.map((s) => ({
@@ -451,6 +499,10 @@ export default function AutoSchedulingPage() {
     );
   };
 
+  const isRowShiftTypeEdited = (schedule: AutoScheduleSummary) => {
+    return removedShiftTypes.has(`${schedule.workDate}_${schedule.shiftTypeId}_${schedule.staffId}`);
+  };
+
   const handleRowEdit = (schedule: AutoScheduleSummary, staffId: number) => {
     editStaff(schedule.workDate, schedule.shiftTypeId, staffId);
   };
@@ -474,6 +526,29 @@ export default function AutoSchedulingPage() {
     resetEdits();
     setRemovedShifts(new Set());
     setAddedShifts([]);
+  };
+
+  /**
+   * Called when user picks a different shift type for a row in the preview table.
+   * The old (date, shiftType, staff) entry is marked removed, and the new one
+   * is added to editedPreview so it gets sent as part of the merged list.
+   */
+  const handleShiftTypeChange = (
+    schedule: AutoScheduleSummary,
+    newShiftTypeId: string
+  ) => {
+    const key = `${schedule.workDate}_${schedule.shiftTypeId}_${schedule.staffId}`;
+    setRemovedShifts((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+    editShiftType(
+      schedule.workDate,
+      schedule.shiftTypeId,
+      newShiftTypeId,
+      schedule.staffId
+    );
   };
 
   const handleLoadTemplates = async () => {
@@ -777,15 +852,17 @@ export default function AutoSchedulingPage() {
             {/* Preview table with inline edit */}
             <SectionCard
               title="Phương án phân công"
-              description={`${previewResult.schedules.length} ca được tạo trong ${previewResult.executionTimeMs}ms — nhấn tên nhân sự để đổi`}
+              description={`${previewResult.schedules.length} ca được tạo trong ${previewResult.executionTimeMs}ms — nhấn loại lịch hoặc nhân sự để chỉnh sửa`}
               action={
                 <div className="flex items-center gap-3 flex-wrap">
-                  {(editedPreview.length > 0 || removedShifts.size > 0 || addedShifts.length > 0) && (
+                  {(editedPreview.length > 0 || removedShifts.size > 0 || removedShiftTypes.size > 0 || addedShifts.length > 0) && (
                     <span className="text-label-sm text-primary">
                       {editedPreview.length > 0 && <>{editedPreview.length} ca đã sửa</>}
                       {editedPreview.length > 0 && removedShifts.size > 0 && <>, </>}
                       {removedShifts.size > 0 && <>{removedShifts.size} ca đã xóa</>}
-                      {(editedPreview.length > 0 || removedShifts.size > 0) && addedShifts.length > 0 && <>, </>}
+                      {(editedPreview.length > 0 || removedShifts.size > 0) && removedShiftTypes.size > 0 && <>, </>}
+                      {removedShiftTypes.size > 0 && <>{removedShiftTypes.size} ca đổi loại lịch</>}
+                      {(editedPreview.length > 0 || removedShifts.size > 0 || removedShiftTypes.size > 0) && addedShifts.length > 0 && <>, </>}
                       {addedShifts.length > 0 && <>{addedShifts.length} ca thêm mới</>}
                     </span>
                   )}
@@ -811,15 +888,21 @@ export default function AutoSchedulingPage() {
                   </thead>
                   <tbody className="divide-y divide-outline-variant/30 overflow-y-auto">
                     {previewResult.schedules
-                      .filter((s) => !removedShifts.has(`${s.workDate}_${s.shiftTypeId}_${s.staffId}`))
+                      .filter((s) => {
+                        const key = `${s.workDate}_${s.shiftTypeId}_${s.staffId}`;
+                        return !removedShifts.has(key) && !removedShiftTypes.has(key);
+                      })
                       .slice(0, 50)
                       .map((s) => (
                         <EditableScheduleRow
                           key={`${s.workDate}_${s.shiftTypeId}_${s.staffId}`}
                           schedule={s}
                           allStaff={activeStaff}
+                          allShiftTypes={shiftTypes}
                           isEdited={isRowEdited(s)}
+                          isShiftTypeEdited={isRowShiftTypeEdited(s)}
                           onEdit={(staffId) => handleRowEdit(s, staffId)}
+                          onShiftTypeChange={(newTypeId) => handleShiftTypeChange(s, newTypeId)}
                           onRemove={() => handleRemoveShift(s)}
                           onSuggestReplacement={handleSuggestReplacement}
                         />
@@ -829,6 +912,7 @@ export default function AutoSchedulingPage() {
                         key={`added_${i}`}
                         schedule={s}
                         allStaff={activeStaff}
+                        allShiftTypes={shiftTypes}
                         isEdited={false}
                         isAdded
                         onEdit={(staffId) => {
@@ -894,6 +978,9 @@ export default function AutoSchedulingPage() {
             <p>Xung đột: <strong className="text-error">{previewResult.conflictCount}</strong></p>
             {editedPreview.length > 0 && (
               <p className="text-primary">Có <strong>{editedPreview.length}</strong> ca đã chỉnh sửa thủ công.</p>
+            )}
+            {removedShiftTypes.size > 0 && (
+              <p className="text-primary">Có <strong>{removedShiftTypes.size}</strong> ca đổi loại lịch.</p>
             )}
           </div>
         )}

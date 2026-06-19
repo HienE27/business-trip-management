@@ -3,20 +3,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { WorkflowStepper } from "@/components/monthly-schedule/WorkflowStepper";
 import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleCalendarSection";
 import { QuickAddModal } from "@/components/monthly-schedule/QuickAddModal";
 import { ShiftDetailModal } from "@/components/monthly-schedule/ShiftDetailModal";
 import { useRole, canManage } from "@/hooks/useRole";
 import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import { getInitialCalendar } from "@/components/monthly-schedule/utils";
 import type {
   CompensationDay,
+  ConflictCheckResponse,
   Schedule,
   SchedulePeriod,
   Specialty,
   Staff,
 } from "@/types/api";
 import type { ScheduleTab, ViewMode } from "@/components/monthly-schedule/types";
+import type { MonthlyPanel, WorkflowStepId } from "@/components/monthly-schedule/types";
 
 export type ScheduleTypeConfig = {
   /** Sidebar section key, drives the active highlight. */
@@ -82,6 +86,12 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     isExpertMode ? "ALL" : (config.shiftTypeId as ScheduleTab)
   );
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
+  const [selectedPanel, setSelectedPanel] = useState<MonthlyPanel>("summary");
+  const [conflictData, setConflictData] = useState<ConflictCheckResponse | null>(null);
+  const [checkingConflicts, setCheckingConflicts] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [notifying, setNotifying] = useState(false);
+  const [notified, setNotified] = useState(false);
 
   const loadBaseData = useCallback(async () => {
     try {
@@ -131,6 +141,83 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     setSchedules((prev) => prev.filter((s) => s.id !== tempId));
   }, []);
 
+  const handleCheckConflicts = useCallback(async () => {
+    if (!selectedPeriodId) return;
+    setCheckingConflicts(true);
+    setMessage(null);
+    try {
+      const result = await api.get<ConflictCheckResponse>(
+        `/schedules/conflicts/check/${selectedPeriodId}`
+      );
+      setConflictData(result ?? null);
+      setMessage(
+        result?.hasConflicts
+          ? `Phát hiện ${result.totalConflicts} xung đột cần xử lý.`
+          : "Không phát hiện xung đột trong kỳ lịch."
+      );
+    } catch {
+      setMessage("Không thể kiểm tra xung đột.");
+    } finally {
+      setCheckingConflicts(false);
+    }
+  }, [selectedPeriodId]);
+
+  const handlePublish = useCallback(async () => {
+    if (!selectedPeriodId) return;
+    setPublishing(true);
+    setMessage(null);
+    try {
+      await api.publishPeriod(selectedPeriodId);
+      setPeriods((prev) =>
+        prev.map((p) =>
+          p.id === selectedPeriodId ? { ...p, status: "PUBLISHED" as const } : p
+        )
+      );
+      setMessage("Kỳ lịch đã được công bố thành công.");
+    } catch {
+      setMessage("Không thể công bố kỳ lịch.");
+    } finally {
+      setPublishing(false);
+    }
+  }, [selectedPeriodId]);
+
+  const handleSendNotifications = useCallback(async () => {
+    if (!selectedPeriodId || activeStaff.length === 0) return;
+    setNotifying(true);
+    setMessage(null);
+    try {
+      const periodName = periods.find((p) => p.id === selectedPeriodId)?.periodName ?? "";
+      await Promise.all(
+        activeStaff.map((staff) =>
+          api.post("/notifications", {
+            staffId: staff.id,
+            title: `Thông báo lịch trực – ${periodName}`,
+            message: `Lịch trực của bạn đã được cập nhật. Vui lòng kiểm tra chi tiết trong hệ thống.`,
+          })
+        )
+      );
+      setNotified(true);
+      setMessage(`Đã gửi thông báo đến ${activeStaff.length} nhân sự.`);
+    } catch {
+      setMessage("Không thể gửi thông báo.");
+    } finally {
+      setNotifying(false);
+    }
+  }, [selectedPeriodId, activeStaff, periods]);
+
+  const handleWorkflowStep = useCallback((stepId: WorkflowStepId) => {
+    if (stepId === "conflicts") {
+      setSelectedPanel("conflicts");
+      void handleCheckConflicts();
+      return;
+    }
+    if (stepId === "notify") {
+      void handleSendNotifications();
+      return;
+    }
+    setSelectedPanel("summary");
+  }, [handleCheckConflicts, handleSendNotifications]);
+
   const selectedPeriod = useMemo(
     () => periods.find((p) => p.id === selectedPeriodId) ?? null,
     [periods, selectedPeriodId]
@@ -177,6 +264,12 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   useEffect(() => {
     handleRefresh();
   }, [handleRefresh]);
+
+  // Reset workflow state when period changes
+  useEffect(() => {
+    setConflictData(null);
+    setNotified(false);
+  }, [selectedPeriodId]);
 
   const selectedSchedule = useMemo(
     () => schedules.find((s) => s.id === detailScheduleId) ?? null,
@@ -254,89 +347,107 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         </div>
       )}
 
-      <section className="flex flex-wrap items-end gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
-        <div className="min-w-[200px]">
-          <label
-            htmlFor={`${config.activeSection}-period-select`}
-            className="mb-1.5 block text-label-sm text-on-surface-variant"
-          >
-            Kỳ lịch
-          </label>
-          <div className="relative">
-            <select
-              id={`${config.activeSection}-period-select`}
-              className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
-              value={selectedPeriodId ?? ""}
-              onChange={(e) => {
-                const next = Number(e.target.value);
-                setSelectedPeriodId(next);
-                // §M05-F04 — the specialty filter is scoped to a single
-                // period; carry-over from the previous month would silently
-                // hide schedules. Reset whenever the period changes.
-                if (isExpertMode) setSelectedSpecialtyId(null);
-              }}
-            >
-              <option value="">Chọn kỳ lịch</option>
-              {periods.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.periodName} ({p.status})
-                </option>
-              ))}
-            </select>
-            <span
-              aria-hidden="true"
-              className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]"
-            >
-              expand_more
-            </span>
-          </div>
-        </div>
-        {isExpertMode && (
-          <div className="min-w-[200px]">
-            <label
-              htmlFor={`${config.activeSection}-specialty-filter`}
-              className="mb-1.5 block text-label-sm text-on-surface-variant"
-            >
-              Chuyên khoa
-            </label>
-            <div className="relative">
-              <select
-                id={`${config.activeSection}-specialty-filter`}
-                className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
-                value={selectedSpecialtyId ?? ""}
-                onChange={(e) =>
-                  setSelectedSpecialtyId(e.target.value ? Number(e.target.value) : null)
-                }
+      {/* Header row: period controls (left) + workflow stepper (right) */}
+      <div className="flex flex-col xl:flex-row gap-3">
+        <div className="flex-1 min-w-0">
+          <section className="flex flex-wrap items-end gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+            <div className="min-w-[200px]">
+              <label
+                htmlFor={`${config.activeSection}-period-select`}
+                className="mb-1.5 block text-label-sm text-on-surface-variant"
               >
-                <option value="">Tất cả chuyên khoa</option>
-                {specialties.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              <span
-                aria-hidden="true"
-                className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]"
-              >
-                expand_more
-              </span>
+                Kỳ lịch
+              </label>
+              <div className="relative">
+                <select
+                  id={`${config.activeSection}-period-select`}
+                  className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+                  value={selectedPeriodId ?? ""}
+                  onChange={(e) => {
+                    const next = Number(e.target.value);
+                    setSelectedPeriodId(next);
+                    if (isExpertMode) setSelectedSpecialtyId(null);
+                  }}
+                >
+                  <option value="">Chọn kỳ lịch</option>
+                  {periods.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.periodName} ({p.status})
+                    </option>
+                  ))}
+                </select>
+                <span
+                  aria-hidden="true"
+                  className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]"
+                >
+                  expand_more
+                </span>
+              </div>
             </div>
+            {isExpertMode && (
+              <div className="min-w-[200px]">
+                <label
+                  htmlFor={`${config.activeSection}-specialty-filter`}
+                  className="mb-1.5 block text-label-sm text-on-surface-variant"
+                >
+                  Chuyên khoa
+                </label>
+                <div className="relative">
+                  <select
+                    id={`${config.activeSection}-specialty-filter`}
+                    className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+                    value={selectedSpecialtyId ?? ""}
+                    onChange={(e) =>
+                      setSelectedSpecialtyId(e.target.value ? Number(e.target.value) : null)
+                    }
+                  >
+                    <option value="">Tất cả chuyên khoa</option>
+                    {specialties.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span
+                    aria-hidden="true"
+                    className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]"
+                  >
+                    expand_more
+                  </span>
+                </div>
+              </div>
+            )}
+            {isManager && (
+              <button
+                type="button"
+                onClick={() => setAddModalDate(new Date())}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-label-md font-semibold text-on-primary hover:bg-primary/90 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                  {config.ctaIcon}
+                </span>
+                {config.ctaLabel}
+              </button>
+            )}
+          </section>
+        </div>
+
+        {isManager && selectedPeriodId && (
+          <div className="w-full xl:w-72 shrink-0">
+            <WorkflowStepper
+              selectedPanel={selectedPanel}
+              selectedPeriod={selectedPeriod}
+              schedules={schedules}
+              conflictData={conflictData}
+              checkingConflicts={checkingConflicts}
+              publishing={publishing}
+              notifying={notifying}
+              notified={notified}
+              onStepSelect={handleWorkflowStep}
+            />
           </div>
         )}
-        {isManager && (
-          <button
-            type="button"
-            onClick={() => setAddModalDate(new Date())}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-label-md font-semibold text-on-primary hover:bg-primary/90 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
-              {config.ctaIcon}
-            </span>
-            {config.ctaLabel}
-          </button>
-        )}
-      </section>
+      </div>
 
       <section className="grid gap-3 grid-cols-2 sm:grid-cols-4">
         {[

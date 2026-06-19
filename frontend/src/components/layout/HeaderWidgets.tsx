@@ -71,7 +71,7 @@ export function UserMenu() {
         <div className="py-1">
           <Link
             className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:bg-surface-container-low"
-            href="/profile"
+            href="/staff/profile"
             role="menuitem"
           >
             <span aria-hidden="true" className="material-symbols-outlined text-[18px]">person</span>
