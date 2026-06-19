@@ -52,6 +52,14 @@ vi.mock('@/components/monthly-schedule/ShiftDetailModal', () => ({
   ShiftDetailModal: () => null,
 }));
 
+vi.mock('@/components/monthly-schedule/WorkflowStepper', () => ({
+  WorkflowStepper: () => null,
+}));
+
+vi.mock('@/components/monthly-schedule/WorkloadSummary', () => ({
+  WorkloadSummary: () => null,
+}));
+
 vi.mock('@/hooks/useRole', () => ({
   useRole: () => 'MANAGER',
   canManage: () => true,
