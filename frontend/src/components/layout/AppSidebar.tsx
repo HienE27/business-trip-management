@@ -1,5 +1,8 @@
 import Link from "next/link";
 import type { NavigationItem } from "@/types/schedule";
+import { ConflictBadge } from "@/components/realtime/ConflictBadge";
+
+const CONFLICTS_HREF = "/reports/conflicts";
 
 type AppSidebarProps = {
   items: NavigationItem[];
@@ -49,6 +52,7 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
               .filter((item) => item.code !== "settings")
               .map((item) => {
                 const isActive = item.active;
+                const isConflicts = item.href === CONFLICTS_HREF;
                 return (
                   <Link
                     className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all font-medium text-body-sm ${
@@ -68,6 +72,7 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
                       {item.icon || "dashboard"}
                     </span>
                     <span className="truncate">{item.label}</span>
+                    {isConflicts ? <ConflictBadge /> : null}
                   </Link>
                 );
               })}

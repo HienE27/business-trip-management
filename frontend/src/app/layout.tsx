@@ -5,6 +5,11 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { NotificationProvider } from "@/components/ui/NotificationContext";
 import { ToastProvider } from "@/components/ui/ToastProvider";
+import { ConflictProvider } from "@/contexts/ConflictContext";
+import {
+  ConflictStreamBridge,
+  ConflictToastBridge,
+} from "@/components/realtime/ConflictStreamBridge";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import "./globals.css";
 
@@ -54,13 +59,17 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <AuthProvider>
           <AuthGuard>
-            <NotificationProvider>
-              <ToastProvider>
-                <ErrorBoundary>
-                  {children}
-                </ErrorBoundary>
-              </ToastProvider>
-            </NotificationProvider>
+            <ConflictProvider>
+              <NotificationProvider>
+                <ToastProvider>
+                  <ConflictStreamBridge />
+                  <ConflictToastBridge />
+                  <ErrorBoundary>
+                    {children}
+                  </ErrorBoundary>
+                </ToastProvider>
+              </NotificationProvider>
+            </ConflictProvider>
           </AuthGuard>
         </AuthProvider>
       </body>

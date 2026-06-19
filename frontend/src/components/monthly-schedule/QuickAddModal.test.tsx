@@ -20,6 +20,9 @@ const staff = [
     fullName: 'BS. Nguyễn Văn A',
     maxShiftsPerMonth: 5,
     isActive: true,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    roles: ['STAFF'],
   },
   {
     id: 2,
@@ -27,6 +30,9 @@ const staff = [
     fullName: 'BS. Trần Thị B',
     maxShiftsPerMonth: 6,
     isActive: true,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    roles: ['STAFF'],
   },
 ];
 
@@ -196,7 +202,13 @@ describe('QuickAddModal', () => {
   describe('client-side guard', () => {
     it('refuses to submit when the picked staff is on a compensation day', async () => {
       const compensationDays = [
-        { id: 1, staffId: 1, staffName: 'BS. Nguyễn Văn A', compensationDate: '2026-06-15' },
+        {
+          id: 1,
+          staffId: 1,
+          staffName: 'BS. Nguyễn Văn A',
+          compensationDate: '2026-06-15',
+          shiftDate: '2026-06-14',
+        },
       ];
       const user = userEvent.setup();
       render(<QuickAddModal {...baseProps} compensationDays={compensationDays} />);
