@@ -191,9 +191,13 @@ frontend/puppeteer-test.js
 frontend/test-*.js
 stitch_medschedule_pro_dashboard/
 
-# Trellis workflow tooling (per-developer scratch space)
-# Uncomment to enable for your machine only.
-.trellis/
+# Trellis workflow tooling. Per-developer scratch space lives
+# in .trellis/workspace/ and .trellis/tasks/; both stay ignored.
+# The rest of the .trellis/ tree (config, spec, scripts, agents,
+# workflow doc, archive) is part of the project and should be
+# tracked.
+.trellis/workspace/
+.trellis/tasks/
 AGENTS.md
 
 # Design system docs (duplicated in .cursor/rules/FRONTEND_UI_SYSTEM.mdc)
