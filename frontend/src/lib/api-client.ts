@@ -513,7 +513,7 @@ class ApiClient {
     });
   }
 
-  async getWorkloadChartData(periodId: number): Promise<{
+  async getWorkloadChartData(periodId: number, shiftTypeId?: string): Promise<{
     staffWorkloadData: Array<{
       staffId: number;
       staffName: string;
@@ -525,8 +525,17 @@ class ApiClient {
       L04: number;
       workloadPercentage: number;
     }>;
+    totalSchedules: number;
+    totalStaff: number;
+    averageWorkload: number;
+    minWorkload: number;
+    maxWorkload: number;
+    shiftTypeId?: string;
   }> {
-    return this.get(`/auto-schedule/workload-chart/${periodId}`);
+    const params = new URLSearchParams();
+    if (shiftTypeId) params.set("shiftTypeId", shiftTypeId);
+    const qs = params.toString();
+    return this.get(`/auto-schedule/workload-chart/${periodId}${qs ? `?${qs}` : ""}`);
   }
 
   async getUnassignedDaysReport(periodId: number): Promise<{

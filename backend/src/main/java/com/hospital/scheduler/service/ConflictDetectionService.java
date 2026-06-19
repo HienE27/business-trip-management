@@ -190,27 +190,7 @@ public class ConflictDetectionService {
     }
 
     @Transactional
-    public void saveConflict(Schedule schedule, ScheduleConflict.ConflictType conflictType, String description) {
-        ScheduleConflict conflict = ScheduleConflict.builder()
-                .schedule(schedule)
-                .conflictType(conflictType)
-                .description(description)
-                .isResolved(false)
-                .build();
-        scheduleConflictRepository.save(conflict);
-        emailService.sendConflictAlert(schedule, description);
-    }
-
-    /**
-     * Persist a {@link ScheduleConflict} record without triggering an email. Used by
-     * {@link #checkPeriodConflicts(Integer)} where the email is fired separately via
-     * {@link EmailService#sendConflictAlertToStaff(Staff, Schedule, String)} so we don't
-     * notify twice.
-     */
-    @Transactional
     public ScheduleConflict saveConflictInternal(Schedule schedule, ScheduleConflict.ConflictType conflictType, String description) {
-        // Skip persisting duplicate unresolved conflicts for the same schedule so repeated
-        // period checks don't spam the conflict log table.
         List<ScheduleConflict> existing = scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(schedule.getId());
         if (!existing.isEmpty()) {
             return existing.get(0);

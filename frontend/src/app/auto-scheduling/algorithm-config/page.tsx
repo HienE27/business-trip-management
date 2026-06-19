@@ -290,7 +290,7 @@ export default function AlgorithmConfigPage() {
           <span className="material-symbols-outlined text-tertiary text-[40px]">lock</span>
           <h2 className="text-title-lg font-semibold text-on-surface">Không có quyền truy cập</h2>
           <p className="text-body-sm text-on-surface-variant max-w-md">
-            Chỉ <strong>Quản trị viên (Admin)</strong> mới có quyền quản lý cấu hình thuật toán.
+            Chỉ <strong>Quản lý lịch</strong> mới có quyền quản lý cấu hình thuật toán.
           </p>
         </div>
       </WorkflowShell>

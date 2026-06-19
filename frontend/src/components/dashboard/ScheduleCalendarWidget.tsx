@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
 import { ScheduleTableView } from "@/components/dashboard/ScheduleTableView";
+import { ScheduleMatrixGrid } from "@/components/dashboard/ScheduleMatrixGrid";
 import { FAB } from "@/components/ui/FAB";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { Button, FormSelect, FormInput, FormTextarea } from "@/components/ui";
@@ -179,7 +180,7 @@ type ScheduleCalendarWidgetProps = {
   initialYear?: number;
   initialMonth?: number;
   periodId?: number | null;
-  viewMode?: "calendar" | "table";
+  viewMode?: "calendar" | "table" | "matrix";
   showViewToggle?: boolean;
   onRefresh?: () => void;
   onDayClick?: (date: Date, items: unknown[]) => void;
@@ -187,7 +188,7 @@ type ScheduleCalendarWidgetProps = {
   onStaffFilterChange?: (staffId: number | null) => void;
   onSpecialtyFilterChange?: (specialtyId: number | null) => void;
   onViewDetail?: (schedule: Schedule) => void;
-  onViewModeChange?: (view: "calendar" | "table") => void;
+  onViewModeChange?: (view: "calendar" | "table" | "matrix") => void;
   selectedTab?: string;
   onFilterTypeChange?: (filter: string) => void;
   compensationDays?: CompensationDay[];
@@ -198,10 +199,10 @@ type ScheduleCalendarWidgetProps = {
 };
 
 export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, viewMode: externalViewMode, showViewToggle = true, isReadOnly = false, hideFilters = false, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail, onViewModeChange, selectedTab, onFilterTypeChange, compensationDays }: ScheduleCalendarWidgetProps) {
-  const [internalView, setInternalView] = useState<"calendar" | "table">("calendar");
+  const [internalView, setInternalView] = useState<"calendar" | "table" | "matrix">("calendar");
   const view = externalViewMode ?? internalView;
   const scrollYRef = useRef(0);
-  const setView = (nextView: "calendar" | "table") => {
+  const setView = (nextView: "calendar" | "table" | "matrix") => {
     if (view !== nextView) {
       scrollYRef.current = window.scrollY;
     }
@@ -287,6 +288,19 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
             <span aria-hidden="true" className="material-symbols-outlined text-[16px]">table</span>
             Bảng dữ liệu
           </button>
+          <button
+            type="button"
+            onClick={() => setView("matrix")}
+            aria-pressed={view === "matrix"}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              view === "matrix"
+                ? "bg-surface-container-lowest text-primary shadow-sm"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">grid_view</span>
+            Ma trận
+          </button>
         </div>
       </div>
 
@@ -328,6 +342,17 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
             onFilterTypeChange={onFilterTypeChange}
             hideFilters={isReadOnly || hideFilters}
           />
+        ) : view === "matrix" ? (
+          <div className="px-1">
+            <ScheduleMatrixGrid
+              schedules={schedules}
+              staffList={staffList}
+              year={initialYear ?? new Date().getFullYear()}
+              month={initialMonth ?? new Date().getMonth()}
+              onViewDetail={canEdit ? (s) => setEditSchedule(s) : undefined}
+              onCellClick={(date) => { onAddClick?.(date); }}
+            />
+          </div>
         ) : (
           <ScheduleTableView
             schedules={schedules}

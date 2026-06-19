@@ -28,8 +28,8 @@ function formatDate(dateStr: string): string {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  ADMIN: "Quản trị viên",
-  MANAGER: "Quản lý",
+  ADMIN: "Quản lý lịch",
+  MANAGER: "Trưởng phòng",
   STAFF: "Nhân viên",
 };
 

@@ -201,3 +201,57 @@ build:   next build PASS
 ```
 
 **Lines used**: ~200 / 2000
+
+---
+
+## 2026-06-17 → 19 — Trellis Setup hoàn thành
+
+**Task**: `06-17-trellis-setup` — Thiết lập Trellis workflow cho team
+
+**Scope**: Tích hợp Trellis vào monorepo `backend` (Java Spring Boot) + `frontend` (Next.js), tạo spec library mô tả đầy đủ quy ước team + business rules.
+
+### Deliverables chính
+
+#### 1. Trellis infrastructure
+- CLI: `@mindfoldhq/trellis@latest` v0.6.0+
+- Monorepo config: 2 packages `backend` + `frontend`
+- Workflow: 3 phase (Plan → Execute → Finish), 11 steps
+
+#### 2. Spec library (`.trellis/spec/`)
+Backend (6 layers): `directory-structure`, `database`, `errors`, `quality`, `logging`, `business-rules`  
+Frontend (7 layers): `directory-structure`, `components`, `styling`, `api`, `state`, `testing`, `business-rules-fe`  
+Guides (3): `hospital-scheduler-thinking-guide`, `cross-layer-thinking-guide`, `code-reuse-thinking-guide`
+
+#### 3. Cursor integration
+- `.cursor/rules/TRELLIS_WORKFLOW.mdc` — agent routing
+- `implement.jsonl` manifests cho `trellis-implement` agent
+- 8 custom skills: brainstorm, before-dev, check, spec-bootstrap, session-insight, break-loop, meta, update-spec, trellis-channel
+
+### Sản phẩm của team trong session này
+
+Sau khi Trellis được setup, team đã chạy liên tiếp các task:
+
+| Task | Mô tả | Commit |
+|------|-------|--------|
+| `06-18-06-18-be-critical` | Audit BE critical bugs (ScheduleService mutation bug, preview/apply re-validation, email alert wiring) | - |
+| `06-18-06-18-be-medium` | 13 medium issues + test coverage tăng 132→192 | - |
+| `06-18-06-18-fe-all` | 11 FE polish issues | - |
+| `06-18-06-18-new-features` | 7 backend features mới (WebSocket, bulk L01, L04 weekly, templates API,...) | - |
+| `06-18-06-18-audit-fixes` | FE refactor DRY (4 shift-type pages → 1 shared component) + E2E infra + optimistic mutations | `b62220f` |
+| `06-19-realtime-conflict-badge` | Realtime conflict badge via WebSocket (đang active) | - |
+
+### Key technical decisions
+
+1. **Monorepo split**: 2 packages (`backend`/`frontend`) thay vì 1 — phù hợp với dự án có team BE/FE tách biệt
+2. **Custom skills**: `trellis-before-dev` + `trellis-check` + `trellis-implement` được tùy biến cho Hospital Scheduler patterns
+3. **Workflow越南**: Workflow docs hoàn toàn bằng Vietnamese để team adopt dễ dàng
+4. **Business rules là spec ưu tiên**: `business-rules/index.md` trong BE spec được đánh dấu CRITICAL, luôn được load trước khi code M02–M05
+5. **E2E fixture pattern**: env-based credentials qua `auth.fixture.ts`, không hardcode trong spec files
+
+### Patterns / Insights mới
+
+- **Trellis manifest injection**: `implement.jsonl` chứa paths tới spec/research files — agent đọc TRƯỚC khi code
+- **Shared page refactor**: Config-driven `ScheduleByTypePage` giảm ~700 LOC duplicate
+- **Optimistic mutation contract**: 3 callbacks (optimistic/commit/rollback) cho calendar grids
+
+**Lines used**: ~220 / 2000

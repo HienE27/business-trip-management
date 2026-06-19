@@ -18,6 +18,7 @@ type StaffFormData = {
   specialtyId: number | null;
   maxShiftsPerMonth: number;
   isActive: boolean;
+  roles: string[];
 };
 
 const emptyForm: StaffFormData = {
@@ -29,6 +30,7 @@ const emptyForm: StaffFormData = {
   specialtyId: null,
   maxShiftsPerMonth: 5,
   isActive: true,
+  roles: [],
 };
 
 export default function StaffEditPage() {
@@ -70,6 +72,7 @@ export default function StaffEditPage() {
           specialtyId: s.specialty?.id ?? null,
           maxShiftsPerMonth: s.maxShiftsPerMonth,
           isActive: s.isActive,
+          roles: s.roles ?? [],
         });
       } else {
         setMessage(getErrorMessage(staffRes.reason, "Không thể tải thông tin nhân sự."));
@@ -89,7 +92,7 @@ export default function StaffEditPage() {
     void fetchData();
   }, [fetchData]);
 
-  function updateField(field: keyof StaffFormData, value: string | number | boolean | null) {
+  function updateField(field: keyof StaffFormData, value: string | number | boolean | null | string[]) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
@@ -110,6 +113,7 @@ export default function StaffEditPage() {
         specialtyId: form.specialtyId,
         maxShiftsPerMonth: form.maxShiftsPerMonth,
         isActive: form.isActive,
+        roles: form.roles,
       };
 
       if (form.password.trim()) {
@@ -270,6 +274,31 @@ export default function StaffEditPage() {
                       {specialties.map((spec) => (
                         <option key={spec.id} value={spec.id}>{spec.name}</option>
                       ))}
+                    </select>
+                    <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
+                  </div>
+                </label>
+
+                <label className="flex flex-col gap-1.5 col-span-2">
+                  <span className="text-[13px] font-semibold text-on-surface">Vai trò</span>
+                  <div className="relative">
+                    <label htmlFor="edit-staff-role" className="sr-only">Vai trò</label>
+                    <select
+                      id="edit-staff-role"
+                      className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-low px-3 pr-10 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 cursor-pointer"
+                      name="role"
+                      onChange={(e) =>
+                        updateField(
+                          "roles",
+                          e.target.value ? [e.target.value] : []
+                        )
+                      }
+                      value={form.roles[0] ?? ""}
+                    >
+                    <option value="">Chưa phân quyền</option>
+                    <option value="ADMIN">Quản lý lịch</option>
+                    <option value="MANAGER">Trưởng phòng</option>
+                    <option value="STAFF">Nhân viên</option>
                     </select>
                     <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
                   </div>

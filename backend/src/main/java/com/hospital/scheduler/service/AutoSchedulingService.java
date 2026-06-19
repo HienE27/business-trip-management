@@ -647,11 +647,22 @@ public class AutoSchedulingService {
 
     // ==================== M07-F09: Data biểu đồ cân bằng tải ====================
     public Map<String, Object> getWorkloadChartData(Integer periodId) {
+        return getWorkloadChartData(periodId, null);
+    }
+
+    public Map<String, Object> getWorkloadChartData(Integer periodId, String shiftTypeId) {
         SchedulePeriod period = periodRepository.findById(periodId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + periodId));
 
         List<Staff> activeStaff = staffRepository.findByIsActiveTrue();
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
+
+        // Filter schedules by shift type if specified (M04-F05 / M05-F05)
+        if (shiftTypeId != null && !shiftTypeId.isBlank()) {
+            schedules = schedules.stream()
+                    .filter(s -> shiftTypeId.equals(s.getShiftType().getId()))
+                    .collect(Collectors.toList());
+        }
 
         List<Map<String, Object>> staffWorkloadData = new ArrayList<>();
 
@@ -680,6 +691,13 @@ public class AutoSchedulingService {
             staffWorkloadData.add(data);
         }
 
+        // Only include staff with at least one shift of the target type
+        if (shiftTypeId != null && !shiftTypeId.isBlank()) {
+            staffWorkloadData = staffWorkloadData.stream()
+                    .filter(m -> ((Number) m.get("totalShifts")).longValue() > 0)
+                    .collect(Collectors.toList());
+        }
+
         staffWorkloadData.sort((a, b) -> {
             int t1 = ((Number) a.get("totalShifts")).intValue();
             int t2 = ((Number) b.get("totalShifts")).intValue();
@@ -688,6 +706,10 @@ public class AutoSchedulingService {
 
         double avgWorkload = schedules.isEmpty() ? 0.0 :
                 Math.round((double) schedules.size() / activeStaff.size() * 100.0) / 100.0;
+        // If filtered by shift type, average is relative to participating staff
+        if (shiftTypeId != null && !shiftTypeId.isBlank() && !staffWorkloadData.isEmpty()) {
+            avgWorkload = Math.round((double) schedules.size() / staffWorkloadData.size() * 100.0) / 100.0;
+        }
 
         long minWorkload = staffWorkloadData.stream()
                 .mapToLong(m -> ((Number) m.get("totalShifts")).longValue())
@@ -702,7 +724,9 @@ public class AutoSchedulingService {
         result.put("startDate", period.getStartDate());
         result.put("endDate", period.getEndDate());
         result.put("totalSchedules", schedules.size());
-        result.put("totalStaff", activeStaff.size());
+        result.put("totalStaff", shiftTypeId != null && !shiftTypeId.isBlank()
+                ? staffWorkloadData.size() : activeStaff.size());
+        result.put("shiftTypeId", shiftTypeId);
         result.put("averageWorkload", avgWorkload);
         result.put("minWorkload", minWorkload);
         result.put("maxWorkload", maxWorkload);

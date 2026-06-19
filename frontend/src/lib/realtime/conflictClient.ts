@@ -75,6 +75,10 @@ export function createConflictClient(options: ConflictClientOptions): ConflictCl
   let subscription: StompSubscription | null = null;
 
   const client = new Client({
+    // @stomp/stompjs v7 requires brokerURL; webSocketFactory alone is not enough.
+    // We pass the WS URL as brokerURL so the library knows where to connect.
+    // When webSocketFactory is also provided, it takes precedence over brokerURL.
+    brokerURL: options.url,
     webSocketFactory: options.webSocketFactory,
     reconnectDelay: RECONNECT_DELAY_MS,
     heartbeatIncoming: HEARTBEAT_INCOMING_MS,

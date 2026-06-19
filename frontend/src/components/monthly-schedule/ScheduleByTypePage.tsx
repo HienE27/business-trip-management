@@ -7,6 +7,7 @@ import { WorkflowStepper } from "@/components/monthly-schedule/WorkflowStepper";
 import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleCalendarSection";
 import { QuickAddModal } from "@/components/monthly-schedule/QuickAddModal";
 import { ShiftDetailModal } from "@/components/monthly-schedule/ShiftDetailModal";
+import { WorkloadSummary } from "@/components/monthly-schedule/WorkloadSummary";
 import { useRole, canManage } from "@/hooks/useRole";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -87,6 +88,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   );
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
   const [selectedPanel, setSelectedPanel] = useState<MonthlyPanel>("summary");
+  const [showStats, setShowStats] = useState(false);
   const [conflictData, setConflictData] = useState<ConflictCheckResponse | null>(null);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -481,7 +483,53 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         ))}
       </section>
 
-      {!selectedPeriod ? (
+      {/* Tab bar: Lịch / Thống kê */}
+      <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl w-fit">
+        <button
+          type="button"
+          onClick={() => setShowStats(false)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-label-md font-semibold transition-all ${
+            !showStats
+              ? "bg-primary text-on-primary shadow-sm"
+              : "text-on-surface-variant hover:bg-surface-container-high"
+          }`}
+        >
+          <span className="material-symbols-outlined text-[16px]">calendar_month</span>
+          Lịch
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowStats(true)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-label-md font-semibold transition-all ${
+            showStats
+              ? "bg-primary text-on-primary shadow-sm"
+              : "text-on-surface-variant hover:bg-surface-container-high"
+          }`}
+        >
+          <span className="material-symbols-outlined text-[16px]">bar_chart</span>
+          Thống kê
+        </button>
+      </div>
+
+      {showStats ? (
+        <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="material-symbols-outlined text-[22px] text-primary">bar_chart</span>
+            <h3 className="text-headline-md font-semibold text-on-surface">
+              Thống kê phân bổ — {config.title}
+            </h3>
+          </div>
+          {selectedPeriodId ? (
+            <WorkloadSummary
+              periodId={selectedPeriodId}
+              shiftTypeId={config.shiftTypeId}
+              groupBySpecialty={isExpertMode}
+            />
+          ) : (
+            <p className="text-sm text-on-surface-variant">Vui lòng chọn kỳ lịch.</p>
+          )}
+        </section>
+      ) : !selectedPeriod ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant bg-surface py-20 gap-4">
           <span aria-hidden="true" className="material-symbols-outlined text-5xl text-outline">
             {config.emptyIcon}

@@ -32,6 +32,10 @@ public class DataSeeder implements CommandLineRunner {
     private final ShiftRequirementRepository shiftRequirementRepository;
     private final CompensationDayRepository compensationDayRepository;
     private final ScheduleTemplateRepository scheduleTemplateRepository;
+    private final com.hospital.scheduler.repository.LeaveRequestRepository leaveRequestRepository;
+    private final com.hospital.scheduler.repository.ScheduleExchangeRepository scheduleExchangeRepository;
+    private final com.hospital.scheduler.repository.NotificationRepository notificationRepository;
+    private final com.hospital.scheduler.repository.AuditHistoryRepository auditHistoryRepository;
     private final CompensationDateCalculator compensationDateCalculator;
     private final HolidayRepository holidayRepository;
     private static final Logger log = LoggerFactory.getLogger(DataSeeder.class);
@@ -46,6 +50,10 @@ public class DataSeeder implements CommandLineRunner {
         seedScheduleTemplates();
         seedAdminUser();
         seedPeriodsAndSchedules();
+        seedLeaveRequests();
+        seedSwapRequests();
+        seedNotifications();
+        seedAuditHistory();
     }
 
     private void seedRoles() {
@@ -231,15 +239,16 @@ public class DataSeeder implements CommandLineRunner {
 
     private void seedPeriodsAndSchedules() {
         Staff admin = staffRepository.findByUsername("admin").orElse(null);
+        Staff manager1 = staffRepository.findByUsername("manager1").orElse(null);
         ShiftType l01 = shiftTypeRepository.findById("L01").orElse(null);
         ShiftType l02 = shiftTypeRepository.findById("L02").orElse(null);
         ShiftType l03 = shiftTypeRepository.findById("L03").orElse(null);
         ShiftType l04 = shiftTypeRepository.findById("L04").orElse(null);
-        
+
         Specialty doctor = specialtyRepository.findByName("Bác sĩ").orElse(null);
         Specialty nurse = specialtyRepository.findByName("Điều dưỡng").orElse(null);
 
-        // 1. Create period June 2026
+        // ── 1. June 2026 — PUBLISHED ─────────────────────────────────────────
         if (periodRepository.findByStartDateAndEndDate(LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30)).isEmpty()) {
             SchedulePeriod period = SchedulePeriod.builder()
                     .periodName("Kỳ tháng 06/2026")
@@ -252,60 +261,78 @@ public class DataSeeder implements CommandLineRunner {
                     .build();
             SchedulePeriod savedPeriod = periodRepository.save(period);
 
-            // Create shift requirements (sample)
-            for (int day = 1; day <= 5; day++) {
+            // Shift requirements June
+            for (int day = 1; day <= 30; day++) {
                 LocalDate date = LocalDate.of(2026, 6, day);
-                shiftRequirementRepository.save(ShiftRequirement.builder()
-                        .period(savedPeriod).workDate(date).shiftType(l01).specialty(doctor).requiredStaffCount(1).build());
-                shiftRequirementRepository.save(ShiftRequirement.builder()
-                        .period(savedPeriod).workDate(date).shiftType(l02).specialty(doctor).requiredStaffCount(2).build());
-                shiftRequirementRepository.save(ShiftRequirement.builder()
-                        .period(savedPeriod).workDate(date).shiftType(l03).specialty(nurse).requiredStaffCount(1).build());
-                shiftRequirementRepository.save(ShiftRequirement.builder()
-                        .period(savedPeriod).workDate(date).shiftType(l04).specialty(doctor).requiredStaffCount(1).build());
+                if (date.getDayOfWeek() != java.time.DayOfWeek.SUNDAY) {
+                    shiftRequirementRepository.save(ShiftRequirement.builder()
+                            .period(savedPeriod).workDate(date).shiftType(l01).specialty(doctor).requiredStaffCount(2).build());
+                    shiftRequirementRepository.save(ShiftRequirement.builder()
+                            .period(savedPeriod).workDate(date).shiftType(l02).specialty(doctor).requiredStaffCount(2).build());
+                    shiftRequirementRepository.save(ShiftRequirement.builder()
+                            .period(savedPeriod).workDate(date).shiftType(l03).specialty(nurse).requiredStaffCount(1).build());
+                    shiftRequirementRepository.save(ShiftRequirement.builder()
+                            .period(savedPeriod).workDate(date).shiftType(l04).specialty(doctor).requiredStaffCount(1).build());
+                }
             }
 
-            // Create sample schedules
-            List<Staff> staffList = staffRepository.findByIsActiveTrue();
-            if (staffList.size() >= 5) {
-                Staff s1 = staffList.get(1); // staff1
-                Staff s2 = staffList.get(2); // staff2
-                Staff s3 = staffList.get(3); // staff3
-                Staff s4 = staffList.get(4); // staff4
-                Staff s5 = staffList.get(0); // admin
+            List<Staff> allStaff = staffRepository.findByIsActiveTrue();
+            List<Staff> doctors = allStaff.stream()
+                    .filter(s -> s.getSpecialty() != null && s.getSpecialty().getName().equals("Bác sĩ"))
+                    .toList();
+            List<Staff> nurses = allStaff.stream()
+                    .filter(s -> s.getSpecialty() != null && s.getSpecialty().getName().equals("Điều dưỡng"))
+                    .toList();
 
-                // Day 1: s1 has L01, s4 has L02, s5 has L03
-                Schedule sch1 = scheduleRepository.save(Schedule.builder()
-                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 1)).staff(s1).shiftType(l01).hasConflict(false).build());
-                createCompensationDayForSeed(sch1);
+            int docIdx = 0;
+            int nurIdx = 0;
 
+            for (int day = 1; day <= 30; day++) {
+                LocalDate date = LocalDate.of(2026, 6, day);
+                if (date.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) continue;
+
+                // L01 — 2 doctors
+                for (int k = 0; k < 2; k++) {
+                    Staff s = doctors.get(docIdx % doctors.size());
+                    docIdx++;
+                    Schedule sch = scheduleRepository.save(Schedule.builder()
+                            .period(savedPeriod).workDate(date).staff(s).shiftType(l01).hasConflict(false).build());
+                    createCompensationDayForSeed(sch);
+                }
+                // L02 — 2 doctors
+                for (int k = 0; k < 2; k++) {
+                    Staff s = doctors.get(docIdx % doctors.size());
+                    docIdx++;
+                    scheduleRepository.save(Schedule.builder()
+                            .period(savedPeriod).workDate(date).staff(s).shiftType(l02).hasConflict(false).build());
+                }
+                // L03 — 1 nurse
+                Staff nur = nurses.get(nurIdx % nurses.size());
+                nurIdx++;
                 scheduleRepository.save(Schedule.builder()
-                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 1)).staff(s4).shiftType(l02).hasConflict(false).build());
+                        .period(savedPeriod).workDate(date).staff(nur).shiftType(l03).hasConflict(false).build());
+                // L04 — 1 doctor
+                Staff expert = doctors.get(docIdx % doctors.size());
+                docIdx++;
                 scheduleRepository.save(Schedule.builder()
-                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 1)).staff(s5).shiftType(l03).hasConflict(false).build());
-
-                // Day 2: s2 has L01, s1 has L02 (different staff — not a conflict)
-                Schedule sch2 = scheduleRepository.save(Schedule.builder()
-                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 2)).staff(s2).shiftType(l01).hasConflict(false).build());
-                createCompensationDayForSeed(sch2);
-
-                scheduleRepository.save(Schedule.builder()
-                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 2)).staff(s1).shiftType(l02).hasConflict(false).build());
-
-                // Day 3: s3 has L01
-                Schedule sch3 = scheduleRepository.save(Schedule.builder()
-                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 3)).staff(s3).shiftType(l01).hasConflict(false).build());
-                createCompensationDayForSeed(sch3);
-
-                // Day 4: s2 has L02 (no conflict, different staff from L01 on other days)
-                scheduleRepository.save(Schedule.builder()
-                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 4)).staff(s2).shiftType(l02).hasConflict(false).build());
-
+                        .period(savedPeriod).workDate(date).staff(expert).shiftType(l04).hasConflict(false).build());
             }
-            log.info("✅ Seeded sample published period June 2026");
+
+            // ── Inject 1 real conflict: same person (s3) on same day — L03 + L04 ──
+            if (!doctors.isEmpty()) {
+                Staff conflictStaff = doctors.get(3 % doctors.size());
+                scheduleRepository.save(Schedule.builder()
+                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 10))
+                        .staff(conflictStaff).shiftType(l03).hasConflict(true).build());
+                scheduleRepository.save(Schedule.builder()
+                        .period(savedPeriod).workDate(LocalDate.of(2026, 6, 10))
+                        .staff(conflictStaff).shiftType(l04).hasConflict(true).build());
+            }
+
+            log.info("✅ Seeded published period June 2026 (full 30-day schedule + 1 conflict)");
         }
 
-        // 2. Create period July 2026 (DRAFT status for M07 auto scheduling tests)
+        // ── 2. July 2026 — DRAFT (for M07 auto-scheduling) ─────────────────
         if (periodRepository.findByStartDateAndEndDate(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)).isEmpty()) {
             SchedulePeriod draftPeriod = SchedulePeriod.builder()
                     .periodName("Kỳ tháng 07/2026")
@@ -317,20 +344,202 @@ public class DataSeeder implements CommandLineRunner {
                     .build();
             SchedulePeriod savedDraftPeriod = periodRepository.save(draftPeriod);
 
-            // Create shift requirements for Draft period (so we have requirements to solve)
-            for (int day = 1; day <= 5; day++) {
+            // Requirements: full July (all 31 days)
+            for (int day = 1; day <= 31; day++) {
                 LocalDate date = LocalDate.of(2026, 7, day);
-                shiftRequirementRepository.save(ShiftRequirement.builder()
-                        .period(savedDraftPeriod).workDate(date).shiftType(l01).specialty(doctor).requiredStaffCount(1).build());
-                shiftRequirementRepository.save(ShiftRequirement.builder()
-                        .period(savedDraftPeriod).workDate(date).shiftType(l02).specialty(doctor).requiredStaffCount(2).build());
-                shiftRequirementRepository.save(ShiftRequirement.builder()
-                        .period(savedDraftPeriod).workDate(date).shiftType(l03).specialty(nurse).requiredStaffCount(1).build());
-                shiftRequirementRepository.save(ShiftRequirement.builder()
-                        .period(savedDraftPeriod).workDate(date).shiftType(l04).specialty(doctor).requiredStaffCount(1).build());
+                if (date.getDayOfWeek() != java.time.DayOfWeek.SUNDAY) {
+                    shiftRequirementRepository.save(ShiftRequirement.builder()
+                            .period(savedDraftPeriod).workDate(date).shiftType(l01).specialty(doctor).requiredStaffCount(2).build());
+                    shiftRequirementRepository.save(ShiftRequirement.builder()
+                            .period(savedDraftPeriod).workDate(date).shiftType(l02).specialty(doctor).requiredStaffCount(2).build());
+                    shiftRequirementRepository.save(ShiftRequirement.builder()
+                            .period(savedDraftPeriod).workDate(date).shiftType(l03).specialty(nurse).requiredStaffCount(1).build());
+                    shiftRequirementRepository.save(ShiftRequirement.builder()
+                            .period(savedDraftPeriod).workDate(date).shiftType(l04).specialty(doctor).requiredStaffCount(1).build());
+                }
             }
-            log.info("✅ Seeded sample draft period July 2026 with requirements");
+            log.info("✅ Seeded draft period July 2026 with full requirements");
         }
+    }
+
+    private void seedLeaveRequests() {
+        if (leaveRequestRepository.count() > 0) return;
+
+        List<Staff> staffList = staffRepository.findByIsActiveTrue();
+        if (staffList.isEmpty()) return;
+
+        Staff s = staffList.get(4 % staffList.size());
+        Staff reviewer = staffRepository.findByUsername("manager1").orElse(staffList.get(0));
+
+        // 1 PENDING request
+        leaveRequestRepository.save(com.hospital.scheduler.entity.LeaveRequest.builder()
+                .staff(s)
+                .startDate(LocalDate.of(2026, 6, 15))
+                .endDate(LocalDate.of(2026, 6, 17))
+                .reason("Du lịch gia đình")
+                .status(com.hospital.scheduler.entity.LeaveRequest.LeaveStatus.PENDING)
+                .build());
+
+        // 1 APPROVED request
+        Staff s2 = staffList.get(6 % staffList.size());
+        leaveRequestRepository.save(com.hospital.scheduler.entity.LeaveRequest.builder()
+                .staff(s2)
+                .startDate(LocalDate.of(2026, 6, 8))
+                .endDate(LocalDate.of(2026, 6, 9))
+                .reason("Ốm đau")
+                .status(com.hospital.scheduler.entity.LeaveRequest.LeaveStatus.APPROVED)
+                .reviewedBy(reviewer)
+                .reviewedAt(java.time.LocalDateTime.now().minusDays(5))
+                .build());
+
+        // 1 REJECTED request
+        Staff s3 = staffList.get(8 % staffList.size());
+        leaveRequestRepository.save(com.hospital.scheduler.entity.LeaveRequest.builder()
+                .staff(s3)
+                .startDate(LocalDate.of(2026, 6, 20))
+                .endDate(LocalDate.of(2026, 6, 22))
+                .reason("Việc riêng")
+                .status(com.hospital.scheduler.entity.LeaveRequest.LeaveStatus.REJECTED)
+                .reviewedBy(reviewer)
+                .reviewedAt(java.time.LocalDateTime.now().minusDays(2))
+                .reviewNote("Đang trong giai đoạn cao điểm, thiếu nhân sự thay thế.")
+                .build());
+
+        log.info("✅ Seeded 3 leave requests (pending, approved, rejected)");
+    }
+
+    private void seedSwapRequests() {
+        if (scheduleExchangeRepository.count() > 0) return;
+
+        List<Schedule> schedules = scheduleRepository.findAll();
+        if (schedules.size() < 4) return;
+
+        Schedule s1 = schedules.get(0);
+        Schedule s2 = schedules.get(1);
+        Staff manager = staffRepository.findByUsername("manager1").orElse(null);
+        com.hospital.scheduler.entity.SchedulePeriod period = s1.getPeriod();
+
+        // 1 PENDING swap
+        scheduleExchangeRepository.save(com.hospital.scheduler.entity.ScheduleExchange.builder()
+                .period(period)
+                .requester(s1.getStaff())
+                .requesterSchedule(s1)
+                .target(s2.getStaff())
+                .targetSchedule(s2)
+                .status(com.hospital.scheduler.entity.ScheduleExchange.ExchangeStatus.PENDING)
+                .reason("Trùng lịch họp khoa")
+                .build());
+
+        // 1 APPROVED swap (historical)
+        if (schedules.size() >= 4) {
+            Schedule s3 = schedules.get(2);
+            Schedule s4 = schedules.get(3);
+            scheduleExchangeRepository.save(com.hospital.scheduler.entity.ScheduleExchange.builder()
+                    .period(period)
+                    .requester(s3.getStaff())
+                    .requesterSchedule(s3)
+                    .target(s4.getStaff())
+                    .targetSchedule(s4)
+                    .status(com.hospital.scheduler.entity.ScheduleExchange.ExchangeStatus.APPROVED)
+                    .reason("Cần đổi ngày nghỉ")
+                    .reviewedBy(manager)
+                    .reviewedAt(java.time.LocalDateTime.now().minusDays(10))
+                    .build());
+        }
+
+        log.info("✅ Seeded 2 swap requests (pending, approved)");
+    }
+
+    private void seedNotifications() {
+        if (notificationRepository.count() > 0) return;
+
+        List<Staff> staffList = staffRepository.findByIsActiveTrue();
+        if (staffList.isEmpty()) return;
+
+        Staff s = staffList.get(3 % staffList.size());
+        Staff admin = staffRepository.findByUsername("admin").orElse(s);
+
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+
+        // Recent: conflict alert
+        notificationRepository.save(com.hospital.scheduler.entity.Notification.builder()
+                .staff(s)
+                .title("Cảnh báo xung đột lịch trực")
+                .message("Phát hiện xung đột lịch ngày 10/06/2026 — bạn được phân công cả L03 và L04 cùng ngày.")
+                .isRead(false)
+                .build());
+
+        // Recent: schedule published
+        notificationRepository.save(com.hospital.scheduler.entity.Notification.builder()
+                .staff(s)
+                .title("Lịch công tác tháng 6 đã công bố")
+                .message("Kỳ tháng 06/2026 đã được công bố. Vui lòng kiểm tra lịch trực của bạn.")
+                .isRead(false)
+                .createdAt(now.minusHours(2))
+                .build());
+
+        // Older: read
+        notificationRepository.save(com.hospital.scheduler.entity.Notification.builder()
+                .staff(s)
+                .title("Yêu cầu nghỉ phép đã được duyệt")
+                .message("Yêu cầu nghỉ phép ngày 08–09/06 đã được duyệt.")
+                .isRead(true)
+                .createdAt(now.minusDays(3))
+                .readAt(now.minusDays(2))
+                .build());
+
+        // Different staff
+        Staff s2 = staffList.get(7 % staffList.size());
+        notificationRepository.save(com.hospital.scheduler.entity.Notification.builder()
+                .staff(s2)
+                .title("Phân công lịch trực mới")
+                .message("Bạn được phân công lịch L01 ngày 05/06/2026. Ngày nghỉ bù: 11/06/2026.")
+                .isRead(false)
+                .build());
+
+        log.info("✅ Seeded 4 notifications (2 unread, 2 read)");
+    }
+
+    private void seedAuditHistory() {
+        if (auditHistoryRepository.count() > 0) return;
+
+        Staff admin = staffRepository.findByUsername("admin").orElse(null);
+        Staff manager = staffRepository.findByUsername("manager1").orElse(null);
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+
+        if (admin != null) {
+            auditHistoryRepository.save(com.hospital.scheduler.entity.AuditHistory.builder()
+                    .tableName("schedule_period")
+                    .recordId(1)
+                    .actionType(com.hospital.scheduler.entity.AuditHistory.ActionType.INSERT)
+                    .newData("{\"periodName\":\"Kỳ tháng 06/2026\"}")
+                    .changedBy(admin)
+                    .createdAt(now.minusDays(10))
+                    .build());
+
+            auditHistoryRepository.save(com.hospital.scheduler.entity.AuditHistory.builder()
+                    .tableName("schedule")
+                    .recordId(1)
+                    .actionType(com.hospital.scheduler.entity.AuditHistory.ActionType.INSERT)
+                    .newData("{\"shiftTypeId\":\"L01\",\"workDate\":\"2026-06-01\"}")
+                    .changedBy(admin)
+                    .createdAt(now.minusDays(9))
+                    .build());
+        }
+
+        if (manager != null) {
+            auditHistoryRepository.save(com.hospital.scheduler.entity.AuditHistory.builder()
+                    .tableName("leave_request")
+                    .recordId(1)
+                    .actionType(com.hospital.scheduler.entity.AuditHistory.ActionType.UPDATE)
+                    .oldData("{\"status\":\"PENDING\"}")
+                    .newData("{\"status\":\"APPROVED\"}")
+                    .changedBy(manager)
+                    .createdAt(now.minusDays(5))
+                    .build());
+        }
+
+        log.info("✅ Seeded audit history entries");
     }
 
     private void createCompensationDayForSeed(Schedule schedule) {

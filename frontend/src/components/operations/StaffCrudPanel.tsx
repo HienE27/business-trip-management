@@ -493,8 +493,8 @@ export function StaffCrudPanel() {
                   value={form.roles[0] ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, roles: e.target.value ? [e.target.value] : [] }))}
                   options={[
-                    { value: "ADMIN", label: "Quản trị viên" },
-                    { value: "MANAGER", label: "Quản lý lịch" },
+                    { value: "ADMIN", label: "Quản lý lịch" },
+                    { value: "MANAGER", label: "Trưởng phòng" },
                     { value: "STAFF", label: "Nhân viên" },
                   ]}
                   placeholder="Chọn vai trò"
@@ -660,8 +660,8 @@ export function StaffCrudPanel() {
             value={roleFilter}
           >
             <option value="">Tất cả Chức vụ</option>
-            <option value="ADMIN">Quản trị viên</option>
-            <option value="MANAGER">Quản lý lịch</option>
+            <option value="ADMIN">Quản lý lịch</option>
+            <option value="MANAGER">Trưởng phòng</option>
             <option value="STAFF">Nhân viên</option>
           </select>
           <span aria-hidden="true" className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">

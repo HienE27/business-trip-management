@@ -118,8 +118,10 @@ public class AutoSchedulingController {
     @GetMapping("/workload-chart/{periodId}")
     @Operation(summary = "M07-F09: Data biểu đồ cân bằng tải nhân sự")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getWorkloadChartData(@PathVariable Integer periodId) {
-        Map<String, Object> chartData = autoSchedulingService.getWorkloadChartData(periodId);
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getWorkloadChartData(
+            @PathVariable Integer periodId,
+            @RequestParam(required = false) String shiftTypeId) {
+        Map<String, Object> chartData = autoSchedulingService.getWorkloadChartData(periodId, shiftTypeId);
         return ResponseEntity.ok(ApiResponse.success(chartData));
     }
 

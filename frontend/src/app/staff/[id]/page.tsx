@@ -18,8 +18,8 @@ function getInitials(name: string) {
 }
 
 function getRoleLabel(roles: string[]) {
-  if (roles.includes("ADMIN")) return "Quản trị viên";
-  if (roles.includes("MANAGER")) return "Quản lý";
+  if (roles.includes("ADMIN")) return "Quản lý lịch";
+  if (roles.includes("MANAGER")) return "Trưởng phòng";
   if (roles.includes("STAFF")) return "Nhân viên";
   return "Nhân sự";
 }

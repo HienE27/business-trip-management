@@ -143,8 +143,8 @@ export default function SettingsPage() {
   };
 
   const roleLabel = (r: string) => {
-    if (r === "ADMIN") return "Quản trị viên";
-    if (r === "MANAGER") return "Quản lý";
+    if (r === "ADMIN") return "Quản lý lịch";
+    if (r === "MANAGER") return "Trưởng phòng";
     return "Nhân viên";
   };
 

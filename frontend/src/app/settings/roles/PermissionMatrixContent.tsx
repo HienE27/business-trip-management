@@ -28,8 +28,8 @@ const ROLE_COLORS: Record<string, { bg: string; text: string; border: string }> 
 
 /* ─── Friendly labels ─── */
 const ROLE_LABELS: Record<string, string> = {
-  ADMIN:   "Quản trị viên",
-  MANAGER: "Quản lý",
+  ADMIN:   "Quản lý lịch",
+  MANAGER: "Trưởng phòng",
   STAFF:   "Nhân viên",
 };
 
@@ -163,7 +163,7 @@ export function PermissionMatrixContent() {
           <p className="mt-1 text-[13px] text-on-surface-variant">
             {isAdmin
               ? "Nhấn vào ô để cấp hoặc thu hồi quyền cho từng vai trò."
-              : "Chỉ Quản trị viên mới có thể chỉnh sửa phân quyền."}
+              : "Chỉ Quản lý lịch mới có thể chỉnh sửa phân quyền."}
           </p>
         </div>
         {saving && (

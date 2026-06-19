@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useRef } from 'react';
 import {
@@ -32,12 +32,24 @@ export function useConflictStream({ enabled }: { enabled: boolean }): void {
   useEffect(() => {
     if (!enabled) return;
 
+    // Guard: only run in the browser (not during SSR)
     if (typeof window === 'undefined') return;
 
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) ?? undefined;
     const url = resolveConflictWsUrl();
 
-    const client = createConflictClient({ url, token });
+    // Build a WebSocket factory so @stomp/stompjs v7 can create the connection.
+    // Attach the token in the URL query param; the backend reads it from the handshake.
+    const wsUrl = token ? `${url}?token=${encodeURIComponent(token)}` : url;
+
+    const client = createConflictClient({
+      url,
+      token,
+      webSocketFactory: () => {
+        const ws = new WebSocket(wsUrl);
+        return ws;
+      },
+    });
     const unsubscribe = client.onEvent((event: ConflictEvent) => {
       applyEvent(event);
     });

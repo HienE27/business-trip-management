@@ -7,6 +7,30 @@ import { test, expect, waitForAuthReady } from './fixtures/auth.fixture';
 
 test.describe('Auto Scheduling Page — M07-F06 / M07-F09', () => {
   test.beforeEach(async ({ page, loginAs }) => {
+    // Mock schedule-periods API so the workload chart section renders
+    await page.route(/\/api\/v1\/schedule-periods/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 1,
+            periodName: 'Tháng 6/2026',
+            startDate: '2026-06-01',
+            endDate: '2026-06-30',
+            status: 'DRAFT',
+          },
+        ]),
+      });
+    });
+    // Mock workload chart data so the "Khối lượng theo nhân sự" section renders quickly
+    await page.route(/\/api\/v1\/schedules\/workload-chart/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
     await loginAs();
   });
 

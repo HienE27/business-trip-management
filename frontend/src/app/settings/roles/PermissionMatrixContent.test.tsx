@@ -57,8 +57,8 @@ describe('PermissionMatrixContent', () => {
     await waitFor(() => {
       expect(screen.getByTestId('roles-matrix')).toBeInTheDocument();
     });
-    expect(screen.getByText('Quản trị viên')).toBeInTheDocument();
-    expect(screen.getByText('Quản lý')).toBeInTheDocument();
+      expect(screen.getByText('Quản lý lịch')).toBeInTheDocument();
+      expect(screen.getByText('Trưởng phòng')).toBeInTheDocument();
     expect(screen.getByText('Nhân viên')).toBeInTheDocument();
     expect(screen.getByText('Xem lịch trực')).toBeInTheDocument();
     expect(screen.getByText('Tạo/sửa/xóa lịch trực')).toBeInTheDocument();
