@@ -323,6 +323,7 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
             onStaffFilterChange={onStaffFilterChange}
             onSpecialtyFilterChange={onSpecialtyFilterChange}
             onViewDetail={onViewDetail}
+            onRefresh={onRefresh}
             selectedTab={selectedTab}
             onFilterTypeChange={onFilterTypeChange}
             hideFilters={isReadOnly || hideFilters}

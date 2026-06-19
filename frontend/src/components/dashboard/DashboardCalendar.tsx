@@ -46,6 +46,8 @@ type DashboardCalendarProps = {
   onAddClick?: (date: Date) => void;
   onStaffFilterChange?: (staffId: number | null) => void;
   onSpecialtyFilterChange?: (specialtyId: number | null) => void;
+  /** Callback khi inline edit trong OverflowPopover cần refresh data. */
+  onRefresh?: () => void;
   /** Khi true: ẩn toolbar filter (dashboard read-only). */
   hideFilters?: boolean;
   /** Tab hiện tại (L01..L04 / ALL). Khi truyền, dùng để sync active state của chip filter. */
@@ -66,6 +68,7 @@ export function DashboardCalendar({
   onViewDetail,
   onDayClick,
   onAddClick,
+  onRefresh,
   hideFilters = false,
   selectedTab,
   onFilterTypeChange,
@@ -994,10 +997,10 @@ export function DashboardCalendar({
         <OverflowPopover
           items={overflow.items}
           anchor={overflow.anchor}
-          onEdit={onEditSchedule ?? (() => {})}
           onDelete={onDeleteSchedule ?? (() => {})}
           onResolve={onResolveConflict ?? (() => {})}
           onViewDetail={onViewDetail ?? (() => {})}
+          onRefresh={onRefresh ?? (() => {})}
           canEdit={!!onEditSchedule}
           onClose={() => setOverflow(null)}
         />
