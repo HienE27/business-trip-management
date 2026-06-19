@@ -2,11 +2,38 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ExportControls } from "@/components/reports/ExportControls";
+import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { Staff, SchedulePeriod, StaffWorkloadStatistics } from "@/types/api";
+import {
+  computeSummary,
+  pickCap,
+  pickShiftCount,
+  isOverloaded,
+  type WorkloadView,
+} from "@/components/reports/workloadUtils";
+import { WorkloadBalanceChart } from "@/components/reports/WorkloadBalanceChart";
+
+/**
+ * View modes for the staff report (§M02-F05 / §M04-F05 / §M05-F05):
+ *   - "ALL"      — total schedule count per staff (M02-F05 + dashboard)
+ *   - "L01"      — trực 24/24 only (M02-F05 "số ngày trực")
+ *   - "L02"      — thông tầm only
+ *   - "L03"      — phòng khám dịch vụ only (M04-F05)
+ *   - "L04"      — phòng khám chuyên gia only (M05-F05)
+ */
+const VIEW_MODES: { value: WorkloadView; label: string; helper: string }[] = [
+  { value: "ALL", label: "Tất cả", helper: "Tổng số ca của từng nhân sự trong kỳ" },
+  { value: "L01", label: "L01 · Trực 24/24", helper: "Số ngày trực 24/24 trong tháng (M02-F05)" },
+  { value: "L02", label: "L02 · Thông tầm", helper: "Số ngày thông tầm trong tháng" },
+  { value: "L03", label: "L03 · PK Dịch vụ", helper: "Số ca khám dịch vụ (M04-F05)" },
+  { value: "L04", label: "L04 · PK Chuyên gia", helper: "Số ca khám chuyên gia (M05-F05)" },
+];
 
 export default function ReportsStaffPage() {
+  const { success: toastSuccess, error: toastError } = useToast();
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [workloads, setWorkloads] = useState<StaffWorkloadStatistics[]>([]);
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
@@ -14,6 +41,7 @@ export default function ReportsStaffPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<WorkloadView>("ALL");
 
   const fetchPeriods = useCallback(async () => {
     try {
@@ -67,13 +95,30 @@ export default function ReportsStaffPage() {
     return staffList
       .map((s) => {
         const w = workMap.get(s.id);
+        const L01 = w?.L01Count ?? 0;
+        const L02 = w?.L02Count ?? 0;
+        const L03 = w?.L03Count ?? 0;
+        const L04 = w?.L04Count ?? 0;
+        const total = w?.scheduleCount ?? 0;
+        const shiftCount = pickShiftCount(
+          {
+            staff: { id: s.id, fullName: s.fullName, maxShiftsPerMonth: s.maxShiftsPerMonth ?? null },
+            L01,
+            L02,
+            L03,
+            L04,
+            total,
+          },
+          view,
+        );
         return {
           staff: s,
-          total: w?.scheduleCount ?? 0,
-          L01: w?.L01Count ?? 0,
-          L02: w?.L02Count ?? 0,
-          L03: w?.L03Count ?? 0,
-          L04: w?.L04Count ?? 0,
+          total,
+          L01,
+          L02,
+          L03,
+          L04,
+          shiftCount,
           leaveDays: w?.leaveDays ?? 0,
         };
       })
@@ -86,15 +131,24 @@ export default function ReportsStaffPage() {
           (item.staff.specialty?.name ?? "").toLowerCase().includes(kw)
         );
       })
-      .sort((a, b) => b.total - a.total);
-  }, [staffList, workloads, search]);
+      .sort((a, b) => b.shiftCount - a.shiftCount);
+  }, [staffList, workloads, search, view]);
 
-  const summary = useMemo(() => ({
-    total: enriched.reduce((s, e) => s + e.total, 0),
-    avg: enriched.length ? Math.round(enriched.reduce((s, e) => s + e.total, 0) / enriched.length) : 0,
-    max: enriched.length ? Math.max(...enriched.map((e) => e.total)) : 0,
-    overloaded: enriched.filter((e) => e.total > (e.staff.maxShiftsPerMonth ?? 6)).length,
-  }), [enriched]);
+  const summary = useMemo(() => {
+    const rows = enriched.map((e) => ({
+      staff: {
+        id: e.staff.id,
+        fullName: e.staff.fullName,
+        maxShiftsPerMonth: e.staff.maxShiftsPerMonth ?? null,
+      },
+      L01: e.L01,
+      L02: e.L02,
+      L03: e.L03,
+      L04: e.L04,
+      total: e.total,
+    }));
+    return computeSummary(rows, view);
+  }, [enriched, view]);
 
   function getWorkloadColor(current: number, max: number) {
     const pct = max > 0 ? (current / max) * 100 : 0;
@@ -116,7 +170,7 @@ export default function ReportsStaffPage() {
       )}
 
       {/* Period Selector */}
-      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm flex items-center gap-4">
+      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
         <label className="flex items-center gap-2">
           <span className="text-sm font-medium text-on-surface">Kỳ lịch:</span>
           <div className="relative">
@@ -133,6 +187,17 @@ export default function ReportsStaffPage() {
             <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[18px] pointer-events-none">expand_more</span>
           </div>
         </label>
+        {selectedPeriodId && (
+          <ExportControls
+            periodId={selectedPeriodId}
+            pinFormat="excel-workload"
+            onSuccess={(m) => toastSuccess(m)}
+            onError={(m) => {
+              setMessage(m);
+              toastError(m);
+            }}
+          />
+        )}
       </section>
 
       {/* Summary */}
@@ -164,17 +229,79 @@ export default function ReportsStaffPage() {
         )}
       </section>
 
-      {/* Search */}
-      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
-        <div className="relative max-w-md">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
-          <input
-            className="w-full rounded-lg border border-transparent bg-surface py-2.5 pl-10 pr-4 text-[14px] text-on-surface transition-all placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="Tìm theo tên, mã NV hoặc khoa..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      {/* Balance chart (M07-F09) — visible whenever there is at least one
+          staff member in scope; mirrors the active view filter. */}
+      {enriched.length > 0 && (
+        <WorkloadBalanceChart
+          view={view}
+          data={enriched.map((e) => ({
+            staffId: e.staff.id,
+            staffName: e.staff.fullName,
+            L01: e.L01,
+            L02: e.L02,
+            L03: e.L03,
+            L04: e.L04,
+            total: e.total,
+            maxShiftsPerMonth: e.staff.maxShiftsPerMonth ?? null,
+          }))}
+        />
+      )}
+
+      {/* Search + View tabs */}
+      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="relative max-w-md flex-1">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+            <input
+              className="w-full rounded-lg border border-transparent bg-surface py-2.5 pl-10 pr-4 text-[14px] text-on-surface transition-all placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-1 focus:ring-primary"
+              placeholder="Tìm theo tên, mã NV hoặc khoa..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {/* View-mode tabs */}
+          <div role="tablist" aria-label="Chọn loại lịch cần thống kê" className="flex flex-wrap gap-1 rounded-lg bg-surface-container p-1">
+            {VIEW_MODES.map((mode) => {
+              const active = view === mode.value;
+              return (
+                <button
+                  key={mode.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  title={mode.helper}
+                  onClick={() => setView(mode.value)}
+                  className={`rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                    active
+                      ? "bg-primary text-on-primary shadow-sm"
+                      : "text-on-surface-variant hover:bg-surface-container-lowest"
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
+
+        {/* Skewed-distribution warning (M02-F05). */}
+        {!loading && summary.overloaded > 0 && (
+          <div
+            role="alert"
+            data-testid="skew-warning"
+            className="flex items-start gap-3 rounded-lg border border-tertiary/30 bg-tertiary-fixed px-4 py-3 text-[13px] text-on-tertiary-container"
+          >
+            <span className="material-symbols-outlined text-[20px]">warning</span>
+            <div>
+              <p className="font-semibold">Cảnh báo phân bổ lệch (M02-F05)</p>
+              <p className="text-[12px] mt-0.5">
+                Có <span className="font-bold">{summary.overloaded}</span> nhân sự vượt ngưỡng tải.
+                Khoảng cách giữa người cao nhất ({summary.max}) và trung bình ({summary.avg}) là{" "}
+                <span className="font-bold">{Math.max(0, summary.max - summary.avg)}</span> ca.
+              </p>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Table */}
@@ -192,7 +319,7 @@ export default function ReportsStaffPage() {
               </p>
             </div>
           ) : (
-            <table className="w-full border-collapse text-left">
+            <table className="w-full border-collapse text-left" data-testid="staff-workload-table">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container-low">
                   <th className="px-5 py-3 text-label-sm text-on-surface-variant">Nhân sự</th>
@@ -207,9 +334,38 @@ export default function ReportsStaffPage() {
               </thead>
               <tbody className="divide-y divide-outline-variant">
                 {enriched.map((item) => {
-                  const max = item.staff.maxShiftsPerMonth ?? 6;
-                  const pct = max > 0 ? (item.total / max) * 100 : 0;
-                  const isOver = pct >= 100;
+                  const capForView = pickCap(
+                    {
+                      staff: {
+                        id: item.staff.id,
+                        fullName: item.staff.fullName,
+                        maxShiftsPerMonth: item.staff.maxShiftsPerMonth ?? null,
+                      },
+                      L01: item.L01,
+                      L02: item.L02,
+                      L03: item.L03,
+                      L04: item.L04,
+                      total: item.total,
+                    },
+                    view,
+                  );
+                  const pct = capForView > 0 ? (item.shiftCount / capForView) * 100 : 0;
+                  const isOver = isOverloaded(
+                    {
+                      staff: {
+                        id: item.staff.id,
+                        fullName: item.staff.fullName,
+                        maxShiftsPerMonth: item.staff.maxShiftsPerMonth ?? null,
+                      },
+                      L01: item.L01,
+                      L02: item.L02,
+                      L03: item.L03,
+                      L04: item.L04,
+                      total: item.total,
+                    },
+                    view,
+                    capForView,
+                  );
                   return (
                     <tr key={item.staff.id} className="transition-colors hover:bg-surface-container-lowest group">
                       <td className="px-5 py-3">
@@ -226,9 +382,9 @@ export default function ReportsStaffPage() {
                       <td className="px-5 py-3 text-[13px] text-on-surface">{item.staff.specialty?.name ?? "—"}</td>
                       <td className="px-5 py-3 text-center">
                         <span className={`text-[14px] font-bold ${isOver ? "text-error" : "text-on-surface"}`}>
-                          {item.total}
+                          {item.shiftCount}
                         </span>
-                        <span className="text-[11px] text-outline"> / {max}</span>
+                        <span className="text-[11px] text-outline"> / {capForView}</span>
                       </td>
                       {[item.L01, item.L02, item.L03, item.L04].map((count, i) => (
                         <td key={i} className="px-5 py-3 text-center text-[13px] text-on-surface-variant">{count}</td>
@@ -237,7 +393,7 @@ export default function ReportsStaffPage() {
                         <div className="flex items-center gap-2">
                           <div className="flex-1 bg-surface-variant rounded-full h-2">
                             <div
-                              className={`h-2 rounded-full transition-all ${getWorkloadColor(item.total, max)}`}
+                              className={`h-2 rounded-full transition-all ${getWorkloadColor(item.shiftCount, capForView)}`}
                               style={{ width: `${Math.min(100, pct)}%` }}
                             />
                           </div>

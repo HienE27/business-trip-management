@@ -267,7 +267,14 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
               id={`${config.activeSection}-period-select`}
               className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
               value={selectedPeriodId ?? ""}
-              onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                setSelectedPeriodId(next);
+                // §M05-F04 — the specialty filter is scoped to a single
+                // period; carry-over from the previous month would silently
+                // hide schedules. Reset whenever the period changes.
+                if (isExpertMode) setSelectedSpecialtyId(null);
+              }}
             >
               <option value="">Chọn kỳ lịch</option>
               {periods.map((p) => (

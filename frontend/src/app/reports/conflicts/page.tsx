@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ExportControls } from "@/components/reports/ExportControls";
+import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { SchedulePeriod, ConflictCheckResponse, ConflictDetail } from "@/types/api";
 
 export default function ReportsConflictsPage() {
+  const { success: toastSuccess, error: toastError } = useToast();
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<SchedulePeriod | null>(null);
   const [conflictData, setConflictData] = useState<ConflictCheckResponse | null>(null);
@@ -31,22 +34,6 @@ export default function ReportsConflictsPage() {
   useEffect(() => {
     void fetchPeriods();
   }, [fetchPeriods]);
-
-  const handleExportExcel = async (periodId: number) => {
-    try {
-      const blob = await api.exportScheduleExcel(periodId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `schedule-export-${periodId}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      // silent
-    }
-  };
 
   const checkConflicts = useCallback(async (periodId: number) => {
     try {
@@ -167,14 +154,14 @@ export default function ReportsConflictsPage() {
             </article>
           </section>
           {selectedPeriod && (
-            <button
-              className="inline-flex items-center gap-1.5 rounded-lg border border-primary px-3 py-1.5 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors shrink-0"
-              onClick={() => void handleExportExcel(selectedPeriod.id)}
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[16px]">table_view</span>
-              Xuất Excel
-            </button>
+            <ExportControls
+              periodId={selectedPeriod.id}
+              onSuccess={(m) => toastSuccess(m)}
+              onError={(m) => {
+                setMessage(m);
+                toastError(m);
+              }}
+            />
           )}
           </section>
 

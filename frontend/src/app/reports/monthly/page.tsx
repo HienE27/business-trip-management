@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ExportControls } from "@/components/reports/ExportControls";
+import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { SchedulePeriod, ShiftStatistics } from "@/types/api";
@@ -26,6 +28,7 @@ const CHART_COLORS: Record<string, string> = {
 };
 
 export default function ReportsMonthlyPage() {
+  const { success: toastSuccess, error: toastError } = useToast();
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<SchedulePeriod | null>(null);
   const [stats, setStats] = useState<ShiftStatistics | null>(null);
@@ -34,7 +37,6 @@ export default function ReportsMonthlyPage() {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [exportLoading, setExportLoading] = useState(false);
 
   const fetchPeriods = useCallback(async () => {
     try {
@@ -85,23 +87,14 @@ export default function ReportsMonthlyPage() {
     if (selectedPeriod) void fetchReport(selectedPeriod.id);
   }, [selectedPeriod, fetchReport]);
 
-  const handleExport = useCallback(async () => {
-    if (!selectedPeriod) return;
-    setExportLoading(true);
-    try {
-      const blob = await api.exportScheduleExcel(selectedPeriod.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `lich-cong-tac-${selectedPeriod.periodName}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setMessage("Không thể xuất file. Vui lòng thử lại.");
-    } finally {
-      setExportLoading(false);
-    }
-  }, [selectedPeriod]);
+  const handleExportSuccess = useCallback((msg: string) => {
+    toastSuccess(msg);
+  }, [toastSuccess]);
+
+  const handleExportError = useCallback((msg: string) => {
+    setMessage(msg);
+    toastError(msg);
+  }, [toastError]);
 
   const shiftItems = useMemo(() => {
     if (!stats) return [];
@@ -209,15 +202,12 @@ export default function ReportsMonthlyPage() {
                       ? "Nháp"
                       : "Đã lưu trữ"}
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleExport}
-                    disabled={exportLoading || checking}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-[13px] font-medium text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-60"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">download</span>
-                    {exportLoading ? "Đang xuất..." : "Xuất Excel"}
-                  </button>
+                  <ExportControls
+                    periodId={selectedPeriod.id}
+                    showWorkload
+                    onSuccess={handleExportSuccess}
+                    onError={handleExportError}
+                  />
                 </div>
               </div>
             </div>

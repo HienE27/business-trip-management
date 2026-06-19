@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ScheduleByTypePage, type ScheduleTypeConfig } from './ScheduleByTypePage';
 import * as apiModule from '@/lib/api';
@@ -367,6 +367,87 @@ describe('ScheduleByTypePage (expert-clinic mode)', () => {
     await waitFor(() => {
       expect(screen.getByLabelText(/Chuyên khoa/)).toBeInTheDocument();
     });
+  });
+
+  it('forwards the specialtyId param when a specialty is selected', async () => {
+    setupExpertApiMock(mockExpertSchedules);
+    await act(async () => {
+      render(<ScheduleByTypePage config={expertConfig} />);
+    });
+    // Wait for the initial fetch + filter to be wired up.
+    await waitFor(() => {
+      expect(apiModule.api.get).toHaveBeenCalledWith('/specialties/active');
+    });
+
+    const select = await screen.findByLabelText(/Chuyên khoa/);
+    await act(async () => {
+      fireEvent.change(select, { target: { value: '1' } });
+    });
+
+    await waitFor(() => {
+      const calls = (apiModule.api.get as ReturnType<typeof vi.fn>).mock.calls;
+      const lastExpertCall = calls
+        .map((c) => c as [string, Record<string, unknown>?])
+        .filter(([url]) => url === '/schedules/expert-clinic')
+        .pop();
+      expect(lastExpertCall?.[1]).toMatchObject({ specialtyId: 1 });
+    });
+  });
+
+  it('clears the specialty filter when switching periods', async () => {
+    setupExpertApiMock(mockExpertSchedules);
+    await act(async () => {
+      render(<ScheduleByTypePage config={expertConfig} />);
+    });
+    await waitFor(() => {
+      expect(apiModule.api.get).toHaveBeenCalledWith('/specialties/active');
+    });
+
+    const select = await screen.findByLabelText(/Chuyên khoa/);
+    await act(async () => {
+      fireEvent.change(select, { target: { value: '1' } });
+    });
+    await waitFor(() => {
+      const calls = (apiModule.api.get as ReturnType<typeof vi.fn>).mock.calls;
+      const lastExpertCall = calls
+        .map((c) => c as [string, Record<string, unknown>?])
+        .filter(([url]) => url === '/schedules/expert-clinic')
+        .pop();
+      expect(lastExpertCall?.[1]).toMatchObject({ specialtyId: 1 });
+    });
+
+    // Switch period — the filter should reset and the next request
+    // must NOT include specialtyId.
+    const periodSelect = screen.getByLabelText(/Kỳ lịch/) as HTMLSelectElement;
+    await act(async () => {
+      fireEvent.change(periodSelect, { target: { value: String(mockPeriods[1].id) } });
+    });
+
+    await waitFor(() => {
+      const calls = (apiModule.api.get as ReturnType<typeof vi.fn>).mock.calls;
+      const lastExpertCall = calls
+        .map((c) => c as [string, Record<string, unknown>?])
+        .filter(([url]) => url === '/schedules/expert-clinic')
+        .pop();
+      expect(lastExpertCall?.[1]).not.toHaveProperty('specialtyId');
+    });
+  });
+
+  it('lists every active specialty as an option', async () => {
+    setupExpertApiMock(mockExpertSchedules);
+    await act(async () => {
+      render(<ScheduleByTypePage config={expertConfig} />);
+    });
+    await waitFor(() => {
+      expect(apiModule.api.get).toHaveBeenCalledWith('/specialties/active');
+    });
+    const select = (await screen.findByLabelText(
+      /Chuyên khoa/,
+    )) as HTMLSelectElement;
+    const options = Array.from(select.options).map((o) => o.text);
+    expect(options).toContain('Nội khoa');
+    expect(options).toContain('Ngoại khoa');
+    expect(options).toContain('Tất cả chuyên khoa');
   });
 
   it('shows the expert-clinic error message when the endpoint fails', async () => {

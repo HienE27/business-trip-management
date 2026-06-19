@@ -40,6 +40,36 @@ function getStoredToken(): string | null {
   return window.localStorage.getItem(TOKEN_STORAGE_KEY);
 }
 
+/**
+ * Filter set shared by every export endpoint.
+ *
+ *   shiftTypeId  — limits the report to a single schedule type (L01..L04).
+ *   staffId      — narrows the report to one staff member.
+ *   startDate    — ISO yyyy-MM-dd lower bound (inclusive).
+ *   endDate      — ISO yyyy-MM-dd upper bound (inclusive).
+ *
+ * Backend accepts these as optional query params; if all are omitted,
+ * the export covers the entire period for the whole department —
+ * matching §M06-F04 of the requirements doc.
+ */
+export interface ScheduleExportFilters {
+  shiftTypeId?: string;
+  staffId?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+function buildScheduleExportQuery(filters: ScheduleExportFilters): string {
+  const parts: string[] = [];
+  if (filters.shiftTypeId) parts.push(`shiftTypeId=${encodeURIComponent(filters.shiftTypeId)}`);
+  if (filters.staffId !== undefined && filters.staffId !== null) {
+    parts.push(`staffId=${filters.staffId}`);
+  }
+  if (filters.startDate) parts.push(`startDate=${encodeURIComponent(filters.startDate)}`);
+  if (filters.endDate) parts.push(`endDate=${encodeURIComponent(filters.endDate)}`);
+  return parts.length === 0 ? "" : `?${parts.join("&")}`;
+}
+
 class ApiClient {
   private async request<T>(
     endpoint: string,
@@ -300,27 +330,51 @@ class ApiClient {
     return this.request<Record<string, unknown>>(`/dashboard/heatmap/period/${periodId}`);
   }
 
-  async exportScheduleExcel(periodId: number): Promise<Blob> {
+  async exportScheduleExcel(
+    periodId: number,
+    filters: ScheduleExportFilters = {},
+  ): Promise<Blob> {
+    const params = buildScheduleExportQuery(filters);
     const token = getStoredToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const response = await fetch(`${API_BASE}/dashboard/export/schedule/${periodId}`, {
-      headers,
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${API_BASE}/dashboard/export/schedule/${periodId}${params}`,
+      { headers, credentials: "include" },
+    );
     if (!response.ok) throw new Error("Export failed");
     return response.blob();
   }
 
-  async exportSchedulePdf(periodId: number): Promise<Blob> {
+  async exportSchedulePdf(
+    periodId: number,
+    filters: ScheduleExportFilters = {},
+  ): Promise<Blob> {
+    const params = buildScheduleExportQuery(filters);
     const token = getStoredToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const response = await fetch(`${API_BASE}/dashboard/export/schedule/${periodId}/pdf`, {
-      headers,
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${API_BASE}/dashboard/export/schedule/${periodId}/pdf${params}`,
+      { headers, credentials: "include" },
+    );
     if (!response.ok) throw new Error("Export PDF failed");
+    return response.blob();
+  }
+
+  async exportWorkloadExcel(
+    periodId: number,
+    filters: ScheduleExportFilters = {},
+  ): Promise<Blob> {
+    const params = buildScheduleExportQuery(filters);
+    const token = getStoredToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const response = await fetch(
+      `${API_BASE}/dashboard/export/workload/${periodId}${params}`,
+      { headers, credentials: "include" },
+    );
+    if (!response.ok) throw new Error("Export workload failed");
     return response.blob();
   }
 
