@@ -37,6 +37,10 @@ export default function PeriodsPage() {
   const [formEndDate, setFormEndDate] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "DRAFT" | "PUBLISHED" | "ARCHIVED">("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+
   const loadPeriods = useCallback(async () => {
     try {
       setLoading(true);
@@ -49,6 +53,16 @@ export default function PeriodsPage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (message || error) {
+      const timer = setTimeout(() => {
+        setMessage(null);
+        setError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [message, error]);
 
   useEffect(() => { void loadPeriods(); }, [loadPeriods]);
 
@@ -159,6 +173,12 @@ export default function PeriodsPage() {
     );
   };
 
+  const filteredPeriods = periods.filter((p) => {
+    const matchesStatus = statusFilter === "ALL" || p.status === statusFilter;
+    const matchesSearch = !searchQuery.trim() || p.periodName.toLowerCase().includes(searchQuery.trim().toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
+
   return (
     <>
       <DashboardShell
@@ -179,6 +199,47 @@ export default function PeriodsPage() {
               <span className="material-symbols-outlined text-[20px]">add</span>
               Tạo kỳ lịch
             </Button>
+          </div>
+
+          {/* Filter bar */}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <div className="relative flex-1 min-w-[200px]">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px] pointer-events-none">search</span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Tìm theo tên kỳ lịch…"
+                aria-label="Tìm kiếm kỳ lịch"
+                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none font-body-sm text-body-sm text-on-surface transition-all"
+              />
+            </div>
+            <div className="relative">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                aria-label="Lọc theo trạng thái"
+                className="appearance-none pl-3 pr-9 py-2.5 bg-surface-container-lowest rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none font-body-sm text-body-sm text-on-surface cursor-pointer"
+              >
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="DRAFT">Bản nháp</option>
+                <option value="PUBLISHED">Đã công bố</option>
+                <option value="ARCHIVED">Đã lưu trữ</option>
+              </select>
+              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[20px] pointer-events-none">expand_more</span>
+            </div>
+            {(statusFilter !== "ALL" || searchQuery) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter("ALL");
+                  setSearchQuery("");
+                }}
+              >
+                Đặt lại
+              </Button>
+            )}
           </div>
 
           {/* Messages */}
@@ -207,6 +268,25 @@ export default function PeriodsPage() {
               <div className="p-8 text-center text-on-surface-variant">
                 <span className="material-symbols-outlined text-[48px] text-outline">calendar_month</span>
                 <p className="mt-2 text-body-sm">Chưa có kỳ lịch nào. Hãy tạo kỳ lịch đầu tiên.</p>
+                <Button onClick={openCreateModal} className="mt-4">
+                  <span className="material-symbols-outlined text-[20px]">add</span>
+                  Tạo kỳ lịch
+                </Button>
+              </div>
+            ) : filteredPeriods.length === 0 ? (
+              <div className="p-8 text-center text-on-surface-variant">
+                <span className="material-symbols-outlined text-[48px] text-outline">filter_list_off</span>
+                <p className="mt-2 text-body-sm">Không có kỳ lịch nào khớp với bộ lọc.</p>
+                <Button
+                  variant="ghost"
+                  className="mt-4"
+                  onClick={() => {
+                    setStatusFilter("ALL");
+                    setSearchQuery("");
+                  }}
+                >
+                  Đặt lại bộ lọc
+                </Button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -221,7 +301,7 @@ export default function PeriodsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant">
-                    {periods.map((p) => (
+                    {filteredPeriods.map((p) => (
                       <tr key={p.id} className="hover:bg-surface-container-lowest transition-colors h-12">
                         <td className="py-2 px-4 text-on-surface font-label-md">{p.periodName}</td>
                         <td className="py-2 px-4 text-on-surface font-label-md">{formatDate(p.startDate)}</td>
