@@ -150,3 +150,54 @@ BUILD SUCCESS
 - Auto-commit đã tạo 2 commits riêng cho từng task (chore(task): archive ...).
 
 **Lines used**: ~130 / 2000
+
+---
+
+## 2026-06-18→19 — FE refactor + E2E + 4 follow-up phases (9 commits)
+
+### 4 trang shift-type refactor → DRY
+Phát hiện 4 trang (M02/M03/M04/M05: duty-24, all-day, service-clinic, expert-clinic) có ~95% boilerplate giống nhau (period selector, shiftTypeId filter, KPI grid, calendar, add modal, error handling). Refactor thành 1 `ScheduleByTypePage` component với config-driven API.
+
+| # | Commit | Mô tả |
+|---|---|---|
+| 470d5bb | refactor: extract shared ScheduleByTypePage + 10 unit tests | 3 trang đầu (L01-L03) |
+| 02ebee3 | refactor: fold expert-clinic page vào shared | M05 với specialty filter mode |
+
+**Net saving**: ~700 LOC duplicate (4 trang × 226 LOC → 4 trang × 23 LOC + 1 shared ~390 LOC).
+
+### E2E infrastructure
+| # | Commit | Mô tả |
+|---|---|---|
+| 18fbdc2 | chore: enable Playwright webServer + smoke E2E | Bật webServer trỏ `pnpm start`, tạo smoke test, thêm CI jobs |
+| 9549003 | test: 9 E2E specs (576 LOC) | Commit 9 spec files đã có sẵn (auto-scheduling, login, navigation, reports, requests, schedule, staff, system) |
+
+**CI workflow mới**: 3 jobs song song — `test` (lint+tsc), `unit` (vitest), `e2e` (playwright). E2E job tự install Chromium, build, run, upload report.
+
+### Working tree hygiene
+| # | Commit | Mô tả |
+|---|---|---|
+| 6e62540 | chore(gitignore): drop Trellis/design/credentials | 9 entries mới: `.trellis/`, `AGENTS.md`, `design-system/`, `health.json`, **`login_body.json`** (chứa admin/admin123!), test reports |
+
+### 4 follow-up phases theo yêu cầu
+| # | Commit | Phase |
+|---|---|---|
+| e04e9d0 | test(e2e): move hardcoded admin to env/fixture | Tạo `tests/e2e/fixtures/auth.fixture.ts`, refactor 8 specs dùng env vars `E2E_USERNAME`/`E2E_PASSWORD`. CI đọc từ secrets. |
+| 09cbdf6 | chore: drop ignoreBuildErrors | Xóa `typescript: { ignoreBuildErrors: true }`. Verify: `tsc --noEmit` 0 errors, `next build` PASS, vitest 98/98 PASS. |
+| d305fd7 | test: cover 6 endpoints for 4 pages | 7 tests pin URL shape: `/periods`, `/staff/active`, `/schedules/period/{id}`, `/compensation-days/{id}`, `/expert-clinic?periodId=…[&specialtyId=…]`, `/specialties/active`. |
+| db0b168 | feat: optimistic insert + rollback | 3 callbacks mới (`onOptimisticAdd`/`onCommit`/`onRollback`). Temp id = `-Date.now()` (negative space). 7 unit tests cover full flow + legacy path + compensation guard. |
+
+### Patterns mới phát hiện (sẽ update spec)
+1. **Config-driven shared page**: 1 component nhiều wrapper, dễ onboard trang mới
+2. **Optimistic mutation contract**: 3 callbacks (optimistic/commit/rollback) — generic, có thể áp dụng cho QuickEditModal, QuickDeleteModal
+3. **E2E auth fixture pattern**: env-based credentials, no-op nếu form không hiện
+4. **URL/param pinning tests**: bảo vệ contract giữa API client và page consumer
+
+### Final test counts
+```
+vitest:  8 files, 112 tests, 100% pass (98 → 105 → 112)
+E2E:     10 files, ~25 specs (1 smoke + 9 functional)
+TS:      0 errors (no ignoreBuildErrors)
+build:   next build PASS
+```
+
+**Lines used**: ~200 / 2000
