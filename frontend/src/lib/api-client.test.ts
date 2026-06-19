@@ -294,3 +294,98 @@ describe('getErrorMessage', () => {
     expect(getErrorMessage(undefined, 'Fallback')).toBe('Fallback');
   });
 });
+
+/**
+ * The 4 refactored shift-type pages (M02..M05) all funnel through
+ * the same handful of ApiClient methods. The tests below pin the
+ * exact URL / param shape for each one so a future refactor of
+ * api-client.ts cannot silently break the page contract.
+ */
+describe('ApiClient methods used by the 4 refactored shift-type pages', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorageMock.getItem.mockReturnValue(null);
+    mockFetch.mockReset();
+  });
+
+  function mockOk(data: unknown) {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ success: true, data }),
+    });
+  }
+
+  it('getPeriods() hits /periods', async () => {
+    const { api } = await import('@/lib/api');
+    mockOk([{ id: 1, periodName: 'Tháng 6', status: 'DRAFT' }]);
+
+    const periods = await api.get('/periods');
+
+    expect(mockFetch.mock.calls[0][0]).toMatch(/\/periods$/);
+    expect(periods).toHaveLength(1);
+  });
+
+  it('getActiveStaff() hits /staff/active', async () => {
+    const { api } = await import('@/lib/api');
+    mockOk([{ id: 1, fullName: 'BS. A' }]);
+
+    await api.get('/staff/active');
+
+    expect(mockFetch.mock.calls[0][0]).toMatch(/\/staff\/active$/);
+  });
+
+  it('getSchedulesByPeriod() hits /schedules/period/{id}', async () => {
+    const { api } = await import('@/lib/api');
+    mockOk([{ id: 100, workDate: '2026-06-10' }]);
+
+    await api.get('/schedules/period/1');
+
+    expect(mockFetch.mock.calls[0][0]).toMatch(/\/schedules\/period\/1$/);
+  });
+
+  it('getCompensationDays() hits /schedules/compensation-days/{id}', async () => {
+    const { api } = await import('@/lib/api');
+    mockOk([{ id: 1, staffName: 'BS. A', compensationDate: '2026-06-11' }]);
+
+    await api.get('/schedules/compensation-days/1');
+
+    expect(mockFetch.mock.calls[0][0]).toMatch(/\/schedules\/compensation-days\/1$/);
+  });
+
+  it('getExpertClinicSchedules(periodId) hits /schedules/expert-clinic with periodId', async () => {
+    const { api } = await import('@/lib/api');
+    mockOk([{ id: 200 }]);
+
+    await api.get('/schedules/expert-clinic', { periodId: 7 });
+
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toMatch(/\/schedules\/expert-clinic/);
+    expect(url).toContain('periodId=7');
+    // No specialty filter means no specialtyId param.
+    expect(url).not.toContain('specialtyId');
+  });
+
+  it('getExpertClinicSchedules(periodId, specialtyId) appends specialtyId', async () => {
+    const { api } = await import('@/lib/api');
+    mockOk([{ id: 200 }]);
+
+    await api.get('/schedules/expert-clinic', {
+      periodId: 7,
+      specialtyId: 3,
+    });
+
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toMatch(/\/schedules\/expert-clinic/);
+    expect(url).toContain('periodId=7');
+    expect(url).toContain('specialtyId=3');
+  });
+
+  it('getActiveSpecialties() hits /specialties/active (used only by expert-clinic mode)', async () => {
+    const { api } = await import('@/lib/api');
+    mockOk([{ id: 1, name: 'Nội khoa', active: true }]);
+
+    await api.get('/specialties/active');
+
+    expect(mockFetch.mock.calls[0][0]).toMatch(/\/specialties\/active$/);
+  });
+});
