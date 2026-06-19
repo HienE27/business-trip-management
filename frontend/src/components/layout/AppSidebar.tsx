@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { NavigationItem } from "@/types/schedule";
 import { ConflictBadge } from "@/components/realtime/ConflictBadge";
 
@@ -11,6 +12,9 @@ type AppSidebarProps = {
 };
 
 export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarProps) {
+  const pathname = usePathname();
+  const isSettingsActive = pathname === "/settings" || pathname?.startsWith("/settings/");
+  const isProfileActive = pathname === "/staff/profile";
   return (
     <>
       {/* Mobile overlay */}
@@ -82,14 +86,19 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
           <div className="mt-auto px-3 pt-4 shrink-0">
             <div className="border-t border-outline-variant">
               {[
-                { label: "Cài đặt", icon: "settings", href: "/settings" },
-                { label: "Hồ sơ cá nhân", icon: "person", href: "/staff/profile" },
+                { label: "Cài đặt", icon: "settings", href: "/settings", isActive: isSettingsActive },
+                { label: "Hồ sơ cá nhân", icon: "person", href: "/staff/profile", isActive: isProfileActive },
               ].map((item) => (
                 <Link
-                  className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all font-medium text-body-sm"
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all font-medium text-body-sm ${
+                    item.isActive
+                      ? "bg-primary text-on-primary border-l-4 border-primary font-semibold"
+                      : "text-on-surface-variant hover:bg-surface-container-high"
+                  }`}
                   href={item.href}
                   key={item.href}
                   onClick={onClose}
+                  aria-current={item.isActive ? "page" : undefined}
                 >
                   <span aria-hidden="true" className="material-symbols-outlined text-[20px] shrink-0">
                     {item.icon}
