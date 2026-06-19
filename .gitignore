@@ -209,3 +209,4 @@ login_body.json
 test-report/
 frontend/test-results/
 frontend/playwright-report/
+/screenshots/
