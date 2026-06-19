@@ -109,6 +109,28 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     void loadBaseData();
   }, [loadBaseData]);
 
+  /**
+   * Optimistic insert helpers. We add the temp schedule straight
+   * into the local `schedules` array so the calendar updates
+   * immediately. On success we swap the temp id for the real
+   * one returned by the backend; on failure we remove it.
+   * The temp id is always negative so it cannot collide with a
+   * real schedule id from the server.
+   */
+  const handleOptimisticAdd = useCallback((tempSchedule: Schedule) => {
+    setSchedules((prev) => [tempSchedule, ...prev]);
+  }, []);
+
+  const handleCommit = useCallback((tempId: number, realSchedule: Schedule) => {
+    setSchedules((prev) =>
+      prev.map((s) => (s.id === tempId ? realSchedule : s))
+    );
+  }, []);
+
+  const handleRollback = useCallback((tempId: number) => {
+    setSchedules((prev) => prev.filter((s) => s.id !== tempId));
+  }, []);
+
   const selectedPeriod = useMemo(
     () => periods.find((p) => p.id === selectedPeriodId) ?? null,
     [periods, selectedPeriodId]
@@ -394,6 +416,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           defaultShiftTypeId={config.shiftTypeId}
           staffList={activeStaff}
           compensationDays={compensationDays}
+          onOptimisticAdd={handleOptimisticAdd}
+          onCommit={handleCommit}
+          onRollback={handleRollback}
           onSuccess={handleRefresh}
           onClose={() => setAddModalDate(null)}
         />
