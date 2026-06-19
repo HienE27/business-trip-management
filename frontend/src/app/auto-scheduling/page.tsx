@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { WorkflowShell } from "@/components/layout/WorkflowShell";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -17,6 +17,7 @@ import { getErrorMessage } from "@/lib/errors";
 import type { SchedulePeriod, Staff, AlgorithmMetrics, ReplacementSuggestion, AutoScheduleSummary, ShiftType, ScheduleTemplate, TemplatePreviewItem } from "@/types/api";
 import { WorkloadChart } from "@/components/auto-scheduling/WorkloadChart";
 import { AlgorithmBalanceChart } from "@/components/auto-scheduling/AlgorithmBalanceChart";
+import { UnassignedReportCard } from "@/components/auto-scheduling/UnassignedReportCard";
 
 type AlgoType = "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING";
 
@@ -25,94 +26,6 @@ const ALGO_OPTIONS: { id: AlgoType; label: string; desc: string }[] = [
   { id: "ROUND_ROBIN", label: "Luân phiên (Round Robin)", desc: "Chia đều số ca, cân bằng tải." },
   { id: "BACKTRACKING", label: "Backtracking", desc: "Tìm kiếm sâu hơn, tối ưu hơn nhưng chậm hơn." },
 ];
-
-function UnassignedReportCard({ periodId }: { periodId: number | null }) {
-  const [report, setReport] = useState<{
-    totalUnassignedDays: number;
-    unassignedDays: Array<{
-      workDate: string;
-      dayOfWeek: string;
-      shiftTypeId: string;
-      shiftTypeName: string;
-      requiredStaffCount: number;
-      assignedStaffCount: number;
-      missingCount: number;
-    }>;
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const ignoreRef = useRef(false);
-
-  const load = useCallback(() => {
-    if (!periodId) return;
-    ignoreRef.current = false;
-    setLoading(true);
-    setMessage(null);
-    api.getUnassignedDaysReport(periodId)
-      .then((data) => { if (!ignoreRef.current && data) setReport(data); })
-      .catch(() => { if (!ignoreRef.current) { setReport(null); setMessage("Không thể tải báo cáo ngày chưa phân công."); }})
-      .finally(() => { if (!ignoreRef.current) setLoading(false); });
-  }, [periodId]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  if (loading) return <Skeleton className="h-24 rounded-xl" />;
-  if (message) {
-    return (
-      <div className="rounded-xl border border-error-container bg-error-container/10 p-5 flex items-center gap-3">
-        <span className="material-symbols-outlined text-error text-[22px]">error</span>
-        <p className="text-body-sm text-error">{message}</p>
-      </div>
-    );
-  }
-  if (!report || report.totalUnassignedDays == null || report.totalUnassignedDays === 0) {
-    return (
-      <div className="rounded-xl border border-secondary-container bg-secondary-container/10 p-5 flex items-center gap-3">
-        <span className="material-symbols-outlined text-secondary text-[22px]">check_circle</span>
-        <p className="text-body-sm text-on-surface">
-          Tất cả các ca trong kỳ đã được phân công đủ.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-xl border border-error-container bg-error-container/10 p-5">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-error text-[20px]">warning</span>
-          <h3 className="font-label-md font-bold text-error">
-            {report.totalUnassignedDays} ngày chưa phân đủ nhân sự
-          </h3>
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="text-label-sm text-primary hover:underline"
-        >
-          Làm mới
-        </button>
-      </div>
-      <div className="space-y-2 max-h-48 overflow-y-auto">
-        {(report.unassignedDays ?? []).map((day, i) => (
-          <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-surface-container-lowest border border-outline-variant/30">
-            <span className="text-label-sm text-on-surface font-semibold w-20 shrink-0">
-              {formatDate(day.workDate)}
-            </span>
-            <span className="text-label-sm text-on-surface-variant">{day.dayOfWeek}</span>
-            <span className="text-label-sm text-primary px-2 py-0.5 bg-primary-fixed rounded shrink-0">
-              {day.shiftTypeName}
-            </span>
-            <span className="text-label-sm text-on-surface ml-auto">
-              <span className="font-bold text-error">{day.missingCount}</span>
-              <span className="text-on-surface-variant">/{day.requiredStaffCount}</span>
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function MetricsHistorySection({ periodId }: { periodId: number | null }) {
   const [metrics, setMetrics] = useState<AlgorithmMetrics[]>([]);
