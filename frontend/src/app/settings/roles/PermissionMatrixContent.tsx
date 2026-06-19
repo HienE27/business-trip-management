@@ -34,23 +34,18 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const PERM_LABELS: Record<string, string> = {
-  "SCHEDULE_VIEW":       "Xem lịch",
-  "SCHEDULE_MANAGE":     "Xếp lịch",
-  "SCHEDULE_PUBLISH":    "Công bố lịch",
-  "SCHEDULE_EXPORT":     "Xuất báo cáo lịch",
-  "SWAP_REQUEST":        "Gửi yêu cầu đổi ca",
-  "SWAP_APPROVE":        "Duyệt đổi ca",
-  "LEAVE_VIEW":          "Xem đơn nghỉ",
-  "LEAVE_CREATE":        "Tạo đơn nghỉ",
-  "LEAVE_APPROVE":       "Duyệt đơn nghỉ",
-  "STAFF_VIEW":          "Xem nhân sự",
-  "STAFF_MANAGE":        "Quản lý nhân sự",
-  "AUTO_SCHEDULE_RUN":   "Chạy tự động sắp xếp",
-  "AUTO_SCHEDULE_CONFIG":"Cấu hình thuật toán",
-  "REPORT_VIEW":         "Xem báo cáo",
-  "REPORT_EXPORT":       "Xuất báo cáo",
-  "SYSTEM_CONFIG":       "Cấu hình hệ thống",
-  "AUDIT_VIEW":          "Xem nhật ký",
+  // From DB seed: hospital_scheduler_business_final.sql
+  "STAFF_READ":             "Xem danh sách nhân sự",
+  "STAFF_WRITE":            "Thêm/sửa/xóa nhân sự",
+  "SCHEDULE_READ":          "Xem lịch trực",
+  "SCHEDULE_WRITE":         "Tạo/sửa/xóa lịch trực",
+  "SCHEDULE_PUBLISH":       "Công bố lịch trực",
+  "LEAVE_REQUEST_CREATE":   "Tạo yêu cầu nghỉ",
+  "LEAVE_REQUEST_REVIEW":   "Duyệt/từ chối yêu cầu nghỉ",
+  "SCHEDULE_EXCHANGE_CREATE": "Tạo yêu cầu đổi ca",
+  "SCHEDULE_EXCHANGE_REVIEW": "Duyệt/từ chối yêu cầu đổi ca",
+  "CONFIG_MANAGE":          "Quản lý cấu hình thuật toán",
+  "AUDIT_READ":             "Xem lịch sử thay đổi",
 };
 
 export function PermissionMatrixContent() {

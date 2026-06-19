@@ -16,16 +16,16 @@ const mockMatrix = {
     { id: 3, name: 'STAFF',   description: 'Staff',  isActive: true },
   ],
   permissions: [
-    { id: 1, name: 'SCHEDULE_VIEW',    description: 'View schedule' },
-    { id: 2, name: 'SCHEDULE_MANAGE',  description: 'Manage schedule' },
+    { id: 1, name: 'SCHEDULE_READ',            description: 'View schedule' },
+    { id: 2, name: 'SCHEDULE_WRITE',            description: 'Manage schedule' },
   ],
   matrix: [
-    { roleId: 1, roleName: 'ADMIN',   permissionId: 1, permissionName: 'SCHEDULE_VIEW',   granted: true },
-    { roleId: 1, roleName: 'ADMIN',   permissionId: 2, permissionName: 'SCHEDULE_MANAGE', granted: true },
-    { roleId: 2, roleName: 'MANAGER', permissionId: 1, permissionName: 'SCHEDULE_VIEW',   granted: true },
-    { roleId: 2, roleName: 'MANAGER', permissionId: 2, permissionName: 'SCHEDULE_MANAGE', granted: false },
-    { roleId: 3, roleName: 'STAFF',   permissionId: 1, permissionName: 'SCHEDULE_VIEW',   granted: false },
-    { roleId: 3, roleName: 'STAFF',   permissionId: 2, permissionName: 'SCHEDULE_MANAGE', granted: false },
+    { roleId: 1, roleName: 'ADMIN',   permissionId: 1, permissionName: 'SCHEDULE_READ',  granted: true },
+    { roleId: 1, roleName: 'ADMIN',   permissionId: 2, permissionName: 'SCHEDULE_WRITE', granted: true },
+    { roleId: 2, roleName: 'MANAGER', permissionId: 1, permissionName: 'SCHEDULE_READ',  granted: true },
+    { roleId: 2, roleName: 'MANAGER', permissionId: 2, permissionName: 'SCHEDULE_WRITE', granted: false },
+    { roleId: 3, roleName: 'STAFF',   permissionId: 1, permissionName: 'SCHEDULE_READ',  granted: false },
+    { roleId: 3, roleName: 'STAFF',   permissionId: 2, permissionName: 'SCHEDULE_WRITE', granted: false },
   ],
 };
 
@@ -60,8 +60,8 @@ describe('PermissionMatrixContent', () => {
     expect(screen.getByText('Quản trị viên')).toBeInTheDocument();
     expect(screen.getByText('Quản lý')).toBeInTheDocument();
     expect(screen.getByText('Nhân viên')).toBeInTheDocument();
-    expect(screen.getByText('Xem lịch')).toBeInTheDocument();
-    expect(screen.getByText('Xếp lịch')).toBeInTheDocument();
+    expect(screen.getByText('Xem lịch trực')).toBeInTheDocument();
+    expect(screen.getByText('Tạo/sửa/xóa lịch trực')).toBeInTheDocument();
   });
 
   it('renders one toggle button per role x permission cell', async () => {
