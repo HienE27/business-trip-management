@@ -212,7 +212,7 @@ class ScheduleServiceTest {
             when(shiftTypeRepository.findById("L02")).thenReturn(Optional.of(shiftL02));
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
                     1, 1, "L02", LocalDate.of(2026, 6, 15))).thenReturn(Optional.empty());
-            doNothing().when(conflictDetectionService).validateAndThrow(anyInt(), any(), any(), any(), anyInt());
+            doNothing().when(conflictDetectionService).validateAndThrowWithEmail(anyInt(), any(), any(), any(), anyInt());
             when(scheduleRepository.save(any(Schedule.class)))
                     .thenAnswer(inv -> {
                         Schedule s = inv.getArgument(0);
@@ -289,7 +289,7 @@ class ScheduleServiceTest {
         }
 
         @Test
-        @DisplayName("Có xung đột -> throw ConflictException")
+        @DisplayName("Co xung dot -> throw ConflictException")
         void hasConflict_shouldThrow() {
             ScheduleRequest request = ScheduleRequest.builder()
                     .periodId(1).staffId(1).shiftTypeId("L01")
@@ -301,7 +301,7 @@ class ScheduleServiceTest {
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
                     1, 1, "L01", LocalDate.of(2026, 6, 15))).thenReturn(Optional.empty());
             doThrow(new ConflictException("Phát hiện xung đột"))
-                    .when(conflictDetectionService).validateAndThrow(anyInt(), any(), any(), any(), anyInt());
+                    .when(conflictDetectionService).validateAndThrowWithEmail(anyInt(), any(), any(), any(), anyInt());
 
             assertThatThrownBy(() -> scheduleService.createSchedule(request))
                     .isInstanceOf(ConflictException.class)
@@ -345,7 +345,7 @@ class ScheduleServiceTest {
             when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(shiftL01));
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
                     1, 1, "L01", LocalDate.of(2026, 6, 1))).thenReturn(Optional.empty());
-            doNothing().when(conflictDetectionService).validateAndThrow(anyInt(), any(), any(), any(), anyInt());
+            doNothing().when(conflictDetectionService).validateAndThrowWithEmail(anyInt(), any(), any(), any(), anyInt());
             when(scheduleRepository.save(any(Schedule.class)))
                     .thenAnswer(inv -> {
                         Schedule s = inv.getArgument(0);
@@ -380,7 +380,7 @@ class ScheduleServiceTest {
             when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(shiftL01));
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
                     1, 1, "L01", LocalDate.of(2026, 6, 1))).thenReturn(Optional.empty());
-            doNothing().when(conflictDetectionService).validateAndThrow(anyInt(), any(), any(), any(), anyInt());
+            doNothing().when(conflictDetectionService).validateAndThrowWithEmail(anyInt(), any(), any(), any(), anyInt());
             when(scheduleRepository.save(any(Schedule.class)))
                     .thenAnswer(inv -> {
                         Schedule s = inv.getArgument(0);
@@ -421,7 +421,7 @@ class ScheduleServiceTest {
 
             when(scheduleRepository.findById(100)).thenReturn(Optional.of(testSchedule));
             when(shiftTypeRepository.findById("L03")).thenReturn(Optional.of(shiftL03));
-            doNothing().when(conflictDetectionService).validateAndThrow(anyInt(), any(), any(), anyInt(), anyInt());
+            doNothing().when(conflictDetectionService).validateAndThrowWithEmail(anyInt(), any(), any(), anyInt(), anyInt());
             when(scheduleRepository.save(any(Schedule.class)))
                     .thenAnswer(inv -> inv.getArgument(0));
             when(authContextService.getCurrentStaff()).thenReturn(adminStaff);
@@ -464,7 +464,7 @@ class ScheduleServiceTest {
 
             when(scheduleRepository.findById(100)).thenReturn(Optional.of(testSchedule));
             when(shiftTypeRepository.findById("L02")).thenReturn(Optional.of(shiftL02));
-            doNothing().when(conflictDetectionService).validateAndThrow(anyInt(), any(), any(), anyInt(), anyInt());
+            doNothing().when(conflictDetectionService).validateAndThrowWithEmail(anyInt(), any(), any(), anyInt(), anyInt());
             when(scheduleRepository.save(any(Schedule.class)))
                     .thenAnswer(inv -> inv.getArgument(0));
             when(authContextService.getCurrentStaff()).thenReturn(adminStaff);
@@ -494,7 +494,7 @@ class ScheduleServiceTest {
             when(scheduleRepository.findById(100)).thenReturn(Optional.of(testSchedule));
             when(staffRepository.findById(3)).thenReturn(Optional.of(newStaff));
             when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(shiftL01));
-            doNothing().when(conflictDetectionService).validateAndThrow(anyInt(), any(), any(), anyInt(), anyInt());
+            doNothing().when(conflictDetectionService).validateAndThrowWithEmail(anyInt(), any(), any(), anyInt(), anyInt());
             when(scheduleRepository.save(any(Schedule.class)))
                     .thenAnswer(inv -> inv.getArgument(0));
             when(authContextService.getCurrentStaff()).thenReturn(adminStaff);
@@ -522,7 +522,7 @@ class ScheduleServiceTest {
 
             when(scheduleRepository.findById(100)).thenReturn(Optional.of(testSchedule));
             doThrow(new ConflictException("Trùng loại ca"))
-                    .when(conflictDetectionService).validateAndThrow(anyInt(), any(), any(), anyInt(), anyInt());
+                    .when(conflictDetectionService).validateAndThrowWithEmail(anyInt(), any(), any(), anyInt(), anyInt());
 
             assertThatThrownBy(() -> scheduleService.updateSchedule(100, request))
                     .isInstanceOf(ConflictException.class)

@@ -27,8 +27,10 @@ DROP TABLE IF EXISTS compensation_day;
 DROP TABLE IF EXISTS schedule;
 DROP TABLE IF EXISTS leave_request;
 DROP TABLE IF EXISTS shift_requirement;
+DROP TABLE IF EXISTS schedule_template;
 DROP TABLE IF EXISTS schedule_period;
 DROP TABLE IF EXISTS shift_type;
+DROP TABLE IF EXISTS holiday;
 DROP TABLE IF EXISTS staff_role;
 DROP TABLE IF EXISTS role_permission;
 DROP TABLE IF EXISTS app_permission;
@@ -489,7 +491,6 @@ CREATE TABLE algorithm_metrics (
 -- =====================================================
 -- SCHEDULE TEMPLATE (M07-F10: Luu & tai su dung mau lich)
 -- =====================================================
-DROP TABLE IF EXISTS schedule_template;
 
 CREATE TABLE schedule_template (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -512,6 +513,27 @@ CREATE TABLE schedule_template (
         CHECK (day_of_week BETWEEN 1 AND 7),
     CONSTRAINT chk_template_required_staff
         CHECK (required_staff_count >= 1)
+) ENGINE=InnoDB;
+
+-- =====================================================
+-- HOLIDAY (M01-F04: Quan ly ngay le)
+-- =====================================================
+
+CREATE TABLE holiday (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    holiday_date DATE NOT NULL UNIQUE,
+    year INT NOT NULL,
+    is_national_holiday TINYINT(1) NULL,
+    description TEXT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_holiday_date (holiday_date),
+    INDEX idx_holiday_year (year),
+    INDEX idx_holiday_active (is_active)
 ) ENGINE=InnoDB;
 
 -- =====================================================
@@ -559,6 +581,8 @@ CREATE INDEX idx_template_day ON schedule_template(day_of_week);
 CREATE INDEX idx_template_specialty ON schedule_template(specialty_id);
 
 CREATE INDEX idx_system_log_staff ON system_log(staff_id);
+CREATE INDEX idx_system_log_created ON system_log(created_at);
+CREATE INDEX idx_system_log_action ON system_log(action_type);
 CREATE INDEX idx_system_log_created ON system_log(created_at);
 CREATE INDEX idx_system_log_action ON system_log(action_type);
 

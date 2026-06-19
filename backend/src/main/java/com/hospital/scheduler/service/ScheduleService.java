@@ -120,7 +120,8 @@ public class ScheduleService {
                     throw new ConflictException("Nhân sự đã được phân công ca này trong ngày");
                 });
 
-        conflictDetectionService.validateAndThrow(
+        // Validate conflicts and send email alert if conflicts are found
+        conflictDetectionService.validateAndThrowWithEmail(
                 request.getStaffId(),
                 request.getWorkDate(),
                 request.getShiftTypeId(),
@@ -214,7 +215,7 @@ public class ScheduleService {
 
         // CRITICAL FIX: Run conflict validation BEFORE mutating the entity. Use raw request
         // values so the check sees the new staff, new date, and new shift type together.
-        conflictDetectionService.validateAndThrow(
+        conflictDetectionService.validateAndThrowWithEmail(
                 targetStaffId, targetWorkDate, targetShiftTypeId, id, targetPeriod.getId());
 
         // Validation passed — now commit the new state.

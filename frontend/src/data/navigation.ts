@@ -10,6 +10,7 @@ export type AppSectionKey =
   | "staff"
   | "leave-requests"
   | "shift-swaps"
+  | "requirements"
   | "auto-scheduling"
   | "reports"
   | "holidays"
@@ -97,6 +98,13 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     description: "Quản lý yêu cầu đổi trực, đánh giá rủi ro và phê duyệt trên lịch đã công bố.",
   },
   {
+    key: "requirements",
+    label: "Yêu cầu nhân sự",
+    href: "/requirements",
+    icon: "assignment",
+    description: "M07-F01 — Cấu hình số nhân sự cần thiết cho từng ngày và loại ca trong kỳ lịch.",
+  },
+  {
     key: "reports",
     label: "Báo cáo",
     href: "/reports",
@@ -148,6 +156,7 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/conflict-check": "monthly-schedule",
   "/leave-requests": "leave-requests",
   "/swap-requests": "shift-swaps",
+  "/requirements": "requirements",
   "/reports": "reports",
   "/reports/monthly": "reports",
   "/reports/staff": "reports",

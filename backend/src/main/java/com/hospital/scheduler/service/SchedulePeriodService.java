@@ -120,6 +120,13 @@ public class SchedulePeriodService {
             throw new BadRequestException("Kỳ lịch có xung đột, không thể công bố: " + msg);
         }
 
+        // Warn if there are coverage gaps but do not block publication
+        if (conflictCheck.isHasCoverageGaps()) {
+            org.slf4j.LoggerFactory.getLogger(SchedulePeriodService.class)
+                    .warn("Publishing period {} with {} coverage gaps: {}",
+                            id, conflictCheck.getTotalCoverageGaps(), conflictCheck.getCoverageGaps());
+        }
+
         Staff publishedBy = null;
         if (publishedById != null) {
             publishedBy = staffRepository.findById(publishedById).orElse(null);

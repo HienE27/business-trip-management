@@ -87,6 +87,19 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
     @Query("SELECT COUNT(s) FROM Schedule s WHERE s.staff.id = :staffId AND s.period.id = :periodId")
     long countByStaffIdAndPeriodId(@Param("staffId") Integer staffId, @Param("periodId") Integer periodId);
 
+    @Query("SELECT COUNT(s) FROM Schedule s WHERE s.staff.id = :staffId AND s.period.id = :periodId AND s.shiftType.id = :shiftTypeId")
+    long countByStaffIdAndPeriodIdAndShiftTypeId(
+            @Param("staffId") Integer staffId,
+            @Param("periodId") Integer periodId,
+            @Param("shiftTypeId") String shiftTypeId);
+
+    @Query("SELECT COUNT(s) FROM Schedule s WHERE s.staff.id = :staffId AND s.period.id = :periodId AND s.shiftType.id = :shiftTypeId AND s.id <> :excludeScheduleId")
+    long countByStaffIdAndPeriodIdAndShiftTypeIdExcluding(
+            @Param("staffId") Integer staffId,
+            @Param("periodId") Integer periodId,
+            @Param("shiftTypeId") String shiftTypeId,
+            @Param("excludeScheduleId") Integer excludeScheduleId);
+
     @Query("SELECT COUNT(s) FROM Schedule s WHERE s.staff.id = :staffId AND s.period.id = :periodId AND s.id <> :excludeScheduleId")
     long countByStaffIdAndPeriodIdExcluding(@Param("staffId") Integer staffId, @Param("periodId") Integer periodId, @Param("excludeScheduleId") Integer excludeScheduleId);
 
