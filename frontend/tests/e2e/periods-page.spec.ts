@@ -89,13 +89,12 @@ test.describe('Periods Page (M02 — Kỳ lịch công tác)', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);
 
-    const periodsLink = page.locator('aside a, nav a').filter({ hasText: /kỳ lịch công tác/i }).first();
+    // Locate by href for stability against parallel test interference
+    const periodsLink = page.locator('aside a[href="/periods"], nav a[href="/periods"]').first();
     await expect(periodsLink).toBeVisible();
     await periodsLink.click();
 
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(1000);
-
-    expect(page.url()).toContain('/periods');
+    await page.waitForURL((url) => url.pathname === '/periods', { timeout: 10_000 });
+    expect(new URL(page.url()).pathname).toBe('/periods');
   });
 });
