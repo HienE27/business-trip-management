@@ -249,7 +249,7 @@ public class DataSeeder implements CommandLineRunner {
         Specialty nurse = specialtyRepository.findByName("Điều dưỡng").orElse(null);
 
         // ── 1. June 2026 — PUBLISHED ─────────────────────────────────────────
-        if (periodRepository.findByStartDateAndEndDate(LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30)).isEmpty()) {
+        if (periodRepository.findAllByStartDateAndEndDate(LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30)).isEmpty()) {
             SchedulePeriod period = SchedulePeriod.builder()
                     .periodName("Kỳ tháng 06/2026")
                     .startDate(LocalDate.of(2026, 6, 1))
@@ -333,7 +333,7 @@ public class DataSeeder implements CommandLineRunner {
         }
 
         // ── 2. July 2026 — DRAFT (for M07 auto-scheduling) ─────────────────
-        if (periodRepository.findByStartDateAndEndDate(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)).isEmpty()) {
+        if (periodRepository.findAllByStartDateAndEndDate(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)).isEmpty()) {
             SchedulePeriod draftPeriod = SchedulePeriod.builder()
                     .periodName("Kỳ tháng 07/2026")
                     .startDate(LocalDate.of(2026, 7, 1))
