@@ -88,6 +88,38 @@ describe('conflictReducer', () => {
       expect(next.unresolvedCount).toBe(0);
       expect(next.lastEventWasNew).toBe(false);
     });
+
+    it('dedupes a back-to-back CONFLICT_BATCH with the same periodId + totalConflicts (server re-broadcast)', () => {
+      const once = conflictReducer(initialConflictState, {
+        type: 'ADD_CONFLICT',
+        event: baseBatchEvent,
+      });
+      const twice = conflictReducer(once, {
+        type: 'ADD_CONFLICT',
+        event: {
+          ...baseBatchEvent,
+          // The server typically reuses conflictId=0 for every batch
+          // and only changes the timestamp.
+          timestamp: '2026-06-15T10:05:00Z',
+        },
+      });
+      // A duplicate snapshot must not grow the count or recentEvents.
+      expect(twice.unresolvedCount).toBe(once.unresolvedCount);
+      expect(twice.recentEvents).toHaveLength(once.recentEvents.length);
+    });
+
+    it('treats a different periodId + totalConflicts as a new batch', () => {
+      const once = conflictReducer(initialConflictState, {
+        type: 'ADD_CONFLICT',
+        event: baseBatchEvent,
+      });
+      const next = conflictReducer(once, {
+        type: 'ADD_CONFLICT',
+        event: { ...baseBatchEvent, periodId: 8, totalConflicts: 2 },
+      });
+      expect(next.unresolvedCount).toBe(7);
+      expect(next.recentEvents).toHaveLength(2);
+    });
   });
 
   describe('CONFLICT_RESOLVED', () => {

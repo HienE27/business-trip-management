@@ -78,6 +78,21 @@ export function conflictReducer(
       // totalConflicts but we don't have IDs to dedupe later.
       if (event.eventType === 'CONFLICT_BATCH') {
         const bump = event.totalConflicts ?? 0;
+        // Dedupe: if the most recent event in recentEvents is also a
+        // CONFLICT_BATCH with the same periodId + totalConflicts, this
+        // is almost certainly the server re-broadcasting the current
+        // state (e.g. right after the client reconnects). Treat it as
+        // a no-op so we don't re-surface the same notification twice
+        // in a row.
+        const previousBatch = state.recentEvents[0];
+        if (
+          previousBatch &&
+          previousBatch.eventType === 'CONFLICT_BATCH' &&
+          previousBatch.periodId === event.periodId &&
+          previousBatch.totalConflicts === bump
+        ) {
+          return state;
+        }
         return {
           ...state,
           // Approximate: the seed endpoint refreshes the real set
