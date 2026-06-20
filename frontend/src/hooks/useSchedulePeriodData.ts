@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import type {
   CompensationDay,
   ConflictCheckResponse,
@@ -84,6 +86,10 @@ export function useSchedulePeriodData(
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  // Auto-dismiss transient messages after 5s so they don't linger on screen
+  // or survive a remount and confuse the user on re-entry.
+  useAutoDismiss(message, () => setMessage(null));
+
   // Guard khi component unmount trong lúc đang fetch
   const aliveRef = useRef(true);
   useEffect(() => {
@@ -92,6 +98,15 @@ export function useSchedulePeriodData(
       aliveRef.current = false;
     };
   }, []);
+
+  // Clear any stale banner when the user navigates to or away from this
+  // page. Without this, a success/error message set during a prior visit
+  // (or on a different page that shares the same hook) would still be
+  // visible when the user returns.
+  const pathname = usePathname();
+  useEffect(() => {
+    setMessage(null);
+  }, [pathname]);
 
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId) ?? null;
 
