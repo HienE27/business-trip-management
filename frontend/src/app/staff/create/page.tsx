@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { DashboardShell } from "@/components/layout/DashboardShell";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
@@ -34,6 +34,19 @@ const emptyForm: StaffFormData = {
 };
 
 export default function StaffCreatePage() {
+  return (
+    <RoleGuard
+      activeSection="staff"
+      title="Tạo mới nhân sự"
+      description="Thêm mới tài khoản nhân sự và phân quyền."
+      allow={["ADMIN", "MANAGER"]}
+    >
+      <StaffCreateContent />
+    </RoleGuard>
+  );
+}
+
+function StaffCreateContent() {
   const router = useRouter();
   const toast = useToast();
 
@@ -100,11 +113,7 @@ export default function StaffCreatePage() {
   }
 
   return (
-    <DashboardShell
-      activeSection="staff"
-      title="Tạo mới nhân sự"
-      description="Thêm mới tài khoản nhân sự và phân quyền."
-    >
+    <>
       <div className="flex items-center gap-3">
         <Link
           href="/staff"
@@ -307,6 +316,6 @@ export default function StaffCreatePage() {
           </article>
         </section>
       )}
-    </DashboardShell>
+    </>
   );
 }

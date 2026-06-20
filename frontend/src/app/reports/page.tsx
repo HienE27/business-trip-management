@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DashboardShell } from "@/components/layout/DashboardShell";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 
 const REPORT_CARDS = [
   {
@@ -32,10 +32,11 @@ const REPORT_CARDS = [
 
 export default function ReportsPage() {
   return (
-    <DashboardShell
+    <RoleGuard
       activeSection="reports"
       title="Báo cáo"
       description="Điểm vào trung tâm báo cáo vận hành: kỳ lịch, khối lượng nhân sự và xung đột."
+      allow={["ADMIN", "MANAGER"]}
     >
       <div className="space-y-4">
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3 shadow-sm">
@@ -68,6 +69,6 @@ export default function ReportsPage() {
           ))}
         </section>
       </div>
-    </DashboardShell>
+    </RoleGuard>
   );
 }

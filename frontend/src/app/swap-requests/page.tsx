@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { DashboardShell } from "@/components/layout/DashboardShell";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -745,10 +745,11 @@ function SwapRequestsContent() {
 
 export default function SwapRequestsPage() {
   return (
-    <DashboardShell
+    <RoleGuard
       activeSection="shift-swaps"
       title="Yêu cầu Đổi trực"
       description="Quản lý và xét duyệt các đề xuất thay đổi lịch trực từ nhân sự."
+      allow={["ADMIN", "MANAGER", "STAFF"]}
     >
       <Suspense fallback={
         <div className="flex items-center justify-center py-16">
@@ -757,6 +758,6 @@ export default function SwapRequestsPage() {
       }>
         <SwapRequestsContent />
       </Suspense>
-    </DashboardShell>
+    </RoleGuard>
   );
 }

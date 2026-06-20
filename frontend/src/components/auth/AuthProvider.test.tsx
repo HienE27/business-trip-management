@@ -73,7 +73,7 @@ beforeEach(() => {
   fetchMock.mockReset();
   // Default: /staff/me returns the sample staff with ADMIN role.
   mockedApi.get.mockResolvedValue(SAMPLE_STAFF_RESPONSE);
-  mockedApi.logout.mockResolvedValue(undefined);
+  mockedApi.logout.mockResolvedValue({} as never);
 });
 
 describe("useAuth — initial bootstrap", () => {

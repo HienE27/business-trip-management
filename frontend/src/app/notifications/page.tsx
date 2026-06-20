@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { DashboardShell } from "@/components/layout/DashboardShell";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
@@ -44,6 +44,19 @@ function getBadge(title: string) {
 }
 
 export default function NotificationsPage() {
+  return (
+    <RoleGuard
+      activeSection="notifications"
+      title="Thông báo"
+      description="Quản lý và theo dõi các luồng thông tin hệ thống, cảnh báo xếp lịch."
+      allow={["ADMIN", "MANAGER", "STAFF"]}
+    >
+      <NotificationsContent />
+    </RoleGuard>
+  );
+}
+
+function NotificationsContent() {
   const { user } = useAuth();
   const userId = user?.userId ?? null;
   const { refreshCount } = useNotifications();
@@ -155,11 +168,7 @@ export default function NotificationsPage() {
   }
 
   return (
-    <DashboardShell
-      activeSection="notifications"
-      description="Quản lý và theo dõi các luồng thông tin hệ thống, cảnh báo xếp lịch."
-      title="Trung tâm Thông báo"
-    >
+    <>
       <div className="flex flex-col gap-4 pb-6">
         {/* Header bar */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
@@ -371,6 +380,6 @@ export default function NotificationsPage() {
         confirmLabel="Xóa"
         variant="danger"
       />
-    </DashboardShell>
+    </>
   );
 }

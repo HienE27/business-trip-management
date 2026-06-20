@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { DashboardShell } from "@/components/layout/DashboardShell";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { Staff, Schedule } from "@/types/api";
@@ -47,6 +47,19 @@ const SHIFT_BORDER: Record<string, string> = {
 };
 
 export default function StaffDetailPage() {
+  return (
+    <RoleGuard
+      activeSection="staff"
+      title="Chi tiết nhân sự"
+      description="Hồ sơ nhân viên"
+      allow={["ADMIN", "MANAGER"]}
+    >
+      <StaffDetailContent />
+    </RoleGuard>
+  );
+}
+
+function StaffDetailContent() {
   const params = useParams<{ id: string }>();
   const staffId = Number(params.id);
 
@@ -95,29 +108,25 @@ export default function StaffDetailPage() {
 
   if (loading) {
     return (
-      <DashboardShell activeSection="staff" title="Chi tiết nhân sự" description="Đang tải...">
-        <div className="flex items-center justify-center py-24">
-          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </div>
-      </DashboardShell>
+      <div className="flex items-center justify-center py-24">
+        <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
     );
   }
 
   if (!staff) {
     return (
-      <DashboardShell activeSection="staff" title="Chi tiết nhân sự" description="">
-        <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <span className="material-symbols-outlined text-5xl text-outline">person_off</span>
-          <p className="text-on-surface-variant">{message ?? "Không tìm thấy nhân sự."}</p>
-          <Link
-            href="/staff"
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary transition-colors hover:bg-primary/90"
-          >
-            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-            Quay lại danh sách
-          </Link>
-        </div>
-      </DashboardShell>
+      <div className="flex flex-col items-center justify-center py-24 gap-4">
+        <span className="material-symbols-outlined text-5xl text-outline">person_off</span>
+        <p className="text-on-surface-variant">{message ?? "Không tìm thấy nhân sự."}</p>
+        <Link
+          href="/staff"
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary transition-colors hover:bg-primary/90"
+        >
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+          Quay lại danh sách
+        </Link>
+      </div>
     );
   }
 
@@ -136,11 +145,7 @@ export default function StaffDetailPage() {
   };
 
   return (
-    <DashboardShell
-      activeSection="staff"
-      title={`Hồ sơ: ${staff.fullName}`}
-      description={`Mã nhân viên ${staff.username} \u2013 ${getRoleLabel(staff.roles)}`}
-    >
+    <>
       {message && (
         <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
           {message}
@@ -284,6 +289,6 @@ export default function StaffDetailPage() {
           </section>
         </div>
       </section>
-    </DashboardShell>
+    </>
   );
 }

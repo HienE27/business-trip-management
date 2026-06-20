@@ -4,7 +4,9 @@ import { test, expect, type Page } from '@playwright/test';
  * E2E tests for role-based UI guards.
  *
  * Ensures that admin/manager-only pages hide their functionality from STAFF
- * users and show a clear 'no permission' empty state instead.
+ * users and show a clear 'no permission' empty state instead. STAFF is
+ * always allowed on /swap-requests and /notifications because those flows
+ * are part of the staff self-service experience.
  *
  * Every guarded page is covered by a single parameterized spec to keep the
  * suite readable and easy to extend when a new admin-only page is added.
@@ -22,61 +24,34 @@ async function loginAs(page: Page, username: string, password: string) {
 
 type GuardedPage = {
   path: string;
-  /** Locator that must be present for ADMIN/MANAGER and absent for STAFF */
-  adminOnlyControl: ReturnType<Page['getByRole']>;
-  adminOnlyControlName: RegExp;
+  /** Roles allowed in addition to ADMIN/MANAGER. Empty means STAFF is denied. */
+  staffAllowed?: boolean;
 };
 
-const GUARDED_PAGES: GuardedPage[] = [
-  {
-    path: '/periods',
-    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>, // placeholder
-    adminOnlyControlName: /tạo kỳ lịch/i,
-  },
-  {
-    path: '/holidays',
-    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
-    adminOnlyControlName: /thêm ngày lễ/i,
-  },
-  {
-    path: '/requirements',
-    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
-    adminOnlyControlName: /thêm yêu cầu/i,
-  },
-  {
-    path: '/audit-history',
-    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
-    adminOnlyControlName: /xuất|nhật ký|export/i,
-  },
-  {
-    path: '/settings/roles',
-    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
-    adminOnlyControlName: /ma trận|matrix|phân quyền/i,
-  },
-  {
-    path: '/staff',
-    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
-    adminOnlyControlName: /thêm nhân sự|nhân viên/i,
-  },
-  {
-    path: '/reports/conflicts',
-    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
-    adminOnlyControlName: /báo cáo|xung đột/i,
-  },
-  {
-    path: '/reports/staff',
-    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
-    adminOnlyControlName: /khối lượng|nhân sự/i,
-  },
-  {
-    path: '/reports/monthly',
-    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
-    adminOnlyControlName: /kỳ lịch|tổng hợp/i,
-  },
+const ADMIN_MANAGER_ONLY_PAGES: GuardedPage[] = [
+  { path: '/periods' },
+  { path: '/holidays' },
+  { path: '/requirements' },
+  { path: '/audit-history' },
+  { path: '/settings/roles' },
+  { path: '/staff' },
+  { path: '/staff/create' },
+  { path: '/settings' },
+  { path: '/reports' },
+  { path: '/reports/conflicts' },
+  { path: '/reports/staff' },
+  { path: '/reports/monthly' },
 ];
 
+const ALL_ROLES_PAGES: GuardedPage[] = [
+  { path: '/swap-requests', staffAllowed: true },
+  { path: '/notifications', staffAllowed: true },
+];
+
+const ALL_GUARDED_PAGES = [...ADMIN_MANAGER_ONLY_PAGES, ...ALL_ROLES_PAGES];
+
 test.describe('Role guards — STAFF cannot reach admin pages', () => {
-  for (const guarded of GUARDED_PAGES) {
+  for (const guarded of ADMIN_MANAGER_ONLY_PAGES) {
     test(`STAFF sees "no permission" on ${guarded.path}`, async ({ page }) => {
       await loginAs(page, 'nvminh', '123456');
       await page.goto(guarded.path);
@@ -88,7 +63,7 @@ test.describe('Role guards — STAFF cannot reach admin pages', () => {
     });
   }
 
-  for (const guarded of GUARDED_PAGES) {
+  for (const guarded of ALL_GUARDED_PAGES) {
     test(`ADMIN keeps access on ${guarded.path}`, async ({ page }) => {
       await loginAs(page, 'admin', 'admin123');
       await page.goto(guarded.path);
@@ -96,6 +71,19 @@ test.describe('Role guards — STAFF cannot reach admin pages', () => {
       await page.waitForTimeout(1500);
 
       // No "no permission" state for ADMIN
+      await expect(page.getByRole('heading', { name: /không có quyền/i })).toHaveCount(0);
+    });
+  }
+
+  for (const guarded of ALL_ROLES_PAGES) {
+    test(`STAFF keeps access on ${guarded.path} (staff-allowed)`, async ({ page }) => {
+      await loginAs(page, 'nvminh', '123456');
+      await page.goto(guarded.path);
+      await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(1500);
+
+      // STAFF can access these self-service flows — the "no permission"
+      // empty state must NOT appear.
       await expect(page.getByRole('heading', { name: /không có quyền/i })).toHaveCount(0);
     });
   }
@@ -109,9 +97,12 @@ test.describe('Role guards — STAFF cannot reach admin pages', () => {
     // Each guarded page still has a sidebar link so STAFF can see what exists.
     // Skip nested routes (e.g. /settings/roles, /reports/*) — they live under
     // their parent's nav item (/settings, /reports), not as a standalone
-    // sidebar entry.
-    const sidebarEntries = GUARDED_PAGES.filter(
-      (g) => !g.path.startsWith('/settings/') && !g.path.startsWith('/reports/')
+    // sidebar entry. Also skip /staff/create which is reached from /staff.
+    const sidebarEntries = ALL_GUARDED_PAGES.filter(
+      (g) =>
+        !g.path.startsWith('/settings/') &&
+        !g.path.startsWith('/reports/') &&
+        g.path !== '/staff/create',
     );
     for (const guarded of sidebarEntries) {
       const link = page.locator(`aside a[href="${guarded.path}"]`).first();

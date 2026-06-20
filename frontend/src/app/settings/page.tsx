@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DashboardShell } from "@/components/layout/DashboardShell";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/useToast";
 
@@ -9,6 +9,19 @@ type ThemeMode = "light" | "dark" | "system";
 type DensityMode = "compact" | "comfortable" | "spacious";
 
 export default function SettingsPage() {
+  return (
+    <RoleGuard
+      activeSection="settings"
+      title="Cài đặt"
+      description="Cấu hình hệ thống và thông báo"
+      allow={["ADMIN"]}
+    >
+      <SettingsContent />
+    </RoleGuard>
+  );
+}
+
+function SettingsContent() {
   const toast = useToast();
   const toastRef = useRef(toast);
   useEffect(() => { toastRef.current = toast; });
@@ -149,11 +162,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <DashboardShell
-      activeSection="settings"
-      title="Cài đặt"
-      description="Quản lý cấu hình hệ thống và tùy chọn thông báo."
-    >
+    <>
       <div className="flex flex-col gap-4 pb-6">
 
         {/* ── Email Notification Settings ──────────────────────────────── */}
@@ -472,7 +481,7 @@ export default function SettingsPage() {
         </section>
 
       </div>
-    </DashboardShell>
+    </>
   );
 }
 
