@@ -33,17 +33,17 @@
 | `/reports/staff` | **RoleGuard** | ADMIN, MANAGER | Khối lượng nhân sự |
 | `/reports/monthly` | **RoleGuard** | ADMIN, MANAGER | Báo cáo kỳ lịch |
 | `/auto-scheduling` | inline `canManage` | All (read), ADMIN+MANAGER (write) | WorkflowShell-based; manager-only controls (chạy thuật toán, apply) |
-| `/auto-scheduling/algorithm-config` | (inherits `/auto-scheduling`) | ADMIN, MANAGER | Cấu hình tham số thuật toán |
-| `/auto-scheduling/history` | (inherits `/auto-scheduling`) | ADMIN, MANAGER | Lịch sử chạy auto |
-| `/leave-requests` | **NONE** | All (read) | WorkflowShell — có gap. STAFF có thể thấy leave list; submit/approve cần làm rõ |
+| `/auto-scheduling/algorithm-config` | **RoleGuard** | ADMIN | Cấu hình tham số thuật toán (admin-only) |
+| `/auto-scheduling/history` | **RoleGuard** | ADMIN, MANAGER | Lịch sử chạy auto |
+| `/leave-requests` | **RoleGuard** | ADMIN, MANAGER, STAFF | WorkflowShell — đã guard; STAFF xem/gửi yêu cầu của mình, ADMIN+MANAGER duyệt |
 | `/swap-requests` | **RoleGuard** | ADMIN, MANAGER, STAFF | Self-service: tạo + theo dõi yêu cầu đổi ca |
 | `/notifications` | **RoleGuard** | ADMIN, MANAGER, STAFF | Self-service: thông báo cá nhân |
 
 **Tổng cộng**: 29 routes
-- 16 dùng `RoleGuard` (`DashboardShell`-based)
+- 19 dùng `RoleGuard` (16 `DashboardShell` + 3 `WorkflowShell` — `/leave-requests`, `/auto-scheduling/algorithm-config`, `/auto-scheduling/history`)
 - 4 dùng `GuardedScheduleByTypePage` (mới — wrap `ScheduleByTypePage` với `RoleGuard`)
 - 5 public/all-roles (`/`, `/login`, `/dashboard`, `/staff/profile`, `/monthly-schedule`)
-- 4 inline (`/auto-scheduling/*` — có `canManage` checks)
+- 1 inline (`/auto-scheduling` — có `canManage` checks cho write controls)
 - **0 chưa guard** — toàn bộ routes production đã có ít nhất một guard
 
 ## Components & Helpers
@@ -74,16 +74,15 @@
 
 ## Gaps & Follow-ups
 
-1. **`/leave-requests` chưa có guard** — page dùng `WorkflowShell` (khác `DashboardShell`), guard pattern chưa cover. STAFF vẫn có thể URL-access. Có inline checks cho "approve" actions (canManage) nhưng chưa full route guard.
-   - **Next**: tạo `WorkflowRoleGuard` variant hoặc refactor page dùng `DashboardShell`.
+1. ~~**`/leave-requests` chưa có guard**~~ — đã resolve (session 4, 2026-06-20). Refactor: default export wrap `<RoleGuard allow={["ADMIN", "MANAGER", "STAFF"]}>`; STAFF xem + gửi yêu cầu của mình, ADMIN/MANAGER duyệt.
 2. **`/monthly-schedule` chỉ có inline guard** — STAFF thấy calendar read-only nhờ `canManage` ẩn controls, nhưng URL access không denied.
    - **Trade-off**: cho phép STAFF xem lịch tổng là feature; chỉ disable write controls. Không cần fix.
-3. **`/auto-scheduling/*` dùng `useRole` inline** — page chính có guard hiệu quả (canManage), nhưng 2 sub-routes (`/algorithm-config`, `/history`) inherit giả định mà không explicit guard.
-   - **Next**: explicit RoleGuard trên 2 sub-routes, hoặc layout-level guard trong `app/auto-scheduling/layout.tsx`.
+3. ~~**`/auto-scheduling/*` dùng `useRole` inline**~~ — đã resolve (session 4, 2026-06-20). Cả `/algorithm-config` (admin-only) và `/history` (admin+manager) giờ wrap trong `RoleGuard`. Page chính `/auto-scheduling` vẫn dùng inline `canManage` cho write controls (đổi thuật toán, apply) — chấp nhận được vì read-only với tất cả roles là design choice.
 
 ## Audit History
 
 - **2026-06-20 session 1** (`7f63b37`): 6 routes đầu tiên có guard.
 - **2026-06-20 session 2** (`32bbeff`): mở rộng thêm 8 routes.
 - **2026-06-20 session 3** (`483775a` + this doc): thêm 4 `GuardedScheduleByTypePage` + audit + doc này.
-- **Total coverage**: 20/24 protected routes có guard; 4 routes public/all-roles; 0 gaps chưa biết.
+- **2026-06-20 session 4** (`71893b4` + updates): thêm `RoleGuard` cho `/leave-requests` (3 roles), `/auto-scheduling/algorithm-config` (admin), `/auto-scheduling/history` (admin+manager); lazy-load `Modal` + `ConfirmDialog` trên `/periods`; doc gaps resolved.
+- **Total coverage**: 23/24 protected routes có RoleGuard hoặc GuardedScheduleByTypePage; 1 route inline (`/auto-scheduling`); 4 routes public/all-roles; 0 gaps chưa biết.

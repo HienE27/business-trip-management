@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateRange, formatDateTime } from "@/lib/date";
@@ -668,14 +669,21 @@ function LeaveRequestsContent() {
 
 export default function LeaveRequestsPage() {
   return (
-    <Suspense fallback={
-      <WorkflowShell section="leave-requests" title="Yêu cầu nghỉ phép" description="Theo dõi yêu cầu nghỉ phép từ nhân sự, phê duyệt và cân đối lịch trực.">
-        <div className="flex items-center justify-center py-16">
-          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </div>
-      </WorkflowShell>
-    }>
-      <LeaveRequestsContent />
-    </Suspense>
+    <RoleGuard
+      activeSection="leave-requests"
+      title="Yêu cầu nghỉ phép"
+      description="Theo dõi yêu cầu nghỉ phép từ nhân sự, phê duyệt và cân đối lịch trực."
+      allow={["ADMIN", "MANAGER", "STAFF"]}
+    >
+      <Suspense fallback={
+        <WorkflowShell section="leave-requests" title="Yêu cầu nghỉ phép" description="Theo dõi yêu cầu nghỉ phép từ nhân sự, phê duyệt và cân đối lịch trực.">
+          <div className="flex items-center justify-center py-16">
+            <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        </WorkflowShell>
+      }>
+        <LeaveRequestsContent />
+      </Suspense>
+    </RoleGuard>
   );
 }
