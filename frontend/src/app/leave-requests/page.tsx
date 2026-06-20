@@ -8,7 +8,6 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { RoleGuard } from "@/components/auth/RoleGuard";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateRange, formatDateTime } from "@/lib/date";
@@ -261,11 +260,6 @@ function LeaveRequestsContent() {
 
   return (
     <ErrorBoundary>
-    <WorkflowShell
-      section="leave-requests"
-      title="Yêu cầu nghỉ phép"
-      description="Theo dõi yêu cầu nghỉ phép từ nhân sự, phê duyệt và cân đối lịch trực."
-    >
       {/* Conflict warning */}
       {conflictWarning && (
         <div className="rounded-lg border border-error/30 bg-error-container/40 px-4 py-3 text-sm text-error flex items-start gap-2">
@@ -660,38 +654,60 @@ function LeaveRequestsContent() {
           </div>
         </div>
       )}
-    </WorkflowShell>
 
-    <ConfirmDialog
-      open={confirmOpen}
-      onClose={() => { setConfirmOpen(false); setDeleteTargetId(null); }}
-      onConfirm={confirmCancel}
-      title="Hủy yêu cầu nghỉ phép?"
-      description="Bạn có chắc muốn hủy yêu cầu này?"
-      confirmLabel="Hủy yêu cầu"
-      variant="danger"
-    />
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => { setConfirmOpen(false); setDeleteTargetId(null); }}
+        onConfirm={confirmCancel}
+        title="Hủy yêu cầu nghỉ phép?"
+        description="Bạn có chắc muốn hủy yêu cầu này?"
+        confirmLabel="Hủy yêu cầu"
+        variant="danger"
+      />
     </ErrorBoundary>
   );
 }
 
 export default function LeaveRequestsPage() {
+  // NOTE: We do NOT wrap this page in <RoleGuard> because RoleGuard
+  // hard-codes <DashboardShell>, which would render a second shell on
+  // top of <WorkflowShell> below (double sidebar + header). Instead,
+  // we do the role check inline and render <EmptyState> with the
+  // correct styling for both authorized and denied states. The shell
+  // (WorkflowShell) renders exactly once.
+  const { user } = useAuth();
+  const roles = (user?.roles ?? []) as ("ADMIN" | "MANAGER" | "STAFF")[];
+  const hasAccess = roles.some((r) => r === "ADMIN" || r === "MANAGER" || r === "STAFF");
+
+  if (!hasAccess) {
+    return (
+      <WorkflowShell
+        section="leave-requests"
+        title="Yêu cầu nghỉ phép"
+        description="Theo dõi yêu cầu nghỉ phép từ nhân sự, phê duyệt và cân đối lịch trực."
+      >
+        <EmptyState
+          icon="lock"
+          title="Bạn không có quyền truy cập trang này"
+          description="Trang này chỉ dành cho Quản lý lịch, Trưởng phòng hoặc Nhân viên. Vui lòng liên hệ quản trị viên nếu cần."
+        />
+      </WorkflowShell>
+    );
+  }
+
   return (
-    <RoleGuard
-      activeSection="leave-requests"
+    <WorkflowShell
+      section="leave-requests"
       title="Yêu cầu nghỉ phép"
       description="Theo dõi yêu cầu nghỉ phép từ nhân sự, phê duyệt và cân đối lịch trực."
-      allow={["ADMIN", "MANAGER", "STAFF"]}
     >
       <Suspense fallback={
-        <WorkflowShell section="leave-requests" title="Yêu cầu nghỉ phép" description="Theo dõi yêu cầu nghỉ phép từ nhân sự, phê duyệt và cân đối lịch trực.">
-          <div className="flex items-center justify-center py-16">
-            <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        </WorkflowShell>
+        <div className="flex items-center justify-center py-16">
+          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </div>
       }>
         <LeaveRequestsContent />
       </Suspense>
-    </RoleGuard>
+    </WorkflowShell>
   );
 }

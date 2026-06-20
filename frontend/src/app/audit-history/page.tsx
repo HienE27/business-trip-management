@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
@@ -491,8 +490,6 @@ export default function AuditHistoryPage() {
       description="Theo dõi lịch sử thay đổi toàn hệ thống."
       allow={["ADMIN", "MANAGER"]}
     >
-      <DashboardShell activeSection="audit-history" description="Theo dõi lịch sử thay đổi toàn hệ thống." title="Nhật ký thao tác">
-
       {selected && <DetailModal record={selected} onClose={() => setSelected(null)} />}
 
       <div className="flex flex-col gap-3 pb-6">
@@ -887,7 +884,6 @@ export default function AuditHistoryPage() {
           </div>
         )}
       </div>
-    </DashboardShell>
     </RoleGuard>
   );
 }
