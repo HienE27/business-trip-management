@@ -5,6 +5,7 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import type { AuditHistory } from "@/types/api";
 
 type ActionFilter = "" | "CREATE" | "UPDATE" | "DELETE";
@@ -484,7 +485,13 @@ export default function AuditHistoryPage() {
   ];
 
   return (
-    <DashboardShell activeSection="audit-history" description="Theo dõi lịch sử thay đổi toàn hệ thống." title="Nhật ký thao tác">
+    <RoleGuard
+      activeSection="audit-history"
+      title="Nhật ký thao tác"
+      description="Theo dõi lịch sử thay đổi toàn hệ thống."
+      allow={["ADMIN", "MANAGER"]}
+    >
+      <DashboardShell activeSection="audit-history" description="Theo dõi lịch sử thay đổi toàn hệ thống." title="Nhật ký thao tác">
 
       {selected && <DetailModal record={selected} onClose={() => setSelected(null)} />}
 
@@ -881,5 +888,6 @@ export default function AuditHistoryPage() {
         )}
       </div>
     </DashboardShell>
+    </RoleGuard>
   );
 }
