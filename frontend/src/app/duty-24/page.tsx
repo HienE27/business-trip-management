@@ -1,4 +1,5 @@
-import { ScheduleByTypePage, type ScheduleTypeConfig } from "@/components/monthly-schedule/ScheduleByTypePage";
+import { GuardedScheduleByTypePage } from "@/components/monthly-schedule/GuardedScheduleByTypePage";
+import type { ScheduleTypeConfig } from "@/components/monthly-schedule/ScheduleByTypePage";
 
 const config: ScheduleTypeConfig = {
   activeSection: "duty-24",
@@ -18,5 +19,5 @@ const config: ScheduleTypeConfig = {
 };
 
 export default function Duty24Page() {
-  return <ScheduleByTypePage config={config} />;
+  return <GuardedScheduleByTypePage config={config} />;
 }

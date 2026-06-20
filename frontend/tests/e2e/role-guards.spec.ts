@@ -48,7 +48,17 @@ const ALL_ROLES_PAGES: GuardedPage[] = [
   { path: '/notifications', staffAllowed: true },
 ];
 
-const ALL_GUARDED_PAGES = [...ADMIN_MANAGER_ONLY_PAGES, ...ALL_ROLES_PAGES];
+// Pages whose guard is implemented via GuardedScheduleByTypePage
+// (which delegates to RoleGuard) rather than directly. Tested under the
+// same ADMIN+MANAGER-only contract.
+const SCHEDULE_BY_TYPE_PAGES: GuardedPage[] = [
+  { path: '/duty-24' },
+  { path: '/all-day' },
+  { path: '/service-clinic' },
+  { path: '/expert-clinic' },
+];
+
+const ALL_GUARDED_PAGES = [...ADMIN_MANAGER_ONLY_PAGES, ...ALL_ROLES_PAGES, ...SCHEDULE_BY_TYPE_PAGES];
 
 test.describe('Role guards — STAFF cannot reach admin pages', () => {
   for (const guarded of ADMIN_MANAGER_ONLY_PAGES) {
