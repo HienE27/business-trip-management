@@ -232,7 +232,7 @@ export default function RequirementsPage() {
             </div>
           ) : filtered.length === 0 ? (
             <EmptyState
-              icon={requirements.length === 0 ? "inbox" : "search_off"}
+              icon={requirements.length === 0 ? "groups" : "search_off"}
               title={requirements.length === 0 ? "Chưa có yêu cầu nhân sự nào" : "Không có kết quả phù hợp"}
               description={
                 requirements.length === 0
