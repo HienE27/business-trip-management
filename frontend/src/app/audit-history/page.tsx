@@ -191,13 +191,13 @@ function JsonDiffTable({ oldJson, newJson }: { oldJson?: string; newJson?: strin
             {changed.length} thay đổi
           </p>
           {changed.map((k) => (
-            <div key={k} className="grid grid-cols-2 rounded-lg overflow-hidden border border-outline-variant/20 text-[12px]">
-              <div className="bg-surface-container-low border-r border-outline-variant/20 px-3 py-2">
-                <p className="text-[10px] text-error/40 font-medium mb-0.5 leading-none">{prettyKey(k)}</p>
+            <div key={k} className="grid grid-cols-2 rounded-lg overflow-hidden border border-outline-variant text-[12px]">
+              <div className="bg-surface-container-low border-r border-outline-variant px-3 py-2">
+                <p className="text-[10px] text-error font-medium mb-0.5 leading-none uppercase tracking-wide">{prettyKey(k)}</p>
                 <p className="text-on-surface font-medium leading-snug mt-0.5">{fmtVal(m1[k])}</p>
               </div>
               <div className="bg-surface-container-lowest px-3 py-2">
-                <p className="text-[10px] text-secondary/40 font-medium mb-0.5 leading-none">{prettyKey(k)}</p>
+                <p className="text-[10px] text-secondary font-medium mb-0.5 leading-none uppercase tracking-wide">{prettyKey(k)}</p>
                 <p className="text-on-surface font-medium leading-snug mt-0.5">{fmtVal(m2[k])}</p>
               </div>
             </div>
@@ -206,11 +206,11 @@ function JsonDiffTable({ oldJson, newJson }: { oldJson?: string; newJson?: strin
       )}
       {added.length > 0 && (
         <>
-          <p className="text-[11px] font-semibold text-secondary mt-3 mb-1.5">{added.length} mới thêm</p>
+          <p className="text-[11px] font-semibold text-secondary mt-3 mb-1.5 uppercase tracking-wide">{added.length} mới thêm</p>
           {added.map((k) => (
-            <div key={k} className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-secondary-container/20 border border-secondary/10 text-[12px]">
-              <span className="material-symbols-outlined text-[13px] text-secondary shrink-0">add</span>
-              <span className="text-secondary/70 font-medium w-36 shrink-0">{prettyKey(k)}</span>
+            <div key={k} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-secondary-container border border-secondary/20 text-[12px]">
+              <span className="material-symbols-outlined text-[14px] text-secondary shrink-0">add</span>
+              <span className="text-secondary font-medium w-36 shrink-0">{prettyKey(k)}</span>
               <span className="text-on-surface font-medium">{fmtVal(m2[k])}</span>
             </div>
           ))}
@@ -218,11 +218,11 @@ function JsonDiffTable({ oldJson, newJson }: { oldJson?: string; newJson?: strin
       )}
       {removed.length > 0 && (
         <>
-          <p className="text-[11px] font-semibold text-error mt-3 mb-1.5">{removed.length} đã xóa</p>
+          <p className="text-[11px] font-semibold text-error mt-3 mb-1.5 uppercase tracking-wide">{removed.length} đã xóa</p>
           {removed.map((k) => (
-            <div key={k} className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-error-container/20 border border-error/10 text-[12px]">
-              <span className="material-symbols-outlined text-[13px] text-error shrink-0">remove</span>
-              <span className="text-error/70 font-medium w-36 shrink-0">{prettyKey(k)}</span>
+            <div key={k} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-error-container border border-error/20 text-[12px]">
+              <span className="material-symbols-outlined text-[14px] text-error shrink-0">remove</span>
+              <span className="text-error font-medium w-36 shrink-0">{prettyKey(k)}</span>
               <span className="text-on-surface font-medium">{fmtVal(m1[k])}</span>
             </div>
           ))}
@@ -289,7 +289,7 @@ function DetailModal({ record, onClose }: { record: AuditHistory; onClose: () =>
         </div>
 
         {/* Meta row */}
-        <div className="flex items-center gap-4 px-4 py-2.5 border-b border-outline-variant/20 bg-surface shrink-0 text-[12px]">
+        <div className="flex items-center gap-4 px-4 py-2.5 border-b border-outline-variant bg-surface shrink-0 text-[12px]">
           <span className="text-on-surface-variant">
             Người thực hiện:{" "}
             <strong className="font-semibold text-on-surface">
@@ -304,7 +304,7 @@ function DetailModal({ record, onClose }: { record: AuditHistory; onClose: () =>
         </div>
 
         {/* Tabs */}
-        <div className="flex items-end gap-0.5 px-4 pt-3 bg-surface border-b border-outline-variant/20 shrink-0">
+        <div className="flex items-end gap-1 px-4 pt-3 bg-surface border-b border-outline-variant shrink-0">
           {TABS.map((t) => {
             const disabled = noData && (t.id === "old" || t.id === "new" || t.id === "raw");
             return (
@@ -333,28 +333,28 @@ function DetailModal({ record, onClose }: { record: AuditHistory; onClose: () =>
           {tab === "old" && (
             record.oldData
               ? <SyntaxHighlight json={record.oldData} />
-              : <p className="text-[13px] text-outline italic py-4">Không có dữ liệu cũ.</p>
+              : <p className="text-[13px] text-on-surface-variant italic py-4">Không có dữ liệu cũ.</p>
           )}
           {tab === "new" && (
             record.newData
               ? <SyntaxHighlight json={record.newData} />
-              : <p className="text-[13px] text-outline italic py-4">Không có dữ liệu mới.</p>
+              : <p className="text-[13px] text-on-surface-variant italic py-4">Không có dữ liệu mới.</p>
           )}
           {tab === "raw" && (
             <div className="space-y-4">
               {record.oldData && (
                 <div>
-                  <p className="text-[11px] font-semibold text-error/50 uppercase tracking-wide mb-2">Dữ liệu cũ</p>
+                  <p className="text-[11px] font-semibold text-error uppercase tracking-wide mb-2">Dữ liệu cũ</p>
                   <SyntaxHighlight json={record.oldData} />
                 </div>
               )}
               {record.newData && (
                 <div>
-                  <p className="text-[11px] font-semibold text-secondary/50 uppercase tracking-wide mb-2">Dữ liệu mới</p>
+                  <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide mb-2">Dữ liệu mới</p>
                   <SyntaxHighlight json={record.newData} />
                 </div>
               )}
-              {noData && <p className="text-[13px] text-outline italic">Không có dữ liệu chi tiết.</p>}
+              {noData && <p className="text-[13px] text-on-surface-variant italic">Không có dữ liệu chi tiết.</p>}
             </div>
           )}
         </div>
@@ -495,7 +495,7 @@ export default function AuditHistoryPage() {
       <div className="flex flex-col gap-3 pb-6">
 
         {/* KPI Cards */}
-        <section className="grid grid-cols-2 gap-1.5 lg:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {([
             { l: "Tổng sự kiện", v: summary.total,  ic: "history",    bg: "bg-surface-container-low",  co: "text-on-surface-variant" },
             { l: "Tạo mới",      v: summary.create,  ic: "add_circle", bg: "bg-secondary-container",    co: "text-secondary"          },
@@ -503,15 +503,15 @@ export default function AuditHistoryPage() {
             { l: "Xóa",          v: summary.delete,   ic: "delete",     bg: "bg-error-container",        co: "text-error"             },
           ] as const).map((s) => (
             <div
-              className="flex items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 shadow-sm"
+              className="flex items-center gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm hover:bg-surface-container-low transition-colors"
               key={s.l}
             >
-              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${s.bg}`}>
-                <span className={`material-symbols-outlined text-[18px] ${s.co}`}>{s.ic}</span>
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${s.bg}`}>
+                <span className={`material-symbols-outlined text-[20px] ${s.co}`}>{s.ic}</span>
               </div>
-              <div>
-                <p className="text-[12px] text-on-surface-variant leading-none">{s.l}</p>
-                <p className="text-[20px] font-bold text-on-surface leading-none mt-1">
+              <div className="min-w-0">
+                <p className="text-[12px] font-medium text-on-surface-variant leading-none">{s.l}</p>
+                <p className="text-[24px] font-bold text-on-surface leading-none mt-1.5">
                   {loading ? "—" : s.v.toLocaleString("vi")}
                 </p>
               </div>
@@ -520,29 +520,29 @@ export default function AuditHistoryPage() {
         </section>
 
         {/* ── TOOLBAR ROW 1: Search + Action chips + Count + Actions ── */}
-        <section className="flex items-center gap-2 flex-wrap rounded-xl border border-outline-variant bg-surface-container-lowest px-3 py-2 shadow-sm">
+        <section className="flex items-center gap-2 flex-wrap rounded-xl border border-outline-variant bg-surface-container-lowest px-3 py-2.5 shadow-sm">
 
           {/* Search */}
-          <div className="relative shrink-0" style={{ minWidth: 180, width: 220, maxWidth: "100%" }}>
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[14px]">search</span>
+          <div className="relative shrink-0" style={{ minWidth: 200, width: 240, maxWidth: "100%" }}>
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[16px]">search</span>
             <input
               autoComplete="off"
-              className="w-full rounded-lg border border-outline-variant bg-surface h-8 pl-9 pr-7 text-[12px] text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+              className="w-full rounded-lg border border-outline-variant bg-surface h-9 pl-9 pr-8 text-[13px] text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               placeholder="Người, module, ID…"
               value={search}
               onChange={(e) => onSearch(e.target.value)}
             />
             {search && (
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-surface-container-low" onClick={() => onSearch("")} type="button" aria-label="Xóa tìm kiếm">
-                <span className="material-symbols-outlined text-[11px] text-outline">close</span>
+              <button className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-surface-container-low" onClick={() => onSearch("")} type="button" aria-label="Xóa tìm kiếm">
+                <span className="material-symbols-outlined text-[12px] text-outline">close</span>
               </button>
             )}
           </div>
 
           {/* Action filter chips */}
-          <div className="flex items-center gap-0.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <button
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-all shrink-0 ${
+              className={`rounded-full px-3 py-1 text-[12px] font-semibold transition-all shrink-0 ${
                 action === "" ? "bg-primary text-on-primary shadow-sm" : "bg-surface text-on-surface-variant border border-outline-variant hover:bg-surface-container-low"
               }`}
               onClick={() => setAction("")} type="button"
@@ -554,7 +554,7 @@ export default function AuditHistoryPage() {
               return (
                 <button
                   key={a}
-                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-all shrink-0 ${
+                  className={`rounded-full px-3 py-1 text-[12px] font-semibold transition-all shrink-0 ${
                     action === a ? `${st.chipBg} shadow-sm` : "bg-surface text-on-surface-variant border border-outline-variant hover:bg-surface-container-low"
                   }`}
                   onClick={() => setAction(action === a ? "" : a)} type="button"
@@ -567,47 +567,49 @@ export default function AuditHistoryPage() {
 
           <div className="flex-1 min-w-0" />
 
-          <span className="text-[12px] text-outline shrink-0 tabular-nums">
+          <span className="text-[12px] text-on-surface-variant shrink-0 tabular-nums">
             {loading ? "…" : filtered.length.toLocaleString("vi") + " kết quả"}
           </span>
 
-          <div className="w-px h-4 bg-outline-variant shrink-0" />
+          <div className="w-px h-5 bg-outline-variant shrink-0" />
 
           <button
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-outline-variant bg-surface hover:bg-surface-container-low transition-colors"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-outline-variant bg-surface hover:bg-surface-container-low transition-colors"
             onClick={() => fetchData(true)} type="button"
             aria-label={refreshing ? "Đang làm mới" : "Làm mới"}
           >
-            <span className={`material-symbols-outlined text-[14px] text-on-surface-variant ${refreshing ? "animate-spin" : ""}`}>sync</span>
+            <span className={`material-symbols-outlined text-[16px] text-on-surface-variant ${refreshing ? "animate-spin" : ""}`}>sync</span>
           </button>
 
           <button
-            className="flex h-8 items-center gap-1 rounded-lg border border-outline-variant bg-surface px-2.5 text-[12px] font-medium text-on-surface hover:bg-surface-container-low transition-colors shrink-0"
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 text-[12px] font-medium text-on-surface hover:bg-surface-container-low transition-colors shrink-0"
             onClick={exportJSON} type="button"
           >
-            <span className="material-symbols-outlined text-[13px]">download</span>
+            <span className="material-symbols-outlined text-[14px]">download</span>
             Xuất
           </button>
 
           {hasFilters && (
             <button
-              className="flex h-8 items-center gap-1 rounded-lg px-2 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors shrink-0"
+              className="flex h-9 items-center gap-1 rounded-lg px-2.5 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors shrink-0"
               onClick={clearFilters} type="button"
             >
-              <span className="material-symbols-outlined text-[12px]">clear</span>
+              <span className="material-symbols-outlined text-[13px]">clear</span>
               Xóa
             </button>
           )}
         </section>
 
         {/* ── TOOLBAR ROW 2: Module + Date pills + Custom dates ── */}
-        <section className="flex items-center gap-2 flex-wrap rounded-xl border border-outline-variant bg-surface-container-lowest px-3 py-2 shadow-sm">
+        <section className="flex items-center gap-2 flex-wrap rounded-xl border border-outline-variant bg-surface-container-lowest px-3 py-2.5 shadow-sm">
 
           {/* Module */}
-          <label htmlFor="audit-module-filter" className="sr-only">Lọc theo module</label>
+          <label htmlFor="audit-module-filter" className="text-[12px] font-medium text-on-surface-variant shrink-0">
+            Module:
+          </label>
           <select
             id="audit-module-filter"
-            className="appearance-none rounded-lg border border-outline-variant bg-surface px-2 h-8 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer pr-6 shrink-0 min-w-[120px]"
+            className="appearance-none rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer pr-7 shrink-0 min-w-[140px]"
             value={module}
             onChange={(e) => { setModule(e.target.value); setPage(1); }}
           >
@@ -615,12 +617,14 @@ export default function AuditHistoryPage() {
             {modules.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
 
+          <div className="w-px h-5 bg-outline-variant shrink-0" />
+
           {/* Date pills */}
-          <div className="flex items-center gap-0.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             {DATE_OPTS.map((o) => (
               <button
                 key={o.v}
-                className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-all shrink-0 ${
+                className={`rounded-full px-3 py-1 text-[12px] font-semibold transition-all shrink-0 ${
                   dateRange === o.v
                     ? "bg-primary text-on-primary shadow-sm"
                     : "bg-surface text-on-surface-variant border border-outline-variant hover:bg-surface-container-low"
@@ -633,14 +637,18 @@ export default function AuditHistoryPage() {
           </div>
 
           {dateRange === "custom" && (
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <label htmlFor="audit-date-from" className="sr-only">Từ ngày</label>
               <input
-                className="rounded-lg border border-outline-variant bg-surface px-2 h-7 text-[11px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                id="audit-date-from"
+                className="rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
               />
-              <span className="text-[11px] text-outline">—</span>
+              <span className="text-[12px] text-outline">—</span>
+              <label htmlFor="audit-date-to" className="sr-only">Đến ngày</label>
               <input
-                className="rounded-lg border border-outline-variant bg-surface px-2 h-7 text-[11px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                id="audit-date-to"
+                className="rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
               />
             </div>
@@ -651,20 +659,18 @@ export default function AuditHistoryPage() {
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
 
           {/* Column header */}
-          <div className="hidden md:grid grid-cols-[32px_1fr_auto] gap-2 px-4 py-2 bg-surface border-b border-outline-variant shrink-0">
-            <span className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide text-center">HĐ</span>
-            <span className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide">Chi tiết sự kiện</span>
-            <span className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide text-right">Giờ</span>
+          <div className="hidden md:grid grid-cols-[36px_1fr_auto] gap-3 px-4 py-2.5 bg-surface-container-low border-b border-outline-variant shrink-0">
+            <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wide text-center">HĐ</span>
+            <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wide">Chi tiết sự kiện</span>
+            <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wide text-right">Giờ</span>
           </div>
 
           {loading ? (
             <div className="divide-y divide-outline-variant">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="flex items-start gap-3 px-4 py-3">
-                  <div className="flex h-6 w-8 shrink-0 items-center justify-center rounded">
-                    <Skeleton className="h-6 w-6 rounded" />
-                  </div>
-                  <div className="flex flex-col min-w-0 flex-1 gap-1.5">
+                  <Skeleton className="h-7 w-7 rounded-lg shrink-0" />
+                  <div className="flex flex-col min-w-0 flex-1 gap-2">
                     <div className="flex items-center gap-2">
                       <Skeleton className="h-3 w-16 rounded" />
                       <Skeleton className="h-3 w-24 rounded" />
@@ -703,48 +709,50 @@ export default function AuditHistoryPage() {
                   <div key={dateKey}>
                     {/* Date group header */}
                     <div
-                      className={`flex items-center gap-2 px-4 py-2 border-b border-outline-variant/20 ${
-                        today ? "bg-primary/5" : yesterday ? "bg-surface-container-low" : "bg-surface-container-low"
+                      className={`flex items-center gap-2 px-4 py-2 border-b border-outline-variant ${
+                        today ? "bg-primary-fixed" : "bg-surface-container-low"
                       }`}
                     >
                       <button
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high transition-colors"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container transition-colors"
                         onClick={() => toggleGroup(dateKey)} type="button"
                         aria-label={collapsed ? "Mở rộng" : "Thu gọn"}
                         aria-expanded={!collapsed}
                       >
-                        <span className={`material-symbols-outlined text-[14px] transition-transform ${collapsed ? "" : "rotate-90"}`}>chevron_right</span>
+                        <span className={`material-symbols-outlined text-[16px] transition-transform ${collapsed ? "" : "rotate-90"}`}>chevron_right</span>
                       </button>
 
-                      <span className={`material-symbols-outlined text-[14px] shrink-0 ${today ? "text-primary" : "text-on-surface-variant"}`}>calendar_today</span>
+                      <span className={`material-symbols-outlined text-[16px] shrink-0 ${today ? "text-primary" : "text-on-surface-variant"}`}>calendar_today</span>
 
-                      <span className={`text-[12px] font-semibold shrink-0 ${today ? "text-primary" : "text-on-surface"}`}>
+                      <span className={`text-[13px] font-semibold shrink-0 ${today ? "text-primary" : "text-on-surface"}`}>
                         {fmtDateShort(dateKey)}
                       </span>
 
                       {today && (
-                        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                        <span className="flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-bold text-on-primary shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-on-primary shrink-0" />
                           Hôm nay
                         </span>
                       )}
 
                       {yesterday && !today && (
-                        <span className="flex items-center gap-1 rounded-full bg-surface-container-high px-2 py-0.5 text-[10px] font-bold text-on-surface-variant shrink-0">
+                        <span className="flex items-center gap-1 rounded-full bg-surface-container-high px-2.5 py-0.5 text-[10px] font-bold text-on-surface-variant shrink-0">
                           Hôm qua
                         </span>
                       )}
 
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0 ${
-                        collapsed ? "bg-surface-container-high text-on-surface-variant"
-                        : today ? "bg-primary/10 text-primary"
-                        : "bg-surface-container-high text-on-surface-variant"
+                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold shrink-0 ${
+                        collapsed
+                          ? "bg-surface-container text-on-surface-variant"
+                          : today
+                          ? "bg-primary-container text-on-primary-container"
+                          : "bg-surface-container text-on-surface-variant"
                       }`}>
                         {dayRecords.length} sự kiện
                       </span>
 
                       {collapsed && (
-                        <span className="text-[11px] text-outline shrink-0 truncate max-w-xs">
+                        <span className="text-[11px] text-on-surface-variant shrink-0 truncate max-w-xs">
                           — {dayRecords.map((r) => r.tableName).filter((v, i, a) => a.indexOf(v) === i).join(", ")}
                         </span>
                       )}
@@ -761,30 +769,30 @@ export default function AuditHistoryPage() {
                       return (
                         <div
                           key={r.id}
-                          className={`flex items-start gap-3 px-4 py-2.5 transition-colors border-b border-outline-variant/10 last:border-b-0 cursor-pointer ${
+                          className={`flex items-start gap-3 px-4 py-3 transition-colors border-b border-outline-variant/10 last:border-b-0 cursor-pointer ${
                             isSelected
-                              ? "bg-primary/5 border-l-2 border-l-primary"
+                              ? "bg-primary-fixed border-l-2 border-l-primary"
                               : "hover:bg-surface-container-low"
                           }`}
                           onClick={() => setSelected(r)}
                         >
                           {/* Icon */}
-                          <div className="flex h-6 w-8 shrink-0 items-center justify-center pt-0.5">
-                            <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded ${st.iconBg}`}>
-                              <span className="material-symbols-outlined text-[12px]">{st.icon}</span>
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
+                            <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${st.iconBg}`}>
+                              <span className="material-symbols-outlined text-[14px]">{st.icon}</span>
                             </div>
                           </div>
 
                           {/* Content — 2 lines */}
-                          <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+                          <div className="flex flex-col min-w-0 flex-1 gap-1">
                             {/* Line 1: Action + Table + ID + diff badge */}
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`text-[11px] font-bold shrink-0 ${st.chipColor}`}>{st.label}</span>
-                              <span className="text-[12px] font-medium text-on-surface shrink-0">{r.tableName}</span>
-                              <span className="text-[11px] text-outline shrink-0">#{r.recordId}</span>
+                              <span className={`text-[12px] font-bold shrink-0 ${st.chipColor}`}>{st.label}</span>
+                              <span className="text-[13px] font-medium text-on-surface shrink-0">{r.tableName}</span>
+                              <span className="text-[11px] text-on-surface-variant shrink-0">#{r.recordId}</span>
                               {r.oldData && r.newData && (
                                 <span className="flex items-center gap-0.5 rounded bg-surface-container-low px-1.5 py-0.5 shrink-0">
-                                  <span className="material-symbols-outlined text-[10px] text-secondary">find_replace</span>
+                                  <span className="material-symbols-outlined text-[11px] text-secondary">find_replace</span>
                                   <span className="text-[10px] text-secondary font-medium">diff</span>
                                 </span>
                               )}
@@ -794,24 +802,24 @@ export default function AuditHistoryPage() {
                             <div className="flex items-center gap-2 flex-wrap">
                               {userDisplay ? (
                                 <>
-                                  <span className="text-[11px] text-on-surface-variant shrink-0">{userDisplay}</span>
+                                  <span className="text-[12px] text-on-surface-variant shrink-0">{userDisplay}</span>
                                   {r.ipAddress && (
                                     <>
                                       <span className="text-[10px] text-outline shrink-0">·</span>
-                                      <span className="text-[11px] text-outline/60 shrink-0">{r.ipAddress}</span>
+                                      <span className="text-[12px] text-on-surface-variant shrink-0">{r.ipAddress}</span>
                                     </>
                                   )}
                                 </>
                               ) : r.ipAddress ? (
-                                <span className="text-[11px] text-outline/60 shrink-0">{r.ipAddress}</span>
+                                <span className="text-[12px] text-on-surface-variant shrink-0">{r.ipAddress}</span>
                               ) : (
-                                <span className="text-[11px] text-outline/40 italic shrink-0">Tự động hệ thống</span>
+                                <span className="text-[12px] text-outline italic shrink-0">Tự động hệ thống</span>
                               )}
                             </div>
                           </div>
 
                           {/* Time — right aligned */}
-                          <span className="text-[11px] text-outline tabular-nums shrink-0 pt-0.5">
+                          <span className="text-[12px] text-on-surface-variant tabular-nums shrink-0 pt-0.5">
                             {fmtTime(r.createdAt)}
                           </span>
                         </div>
@@ -826,11 +834,11 @@ export default function AuditHistoryPage() {
 
         {/* ── Pagination ── */}
         {!loading && filtered.length > 0 && (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[12px] text-outline">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-[12px] text-on-surface-variant">
               <span>Hiển thị</span>
               <select
-                className="appearance-none rounded-lg border border-outline-variant bg-surface px-1.5 h-6 text-[12px] text-on-surface cursor-pointer pr-5 focus:border-primary focus:outline-none"
+                className="appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-2 h-8 text-[12px] text-on-surface cursor-pointer pr-6 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                 value={pageSize}
                 onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
               >
@@ -841,12 +849,12 @@ export default function AuditHistoryPage() {
               <span>/ trang · <strong className="font-semibold text-on-surface">{filtered.length.toLocaleString("vi")}</strong> sự kiện</span>
             </div>
 
-            <div className="flex items-center gap-0.5">
-              <button className="flex h-6 w-6 items-center justify-center rounded border border-outline-variant bg-surface hover:bg-surface-container-low disabled:opacity-30 transition-colors" disabled={page <= 1} onClick={() => setPage(1)} type="button">
-                <span className="material-symbols-outlined text-[11px] text-on-surface-variant">keyboard_double_arrow_left</span>
+            <div className="flex items-center gap-1">
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page <= 1} onClick={() => setPage(1)} type="button" aria-label="Trang đầu">
+                <span className="material-symbols-outlined text-[14px] text-on-surface-variant">keyboard_double_arrow_left</span>
               </button>
-              <button className="flex h-6 w-6 items-center justify-center rounded border border-outline-variant bg-surface hover:bg-surface-container-low disabled:opacity-30 transition-colors" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} type="button">
-                <span className="material-symbols-outlined text-[11px] text-on-surface-variant">chevron_left</span>
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} type="button" aria-label="Trang trước">
+                <span className="material-symbols-outlined text-[14px] text-on-surface-variant">chevron_left</span>
               </button>
 
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -858,10 +866,10 @@ export default function AuditHistoryPage() {
                 return (
                   <button
                     key={p}
-                    className={`flex h-6 min-w-[24px] items-center justify-center rounded px-1 text-[11px] font-medium transition-colors ${
+                    className={`flex h-8 min-w-[32px] items-center justify-center rounded-lg px-2 text-[12px] font-medium transition-colors ${
                       p === page
                         ? "bg-primary text-on-primary shadow-sm"
-                        : "border border-outline-variant bg-surface hover:bg-surface-container-low text-on-surface"
+                        : "border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low text-on-surface"
                     }`}
                     onClick={() => setPage(p)} type="button"
                   >
@@ -870,15 +878,15 @@ export default function AuditHistoryPage() {
                 );
               })}
 
-              <button className="flex h-6 w-6 items-center justify-center rounded border border-outline-variant bg-surface hover:bg-surface-container-low disabled:opacity-30 transition-colors" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} type="button">
-                <span className="material-symbols-outlined text-[11px] text-on-surface-variant">chevron_right</span>
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} type="button" aria-label="Trang sau">
+                <span className="material-symbols-outlined text-[14px] text-on-surface-variant">chevron_right</span>
               </button>
-              <button className="flex h-6 w-6 items-center justify-center rounded border border-outline-variant bg-surface hover:bg-surface-container-low disabled:opacity-30 transition-colors" disabled={page >= totalPages} onClick={() => setPage(totalPages)} type="button">
-                <span className="material-symbols-outlined text-[11px] text-on-surface-variant">keyboard_double_arrow_right</span>
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page >= totalPages} onClick={() => setPage(totalPages)} type="button" aria-label="Trang cuối">
+                <span className="material-symbols-outlined text-[14px] text-on-surface-variant">keyboard_double_arrow_right</span>
               </button>
             </div>
 
-            <p className="text-[12px] text-outline">
+            <p className="text-[12px] text-on-surface-variant">
               Trang <strong className="font-semibold text-on-surface">{page}</strong> / {totalPages}
             </p>
           </div>
