@@ -5,6 +5,7 @@ import { WorkflowShell } from "@/components/layout/WorkflowShell";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AlgorithmTip } from "@/components/auto-scheduling/AlgorithmTip";
 import { BusinessRulesPanel } from "@/components/auto-scheduling/BusinessRulesPanel";
@@ -1094,7 +1095,12 @@ export default function AutoSchedulingPage() {
         ) : suggestionsData ? (
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {suggestionsData.suggestions.length === 0 ? (
-              <p className="text-label-sm text-on-surface-variant text-center py-4">Không có người thay thế phù hợp.</p>
+              <EmptyState
+                size="compact"
+                icon="person_off"
+                title="Không có người thay thế phù hợp"
+                description="Hệ thống không tìm thấy nhân sự khả dụng với cùng chuyên môn và rảnh trong ngày."
+              />
             ) : (
               suggestionsData.suggestions.map((s) => (
                 <div
@@ -1155,7 +1161,12 @@ export default function AutoSchedulingPage() {
             {loadingTemplates ? (
               <p className="text-label-sm text-on-surface-variant text-center py-6">Đang tải mẫu lịch...</p>
             ) : templates.length === 0 ? (
-              <p className="text-label-sm text-on-surface-variant text-center py-6">Chưa có mẫu lịch nào. Hãy chạy auto schedule và lưu mẫu trước.</p>
+              <EmptyState
+                size="compact"
+                icon="bookmarks"
+                title="Chưa có mẫu lịch nào"
+                description="Chạy auto schedule trước rồi lưu mẫu để có thể áp dụng lại sau."
+              />
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {templates.map((t) => (
@@ -1384,9 +1395,16 @@ export default function AutoSchedulingPage() {
                   {periods.filter((p) =>
                     bulkOperation === "publish" ? p.status === "DRAFT" : p.status === "PUBLISHED"
                   ).length === 0 && (
-                    <p className="px-4 py-6 text-label-sm text-on-surface-variant text-center">
-                      Không có kỳ lịch nào ở trạng thái phù hợp.
-                    </p>
+                    <EmptyState
+                      size="compact"
+                      icon={bulkOperation === "publish" ? "publish" : "archive"}
+                      title="Không có kỳ lịch phù hợp"
+                      description={
+                        bulkOperation === "publish"
+                          ? "Tất cả kỳ lịch đã được công bố hoặc lưu trữ."
+                          : "Chưa có kỳ lịch nào ở trạng thái đã công bố."
+                      }
+                    />
                   )}
                 </div>
                 {bulkSelectedIds.size > 0 && (
