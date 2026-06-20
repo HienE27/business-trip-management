@@ -1,16 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { WorkflowShell } from "@/components/layout/WorkflowShell";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonCalendar, SkeletonKPI, SkeletonTable } from "@/components/ui/Skeleton";
 import { ConflictResolutionModal } from "@/components/ui/ConflictResolutionModal";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { ConflictSection } from "@/components/monthly-schedule/ConflictSection";
-import { CoverageSection } from "@/components/monthly-schedule/CoverageSection";
 import { KPISection } from "@/components/monthly-schedule/KPISection";
 import { QuickAddModal } from "@/components/monthly-schedule/QuickAddModal";
-import { ReviewSnapshotPanel } from "@/components/monthly-schedule/ReviewSnapshotPanel";
 import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleCalendarSection";
 import { ScheduleHeader } from "@/components/monthly-schedule/ScheduleHeader";
 import { ShiftDetailModal } from "@/components/monthly-schedule/ShiftDetailModal";
@@ -26,6 +24,41 @@ import type { ConflictDetail } from "@/types/api";
 import type { ConflictItem } from "@/types/schedule";
 import type { MonthlyPanel, WorkflowStepId } from "@/components/monthly-schedule/types";
 import { downloadBlob, getInitialCalendar } from "@/components/monthly-schedule/utils";
+
+// Lazy-load the three bottom info panels. They live below the fold and are
+// not critical for first paint of the calendar above. Each panel bundles
+// its own helpers (date math, conflict resolution logic) — deferring them
+// shaves ~30 KB off the initial JS payload (see
+// docs/PERFORMANCE_AUDIT_2026-06-20.md).
+function PanelSkeleton({ title }: { title: string }) {
+  return (
+    <SectionCard title={title}>
+      <div className="h-32 animate-pulse rounded-lg bg-surface-container" />
+    </SectionCard>
+  );
+}
+
+const ConflictSection = dynamic(
+  () => import("@/components/monthly-schedule/ConflictSection").then((m) => m.ConflictSection),
+  {
+    loading: () => <PanelSkeleton title="Xung đột" />,
+    ssr: false,
+  },
+);
+const CoverageSection = dynamic(
+  () => import("@/components/monthly-schedule/CoverageSection").then((m) => m.CoverageSection),
+  {
+    loading: () => <PanelSkeleton title="Khoảng trống phân công" />,
+    ssr: false,
+  },
+);
+const ReviewSnapshotPanel = dynamic(
+  () => import("@/components/monthly-schedule/ReviewSnapshotPanel").then((m) => m.ReviewSnapshotPanel),
+  {
+    loading: () => <PanelSkeleton title="Tổng quan ngày" />,
+    ssr: false,
+  },
+);
 
 export default function MonthlySchedulePage() {
   const role = useRole();
