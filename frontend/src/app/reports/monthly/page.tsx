@@ -7,6 +7,7 @@ import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import type { SchedulePeriod, ShiftStatistics } from "@/types/api";
 
 // Shift labels — references CSS custom properties from globals.css @theme.
@@ -86,6 +87,8 @@ export default function ReportsMonthlyPage() {
   useEffect(() => {
     if (selectedPeriod) void fetchReport(selectedPeriod.id);
   }, [selectedPeriod, fetchReport]);
+
+  useAutoDismiss(message, () => setMessage(null));
 
   const handleExportSuccess = useCallback((msg: string) => {
     toastSuccess(msg);

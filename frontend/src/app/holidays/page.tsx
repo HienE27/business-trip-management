@@ -10,6 +10,7 @@ import { Button } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
+import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import type { Holiday } from "@/types/api";
 
 export default function HolidaysPage() {
@@ -43,6 +44,9 @@ export default function HolidaysPage() {
   }, []);
 
   useEffect(() => { void loadHolidays(); }, [loadHolidays]);
+
+  useAutoDismiss(message, () => setMessage(null));
+  useAutoDismiss(formError, () => setFormError(null), 6000);
 
   const openCreateModal = () => {
     setEditingHoliday(null);

@@ -6,6 +6,7 @@ import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import type { SchedulePeriod, ConflictCheckResponse, ConflictDetail } from "@/types/api";
 
 export default function ReportsConflictsPage() {
@@ -52,6 +53,8 @@ export default function ReportsConflictsPage() {
   useEffect(() => {
     if (selectedPeriod) void checkConflicts(selectedPeriod.id);
   }, [selectedPeriod, checkConflicts]);
+
+  useAutoDismiss(message, () => setMessage(null));
 
   const conflictsByType = useMemo(() => {
     if (!conflictData) return {};
