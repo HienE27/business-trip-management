@@ -6,6 +6,8 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
+import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import type { AlgorithmMetrics, ApiResponse, SchedulePeriod } from "@/types/api";
 
 const ALGO_LABELS: Record<string, string> = {
@@ -259,6 +261,8 @@ export default function AlgorithmHistoryPage() {
   }, [selectedPeriodId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useAutoDismiss(message, () => setMessage(null));
 
   const handleToggle = (run: AlgorithmMetrics) => {
     if (compareA?.id === run.id) {
