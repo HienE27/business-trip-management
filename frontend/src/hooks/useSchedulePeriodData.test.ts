@@ -11,6 +11,12 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
+// Mock next/navigation so we can simulate pathname changes during tests.
+let mockedPathname = "/dashboard";
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockedPathname,
+}));
+
 const mockedApi = vi.mocked(api);
 
 const fakePeriod: SchedulePeriod = {
@@ -62,6 +68,7 @@ const fakeConflict: ConflictCheckResponse = {
 describe("useSchedulePeriodData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedPathname = "/dashboard";
   });
 
   it("tự fetch periods, staff, specialties khi mount", async () => {
@@ -199,5 +206,75 @@ describe("useSchedulePeriodData", () => {
     ).length;
 
     expect(after).toBe(before);
+  });
+
+  describe("banner / message", () => {
+    it("clear message sạch khi pathname đổi", async () => {
+      mockedApi.get.mockImplementation((url: string) => {
+        if (url === "/periods") return Promise.resolve([fakePeriod]);
+        if (url === "/staff/active") return Promise.resolve([]);
+        if (url === "/specialties") return Promise.resolve([]);
+        return Promise.resolve([]);
+      });
+
+      mockedPathname = "/dashboard";
+      const { result, rerender } = renderHook(() => useSchedulePeriodData());
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      act(() => {
+        result.current.setMessage("Banner cũ từ trang khác");
+      });
+      expect(result.current.message).toBe("Banner cũ từ trang khác");
+
+      // Navigate sang page khác và rerender hook để trigger useEffect[pathname]
+      mockedPathname = "/periods";
+      rerender();
+
+      await waitFor(() => {
+        expect(result.current.message).toBeNull();
+      });
+    });
+
+    it("auto-dismiss message sau 5s", async () => {
+      vi.useFakeTimers();
+      try {
+        mockedApi.get.mockImplementation((url: string) => {
+          if (url === "/periods") return Promise.resolve([fakePeriod]);
+          if (url === "/staff/active") return Promise.resolve([]);
+          if (url === "/specialties") return Promise.resolve([]);
+          return Promise.resolve([]);
+        });
+
+        const { result } = renderHook(() => useSchedulePeriodData());
+
+        // Đợi fetch ban đầu hoàn tất (real timers cần thiết cho async).
+        // Nhưng vì đang fake, hãy chạy với real trước rồi switch.
+        vi.useRealTimers();
+        await waitFor(() => {
+          expect(result.current.loading).toBe(false);
+        });
+        vi.useFakeTimers();
+
+        act(() => {
+          result.current.setMessage("Đã lưu");
+        });
+        expect(result.current.message).toBe("Đã lưu");
+
+        act(() => {
+          vi.advanceTimersByTime(4_999);
+        });
+        expect(result.current.message).toBe("Đã lưu");
+
+        act(() => {
+          vi.advanceTimersByTime(2);
+        });
+        expect(result.current.message).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
