@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { Staff, SchedulePeriod, StaffWorkloadStatistics } from "@/types/api";
@@ -312,12 +313,26 @@ export default function ReportsStaffPage() {
               <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           ) : enriched.length === 0 ? (
-            <div className="py-20 text-center">
-              <span className="material-symbols-outlined text-5xl text-outline">groups</span>
-              <p className="mt-4 text-on-surface-variant">
-                {search ? "Không tìm thấy nhân sự phù hợp." : "Chưa có dữ liệu nhân sự."}
-              </p>
-            </div>
+            <EmptyState
+              icon={search ? "search_off" : "groups"}
+              title={search ? "Không tìm thấy nhân sự phù hợp" : "Chưa có dữ liệu nhân sự"}
+              description={
+                search
+                  ? "Thử từ khóa khác hoặc đổi kỳ lịch."
+                  : "Hệ thống chưa có workload cho nhân sự trong kỳ lịch đã chọn."
+              }
+              action={
+                search ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-2 text-label-md font-medium text-on-surface shadow-sm transition-colors hover:bg-surface-container-low"
+                    onClick={() => setSearch("")}
+                  >
+                    Đặt lại tìm kiếm
+                  </button>
+                ) : undefined
+              }
+            />
           ) : (
             <table className="w-full border-collapse text-left" data-testid="staff-workload-table">
               <thead>
