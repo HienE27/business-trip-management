@@ -48,6 +48,31 @@ const GUARDED_PAGES: GuardedPage[] = [
     adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
     adminOnlyControlName: /xuất|nhật ký|export/i,
   },
+  {
+    path: '/settings/roles',
+    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
+    adminOnlyControlName: /ma trận|matrix|phân quyền/i,
+  },
+  {
+    path: '/staff',
+    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
+    adminOnlyControlName: /thêm nhân sự|nhân viên/i,
+  },
+  {
+    path: '/reports/conflicts',
+    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
+    adminOnlyControlName: /báo cáo|xung đột/i,
+  },
+  {
+    path: '/reports/staff',
+    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
+    adminOnlyControlName: /khối lượng|nhân sự/i,
+  },
+  {
+    path: '/reports/monthly',
+    adminOnlyControl: undefined as unknown as ReturnType<Page['getByRole']>,
+    adminOnlyControlName: /kỳ lịch|tổng hợp/i,
+  },
 ];
 
 test.describe('Role guards — STAFF cannot reach admin pages', () => {
@@ -81,8 +106,14 @@ test.describe('Role guards — STAFF cannot reach admin pages', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);
 
-    // Each guarded page still has a sidebar link so STAFF can see what exists
-    for (const guarded of GUARDED_PAGES) {
+    // Each guarded page still has a sidebar link so STAFF can see what exists.
+    // Skip nested routes (e.g. /settings/roles, /reports/*) — they live under
+    // their parent's nav item (/settings, /reports), not as a standalone
+    // sidebar entry.
+    const sidebarEntries = GUARDED_PAGES.filter(
+      (g) => !g.path.startsWith('/settings/') && !g.path.startsWith('/reports/')
+    );
+    for (const guarded of sidebarEntries) {
       const link = page.locator(`aside a[href="${guarded.path}"]`).first();
       await expect(link, `sidebar link for ${guarded.path} should exist`).toBeVisible();
     }

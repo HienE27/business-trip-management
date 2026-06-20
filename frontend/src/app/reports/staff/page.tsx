@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DashboardShell } from "@/components/layout/DashboardShell";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -35,6 +35,19 @@ const VIEW_MODES: { value: WorkloadView; label: string; helper: string }[] = [
 ];
 
 export default function ReportsStaffPage() {
+  return (
+    <RoleGuard
+      activeSection="reports"
+      title="Báo cáo khối lượng nhân sự"
+      description="Theo dõi tải phân công theo nhân sự, so sánh với giới hạn ca/tháng."
+      allow={["ADMIN", "MANAGER"]}
+    >
+      <ReportsStaffContent />
+    </RoleGuard>
+  );
+}
+
+function ReportsStaffContent() {
   const { success: toastSuccess, error: toastError } = useToast();
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [workloads, setWorkloads] = useState<StaffWorkloadStatistics[]>([]);
@@ -162,11 +175,7 @@ export default function ReportsStaffPage() {
   }
 
   return (
-    <DashboardShell
-      activeSection="reports"
-      title="Báo cáo khối lượng nhân sự"
-      description="Theo dõi tải phân công theo nhân sự, so sánh với giới hạn ca/tháng."
-    >
+    <>
       {message && (
         <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
           {message}
@@ -435,6 +444,6 @@ export default function ReportsStaffPage() {
           </div>
         )}
       </section>
-    </DashboardShell>
+    </>
   );
 }

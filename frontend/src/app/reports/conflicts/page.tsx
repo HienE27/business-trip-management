@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DashboardShell } from "@/components/layout/DashboardShell";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -10,6 +10,19 @@ import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import type { SchedulePeriod, ConflictCheckResponse, ConflictDetail } from "@/types/api";
 
 export default function ReportsConflictsPage() {
+  return (
+    <RoleGuard
+      activeSection="reports"
+      title="Báo cáo xung đột"
+      description="Phân tích các xung đột lịch trực, nguyên nhân và mức độ ảnh hưởng."
+      allow={["ADMIN", "MANAGER"]}
+    >
+      <ReportsConflictsContent />
+    </RoleGuard>
+  );
+}
+
+function ReportsConflictsContent() {
   const { success: toastSuccess, error: toastError } = useToast();
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<SchedulePeriod | null>(null);
@@ -68,11 +81,7 @@ export default function ReportsConflictsPage() {
   }, [conflictData]);
 
   return (
-    <DashboardShell
-      activeSection="reports"
-      title="Báo cáo xung đột"
-      description="Phân tích các xung đột lịch trực, nguyên nhân và mức độ ảnh hưởng."
-    >
+    <>
       {/* Period selector */}
       <section className="flex items-center justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
         <div className="flex items-center gap-4">
@@ -244,6 +253,6 @@ export default function ReportsConflictsPage() {
           )}
         </div>
       ) : null}
-    </DashboardShell>
+    </>
   );
 }

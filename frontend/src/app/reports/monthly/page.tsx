@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DashboardShell } from "@/components/layout/DashboardShell";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
@@ -29,6 +29,19 @@ const CHART_COLORS: Record<string, string> = {
 };
 
 export default function ReportsMonthlyPage() {
+  return (
+    <RoleGuard
+      activeSection="reports"
+      title="Báo cáo kỳ lịch"
+      description="Tổng hợp phân bổ lịch, trạng thái và xung đột của kỳ lịch được chọn."
+      allow={["ADMIN", "MANAGER"]}
+    >
+      <ReportsMonthlyContent />
+    </RoleGuard>
+  );
+}
+
+function ReportsMonthlyContent() {
   const { success: toastSuccess, error: toastError } = useToast();
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<SchedulePeriod | null>(null);
@@ -118,11 +131,7 @@ export default function ReportsMonthlyPage() {
 
   return (
     <ErrorBoundary>
-    <DashboardShell
-      activeSection="reports"
-      title="Báo cáo kỳ lịch"
-      description="Tổng hợp phân bổ lịch, trạng thái và xung đột của kỳ lịch được chọn."
-    >
+    <>
       {message && (
         <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
           {message}
@@ -356,7 +365,7 @@ export default function ReportsMonthlyPage() {
           ) : null}
         </div>
       )}
-    </DashboardShell>
+    </>
     </ErrorBoundary>
   );
 }

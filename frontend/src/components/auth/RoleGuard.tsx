@@ -68,5 +68,9 @@ export function RoleGuard({
     );
   }
 
-  return <>{children}</>;
+  return (
+    <DashboardShell activeSection={activeSection} title={title} description={description}>
+      {children}
+    </DashboardShell>
+  );
 }
