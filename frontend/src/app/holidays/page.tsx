@@ -5,6 +5,8 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
@@ -179,10 +181,17 @@ export default function HolidaysPage() {
               </tbody>
             </table>
           ) : sorted.length === 0 ? (
-            <div className="py-20 text-center">
-              <span className="material-symbols-outlined text-5xl text-outline">event_busy</span>
-              <p className="mt-4 text-on-surface-variant">Chưa có ngày lễ nào.</p>
-            </div>
+            <EmptyState
+              icon="event_busy"
+              title="Chưa có ngày lễ nào"
+              description="Thêm các ngày lễ quốc gia và ngày nghỉ đặc biệt để hệ thống tự động áp dụng khi xếp lịch."
+              action={
+                <Button onClick={openCreateModal}>
+                  <span className="material-symbols-outlined text-[20px]">add</span>
+                  Thêm ngày lễ
+                </Button>
+              }
+            />
           ) : (
             <table className="w-full border-collapse text-left">
               <thead>

@@ -5,6 +5,7 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui";
 import { api } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/errors";
@@ -221,10 +222,33 @@ export default function RequirementsPage() {
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-on-surface-variant">
-              <span className="material-symbols-outlined text-[48px] text-outline">inbox</span>
-              <p className="mt-2 text-body-sm">Chưa có yêu cầu nhân sự nào.</p>
-            </div>
+            <EmptyState
+              icon={requirements.length === 0 ? "inbox" : "search_off"}
+              title={requirements.length === 0 ? "Chưa có yêu cầu nhân sự nào" : "Không có kết quả phù hợp"}
+              description={
+                requirements.length === 0
+                  ? "Thêm yêu cầu nhân sự để M07 tự động xếp lịch có đủ dữ liệu phân công."
+                  : "Thử đổi kỳ lịch hoặc loại ca khác để xem các yêu cầu khác."
+              }
+              action={
+                requirements.length === 0 ? (
+                  <Button onClick={openCreateModal}>
+                    <span className="material-symbols-outlined text-[20px]">add</span>
+                    Thêm yêu cầu
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setFilterPeriodId("");
+                      setFilterShiftType("");
+                    }}
+                  >
+                    Đặt lại bộ lọc
+                  </Button>
+                )
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
