@@ -37,6 +37,12 @@ class ConflictDetectionServiceTest {
     private StaffRepository staffRepository;
     @Mock
     private ShiftTypeRepository shiftTypeRepository;
+    @Mock
+    private ShiftRequirementRepository shiftRequirementRepository;
+    @Mock
+    private ConflictBroadcastService conflictBroadcastService;
+    @Mock
+    private EmailService emailService;
 
     @InjectMocks
     private ConflictDetectionService conflictDetectionService;
@@ -689,6 +695,106 @@ class ConflictDetectionServiceTest {
 
             assertThat(conflicts)
                     .noneMatch(c -> c.contains("ca trực liền kề"));
+        }
+    }
+
+    // ==================== checkPeriodConflicts broadcast dedupe ====================
+    @Nested
+    @DisplayName("checkPeriodConflicts: chỉ broadcast khi conflict mới")
+    class CheckPeriodConflictsBroadcast {
+
+        @Test
+        @DisplayName("Conflict mới trên schedule -> broadcast 1 lần")
+        void newConflict_shouldBroadcastOnce() {
+            Schedule schedule = Schedule.builder()
+                    .id(500)
+                    .staff(testStaff)
+                    .workDate(monday)
+                    .shiftType(shiftL01)
+                    .period(period1)
+                    .hasConflict(false)
+                    .build();
+
+            // Adjacent schedule triggers a back-to-back conflict regardless
+            // of max-shifts accounting (which only triggers when periodId is
+            // threaded through detectAllConflicts).
+            Schedule adjacentSchedule = Schedule.builder()
+                    .id(501)
+                    .staff(testStaff)
+                    .workDate(monday.minusDays(1))
+                    .shiftType(shiftL01)
+                    .period(period1)
+                    .build();
+
+            when(scheduleRepository.findByPeriodId(period1.getId()))
+                    .thenReturn(List.of(schedule));
+            when(scheduleRepository.findByStaffIdAndDateRange(
+                    testStaff.getId(), monday.minusDays(1), monday.minusDays(1)))
+                    .thenReturn(List.of(adjacentSchedule));
+            when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(schedule.getId()))
+                    .thenReturn(Collections.emptyList()); // no prior conflict -> new
+            when(scheduleConflictRepository.save(any(ScheduleConflict.class)))
+                    .thenAnswer(inv -> {
+                        ScheduleConflict c = inv.getArgument(0);
+                        c.setId(9001);
+                        return c;
+                    });
+            when(shiftRequirementRepository.findByPeriodId(period1.getId()))
+                    .thenReturn(Collections.emptyList());
+
+            conflictDetectionService.checkPeriodConflicts(period1.getId());
+
+            // new conflict -> exactly one broadcast
+            verify(conflictBroadcastService, times(1))
+                    .broadcastConflict(any(ScheduleConflict.class), any());
+        }
+
+        @Test
+        @DisplayName("Conflict đã tồn tại (unresolved) -> KHÔNG broadcast lại")
+        void existingConflict_shouldNotBroadcastAgain() {
+            Schedule schedule = Schedule.builder()
+                    .id(502)
+                    .staff(testStaff)
+                    .workDate(monday)
+                    .shiftType(shiftL01)
+                    .period(period1)
+                    .hasConflict(true)
+                    .build();
+
+            ScheduleConflict preExisting = ScheduleConflict.builder()
+                    .id(8001)
+                    .schedule(schedule)
+                    .conflictType(ScheduleConflict.ConflictType.OTHER)
+                    .description("pre-existing")
+                    .isResolved(false)
+                    .build();
+
+            // Same adjacent-shift trigger as above so detectAllConflicts finds
+            // a conflict — but the schedule already has an unresolved conflict
+            // so the broadcast must be skipped.
+            Schedule adjacentSchedule = Schedule.builder()
+                    .id(503)
+                    .staff(testStaff)
+                    .workDate(monday.minusDays(1))
+                    .shiftType(shiftL01)
+                    .period(period1)
+                    .build();
+
+            when(scheduleRepository.findByPeriodId(period1.getId()))
+                    .thenReturn(List.of(schedule));
+            when(scheduleRepository.findByStaffIdAndDateRange(
+                    testStaff.getId(), monday.minusDays(1), monday.minusDays(1)))
+                    .thenReturn(List.of(adjacentSchedule));
+            when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(schedule.getId()))
+                    .thenReturn(List.of(preExisting));
+            when(shiftRequirementRepository.findByPeriodId(period1.getId()))
+                    .thenReturn(Collections.emptyList());
+
+            conflictDetectionService.checkPeriodConflicts(period1.getId());
+
+            // re-running the check on a schedule that already has an unresolved
+            // conflict must NOT spam a duplicate WebSocket notification.
+            verify(conflictBroadcastService, never()).broadcastConflict(any(), any());
         }
     }
 }

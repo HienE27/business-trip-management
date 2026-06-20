@@ -189,16 +189,20 @@ public class ConflictDetectionService {
 
                 // Persist the conflict record so the resolution flow can find it later, and
                 // notify both the staff member and the conflict channel.
-                ScheduleConflict savedConflict = saveConflictInternal(schedule, ScheduleConflict.ConflictType.OTHER, description);
+                ConflictSaveResult saveResult = saveConflictInternal(schedule, ScheduleConflict.ConflictType.OTHER, description);
                 emailService.sendConflictAlertToStaff(staff, schedule, description);
 
-                // Broadcast conflict via WebSocket so frontend can update the badge in real-time.
-                // Wrapped in try-catch so broadcast failure never breaks the conflict check flow.
-                try {
-                    conflictBroadcastService.broadcastConflict(savedConflict, conflictDetail);
-                } catch (Exception e) {
-                    org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
-                            .warn("Failed to broadcast conflict for schedule {}: {}", schedule.getId(), e.getMessage());
+                // Only broadcast when the conflict is genuinely new — re-running the
+                // periodic conflict check on a schedule that already has an unresolved
+                // conflict would otherwise spam every connected client with duplicate
+                // notifications on every dashboard refresh.
+                if (saveResult.created()) {
+                    try {
+                        conflictBroadcastService.broadcastConflict(saveResult.conflict(), conflictDetail);
+                    } catch (Exception e) {
+                        org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
+                                .warn("Failed to broadcast conflict for schedule {}: {}", schedule.getId(), e.getMessage());
+                    }
                 }
             } else if (Boolean.TRUE.equals(schedule.getHasConflict())) {
                 // Conflict was resolved since the last check — clear the flag.
@@ -220,11 +224,20 @@ public class ConflictDetectionService {
                 .build();
     }
 
+    /**
+     * Persist a new conflict record for the given schedule, deduplicating
+     * against any unresolved conflict that already exists for the same
+     * schedule. Returns both the conflict entity (new or pre-existing)
+     * and a boolean indicating whether a brand-new row was actually
+     * written to the database — callers use this to decide whether to
+     * broadcast over WebSocket so we don't keep re-firing the same
+     * notification on every conflict re-check.
+     */
     @Transactional
-    public ScheduleConflict saveConflictInternal(Schedule schedule, ScheduleConflict.ConflictType conflictType, String description) {
+    public ConflictSaveResult saveConflictInternal(Schedule schedule, ScheduleConflict.ConflictType conflictType, String description) {
         List<ScheduleConflict> existing = scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(schedule.getId());
         if (!existing.isEmpty()) {
-            return existing.get(0);
+            return new ConflictSaveResult(existing.get(0), false);
         }
         ScheduleConflict conflict = ScheduleConflict.builder()
                 .schedule(schedule)
@@ -232,8 +245,12 @@ public class ConflictDetectionService {
                 .description(description)
                 .isResolved(false)
                 .build();
-        return scheduleConflictRepository.save(conflict);
+        ScheduleConflict saved = scheduleConflictRepository.save(conflict);
+        return new ConflictSaveResult(saved, true);
     }
+
+    /** Pair returned by {@link #saveConflictInternal}: the conflict row + whether it's freshly created. */
+    public record ConflictSaveResult(ScheduleConflict conflict, boolean created) {}
 
     public List<ScheduleConflict> getUnresolvedConflictsByPeriod(Integer periodId) {
         return scheduleConflictRepository.findUnresolvedByPeriodId(periodId);

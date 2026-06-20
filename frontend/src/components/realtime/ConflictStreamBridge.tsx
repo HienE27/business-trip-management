@@ -82,20 +82,39 @@ export function ConflictToastBridge() {
       }
     }
 
-    fresh.forEach((event) => {
-      seenDirtyRef.current = true;
-      if (event.eventType === 'CONFLICT_DETECTED') {
-        const body = formatConflictBody(event);
-        error(`Xung đột mới: ${body}`);
-      } else if (event.eventType === 'CONFLICT_BATCH') {
-        const total = event.totalConflicts ?? 0;
-        if (total > 0) {
-          info(`Có ${total} xung đột mới trong kỳ ${event.periodId ?? '?'}`);
-        }
-      } else if (event.eventType === 'CONFLICT_RESOLVED') {
-        success('Đã giải quyết xung đột');
+    if (fresh.length === 0) return;
+    seenDirtyRef.current = true;
+
+    // Group CONFLICT_DETECTED events into a single toast. Without this
+    // coalescing a single conflict-check run that finds N violations would
+    // surface N overlapping red toasts — overwhelming and easy to miss
+    // individual conflicts. The store keeps the per-conflict detail so
+    // the badge / sidebar count remains precise.
+    const detectedEvents = fresh.filter((e) => e.eventType === 'CONFLICT_DETECTED');
+    const batchEvents = fresh.filter((e) => e.eventType === 'CONFLICT_BATCH');
+    const resolvedEvents = fresh.filter((e) => e.eventType === 'CONFLICT_RESOLVED');
+
+    if (detectedEvents.length > 0) {
+      if (detectedEvents.length === 1) {
+        error(`Xung đột mới: ${formatConflictBody(detectedEvents[0])}`);
+      } else {
+        const firstBody = formatConflictBody(detectedEvents[0]);
+        error(
+          `Phát hiện ${detectedEvents.length} xung đột mới (gần nhất: ${firstBody}). Xem chi tiết tại Báo cáo xung đột.`
+        );
+      }
+    }
+
+    batchEvents.forEach((event) => {
+      const total = event.totalConflicts ?? 0;
+      if (total > 0) {
+        info(`Có ${total} xung đột mới trong kỳ ${event.periodId ?? '?'}`);
       }
     });
+
+    if (resolvedEvents.length > 0) {
+      success('Đã giải quyết xung đột');
+    }
   }, [state.recentEvents, error, info, success]);
 
   // Flush the seen-set to sessionStorage + trim it so it doesn't
