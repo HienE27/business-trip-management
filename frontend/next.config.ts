@@ -30,7 +30,12 @@ const nextConfig: NextConfig = {
     },
   ],
   experimental: {
-    optimizePackageImports: ["@/components/ui", "@/components/schedule"],
+    // Barrel-exported paths. optimizePackageImports turns named imports
+    // from these modules into deep imports at build time so unused
+    // exports don't bloat the client bundle.
+    optimizePackageImports: [
+      "@/components/ui",         // barrel at src/components/ui/index.ts
+    ],
   },
 };
 

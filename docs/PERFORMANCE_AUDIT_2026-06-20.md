@@ -49,19 +49,50 @@ Tất cả trang khác dưới 25 KB mỗi cái (login 3 KB, dashboard < 15 KB).
 
 Tạo 3 reports (`client.html`, `edge.html`, `nodejs.html`) cho 3 environments.
 
-### 2. `optimizePackageImports` (experimental)
+### 2. `optimizePackageImports` (experimental) — VERIFIED
 
 ```ts
 experimental: {
-  optimizePackageImports: ["@/components/ui", "@/components/schedule"],
-}
+  // Barrel-exported paths. optimizePackageImports turns named imports
+  // from these modules into deep imports at build time so unused
+  // exports don't bloat the client bundle.
+  optimizePackageImports: [
+    "@/components/ui",         // barrel at src/components/ui/index.ts
+  ],
+},
 ```
 
-Giúp Next tree-shake barrel exports của `@/components/ui` (FormInput, FormSelect, ToastProvider, ConfirmDialog, ThemeToggle…) và `@/components/schedule` (calendar grid). Kết quả: imports sâu không kéo theo toàn bộ barrel.
+**Verification (build: 2026-06-20)**:
+- `periods/page.tsx` imports `Button` only → page.js is 986 B; **no
+  ToastProvider/FormInput/ConfirmDialog/ThemeToggle found in any
+  chunk loaded by /periods**.
+- 3 chunks contain `FormInput + FormSelect` (login, schedule-calendar-
+  widget, monthly-schedule) — those are the actual consumers.
+- `ToastProvider` only loaded into 2 shared chunks (41 KB + 27 KB) and
+  only fetched by routes that actually call `useToast()`.
+- `ConfirmDialog` not bundled in any chunk — no current consumer.
+
+**Note**: `@/components/schedule` was removed from the list because no
+barrel file exists at that path. Adding it to optimizePackageImports
+silently no-ops.
 
 ### 3. `output: 'standalone'` (đã có từ trước)
 
 Build ra Dockerfile-friendly output cho deployment.
+
+### 4. `next/dynamic` on bottom info panels (2026-06-20 session 3)
+
+`ConflictSection`, `CoverageSection`, `ReviewSnapshotPanel` on
+`/monthly-schedule` lazy-loaded via `next/dynamic({ ssr: false })`.
+Reduces initial JS for `/monthly-schedule` from ~95 KB to ~82 KB
+(panels load asynchronously after calendar paints). See commit
+`483775a` for full numbers.
+
+### 5. `RoleGuard` coverage (2026-06-20 session 1-3)
+
+20 of 24 protected routes now route through `<RoleGuard>` (or
+`<GuardedScheduleByTypePage>` for the 4 schedule-by-type routes).
+Full matrix in `docs/ROLE_MATRIX_2026-06-20.md`.
 
 ## Optimization Opportunities (Priority)
 
