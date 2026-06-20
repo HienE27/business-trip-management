@@ -5,6 +5,7 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { Staff, SchedulePeriod, StaffWorkloadStatistics } from "@/types/api";
@@ -90,6 +91,8 @@ export default function ReportsStaffPage() {
       void fetchData();
     }
   }, [fetchData, selectedPeriodId]);
+
+  useAutoDismiss(message, () => setMessage(null));
 
   const enriched = useMemo(() => {
     const workMap = new Map(workloads.map((w) => [w.staffId, w]));
