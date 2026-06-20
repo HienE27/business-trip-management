@@ -5,7 +5,10 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { api } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
@@ -18,6 +21,9 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string; 
 };
 
 export default function PeriodsPage() {
+  const { user } = useAuth();
+  const isManager = user?.roles?.some((r) => r === "ADMIN" || r === "MANAGER") ?? false;
+
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -55,16 +61,11 @@ export default function PeriodsPage() {
   }, []);
 
   useEffect(() => {
-    if (message || error) {
-      const timer = setTimeout(() => {
-        setMessage(null);
-        setError(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [message, error]);
+    void loadPeriods();
+  }, [loadPeriods]);
 
-  useEffect(() => { void loadPeriods(); }, [loadPeriods]);
+  useAutoDismiss(message, () => setMessage(null));
+  useAutoDismiss(error, () => setError(null));
 
   const openCreateModal = () => {
     setEditingPeriod(null);
@@ -179,6 +180,25 @@ export default function PeriodsPage() {
     return matchesStatus && matchesSearch;
   });
 
+  // STAFF role guard — only ADMIN/MANAGER can manage periods
+  if (user && !isManager) {
+    return (
+      <DashboardShell
+        activeSection="periods"
+        title="Quản lý kỳ lịch"
+        description="Trang này chỉ dành cho Quản lý lịch (ADMIN) và Trưởng phòng (MANAGER)."
+      >
+        <div className="p-margin-desktop">
+          <EmptyState
+            icon="lock"
+            title="Bạn không có quyền truy cập trang này"
+            description="Chỉ Quản lý lịch và Trưởng phòng mới có thể quản lý kỳ lịch công tác. Vui lòng liên hệ quản trị viên nếu cần."
+          />
+        </div>
+      </DashboardShell>
+    );
+  }
+
   return (
     <>
       <DashboardShell
@@ -265,29 +285,34 @@ export default function PeriodsPage() {
                 ))}
               </div>
             ) : periods.length === 0 ? (
-              <div className="p-8 text-center text-on-surface-variant">
-                <span className="material-symbols-outlined text-[48px] text-outline">calendar_month</span>
-                <p className="mt-2 text-body-sm">Chưa có kỳ lịch nào. Hãy tạo kỳ lịch đầu tiên.</p>
-                <Button onClick={openCreateModal} className="mt-4">
-                  <span className="material-symbols-outlined text-[20px]">add</span>
-                  Tạo kỳ lịch
-                </Button>
-              </div>
+              <EmptyState
+                icon="calendar_month"
+                title="Chưa có kỳ lịch nào"
+                description="Mỗi kỳ lịch cần được tạo và công bố trước khi nhân sự có thể xem lịch của mình."
+                action={
+                  <Button onClick={openCreateModal}>
+                    <span className="material-symbols-outlined text-[20px]">add</span>
+                    Tạo kỳ lịch đầu tiên
+                  </Button>
+                }
+              />
             ) : filteredPeriods.length === 0 ? (
-              <div className="p-8 text-center text-on-surface-variant">
-                <span className="material-symbols-outlined text-[48px] text-outline">filter_list_off</span>
-                <p className="mt-2 text-body-sm">Không có kỳ lịch nào khớp với bộ lọc.</p>
-                <Button
-                  variant="ghost"
-                  className="mt-4"
-                  onClick={() => {
-                    setStatusFilter("ALL");
-                    setSearchQuery("");
-                  }}
-                >
-                  Đặt lại bộ lọc
-                </Button>
-              </div>
+              <EmptyState
+                icon="filter_list_off"
+                title="Không có kỳ lịch nào khớp với bộ lọc"
+                description="Thử đổi trạng thái hoặc từ khóa tìm kiếm khác."
+                action={
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setStatusFilter("ALL");
+                      setSearchQuery("");
+                    }}
+                  >
+                    Đặt lại bộ lọc
+                  </Button>
+                }
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">

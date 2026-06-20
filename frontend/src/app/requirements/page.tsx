@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui";
 import { api } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/errors";
+import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { formatDate } from "@/lib/date";
 import { SHIFT_COLORS, type ShiftColorSet } from "@/lib/shift-colors";
 import type { ShiftRequirement, SchedulePeriod, Specialty } from "@/types/api";
@@ -64,6 +65,8 @@ export default function RequirementsPage() {
   }, []);
 
   useEffect(() => { void loadData(); }, [loadData]);
+
+  useAutoDismiss(error, () => setError(null));
 
   const openCreateModal = () => {
     setEditingReq(null);
