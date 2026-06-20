@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -258,7 +257,7 @@ function LeaveRequestsContent() {
   }, []);
 
   return (
-    <ErrorBoundary>
+    <>
       {/* Conflict warning */}
       {conflictWarning && (
         <div className="rounded-lg border border-error/30 bg-error-container/40 px-4 py-3 text-sm text-error flex items-start gap-2">
@@ -663,17 +662,15 @@ function LeaveRequestsContent() {
         confirmLabel="Hủy yêu cầu"
         variant="danger"
       />
-    </ErrorBoundary>
+    </>
   );
 }
 
 export default function LeaveRequestsPage() {
-  // NOTE: We do NOT wrap this page in <RoleGuard> because RoleGuard
-  // hard-codes <DashboardShell>, which would render a second shell on
-  // top of <WorkflowShell> below (double sidebar + header). Instead,
-  // we do the role check inline and render <EmptyState> with the
-  // correct styling for both authorized and denied states. The shell
-  // (WorkflowShell) renders exactly once.
+  // NOTE: We do an inline role check here instead of using a wrapper
+  // component, because RoleGuard (the old wrapper) used to hard-code
+  // DashboardShell, which would double-mount the shell on top of the
+  // one already provided by the (dashboard) route-group layout.
   const { user } = useAuth();
   const roles = (user?.roles ?? []) as ("ADMIN" | "MANAGER" | "STAFF")[];
   const hasAccess = roles.some((r) => r === "ADMIN" || r === "MANAGER" || r === "STAFF");

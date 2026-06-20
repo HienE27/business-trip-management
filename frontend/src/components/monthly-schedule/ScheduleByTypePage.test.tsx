@@ -140,8 +140,8 @@ describe('ScheduleByTypePage', () => {
     await act(async () => {
       render(<ScheduleByTypePage config={duty24Config} />);
     });
-    // The title is now rendered by GuardedScheduleByTypePage + RoleGuard, so
-    // ScheduleByTypePage itself only surfaces the config indirectly via
+    // The title is now rendered by GuardedScheduleByTypePage (inline role check,
+    // no double-shell), so ScheduleByTypePage itself only surfaces the config
     // period names and shift types. Verify the page rendered the expected
     // config's shift data and the page structure is present.
     expect(screen.getByText('Tháng 6/2026 (DRAFT)')).toBeInTheDocument();

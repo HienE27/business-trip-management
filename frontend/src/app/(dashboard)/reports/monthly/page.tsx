@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -120,7 +119,6 @@ function ReportsMonthlyContent() {
   const maxShift = useMemo(() => Math.max(...shiftItems.map((i) => i.count), 1), [shiftItems]);
 
   return (
-    <ErrorBoundary>
     <>
       {message && (
         <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
@@ -267,95 +265,43 @@ function ReportsMonthlyContent() {
               <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           ) : stats ? (
-            <>
-              <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-                <h3 className="text-[16px] font-semibold text-on-surface mb-5">Phân bổ theo loại ca</h3>
-                <div className="space-y-4">
-                  {shiftItems.map((item) => (
-                    <div key={item.key} className="flex items-center gap-4">
-                      <div className="w-36 shrink-0">
-                        <p className={`text-[13px] font-semibold ${item.color}`}>{item.label}</p>
-                        <p className="text-[12px] text-outline">
-                          #{item.key}
-                        </p>
-                      </div>
-                      <div className="flex-1 bg-surface-variant rounded-full h-4 overflow-hidden">
-                        <div
-                          className={`h-4 rounded-full transition-all ${item.bg.replace("bg-", "bg-")}`}
-                          style={{
-                            width: `${Math.max((item.count / maxShift) * 100, 2)}%`,
-                            backgroundColor: CHART_COLORS[item.key] ?? "var(--color-outline)",
-                          }}
-                        />
-                      </div>
-                      <span className="text-[14px] font-bold text-on-surface min-w-[40px] text-right">
-                        {item.count}
-                      </span>
-                      <span className="text-[12px] text-outline min-w-[50px]">
-                        ({totalShift > 0 ? Math.round((item.count / totalShift) * 100) : 0}%)
-                      </span>
+            <div className="space-y-5 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+              <h3 className="text-[16px] font-semibold text-on-surface mb-5">Phân bổ theo loại ca</h3>
+              <div className="space-y-4">
+                {shiftItems.map((item) => (
+                  <div key={item.key} className="flex items-center gap-4">
+                    <div className="w-36 shrink-0">
+                      <p className={`text-[13px] font-semibold ${item.color}`}>{item.label}</p>
+                      <p className="text-[12px] text-outline">
+                        #{item.key}
+                      </p>
                     </div>
-                  ))}
-                </div>
-                <div className="mt-5 pt-4 border-t border-outline-variant flex items-center justify-between">
-                  <span className="text-[14px] font-semibold text-on-surface">Tổng cộng</span>
-                  <span className="text-[16px] font-bold text-primary">{totalShift} ca</span>
-                </div>
-              </section>
-
-              {/* Schedule count detail */}
-              <section className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-                  <h3 className="text-[16px] font-semibold text-on-surface mb-4">Chi tiết thống kê</h3>
-                  <div className="space-y-3">
-                    {[
-                      { label: "Tổng bản ghi lịch", value: scheduleCount },
-                      { label: "Trực 24/24 (L01)", value: stats.L01Count },
-                      { label: "Thông tầm (L02)", value: stats.L02Count },
-                      { label: "PK Dịch vụ (L03)", value: stats.L03Count },
-                      { label: "PK Chuyên gia (L04)", value: stats.L04Count },
-                      { label: "Nhân sự liên quan", value: staffCount },
-                    ].map((row) => (
-                      <div key={row.label} className="flex items-center justify-between py-2 border-b border-outline-variant last:border-0">
-                        <span className="text-[13px] text-on-surface-variant">{row.label}</span>
-                        <span className="text-[14px] font-semibold text-on-surface">{row.value}</span>
-                      </div>
-                    ))}
+                    <div className="flex-1 bg-surface-variant rounded-full h-4 overflow-hidden">
+                      <div
+                        className={`h-4 rounded-full transition-all ${item.bg.replace("bg-", "bg-")}`}
+                        style={{
+                          width: `${Math.max((item.count / maxShift) * 100, 2)}%`,
+                          backgroundColor: CHART_COLORS[item.key] ?? "var(--color-outline)",
+                        }}
+                      />
+                    </div>
+                    <span className="text-[14px] font-bold text-on-surface min-w-[40px] text-right">
+                      {item.count}
+                    </span>
+                    <span className="text-[12px] text-outline min-w-[50px]">
+                      ({totalShift > 0 ? Math.round((item.count / totalShift) * 100) : 0}%)
+                    </span>
                   </div>
-                </div>
-
-                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-                  <h3 className="text-[16px] font-semibold text-on-surface mb-4">Thông tin kỳ lịch</h3>
-                  <div className="space-y-3">
-                    {[
-                      { label: "Tên kỳ lịch", value: selectedPeriod?.periodName },
-                      {
-                        label: "Ngày bắt đầu",
-                        value: selectedPeriod ? new Date(selectedPeriod.startDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "long", year: "numeric" }) : "—",
-                      },
-                      {
-                        label: "Ngày kết thúc",
-                        value: selectedPeriod ? new Date(selectedPeriod.endDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "long", year: "numeric" }) : "—",
-                      },
-                      { label: "Trạng thái", value: selectedPeriod?.status === "PUBLISHED" ? "Đã công bố" : selectedPeriod?.status === "DRAFT" ? "Nháp" : "Đã lưu trữ" },
-                      {
-                        label: "Ngày tạo",
-                        value: selectedPeriod ? new Date(selectedPeriod.createdAt).toLocaleDateString("vi-VN") : "—",
-                      },
-                    ].map((row) => (
-                      <div key={row.label} className="flex items-center justify-between py-2 border-b border-outline-variant last:border-0">
-                        <span className="text-[13px] text-on-surface-variant">{row.label}</span>
-                        <span className="text-[14px] font-semibold text-on-surface text-right">{row.value ?? "—"}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </>
+                ))}
+              </div>
+              <div className="mt-5 pt-4 border-t border-outline-variant flex items-center justify-between">
+                <span className="text-[14px] font-semibold text-on-surface">Tổng cộng</span>
+                <span className="text-[16px] font-bold text-primary">{totalShift} ca</span>
+              </div>
+            </div>
           ) : null}
         </div>
       )}
     </>
-    </ErrorBoundary>
   );
 }

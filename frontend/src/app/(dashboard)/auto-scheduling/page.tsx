@@ -5,7 +5,6 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AlgorithmTip } from "@/components/auto-scheduling/AlgorithmTip";
 import { BusinessRulesPanel } from "@/components/auto-scheduling/BusinessRulesPanel";
 import { StaffExclusionTable } from "@/components/auto-scheduling/StaffExclusionTable";
@@ -620,7 +619,6 @@ export default function AutoSchedulingPage() {
   }
 
   return (
-    <ErrorBoundary>
     <>
       {loadMessage && (
         <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
@@ -1502,6 +1500,5 @@ export default function AutoSchedulingPage() {
         )}
       </Modal>
     </>
-    </ErrorBoundary>
   );
 }

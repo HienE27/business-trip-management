@@ -1,6 +1,7 @@
 "use client";
 
-import { RoleGuard, type UserRole } from "@/components/auth/RoleGuard";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { EmptyState } from "@/components/ui/EmptyState";
 import {
   ScheduleByTypePage,
   type ScheduleTypeConfig,
@@ -8,34 +9,37 @@ import {
 
 type GuardedScheduleByTypePageProps = {
   config: ScheduleTypeConfig;
-  allow?: UserRole[];
+  allow?: Array<"ADMIN" | "MANAGER" | "STAFF">;
 };
 
 /**
- * Wraps ScheduleByTypePage with a RoleGuard so the 4 schedule-by-type
- * routes (/duty-24, /all-day, /service-clinic, /expert-clinic) get the
- * same deny-state UX as the rest of the dashboard.
+ * Role-checked wrapper for ScheduleByTypePage.
  *
- * The component has its own `canManage` logic inside to hide manager-only
- * controls (the "Thêm ca" CTA, WorkflowStepper, edit affordances) from
- * STAFF users — but that doesn't prevent a STAFF user from navigating to
- * the URL and seeing the schedule read-only. This guard closes that gap.
- *
- * Default allow list: ADMIN + MANAGER. Pass a different list for STAFF-
- * accessible variants.
+ * All 4 schedule-by-type routes (/duty-24, /all-day, /service-clinic,
+ * /expert-clinic) are inside the (dashboard) route group which already
+ * provides DashboardShell. This component only does the role check and
+ * renders an EmptyState on denial — it does NOT add another shell.
  */
 export function GuardedScheduleByTypePage({
   config,
   allow = ["ADMIN", "MANAGER"],
 }: GuardedScheduleByTypePageProps) {
-  return (
-    <RoleGuard
-      activeSection={config.activeSection}
-      title={config.title}
-      description={config.description}
-      allow={allow}
-    >
-      <ScheduleByTypePage config={config} />
-    </RoleGuard>
-  );
+  const { user } = useAuth();
+  const roles = (user?.roles ?? []) as Array<"ADMIN" | "MANAGER" | "STAFF">;
+  const hasAccess = roles.some((r) => allow.includes(r));
+
+  if (!hasAccess) {
+    const allowedLabel = allow.join(" hoặc ");
+    return (
+      <div className="p-4 md:p-6">
+        <EmptyState
+          icon="lock"
+          title="Bạn không có quyền truy cập trang này"
+          description={`Trang này chỉ dành cho ${allowedLabel}. Vui lòng liên hệ quản trị viên nếu cần.`}
+        />
+      </div>
+    );
+  }
+
+  return <ScheduleByTypePage config={config} />;
 }

@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonCalendar, SkeletonKPI, SkeletonTable } from "@/components/ui/Skeleton";
 import { ConflictResolutionModal } from "@/components/ui/ConflictResolutionModal";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { KPISection } from "@/components/monthly-schedule/KPISection";
 import { QuickAddModal } from "@/components/monthly-schedule/QuickAddModal";
 import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleCalendarSection";
@@ -244,7 +243,6 @@ export default function MonthlySchedulePage() {
   }
 
   return (
-    <ErrorBoundary>
     <>
       {/* Row 1: ScheduleHeader + WorkflowStepper */}
       <div className="flex flex-col xl:flex-row gap-3">
@@ -380,6 +378,5 @@ export default function MonthlySchedulePage() {
         onRefresh={handleConflictRefresh}
       />
     </>
-    </ErrorBoundary>
   );
 }

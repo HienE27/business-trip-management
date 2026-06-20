@@ -49,7 +49,7 @@ const ALL_ROLES_PAGES: GuardedPage[] = [
 ];
 
 // Pages whose guard is implemented via GuardedScheduleByTypePage
-// (which delegates to RoleGuard) rather than directly. Tested under the
+// (inline role check, no double-shell). Tested under the
 // same ADMIN+MANAGER-only contract.
 const SCHEDULE_BY_TYPE_PAGES: GuardedPage[] = [
   { path: '/duty-24' },
