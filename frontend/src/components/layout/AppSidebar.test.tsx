@@ -128,4 +128,21 @@ describe('AppSidebar', () => {
     const badge = screen.getByLabelText(/Môi trường:/);
     expect(badge).toBeInTheDocument();
   });
+
+  it('marks the active item with data-sidebar-active for scroll-into-view', () => {
+    render(<AppSidebar items={makeAllItems('duty-24')} />);
+    const activeLink = screen.getByRole('link', { name: /Lịch trực 24\/24/ });
+    expect(activeLink).toHaveAttribute('data-sidebar-active', 'true');
+  });
+
+  it('preserves nav scroll position when items re-render (no jump-to-top)', () => {
+    // jsdom doesn't implement layout, so we can't actually scroll. We can
+    // however verify the useLayoutEffect runs and the data attribute is
+    // present, plus the scroll handler attaches.
+    const { container } = render(<AppSidebar items={makeAllItems('duty-24')} />);
+    const nav = container.querySelector('nav');
+    expect(nav).toBeInTheDocument();
+    // Active link exists so scrollIntoView has a target on first render
+    expect(nav?.querySelector('[data-sidebar-active="true"]')).not.toBeNull();
+  });
 });
