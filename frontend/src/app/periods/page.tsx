@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui";
@@ -200,12 +199,7 @@ export default function PeriodsPage() {
       description="Tạo, chỉnh sửa, công bố và lưu trữ các kỳ lịch công tác."
       allow={["ADMIN", "MANAGER"]}
     >
-      <DashboardShell
-        activeSection="periods"
-        title="Quản lý kỳ lịch"
-        description="Tạo, chỉnh sửa, công bố và lưu trữ các kỳ lịch công tác."
-      >
-        <div className="p-margin-desktop">
+      <div className="p-margin-desktop">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -414,7 +408,6 @@ export default function PeriodsPage() {
           confirmLabel={deleteAction === "archive" ? "Lưu trữ" : "Xóa"}
           variant={deleteAction === "archive" ? "primary" : "danger"}
         />
-      </DashboardShell>
     </RoleGuard>
   );
 }

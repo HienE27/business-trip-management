@@ -2,15 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { DashboardShell } from "@/components/layout/DashboardShell";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
-import { RoleGuard } from "@/components/auth/RoleGuard";
 import type { Holiday } from "@/types/api";
 import type { HolidayFormValues } from "./HolidayFormModal";
 
@@ -146,11 +145,6 @@ export default function HolidaysPage() {
       description="Thêm, sửa, xóa ngày nghỉ lễ và ngày nghỉ bù để hệ thống tự động tính ngày nghỉ bù chính xác."
       allow={["ADMIN", "MANAGER"]}
     >
-      <DashboardShell
-        activeSection="holidays"
-        title="Quản lý ngày lễ"
-        description="Thêm, sửa, xóa ngày nghỉ lễ và ngày nghỉ bù để hệ thống tự động tính ngày nghỉ bù chính xác."
-      >
       {message && (
         <div className={`rounded-lg border px-4 py-3 text-sm ${
           message.includes("thành công") || message.includes("Đã xóa")
@@ -288,7 +282,6 @@ export default function HolidaysPage() {
         onSave={handleSave}
         onCancel={() => setShowModal(false)}
       />
-    </DashboardShell>
 
     <ConfirmDialog
       open={confirmOpen}

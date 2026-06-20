@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui";
@@ -178,11 +177,6 @@ export default function RequirementsPage() {
       description="Cấu hình số nhân sự cần thiết cho từng ngày và loại ca trong kỳ lịch. Dùng cho M07 tự động xếp lịch."
       allow={["ADMIN", "MANAGER"]}
     >
-      <DashboardShell
-        activeSection="requirements"
-        title="Yêu cầu nhân sự"
-        description="Cấu hình số nhân sự cần thiết cho từng ngày và loại ca trong kỳ lịch. Dùng cho M07 tự động xếp lịch."
-      >
       <div className="p-margin-desktop">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -371,7 +365,6 @@ export default function RequirementsPage() {
         confirmLabel="Xóa"
         variant="danger"
       />
-    </DashboardShell>
     </RoleGuard>
   );
 }
