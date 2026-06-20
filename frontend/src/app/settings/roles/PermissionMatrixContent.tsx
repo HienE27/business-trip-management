@@ -10,14 +10,22 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { RolePermissionMatrix } from "@/types/api";
 import { useRole } from "@/hooks/useRole";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+
+// Lazy-load the confirm dialog. Used only when the user clicks
+// "Đặt lại" to revert unsaved changes — deferring it shaves a
+// small chunk off the initial /settings/roles payload.
+const ConfirmDialog = dynamic(
+  () => import("@/components/ui/ConfirmDialog").then((m) => m.ConfirmDialog),
+  { ssr: false },
+);
 
 /* ─── Role badge colours ─── */
 const ROLE_COLORS: Record<string, { bg: string; text: string; border: string }> = {

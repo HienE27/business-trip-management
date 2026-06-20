@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { DashboardShell } from "@/components/layout/DashboardShell";
-import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui";
@@ -14,13 +13,22 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { formatDate } from "@/lib/date";
 import { SHIFT_COLORS, type ShiftColorSet } from "@/lib/shift-colors";
 import type { ShiftRequirement, SchedulePeriod, Specialty } from "@/types/api";
+import {
+  SHIFT_TYPES,
+  type RequirementFormValues,
+} from "./RequirementFormModal";
 
-const SHIFT_TYPES = [
-  { id: "L01", name: "Lịch trực 24/24" },
-  { id: "L02", name: "Lịch thông tầm" },
-  { id: "L03", name: "Phòng khám dịch vụ" },
-  { id: "L04", name: "Phòng khám chuyên gia" },
-];
+// Lazy-load the form modal + confirm dialog. They only need to be in
+// the bundle after the user clicks "Thêm" / "Chỉnh sửa" / "Xóa", so
+// deferring them shaves ~6 KB off the initial /requirements payload.
+const RequirementFormModal = dynamic(
+  () => import("./RequirementFormModal").then((m) => m.RequirementFormModal),
+  { ssr: false },
+);
+const ConfirmDialog = dynamic(
+  () => import("@/components/ui/ConfirmDialog").then((m) => m.ConfirmDialog),
+  { ssr: false },
+);
 
 export default function RequirementsPage() {
   const [requirements, setRequirements] = useState<ShiftRequirement[]>([]);
@@ -38,12 +46,14 @@ export default function RequirementsPage() {
   const [filterShiftType, setFilterShiftType] = useState<string>("");
 
   // Form state
-  const [formPeriodId, setFormPeriodId] = useState<number | "">("");
-  const [formWorkDate, setFormWorkDate] = useState("");
-  const [formShiftTypeId, setFormShiftTypeId] = useState("L01");
-  const [formSpecialtyId, setFormSpecialtyId] = useState<number | "">("");
-  const [formRequiredCount, setFormRequiredCount] = useState(1);
-  const [formNote, setFormNote] = useState("");
+  const [formValues, setFormValues] = useState<RequirementFormValues>({
+    periodId: "",
+    workDate: "",
+    shiftTypeId: "L01",
+    specialtyId: "",
+    requiredCount: 1,
+    note: "",
+  });
   const [formError, setFormError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -71,30 +81,40 @@ export default function RequirementsPage() {
 
   const openCreateModal = () => {
     setEditingReq(null);
-    setFormPeriodId(filterPeriodId || "");
-    setFormWorkDate("");
-    setFormShiftTypeId("L01");
-    setFormSpecialtyId("");
-    setFormRequiredCount(1);
-    setFormNote("");
+    setFormValues({
+      periodId: filterPeriodId || "",
+      workDate: "",
+      shiftTypeId: "L01",
+      specialtyId: "",
+      requiredCount: 1,
+      note: "",
+    });
     setFormError(null);
     setShowModal(true);
   };
 
   const openEditModal = (r: ShiftRequirement) => {
     setEditingReq(r);
-    setFormPeriodId(r.periodId);
-    setFormWorkDate(r.workDate);
-    setFormShiftTypeId(r.shiftType.id);
-    setFormSpecialtyId(r.specialty.id);
-    setFormRequiredCount(r.requiredStaffCount);
-    setFormNote(r.note ?? "");
+    setFormValues({
+      periodId: r.periodId,
+      workDate: r.workDate,
+      shiftTypeId: r.shiftType.id,
+      specialtyId: r.specialty.id,
+      requiredCount: r.requiredStaffCount,
+      note: r.note ?? "",
+    });
     setFormError(null);
     setShowModal(true);
   };
 
   const handleSave = async () => {
-    if (!formPeriodId || !formWorkDate || !formShiftTypeId || !formSpecialtyId || formRequiredCount < 1) {
+    if (
+      !formValues.periodId ||
+      !formValues.workDate ||
+      !formValues.shiftTypeId ||
+      !formValues.specialtyId ||
+      formValues.requiredCount < 1
+    ) {
       setFormError("Vui lòng nhập đầy đủ thông tin bắt buộc.");
       return;
     }
@@ -102,12 +122,12 @@ export default function RequirementsPage() {
     setFormError(null);
     try {
       const payload = {
-        periodId: Number(formPeriodId),
-        workDate: formWorkDate,
-        shiftTypeId: formShiftTypeId,
-        specialtyId: Number(formSpecialtyId),
-        requiredStaffCount: formRequiredCount,
-        note: formNote.trim() || undefined,
+        periodId: Number(formValues.periodId),
+        workDate: formValues.workDate,
+        shiftTypeId: formValues.shiftTypeId,
+        specialtyId: Number(formValues.specialtyId),
+        requiredStaffCount: formValues.requiredCount,
+        note: formValues.note.trim() || undefined,
       };
       if (editingReq) {
         await api.updateRequirement(editingReq.id, payload);
@@ -327,108 +347,19 @@ export default function RequirementsPage() {
         </div>
       </div>
 
-      {/* Create/Edit Modal */}
-      <Modal
+      {/* Create/Edit Modal — lazy-loaded via next/dynamic */}
+      <RequirementFormModal
         open={showModal}
-        onClose={() => setShowModal(false)}
-        title={editingReq ? "Chỉnh sửa yêu cầu nhân sự" : "Thêm yêu cầu nhân sự"}
-        size="lg"
-      >
-        <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block font-label-md text-label-md text-on-surface mb-1.5">
-                Kỳ lịch <span className="text-error">*</span>
-              </label>
-              <select
-                className="w-full h-10 pl-3 pr-8 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer rounded-lg"
-                value={formPeriodId}
-                onChange={(e) => setFormPeriodId(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">Chọn kỳ lịch...</option>
-                {periods.filter((p) => p.status === "DRAFT").map((p) => (
-                  <option key={p.id} value={p.id}>{p.periodName}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block font-label-md text-label-md text-on-surface mb-1.5">
-                Ngày <span className="text-error">*</span>
-              </label>
-              <input
-                type="date"
-                className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all rounded-lg"
-                value={formWorkDate}
-                onChange={(e) => setFormWorkDate(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block font-label-md text-label-md text-on-surface mb-1.5">
-                Loại ca <span className="text-error">*</span>
-              </label>
-              <select
-                className="w-full h-10 pl-3 pr-8 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer rounded-lg"
-                value={formShiftTypeId}
-                onChange={(e) => setFormShiftTypeId(e.target.value)}
-              >
-                {SHIFT_TYPES.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block font-label-md text-label-md text-on-surface mb-1.5">
-                Chuyên khoa <span className="text-error">*</span>
-              </label>
-              <select
-                className="w-full h-10 pl-3 pr-8 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer rounded-lg"
-                value={formSpecialtyId}
-                onChange={(e) => setFormSpecialtyId(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">Chọn chuyên khoa...</option>
-                {specialties.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block font-label-md text-label-md text-on-surface mb-1.5">
-              Số nhân sự yêu cầu <span className="text-error">*</span>
-            </label>
-            <input
-              type="number"
-              min={1}
-              className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all rounded-lg"
-              value={formRequiredCount}
-              onChange={(e) => setFormRequiredCount(Math.max(1, Number(e.target.value)))}
-            />
-          </div>
-          <div>
-            <label className="block font-label-md text-label-md text-on-surface mb-1.5">Ghi chú</label>
-            <textarea
-              className="w-full p-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none rounded-lg"
-              rows={2}
-              placeholder="Ghi chú (tùy chọn)"
-              value={formNote}
-              onChange={(e) => setFormNote(e.target.value)}
-            />
-          </div>
-          {formError && (
-            <div className="p-3 bg-error-container border border-error/20 rounded-lg text-on-error-container text-body-sm">
-              {formError}
-            </div>
-          )}
-        </div>
-        <ModalFooter>
-          <Button variant="ghost" onClick={() => setShowModal(false)}>Hủy</Button>
-          <Button onClick={handleSave} loading={saving}>
-            {editingReq ? "Cập nhật" : "Tạo mới"}
-          </Button>
-        </ModalFooter>
-      </Modal>
+        editing={Boolean(editingReq)}
+        values={formValues}
+        formError={formError}
+        saving={saving}
+        periods={periods}
+        specialties={specialties}
+        onChange={setFormValues}
+        onSave={handleSave}
+        onCancel={() => setShowModal(false)}
+      />
 
       {/* Delete Confirm */}
       <ConfirmDialog

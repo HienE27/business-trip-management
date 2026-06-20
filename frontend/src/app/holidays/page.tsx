@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { DashboardShell } from "@/components/layout/DashboardShell";
-import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui";
@@ -13,6 +12,19 @@ import { formatDate } from "@/lib/date";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import type { Holiday } from "@/types/api";
+import type { HolidayFormValues } from "./HolidayFormModal";
+
+// Lazy-load the form modal + confirm dialog. They only need to be in
+// the bundle after the user clicks "Thêm" / "Sửa" / "Xóa", so
+// deferring them shaves ~5 KB off the initial /holidays payload.
+const HolidayFormModal = dynamic(
+  () => import("./HolidayFormModal").then((m) => m.HolidayFormModal),
+  { ssr: false },
+);
+const ConfirmDialog = dynamic(
+  () => import("@/components/ui/ConfirmDialog").then((m) => m.ConfirmDialog),
+  { ssr: false },
+);
 
 export default function HolidaysPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -25,10 +37,12 @@ export default function HolidaysPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   // Form state
-  const [name, setName] = useState("");
-  const [holidayDate, setHolidayDate] = useState("");
-  const [isNational, setIsNational] = useState(false);
-  const [description, setDescription] = useState("");
+  const [formValues, setFormValues] = useState<HolidayFormValues>({
+    name: "",
+    holidayDate: "",
+    isNational: false,
+    description: "",
+  });
   const [formError, setFormError] = useState<string | null>(null);
 
   const loadHolidays = useCallback(async () => {
@@ -51,47 +65,47 @@ export default function HolidaysPage() {
 
   const openCreateModal = () => {
     setEditingHoliday(null);
-    setName("");
-    setHolidayDate("");
-    setIsNational(false);
-    setDescription("");
+    setFormValues({
+      name: "",
+      holidayDate: "",
+      isNational: false,
+      description: "",
+    });
     setFormError(null);
     setShowModal(true);
   };
 
   const openEditModal = (h: Holiday) => {
     setEditingHoliday(h);
-    setName(h.name);
-    setHolidayDate(h.holidayDate);
-    setIsNational(h.isNationalHoliday ?? false);
-    setDescription(h.description ?? "");
+    setFormValues({
+      name: h.name,
+      holidayDate: h.holidayDate,
+      isNational: h.isNationalHoliday ?? false,
+      description: h.description ?? "",
+    });
     setFormError(null);
     setShowModal(true);
   };
 
   const handleSave = async () => {
-    if (!name.trim() || !holidayDate) {
+    if (!formValues.name.trim() || !formValues.holidayDate) {
       setFormError("Vui lòng nhập đầy đủ thông tin bắt buộc.");
       return;
     }
     setSaving(true);
     setFormError(null);
     try {
+      const payload = {
+        name: formValues.name.trim(),
+        holidayDate: formValues.holidayDate,
+        isNationalHoliday: formValues.isNational,
+        description: formValues.description.trim(),
+      };
       if (editingHoliday) {
-        await api.updateHoliday(editingHoliday.id, {
-          name: name.trim(),
-          holidayDate,
-          isNationalHoliday: isNational,
-          description: description.trim(),
-        });
+        await api.updateHoliday(editingHoliday.id, payload);
         setMessage("Cập nhật ngày lễ thành công.");
       } else {
-        await api.createHoliday({
-          name: name.trim(),
-          holidayDate,
-          isNationalHoliday: isNational,
-          description: description.trim(),
-        });
+        await api.createHoliday(payload);
         setMessage("Thêm ngày lễ thành công.");
       }
       setShowModal(false);
@@ -263,88 +277,17 @@ export default function HolidaysPage() {
       </section>
 
       {/* Create / Edit Modal */}
-      <Modal
+      {/* Create / Edit Modal — lazy-loaded via next/dynamic */}
+      <HolidayFormModal
         open={showModal}
-        onClose={() => setShowModal(false)}
-        title={editingHoliday ? "Sửa ngày lễ" : "Thêm ngày lễ mới"}
-        description={editingHoliday ? "Cập nhật thông tin ngày lễ." : "Điền thông tin ngày lễ cần thêm."}
-      >
-        <div className="space-y-4">
-          {formError && (
-            <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
-              {formError}
-            </div>
-          )}
-          <div>
-            <label className="mb-1.5 block text-label-sm text-on-surface-variant">
-              Tên ngày lễ <span className="text-error">*</span>
-            </label>
-            <input
-              type="text"
-              className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder="VD: Quốc khánh 2/9"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-label-sm text-on-surface-variant">
-              Ngày lễ <span className="text-error">*</span>
-            </label>
-            <input
-              type="date"
-              className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
-              value={holidayDate}
-              onChange={(e) => setHolidayDate(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-label-sm text-on-surface-variant">Loại</label>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="accent-primary size-4"
-                  checked={isNational}
-                  onChange={(e) => setIsNational(e.target.checked)}
-                />
-                <span className="text-label-md text-on-surface">Ngày Quốc khánh / Nghỉ lễ</span>
-              </label>
-            </div>
-            <p className="mt-1 text-label-xs text-on-surface-variant">
-              {isNational ? "Ngày nghỉ lễ toàn quốc." : "Ngày lễ kỷ niệm hoặc nghỉ bù."}
-            </p>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-label-sm text-on-surface-variant">Mô tả</label>
-            <textarea
-              className="w-full resize-none rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
-              rows={2}
-              placeholder="Ghi chú thêm..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-        </div>
-        <ModalFooter>
-          <button
-            type="button"
-            onClick={() => setShowModal(false)}
-            className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
-          >
-            Hủy
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[16px]">check</span>
-            {saving ? "Đang lưu..." : editingHoliday ? "Cập nhật" : "Thêm mới"}
-          </button>
-        </ModalFooter>
-      </Modal>
+        editing={Boolean(editingHoliday)}
+        values={formValues}
+        formError={formError}
+        saving={saving}
+        onChange={setFormValues}
+        onSave={handleSave}
+        onCancel={() => setShowModal(false)}
+      />
     </DashboardShell>
 
     <ConfirmDialog

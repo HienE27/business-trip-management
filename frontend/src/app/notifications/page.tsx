@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { RoleGuard } from "@/components/auth/RoleGuard";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -10,6 +10,14 @@ import { useNotifications } from "@/components/ui/NotificationContext";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { formatRelativeTime } from "@/lib/date";
 import type { Notification } from "@/types/api";
+
+// Lazy-load the confirm dialog. Used only when the user clicks
+// "Xóa thông báo" — deferring it shaves a small chunk off the
+// initial /notifications payload.
+const ConfirmDialog = dynamic(
+  () => import("@/components/ui/ConfirmDialog").then((m) => m.ConfirmDialog),
+  { ssr: false },
+);
 
 type NotifTab = "all" | "unread" | "conflict" | "exchange" | "published" | "system";
 

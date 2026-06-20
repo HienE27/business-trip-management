@@ -1,18 +1,26 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { WorkflowShell } from "@/components/layout/WorkflowShell";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateRange, formatDateTime } from "@/lib/date";
 import { useAuth } from "@/components/auth/AuthProvider";
+
+// Lazy-load the confirm dialog. The dialog is only visible after the
+// user clicks "Hủy yêu cầu" — deferring it shaves a small chunk off
+// the initial /leave-requests payload.
+const ConfirmDialog = dynamic(
+  () => import("@/components/ui/ConfirmDialog").then((m) => m.ConfirmDialog),
+  { ssr: false },
+);
 import { useToast } from "@/hooks/useToast";
 import type { LeaveRequest, ConflictCheckResponse, SchedulePeriod } from "@/types/api";
 
