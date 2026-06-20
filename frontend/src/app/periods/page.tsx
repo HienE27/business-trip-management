@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { DashboardShell } from "@/components/layout/DashboardShell";
-import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui";
@@ -13,6 +12,21 @@ import { api } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
 import type { SchedulePeriod } from "@/types/api";
+import type { PeriodFormValues } from "./PeriodFormModal";
+
+// Lazy-load the modal + confirm dialog. They only need to be in the
+// bundle after the user clicks "Tạo" or "Lưu trữ/Xóa", so deferring
+// them shaves ~5 KB off the initial /periods payload. The form modal
+// pulls in Modal + ModalFooter + form inputs; ConfirmDialog brings
+// its own dialog plumbing.
+const PeriodFormModal = dynamic(
+  () => import("./PeriodFormModal").then((m) => m.PeriodFormModal),
+  { ssr: false },
+);
+const ConfirmDialog = dynamic(
+  () => import("@/components/ui/ConfirmDialog").then((m) => m.ConfirmDialog),
+  { ssr: false },
+);
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   DRAFT: { label: "Bản nháp", color: "text-on-surface", bg: "bg-surface-container text-on-surface", dot: "bg-outline" },
@@ -35,9 +49,11 @@ export default function PeriodsPage() {
   const [deleteAction, setDeleteAction] = useState<"archive" | "delete">("archive");
 
   // Form state
-  const [formName, setFormName] = useState("");
-  const [formStartDate, setFormStartDate] = useState("");
-  const [formEndDate, setFormEndDate] = useState("");
+  const [formValues, setFormValues] = useState<PeriodFormValues>({
+    name: "",
+    startDate: "",
+    endDate: "",
+  });
   const [formError, setFormError] = useState<string | null>(null);
 
   // Filter state
@@ -66,9 +82,7 @@ export default function PeriodsPage() {
 
   const openCreateModal = () => {
     setEditingPeriod(null);
-    setFormName("");
-    setFormStartDate("");
-    setFormEndDate("");
+    setFormValues({ name: "", startDate: "", endDate: "" });
     setFormError(null);
     setShowModal(true);
   };
@@ -76,19 +90,21 @@ export default function PeriodsPage() {
   const openEditModal = (p: SchedulePeriod) => {
     if (p.status !== "DRAFT") return;
     setEditingPeriod(p);
-    setFormName(p.periodName);
-    setFormStartDate(p.startDate);
-    setFormEndDate(p.endDate);
+    setFormValues({
+      name: p.periodName,
+      startDate: p.startDate,
+      endDate: p.endDate,
+    });
     setFormError(null);
     setShowModal(true);
   };
 
   const handleSave = async () => {
-    if (!formName.trim() || !formStartDate || !formEndDate) {
+    if (!formValues.name.trim() || !formValues.startDate || !formValues.endDate) {
       setFormError("Vui lòng nhập đầy đủ thông tin bắt buộc.");
       return;
     }
-    if (formStartDate > formEndDate) {
+    if (formValues.startDate > formValues.endDate) {
       setFormError("Ngày bắt đầu phải trước ngày kết thúc.");
       return;
     }
@@ -96,9 +112,9 @@ export default function PeriodsPage() {
     setFormError(null);
     try {
       const payload = {
-        periodName: formName.trim(),
-        startDate: formStartDate,
-        endDate: formEndDate,
+        periodName: formValues.name.trim(),
+        startDate: formValues.startDate,
+        endDate: formValues.endDate,
       };
       if (editingPeriod) {
         await api.updatePeriod(editingPeriod.id, payload);
@@ -372,64 +388,17 @@ export default function PeriodsPage() {
           </div>
         </div>
 
-        {/* Create/Edit Modal */}
-        <Modal
+        {/* Create/Edit Modal — lazy-loaded via next/dynamic */}
+        <PeriodFormModal
           open={showModal}
-          onClose={() => setShowModal(false)}
-          title={editingPeriod ? "Chỉnh sửa kỳ lịch" : "Tạo kỳ lịch mới"}
-          size="lg"
-        >
-          <div className="space-y-4 py-2">
-            <div>
-              <label className="block font-label-md text-label-md text-on-surface mb-1.5">
-                Tên kỳ lịch <span className="text-error">*</span>
-              </label>
-              <input
-                type="text"
-                className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all rounded-lg"
-                placeholder="VD: Lịch tháng 6/2026"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                maxLength={50}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block font-label-md text-label-md text-on-surface mb-1.5">
-                  Ngày bắt đầu <span className="text-error">*</span>
-                </label>
-                <input
-                  type="date"
-                  className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all rounded-lg"
-                  value={formStartDate}
-                  onChange={(e) => setFormStartDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block font-label-md text-label-md text-on-surface mb-1.5">
-                  Ngày kết thúc <span className="text-error">*</span>
-                </label>
-                <input
-                  type="date"
-                  className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all rounded-lg"
-                  value={formEndDate}
-                  onChange={(e) => setFormEndDate(e.target.value)}
-                />
-              </div>
-            </div>
-            {formError && (
-              <div className="p-3 bg-error-container border border-error/20 rounded-lg text-on-error-container text-body-sm">
-                {formError}
-              </div>
-            )}
-          </div>
-          <ModalFooter>
-            <Button variant="ghost" onClick={() => setShowModal(false)}>Hủy</Button>
-            <Button onClick={handleSave} loading={saving}>
-              {editingPeriod ? "Cập nhật" : "Tạo kỳ lịch"}
-            </Button>
-          </ModalFooter>
-        </Modal>
+          editing={Boolean(editingPeriod)}
+          values={formValues}
+          formError={formError}
+          saving={saving}
+          onChange={setFormValues}
+          onSave={handleSave}
+          onCancel={() => setShowModal(false)}
+        />
 
         {/* Archive Confirm */}
         <ConfirmDialog
