@@ -7,7 +7,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { api } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/errors";
@@ -21,9 +21,6 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string; 
 };
 
 export default function PeriodsPage() {
-  const { user } = useAuth();
-  const isManager = user?.roles?.some((r) => r === "ADMIN" || r === "MANAGER") ?? false;
-
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -180,27 +177,13 @@ export default function PeriodsPage() {
     return matchesStatus && matchesSearch;
   });
 
-  // STAFF role guard — only ADMIN/MANAGER can manage periods
-  if (user && !isManager) {
-    return (
-      <DashboardShell
-        activeSection="periods"
-        title="Quản lý kỳ lịch"
-        description="Trang này chỉ dành cho Quản lý lịch (ADMIN) và Trưởng phòng (MANAGER)."
-      >
-        <div className="p-margin-desktop">
-          <EmptyState
-            icon="lock"
-            title="Bạn không có quyền truy cập trang này"
-            description="Chỉ Quản lý lịch và Trưởng phòng mới có thể quản lý kỳ lịch công tác. Vui lòng liên hệ quản trị viên nếu cần."
-          />
-        </div>
-      </DashboardShell>
-    );
-  }
-
   return (
-    <>
+    <RoleGuard
+      activeSection="periods"
+      title="Quản lý kỳ lịch"
+      description="Tạo, chỉnh sửa, công bố và lưu trữ các kỳ lịch công tác."
+      allow={["ADMIN", "MANAGER"]}
+    >
       <DashboardShell
         activeSection="monthly-schedule"
         title="Quản lý kỳ lịch"
@@ -463,6 +446,6 @@ export default function PeriodsPage() {
           variant={deleteAction === "archive" ? "primary" : "danger"}
         />
       </DashboardShell>
-    </>
+    </RoleGuard>
   );
 }

@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import type { Holiday } from "@/types/api";
 
 export default function HolidaysPage() {
@@ -125,7 +126,12 @@ export default function HolidaysPage() {
   const sorted = [...activeHolidays].sort((a, b) => a.holidayDate.localeCompare(b.holidayDate));
 
   return (
-    <>
+    <RoleGuard
+      activeSection="holidays"
+      title="Quản lý ngày lễ"
+      description="Thêm, sửa, xóa ngày nghỉ lễ và ngày nghỉ bù để hệ thống tự động tính ngày nghỉ bù chính xác."
+      allow={["ADMIN", "MANAGER"]}
+    >
       <DashboardShell
         activeSection="holidays"
         title="Quản lý ngày lễ"
@@ -353,6 +359,6 @@ export default function HolidaysPage() {
       confirmLabel="Xóa"
       variant="danger"
     />
-    </>
+    </RoleGuard>
   );
 }

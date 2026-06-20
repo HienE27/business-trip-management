@@ -10,6 +10,7 @@ import { Button } from "@/components/ui";
 import { api } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/errors";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { formatDate } from "@/lib/date";
 import { SHIFT_COLORS, type ShiftColorSet } from "@/lib/shift-colors";
 import type { ShiftRequirement, SchedulePeriod, Specialty } from "@/types/api";
@@ -151,7 +152,12 @@ export default function RequirementsPage() {
   const shiftColor = (typeId: string): ShiftColorSet => SHIFT_COLORS[typeId as keyof typeof SHIFT_COLORS] ?? { bg: "bg-surface-container", text: "text-on-surface", dot: "bg-surface", label: "text-on-surface" };
 
   return (
-    <>
+    <RoleGuard
+      activeSection="requirements"
+      title="Yêu cầu nhân sự"
+      description="Cấu hình số nhân sự cần thiết cho từng ngày và loại ca trong kỳ lịch. Dùng cho M07 tự động xếp lịch."
+      allow={["ADMIN", "MANAGER"]}
+    >
       <DashboardShell
         activeSection="requirements"
         title="Yêu cầu nhân sự"
@@ -435,6 +441,6 @@ export default function RequirementsPage() {
         variant="danger"
       />
     </DashboardShell>
-    </>
+    </RoleGuard>
   );
 }
