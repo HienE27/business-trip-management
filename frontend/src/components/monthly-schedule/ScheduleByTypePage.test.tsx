@@ -23,21 +23,6 @@ vi.mock('@/hooks/useToast', () => ({
   }),
 }));
 
-vi.mock('@/components/layout/DashboardShell', () => ({
-  DashboardShell: ({
-    children,
-    title,
-  }: {
-    children: React.ReactNode;
-    title: string;
-  }) => (
-    <div>
-      <h1>{title}</h1>
-      {children}
-    </div>
-  ),
-}));
-
 vi.mock('@/components/monthly-schedule/ScheduleCalendarSection', () => ({
   ScheduleCalendarSection: ({ schedules }: { schedules: unknown[] }) => (
     <div data-testid="calendar" data-count={schedules.length} />
@@ -155,7 +140,11 @@ describe('ScheduleByTypePage', () => {
     await act(async () => {
       render(<ScheduleByTypePage config={duty24Config} />);
     });
-    expect(screen.getByRole('heading', { level: 1, name: 'Lịch trực 24/24' })).toBeInTheDocument();
+    // The title is now rendered by GuardedScheduleByTypePage + RoleGuard, so
+    // ScheduleByTypePage itself only surfaces the config indirectly via
+    // period names and shift types. Verify the page rendered the expected
+    // config's shift data and the page structure is present.
+    expect(screen.getByText('Tháng 6/2026 (DRAFT)')).toBeInTheDocument();
   });
 
   it('fetches periods and active staff on mount', async () => {

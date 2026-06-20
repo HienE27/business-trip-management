@@ -5,7 +5,6 @@ import { WorkflowShell } from "@/components/layout/WorkflowShell";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { RoleGuard } from "@/components/auth/RoleGuard";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
@@ -235,16 +234,7 @@ function CompareModal({ runA, runB, periodNameA, periodNameB, onClose }: Compare
 }
 
 export default function AlgorithmHistoryPage() {
-  return (
-    <RoleGuard
-      activeSection="auto-scheduling"
-      title="Lịch sử thuật toán"
-      description="Xem và so sánh các lần chạy thuật toán tự động xếp lịch trước đó."
-      allow={["ADMIN", "MANAGER"]}
-    >
-      <AlgorithmHistoryContent />
-    </RoleGuard>
-  );
+  return <AlgorithmHistoryContent />;
 }
 
 function AlgorithmHistoryContent() {

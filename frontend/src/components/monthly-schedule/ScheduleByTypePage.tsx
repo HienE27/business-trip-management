@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WorkflowStepper } from "@/components/monthly-schedule/WorkflowStepper";
 import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleCalendarSection";
@@ -304,16 +303,10 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
   if (loading && periods.length === 0) {
     return (
-      <DashboardShell
-        activeSection={config.activeSection}
-        title={config.title}
-        description={config.description}
-      >
-        <div className="space-y-4">
-          <Skeleton className="h-32 rounded-xl" />
-          <Skeleton className="h-96 rounded-xl" />
-        </div>
-      </DashboardShell>
+      <div className="space-y-4">
+        <Skeleton className="h-32 rounded-xl" />
+        <Skeleton className="h-96 rounded-xl" />
+      </div>
     );
   }
 
@@ -335,11 +328,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       };
 
   return (
-    <DashboardShell
-      activeSection={config.activeSection}
-      title={config.title}
-      description={config.description}
-    >
+    <>
       {message && (
         <div
           className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error"
@@ -600,6 +589,6 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           onSave={handleRefresh}
         />
       )}
-    </DashboardShell>
+    </>
   );
 }

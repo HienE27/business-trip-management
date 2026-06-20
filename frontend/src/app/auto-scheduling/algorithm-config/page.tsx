@@ -6,7 +6,6 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { RoleGuard } from "@/components/auth/RoleGuard";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useRole } from "@/hooks/useRole";
@@ -225,16 +224,7 @@ function ConfigRow({
 }
 
 export default function AlgorithmConfigPage() {
-  return (
-    <RoleGuard
-      activeSection="auto-scheduling"
-      title="Cấu hình thuật toán"
-      description="Quản lý các thông số điều khiển thuật toán tự động xếp lịch."
-      allow={["ADMIN"]}
-    >
-      <AlgorithmConfigContent />
-    </RoleGuard>
-  );
+  return <AlgorithmConfigContent />;
 }
 
 function AlgorithmConfigContent() {
