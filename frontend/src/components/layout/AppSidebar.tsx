@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { NavigationItem } from "@/types/schedule";
 import { ConflictBadge } from "@/components/realtime/ConflictBadge";
-import { useAuth } from "@/components/auth/AuthProvider";
 import {
   groupNavigationItems,
   type SidebarGroupKey,
@@ -20,12 +18,6 @@ type AppSidebarProps = {
 };
 
 export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarProps) {
-  const pathname = usePathname();
-  const { user, logout } = useAuth();
-
-  const isSettingsActive = pathname === "/settings" || pathname?.startsWith("/settings/");
-  const isProfileActive = pathname === "/staff/profile";
-
   // Group the flat navigation into the 4 buckets. Items that don't
   // match any group are silently filtered out — the user should never
   // see dangling nav rows.
@@ -218,35 +210,6 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
             </div>
           )}
         </nav>
-
-        {/* ── Footer: user profile + footer actions ── */}
-        <div className="border-t border-outline-variant bg-surface-container-low px-3 py-3 shrink-0 flex flex-col gap-2">
-          {user ? (
-            <UserCard
-              username={user.username}
-              role={user.roles[0]}
-              onProfileClick={onClose}
-            />
-          ) : null}
-
-          <div className="flex flex-col gap-0.5">
-            <FooterLink
-              href="/settings"
-              icon="settings"
-              label="Cài đặt"
-              active={isSettingsActive}
-              onNavigate={onClose}
-            />
-            <button
-              type="button"
-              onClick={() => { void logout(); onClose?.(); }}
-              className="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-body-sm font-medium text-on-surface-variant hover:bg-error-container hover:text-error"
-            >
-              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">logout</span>
-              <span>Đăng xuất</span>
-            </button>
-          </div>
-        </div>
       </aside>
     </>
   );
@@ -289,85 +252,6 @@ function SidebarLink({
       </span>
       <span className="truncate">{item.label}</span>
       {isConflicts ? <ConflictBadge /> : null}
-    </Link>
-  );
-}
-
-function FooterLink({
-  href,
-  icon,
-  label,
-  active,
-  onNavigate,
-}: {
-  href: string;
-  icon: string;
-  label: string;
-  active: boolean;
-  onNavigate?: () => void;
-}) {
-  return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
-      className={`
-        flex items-center gap-3 px-4 py-2 rounded-lg transition-colors
-        text-body-sm font-medium
-        ${active
-          ? "bg-primary-fixed text-primary font-semibold"
-          : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-        }
-      `}
-    >
-      <span aria-hidden="true" className="material-symbols-outlined text-[18px]">{icon}</span>
-      <span className="truncate">{label}</span>
-    </Link>
-  );
-}
-
-function UserCard({
-  username,
-  role,
-  onProfileClick,
-}: {
-  username: string;
-  role?: string;
-  onProfileClick?: () => void;
-}) {
-  // Generate a stable but recognisable avatar colour from the username so
-  // different users feel visually distinct without needing an avatar URL.
-  const initials = useMemo(() => {
-    const parts = username.split(/[\s._-]+/).filter(Boolean);
-    if (parts.length === 0) return "?";
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }, [username]);
-
-  return (
-    <Link
-      href="/staff/profile"
-      onClick={onProfileClick}
-      className="flex items-center gap-2.5 p-2 rounded-lg bg-surface-container-lowest border border-outline-variant hover:bg-surface-container-low transition-colors group"
-    >
-      <div
-        aria-hidden="true"
-        className="w-9 h-9 shrink-0 rounded-full bg-primary-container text-on-primary-container text-[13px] font-bold flex items-center justify-center"
-      >
-        {initials}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[12px] font-semibold text-on-surface truncate">{username}</p>
-        <p className="text-[10px] text-on-surface-variant truncate uppercase tracking-wider">
-          {role ?? "—"}
-        </p>
-      </div>
-      <span
-        aria-hidden="true"
-        className="material-symbols-outlined text-[16px] text-outline opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        chevron_right
-      </span>
     </Link>
   );
 }

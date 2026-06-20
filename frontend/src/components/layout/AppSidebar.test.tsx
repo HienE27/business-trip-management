@@ -1,28 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
-import { useState, type ReactNode } from 'react';
 import { AppSidebar } from './AppSidebar';
 import type { NavigationItem } from '@/types/schedule';
-
-// Stub the AuthProvider module so we can control the current user
-// without touching localStorage / fetch.
-vi.mock('@/components/auth/AuthProvider', () => ({
-  useAuth: () => ({
-    user: { username: 'admin.test', userId: 1, roles: ['ADMIN'] },
-    token: 'mock',
-    isAuthenticated: true,
-    isLoading: false,
-    login: vi.fn(),
-    logout: vi.fn(),
-    refreshUser: vi.fn(),
-  }),
-}));
-
-// Stub next/navigation so usePathname() returns a controlled value
-const mockPathname = vi.fn(() => '/dashboard');
-vi.mock('next/navigation', () => ({
-  usePathname: () => mockPathname(),
-}));
 
 // Stub ConflictBadge to keep the test focused on sidebar layout
 vi.mock('@/components/realtime/ConflictBadge', () => ({
@@ -136,15 +115,11 @@ describe('AppSidebar', () => {
     expect(stored).toContain('operations');
   });
 
-  it('renders the user card with username + role', () => {
+  it('does not render the user card or footer links (moved to header)', () => {
     render(<AppSidebar items={makeAllItems()} />);
-    expect(screen.getByText('admin.test')).toBeInTheDocument();
-    expect(screen.getByText('ADMIN')).toBeInTheDocument();
-  });
-
-  it('renders the logout button', () => {
-    render(<AppSidebar items={makeAllItems()} />);
-    expect(screen.getByRole('button', { name: /Đăng xuất/ })).toBeInTheDocument();
+    expect(screen.queryByText('admin.test')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Đăng xuất/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Cài đặt/ })).not.toBeInTheDocument();
   });
 
   it('renders the environment badge', () => {
