@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Industrial CSP Solver - Full Business Rules Implementation
@@ -308,7 +309,7 @@ public class CSPScheduler implements SchedulingAlgorithm {
             // Mark affected days for this staff
             LocalDate date = leave.getStartDate();
             while (!date.isAfter(leave.getEndDate())) {
-                state.newLeaves.put(state.staffIndexMap.get(leave.getStaffId()), date);
+                state.newLeaves.computeIfAbsent(state.staffIndexMap.get(leave.getStaffId()), k -> new HashSet<>()).add(date);
                 date = date.plusDays(1);
             }
         }
@@ -1082,16 +1083,12 @@ public class CSPScheduler implements SchedulingAlgorithm {
         }
 
         // Build constraint graph (BR-01, BR-02, BR-03)
-        List<int[]>[] constraintGraph = buildConstraintGraph(varDay, varShift, varCount, slotCount, dates);
+        List<Integer>[] constraintGraph = buildConstraintGraph(varDay, varShift, varCount, slotCount, dates);
 
         // SYMMETRY BREAKING: Fix first variable to reduce equivalent solutions
         domains = applySymmetryBreaking(domains, varDay, varShift, varCount, numStaff);
 
-        // Run initial AC-3 to prune domains (Issue 2 fix: compensation in graph)
-        BitSet[] initialDomains = runInitialAC3(domains, constraintGraph, varDay, data);
-        domains = initialDomains;
-
-        return ProblemData.builder()
+        ProblemData data = ProblemData.builder()
                 .numDays(numDays)
                 .numShifts(numShifts)
                 .numStaff(numStaff)
@@ -1107,6 +1104,11 @@ public class CSPScheduler implements SchedulingAlgorithm {
                 .constraintGraph(constraintGraph)
                 .baseDate(dates.get(0))
                 .build();
+
+        // Run initial AC-3 to prune domains (Issue 2 fix: compensation in graph)
+        domains = runInitialAC3(domains, constraintGraph, varDay, data);
+
+        return data;
     }
 
     /**
@@ -1118,12 +1120,12 @@ public class CSPScheduler implements SchedulingAlgorithm {
      *
      * Issue 2 fix: Compensation rule NOW participates in AC-3 propagation
      */
-    private List<int[]>[] buildConstraintGraph(
+    private List<Integer>[] buildConstraintGraph(
             int[] varDay, int[] varShift, int varCount,
             int[][] slotCount, List<LocalDate> dates) {
 
         @SuppressWarnings("unchecked")
-        List<int[]>[] graph = new ArrayList[varCount];
+        List<Integer>[] graph = new ArrayList[varCount];
         for (int i = 0; i < varCount; i++) {
             graph[i] = new ArrayList<>();
         }
@@ -1185,7 +1187,7 @@ public class CSPScheduler implements SchedulingAlgorithm {
      */
     private BitSet[] runInitialAC3(
             BitSet[] domains,
-            List<int[]>[] constraintGraph,
+            List<Integer>[] constraintGraph,
             int[] varDay,
             ProblemData data) {
 
@@ -1898,11 +1900,12 @@ public class CSPScheduler implements SchedulingAlgorithm {
         boolean[] holidayDays;
         int[] staffMaxShifts;
         BitSet[] domains;
-        List<int[]>[] constraintGraph;
+        List<Integer>[] constraintGraph;
         LocalDate baseDate;
     }
 
     @lombok.Builder
+    @lombok.Getter
     private static class Solution {
         boolean valid;
         Map<String, Boolean> assignment;
