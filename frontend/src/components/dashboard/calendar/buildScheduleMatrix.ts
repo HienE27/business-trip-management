@@ -1,6 +1,6 @@
 "use client";
 
-import type { Schedule } from "@/types/api";
+import type { Schedule, CompensationDay } from "@/types/api";
 import { shiftTypeToTone, SHIFT_SHORT, type CalendarItem } from "./constants";
 
 export interface MatrixRow {
@@ -9,6 +9,7 @@ export interface MatrixRow {
   dayOfWeek: string;
   dayLabel: string;
   isWeekend: boolean;
+  isCompensation: Map<number, boolean>; // staffId → true if this day is a comp day for this staff
   cells: Map<number, CalendarItem[]>; // staffId → items
 }
 
@@ -28,10 +29,19 @@ export function buildScheduleMatrix(
   schedules: Schedule[],
   staffList: { id: number; fullName: string }[],
   year: number,
-  month: number
+  month: number,
+  compensationDays: CompensationDay[] = [],
 ): ScheduleMatrix {
   const lastDay = new Date(year, month + 1, 0);
   const daysInMonth = lastDay.getDate();
+
+  // Build comp day lookup: staffId → Set of date strings
+  const compDaysMap = new Map<number, Set<string>>();
+  for (const cd of compensationDays) {
+    const dateStr = cd.compensationDate.split("T")[0];
+    if (!compDaysMap.has(cd.staffId)) compDaysMap.set(cd.staffId, new Set());
+    compDaysMap.get(cd.staffId)!.add(dateStr);
+  }
 
   // Build a map: staffId → Map<dateStr, CalendarItem[]>
   const staffScheduleMap = new Map<number, Map<string, CalendarItem[]>>();
@@ -60,8 +70,11 @@ export function buildScheduleMatrix(
     const dowNum = date.getDay(); // 0=Sun
     const dowLabel = DOW_VI[dowNum === 0 ? 0 : dowNum];
 
+    const isCompensation = new Map<number, boolean>();
     const cells = new Map<number, CalendarItem[]>();
     for (const staff of staffList) {
+      const compDates = compDaysMap.get(staff.id);
+      isCompensation.set(staff.id, compDates?.has(dateStr) ?? false);
       const dateMap = staffScheduleMap.get(staff.id);
       cells.set(staff.id, dateMap?.get(dateStr) ?? []);
     }
@@ -72,6 +85,7 @@ export function buildScheduleMatrix(
       dayOfWeek: dowLabel,
       dayLabel: `${d}`,
       isWeekend: dowNum === 0 || dowNum === 6,
+      isCompensation,
       cells,
     });
   }

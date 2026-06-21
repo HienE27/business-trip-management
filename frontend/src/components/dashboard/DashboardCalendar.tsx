@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, memo } from "react";
 import type { Schedule } from "@/types/api";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
@@ -56,7 +56,7 @@ type DashboardCalendarProps = {
   onFilterTypeChange?: (filter: string) => void;
 };
 // ─── Main Calendar ────────────────────────────────────────────────────────────
-export function DashboardCalendar({
+export const DashboardCalendar = memo(function DashboardCalendar({
   schedules = [],
   annotations = [],
   coverages = {},
@@ -987,6 +987,7 @@ export function DashboardCalendar({
           onDelete={onDeleteSchedule ?? (() => {})}
           onResolve={onResolveConflict ?? (() => {})}
           onViewDetail={onViewDetail ?? (() => {})}
+          onRefresh={onRefresh ?? (() => {})}
           canEdit={!!onEditSchedule}
           onClose={() => setTooltip(null)}
         />
@@ -1007,4 +1008,4 @@ export function DashboardCalendar({
       )}
     </section>
   );
-}
+});
