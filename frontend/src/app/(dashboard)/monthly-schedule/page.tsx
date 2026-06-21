@@ -332,7 +332,16 @@ export default function MonthlySchedulePage() {
           compensationDays={compensationDays}
           onRefresh={handleRefresh}
           onFocusDate={setFocusDate}
-          onAddDate={setAddModalDate}
+          onAddDate={(date) => {
+            if (!selectedPeriod) return;
+            const start = new Date(selectedPeriod.startDate);
+            const end = new Date(selectedPeriod.endDate);
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
+            if (date >= start && date <= end) {
+              setAddModalDate(date);
+            }
+          }}
           onStaffFilterChange={() => undefined}
           onSpecialtyFilterChange={() => undefined}
           onViewDetail={(schedule) => openScheduleDetail(schedule.id)}
@@ -367,8 +376,9 @@ export default function MonthlySchedulePage() {
       <QuickAddModal
         date={addModalDate}
         periodId={selectedPeriodId}
-        defaultShiftTypeId={selectedTab}
+        defaultShiftTypeId={selectedTab === "ALL" ? "L01" : selectedTab}
         staffList={activeStaff}
+        schedules={schedules}
         compensationDays={compensationDays}
         onSuccess={() => {
           setAddModalDate(null);
@@ -376,6 +386,8 @@ export default function MonthlySchedulePage() {
           void wsActions.refreshWorkspace();
         }}
         onClose={() => setAddModalDate(null)}
+        periodStart={selectedPeriod?.startDate}
+        periodEnd={selectedPeriod?.endDate}
       />
 
       <ShiftDetailModal

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { FormInput, FormTextarea, FormSelect, Button } from "@/components/ui";
+import { FormInput, FormTextarea, FormSelect, Button, useToast } from "@/components/ui";
 
 type RuleType = "required" | "preference";
 
@@ -53,6 +53,7 @@ export function BusinessRulesPanel({ onAddRule }: { onAddRule?: () => void }) {
   const [newType, setNewType] = useState<RuleType>("preference");
   const [saving, setSaving] = useState(false);
   const [titleError, setTitleError] = useState("");
+  const { error: showError, success: showSuccess } = useToast();
 
   const handleAddRule = async () => {
     if (!newTitle.trim()) {
@@ -84,23 +85,8 @@ export function BusinessRulesPanel({ onAddRule }: { onAddRule?: () => void }) {
       setNewType("preference");
       setShowAddForm(false);
       onAddRule?.();
-    } catch {
-      setRules((prev) => [
-        ...prev,
-        {
-          id: `custom-${Date.now()}`,
-          icon: "star",
-          iconColor: "text-tertiary",
-          title: newTitle.trim(),
-          description: newDesc.trim() || "Quy tắc tùy chỉnh",
-          type: newType,
-        },
-      ]);
-      setNewTitle("");
-      setNewDesc("");
-      setNewType("preference");
-      setShowAddForm(false);
-      onAddRule?.();
+    } catch (err) {
+      showError("Không thể lưu quy tắc. Vui lòng thử lại.");
     } finally {
       setSaving(false);
     }

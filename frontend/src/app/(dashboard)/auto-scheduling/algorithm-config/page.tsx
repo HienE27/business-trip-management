@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { CreateConfigModal } from "./CreateConfigModal";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useRole } from "@/hooks/useRole";
@@ -21,13 +21,6 @@ type ConfigEntry = {
 };
 
 type EditingConfig = Partial<Pick<ConfigEntry, "paramValue" | "description">>;
-
-const VALUE_TYPE_OPTIONS = [
-  { value: "STRING", label: "Chuỗi (STRING)" },
-  { value: "NUMBER", label: "Số (NUMBER)" },
-  { value: "BOOLEAN", label: "Đúng/Sai (BOOLEAN)" },
-  { value: "JSON", label: "JSON" },
-] as const;
 
 const PRESET_CONFIGS = [
   {
@@ -232,7 +225,6 @@ function AlgorithmConfigContent() {
   const [configs, setConfigs] = useState<ConfigEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({ paramKey: "", paramValue: "", valueType: "STRING" as "STRING" | "NUMBER" | "BOOLEAN" | "JSON", description: "" });
   const [creating, setCreating] = useState(false);
   const [createMsg, setCreateMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -254,20 +246,16 @@ function AlgorithmConfigContent() {
 
   useEffect(() => { void loadConfigs(); }, []);
 
-  const handleCreate = async () => {
-    if (!createForm.paramKey.trim() || !createForm.paramValue.trim()) return;
+  const handleCreate = async (form: { paramKey: string; paramValue: string; valueType: string; description: string }) => {
     setCreating(true);
-    setCreateMsg(null);
     try {
       await api.createAlgorithmConfig({
-        paramKey: createForm.paramKey.trim(),
-        paramValue: createForm.paramValue.trim(),
-        valueType: createForm.valueType,
-        description: createForm.description.trim(),
+        paramKey: form.paramKey.trim(),
+        paramValue: form.paramValue.trim(),
+        valueType: form.valueType,
+        description: form.description.trim(),
       });
       setCreateMsg({ type: "success", text: "Đã tạo cấu hình mới." });
-      setCreateForm({ paramKey: "", paramValue: "", valueType: "STRING", description: "" });
-      setTimeout(() => { setCreateModalOpen(false); setCreateMsg(null); }, 1200);
       await loadConfigs();
     } catch (err) {
       setCreateMsg({ type: "error", text: getErrorMessage(err, "Tạo thất bại.") });
@@ -276,13 +264,7 @@ function AlgorithmConfigContent() {
     }
   };
 
-  const handleAddPreset = (preset: (typeof PRESET_CONFIGS)[0]) => {
-    setCreateForm({
-      paramKey: preset.paramKey,
-      paramValue: preset.paramValue,
-      valueType: preset.valueType,
-      description: preset.description,
-    });
+  const handleAddPreset = () => {
     setCreateModalOpen(true);
   };
 
@@ -329,7 +311,7 @@ function AlgorithmConfigContent() {
                     key={p.paramKey}
                     type="button"
                     className="w-full text-left px-3 py-2 hover:bg-primary-fixed/20 transition-colors"
-                    onClick={() => handleAddPreset(p)}
+                    onClick={() => handleAddPreset()}
                   >
                     <p className="text-label-sm font-semibold text-on-surface font-mono">{p.paramKey}</p>
                     <p className="text-label-xs text-on-surface-variant truncate">{p.description}</p>
@@ -396,96 +378,13 @@ function AlgorithmConfigContent() {
       </div>
 
       {/* Create Modal */}
-      <Modal
+      <CreateConfigModal
         open={createModalOpen}
-        onClose={() => { setCreateModalOpen(false); setCreateMsg(null); setCreateForm({ paramKey: "", paramValue: "", valueType: "STRING", description: "" }); }}
-        title="Thêm cấu hình mới"
-        description="Tạo thông số vận hành mới cho thuật toán auto-scheduling."
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="cfg-key">
-              Tên thông số <span className="text-error">*</span>
-            </label>
-            <input
-              id="cfg-key"
-              className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface font-mono transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder="VD: max_iterations"
-              value={createForm.paramKey}
-              onChange={(e) => setCreateForm((f) => ({ ...f, paramKey: e.target.value.toLowerCase().replace(/\s/g, "_") }))}
-            />
-          </div>
-          <div>
-            <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="cfg-type">
-              Kiểu dữ liệu
-            </label>
-            <div className="relative">
-              <select
-                id="cfg-type"
-                className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface appearance-none transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
-                value={createForm.valueType}
-                onChange={(e) => setCreateForm((f) => ({ ...f, valueType: e.target.value as typeof createForm.valueType }))}
-              >
-                {VALUE_TYPE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">expand_more</span>
-            </div>
-          </div>
-          <div>
-            <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="cfg-value">
-              Giá trị <span className="text-error">*</span>
-            </label>
-            <input
-              id="cfg-value"
-              className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface font-mono transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder="VD: 1000, true, 2.5, []"
-              value={createForm.paramValue}
-              onChange={(e) => setCreateForm((f) => ({ ...f, paramValue: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="cfg-desc">
-              Mô tả
-            </label>
-            <textarea
-              id="cfg-desc"
-              className="w-full resize-none rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-label-md text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              rows={2}
-              placeholder="Giải thích thông số này dùng để làm gì..."
-              value={createForm.description}
-              onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
-            />
-          </div>
-          {createMsg && (
-            <div className={`rounded-lg px-4 py-3 text-label-sm ${
-              createMsg.type === "success"
-                ? "bg-secondary-container text-on-secondary-container"
-                : "bg-error-container text-on-error-container"
-            }`}>
-              {createMsg.text}
-            </div>
-          )}
-        </div>
-        <ModalFooter>
-          <button
-            type="button"
-            onClick={() => { setCreateModalOpen(false); setCreateMsg(null); setCreateForm({ paramKey: "", paramValue: "", valueType: "STRING", description: "" }); }}
-            className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
-          >
-            Hủy
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleCreate()}
-            disabled={!createForm.paramKey.trim() || !createForm.paramValue.trim() || creating}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
-            {creating ? "Đang tạo..." : "Tạo cấu hình"}
-          </button>
-        </ModalFooter>
-      </Modal>
+        onClose={() => { setCreateModalOpen(false); setCreateMsg(null); }}
+        onCreate={handleCreate}
+        creating={creating}
+        message={createMsg}
+      />
     </>
   );
 }

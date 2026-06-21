@@ -7,6 +7,7 @@
  *   FormSelect    — dropdown select
  *   FormTextarea  — multi-line text
  *   FormCheckbox  — checkbox with label
+ *   StaffSearchCombobox — searchable combobox với keyboard nav
  *
  * Buttons:
  *   Button        — primary/secondary/danger/ghost variants, loading state
@@ -35,3 +36,4 @@ export { Button, IconButton } from "./Button";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { ToastProvider, useToast } from "./ToastProvider";
 export { ThemeToggle } from "./ThemeToggle";
+export { StaffSearchCombobox } from "./StaffSearchCombobox";

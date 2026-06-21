@@ -43,7 +43,7 @@ export function useConflictStream({ enabled }: { enabled: boolean }): void {
     const wsUrl = token ? `${url}?token=${encodeURIComponent(token)}` : url;
 
     const client = createConflictClient({
-      url,
+      url: wsUrl,
       token,
       webSocketFactory: () => {
         const ws = new WebSocket(wsUrl);

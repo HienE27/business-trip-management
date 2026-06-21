@@ -273,8 +273,11 @@ public class ConflictDetectionService {
         scheduleConflictRepository.findById(conflictId).ifPresent(conflict -> {
             conflict.setIsResolved(true);
             conflict.setResolvedBy(resolvedBy);
-            conflict.setResolvedAt(java.time.LocalDateTime.now());
+            conflict.setResolvedAt(LocalDateTime.now());
             scheduleConflictRepository.save(conflict);
+
+            // Broadcast CONFLICT_RESOLVED so all connected clients update their badge/toast.
+            conflictBroadcastService.broadcastConflictResolved(conflictId, conflict.getSchedule().getId());
         });
     }
 

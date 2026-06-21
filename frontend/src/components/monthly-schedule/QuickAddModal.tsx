@@ -1,8 +1,9 @@
 "use client";
 
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { FormSelect, FormTextarea, Button } from "@/components/ui";
+import { StaffSearchCombobox } from "@/components/ui/StaffSearchCombobox";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { CompensationDay, Schedule, Staff } from "@/types/api";
@@ -14,32 +15,15 @@ export type QuickAddModalProps = {
   periodId: number | null;
   defaultShiftTypeId: ScheduleTab;
   staffList: Staff[];
+  schedules?: Schedule[];
   compensationDays?: CompensationDay[];
-  /**
-   * Called the instant the user submits a valid form. The parent
-   * page should append the temporary schedule to its calendar
-   * immediately so the user sees instant feedback. The temporary
-   * id is negative and stable for the lifetime of the request,
-   * which lets the parent either commit the real schedule (via
-   * {@link QuickAddModalProps.onCommit}) or roll the optimistic
-   * insert back (via {@link QuickAddModalProps.onRollback}).
-   */
+  /** ISO date string (YYYY-MM-DD) lower bound of the active period. */
+  periodStart?: string;
+  /** ISO date string (YYYY-MM-DD) upper bound of the active period. */
+  periodEnd?: string;
   onOptimisticAdd?: (tempSchedule: Schedule) => void;
-  /**
-   * Replace the temporary schedule (negative id) with the real
-   * one returned by the backend. Called on a successful POST.
-   */
   onCommit?: (tempId: number, realSchedule: Schedule) => void;
-  /**
-   * Drop the temporary schedule after a failed POST so the
-   * calendar goes back to its prior state.
-   */
   onRollback?: (tempId: number) => void;
-  /**
-   * Fallback refresh callback for callers that don't opt into
-   * optimistic updates. Still invoked on success when the other
-   * two callbacks are not supplied.
-   */
   onSuccess: () => void;
   onClose: () => void;
 };
@@ -59,12 +43,15 @@ export const QuickAddModal = memo(function QuickAddModal({
   periodId,
   defaultShiftTypeId,
   staffList,
+  schedules = [],
   compensationDays,
   onOptimisticAdd,
   onCommit,
   onRollback,
   onSuccess,
   onClose,
+  periodStart,
+  periodEnd,
 }: QuickAddModalProps) {
   const [shiftTypeId, setShiftTypeId] = useState(defaultShiftTypeId);
   const [staffId, setStaffId] = useState<number | "">("");
@@ -74,12 +61,38 @@ export const QuickAddModal = memo(function QuickAddModal({
 
   const dateKey = date ? date.toISOString().slice(0, 10) : null;
 
+  // Safety net: detect out-of-range dates that slipped through
+  // the parent guard. This can happen if the period changes while
+  // the modal is open or if the calendar navigation allowed an
+  // out-of-bounds date click.
+  const dateOutOfRange = Boolean(
+    date && (
+      (periodStart && date < new Date(periodStart + "T00:00:00")) ||
+      (periodEnd && date > new Date(periodEnd + "T23:59:59"))
+    )
+  );
+
+  // Reset form state AND set date-out-of-range error in a single effect.
+  // Splitting into two useEffect hooks causes a race: the second effect
+  // runs after the first and overwrites the error back to null.
   useEffect(() => {
     setShiftTypeId(defaultShiftTypeId);
     setStaffId("");
     setNotes("");
-    setError(null);
-  }, [dateKey, defaultShiftTypeId]);
+    if (dateOutOfRange) {
+      setError("Ngày làm việc phải nằm trong kỳ lịch.");
+    } else {
+      setError(null);
+    }
+  }, [dateKey, defaultShiftTypeId, dateOutOfRange]);
+
+  // When dateOutOfRange flips true, surface the error immediately
+  // so the user doesn't have to click submit to discover the problem.
+  useEffect(() => {
+    if (dateOutOfRange) {
+      setError("Ngày làm việc phải nằm trong kỳ lịch.");
+    }
+  }, [dateOutOfRange]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -87,6 +100,12 @@ export const QuickAddModal = memo(function QuickAddModal({
 
     setSubmitting(true);
     setError(null);
+
+    if (dateOutOfRange) {
+      setError("Ngày làm việc phải nằm trong kỳ lịch.");
+      setSubmitting(false);
+      return;
+    }
 
     // Client-side guard: refuse to send a request when the
     // picked staff member is on a compensation day for this
@@ -170,10 +189,12 @@ export const QuickAddModal = memo(function QuickAddModal({
     year: "numeric",
   }) ?? "";
 
-  const staffOptions = staffList.map((s) => ({
-    value: String(s.id),
-    label: s.fullName,
-  }));
+  const existingScheduleStaffIds = useMemo(() => {
+    if (!dateKey) return [];
+    return schedules
+      .filter((s) => s.workDate === dateKey && s.shiftType.id === shiftTypeId)
+      .map((s) => s.staff.id);
+  }, [schedules, dateKey, shiftTypeId]);
 
   return (
     <Modal open={date !== null} onClose={onClose} title="Thêm lịch nhanh" size="md">
@@ -205,13 +226,13 @@ export const QuickAddModal = memo(function QuickAddModal({
             disabled={submitting}
           />
 
-          <FormSelect
-            label="Nhân sự"
-            placeholder="Chọn nhân sự…"
-            value={String(staffId)}
-            onChange={(e) => setStaffId(e.target.value ? Number(e.target.value) : "")}
-            options={staffOptions}
-            required
+          <StaffSearchCombobox
+            value={staffId}
+            onChange={(id) => setStaffId(id)}
+            staffList={staffList}
+            workDate={dateKey ?? ""}
+            compensationDays={compensationDays}
+            existingScheduleStaffIds={existingScheduleStaffIds}
             disabled={submitting}
           />
 
@@ -234,7 +255,7 @@ export const QuickAddModal = memo(function QuickAddModal({
               type="submit"
               variant="primary"
               loading={submitting}
-              disabled={staffId === "" || !periodId}
+              disabled={staffId === "" || !periodId || dateOutOfRange}
               icon={<span className="material-symbols-outlined" aria-hidden="true">add</span>}
             >
               Tạo lịch

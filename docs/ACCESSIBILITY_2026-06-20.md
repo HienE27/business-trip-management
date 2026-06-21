@@ -1,6 +1,6 @@
 # Accessibility Baseline — Hospital Scheduler (MedSchedule Pro)
 
-**Date:** 2026-06-20
+**Date:** 2026-06-21 (updated from 2026-06-20)
 **Scope:** `frontend/` (Next.js + Tailwind), WCAG 2.1 AA as the
 baseline target. This document captures the **current** state of
 accessibility coverage so future sessions can identify regressions
@@ -253,6 +253,41 @@ The 5 most-impactful follow-ups, in order:
 
 These should land in r4 as a dedicated "Accessibility hardening"
 session.
+
+---
+
+## 7. Updates 2026-06-21
+
+### §3.9 aria-label on row-action icon buttons — PENDING
+
+**Note:** This issue (icon-only buttons in schedule tables lacking `aria-label`) was identified
+as high-priority in the original audit. It has not yet been addressed in this session.
+Row-action buttons (`edit`, `delete`) in `ScheduleByTypePage` and related components still
+need `aria-label` attributes added. Tracked as r4 follow-up.
+
+**Recommended fix:**
+```tsx
+// Before
+<button type="button" onClick={handleEdit} className="...">
+  <span className="material-symbols-outlined">edit</span>
+</button>
+
+// After
+<button type="button" onClick={handleEdit} aria-label="Chỉnh sửa ca trực" className="...">
+  <span className="material-symbols-outlined" aria-hidden="true">edit</span>
+</button>
+```
+
+### Lazy-load refactoring (2026-06-21)
+
+Session `06-20-06-20-fe-polish-r3` applied lazy-loading to Modal/ConfirmDialog
+components across 3 auto-scheduling pages:
+- `auto-scheduling/page.tsx` — `Modal`/`ModalFooter` now lazy-loaded via `React.lazy`
+- `auto-scheduling/algorithm-config/page.tsx` — `Modal`/`ModalFooter` → `CreateConfigModal`
+- `auto-scheduling/history/page.tsx` — `Modal`/`ModalFooter` → `CompareModal`
+
+This reduces initial JavaScript bundle size for auto-scheduling routes. No a11y regressions
+were introduced — lazy-loading only affects when the code is downloaded, not how it behaves.
 
 ---
 

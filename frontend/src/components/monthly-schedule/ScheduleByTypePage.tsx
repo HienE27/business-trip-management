@@ -436,7 +436,13 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
             {isManager && (
               <button
                 type="button"
-                onClick={() => setAddModalDate(new Date())}
+                onClick={() => {
+                  const today = new Date();
+                  if (selectedPeriod && (today < new Date(selectedPeriod.startDate) || today > new Date(selectedPeriod.endDate))) {
+                    return;
+                  }
+                  setAddModalDate(today);
+                }}
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-label-md font-semibold text-on-primary hover:bg-primary/90 transition-colors"
               >
                 <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
@@ -594,7 +600,16 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           compensationDays={compensationDays}
           onRefresh={handleRefresh}
           onFocusDate={() => undefined}
-          onAddDate={(date) => setAddModalDate(date)}
+          onAddDate={(date) => {
+            if (!selectedPeriod) return;
+            const start = new Date(selectedPeriod.startDate);
+            const end = new Date(selectedPeriod.endDate);
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
+            if (date >= start && date <= end) {
+              setAddModalDate(date);
+            }
+          }}
           onStaffFilterChange={() => undefined}
           onSpecialtyFilterChange={
             isExpertMode ? setSelectedSpecialtyId : () => undefined
@@ -627,6 +642,8 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           onRollback={handleRollback}
           onSuccess={handleRefresh}
           onClose={() => setAddModalDate(null)}
+          periodStart={selectedPeriod?.startDate}
+          periodEnd={selectedPeriod?.endDate}
         />
       )}
 

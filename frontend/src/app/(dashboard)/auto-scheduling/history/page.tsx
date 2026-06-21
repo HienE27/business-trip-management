@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
+import { CompareModal } from "./CompareModal";
 import type { AlgorithmMetrics, ApiResponse, SchedulePeriod } from "@/types/api";
 
 const ALGO_LABELS: Record<string, string> = {
@@ -119,116 +119,6 @@ function RunRow({ run, periodName, isSelected, onToggle, canSelectTwo }: RunRowP
         </span>
       </td>
     </tr>
-  );
-}
-
-interface CompareModalProps {
-  runA: AlgorithmMetrics;
-  runB: AlgorithmMetrics;
-  periodNameA: string;
-  periodNameB: string;
-  onClose: () => void;
-}
-
-function CompareModal({ runA, runB, periodNameA, periodNameB, onClose }: CompareModalProps) {
-  const rows: { label: string; a: string | number; b: string | number; aGood?: boolean; bGood?: boolean }[] = [
-    {
-      label: "Thuật toán",
-      a: ALGO_LABELS[runA.algorithmType] ?? runA.algorithmType,
-      b: ALGO_LABELS[runB.algorithmType] ?? runB.algorithmType,
-    },
-    {
-      label: "Độ phủ (Coverage)",
-      a: `${(runA.coverageRate * 100).toFixed(1)}%`,
-      b: `${(runB.coverageRate * 100).toFixed(1)}%`,
-      aGood: runA.coverageRate >= runB.coverageRate,
-      bGood: runB.coverageRate >= runA.coverageRate,
-    },
-    {
-      label: "Điểm cân bằng (Balance)",
-      a: runA.balanceScore.toFixed ? runA.balanceScore.toFixed(2) : runA.balanceScore,
-      b: runB.balanceScore.toFixed ? runB.balanceScore.toFixed(2) : runB.balanceScore,
-      aGood: runA.balanceScore >= runB.balanceScore,
-      bGood: runB.balanceScore >= runA.balanceScore,
-    },
-    {
-      label: "Xung đột",
-      a: runA.conflictCount,
-      b: runB.conflictCount,
-      aGood: runA.conflictCount <= runB.conflictCount,
-      bGood: runB.conflictCount <= runA.conflictCount,
-    },
-    {
-      label: "Thời gian chạy",
-      a: runA.executionTimeMs < 1000 ? `${runA.executionTimeMs}ms` : `${(runA.executionTimeMs / 1000).toFixed(1)}s`,
-      b: runB.executionTimeMs < 1000 ? `${runB.executionTimeMs}ms` : `${(runB.executionTimeMs / 1000).toFixed(1)}s`,
-      aGood: runA.executionTimeMs <= runB.executionTimeMs,
-      bGood: runB.executionTimeMs <= runA.executionTimeMs,
-    },
-    {
-      label: "Thời gian tạo",
-      a: formatDateTime(runA.createdAt),
-      b: formatDateTime(runB.createdAt),
-    },
-  ];
-
-  return (
-    <Modal open onClose={onClose} title="So sánh 2 lần chạy thuật toán">
-      <div className="space-y-3">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <div className="text-label-sm text-on-surface-variant mb-1">Lần chạy A</div>
-            <div className="font-label-md font-semibold text-on-surface">{formatDateTime(runA.createdAt)}</div>
-            <div className="text-label-xs text-on-surface-variant">{periodNameA}</div>
-          </div>
-          <span className="material-symbols-outlined text-outline text-[20px]">compare_arrows</span>
-          <div className="flex-1">
-            <div className="text-label-sm text-on-surface-variant mb-1">Lần chạy B</div>
-            <div className="font-label-md font-semibold text-on-surface">{formatDateTime(runB.createdAt)}</div>
-            <div className="text-label-xs text-on-surface-variant">{periodNameB}</div>
-          </div>
-        </div>
-
-        {/* Comparison rows */}
-        <div className="border border-outline-variant rounded-lg overflow-hidden">
-          {rows.map((row, i) => (
-            <div
-              key={row.label}
-              className={`flex items-center gap-3 px-4 py-3 ${i !== rows.length - 1 ? "border-b border-outline-variant" : ""} ${i % 2 === 0 ? "bg-surface-container-low" : "bg-surface-container-lowest"}`}
-            >
-              <div className="w-36 shrink-0 font-label-sm text-label-sm text-on-surface-variant">{row.label}</div>
-              <div className={`flex-1 text-center font-label-md font-semibold ${row.aGood !== undefined ? (row.aGood ? "text-secondary" : "text-error") : "text-on-surface"}`}>
-                {row.a}
-              </div>
-              <div className="w-4 shrink-0 flex justify-center">
-                {row.aGood !== undefined && row.bGood !== undefined && (
-                  <span className="material-symbols-outlined text-[16px] text-outline">
-                    {row.aGood && row.bGood ? "equals" : row.aGood ? "arrow_back" : "arrow_forward"}
-                  </span>
-                )}
-              </div>
-              <div className={`flex-1 text-center font-label-md font-semibold ${row.bGood !== undefined ? (row.bGood ? "text-secondary" : "text-error") : "text-on-surface"}`}>
-                {row.b}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <p className="text-label-xs text-outline text-center">
-          Xanh = tốt hơn giữa 2 lần chạy &nbsp;|&nbsp; Đỏ = kém hơn &nbsp;|&nbsp; = = ngang nhau
-        </p>
-      </div>
-      <ModalFooter>
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:opacity-90 transition-opacity"
-        >
-          Đóng
-        </button>
-      </ModalFooter>
-    </Modal>
   );
 }
 
