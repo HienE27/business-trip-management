@@ -55,6 +55,8 @@ services:
       - MAIL_USERNAME=${MAIL_USERNAME:-}
       - MAIL_PASSWORD=${MAIL_PASSWORD:-}
       - APP_EMAIL_ENABLED=${APP_EMAIL_ENABLED:-false}
+      - APP_EMAIL_FROM=${APP_EMAIL_FROM:-noreply@hospital-scheduler.com}
+      - APP_EMAIL_CONFLICT_ENABLED=${APP_EMAIL_CONFLICT_ENABLED:-false}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:
