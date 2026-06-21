@@ -13,14 +13,28 @@ vi.mock('@/lib/api', () => ({
   },
 }));
 
-vi.mock('@/hooks/useToast', () => ({
+vi.mock('@/components/ui', () => ({
   useToast: () => ({
     toasts: [],
     success: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
+    warning: vi.fn(),
     dismiss: vi.fn(),
+    dismissAll: vi.fn(),
   }),
+  ToastProvider: ({ children }: { children: React.ReactNode }) => children,
+  Toast: vi.fn(),
+  Skeleton: vi.fn(),
+  Button: vi.fn(),
+  IconButton: vi.fn(),
+  ConfirmDialog: vi.fn(),
+  FormInput: vi.fn(),
+  FormSelect: vi.fn(),
+  FormTextarea: vi.fn(),
+  FormCheckbox: vi.fn(),
+  EmptyState: vi.fn(),
+  ThemeToggle: vi.fn(),
 }));
 
 vi.mock('@/components/monthly-schedule/ScheduleCalendarSection', () => ({
@@ -43,6 +57,14 @@ vi.mock('@/components/monthly-schedule/WorkflowStepper', () => ({
 
 vi.mock('@/components/monthly-schedule/WorkloadSummary', () => ({
   WorkloadSummary: () => null,
+}));
+
+vi.mock('@/components/monthly-schedule/BulkScheduleModal', () => ({
+  BulkScheduleModal: () => null,
+}));
+
+vi.mock('@/components/monthly-schedule/BulkDatePickerModal', () => ({
+  BulkDatePickerModal: () => null,
 }));
 
 vi.mock('@/hooks/useRole', () => ({
