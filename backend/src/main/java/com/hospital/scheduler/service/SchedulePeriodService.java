@@ -4,6 +4,8 @@ import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.dto.request.SchedulePeriodRequest;
 import com.hospital.scheduler.dto.response.BulkPeriodResponse;
 import com.hospital.scheduler.dto.response.ConflictCheckResponse;
+import com.hospital.scheduler.dto.response.CoverageReportDTO;
+import com.hospital.scheduler.dto.response.PublishDryRunResponse;
 import com.hospital.scheduler.dto.response.SchedulePeriodResponse;
 import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.CompensationDay;
@@ -169,6 +171,37 @@ public class SchedulePeriodService {
                 period.getStartDate(), period.getEndDate(), periodSchedules, periodCompDays);
 
         return toResponse(saved);
+    }
+
+    /**
+     * Perform a dry-run publish check without persisting anything.
+     * Runs conflict detection and staffing coverage validation.
+     */
+    @Transactional(readOnly = true)
+    public PublishDryRunResponse dryRunPublish(Integer id) {
+        SchedulePeriod period = periodRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
+
+        ConflictCheckResponse conflictCheck = conflictDetectionService.checkPeriodConflicts(id);
+        CoverageReportDTO staffingCoverage = null;
+        try {
+            staffingCoverage = conflictDetectionService.validateStaffingCoverage(id);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(SchedulePeriodService.class)
+                    .warn("Could not generate staffing coverage for period {}: {}", id, e.getMessage());
+        }
+
+        return PublishDryRunResponse.builder()
+                .periodId(id)
+                .periodName(period.getPeriodName())
+                .hasConflicts(conflictCheck.isHasConflicts())
+                .conflictCount(conflictCheck.getTotalConflicts())
+                .conflicts(conflictCheck.getConflicts())
+                .hasCoverageGaps(conflictCheck.isHasCoverageGaps())
+                .coverageGaps(conflictCheck.getCoverageGaps())
+                .staffingCoverage(staffingCoverage)
+                .canPublish(!conflictCheck.isHasConflicts())
+                .build();
     }
 
     public SchedulePeriodResponse archivePeriod(Integer id) {

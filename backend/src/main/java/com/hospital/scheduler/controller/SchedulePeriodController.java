@@ -4,8 +4,10 @@ import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.BulkPeriodRequest;
 import com.hospital.scheduler.dto.request.SchedulePeriodRequest;
 import com.hospital.scheduler.dto.response.BulkPeriodResponse;
+import com.hospital.scheduler.dto.response.PublishDryRunResponse;
 import com.hospital.scheduler.dto.response.SchedulePeriodResponse;
 import com.hospital.scheduler.entity.SchedulePeriod;
+import com.hospital.scheduler.service.ConflictDetectionService;
 import com.hospital.scheduler.service.SchedulePeriodService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,6 +27,7 @@ import java.util.List;
 public class SchedulePeriodController {
 
     private final SchedulePeriodService periodService;
+    private final ConflictDetectionService conflictDetectionService;
 
     @GetMapping
     @Operation(summary = "Lấy danh sách kỳ lịch")
@@ -74,6 +77,14 @@ public class SchedulePeriodController {
             @PathVariable Integer id,
             @RequestParam(required = false) Integer publishedById) {
         return ResponseEntity.ok(ApiResponse.success(periodService.publishPeriod(id, publishedById), "Công bố kỳ lịch thành công"));
+    }
+
+    @GetMapping("/{id}/publish/dry-run")
+    @Operation(summary = "Kiểm tra trước khi công bố kỳ lịch (dry-run)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<PublishDryRunResponse>> dryRunPublish(@PathVariable Integer id) {
+        PublishDryRunResponse response = periodService.dryRunPublish(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PostMapping("/{id}/archive")

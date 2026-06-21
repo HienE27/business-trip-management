@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
 type SectionCardProps = {
-  title: ReactNode;
-  description?: string;
+  title: string | ReactNode;
+  description?: string | ReactNode;
   action?: ReactNode;
   children: ReactNode;
   className?: string;

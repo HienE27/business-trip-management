@@ -114,6 +114,7 @@ export default function MonthlySchedulePage() {
   const [notifying, setNotifying] = useState(false);
   const [notified, setNotified] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [dryRunData, setDryRunData] = useState<import("@/types/api").PublishDryRunResponse | null>(null);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
 
@@ -286,6 +287,7 @@ export default function MonthlySchedulePage() {
             selectedPeriod={selectedPeriod}
             schedules={schedules}
             conflictData={conflictData}
+            dryRunData={dryRunData}
             checkingConflicts={checkingConflicts}
             publishing={publishing}
             exporting={exporting}

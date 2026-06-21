@@ -1,8 +1,10 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.BulkL01Request;
+import com.hospital.scheduler.dto.request.BulkScheduleRequest;
 import com.hospital.scheduler.dto.request.ScheduleRequest;
 import com.hospital.scheduler.dto.response.BulkL01Response;
+import com.hospital.scheduler.dto.response.BulkScheduleResponse;
 import com.hospital.scheduler.dto.response.ConflictCheckResponse;
 import com.hospital.scheduler.dto.response.ExpertClinicWeeklyResponse;
 import com.hospital.scheduler.dto.response.ScheduleResponse;
@@ -12,7 +14,13 @@ import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.dto.request.NotificationDTO;
-import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.repository.CompensationDayRepository;
+import com.hospital.scheduler.repository.HolidayRepository;
+import com.hospital.scheduler.repository.SchedulePeriodRepository;
+import com.hospital.scheduler.repository.ScheduleRepository;
+import com.hospital.scheduler.repository.ShiftRequirementRepository;
+import com.hospital.scheduler.repository.ShiftTypeRepository;
+import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import com.hospital.scheduler.util.DateUtils;
@@ -36,6 +44,7 @@ public class ScheduleService {
     private final ShiftTypeRepository shiftTypeRepository;
     private final ShiftRequirementRepository requirementRepository;
     private final CompensationDayRepository compensationDayRepository;
+    private final HolidayRepository holidayRepository;
     private final ConflictDetectionService conflictDetectionService;
     private final AuditHistoryService auditHistoryService;
     private final AuthContextService authContextService;
@@ -520,6 +529,177 @@ public class ScheduleService {
                 .failureCount(request.getEntries().size() - successCount)
                 .totalCount(request.getEntries().size())
                 .errors(errors)
+                .results(results)
+                .build();
+    }
+
+    /**
+     * Bulk create schedules for any shift type (L01/L02/L03/L04).
+     * Validates: staff exists, active, not already assigned same type+date,
+     * not a compensation day, not a holiday, and no cross-type conflicts.
+     * Creates compensation days automatically for L01 entries.
+     * Does NOT auto-create compensation days for L02/L03/L04.
+     *
+     * @param request     the bulk request containing entries
+     * @param shiftTypeId the shift type ID for all entries (L01/L02/L03/L04)
+     * @return BulkScheduleResponse with partial success details
+     */
+    @Transactional
+    public BulkScheduleResponse bulkCreateSchedules(BulkScheduleRequest request, String shiftTypeId) {
+        List<BulkScheduleResponse.BulkResultEntry> results = new ArrayList<>();
+        int successCount = 0;
+
+        SchedulePeriod period = periodRepository.findById(request.getPeriodId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + request.getPeriodId()));
+
+        if (period.getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
+            throw new BadRequestException("Chỉ có thể thêm lịch khi kỳ lịch ở trạng thái DRAFT");
+        }
+
+        ShiftType shiftType = shiftTypeRepository.findById(shiftTypeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + shiftTypeId));
+
+        Map<String, Set<String>> inLoopAssignments = new HashMap<>();
+
+        for (BulkScheduleRequest.BulkScheduleEntry entry : request.getEntries()) {
+            Integer staffId = entry.getStaffId();
+            LocalDate workDate = entry.getWorkDate();
+            String key = staffId + "_" + workDate;
+
+            if (workDate.isBefore(period.getStartDate()) || workDate.isAfter(period.getEndDate())) {
+                results.add(BulkScheduleResponse.BulkResultEntry.builder()
+                        .workDate(workDate.toString())
+                        .staffId(staffId)
+                        .error("Ngày nằm ngoài kỳ lịch")
+                        .build());
+                continue;
+            }
+
+            Staff staff;
+            try {
+                staff = staffRepository.findById(staffId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + staffId));
+            } catch (ResourceNotFoundException e) {
+                results.add(BulkScheduleResponse.BulkResultEntry.builder()
+                        .workDate(workDate.toString())
+                        .staffId(staffId)
+                        .error("Nhân sự không tồn tại")
+                        .build());
+                continue;
+            }
+            if (!Boolean.TRUE.equals(staff.getIsActive())) {
+                results.add(BulkScheduleResponse.BulkResultEntry.builder()
+                        .workDate(workDate.toString())
+                        .staffId(staffId)
+                        .error("Nhân sự không hoạt động")
+                        .build());
+                continue;
+            }
+
+            if (scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                    request.getPeriodId(), staffId, shiftTypeId, workDate).isPresent()) {
+                results.add(BulkScheduleResponse.BulkResultEntry.builder()
+                        .workDate(workDate.toString())
+                        .staffId(staffId)
+                        .error("Đã có lịch " + shiftTypeId + " trong ngày")
+                        .build());
+                continue;
+            }
+
+            Set<String> existingShifts = inLoopAssignments.get(key);
+            if (existingShifts != null && !existingShifts.isEmpty()) {
+                results.add(BulkScheduleResponse.BulkResultEntry.builder()
+                        .workDate(workDate.toString())
+                        .staffId(staffId)
+                        .error("Nhân sự đã có lịch xung đột trong batch ngày " + workDate)
+                        .build());
+                continue;
+            }
+
+            if (!compensationDayRepository.findByStaffIdAndCompensationDate(staffId, workDate).isEmpty()) {
+                results.add(BulkScheduleResponse.BulkResultEntry.builder()
+                        .workDate(workDate.toString())
+                        .staffId(staffId)
+                        .error("Ngày này là ngày nghỉ bù của nhân sự")
+                        .build());
+                continue;
+            }
+
+            if (holidayRepository.existsByHolidayDate(workDate)) {
+                results.add(BulkScheduleResponse.BulkResultEntry.builder()
+                        .workDate(workDate.toString())
+                        .staffId(staffId)
+                        .error("Ngày là ngày nghỉ lễ")
+                        .build());
+                continue;
+            }
+
+            try {
+                conflictDetectionService.validateAndThrow(staffId, workDate, shiftTypeId, null, request.getPeriodId());
+            } catch (ConflictException e) {
+                results.add(BulkScheduleResponse.BulkResultEntry.builder()
+                        .workDate(workDate.toString())
+                        .staffId(staffId)
+                        .error(e.getMessage())
+                        .build());
+                continue;
+            }
+
+            ShiftRequirement requirement = null;
+            if (entry.getRequirementId() != null) {
+                requirement = requirementRepository.findById(entry.getRequirementId()).orElse(null);
+            }
+
+            Schedule schedule = Schedule.builder()
+                    .period(period)
+                    .workDate(workDate)
+                    .staff(staff)
+                    .shiftType(shiftType)
+                    .requirement(requirement)
+                    .hasConflict(false)
+                    .build();
+
+            Schedule saved = scheduleRepository.save(schedule);
+            inLoopAssignments.computeIfAbsent(key, k -> new HashSet<>()).add(shiftTypeId);
+
+            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
+                createCompensationDay(saved);
+            }
+
+            auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT,
+                    null, saved, authContextService.getCurrentStaff().getId());
+
+            LocalDate compDate = null;
+            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
+                compDate = compensationDayRepository.findByScheduleId(saved.getId()).stream()
+                        .map(CompensationDay::getCompensationDate)
+                        .filter(java.util.Objects::nonNull)
+                        .min(Comparator.naturalOrder())
+                        .orElse(null);
+            }
+
+            if (compDate != null) {
+                notificationService.createNotification(staffId,
+                        new NotificationDTO("Phân công lịch mới",
+                                "Bạn được phân công lịch " + shiftType.getName() + " vào ngày " + workDate + ". Ngày nghỉ bù: " + compDate + "."));
+            } else {
+                notificationService.createNotification(staffId,
+                        new NotificationDTO("Phân công lịch mới",
+                                "Bạn được phân công lịch " + shiftType.getName() + " vào ngày " + workDate + "."));
+            }
+
+            results.add(BulkScheduleResponse.BulkResultEntry.builder()
+                    .workDate(workDate.toString())
+                    .staffId(staffId)
+                    .scheduleId(saved.getId())
+                    .build());
+            successCount++;
+        }
+
+        return BulkScheduleResponse.builder()
+                .totalRequested(request.getEntries().size())
+                .successCount(successCount)
+                .failureCount(request.getEntries().size() - successCount)
                 .results(results)
                 .build();
     }

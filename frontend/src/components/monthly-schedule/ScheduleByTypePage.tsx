@@ -6,9 +6,12 @@ import { WorkflowStepper } from "@/components/monthly-schedule/WorkflowStepper";
 import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleCalendarSection";
 import { QuickAddModal } from "@/components/monthly-schedule/QuickAddModal";
 import { ShiftDetailModal } from "@/components/monthly-schedule/ShiftDetailModal";
+import { BulkScheduleModal } from "@/components/monthly-schedule/BulkScheduleModal";
+import { BulkDatePickerModal } from "@/components/monthly-schedule/BulkDatePickerModal";
 import { WorkloadSummary } from "@/components/monthly-schedule/WorkloadSummary";
 import { ConflictSection } from "@/components/monthly-schedule/ConflictSection";
 import { useRole, canManage } from "@/hooks/useRole";
+import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { getInitialCalendar, downloadBlob } from "@/components/monthly-schedule/utils";
@@ -16,14 +19,13 @@ import type {
   CompensationDay,
   ConflictCheckResponse,
   ConflictDetail,
+  PublishDryRunResponse,
   Schedule,
   SchedulePeriod,
   Specialty,
   Staff,
 } from "@/types/api";
-import type { ConflictItem } from "@/types/schedule";
-import type { ScheduleTab, ViewMode } from "@/components/monthly-schedule/types";
-import type { MonthlyPanel, WorkflowStepId } from "@/components/monthly-schedule/types";
+import type { MonthlyPanel, ScheduleTab, ViewMode, WorkflowStepId } from "@/components/monthly-schedule/types";
 
 export type ScheduleTypeConfig = {
   /** Sidebar section key, drives the active highlight. */
@@ -73,6 +75,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const role = useRole();
   const isManager = canManage(role);
   const isExpertMode = config.expertClinicMode === true;
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
@@ -94,10 +97,17 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const [conflictData, setConflictData] = useState<ConflictCheckResponse | null>(null);
   const [selectedConflict, setSelectedConflict] = useState<ConflictDetail | null>(null);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
-  const [publishing, setPublishing] = useState(false);
+  const [publishing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [notifying, setNotifying] = useState(false);
   const [notified, setNotified] = useState(false);
+  const [dryRunData, setDryRunData] = useState<PublishDryRunResponse | null>(null);
+
+  // Bulk schedule state
+  const [bulkPickerOpen, setBulkPickerOpen] = useState(false);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkSelectedDates, setBulkSelectedDates] = useState<string[]>([]);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
   const loadBaseData = useCallback(async () => {
     try {
@@ -147,45 +157,29 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     setSchedules((prev) => prev.filter((s) => s.id !== tempId));
   }, []);
 
-  const handleCheckConflicts = useCallback(async () => {
+  const handleDryRunPublish = useCallback(async () => {
     if (!selectedPeriodId) return;
     setCheckingConflicts(true);
     setMessage(null);
     try {
-      const result = await api.get<ConflictCheckResponse>(
-        `/schedules/conflicts/check/${selectedPeriodId}`
-      );
-      setConflictData(result ?? null);
-      setMessage(
-        result?.hasConflicts
-          ? `Phát hiện ${result.totalConflicts} xung đột cần xử lý.`
-          : "Không phát hiện xung đột trong kỳ lịch."
-      );
+      const result = await api.dryRunPublish(selectedPeriodId);
+      setDryRunData(result);
+      if (result.canPublish) {
+        setMessage("Kỳ lịch sẵn sàng công bố — không có xung đột.");
+        toastSuccess("Kỳ lịch sẵn sàng công bố — không có xung đột.");
+      } else {
+        const parts: string[] = [];
+        if (result.hasConflicts) parts.push(`${result.conflictCount} xung đột`);
+        if (result.hasCoverageGaps) parts.push(`${result.coverageGaps.length} khoảng trống phủ`);
+        setMessage(`Kỳ lịch chưa thể công bố: ${parts.join(", ")}.`);
+      }
     } catch {
-      setMessage("Không thể kiểm tra xung đột.");
+      setMessage("Không thể kiểm tra khả năng công bố.");
+      toastError("Không thể kiểm tra khả năng công bố kỳ lịch.");
     } finally {
       setCheckingConflicts(false);
     }
-  }, [selectedPeriodId]);
-
-  const handlePublish = useCallback(async () => {
-    if (!selectedPeriodId) return;
-    setPublishing(true);
-    setMessage(null);
-    try {
-      await api.publishPeriod(selectedPeriodId);
-      setPeriods((prev) =>
-        prev.map((p) =>
-          p.id === selectedPeriodId ? { ...p, status: "PUBLISHED" as const } : p
-        )
-      );
-      setMessage("Kỳ lịch đã được công bố thành công.");
-    } catch {
-      setMessage("Không thể công bố kỳ lịch.");
-    } finally {
-      setPublishing(false);
-    }
-  }, [selectedPeriodId]);
+  }, [selectedPeriodId, toastSuccess, toastError]);
 
   const handleExport = useCallback(async () => {
     if (!selectedPeriodId) return;
@@ -230,7 +224,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const handleWorkflowStep = useCallback((stepId: WorkflowStepId) => {
     if (stepId === "conflicts") {
       setSelectedPanel("conflicts");
-      void handleCheckConflicts();
+      void handleDryRunPublish();
       return;
     }
     if (stepId === "export") {
@@ -242,7 +236,18 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       return;
     }
     setSelectedPanel("summary");
-  }, [handleCheckConflicts, handleExport, handleSendNotifications]);
+  }, [handleDryRunPublish, handleExport, handleSendNotifications]);
+
+  // Bulk schedule handlers
+  const handleBulkDatesSelected = useCallback((dates: string[]) => {
+    setBulkSelectedDates(dates);
+    setBulkPickerOpen(false);
+    setBulkModalOpen(true);
+  }, []);
+
+  const handleBulkSuccess = useCallback(() => {
+    void loadBaseData();
+  }, [loadBaseData]);
 
   const selectedPeriod = useMemo(
     () => periods.find((p) => p.id === selectedPeriodId) ?? null,
@@ -250,6 +255,15 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   );
 
   const initialCalendar = useMemo(() => getInitialCalendar(selectedPeriod), [selectedPeriod]);
+
+  const existingSchedules = useMemo(
+    () =>
+      schedules.map((s) => ({
+        workDate: s.workDate,
+        staffId: s.staff.id,
+      })),
+    [schedules]
+  );
 
   const handleRefresh = useCallback(() => {
     if (!selectedPeriodId) return;
@@ -294,7 +308,10 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   // Reset workflow state when period changes
   useEffect(() => {
     setConflictData(null);
+    setDryRunData(null);
     setNotified(false);
+    setBulkModalOpen(false);
+    setBulkSelectedDates([]);
   }, [selectedPeriodId]);
 
   const selectedSchedule = useMemo(
@@ -352,14 +369,30 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         accent: "bg-surface-container-high text-on-surface",
       };
 
+  const isDraft = selectedPeriod?.status === "DRAFT";
+
   return (
     <>
       {message && (
         <div
-          className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error"
+          className="rounded-lg border px-4 py-3 text-sm"
           role="alert"
+          style={
+            dryRunData?.canPublish
+              ? { borderColor: "var(--color-secondary)", backgroundColor: "var(--color-secondary-container)", color: "var(--color-on-secondary-container)" }
+              : dryRunData?.hasConflicts || conflictData?.hasConflicts
+              ? { borderColor: "var(--color-error)", backgroundColor: "var(--color-error-container)", color: "var(--color-on-error-container)" }
+              : { borderColor: "var(--color-outline)", backgroundColor: "var(--color-surface-container-low)", color: "var(--color-on-surface)" }
+          }
         >
-          {message}
+          {dryRunData?.canPublish ? (
+            <span className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+              {message}
+            </span>
+          ) : (
+            message
+          )}
         </div>
       )}
 
@@ -433,6 +466,18 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
                 </div>
               </div>
             )}
+            {isManager && isDraft && (
+              <button
+                type="button"
+                onClick={() => setBulkPickerOpen(true)}
+                className="inline-flex items-center gap-2 rounded-lg bg-tertiary-container px-4 py-2.5 text-label-md font-semibold text-on-tertiary-container border border-tertiary/20 hover:bg-tertiary/10 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                  playlist_add
+                </span>
+                Gán hàng loạt
+              </button>
+            )}
             {isManager && (
               <button
                 type="button"
@@ -461,6 +506,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
               selectedPeriod={selectedPeriod}
               schedules={schedules}
               conflictData={conflictData}
+              dryRunData={dryRunData}
               checkingConflicts={checkingConflicts}
               publishing={publishing}
               exporting={exporting}
@@ -473,14 +519,170 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         )}
       </div>
 
-      {selectedPanel === "conflicts" && conflictData && (
+      {/* Dry-run publish results */}
+      {selectedPanel === "conflicts" && dryRunData && (
+        <section className="space-y-3">
+          {/* Can publish banner */}
+          {dryRunData.canPublish && (
+            <div className="rounded-xl border border-secondary/30 bg-secondary-container p-4 flex items-center gap-3">
+              <span
+                className="material-symbols-outlined text-[24px] text-secondary shrink-0"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+                aria-hidden="true"
+              >
+                check_circle
+              </span>
+              <div>
+                <p className="text-label-md font-semibold text-on-secondary-container">
+                  Kỳ lịch sẵn sàng công bố
+                </p>
+                <p className="text-label-sm text-on-secondary-container/80">
+                  Không phát hiện xung đột hay khoảng trống phủ nào.
+                </p>
+              </div>
+              <span className="ml-auto shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-secondary text-on-secondary text-label-sm font-semibold">
+                <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
+                Có thể công bố
+              </span>
+            </div>
+          )}
+
+          {/* Conflict list */}
+          {dryRunData.hasConflicts && (
+            <div className="rounded-xl border border-error/30 bg-error-container overflow-hidden">
+              <div className="px-4 py-3 border-b border-error/20 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-error" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">
+                  error
+                </span>
+                <h3 className="text-label-md font-semibold text-on-error-container">
+                  {dryRunData.conflictCount} xung đột phát hiện — chặn công bố
+                </h3>
+              </div>
+              <div className="divide-y divide-error/10 max-h-64 overflow-y-auto">
+                {dryRunData.conflicts.map((conflict, idx) => (
+                  <div key={idx} className="px-4 py-2.5 flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-label-md font-semibold text-on-error-container">
+                        {conflict.staffName}
+                      </p>
+                      <p className="text-label-sm text-on-error-container/80">
+                        {conflict.shiftTypeName} · {new Date(conflict.workDate).toLocaleDateString("vi-VN")}
+                      </p>
+                      {conflict.conflictReasons.length > 0 && (
+                        <p className="text-label-sm text-error mt-0.5">
+                          {conflict.conflictReasons.join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Coverage gaps */}
+          {dryRunData.hasCoverageGaps && (
+            <div className="rounded-xl border border-tertiary/30 bg-tertiary-container overflow-hidden">
+              <div className="px-4 py-3 border-b border-tertiary/20 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-tertiary" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">
+                  warning
+                </span>
+                <h3 className="text-label-md font-semibold text-on-tertiary-container">
+                  {dryRunData.coverageGaps.length} khoảng trống phủ — cảnh báo
+                </h3>
+              </div>
+              <div className="divide-y divide-tertiary/10 max-h-48 overflow-y-auto">
+                {dryRunData.coverageGaps.map((gap, idx) => (
+                  <div key={idx} className="px-4 py-2.5 flex items-start gap-3">
+                    <span className="material-symbols-outlined text-[16px] text-tertiary mt-0.5 shrink-0" aria-hidden="true">
+                      info
+                    </span>
+                    <p className="text-label-sm text-on-tertiary-container">{gap}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Coverage summary */}
+          {dryRunData.staffingCoverage && (
+            <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+              <h3 className="text-label-md font-semibold text-on-surface mb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden="true">
+                  donut_large
+                </span>
+                Tổng quan phủ lịch
+              </h3>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-headline-md font-bold text-on-surface">
+                    {dryRunData.staffingCoverage.totalRequired}
+                  </p>
+                  <p className="text-label-sm text-on-surface-variant">Tổng nhu cầu</p>
+                </div>
+                <div>
+                  <p className="text-headline-md font-bold text-on-surface">
+                    {dryRunData.staffingCoverage.totalAssigned}
+                  </p>
+                  <p className="text-label-sm text-on-surface-variant">Đã phân công</p>
+                </div>
+                <div>
+                  <p className={`text-headline-md font-bold ${
+                    dryRunData.staffingCoverage.overallCoverageRate >= 95
+                      ? "text-secondary"
+                      : dryRunData.staffingCoverage.overallCoverageRate >= 80
+                      ? "text-tertiary"
+                      : "text-error"
+                  }`}>
+                    {dryRunData.staffingCoverage.overallCoverageRate}%
+                  </p>
+                  <p className="text-label-sm text-on-surface-variant">Tỷ lệ phủ</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {selectedPanel === "conflicts" && conflictData && !dryRunData && (
         <ConflictSection
           conflicts={conflictData.conflicts ?? []}
           selectedConflict={selectedConflict}
           selectedPeriodId={selectedPeriodId}
           onSelect={setSelectedConflict}
           onClose={() => setSelectedConflict(null)}
-          onFocusDate={(date) => {
+          onFocusDate={() => {
+            setSelectedPanel("summary");
+            setShowStats(false);
+          }}
+          onShowConflicts={() => {
+            setSelectedPanel("conflicts");
+          }}
+          onResolve={(conflict) => {
+            setSelectedConflict(conflict as unknown as ConflictDetail);
+          }}
+        />
+      )}
+
+      {selectedPanel === "conflicts" && dryRunData && (
+        <ConflictSection
+          conflicts={
+            dryRunData.hasConflicts
+              ? dryRunData.conflicts.map((c) => ({
+                  scheduleId: c.scheduleId,
+                  staffName: c.staffName,
+                  workDate: c.workDate,
+                  shiftTypeId: c.shiftTypeId,
+                  shiftTypeName: c.shiftTypeName,
+                  conflictReasons: c.conflictReasons,
+                }))
+              : []
+          }
+          selectedConflict={selectedConflict}
+          selectedPeriodId={selectedPeriodId}
+          onSelect={setSelectedConflict}
+          onClose={() => setSelectedConflict(null)}
+          onFocusDate={() => {
             setSelectedPanel("summary");
             setShowStats(false);
           }}
@@ -655,6 +857,34 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           canEdit={isManager}
           onClose={() => setDetailScheduleId(null)}
           onSave={handleRefresh}
+        />
+      )}
+
+      {/* Bulk date picker modal */}
+      {selectedPeriod && isDraft && (
+        <BulkDatePickerModal
+          open={bulkPickerOpen}
+          onClose={() => setBulkPickerOpen(false)}
+          onDatesSelected={handleBulkDatesSelected}
+          periodId={selectedPeriod.id}
+          periodStart={selectedPeriod.startDate}
+          periodEnd={selectedPeriod.endDate}
+        />
+      )}
+
+      {/* Bulk schedule modal */}
+      {selectedPeriodId && (
+        <BulkScheduleModal
+          open={bulkModalOpen}
+          onClose={() => setBulkModalOpen(false)}
+          onSuccess={handleBulkSuccess}
+          periodId={selectedPeriodId}
+          shiftTypeId={config.shiftTypeId}
+          existingSchedules={existingSchedules}
+          staffList={activeStaff}
+          selectedDates={bulkSelectedDates}
+          submitting={bulkSubmitting}
+          onSubmittingChange={setBulkSubmitting}
         />
       )}
     </>

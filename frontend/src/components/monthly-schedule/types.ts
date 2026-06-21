@@ -1,4 +1,4 @@
-import type { ConflictCheckResponse, ConflictDetail, Schedule, SchedulePeriod, Staff } from "@/types/api";
+import type { ConflictCheckResponse, ConflictDetail, PublishDryRunResponse, Schedule, SchedulePeriod, Staff } from "@/types/api";
 
 export type ScheduleTab = "L01" | "L02" | "L03" | "L04" | "ALL";
 export type ViewMode = "calendar" | "table" | "matrix";
@@ -68,6 +68,7 @@ export type WorkflowContext = {
   selectedPeriod: SchedulePeriod | null;
   schedules: Schedule[];
   conflictData: ConflictCheckResponse | null;
+  dryRunData?: PublishDryRunResponse | null;
   checkingConflicts: boolean;
   publishing: boolean;
   exporting: boolean;

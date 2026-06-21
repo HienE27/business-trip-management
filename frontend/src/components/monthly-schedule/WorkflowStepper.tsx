@@ -3,6 +3,7 @@
 import { memo, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { MonthlyPanel, WorkflowContext, WorkflowStatus, WorkflowStepId, WorkflowStepView } from "./types";
+import type { ConflictCheckResponse, PublishDryRunResponse } from "@/types/api";
 
 const STATUS_META: Record<WorkflowStatus, { label: string; icon: string; dot: string; line: string }> = {
   pending:  { label: "Chờ",     icon: "radio_button_unchecked", dot: "bg-surface-variant",       line: "bg-surface-variant" },
@@ -29,7 +30,7 @@ function buildSteps(context: WorkflowContext): WorkflowStepView[] {
     { id: "conflicts" as WorkflowStepId, title: "Xung đột", description: "Kiểm tra xung đột", status: context.checkingConflicts || activeFromPanel === "conflicts" ? "active" : hasConflicts ? "error" : hasConflictCheck ? "completed" : "pending", statusLabel: "" },
     { id: "review" as WorkflowStepId, title: "Rà soát", description: "Tổng hợp & báo cáo", status: activeFromPanel === "review" ? "active" : hasSchedules && !hasConflicts ? "completed" : "pending", statusLabel: "" },
     { id: "export" as WorkflowStepId, title: "Xuất báo cáo", description: "Xuất Excel / PDF", status: context.exporting ? "active" : isPublished ? "completed" : "pending", statusLabel: "" },
-    { id: "publish" as WorkflowStepId, title: "Công bố", description: "Công bố kỳ lịch", status: context.publishing ? "active" : isPublished ? "completed" : hasConflicts ? "error" : "pending", statusLabel: "" },
+    { id: "publish" as WorkflowStepId, title: "Công bố", description: "Công bố kỳ lịch", status: context.publishing ? "active" : isPublished ? "completed" : context.dryRunData != null && context.dryRunData.canPublish ? "completed" : hasConflicts ? "error" : "pending", statusLabel: "" },
     { id: "notify" as WorkflowStepId, title: "Thông báo", description: "Gửi thông báo", status: context.notifying ? "active" : context.notified ? "completed" : "pending", statusLabel: "" },
   ];
 }
@@ -123,5 +124,9 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
 });
 
 function isPublished(props: WorkflowContext) { return props.selectedPeriod?.status === "PUBLISHED"; }
-function hasConflicts(props: WorkflowContext) { return Boolean(props.conflictData?.hasConflicts); }
+function hasConflicts(props: WorkflowContext) {
+  const c = props.conflictData;
+  const d = props.dryRunData;
+  return Boolean(c?.hasConflicts || d?.hasConflicts);
+}
 function hasSchedules(props: WorkflowContext) { return props.schedules.length > 0; }

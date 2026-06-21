@@ -521,6 +521,62 @@ export interface CompensationDay {
   compensationDate: string;
 }
 
+// ============================================================
+// Bulk Schedule Types
+// ============================================================
+export interface BulkScheduleResultEntry {
+  workDate: string;
+  staffId: number;
+  staffName?: string;
+  scheduleId: number | null;
+  error: string | null;
+}
+
+export interface BulkScheduleResponse {
+  totalRequested: number;
+  successCount: number;
+  failureCount: number;
+  results: BulkScheduleResultEntry[];
+}
+
+// ============================================================
+// Publish Dry-Run Types
+// ============================================================
+export interface PublishDryRunConflictDetail {
+  scheduleId: number;
+  staffName: string;
+  workDate: string;
+  shiftTypeId: string;
+  shiftTypeName: string;
+  conflictReasons: string[];
+}
+
+export interface CoverageReportEntry {
+  date: string;
+  shiftTypeId: string;
+  shiftTypeName: string;
+  required: number;
+  assigned: number;
+  coverageRate: number;
+}
+
+export interface PublishDryRunResponse {
+  periodId: number;
+  periodName: string;
+  hasConflicts: boolean;
+  conflictCount: number;
+  conflicts: PublishDryRunConflictDetail[];
+  hasCoverageGaps: boolean;
+  coverageGaps: string[];
+  staffingCoverage: {
+    totalRequired: number;
+    totalAssigned: number;
+    overallCoverageRate: number;
+    entries: CoverageReportEntry[];
+  };
+  canPublish: boolean;
+}
+
 export interface RoleMatrixRole {
   id: number;
   name: string;

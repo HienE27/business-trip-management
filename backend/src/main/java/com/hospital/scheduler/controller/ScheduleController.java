@@ -2,9 +2,11 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.BulkL01Request;
+import com.hospital.scheduler.dto.request.BulkScheduleRequest;
 import com.hospital.scheduler.dto.request.OverrideConflictRequest;
 import com.hospital.scheduler.dto.request.ScheduleRequest;
 import com.hospital.scheduler.dto.response.BulkL01Response;
+import com.hospital.scheduler.dto.response.BulkScheduleResponse;
 import com.hospital.scheduler.dto.response.ConflictCheckResponse;
 import com.hospital.scheduler.dto.response.ExpertClinicWeeklyResponse;
 import com.hospital.scheduler.dto.response.ScheduleResponse;
@@ -157,6 +159,18 @@ public class ScheduleController {
         BulkL01Response response = scheduleService.createBulkL01(request);
         String msg = String.format("Tạo thành công %d/%d lịch L01",
                 response.getSuccessCount(), response.getTotalCount());
+        return ResponseEntity.ok(ApiResponse.success(response, msg));
+    }
+
+    @PostMapping("/bulk")
+    @Operation(summary = "Bulk tạo lịch cho bất kỳ loại ca nào (L01/L02/L03/L04)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<BulkScheduleResponse>> createBulkSchedule(
+            @RequestParam String shiftTypeId,
+            @Valid @RequestBody BulkScheduleRequest request) {
+        BulkScheduleResponse response = scheduleService.bulkCreateSchedules(request, shiftTypeId);
+        String msg = String.format("Tạo thành công %d/%d lịch %s",
+                response.getSuccessCount(), response.getTotalRequested(), shiftTypeId);
         return ResponseEntity.ok(ApiResponse.success(response, msg));
     }
 }

@@ -30,6 +30,8 @@ import type {
   ShiftType,
   LeaveRequestStatistics,
   ReplacementSuggestion,
+  BulkScheduleResponse,
+  PublishDryRunResponse,
 } from "@/types/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
@@ -255,6 +257,20 @@ class ApiClient {
 
   async checkConflicts(periodId: number): Promise<ApiResponse<ConflictCheckResponse>> {
     return this.request<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`);
+  }
+
+  async bulkCreateSchedules(
+    request: { periodId: number; entries: Array<{ workDate: string; staffId: number; requirementId?: number }> },
+    shiftTypeId: string
+  ): Promise<BulkScheduleResponse> {
+    return this.post<BulkScheduleResponse>(
+      `/schedules/bulk?shiftTypeId=${encodeURIComponent(shiftTypeId)}`,
+      request
+    );
+  }
+
+  async dryRunPublish(periodId: number): Promise<PublishDryRunResponse> {
+    return this.get<PublishDryRunResponse>(`/periods/${periodId}/publish/dry-run`);
   }
 
   async findReplacements(
