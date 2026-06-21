@@ -97,7 +97,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const [conflictData, setConflictData] = useState<ConflictCheckResponse | null>(null);
   const [selectedConflict, setSelectedConflict] = useState<ConflictDetail | null>(null);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
-  const [publishing] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [notifying, setNotifying] = useState(false);
   const [notified, setNotified] = useState(false);
@@ -221,6 +221,25 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     }
   }, [selectedPeriodId, activeStaff, periods]);
 
+  const handlePublish = useCallback(async () => {
+    if (!selectedPeriodId) return;
+    setPublishing(true);
+    setMessage(null);
+    try {
+      const published = await api.publishPeriod(selectedPeriodId);
+      setSelectedPeriodId(selectedPeriodId); // trigger re-fetch to get updated status
+      setMessage("Kỳ lịch đã được công bố thành công.");
+      toastSuccess("Kỳ lịch đã được công bố thành công!");
+      void loadBaseData();
+    } catch (err) {
+      const msg = getErrorMessage(err, "Không thể công bố kỳ lịch.");
+      setMessage(msg);
+      toastError(msg);
+    } finally {
+      setPublishing(false);
+    }
+  }, [selectedPeriodId, loadBaseData, toastSuccess, toastError]);
+
   const handleWorkflowStep = useCallback((stepId: WorkflowStepId) => {
     if (stepId === "conflicts") {
       setSelectedPanel("conflicts");
@@ -235,8 +254,12 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       void handleSendNotifications();
       return;
     }
+    if (stepId === "publish") {
+      void handlePublish();
+      return;
+    }
     setSelectedPanel("summary");
-  }, [handleDryRunPublish, handleExport, handleSendNotifications]);
+  }, [handleDryRunPublish, handleExport, handleSendNotifications, handlePublish]);
 
   // Bulk schedule handlers
   const handleBulkDatesSelected = useCallback((dates: string[]) => {
@@ -247,7 +270,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
   const handleBulkSuccess = useCallback(() => {
     void loadBaseData();
-  }, [loadBaseData]);
+    // Auto re-check conflicts after bulk submit
+    void handleDryRunPublish();
+  }, [loadBaseData, handleDryRunPublish]);
 
   const selectedPeriod = useMemo(
     () => periods.find((p) => p.id === selectedPeriodId) ?? null,
@@ -886,6 +911,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           selectedDates={bulkSelectedDates}
           submitting={bulkSubmitting}
           onSubmittingChange={setBulkSubmitting}
+          compensationDays={compensationDays}
         />
       )}
     </>

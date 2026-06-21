@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/ToastProvider";
 import { api } from "@/lib/api";
+import type { AutoScheduleSummary } from "@/types/api";
 
 /* ── WorkloadChart ──
  *
@@ -291,18 +292,70 @@ function StackedBarChart({ data }: { data: WorkloadChartData }) {
   );
 }
 
+/* ── Staff aggregate builder ── */
+function buildStaffAggregates(schedules: AutoScheduleSummary[]): WorkloadStaffData[] {
+  const map = new Map<number, WorkloadStaffData>();
+  for (const s of schedules) {
+    if (!map.has(s.staffId)) {
+      map.set(s.staffId, {
+        staffId: s.staffId,
+        staffName: s.staffName,
+        specialty: null,
+        totalShifts: 0,
+        L01: 0, L02: 0, L03: 0, L04: 0,
+        workloadPercentage: 0,
+      });
+    }
+    const agg = map.get(s.staffId)!;
+    switch (s.shiftTypeId) {
+      case "L01": agg.L01++; break;
+      case "L02": agg.L02++; break;
+      case "L03": agg.L03++; break;
+      case "L04": agg.L04++; break;
+    }
+    agg.totalShifts++;
+  }
+  return Array.from(map.values());
+}
+
 /* ── Main Export ── */
 interface WorkloadChartProps {
   periodId: number;
+  /** When provided, WorkloadChart shows this preview data instead of fetching saved DB data. */
+  previewSchedules?: AutoScheduleSummary[];
 }
 
-export function WorkloadChart({ periodId }: WorkloadChartProps) {
+export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps) {
   const [chartData, setChartData] = useState<WorkloadChartData | null>(null);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"bar" | "stacked">("bar");
   const toast = useToast();
 
   const load = useCallback(async () => {
+    if (previewSchedules && previewSchedules.length > 0) {
+      // Compute chart data from preview schedules (in-memory — no API call)
+      const rawStaff = buildStaffAggregates(previewSchedules);
+      const totalShifts = rawStaff.reduce((sum, s) => sum + s.totalShifts, 0);
+      const totalStaff = rawStaff.length;
+      const avg = totalStaff > 0
+        ? rawStaff.reduce((sum, s) => sum + (s.totalShifts * 100 / (s.totalShifts || 1)), 0) / totalStaff
+        : 0;
+      const maxW = rawStaff.length > 0 ? Math.max(...rawStaff.map((s) => s.totalShifts)) : 0;
+      const minW = rawStaff.length > 0 ? Math.min(...rawStaff.map((s) => s.totalShifts)) : 0;
+      setChartData({
+        periodId,
+        periodName: "Bản xem trước",
+        startDate: "",
+        endDate: "",
+        totalSchedules: totalShifts,
+        totalStaff,
+        averageWorkload: avg,
+        minWorkload: minW,
+        maxWorkload: maxW,
+        staffWorkloadData: rawStaff,
+      });
+      return;
+    }
     if (!periodId) return;
     setLoading(true);
     try {

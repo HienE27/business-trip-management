@@ -810,13 +810,13 @@ export default function AutoSchedulingPage() {
               </div>
             </SectionCard>
 
-            {/* Workload chart — shows saved schedule workload */}
+            {/* Workload chart — shows preview workload when available, otherwise saved DB workload */}
             <SectionCard
               title="Khối lượng theo nhân sự"
               description="Biểu đồ phân bổ ca trực theo nhân sự trong kỳ lịch."
             >
               <div className="p-4">
-                <WorkloadChart periodId={selectedPeriodId!} />
+                <WorkloadChart periodId={selectedPeriodId!} previewSchedules={previewResult?.schedules} />
               </div>
             </SectionCard>
           </div>

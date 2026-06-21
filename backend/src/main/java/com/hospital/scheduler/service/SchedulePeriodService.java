@@ -139,6 +139,11 @@ public class SchedulePeriodService {
         period.setPublishedAt(LocalDateTime.now());
         SchedulePeriod saved = periodRepository.save(period);
 
+        // Audit: log the publish action with full context
+        auditHistoryService.logAction("schedule_period", saved.getId(), AuditHistory.ActionType.UPDATE,
+                period, Map.of("action", "PUBLISH", "publishedBy", publishedBy != null ? publishedBy.getUsername() : "system"),
+                publishedById);
+
         List<Schedule> periodSchedules = scheduleRepository.findByPeriodId(saved.getId());
         List<CompensationDay> periodCompDays = compensationDayRepository.findByPeriodId(saved.getId());
 
@@ -212,8 +217,26 @@ public class SchedulePeriodService {
             throw new BadRequestException("Chỉ có thể lưu trữ kỳ lịch ở trạng thái PUBLISHED");
         }
 
+        SchedulePeriod prev = SchedulePeriod.builder()
+                .id(period.getId())
+                .periodName(period.getPeriodName())
+                .status(period.getStatus())
+                .startDate(period.getStartDate())
+                .endDate(period.getEndDate())
+                .publishedBy(period.getPublishedBy())
+                .publishedAt(period.getPublishedAt())
+                .createdBy(period.getCreatedBy())
+                .createdAt(period.getCreatedAt())
+                .build();
+
         period.setStatus(SchedulePeriod.PeriodStatus.ARCHIVED);
-        return toResponse(periodRepository.save(period));
+        SchedulePeriod saved = periodRepository.save(period);
+
+        // Audit: log the archive action
+        auditHistoryService.logAction("schedule_period", saved.getId(), AuditHistory.ActionType.UPDATE,
+                prev, saved, null);
+
+        return toResponse(saved);
     }
 
     public BulkPeriodResponse bulkPublish(List<Integer> periodIds, Integer publishedById) {

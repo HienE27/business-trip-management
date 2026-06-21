@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.AutoScheduleRequestDTO;
+import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.dto.response.AlgorithmMetricsDTO;
 import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.entity.*;
@@ -35,6 +36,7 @@ public class AutoSchedulingService {
     private final ConflictDetectionService conflictDetectionService;
     private final AuditHistoryService auditHistoryService;
     private final CompensationDateCalculator compensationDateCalculator;
+    private final NotificationService notificationService;
 
     // Thread-local so concurrent requests don't share state
     private final ThreadLocal<Map<String, Set<String>>> inMemoryAssignments = ThreadLocal.withInitial(HashMap::new);
@@ -143,6 +145,20 @@ public class AutoSchedulingService {
                         .shiftTypeName(s.getShiftType().getName())
                         .build())
                 .toList();
+
+        // Notify each staff about their auto-assigned shifts (one notification per staff, not per schedule)
+        var staffScheduleMap = savedSchedules.stream()
+                .collect(java.util.stream.Collectors.groupingBy(s -> s.getStaff().getId()));
+        for (var entry : staffScheduleMap.entrySet()) {
+            Integer staffId = entry.getKey();
+            List<Schedule> staffSchedules = entry.getValue();
+            String dutyList = staffSchedules.stream()
+                    .map(s -> s.getWorkDate().toString() + " (" + s.getShiftType().getName() + ")")
+                    .collect(Collectors.joining("; "));
+            notificationService.createNotification(staffId, new NotificationDTO(
+                    "Bạn được phân công ca trực tự động",
+                    "Bạn vừa được phân công " + staffSchedules.size() + " ca trực tự động trong kỳ lịch.\nDanh sách: " + dutyList));
+        }
 
         int totalRequired = request.getSchedules().size();
         BigDecimal coverageRate = totalRequired > 0
@@ -371,6 +387,7 @@ public class AutoSchedulingService {
                   new HashMap<>(), assignmentHistory, maxIterations, excludedStaffIds, save);
 
         if (save) {
+            List<Schedule> allSaved = new java.util.ArrayList<>();
             for (Schedule schedule : bestSolution) {
                 Schedule saved = scheduleRepository.save(schedule);
                 schedule.setId(saved.getId());
@@ -378,6 +395,20 @@ public class AutoSchedulingService {
                     createCompensationDayForAuto(saved);
                 }
                 auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+                allSaved.add(saved);
+            }
+            // Notify each staff about their auto-assigned shifts (one notification per staff)
+            var staffScheduleMap = allSaved.stream()
+                    .collect(java.util.stream.Collectors.groupingBy(s -> s.getStaff().getId()));
+            for (var entry : staffScheduleMap.entrySet()) {
+                Integer staffId = entry.getKey();
+                List<Schedule> staffSchedules = entry.getValue();
+                String dutyList = staffSchedules.stream()
+                        .map(s -> s.getWorkDate().toString() + " (" + s.getShiftType().getName() + ")")
+                        .collect(Collectors.joining("; "));
+                notificationService.createNotification(staffId, new NotificationDTO(
+                        "Bạn được phân công ca trực tự động",
+                        "Bạn vừa được phân công " + staffSchedules.size() + " ca trực tự động.\nDanh sách: " + dutyList));
             }
         } else {
             for (Schedule schedule : bestSolution) {

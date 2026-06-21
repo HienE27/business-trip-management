@@ -50,6 +50,7 @@ public class ScheduleService {
     private final AuthContextService authContextService;
     private final CompensationDateCalculator compensationDateCalculator;
     private final NotificationService notificationService;
+    private final ConflictBroadcastService conflictBroadcastService;
 
     public List<ScheduleResponse> getSchedulesByPeriod(Integer periodId) {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
@@ -372,6 +373,9 @@ public class ScheduleService {
                 "Xung đột lịch trực đã được xử lý",
                 "Lịch " + shiftTypeName + " ngày " + workDate
                         + " của bạn đã được ghi đè xung đột. Lý do: " + reason));
+
+        // Broadcast conflict resolved event so the realtime UI clears the conflict badge
+        conflictBroadcastService.broadcastConflictResolved(null, schedule.getId());
 
         return toResponse(schedule, null);
     }

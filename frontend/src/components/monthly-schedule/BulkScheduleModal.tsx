@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/ToastProvider";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { BulkScheduleResponse, BulkScheduleResultEntry, Staff } from "@/types/api";
+import type { BulkScheduleResponse, BulkScheduleResultEntry, CompensationDay, Staff } from "@/types/api";
 
 export interface BulkScheduleModalProps {
   open: boolean;
@@ -21,6 +21,8 @@ export interface BulkScheduleModalProps {
   selectedDates: string[]; // ISO yyyy-MM-dd
   submitting: boolean;
   onSubmittingChange?: (v: boolean) => void;
+  /** Compensation days to validate against — staff on comp day are disabled */
+  compensationDays?: CompensationDay[];
 }
 
 type Phase = "prepare" | "results";
@@ -61,6 +63,7 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
   selectedDates,
   submitting,
   onSubmittingChange,
+  compensationDays,
 }: BulkScheduleModalProps) {
   const { error: toastError, success: toastSuccess } = useToast();
   const [phase, setPhase] = useState<Phase>("prepare");
@@ -72,6 +75,14 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
 
   const staffNameMap = useMemo(() => buildStaffNameMap(staffList), [staffList]);
   const existingSet = useMemo(() => buildExistingSet(existingSchedules), [existingSchedules]);
+  const compDaySet = useMemo(() => {
+    const s = new Set<string>();
+    if (!compensationDays) return s;
+    for (const cd of compensationDays) {
+      s.add(`${cd.staffId}::${cd.compensationDate.split("T")[0]}`);
+    }
+    return s;
+  }, [compensationDays]);
 
   const handleAssignmentChange = useCallback(
     (index: number, staffId: number | null) => {
@@ -207,6 +218,9 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
                             `${assignment.workDate}::${assignment.staffId}`
                           )
                         : false;
+                      const currentIsCompDay = assignment.staffId
+                        ? compDaySet.has(`${assignment.staffId}::${assignment.workDate}`)
+                        : false;
 
                       return (
                         <tr
@@ -243,14 +257,20 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
                                   const alreadyScheduled = existingSet.has(
                                     `${assignment.workDate}::${s.id}`
                                   );
+                                  const isCompDay = compDaySet.has(
+                                    `${s.id}::${assignment.workDate}`
+                                  );
+                                  const isDisabled = alreadyScheduled || isCompDay;
                                   return (
                                     <option
                                       key={s.id}
                                       value={s.id}
-                                      disabled={alreadyScheduled}
+                                      disabled={isDisabled}
                                     >
                                       {alreadyScheduled
                                         ? `${s.fullName} (đã có lịch)`
+                                        : isCompDay
+                                        ? `${s.fullName} (nghỉ bù)`
                                         : s.fullName}
                                     </option>
                                   );
@@ -272,6 +292,17 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
                                   warning
                                 </span>
                                 Nhân sự đã có lịch — sẽ bị bỏ qua
+                              </p>
+                            )}
+                            {currentIsCompDay && (
+                              <p className="mt-1 flex items-center gap-1 text-label-sm text-error">
+                                <span
+                                  aria-hidden="true"
+                                  className="material-symbols-outlined text-[14px]"
+                                >
+                                  hotel
+                                </span>
+                                Nhân sự đang nghỉ bù ngày này — không thể gán
                               </p>
                             )}
                           </td>
