@@ -27,6 +27,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
   const [editMode, setEditMode] = useState(false);
   const [editStaffId, setEditStaffId] = useState<number | null>(null);
   const [editShiftTypeId, setEditShiftTypeId] = useState<string | null>(null);
+  const [editNotes, setEditNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [staffList, setStaffList] = useState<Staff[]>([]);
@@ -38,6 +39,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
     if (!editMode) return;
     setEditStaffId(data.item.schedule.staff?.id ?? null);
     setEditShiftTypeId(data.item.schedule.shiftType?.id ?? null);
+    setEditNotes(data.item.schedule.notes ?? "");
     if (staffList.length === 0 || shiftTypes.length === 0) {
       setLoadingDropdowns(true);
       Promise.all([
@@ -59,6 +61,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
   const cancelEdit = useCallback(() => {
     setEditMode(false);
     setEditError(null);
+    setEditNotes("");
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -71,6 +74,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
         workDate: data.item.schedule.workDate,
         staffId: editStaffId,
         shiftTypeId: editShiftTypeId,
+        notes: editNotes || undefined,
       });
       setEditMode(false);
       onRefresh?.();
@@ -83,7 +87,9 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
   }, [editStaffId, editShiftTypeId, saving, data.item.schedule, onRefresh, onClose]);
 
   const isDirty = data.item.schedule
-    && (editStaffId !== data.item.schedule.staff?.id || editShiftTypeId !== data.item.schedule.shiftType?.id);
+    && (editStaffId !== data.item.schedule.staff?.id
+      || editShiftTypeId !== data.item.schedule.shiftType?.id
+      || editNotes !== (data.item.schedule.notes ?? ""));
 
   useEffect(() => {
     const el = ref.current;
@@ -195,6 +201,21 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
               </select>
               <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-outline text-[16px] pointer-events-none">expand_more</span>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-label-sm text-on-surface-variant font-medium" htmlFor={`tooltip-notes-${data.item.schedule.id}`}>
+              Ghi chú
+            </label>
+            <textarea
+              id={`tooltip-notes-${data.item.schedule.id}`}
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              disabled={saving}
+              rows={2}
+              className="w-full resize-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-sm text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder="Ghi chú (tùy chọn)"
+            />
           </div>
 
           <div className="flex gap-2 pt-1">

@@ -112,6 +112,7 @@ export interface ScheduleRequest {
   staffId: number;
   shiftTypeId: string;
   requirementId?: number;
+  notes?: string;
 }
 
 export interface ShiftRequirement {
