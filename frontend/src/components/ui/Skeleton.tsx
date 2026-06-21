@@ -43,7 +43,7 @@ export function SkeletonTable({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
   return (
     <div
       className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden"
-      aria-busy="true"
+      aria-busy={true}
       aria-label="Đang tải dữ liệu bảng"
     >
       <span className="sr-only">Đang tải dữ liệu bảng</span>
@@ -77,7 +77,7 @@ export function SkeletonCalendar() {
   return (
     <div
       className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden"
-      aria-busy="true"
+      aria-busy={true}
       aria-label="Đang tải lịch biểu"
     >
       <span className="sr-only">Đang tải lịch biểu</span>
@@ -153,7 +153,7 @@ export function SkeletonPanel() {
   return (
     <div
       className="bg-surface-container-lowest border border-outline-variant rounded-lg shadow-sm overflow-hidden"
-      aria-busy="true"
+      aria-busy={true}
       aria-label="Đang tải nội dung"
     >
       <span className="sr-only">Đang tải nội dung</span>

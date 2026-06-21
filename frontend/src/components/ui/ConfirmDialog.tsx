@@ -54,11 +54,9 @@ export function ConfirmDialog({
       open={open}
       onClose={closeOnBackdrop ? onClose : undefined}
       title={title}
+      description={description}
       size="sm"
     >
-      {description && (
-        <p className="text-body-sm text-on-surface-variant leading-relaxed">{description}</p>
-      )}
 
       <div className="flex items-center justify-end gap-2 pt-5">
         <Button ref={cancelRef} variant="secondary" onClick={onClose} disabled={loading}>

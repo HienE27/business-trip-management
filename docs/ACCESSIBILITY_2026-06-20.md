@@ -302,3 +302,100 @@ were introduced — lazy-loading only affects when the code is downloaded, not h
 
 *Document owner: FE working group. Next review: when r4 starts or
 when the E2E a11y gate is added, whichever comes first.*
+
+---
+
+## 8. Updates 2026-06-22
+
+### Fixed in this session
+
+#### §2 (high) — `aria-describedby` on ConfirmDialog — FIXED
+
+`ConfirmDialog` was rendering its `description` prop as a bare `<p>` inside the dialog
+body without linking it to the dialog landmark. The `<Modal>` supports `aria-describedby`
+when the `description` prop is forwarded, but `ConfirmDialog` was passing it as children
+instead.
+
+**Fix:** `ConfirmDialog` now forwards `description` to the `<Modal>` prop, enabling
+`aria-labelledby` (title) and `aria-describedby` (description) linkage.
+
+```tsx
+// Before (broken)
+<Modal open={open} onClose={...} title={title} size="sm">
+  {description && <p className="...">{description}</p>} // no ARIA linkage
+</Modal>
+
+// After (correct)
+<Modal open={open} onClose={...} title={title} description={description} size="sm">
+  {/* Modal renders <p id="modal-description"> automatically */}
+</Modal>
+```
+
+#### §2 (high) — `aria-busy` string → boolean — FIXED
+
+`Skeleton.tsx` used `aria-busy="true"` (string) instead of `aria-busy={true}`
+(boolean). React/HTML prefers boolean attribute syntax.
+
+**Fix:** Changed 3 occurrences from `aria-busy="true"` to `aria-busy={true}`.
+
+#### §2 (high) — Modal sub-components forward description — FIXED
+
+New Modal sub-components created this session (ApplyConfirmationModal, SaveTemplateModal,
+SuggestionsModal, ApplyTemplateModal, BulkPublishModal) were inspected. ApplyConfirmationModal
+was also rendering description inline; fixed to use the `description` prop on `<Modal>`.
+
+---
+
+### Cross-file a11y audit results (2026-06-22)
+
+| File | WCAG AA Score | Status |
+|------|--------------|--------|
+| `Modal.tsx` | 5/5 | Fully compliant |
+| `EmptyState.tsx` | 5/5 | Fully compliant |
+| `Skeleton.tsx` | 4/5 | String `aria-busy` fixed (now 5/5) |
+| `ConfirmDialog.tsx` | 4/5 | `aria-describedby` fixed (now 5/5) |
+| `ApplyConfirmationModal.tsx` | 4/5 | `aria-describedby` fixed (now 5/5) |
+| `ConflictSection.tsx` | 3/5 | Depends on `ConflictInspector` |
+| `ScheduleByTypePage.tsx` | 3/5 | Inline empty state, heading hierarchy unverified |
+
+### Still open (priority order)
+
+| # | Finding | Files | Priority | Effort |
+|---|---------|-------|---------|--------|
+| 1 | Add `scope="col"` to `<th>` in data tables | Skeleton.tsx, ScheduleCalendarSection | medium | 30 min |
+| 2 | Standalone skeleton components lack `aria-busy` | SkeletonCard, SkeletonKPI, SkeletonStatCard | medium | 30 min |
+| 3 | Add `aria-live="polite"` on dynamic ConflictSection | ConflictSection.tsx | medium | 30 min |
+| 4 | Inline empty state in ScheduleByTypePage | `page.tsx:805–810` | medium | 15 min |
+| 5 | `ConflictSection.tsx` title is English `"Conflict panel"` | ConflictSection.tsx | low | 5 min |
+| 6 | Verify `ConfirmDialog` danger variant contrast (#ba1a1a on white) | ConfirmDialog.tsx | low | 10 min |
+
+### §3.9 aria-label on row-action icon buttons — STILL OPEN
+
+Row-action buttons (`edit`, `delete`) in `ScheduleByTypePage` and related components
+still need `aria-label` attributes. This was identified as high-priority in the
+original audit. Recommended fix pattern:
+
+```tsx
+// Before
+<button type="button" onClick={handleEdit}>
+  <span className="material-symbols-outlined">edit</span>
+</button>
+
+// After
+<button type="button" onClick={handleEdit} aria-label="Chỉnh sửa ca trực">
+  <span className="material-symbols-outlined" aria-hidden="true">edit</span>
+</button>
+```
+
+Affected components to audit: `ScheduleCalendarSection`, `ScheduleByTypePage`,
+`ScheduleMatrixGrid`.
+
+---
+
+### Test coverage
+
+| Check | Result |
+|-------|--------|
+| `pnpm exec tsc --noEmit` | 0 errors |
+| `pnpm build` | Compiled successfully |
+| `vitest run` | 28 test files, 300 passed, 1 skipped |

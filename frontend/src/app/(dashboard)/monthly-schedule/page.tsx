@@ -3,15 +3,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { SkeletonCalendar, SkeletonKPI, SkeletonTable } from "@/components/ui/Skeleton";
-import { ConflictResolutionModal } from "@/components/ui/ConflictResolutionModal";
+import { Skeleton, SkeletonCalendar, SkeletonKPI, SkeletonTable } from "@/components/ui/Skeleton";
+const ConflictResolutionModal = dynamic(
+  () => import("@/components/ui/ConflictResolutionModal").then((m) => m.ConflictResolutionModal),
+  { loading: () => null },
+);
+const QuickAddModal = dynamic(
+  () => import("@/components/monthly-schedule/QuickAddModal").then((m) => m.QuickAddModal),
+  { loading: () => null },
+);
+const ScheduleCalendarSection = dynamic(
+  () => import("@/components/monthly-schedule/ScheduleCalendarSection").then((m) => m.ScheduleCalendarSection),
+  { loading: () => <Skeleton className="h-64 rounded-xl" /> },
+);
+const ScheduleHeader = dynamic(
+  () => import("@/components/monthly-schedule/ScheduleHeader").then((m) => m.ScheduleHeader),
+  { loading: () => null },
+);
+const ShiftDetailModal = dynamic(
+  () => import("@/components/monthly-schedule/ShiftDetailModal").then((m) => m.ShiftDetailModal),
+  { loading: () => null },
+);
+const WorkflowStepper = dynamic(
+  () => import("@/components/monthly-schedule/WorkflowStepper").then((m) => m.WorkflowStepper),
+  { loading: () => null },
+);
+const ExportReportPanel = dynamic(
+  () => import("@/components/monthly-schedule/ExportReportPanel").then((m) => m.ExportReportPanel),
+  { loading: () => null },
+);
+
 import { KPISection } from "@/components/monthly-schedule/KPISection";
-import { QuickAddModal } from "@/components/monthly-schedule/QuickAddModal";
-import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleCalendarSection";
-import { ScheduleHeader } from "@/components/monthly-schedule/ScheduleHeader";
-import { ShiftDetailModal } from "@/components/monthly-schedule/ShiftDetailModal";
-import { WorkflowStepper } from "@/components/monthly-schedule/WorkflowStepper";
-import { ExportReportPanel } from "@/components/monthly-schedule/ExportReportPanel";
 import { useRole, canManage } from "@/hooks/useRole";
 import { useMonthlyScheduleDerivedData } from "@/hooks/monthly-schedule/useMonthlyScheduleDerivedData";
 import { useMonthlyScheduleUrlState } from "@/hooks/monthly-schedule/useMonthlyScheduleUrlState";

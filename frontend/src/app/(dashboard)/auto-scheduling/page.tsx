@@ -1,12 +1,36 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 
-import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { AddShiftModal } from "./AddShiftModal";
+const ApplyConfirmationModal = dynamic(
+  () => import("./ApplyConfirmationModal").then((m) => m.ApplyConfirmationModal),
+  { loading: () => null },
+);
+const AddShiftModal = dynamic(
+  () => import("./AddShiftModal").then((m) => m.AddShiftModal),
+  { loading: () => null },
+);
+const SaveTemplateModal = dynamic(
+  () => import("./SaveTemplateModal").then((m) => m.SaveTemplateModal),
+  { loading: () => null },
+);
+const SuggestionsModal = dynamic(
+  () => import("./SuggestionsModal").then((m) => m.SuggestionsModal),
+  { loading: () => null },
+);
+const ApplyTemplateModal = dynamic(
+  () => import("./ApplyTemplateModal").then((m) => m.ApplyTemplateModal),
+  { loading: () => null },
+);
+const BulkPublishModal = dynamic(
+  () => import("./BulkPublishModal").then((m) => m.BulkPublishModal),
+  { loading: () => null },
+);
+
 import { AlgorithmTip } from "@/components/auto-scheduling/AlgorithmTip";
 import { BusinessRulesPanel } from "@/components/auto-scheduling/BusinessRulesPanel";
 import { StaffExclusionTable } from "@/components/auto-scheduling/StaffExclusionTable";
@@ -831,48 +855,16 @@ export default function AutoSchedulingPage() {
         </div>
       )}
 
-      {/* Apply Confirmation Modal */}
-      <Modal
+      <ApplyConfirmationModal
         open={applyModalOpen}
         onClose={() => setApplyModalOpen(false)}
-        title="Xác nhận áp dụng phương án"
-      >
-        <p className="text-body-sm text-on-surface">
-          Phương án phân công sẽ được <strong>ghi đè</strong> lên lịch hiện tại của kỳ{" "}
-          <strong>{selectedPeriod?.periodName}</strong>. Hành động này không thể hoàn tác.
-        </p>
-        {previewResult && (
-          <div className="mt-3 p-3 bg-surface-container-low rounded-lg text-label-sm text-on-surface-variant space-y-1">
-            <p>Tổng ca: <strong className="text-on-surface">{previewResult.totalSchedulesCreated}</strong></p>
-            <p>Tỷ lệ phủ: <strong className="text-on-surface">{Math.round(previewResult.coverageRate * 100)}%</strong></p>
-            <p>Xung đột: <strong className="text-error">{previewResult.conflictCount}</strong></p>
-            {editedPreview.length > 0 && (
-              <p className="text-primary">Có <strong>{editedPreview.length}</strong> ca đã chỉnh sửa thủ công.</p>
-            )}
-            {removedShiftTypes.size > 0 && (
-              <p className="text-primary">Có <strong>{removedShiftTypes.size}</strong> ca đổi loại lịch.</p>
-            )}
-          </div>
-        )}
-        <ModalFooter>
-          <button
-            type="button"
-            onClick={() => setApplyModalOpen(false)}
-            className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
-          >
-            Hủy
-          </button>
-          <button
-            type="button"
-            onClick={handleApplyPreview}
-            disabled={applying}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[16px]">check</span>
-            {applying ? "Đang áp dụng..." : "Xác nhận áp dụng"}
-          </button>
-        </ModalFooter>
-      </Modal>
+        selectedPeriod={selectedPeriod}
+        previewResult={previewResult}
+        editedPreview={editedPreview}
+        removedShiftTypes={removedShiftTypes}
+        applying={applying}
+        onApply={handleApplyPreview}
+      />
 
       {/* Add Shift Modal */}
       <AddShiftModal
@@ -884,515 +876,57 @@ export default function AutoSchedulingPage() {
         onAdd={handleAddShift}
       />
 
-      {/* Save Template Modal */}
-      <Modal
+      <SaveTemplateModal
         open={saveModalOpen}
-        onClose={() => setSaveModalOpen(false)}
-        title="Lưu mẫu lịch"
-        description="Lưu phương án hiện tại thành mẫu để tái sử dụng cho các kỳ lịch sau."
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="tmpl-name">
-              Tên mẫu lịch <span className="text-error">*</span>
-            </label>
-            <input
-              id="tmpl-name"
-              type="text"
-              className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder="VD: Mẫu lịch tháng 6/2026"
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="tmpl-desc">
-              Mô tả
-            </label>
-            <textarea
-              id="tmpl-desc"
-              className="w-full resize-none rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
-              rows={2}
-              placeholder="Ghi chú về mẫu lịch (VD: dùng cho tháng có ngày lễ)..."
-              value={templateDesc}
-              onChange={(e) => setTemplateDesc(e.target.value)}
-            />
-          </div>
-          <div className="p-3 bg-surface-container-low rounded-lg text-label-sm text-on-surface-variant space-y-1">
-            <p><strong className="text-on-surface">Kỳ lịch gốc:</strong> {selectedPeriod?.periodName}</p>
-            <p><strong className="text-on-surface">Thuật toán:</strong> {algorithmType}</p>
-            <p><strong className="text-on-surface">Số ca:</strong> {previewResult?.totalSchedulesCreated ?? 0}</p>
-          </div>
-        </div>
-        <ModalFooter>
-          <button
-            type="button"
-            onClick={() => setSaveModalOpen(false)}
-            className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
-          >
-            Hủy
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              if (!templateName.trim()) return;
-              setSavingTemplate(true);
-              await saveAsTemplate(selectedPeriodId, templateName.trim(), templateDesc.trim());
-              setSavingTemplate(false);
-              setSaveModalOpen(false);
-              setTemplateName("");
-              setTemplateDesc("");
-            }}
-            disabled={!templateName.trim() || savingTemplate}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[16px]">bookmark_add</span>
-            {savingTemplate ? "Đang lưu..." : "Lưu mẫu lịch"}
-          </button>
-        </ModalFooter>
-      </Modal>
+        onClose={() => { setSaveModalOpen(false); setTemplateName(""); setTemplateDesc(""); }}
+        templateName={templateName}
+        templateDesc={templateDesc}
+        onTemplateNameChange={setTemplateName}
+        onTemplateDescChange={setTemplateDesc}
+        savingTemplate={savingTemplate}
+        selectedPeriod={selectedPeriod}
+        algorithmType={algorithmType}
+        scheduleCount={previewResult?.totalSchedulesCreated ?? 0}
+        onSave={async () => {
+          if (!templateName.trim()) return;
+          setSavingTemplate(true);
+          await saveAsTemplate(selectedPeriodId, templateName.trim(), templateDesc.trim());
+          setSavingTemplate(false);
+          setSaveModalOpen(false);
+          setTemplateName("");
+          setTemplateDesc("");
+        }}
+      />
 
-      {/* Suggestions Modal */}
-      <Modal
+      <SuggestionsModal
         open={suggestionsModalOpen}
         onClose={() => { setSuggestionsModalOpen(false); setSuggestionsData(null); }}
-        title="Đề xuất người thay thế"
-        description={suggestionsData ? `Lịch ${suggestionsData.shiftTypeName} ngày ${formatDate(suggestionsData.workDate)} — ${suggestionsData.originalStaffName}` : undefined}
-      >
-        {suggestionsLoading ? (
-          <div className="py-8 text-center text-label-sm text-on-surface-variant">Đang tải...</div>
-        ) : suggestionsData ? (
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {suggestionsData.suggestions.length === 0 ? (
-              <EmptyState
-                size="compact"
-                icon="person_off"
-                title="Không có người thay thế phù hợp"
-                description="Hệ thống không tìm thấy nhân sự khả dụng với cùng chuyên môn và rảnh trong ngày."
-              />
-            ) : (
-              suggestionsData.suggestions.map((s) => (
-                <div
-                  key={s.staffId}
-                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                    s.isAvailable
-                      ? "bg-surface-container-lowest border-outline-variant"
-                      : "bg-surface-container-low border-outline opacity-60"
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[18px] text-primary shrink-0">
-                    {s.isAvailable ? "person" : "person_off"}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-label-md font-semibold text-on-surface truncate">{s.staffName}</p>
-                    <p className="text-label-sm text-on-surface-variant">
-                      {s.specialty ?? "—"} · <strong>{s.currentWorkload}</strong> ca trong kỳ
-                      {s.conflicts.length > 0 && (
-                        <span className="text-error"> · {s.conflicts.join(", ")}</span>
-                      )}
-                    </p>
-                    {!s.isAvailable && s.reason && (
-                      <p className="text-label-sm text-error mt-0.5">{s.reason}</p>
-                    )}
-                  </div>
-                  <span className={`text-label-sm font-semibold shrink-0 ${
-                    s.isAvailable ? "text-secondary" : "text-outline"
-                  }`}>
-                    {s.isAvailable ? "Có thể thay" : "Không khả dụng"}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        ) : (
-          <p className="text-label-sm text-on-surface-variant text-center py-4">Không có dữ liệu.</p>
-        )}
-        <ModalFooter>
-          <button
-            type="button"
-            onClick={() => { setSuggestionsModalOpen(false); setSuggestionsData(null); }}
-            className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
-          >
-            Đóng
-          </button>
-        </ModalFooter>
-      </Modal>
+        suggestionsData={suggestionsData}
+        loading={suggestionsLoading}
+      />
 
-      {/* Apply Template Modal */}
-      <Modal
+      <ApplyTemplateModal
         open={applyTemplateModalOpen}
+        templates={templates}
+        loadingTemplates={loadingTemplates}
+        selectedTemplateId={selectedTemplateId}
+        templatePreview={templatePreview}
+        previewLoading={previewLoading}
+        editingStaffIds={editingStaffIds}
+        activeStaff={activeStaff}
         onClose={() => { setApplyTemplateModalOpen(false); setTemplates([]); setTemplatePreview(null); setSelectedTemplateId(null); }}
-        title="Áp dụng mẫu lịch"
-        description="Chọn mẫu lịch đã lưu để xem trước và chỉnh sửa trước khi áp dụng cho kỳ hiện tại."
-      >
-        {!selectedTemplateId ? (
-          <div className="space-y-3">
-            {loadingTemplates ? (
-              <p className="text-label-sm text-on-surface-variant text-center py-6">Đang tải mẫu lịch...</p>
-            ) : templates.length === 0 ? (
-              <EmptyState
-                size="compact"
-                icon="bookmarks"
-                title="Chưa có mẫu lịch nào"
-                description="Chạy auto schedule trước rồi lưu mẫu để có thể áp dụng lại sau."
-              />
-            ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {templates.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between gap-3 p-3 rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low transition-colors"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-label-md font-semibold text-on-surface truncate">{t.name}</p>
-                        {t.templateType === "GENERATED" && (
-                          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-tertiary-fixed text-tertiary text-[11px] font-bold">
-                            <span className="material-symbols-outlined text-[10px]">auto_awesome</span>
-                            GENERATED
-                          </span>
-                        )}
-                        {t.templateType === "PATTERN" && (
-                          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-fixed text-primary text-[11px] font-bold">
-                            <span className="material-symbols-outlined text-[10px]">tune</span>
-                            PATTERN
-                          </span>
-                        )}
-                      </div>
-                      {t.description && (
-                        <p className="text-label-sm text-on-surface-variant truncate">{t.description}</p>
-                      )}
-                      <p className="text-[11px] text-outline mt-0.5">
-                        {new Date(t.createdAt).toLocaleDateString("vi-VN")}
-                        {t.shiftTypeId ? " · " + t.shiftTypeId + (t.specialtyName ? " · " + t.specialtyName : "") : t.templateType === "GENERATED" ? "" : ""}
-                        {t.shiftTypeId ? " · " + (t.requiredStaffCount ?? 1) + " người/ca" : ""}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handlePreviewTemplate(t.id)}
-                        disabled={previewLoading}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-label-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors disabled:opacity-50"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">visibility</span>
-                        Xem trước
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleApplyTemplateConfirmed}
-                        className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-label-sm font-medium text-on-primary hover:bg-primary/90 transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">check</span>
-                        Áp dụng
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : previewLoading ? (
-          <div className="py-8 text-center text-label-sm text-on-surface-variant">
-            <div className="inline-block size-6 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2" />
-            Đang tải bản xem trước...
-          </div>
-        ) : templatePreview === null ? (
-          <div className="space-y-3">
-            <p className="text-label-sm text-on-surface-variant">Mẫu lịch này không có dữ liệu để xem trước.</p>
-            <button
-              type="button"
-              onClick={handleApplyTemplateConfirmed}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-label-sm font-semibold text-on-primary hover:bg-primary/90 transition-colors"
-            >
-              <span className="material-symbols-outlined text-[14px]">check</span>
-              Áp dụng trực tiếp
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-label-sm text-on-surface-variant">
-              Mẫu này sẽ tạo <strong className="text-on-surface">{templatePreview.length}</strong> yêu cầu nhân sự trong kỳ.
-              Bạn có thể sửa nhân sự được phân công cho từng ca trước khi xác nhận.
-            </p>
-            <div className="overflow-x-auto max-h-80">
-              <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-surface-container-low border-b border-outline-variant">
-                  <tr>
-                    <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Ngày</th>
-                    <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Thứ</th>
-                    <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Loại ca</th>
-                    <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Chuyên khoa</th>
-                    <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Số người</th>
-                    <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Nhân sự phân công</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/30">
-                  {templatePreview.map((item) => {
-                    const currentStaffId = editingStaffIds.get(item.id) ?? item.assignedStaffId ?? 0;
-                    return (
-                      <tr key={item.id} className="hover:bg-surface-container-low/50 transition-colors">
-                        <td className="p-2.5 text-label-sm text-on-surface">{formatDate(item.workDate)}</td>
-                        <td className="p-2.5 text-label-sm text-on-surface-variant">{item.dayOfWeek}</td>
-                        <td className="p-2.5 text-label-sm text-on-surface-variant">{item.shiftTypeName}</td>
-                        <td className="p-2.5 text-label-sm text-on-surface-variant">{item.specialtyName ?? "—"}</td>
-                        <td className="p-2.5 text-label-sm text-on-surface-variant text-center">{item.requiredStaffCount}</td>
-                        <td className="p-2.5">
-                          <div className="relative">
-                            <select
-                              className="h-8 w-full appearance-none rounded-md border border-outline-variant bg-surface-container-lowest px-2 pr-7 text-label-sm text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
-                              value={currentStaffId}
-                              onChange={(e) => handleStaffEdit(item.id, Number(e.target.value))}
-                            >
-                              <option value={0}>-- Chưa phân công --</option>
-                              {activeStaff.map((s) => (
-                                <option key={s.id} value={s.id}>{s.fullName}</option>
-                              ))}
-                            </select>
-                            <span className="material-symbols-outlined pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-outline text-[14px]">expand_more</span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <p className="text-label-xs text-on-surface-variant italic">
-              Lưu ý: Việc phân công nhân sự ở đây chỉ là tham khảo. Sau khi áp dụng, hệ thống sẽ tự động tạo yêu cầu nhân sự theo mẫu.
-            </p>
-          </div>
-        )}
-        <ModalFooter>
-          {selectedTemplateId && templatePreview && (
-            <>
-              <button
-                type="button"
-                onClick={() => { setSelectedTemplateId(null); setTemplatePreview(null); }}
-                className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
-              >
-                ← Quay lại danh sách
-              </button>
-              <button
-                type="button"
-                onClick={handleApplyTemplateConfirmed}
-                disabled={previewLoading}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[16px]">check</span>
-                Xác nhận áp dụng
-              </button>
-            </>
-          )}
-          {!selectedTemplateId && (
-            <button
-              type="button"
-              onClick={() => { setApplyTemplateModalOpen(false); setTemplates([]); setTemplatePreview(null); setSelectedTemplateId(null); }}
-              className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
-            >
-              Đóng
-            </button>
-          )}
-        </ModalFooter>
-      </Modal>
+        onPreview={handlePreviewTemplate}
+        onApply={handleApplyTemplateConfirmed}
+        onStaffEdit={handleStaffEdit}
+        onClearSelection={() => { setSelectedTemplateId(null); setTemplatePreview(null); }}
+      />
 
-      {/* Bulk Publish / Archive Modal */}
-      <Modal
+      <BulkPublishModal
         open={bulkModalOpen}
+        periods={periods}
         onClose={() => { setBulkModalOpen(false); setBulkResults(null); setBulkSelectedIds(new Set()); }}
-        title={bulkOperation === "publish" ? "Công bố hàng loạt kỳ lịch" : "Lưu trữ hàng loạt kỳ lịch"}
-        size="lg"
-      >
-        {!bulkResults ? (
-          <>
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setBulkOperation("publish"); setBulkSelectedIds(new Set()); }}
-                  className={`flex-1 py-2 rounded-lg text-label-md font-medium transition-colors border ${
-                    bulkOperation === "publish"
-                      ? "border-primary bg-primary-fixed/20 text-primary"
-                      : "border-outline-variant text-on-surface-variant hover:border-primary/40"
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px] align-middle mr-1">publish</span>
-                  Công bố hàng loạt
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setBulkOperation("archive"); setBulkSelectedIds(new Set()); }}
-                  className={`flex-1 py-2 rounded-lg text-label-md font-medium transition-colors border ${
-                    bulkOperation === "archive"
-                      ? "border-secondary bg-secondary-container/20 text-on-secondary-container"
-                      : "border-outline-variant text-on-surface-variant hover:border-secondary/40"
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px] align-middle mr-1">archive</span>
-                  Lưu trữ hàng loạt
-                </button>
-              </div>
-
-              <div>
-                <p className="text-label-sm text-on-surface-variant mb-2">
-                  {bulkOperation === "publish"
-                    ? "Chọn các kỳ lịch ở trạng thái Nháp để công bố:"
-                    : "Chọn các kỳ lịch ở trạng thái Đã công bố để lưu trữ:"}
-                </p>
-                <div className="border border-outline-variant rounded-lg overflow-hidden max-h-64 overflow-y-auto">
-                  {periods
-                    .filter((p) =>
-                      bulkOperation === "publish" ? p.status === "DRAFT" : p.status === "PUBLISHED"
-                    )
-                    .map((p) => (
-                      <label
-                        key={p.id}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low cursor-pointer border-b border-outline-variant last:border-b-0"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={bulkSelectedIds.has(p.id)}
-                          onChange={(e) => {
-                            setBulkSelectedIds((prev) => {
-                              const next = new Set(prev);
-                              if (e.target.checked) next.add(p.id);
-                              else next.delete(p.id);
-                              return next;
-                            });
-                          }}
-                          className="w-4 h-4 accent-primary"
-                        />
-                        <div className="flex-1">
-                          <p className="text-label-md text-on-surface font-medium">{p.periodName}</p>
-                          <p className="text-[11px] text-on-surface-variant">
-                            {formatDate(p.startDate)} – {formatDate(p.endDate)}
-                          </p>
-                        </div>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                          p.status === "DRAFT" ? "bg-primary-fixed text-primary" : "bg-secondary-container text-on-secondary-container"
-                        }`}>
-                          {p.status === "DRAFT" ? "Nháp" : "Đã công bố"}
-                        </span>
-                      </label>
-                    ))}
-                  {periods.filter((p) =>
-                    bulkOperation === "publish" ? p.status === "DRAFT" : p.status === "PUBLISHED"
-                  ).length === 0 && (
-                    <EmptyState
-                      size="compact"
-                      icon={bulkOperation === "publish" ? "publish" : "archive"}
-                      title="Không có kỳ lịch phù hợp"
-                      description={
-                        bulkOperation === "publish"
-                          ? "Tất cả kỳ lịch đã được công bố hoặc lưu trữ."
-                          : "Chưa có kỳ lịch nào ở trạng thái đã công bố."
-                      }
-                    />
-                  )}
-                </div>
-                {bulkSelectedIds.size > 0 && (
-                  <p className="text-label-sm text-on-surface-variant mt-2">
-                    Đã chọn <strong>{bulkSelectedIds.size}</strong> kỳ lịch.
-                  </p>
-                )}
-              </div>
-            </div>
-            <ModalFooter>
-              <button
-                type="button"
-                onClick={() => { setBulkModalOpen(false); setBulkSelectedIds(new Set()); }}
-                className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
-              >
-                Đóng
-              </button>
-              <button
-                type="button"
-                disabled={bulkSelectedIds.size === 0 || bulkSubmitting}
-                onClick={async () => {
-                  const ids = [...bulkSelectedIds];
-                  setBulkSubmitting(true);
-                  try {
-                    const res = bulkOperation === "publish"
-                      ? await api.bulkPublishPeriods(ids)
-                      : await api.bulkArchivePeriods(ids);
-                    if (res.success && res.data) {
-                      setBulkResults({
-                        success: res.data.successCount,
-                        failure: res.data.failureCount,
-                        results: res.data.results.map((r) => ({
-                          id: r.id,
-                          periodName: r.periodName ?? `Kỳ #${r.id}`,
-                          success: r.success,
-                          message: r.message,
-                        })),
-                      });
-                      if (res.data.successCount > 0) void loadWorkspace();
-                    }
-                  } catch (err) {
-                    setBulkResults({
-                      success: 0,
-                      failure: ids.length,
-                      results: ids.map((id) => ({ id, periodName: `Kỳ #${id}`, success: false, message: getErrorMessage(err, "Lỗi không xác định") })),
-                    });
-                  } finally {
-                    setBulkSubmitting(false);
-                  }
-                }}
-                className={`inline-flex items-center gap-2 px-5 py-2 rounded-lg text-label-md font-semibold transition-colors disabled:opacity-50 ${
-                  bulkOperation === "publish"
-                    ? "bg-primary text-on-primary hover:bg-primary/90"
-                    : "bg-secondary text-on-secondary hover:bg-secondary/90"
-                }`}
-              >
-                {bulkSubmitting ? (
-                  <><div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /><span>Đang xử lý...</span></>
-                ) : (
-                  <><span className="material-symbols-outlined text-[16px]">check</span>
-                    {bulkOperation === "publish" ? `Công bố ${bulkSelectedIds.size} kỳ lịch` : `Lưu trữ ${bulkSelectedIds.size} kỳ lịch`}
-                  </>
-                )}
-              </button>
-            </ModalFooter>
-          </>
-        ) : (
-          <>
-            <div className="space-y-3">
-              <div className="flex gap-4">
-                <div className="flex-1 rounded-lg border border-secondary-container bg-secondary-container/10 p-3 text-center">
-                  <p className="text-display-lg text-secondary font-bold">{bulkResults.success}</p>
-                  <p className="text-label-sm text-on-secondary-container">Thành công</p>
-                </div>
-                <div className="flex-1 rounded-lg border border-error-container bg-error-container/10 p-3 text-center">
-                  <p className="text-display-lg text-error font-bold">{bulkResults.failure}</p>
-                  <p className="text-label-sm text-on-error-container">Thất bại</p>
-                </div>
-              </div>
-              <div className="border border-outline-variant rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-                {bulkResults.results.map((r) => (
-                  <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-outline-variant last:border-b-0">
-                    <span className={`material-symbols-outlined text-[18px] ${r.success ? "text-secondary" : "text-error"}`}>
-                      {r.success ? "check_circle" : "error"}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-label-md text-on-surface truncate">{r.periodName}</p>
-                      {!r.success && <p className="text-[11px] text-error truncate">{r.message}</p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <ModalFooter>
-              <button
-                type="button"
-                onClick={() => { setBulkModalOpen(false); setBulkResults(null); setBulkSelectedIds(new Set()); }}
-                className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-primary/90 transition-colors"
-              >
-                Đóng
-              </button>
-            </ModalFooter>
-          </>
-        )}
-      </Modal>
+        onRefresh={loadWorkspace}
+      />
     </>
   );
 }

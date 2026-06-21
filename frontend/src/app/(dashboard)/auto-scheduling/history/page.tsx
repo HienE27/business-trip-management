@@ -1,13 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
-import { CompareModal } from "./CompareModal";
 import type { AlgorithmMetrics, ApiResponse, SchedulePeriod } from "@/types/api";
+
+const CompareModal = dynamic(
+  () => import("./CompareModal").then((m) => m.CompareModal),
+  { loading: () => null },
+);
 
 const ALGO_LABELS: Record<string, string> = {
   GREEDY: "Tham lam",

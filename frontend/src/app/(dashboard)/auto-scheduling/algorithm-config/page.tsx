@@ -1,10 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { CreateConfigModal } from "./CreateConfigModal";
+
+const ConfirmDialog = dynamic(
+  () => import("@/components/ui/ConfirmDialog").then((m) => m.ConfirmDialog),
+  { loading: () => null },
+);
+const CreateConfigModal = dynamic(
+  () => import("./CreateConfigModal").then((m) => m.CreateConfigModal),
+  { loading: () => null },
+);
+
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useRole } from "@/hooks/useRole";
