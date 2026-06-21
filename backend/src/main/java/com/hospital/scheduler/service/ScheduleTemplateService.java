@@ -291,7 +291,7 @@ public class ScheduleTemplateService {
                     .dayOfWeek(VIETNAMESE_DAYS[dowValue])
                     .shiftTypeId(s.getShiftType().getId())
                     .shiftTypeName(s.getShiftType().getName())
-                    .specialtyName(source.getRequirement() != null && source.getRequirement().getSpecialty() != null ? source.getRequirement().getSpecialty().getName() : null)
+                    .specialtyName(s.getRequirement() != null && s.getRequirement().getSpecialty() != null ? s.getRequirement().getSpecialty().getName() : null)
                     .requiredStaffCount(1)
                     .assignedStaffId(s.getStaff().getId())
                     .assignedStaffName(s.getStaff().getFullName())
