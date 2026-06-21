@@ -192,10 +192,7 @@ public class ScheduleTemplateService {
                     .staff(source.getStaff())
                     .shiftType(source.getShiftType())
                     .workDate(source.getWorkDate())
-                    .notes(source.getNotes())
-                    .isOverride(false)
-                    .overrideReason(null)
-                    .createdBy(source.getCreatedBy())
+                    .hasConflict(false)
                     .build();
             com.hospital.scheduler.entity.Schedule saved = scheduleRepository.save(copy);
             appliedCount++;
