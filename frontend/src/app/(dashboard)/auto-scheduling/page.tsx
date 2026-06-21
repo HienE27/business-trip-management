@@ -445,7 +445,6 @@ export default function AutoSchedulingPage() {
       setTemplatePreview(data ?? []);
     } catch {
       setTemplatePreview(null);
-      hookSetMessage("Không thể xem trước mẫu lịch. Mẫu GENERATED không hỗ trợ xem trước.");
     } finally {
       setPreviewLoading(false);
     }
@@ -1045,14 +1044,28 @@ export default function AutoSchedulingPage() {
                     className="flex items-center justify-between gap-3 p-3 rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low transition-colors"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-label-md font-semibold text-on-surface truncate">{t.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-label-md font-semibold text-on-surface truncate">{t.name}</p>
+                        {t.templateType === "GENERATED" && (
+                          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-tertiary-fixed text-tertiary text-[11px] font-bold">
+                            <span className="material-symbols-outlined text-[10px]">auto_awesome</span>
+                            GENERATED
+                          </span>
+                        )}
+                        {t.templateType === "PATTERN" && (
+                          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-fixed text-primary text-[11px] font-bold">
+                            <span className="material-symbols-outlined text-[10px]">tune</span>
+                            PATTERN
+                          </span>
+                        )}
+                      </div>
                       {t.description && (
                         <p className="text-label-sm text-on-surface-variant truncate">{t.description}</p>
                       )}
                       <p className="text-[11px] text-outline mt-0.5">
                         {new Date(t.createdAt).toLocaleDateString("vi-VN")}
-                        {t.shiftTypeId ? " · " + t.shiftTypeId + (t.specialtyName ? " · " + t.specialtyName : "") : ""}
-                        {" · " + (t.requiredStaffCount ?? 1) + " người/ca"}
+                        {t.shiftTypeId ? " · " + t.shiftTypeId + (t.specialtyName ? " · " + t.specialtyName : "") : t.templateType === "GENERATED" ? "" : ""}
+                        {t.shiftTypeId ? " · " + (t.requiredStaffCount ?? 1) + " người/ca" : ""}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -1086,7 +1099,7 @@ export default function AutoSchedulingPage() {
           </div>
         ) : templatePreview === null ? (
           <div className="space-y-3">
-            <p className="text-label-sm text-error">Không thể xem trước mẫu này (có thể là mẫu GENERATED).</p>
+            <p className="text-label-sm text-on-surface-variant">Mẫu lịch này không có dữ liệu để xem trước.</p>
             <button
               type="button"
               onClick={handleApplyTemplateConfirmed}

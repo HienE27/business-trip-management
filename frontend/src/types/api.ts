@@ -443,8 +443,8 @@ export interface ScheduleTemplate {
   id: number;
   name: string;
   description?: string;
-  dayOfWeek: number;
-  shiftTypeId: string;
+  dayOfWeek?: number | null;
+  shiftTypeId?: string | null;
   shiftTypeName?: string;
   specialtyId?: number | null;
   specialtyName?: string | null;
@@ -452,6 +452,12 @@ export interface ScheduleTemplate {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  templateType?: string; // "PATTERN" | "GENERATED"
+  generatedScheduleIds?: string;
+  sourcePeriodId?: number;
+  sourcePeriodName?: string;
+  algorithmType?: string;
+  algorithmConfig?: string;
 }
 
 export interface TemplatePreviewItem {
@@ -469,8 +475,8 @@ export interface TemplatePreviewItem {
 export interface ScheduleTemplateRequest {
   name: string;
   description?: string;
-  dayOfWeek: number;
-  shiftTypeId: string;
+  dayOfWeek?: number | null;
+  shiftTypeId?: string | null;
   specialtyId?: number | null;
   requiredStaffCount: number;
 }

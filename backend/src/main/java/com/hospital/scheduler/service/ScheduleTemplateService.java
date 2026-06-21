@@ -13,10 +13,13 @@ import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
+import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.ScheduleTemplateRepository;
 import com.hospital.scheduler.repository.ShiftRequirementRepository;
 import com.hospital.scheduler.repository.ShiftTypeRepository;
 import com.hospital.scheduler.repository.SpecialtyRepository;
+import com.hospital.scheduler.entity.CompensationDay;
+import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +35,9 @@ import java.util.stream.Collectors;
 public class ScheduleTemplateService {
 
     private final ScheduleTemplateRepository templateRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final com.hospital.scheduler.repository.CompensationDayRepository compensationDayRepository;
+    private final CompensationDateCalculator compensationDateCalculator;
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
     private final SchedulePeriodRepository periodRepository;
@@ -121,9 +127,14 @@ public class ScheduleTemplateService {
             throw new BadRequestException("Chỉ có thể áp dụng mẫu lịch khi kỳ lịch ở trạng thái DRAFT");
         }
 
+        // Handle GENERATED templates: copy the actual schedules from source period
+        if ("GENERATED".equals(template.getTemplateType())) {
+            return applyGeneratedTemplate(template, period);
+        }
+
         if (template.getDayOfWeek() == null || template.getShiftTypeId() == null) {
             throw new BadRequestException(
-                    "Mẫu lịch loại GENERATED không hỗ trợ áp dụng trực tiếp. Vui lòng chạy auto schedule và áp dụng lại.");
+                    "Mẫu lịch thiếu thông tin ngày trong tuần hoặc loại ca. Vui lòng chọn mẫu hợp lệ.");
         }
 
         ShiftType shiftType = shiftTypeRepository.findById(template.getShiftTypeId())
@@ -152,6 +163,63 @@ public class ScheduleTemplateService {
         return appliedCount;
     }
 
+    /**
+     * Apply a GENERATED template: deserialize the schedule IDs from the source period,
+     * load each Schedule entity, and copy (create new) each schedule into the target period.
+     * Only schedules from the source period are copied; the target period must be DRAFT.
+     * Returns the count of schedules successfully copied.
+     */
+    private int applyGeneratedTemplate(ScheduleTemplate template, com.hospital.scheduler.entity.SchedulePeriod period) {
+        if (template.getGeneratedScheduleIds() == null || template.getGeneratedScheduleIds().isBlank()) {
+            return 0;
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        List<Integer> sourceScheduleIds;
+        try {
+            sourceScheduleIds = mapper.readValue(template.getGeneratedScheduleIds(),
+                    mapper.getTypeFactory().constructCollectionType(List.class, Integer.class));
+        } catch (JsonProcessingException e) {
+            throw new BadRequestException("Không thể đọc danh sách lịch gốc từ mẫu: " + e.getMessage());
+        }
+
+        List<com.hospital.scheduler.entity.Schedule> sourceSchedules = scheduleRepository.findAllById(sourceScheduleIds);
+
+        int appliedCount = 0;
+        for (com.hospital.scheduler.entity.Schedule source : sourceSchedules) {
+            com.hospital.scheduler.entity.Schedule copy = com.hospital.scheduler.entity.Schedule.builder()
+                    .period(period)
+                    .staff(source.getStaff())
+                    .shiftType(source.getShiftType())
+                    .workDate(source.getWorkDate())
+                    .notes(source.getNotes())
+                    .isOverride(false)
+                    .overrideReason(null)
+                    .createdBy(source.getCreatedBy())
+                    .build();
+            com.hospital.scheduler.entity.Schedule saved = scheduleRepository.save(copy);
+            appliedCount++;
+
+            // Auto-create compensation day for L01 (24/24 duty) schedules.
+            if (Boolean.TRUE.equals(source.getShiftType().getIsOvernight())) {
+                LocalDate compDate = compensationDateCalculator.calculate(saved.getWorkDate());
+                if (compensationDayRepository.findByStaffIdAndCompensationDate(saved.getStaff().getId(), compDate).isEmpty()) {
+                    CompensationDay compDay = CompensationDay.builder()
+                            .schedule(saved)
+                            .staff(saved.getStaff())
+                            .period(period)
+                            .shiftDate(saved.getWorkDate())
+                            .compensationDate(compDate)
+                            .note("Ngày nghỉ bù tự động từ mẫu lịch GENERATED")
+                            .build();
+                    compensationDayRepository.save(compDay);
+                }
+            }
+        }
+
+        return appliedCount;
+    }
+
     public List<TemplatePreviewItem> previewTemplate(Integer templateId, Integer periodId) {
         ScheduleTemplate template = templateRepository.findById(templateId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mẫu lịch với ID: " + templateId));
@@ -163,9 +231,13 @@ public class ScheduleTemplateService {
             throw new BadRequestException("Chỉ có thể xem trước mẫu lịch khi kỳ lịch ở trạng thái DRAFT");
         }
 
+        if ("GENERATED".equals(template.getTemplateType())) {
+            return previewGeneratedTemplate(template);
+        }
+
         if (template.getDayOfWeek() == null || template.getShiftTypeId() == null) {
             throw new BadRequestException(
-                    "Mẫu lịch loại GENERATED không hỗ trợ xem trước. Vui lòng chạy auto schedule và lưu mẫu PATTERN trước.");
+                    "Mẫu lịch thiếu thông tin ngày trong tuần hoặc loại ca. Vui lòng chọn mẫu hợp lệ.");
         }
 
         ShiftType shiftType = shiftTypeRepository.findById(template.getShiftTypeId())
@@ -188,6 +260,45 @@ public class ScheduleTemplateService {
                         .build());
             }
             currentDate = currentDate.plusDays(1);
+        }
+
+        return items;
+    }
+
+    /**
+     * Preview a GENERATED template: deserialize schedule IDs and build preview items
+     * from the source schedules (without actually creating them in the target period).
+     */
+    private List<TemplatePreviewItem> previewGeneratedTemplate(ScheduleTemplate template) {
+        if (template.getGeneratedScheduleIds() == null || template.getGeneratedScheduleIds().isBlank()) {
+            return List.of();
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        List<Integer> sourceScheduleIds;
+        try {
+            sourceScheduleIds = mapper.readValue(template.getGeneratedScheduleIds(),
+                    mapper.getTypeFactory().constructCollectionType(List.class, Integer.class));
+        } catch (JsonProcessingException e) {
+            throw new BadRequestException("Không thể đọc danh sách lịch gốc từ mẫu: " + e.getMessage());
+        }
+
+        List<com.hospital.scheduler.entity.Schedule> sourceSchedules = scheduleRepository.findAllById(sourceScheduleIds);
+        List<TemplatePreviewItem> items = new ArrayList<>();
+
+        for (com.hospital.scheduler.entity.Schedule s : sourceSchedules) {
+            int dowValue = s.getWorkDate().getDayOfWeek().getValue();
+            items.add(TemplatePreviewItem.builder()
+                    .id(s.getId())
+                    .workDate(s.getWorkDate().toString())
+                    .dayOfWeek(VIETNAMESE_DAYS[dowValue])
+                    .shiftTypeId(s.getShiftType().getId())
+                    .shiftTypeName(s.getShiftType().getName())
+                    .specialtyName(s.getShiftType().getSpecialty() != null ? s.getShiftType().getSpecialty().getName() : null)
+                    .requiredStaffCount(1)
+                    .assignedStaffId(s.getStaff().getId())
+                    .assignedStaffName(s.getStaff().getFullName())
+                    .build());
         }
 
         return items;
