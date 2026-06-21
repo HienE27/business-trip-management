@@ -92,16 +92,18 @@ class ApiClient {
       credentials: "include",
     });
 
-    if (!response.ok) {
-      if (response.status === 401 && typeof window !== "undefined") {
-        window.localStorage.removeItem("medschedule.user");
-        const currentPath = window.location.pathname;
-        if (currentPath !== LOGIN_PATH) {
-          window.location.replace(LOGIN_PATH);
+      if (!response.ok) {
+        if (response.status === 401 && typeof window !== "undefined") {
+          window.localStorage.removeItem("medschedule.user");
+          const currentPath = window.location.pathname;
+          if (currentPath !== LOGIN_PATH) {
+            window.location.replace(LOGIN_PATH);
+          } else {
+            throw new Error(`HTTP 401 — Phiên đăng nhập hết hạn`);
+          }
         }
-      }
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
     }
 
     return response.json().catch(() => ({ success: true, data: null, message: "Thành công" }));
@@ -357,7 +359,10 @@ class ApiClient {
       `${API_BASE}/dashboard/export/schedule/${periodId}${params}`,
       { headers, credentials: "include" },
     );
-    if (!response.ok) throw new Error("Export failed");
+    if (!response.ok) {
+      const text = await response.text().catch(() => "Unknown error");
+      throw new Error(`Export failed (${response.status}): ${text}`);
+    }
     return response.blob();
   }
 
@@ -373,7 +378,10 @@ class ApiClient {
       `${API_BASE}/dashboard/export/schedule/${periodId}/pdf${params}`,
       { headers, credentials: "include" },
     );
-    if (!response.ok) throw new Error("Export PDF failed");
+    if (!response.ok) {
+      const text = await response.text().catch(() => "Unknown error");
+      throw new Error(`Export PDF failed (${response.status}): ${text}`);
+    }
     return response.blob();
   }
 
@@ -389,7 +397,10 @@ class ApiClient {
       `${API_BASE}/dashboard/export/workload/${periodId}${params}`,
       { headers, credentials: "include" },
     );
-    if (!response.ok) throw new Error("Export workload failed");
+    if (!response.ok) {
+      const text = await response.text().catch(() => "Unknown error");
+      throw new Error(`Export workload failed (${response.status}): ${text}`);
+    }
     return response.blob();
   }
 

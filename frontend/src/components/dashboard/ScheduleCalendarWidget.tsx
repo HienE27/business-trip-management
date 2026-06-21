@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
 import { ScheduleTableView } from "@/components/dashboard/ScheduleTableView";
@@ -40,6 +40,7 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
   const [workDate, setWorkDate] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
+  const toast = useToast();
 
   // Auto-clear message
   useEffect(() => {
@@ -90,6 +91,7 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
       }, 1200);
     } catch {
       setSubmitting(false);
+      toast.error("Không thể tạo ca trực. Vui lòng thử lại.");
     }
   };
 
@@ -183,8 +185,8 @@ type ScheduleCalendarWidgetProps = {
   viewMode?: "calendar" | "table" | "matrix";
   showViewToggle?: boolean;
   onRefresh?: () => void;
-  onDayClick?: (date: Date, items: unknown[]) => void;
-  onAddClick?: (date: Date) => void;
+  onDayClick?: (date: Date, items?: unknown[]) => void;
+  onAddClick?: (date: Date, staffId?: number) => void;
   onStaffFilterChange?: (staffId: number | null) => void;
   onSpecialtyFilterChange?: (specialtyId: number | null) => void;
   onViewDetail?: (schedule: Schedule) => void;
@@ -198,7 +200,7 @@ type ScheduleCalendarWidgetProps = {
   hideFilters?: boolean;
 };
 
-export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, viewMode: externalViewMode, showViewToggle = true, isReadOnly = false, hideFilters = false, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail, onViewModeChange, selectedTab, onFilterTypeChange, compensationDays }: ScheduleCalendarWidgetProps) {
+export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, viewMode: externalViewMode, showViewToggle = true, isReadOnly = false, hideFilters = false, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail, onViewModeChange, selectedTab, onFilterTypeChange, compensationDays }: ScheduleCalendarWidgetProps) {
   const [internalView, setInternalView] = useState<"calendar" | "table" | "matrix">("calendar");
   const view = externalViewMode ?? internalView;
   const scrollYRef = useRef(0);
@@ -248,6 +250,7 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
       setDeleteConfirm(null);
       onRefresh?.();
     } catch {
+      toast.error("Không thể xóa ca trực. Vui lòng thử lại.");
       setDeleteConfirm(null);
     } finally {
       setDeleting(false);
@@ -349,8 +352,10 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
               staffList={staffList}
               year={initialYear ?? new Date().getFullYear()}
               month={initialMonth ?? new Date().getMonth()}
+              compensationDays={compensationDays}
+              shiftTypeFilter={selectedTab}
               onViewDetail={canEdit ? (s) => setEditSchedule(s) : undefined}
-              onCellClick={(date) => { onAddClick?.(date); }}
+              onCellClick={(date, staffId) => { onAddClick?.(date, staffId); }}
             />
           </div>
         ) : (
@@ -496,4 +501,4 @@ export function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], co
       )}
     </div>
   );
-}
+});

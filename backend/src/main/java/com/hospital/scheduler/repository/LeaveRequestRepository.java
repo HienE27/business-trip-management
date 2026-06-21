@@ -24,4 +24,8 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Inte
 
     @Query("SELECT lr FROM LeaveRequest lr WHERE lr.status = 'PENDING' ORDER BY lr.createdAt")
     List<LeaveRequest> findPendingRequests();
+
+    /** Batch query: all approved leave requests overlapping a date (no staff filter). */
+    @Query("SELECT lr FROM LeaveRequest lr WHERE lr.status = 'APPROVED' AND lr.startDate <= :date AND lr.endDate >= :date")
+    List<LeaveRequest> findApprovedByDate(@Param("date") LocalDate date);
 }

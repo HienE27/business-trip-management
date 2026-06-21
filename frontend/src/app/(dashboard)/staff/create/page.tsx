@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
+import { ROLE_LABELS } from "@/lib/roleLabels";
 import type { Specialty } from "@/types/api";
 
 type StaffFormData = {
@@ -14,6 +15,7 @@ type StaffFormData = {
   password: string;
   phone: string;
   email: string;
+  position: string;
   specialtyId: number | null;
   maxShiftsPerMonth: number;
   isActive: boolean;
@@ -26,6 +28,7 @@ const emptyForm: StaffFormData = {
   password: "",
   phone: "",
   email: "",
+  position: "",
   specialtyId: null,
   maxShiftsPerMonth: 5,
   isActive: true,
@@ -86,6 +89,7 @@ function StaffCreateContent() {
         password: form.password.trim(),
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
+        position: form.position.trim() || null,
         specialtyId: form.specialtyId,
         maxShiftsPerMonth: form.maxShiftsPerMonth,
         isActive: form.isActive,
@@ -119,7 +123,7 @@ function StaffCreateContent() {
           <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
       ) : (
-        <section className="max-w-2xl">
+        <section className="max-w-2xl mx-auto">
           <article className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
             <div className="flex items-center gap-3 px-6 py-4 border-b border-outline-variant bg-surface">
               <span className="material-symbols-outlined text-[22px] text-primary">person_add</span>
@@ -144,17 +148,6 @@ function StaffCreateContent() {
                   />
                 </label>
 
-                <label className="flex flex-col gap-1.5 col-span-2">
-                  <span className="text-[13px] font-semibold text-on-surface">Họ tên <span className="text-error">*</span></span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                    name="fullName"
-                    onChange={(e) => updateField("fullName", e.target.value)}
-                    required
-                    value={form.fullName}
-                  />
-                </label>
-
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[13px] font-semibold text-on-surface">Mật khẩu <span className="text-error">*</span></span>
                   <input
@@ -164,6 +157,29 @@ function StaffCreateContent() {
                     placeholder="Nhập mật khẩu"
                     type="password"
                     value={form.password}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[13px] font-semibold text-on-surface">Chức vụ</span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                    name="position"
+                    onChange={(e) => updateField("position", e.target.value)}
+                    placeholder="VD: Bác sĩ, Điều dưỡng"
+                    type="text"
+                    value={form.position}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5 col-span-2">
+                  <span className="text-[13px] font-semibold text-on-surface">Họ tên <span className="text-error">*</span></span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                    name="fullName"
+                    onChange={(e) => updateField("fullName", e.target.value)}
+                    required
+                    value={form.fullName}
                   />
                 </label>
 
@@ -189,7 +205,7 @@ function StaffCreateContent() {
                   />
                 </label>
 
-                <label className="flex flex-col gap-1.5">
+                <label className="flex flex-col gap-1.5 col-span-2">
                   <span className="text-[13px] font-semibold text-on-surface">Số ca tối đa / tháng</span>
                   <input
                     className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
@@ -239,9 +255,9 @@ function StaffCreateContent() {
                       value={form.roles[0] ?? ""}
                     >
                     <option value="">Chưa phân quyền</option>
-                    <option value="ADMIN">Quản lý lịch</option>
-                    <option value="MANAGER">Trưởng phòng</option>
-                    <option value="STAFF">Nhân viên</option>
+                    <option value="ADMIN">{ROLE_LABELS.ADMIN}</option>
+                    <option value="MANAGER">{ROLE_LABELS.MANAGER}</option>
+                    <option value="STAFF">{ROLE_LABELS.STAFF}</option>
                     </select>
                     <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
                   </div>

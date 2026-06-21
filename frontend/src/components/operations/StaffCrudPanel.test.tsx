@@ -106,7 +106,7 @@ describe('StaffCrudPanel', () => {
 
   it('should render filter dropdowns', async () => {
     await renderPanel();
-    expect(screen.getByLabelText(/Loc theo chuc vu/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Lọc theo vai trò/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Loc theo trang thai/)).toBeInTheDocument();
   });
 

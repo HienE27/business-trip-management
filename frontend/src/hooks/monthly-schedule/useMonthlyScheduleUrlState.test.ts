@@ -25,7 +25,7 @@ describe("useMonthlyScheduleUrlState", () => {
     const { result } = renderHook(() => useMonthlyScheduleUrlState());
     expect(result.current.selectedTab).toBe("ALL");
     expect(result.current.selectedPanel).toBe("overview");
-    expect(result.current.viewMode).toBe("calendar");
+    expect(result.current.viewMode).toBe("matrix");
     expect(result.current.parsedScheduleId).toBeNull();
     expect(result.current.parsedStaffId).toBeNull();
     expect(result.current.parsedSpecialtyId).toBeNull();

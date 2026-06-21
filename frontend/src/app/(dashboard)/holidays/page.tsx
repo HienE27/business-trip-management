@@ -225,11 +225,12 @@ export default function HolidaysPage() {
                       <p className="text-label-md font-semibold text-on-surface">{h.name}</p>
                     </td>
                     <td className="px-5 py-3">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-sm font-semibold ${
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
                         h.isNationalHoliday
-                          ? "bg-secondary-container text-on-secondary-container"
-                          : "bg-tertiary-fixed text-on-tertiary"
+                          ? "bg-secondary text-on-secondary border-secondary/20"
+                          : "bg-tertiary text-on-tertiary border-tertiary/20"
                       }`}>
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${h.isNationalHoliday ? "bg-on-secondary" : "bg-on-tertiary"}`} />
                         {h.isNationalHoliday ? "Quốc khánh" : "Ngày lễ"}
                       </span>
                     </td>

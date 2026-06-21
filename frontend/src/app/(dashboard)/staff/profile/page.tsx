@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { ROLE_LABELS } from "@/lib/roleLabels";
 import type { Staff, Schedule, SchedulePeriod } from "@/types/api";
 
 function getInitials(name: string): string {
@@ -26,11 +27,7 @@ function formatDate(dateStr: string): string {
   });
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  ADMIN: "Quản lý lịch",
-  MANAGER: "Trưởng phòng",
-  STAFF: "Nhân viên",
-};
+// Role labels — shared via @/lib/roleLabels
 
 const SHIFT_TYPE_BADGE: Record<string, string> = {
   L01: "bg-[var(--color-shift-24)]/10 text-[var(--color-on-shift-24)] border border-[var(--color-shift-24)]/30",

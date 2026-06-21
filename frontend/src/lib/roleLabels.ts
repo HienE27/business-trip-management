@@ -6,9 +6,9 @@
 
 export type RoleCode = "ADMIN" | "MANAGER" | "STAFF";
 
-export const ROLE_LABELS: Record<RoleCode, string> = {
-  ADMIN: "Quản trị viên",
-  MANAGER: "Quản lý lịch",
+export const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Quản lý lịch",
+  MANAGER: "Trưởng phòng",
   STAFF: "Nhân viên",
 };
 

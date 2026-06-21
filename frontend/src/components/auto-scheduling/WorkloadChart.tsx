@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/ToastProvider";
 import { api } from "@/lib/api";
 
 /* ── WorkloadChart ──
@@ -299,6 +300,7 @@ export function WorkloadChart({ periodId }: WorkloadChartProps) {
   const [chartData, setChartData] = useState<WorkloadChartData | null>(null);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"bar" | "stacked">("bar");
+  const toast = useToast();
 
   const load = useCallback(async () => {
     if (!periodId) return;
@@ -340,8 +342,8 @@ export function WorkloadChart({ periodId }: WorkloadChartProps) {
           })),
         });
       }
-    } catch {
-      /* silent */
+    } catch (err) {
+      toast.error("Không thể tải dữ liệu tải công việc. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }

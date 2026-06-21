@@ -18,6 +18,7 @@ import { useRole } from "@/hooks/useRole";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ROLE_LABELS } from "@/lib/roleLabels";
 
 // Lazy-load the confirm dialog. Used only when the user clicks
 // "Đặt lại" to revert unsaved changes — deferring it shaves a
@@ -34,13 +35,9 @@ const ROLE_COLORS: Record<string, { bg: string; text: string; border: string }> 
   STAFF:   { bg: "bg-secondary-container", text: "text-on-secondary-container", border: "border-on-secondary-container/20" },
 };
 
-/* ─── Friendly labels ─── */
-const ROLE_LABELS: Record<string, string> = {
-  ADMIN:   "Quản lý lịch",
-  MANAGER: "Trưởng phòng",
-  STAFF:   "Nhân viên",
-};
+/* ─── Friendly labels (shared via @/lib/roleLabels) ─── */
 
+/* ─── Permission labels ─── */
 const PERM_LABELS: Record<string, string> = {
   // From DB seed: hospital_scheduler_business_final.sql
   "STAFF_READ":             "Xem danh sách nhân sự",

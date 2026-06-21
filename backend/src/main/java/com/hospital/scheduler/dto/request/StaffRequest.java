@@ -11,8 +11,6 @@ import lombok.*;
 @Builder
 public class StaffRequest {
 
-    @NotBlank(message = "Username không được để trống")
-    @Size(max = 50, message = "Username không quá 50 ký tự")
     private String username;
 
     @NotBlank(message = "Họ tên không được để trống")

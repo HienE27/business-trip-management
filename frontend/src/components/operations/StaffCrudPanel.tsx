@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { getRoleLabel } from "@/lib/roleLabels";
+import { getRoleLabel, ROLE_LABELS } from "@/lib/roleLabels";
 import { useToast } from "@/hooks/useToast";
 import { FormInput, FormSelect, Button, ConfirmDialog } from "@/components/ui";
 import type { Specialty } from "@/types/api";
@@ -493,9 +493,9 @@ export function StaffCrudPanel() {
                   value={form.roles[0] ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, roles: e.target.value ? [e.target.value] : [] }))}
                   options={[
-                    { value: "ADMIN", label: "Quản lý lịch" },
-                    { value: "MANAGER", label: "Trưởng phòng" },
-                    { value: "STAFF", label: "Nhân viên" },
+                    { value: "ADMIN", label: ROLE_LABELS.ADMIN },
+                    { value: "MANAGER", label: ROLE_LABELS.MANAGER },
+                    { value: "STAFF", label: ROLE_LABELS.STAFF },
                   ]}
                   placeholder="Chọn vai trò"
                   disabled={submitting}
@@ -654,15 +654,15 @@ export function StaffCrudPanel() {
 
         <div className="relative w-full lg:w-40">
           <select
-            aria-label="Loc theo chuc vu"
+            aria-label="Lọc theo vai trò"
             className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
             onChange={(e) => setRoleFilter(e.target.value)}
             value={roleFilter}
           >
-            <option value="">Tất cả Chức vụ</option>
-            <option value="ADMIN">Quản lý lịch</option>
-            <option value="MANAGER">Trưởng phòng</option>
-            <option value="STAFF">Nhân viên</option>
+            <option value="">Tất cả Vai trò</option>
+            <option value="ADMIN">{ROLE_LABELS.ADMIN}</option>
+            <option value="MANAGER">{ROLE_LABELS.MANAGER}</option>
+            <option value="STAFF">{ROLE_LABELS.STAFF}</option>
           </select>
           <span aria-hidden="true" className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">
             expand_more

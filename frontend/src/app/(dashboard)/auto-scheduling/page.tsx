@@ -864,6 +864,16 @@ export default function AutoSchedulingPage() {
                     <span className="material-symbols-outlined text-[16px]">add</span>
                     Thêm ca trực
                   </button>
+                  {(editedPreview.length > 0 || removedShifts.size > 0 || removedShiftTypes.size > 0) && (
+                    <button
+                      type="button"
+                      onClick={handleResetEdits}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-label-sm text-on-surface hover:bg-surface-container-low transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+                      Hoàn tác
+                    </button>
+                  )}
                 </div>
               }
             >

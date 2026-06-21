@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/useToast";
+import { ROLE_LABELS } from "@/lib/roleLabels";
 
 type ThemeMode = "light" | "dark" | "system";
 type DensityMode = "compact" | "comfortable" | "spacious";
@@ -145,11 +146,7 @@ function SettingsContent() {
     }
   };
 
-  const roleLabel = (r: string) => {
-    if (r === "ADMIN") return "Quản lý lịch";
-    if (r === "MANAGER") return "Trưởng phòng";
-    return "Nhân viên";
-  };
+  const roleLabel = (r: string) => ROLE_LABELS[r as keyof typeof ROLE_LABELS] ?? "Nhân viên";
 
   return (
     <>

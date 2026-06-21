@@ -190,7 +190,15 @@ public class ConflictDetectionService {
                 // Persist the conflict record so the resolution flow can find it later, and
                 // notify both the staff member and the conflict channel.
                 ConflictSaveResult saveResult = saveConflictInternal(schedule, ScheduleConflict.ConflictType.OTHER, description);
-                emailService.sendConflictAlertToStaff(staff, schedule, description);
+                // Fire-and-forget: email is @Async so this call just submits to the thread pool
+                // without blocking the transaction. Catch any exception to prevent the email
+                // failure from affecting the conflict persistence flow.
+                try {
+                    emailService.sendConflictAlertToStaff(staff, schedule, description);
+                } catch (Exception e) {
+                    org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
+                            .warn("Failed to send conflict email for schedule {}: {}", schedule.getId(), e.getMessage());
+                }
 
                 // Only broadcast when the conflict is genuinely new — re-running the
                 // periodic conflict check on a schedule that already has an unresolved
@@ -368,22 +376,66 @@ public class ConflictDetectionService {
     public List<Staff> findReplacements(Integer periodId, LocalDate workDate, String shiftTypeId,
                                          Integer originalStaffId, Integer requiredCount,
                                          Set<Integer> excludedStaffIds, boolean skipCompensationDay) {
-        List<Staff> replacements = new ArrayList<>();
-        List<Staff> allStaff = staffRepository.findByIsActiveTrue();
+        // Batch-fetch all conflict data upfront — 4 queries total instead of O(N) queries.
+        LocalDate prevDay = workDate.minusDays(1);
+        LocalDate nextDay = workDate.plusDays(1);
 
-        for (Staff staff : allStaff) {
-            if (originalStaffId != null && staff.getId().equals(originalStaffId)) {
-                continue;
+        Set<Integer> onLeaveStaffIds = new java.util.HashSet<>();
+        for (LeaveRequest lr : leaveRequestRepository.findApprovedByDate(workDate)) {
+            onLeaveStaffIds.add(lr.getStaff().getId());
+        }
+
+        Set<Integer> onCompDayStaffIds = new java.util.HashSet<>();
+        if (!skipCompensationDay) {
+            for (CompensationDay cd : compensationDayRepository.findByDate(workDate)) {
+                onCompDayStaffIds.add(cd.getStaff().getId());
             }
-            if (excludedStaffIds != null && excludedStaffIds.contains(staff.getId())) {
-                continue;
-            }
-            if (!hasAnyConflict(staff.getId(), workDate, shiftTypeId, null, skipCompensationDay)) {
-                replacements.add(staff);
-                if (replacements.size() >= requiredCount) {
-                    break;
+        }
+
+        Map<Integer, List<Schedule>> schedulesByStaff = new java.util.HashMap<>();
+        for (Schedule s : scheduleRepository.findByWorkDateWithDetails(workDate)) {
+            schedulesByStaff.computeIfAbsent(s.getStaff().getId(), k -> new java.util.ArrayList<>()).add(s);
+        }
+
+        Set<Integer> hasAdjacentSchedule = new java.util.HashSet<>();
+        for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, prevDay, prevDay)) {
+            hasAdjacentSchedule.add(s.getStaff().getId());
+        }
+        for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, nextDay, nextDay)) {
+            hasAdjacentSchedule.add(s.getStaff().getId());
+        }
+
+        ShiftType shiftType = shiftTypeRepository.findById(shiftTypeId).orElse(null);
+        boolean newIsOvernight = shiftType != null && Boolean.TRUE.equals(shiftType.getIsOvernight());
+
+        List<Staff> replacements = new ArrayList<>();
+        for (Staff staff : staffRepository.findByIsActiveTrue()) {
+            if (originalStaffId != null && staff.getId().equals(originalStaffId)) continue;
+            if (excludedStaffIds != null && excludedStaffIds.contains(staff.getId())) continue;
+            if (onLeaveStaffIds.contains(staff.getId())) continue;
+            if (onCompDayStaffIds.contains(staff.getId())) continue;
+            if (hasAdjacentSchedule.contains(staff.getId())) continue;
+
+            // Same-day shift-type conflict: L01↔L02 or L03↔L04
+            List<Schedule> daySchedules = schedulesByStaff.get(staff.getId());
+            if (daySchedules != null) {
+                boolean hasConflict = false;
+                for (Schedule s : daySchedules) {
+                    boolean existingIsOvernight = s.getShiftType() != null && Boolean.TRUE.equals(s.getShiftType().getIsOvernight());
+                    if (newIsOvernight != existingIsOvernight) { hasConflict = true; break; }
+                    if (!newIsOvernight && !existingIsOvernight) {
+                        String nid = shiftType != null ? shiftType.getId() : "";
+                        String eid = s.getShiftType() != null ? s.getShiftType().getId() : "";
+                        if (("L03".equals(nid) && "L04".equals(eid)) || ("L04".equals(nid) && "L03".equals(eid))) {
+                            hasConflict = true; break;
+                        }
+                    }
                 }
+                if (hasConflict) continue;
             }
+
+            replacements.add(staff);
+            if (replacements.size() >= requiredCount) break;
         }
 
         return replacements;

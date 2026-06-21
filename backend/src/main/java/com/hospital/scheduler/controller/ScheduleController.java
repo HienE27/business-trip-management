@@ -2,6 +2,7 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.BulkL01Request;
+import com.hospital.scheduler.dto.request.OverrideConflictRequest;
 import com.hospital.scheduler.dto.request.ScheduleRequest;
 import com.hospital.scheduler.dto.response.BulkL01Response;
 import com.hospital.scheduler.dto.response.ConflictCheckResponse;
@@ -24,7 +25,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/schedules")
@@ -144,10 +144,9 @@ public class ScheduleController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<ScheduleResponse>> overrideConflict(
             @PathVariable Integer id,
-            @RequestBody Map<String, String> body) {
-        String reason = body.getOrDefault("reason", "Override by manager");
+            @Valid @RequestBody OverrideConflictRequest body) {
         return ResponseEntity.ok(ApiResponse.success(
-                scheduleService.overrideConflict(id, reason), "Đã ghi nhận override xung đột"));
+                scheduleService.overrideConflict(id, body.getReason()), "Đã ghi nhận override xung đột"));
     }
 
     @PostMapping("/bulk-l01")

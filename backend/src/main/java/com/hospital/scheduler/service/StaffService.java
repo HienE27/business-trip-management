@@ -27,6 +27,7 @@ import org.apache.poi.ss.usermodel.*;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.*;
 
 import java.util.HashSet;
@@ -38,6 +39,10 @@ import java.util.stream.Collectors;
 @Transactional
 public class StaffService {
 
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final String TEMP_PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    private static final int TEMP_PASSWORD_LENGTH = 10;
+
     private final StaffRepository staffRepository;
     private final SpecialtyRepository specialtyRepository;
     private final AppRoleRepository appRoleRepository;
@@ -46,6 +51,15 @@ public class StaffService {
     private final PasswordEncoder passwordEncoder;
     private final StaffImportParser staffImportParser;
     private final NotificationService notificationService;
+
+    /** Generate a random temporary password for bulk-imported staff. */
+    private String generateTempPassword() {
+        StringBuilder sb = new StringBuilder(TEMP_PASSWORD_LENGTH);
+        for (int i = 0; i < TEMP_PASSWORD_LENGTH; i++) {
+            sb.append(TEMP_PASSWORD_CHARS.charAt(RANDOM.nextInt(TEMP_PASSWORD_CHARS.length())));
+        }
+        return sb.toString();
+    }
 
     public List<StaffResponse> getAllStaff() {
         return staffRepository.findAll().stream()
@@ -77,6 +91,9 @@ public class StaffService {
     }
 
     public StaffResponse createStaff(StaffRequest request, List<String> roles) {
+        if (request.getUsername() == null || request.getUsername().isBlank()) {
+            throw new BadRequestException("Username không được để trống");
+        }
         if (request.getPassword() == null || request.getPassword().isBlank()) {
             throw new BadRequestException("Password không được để trống");
         }
@@ -139,11 +156,13 @@ public class StaffService {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
 
-        staffRepository.findByUsername(request.getUsername())
-                .filter(s -> !s.getId().equals(id))
-                .ifPresent(s -> {
-                    throw new ConflictException("Username '" + request.getUsername() + "' đã tồn tại");
-                });
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            staffRepository.findByUsername(request.getUsername())
+                    .filter(s -> !s.getId().equals(id))
+                    .ifPresent(s -> {
+                        throw new ConflictException("Username '" + request.getUsername() + "' đã tồn tại");
+                    });
+        }
 
         if (request.getEmail() != null) {
             staffRepository.findByEmail(request.getEmail())
@@ -169,7 +188,9 @@ public class StaffService {
             staff.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
 
-        staff.setUsername(request.getUsername());
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            staff.setUsername(request.getUsername());
+        }
         staff.setFullName(request.getFullName());
         staff.setPhone(request.getPhone());
         staff.setEmail(request.getEmail());
@@ -338,11 +359,7 @@ public class StaffService {
             }
         }
 
-        if (extension.equals("csv")) {
-            staffImportParser.parseFile(file, extension, requests, errorMessages);
-        } else {
-            staffImportParser.parseFile(file, extension, requests, errorMessages);
-        }
+        staffImportParser.parseFile(file, extension, requests, errorMessages);
 
         if (!errorMessages.isEmpty()) {
             throw new BadRequestException("Tệp tải lên chứa dữ liệu không hợp lệ. Vui lòng sửa các lỗi sau:\n" + String.join("\n", errorMessages));
@@ -510,7 +527,7 @@ public class StaffService {
             } else {
                 Staff newStaff = Staff.builder()
                         .username(username)
-                        .passwordHash(passwordEncoder.encode(username)) // Default password is username
+                        .passwordHash(passwordEncoder.encode(generateTempPassword())) // Random temp password — force reset on first login
                         .fullName(fullName)
                         .phone(phone.isEmpty() ? null : phone)
                         .email(email.isEmpty() ? null : email)

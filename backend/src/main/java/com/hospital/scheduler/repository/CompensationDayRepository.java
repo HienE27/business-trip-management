@@ -31,4 +31,8 @@ public interface CompensationDayRepository extends JpaRepository<CompensationDay
             @Param("staffId") Integer staffId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
+
+    /** Batch query: all compensation days for a specific date (no staff filter). */
+    @Query("SELECT cd FROM CompensationDay cd WHERE cd.compensationDate = :date")
+    List<CompensationDay> findByDate(@Param("date") LocalDate date);
 }

@@ -10,7 +10,7 @@ import {
   ConflictStreamBridge,
   ConflictToastBridge,
 } from "@/components/realtime/ConflictStreamBridge";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import "./globals.css";
 
 const inter = Inter({

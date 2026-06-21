@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { getRoleLabel } from "@/lib/roleLabels";
 import type { Staff, Schedule } from "@/types/api";
 
 function getInitials(name: string) {
@@ -16,12 +17,7 @@ function getInitials(name: string) {
     .join("");
 }
 
-function getRoleLabel(roles: string[]) {
-  if (roles.includes("ADMIN")) return "Quản lý lịch";
-  if (roles.includes("MANAGER")) return "Trưởng phòng";
-  if (roles.includes("STAFF")) return "Nhân viên";
-  return "Nhân sự";
-}
+// getRoleLabel imported from @/lib/roleLabels
 
 function getStatusLabel(isActive: boolean) {
   return isActive ? "Đang làm việc" : "Đã nghỉ";

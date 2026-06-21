@@ -17,7 +17,9 @@ function getPanel(searchParams: URLSearchParams): MonthlyPanel {
 }
 
 function getViewMode(searchParams: URLSearchParams): ViewMode {
-  return searchParams.get("view") === "table" ? "table" : "calendar";
+  const v = searchParams.get("view");
+  if (v === "calendar" || v === "table" || v === "matrix") return v;
+  return "matrix";
 }
 
 function getNumberParam(searchParams: URLSearchParams, key: string) {

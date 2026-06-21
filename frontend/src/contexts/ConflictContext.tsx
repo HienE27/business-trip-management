@@ -46,12 +46,16 @@ export type ConflictAction =
   | { type: 'SEED_COUNT'; count: number; ids: number[] }
   | { type: 'RESET' };
 
-export const initialConflictState: ConflictState = {
-  unresolvedCount: 0,
-  unresolvedIds: new Set<number>(),
-  recentEvents: [],
-  lastEventWasNew: false,
-};
+export function createInitialConflictState(): ConflictState {
+  return {
+    unresolvedCount: 0,
+    unresolvedIds: new Set<number>(),
+    recentEvents: [],
+    lastEventWasNew: false,
+  };
+}
+
+export const initialConflictState: ConflictState = createInitialConflictState();
 
 export function conflictReducer(
   state: ConflictState,
@@ -133,7 +137,7 @@ export function conflictReducer(
       };
     }
     case 'RESET': {
-      return initialConflictState;
+      return createInitialConflictState();
     }
   }
 }
@@ -149,7 +153,7 @@ type ConflictContextValue = {
 const ConflictContext = createContext<ConflictContextValue | null>(null);
 
 export function ConflictProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(conflictReducer, initialConflictState);
+  const [state, dispatch] = useReducer(conflictReducer, undefined, createInitialConflictState);
 
   const applyEvent = useCallback((event: ConflictEvent) => {
     dispatch({ type: 'ADD_CONFLICT', event });

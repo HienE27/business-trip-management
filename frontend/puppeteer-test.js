@@ -117,18 +117,33 @@ async function checkForErrors(page) {
       '[role="alert"]'
     ];
     
-    for (const selector of errorSelectors) {
-      try {
-        const elements = await page.$$(selector);
-        for (const el of elements) {
-          const text = await el.innerText();
+    const errorSelectors = [
+      '.error',
+      '.alert-error',
+      '[class*="error"]',
+      '[class*="alert"]',
+      '.toast-error',
+      '[role="alert"]'
+    ];
+
+    try {
+      const allElementsArrays = await Promise.all(
+        errorSelectors.map(selector => page.$$(selector))
+      );
+      const allTextResults = await Promise.all(
+        allElementsArrays.flat().map(el => el.innerText())
+      );
+      let idx = 0;
+      for (let i = 0; i < allElementsArrays.length; i++) {
+        for (const el of allElementsArrays[i]) {
+          const text = allTextResults[idx++];
           if (text && text.trim()) {
-            errors.push({ selector, text: text.substring(0, 200) });
+            errors.push({ selector: errorSelectors[i], text: text.substring(0, 200) });
           }
         }
-      } catch {
-        // Selector might not exist
       }
+    } catch {
+      // Selector might not exist
     }
     
     // Check page title for error indicators

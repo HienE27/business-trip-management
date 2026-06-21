@@ -39,6 +39,7 @@ export interface Staff {
   fullName: string;
   phone?: string;
   email?: string;
+  position?: string;
   specialty?: StaffSpecialty;
   maxShiftsPerMonth: number;
   isActive: boolean;

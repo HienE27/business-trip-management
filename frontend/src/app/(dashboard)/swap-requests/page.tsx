@@ -550,15 +550,17 @@ function SwapRequestsContent() {
                               </button>
                             </div>
                           ) : (
-                            <span>
+                            <span className="flex justify-end items-center gap-1">
                               {req.status === "PENDING" && !managerMode && (
                                 <button
-                                  className="rounded-md border border-outline-variant px-2 py-1 text-label-sm text-error transition-colors hover:bg-error-container"
+                                  className="flex h-7 w-7 items-center justify-center rounded border border-error/30 text-error transition-colors hover:bg-error-container disabled:opacity-50"
                                   disabled={processing !== null}
                                   onClick={() => handleCancel(req.id)}
+                                  title="Hủy yêu cầu"
                                   type="button"
+                                  aria-label="Hủy yêu cầu"
                                 >
-                                  Hủy
+                                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
                                 </button>
                               )}
                               {req.status !== "PENDING" && (

@@ -208,23 +208,23 @@ export function useSchedulePeriodData(
   );
 
   const refresh = useCallback(async () => {
+    const periodId = selectedPeriodId; // capture at call time to avoid stale closure
     setRefreshing(true);
     setMessage(null);
     try {
-      // Reload periods list + period-specific data
       const [periodData] = await Promise.all([
         api.get<SchedulePeriod[]>("/periods").catch(() => null),
       ]);
       if (!aliveRef.current) return;
       if (periodData) setPeriods(periodData);
-      await loadPeriodData(selectedPeriodId, false);
+      await loadPeriodData(periodId, false);
     } catch (error) {
       if (!aliveRef.current) return;
       setMessage(getErrorMessage(error, "Không thể làm mới dữ liệu."));
     } finally {
       if (aliveRef.current) setRefreshing(false);
     }
-  }, [loadPeriodData, selectedPeriodId]);
+  }, [loadPeriodData]); // selectedPeriodId intentionally excluded — captured via closure above
 
   // Optional conflict polling cho dashboard realtime
   useEffect(() => {

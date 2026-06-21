@@ -203,8 +203,8 @@ function ReportsStaffContent() {
         )}
       </section>
 
-      {/* Summary */}
-      <section className="grid gap-4 md:grid-cols-4 flex-1 items-center">
+      {/* Summary KPIs */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: "Tổng phân công", value: summary.total, icon: "event_available", accent: "bg-primary-fixed text-primary" },
           { label: "Trung bình / người", value: summary.avg, icon: "analytics", accent: "bg-secondary-container text-secondary" },
@@ -219,18 +219,21 @@ function ReportsStaffContent() {
             <p className="mt-3 text-display-lg font-bold text-on-surface">{loading ? "—" : kpi.value}</p>
           </article>
         ))}
-        {selectedPeriodId && (
+      </div>
+
+      {selectedPeriodId && (
+        <div className="flex justify-end">
           <a
             href={`/api/v1/dashboard/export/workload/${selectedPeriodId}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-5 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors shadow-sm"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-2.5 text-[13px] font-medium text-primary hover:bg-primary-fixed transition-colors shadow-sm"
           >
             <span className="material-symbols-outlined text-[16px]">table_view</span>
             Xuất Excel
           </a>
-        )}
-      </section>
+        </div>
+      )}
 
       {/* Balance chart (M07-F09) — visible whenever there is at least one
           staff member in scope; mirrors the active view filter. */}
@@ -292,15 +295,22 @@ function ReportsStaffContent() {
           <div
             role="alert"
             data-testid="skew-warning"
-            className="flex items-start gap-3 rounded-lg border border-tertiary/30 bg-tertiary-fixed px-4 py-3 text-[13px] text-on-tertiary-container"
+            className="flex items-start gap-3 rounded-xl border-l-4 border-l-error bg-error-container px-5 py-4 shadow-sm"
           >
-            <span className="material-symbols-outlined text-[20px]">warning</span>
-            <div>
-              <p className="font-semibold">Cảnh báo phân bổ lệch (M02-F05)</p>
-              <p className="text-[12px] mt-0.5">
-                Có <span className="font-bold">{summary.overloaded}</span> nhân sự vượt ngưỡng tải.
-                Khoảng cách giữa người cao nhất ({summary.max}) và trung bình ({summary.avg}) là{" "}
-                <span className="font-bold">{Math.max(0, summary.max - summary.avg)}</span> ca.
+            <div className="shrink-0 w-10 h-10 rounded-full bg-error flex items-center justify-center">
+              <span className="material-symbols-outlined text-[20px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-[14px] text-error">Cảnh báo phân bổ lệch</p>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error text-white text-[11px] font-bold">
+                  {summary.overloaded} nhân sự
+                </span>
+              </div>
+              <p className="text-[13px] text-on-error-container mt-1 leading-relaxed">
+                Vượt ngưỡng tải tối đa cho phép.
+                Cách biệt cao nhất ({summary.max}) và trung bình ({summary.avg}):{" "}
+                <strong className="font-semibold">{Math.max(0, summary.max - summary.avg)} ca</strong>.
               </p>
             </div>
           </div>

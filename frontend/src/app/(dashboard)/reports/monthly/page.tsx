@@ -265,7 +265,7 @@ function ReportsMonthlyContent() {
               <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           ) : stats ? (
-            <div className="space-y-5 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+            <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
               <h3 className="text-[16px] font-semibold text-on-surface mb-5">Phân bổ theo loại ca</h3>
               <div className="space-y-4">
                 {shiftItems.map((item) => (

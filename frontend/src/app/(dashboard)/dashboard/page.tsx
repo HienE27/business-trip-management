@@ -346,6 +346,8 @@ export default function DashboardPage() {
               initialYear={initialCalendarYear}
               initialMonth={initialCalendarMonth}
               periodId={selectedPeriod.id}
+              compensationDays={compensationDays}
+              viewMode="matrix"
               isReadOnly={true}
               selectedTab={selectedTab}
               onFilterTypeChange={(filter) => filters.setTab(filter as "L01" | "L02" | "L03" | "L04" | "ALL")}

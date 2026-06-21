@@ -121,9 +121,8 @@ function ReportsConflictsContent() {
         </div>
       ) : conflictData ? (
         <div className="space-y-6">
-          {/* Summary */}
-          <section className="flex items-center justify-between gap-4 flex-wrap">
-          <section className="grid gap-4 md:grid-cols-3 flex-1">
+          {/* Summary KPI cards */}
+          <div className="grid gap-4 md:grid-cols-3">
             <article className={`flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm ${conflictData.hasConflicts ? "border-l-4 border-l-error" : "border-l-4 border-l-secondary"}`}>
               <div className="flex justify-between items-start">
                 <p className="text-label-sm text-on-surface-variant">Tổng xung đột</p>
@@ -154,7 +153,8 @@ function ReportsConflictsContent() {
               </p>
               <p className="mt-1 text-[12px] text-on-surface-variant">Người có xung đột lịch</p>
             </article>
-          </section>
+          </div>
+
           {selectedPeriod && (
             <ExportControls
               periodId={selectedPeriod.id}
@@ -165,7 +165,6 @@ function ReportsConflictsContent() {
               }}
             />
           )}
-          </section>
 
           {/* No conflicts */}
           {!conflictData.hasConflicts && (
@@ -219,24 +218,22 @@ function ReportsConflictsContent() {
               </section>
 
               {/* Recommendation */}
-              <section className="rounded-xl border border-tertiary/30 bg-tertiary-fixed/10 p-5">
+              <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
                 <h3 className="text-[16px] font-semibold text-on-surface mb-3 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[20px] text-tertiary">tips_and_updates</span>
+                  <span className="material-symbols-outlined text-[20px] text-primary">tips_and_updates</span>
                   Khuyến nghị
                 </h3>
-                <ul className="space-y-2">
-                  <li className="flex items-start gap-2 text-[13px] text-on-surface">
-                    <span className="material-symbols-outlined text-[16px] text-outline shrink-0 mt-0.5">arrow_forward</span>
-                    Xử lý tất cả xung đột trước khi publish kỳ lịch.
-                  </li>
-                  <li className="flex items-start gap-2 text-[13px] text-on-surface">
-                    <span className="material-symbols-outlined text-[16px] text-outline shrink-0 mt-0.5">arrow_forward</span>
-                    Kiểm tra ngày nghỉ bù trùng với lịch thông tầm hoặc dịch vụ.
-                  </li>
-                  <li className="flex items-start gap-2 text-[13px] text-on-surface">
-                    <span className="material-symbols-outlined text-[16px] text-outline shrink-0 mt-0.5">arrow_forward</span>
-                    Cân đối tải trọng nhân sự nếu cùng người xuất hiện nhiều xung đột.
-                  </li>
+                <ul className="space-y-2.5">
+                  {[
+                    "Xử lý tất cả xung đột trước khi công bố kỳ lịch.",
+                    "Kiểm tra ngày nghỉ bù trùng với lịch thông tầm hoặc dịch vụ.",
+                    "Cân đối tải trọng nhân sự nếu cùng người xuất hiện nhiều xung đột.",
+                  ].map((item, i) => (
+                    <li key={i} className="flex items-start gap-2.5 text-[13px] text-on-surface">
+                      <span className="material-symbols-outlined text-[16px] text-secondary shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                      {item}
+                    </li>
+                  ))}
                 </ul>
               </section>
             </>
