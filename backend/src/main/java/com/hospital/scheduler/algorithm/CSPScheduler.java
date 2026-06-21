@@ -1,6 +1,7 @@
 package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.entity.*;
+import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
