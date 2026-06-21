@@ -3,7 +3,7 @@ import type { ConflictCheckResponse, ConflictDetail, Schedule, SchedulePeriod, S
 export type ScheduleTab = "L01" | "L02" | "L03" | "L04" | "ALL";
 export type ViewMode = "calendar" | "table" | "matrix";
 export type MonthlyPanel = "overview" | "conflicts" | "summary" | "workload";
-export type WorkflowStepId = "auto-schedule" | "conflicts" | "review" | "publish" | "notify";
+export type WorkflowStepId = "auto-schedule" | "conflicts" | "review" | "export" | "publish" | "notify";
 export type WorkflowStatus = "pending" | "active" | "completed" | "error";
 export type KpiTone = "success" | "warning" | "danger" | "info" | "neutral";
 
@@ -70,6 +70,7 @@ export type WorkflowContext = {
   conflictData: ConflictCheckResponse | null;
   checkingConflicts: boolean;
   publishing: boolean;
+  exporting: boolean;
   notifying: boolean;
   notified: boolean;
 };

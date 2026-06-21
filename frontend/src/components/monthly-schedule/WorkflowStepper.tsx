@@ -20,6 +20,7 @@ function buildSteps(context: WorkflowContext): WorkflowStepView[] {
     conflicts: "conflicts",
     overview: "review",
     summary: "review",
+    workload: "export",
   };
   const activeFromPanel = panelMap[context.selectedPanel];
 
@@ -27,6 +28,7 @@ function buildSteps(context: WorkflowContext): WorkflowStepView[] {
     { id: "auto-schedule" as WorkflowStepId, title: "Auto", description: "Tự động xếp lịch", status: hasSchedules ? "completed" : "pending", statusLabel: "" },
     { id: "conflicts" as WorkflowStepId, title: "Xung đột", description: "Kiểm tra xung đột", status: context.checkingConflicts || activeFromPanel === "conflicts" ? "active" : hasConflicts ? "error" : hasConflictCheck ? "completed" : "pending", statusLabel: "" },
     { id: "review" as WorkflowStepId, title: "Rà soát", description: "Tổng hợp & báo cáo", status: activeFromPanel === "review" ? "active" : hasSchedules && !hasConflicts ? "completed" : "pending", statusLabel: "" },
+    { id: "export" as WorkflowStepId, title: "Xuất báo cáo", description: "Xuất Excel / PDF", status: context.exporting ? "active" : isPublished ? "completed" : "pending", statusLabel: "" },
     { id: "publish" as WorkflowStepId, title: "Công bố", description: "Công bố kỳ lịch", status: context.publishing ? "active" : isPublished ? "completed" : hasConflicts ? "error" : "pending", statusLabel: "" },
     { id: "notify" as WorkflowStepId, title: "Thông báo", description: "Gửi thông báo", status: context.notifying ? "active" : context.notified ? "completed" : "pending", statusLabel: "" },
   ];
@@ -34,6 +36,7 @@ function buildSteps(context: WorkflowContext): WorkflowStepView[] {
 
 export type WorkflowStepperProps = WorkflowContext & {
   onStepSelect: (stepId: WorkflowStepId) => void;
+  onExport?: () => void;
 };
 
 export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStepperProps) {
@@ -44,6 +47,7 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
 
   function handleClick(stepId: WorkflowStepId) {
     if (stepId === "auto-schedule") { router.push("/auto-scheduling"); return; }
+    if (stepId === "export") { props.onExport?.(); return; }
     props.onStepSelect(stepId);
   }
 

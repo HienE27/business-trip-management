@@ -27,7 +27,9 @@ export type ScheduleCalendarSectionProps = {
   onViewDetail: (schedule: Schedule) => void;
   onViewModeChange: (view: ViewMode) => void;
   onFilterTypeChange: (filter: string) => void;
-  /** Khi true: ẩn filter trên toolbar calendar (dashboard). Mặc định false (monthly-schedule hiển thị filter). */
+  /** Show the calendar/table/matrix view toggle. Default: true */
+  showViewToggle?: boolean;
+  /** Hide filter bar (tab type filters). Default: false */
   hideFilters?: boolean;
 };
 
@@ -53,6 +55,7 @@ export const ScheduleCalendarSection = memo(function ScheduleCalendarSection({
   onViewDetail,
   onViewModeChange,
   onFilterTypeChange,
+  showViewToggle = true,
   hideFilters = false,
 }: ScheduleCalendarSectionProps) {
   return (
@@ -77,7 +80,7 @@ export const ScheduleCalendarSection = memo(function ScheduleCalendarSection({
       onViewModeChange={onViewModeChange}
       selectedTab={selectedTab}
       onFilterTypeChange={onFilterTypeChange}
-      showViewToggle={false}
+      showViewToggle={showViewToggle}
       compensationDays={compensationDays}
       hideFilters={hideFilters}
     />

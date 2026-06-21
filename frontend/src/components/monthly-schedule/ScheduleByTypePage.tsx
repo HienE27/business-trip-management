@@ -7,18 +7,21 @@ import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleC
 import { QuickAddModal } from "@/components/monthly-schedule/QuickAddModal";
 import { ShiftDetailModal } from "@/components/monthly-schedule/ShiftDetailModal";
 import { WorkloadSummary } from "@/components/monthly-schedule/WorkloadSummary";
+import { ConflictSection } from "@/components/monthly-schedule/ConflictSection";
 import { useRole, canManage } from "@/hooks/useRole";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { getInitialCalendar } from "@/components/monthly-schedule/utils";
+import { getInitialCalendar, downloadBlob } from "@/components/monthly-schedule/utils";
 import type {
   CompensationDay,
   ConflictCheckResponse,
+  ConflictDetail,
   Schedule,
   SchedulePeriod,
   Specialty,
   Staff,
 } from "@/types/api";
+import type { ConflictItem } from "@/types/schedule";
 import type { ScheduleTab, ViewMode } from "@/components/monthly-schedule/types";
 import type { MonthlyPanel, WorkflowStepId } from "@/components/monthly-schedule/types";
 
@@ -85,12 +88,14 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const [selectedTab, setSelectedTab] = useState<ScheduleTab>(
     isExpertMode ? "ALL" : (config.shiftTypeId as ScheduleTab)
   );
-  const [viewMode, setViewMode] = useState<ViewMode>("calendar");
+  const [viewMode, setViewMode] = useState<ViewMode>("matrix");
   const [selectedPanel, setSelectedPanel] = useState<MonthlyPanel>("summary");
   const [showStats, setShowStats] = useState(false);
   const [conflictData, setConflictData] = useState<ConflictCheckResponse | null>(null);
+  const [selectedConflict, setSelectedConflict] = useState<ConflictDetail | null>(null);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [notifying, setNotifying] = useState(false);
   const [notified, setNotified] = useState(false);
 
@@ -182,6 +187,22 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     }
   }, [selectedPeriodId]);
 
+  const handleExport = useCallback(async () => {
+    if (!selectedPeriodId) return;
+    setExporting(true);
+    setMessage(null);
+    try {
+      const blob = await api.exportScheduleExcel(selectedPeriodId);
+      const periodName = periods.find((p) => p.id === selectedPeriodId)?.periodName ?? String(selectedPeriodId);
+      downloadBlob(blob, `lich-cong-tac-${periodName}.xlsx`);
+      setMessage("Đã xuất file Excel kỳ lịch.");
+    } catch (error) {
+      setMessage(getErrorMessage(error, "Không thể xuất file. Vui lòng thử lại."));
+    } finally {
+      setExporting(false);
+    }
+  }, [periods, selectedPeriodId]);
+
   const handleSendNotifications = useCallback(async () => {
     if (!selectedPeriodId || activeStaff.length === 0) return;
     setNotifying(true);
@@ -212,12 +233,16 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       void handleCheckConflicts();
       return;
     }
+    if (stepId === "export") {
+      void handleExport();
+      return;
+    }
     if (stepId === "notify") {
       void handleSendNotifications();
       return;
     }
     setSelectedPanel("summary");
-  }, [handleCheckConflicts, handleSendNotifications]);
+  }, [handleCheckConflicts, handleExport, handleSendNotifications]);
 
   const selectedPeriod = useMemo(
     () => periods.find((p) => p.id === selectedPeriodId) ?? null,
@@ -432,14 +457,37 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
               conflictData={conflictData}
               checkingConflicts={checkingConflicts}
               publishing={publishing}
+              exporting={exporting}
               notifying={notifying}
               notified={notified}
               onStepSelect={handleWorkflowStep}
+              onExport={handleExport}
             />
           </div>
         )}
       </div>
 
+      {selectedPanel === "conflicts" && conflictData && (
+        <ConflictSection
+          conflicts={conflictData.conflicts ?? []}
+          selectedConflict={selectedConflict}
+          selectedPeriodId={selectedPeriodId}
+          onSelect={setSelectedConflict}
+          onClose={() => setSelectedConflict(null)}
+          onFocusDate={(date) => {
+            setSelectedPanel("summary");
+            setShowStats(false);
+          }}
+          onShowConflicts={() => {
+            setSelectedPanel("conflicts");
+          }}
+          onResolve={(conflict) => {
+            setSelectedConflict(conflict as unknown as ConflictDetail);
+          }}
+        />
+      )}
+
+      {selectedPanel !== "conflicts" && (
       <section className="grid gap-3 grid-cols-2 sm:grid-cols-4">
         {[
           {
@@ -471,8 +519,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           </div>
         ))}
       </section>
+      )}
 
-      {/* Tab bar: Lịch / Thống kê */}
+      {selectedPanel !== "conflicts" && (
       <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl w-fit">
         <button
           type="button"
@@ -499,8 +548,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           Thống kê
         </button>
       </div>
+      )}
 
-      {showStats ? (
+      {selectedPanel !== "conflicts" && (showStats ? (
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <span className="material-symbols-outlined text-[22px] text-primary">bar_chart</span>
@@ -561,8 +611,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
               : () => undefined
           }
           hideFilters={!isExpertMode}
+          showViewToggle
         />
-      )}
+      ))}
 
       {selectedPeriodId && (
         <QuickAddModal

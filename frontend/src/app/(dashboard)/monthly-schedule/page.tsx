@@ -11,6 +11,7 @@ import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleC
 import { ScheduleHeader } from "@/components/monthly-schedule/ScheduleHeader";
 import { ShiftDetailModal } from "@/components/monthly-schedule/ShiftDetailModal";
 import { WorkflowStepper } from "@/components/monthly-schedule/WorkflowStepper";
+import { ExportReportPanel } from "@/components/monthly-schedule/ExportReportPanel";
 import { useRole, canManage } from "@/hooks/useRole";
 import { useMonthlyScheduleDerivedData } from "@/hooks/monthly-schedule/useMonthlyScheduleDerivedData";
 import { useMonthlyScheduleUrlState } from "@/hooks/monthly-schedule/useMonthlyScheduleUrlState";
@@ -113,6 +114,7 @@ export default function MonthlySchedulePage() {
   const [notifying, setNotifying] = useState(false);
   const [notified, setNotified] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [showExportPanel, setShowExportPanel] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
 
   const selectedPeriod = useMemo(
@@ -214,12 +216,18 @@ export default function MonthlySchedulePage() {
       setQueryState({ panel: "conflicts" });
       return;
     }
+    if (stepId === "export") {
+      setShowExportPanel(true);
+      void handleExport();
+      return;
+    }
     if (stepId === "notify") {
       void handleSendNotifications();
       return;
     }
+    setShowExportPanel(false);
     setQueryState({ panel: "summary" });
-  }, [handleSendNotifications, setQueryState]);
+  }, [handleExport, handleSendNotifications, setQueryState]);
 
   const showPanel = useCallback((panel: MonthlyPanel) => {
     setQueryState({ panel });
@@ -280,9 +288,11 @@ export default function MonthlySchedulePage() {
             conflictData={conflictData}
             checkingConflicts={checkingConflicts}
             publishing={publishing}
+            exporting={exporting}
             notifying={notifying}
             notified={notified}
             onStepSelect={handleWorkflowStep}
+            onExport={handleExport}
           />
         </div>
       </div>
@@ -294,6 +304,15 @@ export default function MonthlySchedulePage() {
       )}
 
       <KPISection kpis={kpis} />
+
+      {/* Export report panel — shown when user clicks "Xuất báo cáo" step */}
+      {showExportPanel && (
+        <ExportReportPanel
+          selectedPeriod={selectedPeriod}
+          selectedPeriodId={selectedPeriodId}
+          onClose={() => setShowExportPanel(false)}
+        />
+      )}
 
       {/* Row 2: Calendar — full width, then info panels below */}
       <div className="border border-outline-variant overflow-hidden rounded-xl">
@@ -319,7 +338,7 @@ export default function MonthlySchedulePage() {
           onViewDetail={(schedule) => openScheduleDetail(schedule.id)}
           onViewModeChange={(view) => setQueryState({ view })}
           onFilterTypeChange={(filter) => setQueryState({ tab: filter as "L01" | "L02" | "L03" | "L04" | "ALL" })}
-          hideFilters
+          hideFilters={false}
         />
       </div>
 

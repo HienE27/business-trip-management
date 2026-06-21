@@ -76,7 +76,7 @@ export function WorkloadSummary({ periodId, shiftTypeId, groupBySpecialty }: Wor
       }
       return Object.values(grouped)
         .sort((a, b) => b.total - a.total)
-        .map((g) => ({ _type: "specialty" as const, name: g.name, total: g.total, avg: Math.round(g.total / g.count), staffCount: g.count }));
+        .map((g) => ({ _type: "specialty" as const, name: g.name, total: g.total, avg: g.count > 0 ? Math.round(g.total / g.count) : 0, staffCount: g.count }));
     }
 
     return entries
