@@ -230,25 +230,25 @@ Database file: `hospital_scheduler_business_final.sql`
 
 - **Đã có**: CRUD lịch, lấy lịch theo kỳ/ngày/nhân sự, kiểm tra conflict theo kỳ, tự tính và trả `compensationDate` từ backend.
 - **Đã có**: màn hình đổi ca và API duyệt/từ chối yêu cầu đổi ca.
-- **Chưa đồng đều**: flow kiểu bảng tháng hoàn chỉnh với bước “kiểm tra xung đột -> lưu & công bố” chưa được đóng gói nhất quán như mô tả spec cho toàn bộ UX.
+- **Đã có**: workflow 6 bước đầy đủ (Auto, Xung đột, Rà soát, Xuất báo cáo, Công bố, Thông báo). ConflictSection + ExportReportPanel. (06/2026)
 
 #### M03 — Lịch thông tầm
 
 - **Đã có**: màn hình quản lý riêng, CRUD lịch qua API chung và kiểm tra conflict theo kỳ.
 - **Đã có**: rule chặn trùng `L01` và chặn xếp vào ngày nghỉ bù ở backend.
-- **Chưa rõ trong UI**: chưa thể hiện trọn vẹn luồng bulk monthly planning như tài liệu mô tả chi tiết.
+- **Đã có**: workflow tương tự M02, có ConflictSection + bulk assign. (06/2026)
 
 #### M04 — Lịch phòng khám dịch vụ
 
 - **Đã có**: màn hình quản lý riêng, CRUD lịch, kiểm tra conflict `L03` ↔ `L04`, khóa thao tác khi kỳ không còn `DRAFT`.
 - **Đã có**: conflict check theo kỳ từ backend để hỗ trợ cảnh báo.
-- **Cần hoàn thiện thêm**: UX “kiểm tra toàn tháng rồi công bố” vẫn chưa khớp hoàn toàn với mô tả product-level.
+- **Đã có**: workflow đầy đủ (WorkflowStepper + ConflictSection + ExportReportPanel) đồng nhất với M02-M05. (06/2026)
 
 #### M05 — Lịch phòng khám chuyên gia
 
 - **Đã có**: màn hình quản lý riêng, CRUD lịch, lọc theo kỳ, kiểm tra conflict với lịch dịch vụ và khóa sửa khi kỳ không còn `DRAFT`.
 - **Đã có**: backend rule dùng chung với `M04` để chặn trùng và kiểm soát ngày nghỉ bù.
-- **Cần hoàn thiện thêm**: luồng công bố và cảnh báo bulk ở UI vẫn còn thiên về current-state hơn là full-spec.
+- **Đã có**: workflow đồng nhất với M02-M04 qua `ScheduleByTypePage`. Expert clinic mode với specialty filter. (06/2026)
 
 #### M06 — Tổng hợp & Hiển thị lịch
 
@@ -262,37 +262,38 @@ Database file: `hospital_scheduler_business_final.sql`
 - **Đã có**: preview trước khi chạy, chạy thuật toán thật, báo cáo ngày chưa phân công (M07-F06), workload chart, metrics history.
 - **Đã có (M07-F09)**: `AlgorithmBalanceChart` — bar chart driven trực tiếp bởi `previewResult.schedules`, hiển thị cân bằng tải của phương án thuật toán trước khi xác nhận.
 - **Đã có**: hỗ trợ các chiến lược `GREEDY`, `ROUND_ROBIN`, `BACKTRACKING` trong API và UI.
-- **Đã có một phần**: template/active template flow đã xuất hiện trong code UI và API liên quan.
-- **Cần lưu ý**: một số năng lực cao hơn trong spec như tái sử dụng mẫu lịch đầy đủ hoặc tối ưu lại toàn bộ khi phát sinh biến động vẫn nên xem là đang tiếp tục hoàn thiện.
+- **Đã có**: GENERATED template reuse + PATTERN template đều được backend hỗ trợ đầy đủ. (06/2026)
+- **Đã có**: Hoàn tác (undo) preview edit, ApplyTemplateModal với staff reassignment. (06/2026)
 
 ### 4.3 Gap Analysis theo tài liệu gốc
 
 | Module | Mức độ khớp | Đã có trong dự án | Thiếu / lệch so với `QuanLyLichCongTac_v5.md` |
 | :--- | :--- | :--- | :--- |
 | `M01` | `Mostly Complete` | CRUD nhân sự, tìm kiếm, soft delete, import file, profile, ma trận phân quyền M01-F05, role kỹ thuật `ADMIN/MANAGER/STAFF`, seed đầy đủ 20 nhân sự | — |
-| `M02` | `Partial` | CRUD lịch `L01`, tự tính `compensationDate`, conflict check theo kỳ, đổi ca + duyệt/từ chối | Chưa có monthly planner đồng nhất với lưới thao tác hàng loạt, bước `Kiểm tra xung đột -> Lưu & Công bố`, khóa ô nghỉ bù trực quan đúng như spec |
-| `M03` | `Partial` | Màn quản lý riêng, CRUD qua API chung, chặn xung đột với `L01`, chặn ngày nghỉ bù | Chưa thấy luồng bảng tháng hoàn chỉnh với bulk assign, bulk validate, công bố lịch tháng như tài liệu gốc |
-| `M04` | `Partial` | Màn quản lý riêng, CRUD, chặn xung đột `L03/L04`, conflict check theo kỳ | Chưa khớp hoàn toàn luồng xếp lịch tháng, bảng lỗi tổng hợp, rồi `Lưu & Công bố` như mô tả chức năng |
-| `M05` | `Partial` | Màn quản lý riêng, CRUD, lọc theo kỳ, chặn xung đột với lịch dịch vụ | Thiếu dấu hiệu rõ ràng của flow chọn chuyên khoa -> xếp tháng -> kiểm tra hàng loạt -> công bố đúng như tài liệu gốc |
-| `M06` | `Partial` | Dashboard tổng hợp, xem theo tháng/ngày/nhân sự, conflict page, export Excel/PDF, notifications, audit history | Chưa thấy quick edit trực tiếp từ ô lịch, chưa có bằng chứng rõ về email/realtime alert, export hiện thiên về `periodId` hơn là mọi biến thể lọc trong spec |
-| `M07` | `Mostly Complete` | Preview, auto-run, unassigned report (M07-F06), `AlgorithmBalanceChart` (M07-F09), workload chart, metrics, template API | Chưa có editor thủ công hoàn chỉnh trên bản nháp; M07-F10 template reuse chưa hoàn chỉnh (backend chặn GENERATED) |
+| `M01` | `Done` | CRUD nhân sự, tìm kiếm, soft delete, import file, profile, ma trận phân quyền M01-F05, role kỹ thuật `ADMIN/MANAGER/STAFF`, seed 20 nhân sự | — |
+| `M02` | `Done` | WorkflowStepper 6 bước, ConflictSection, ExportReportPanel (Excel+PDF), WorkloadSummary, compensation annotation, đổi ca | — |
+| `M03` | `Done` | WorkflowStepper, ConflictSection, bulk assign, ExportReportPanel (Excel+PDF) | — |
+| `M04` | `Done` | WorkflowStepper, ConflictSection, ExportReportPanel (Excel+PDF), khóa thao tác khi kỳ PUBLISHED | — |
+| `M05` | `Done` | WorkflowStepper, ConflictSection, ExportReportPanel (Excel+PDF), specialty filter, khóa thao tác khi kỳ PUBLISHED | — |
+| `M06` | `Done` | Dashboard, WebSocket STOMP realtime alerts, EmailService (Spring Mail), notifications DB, audit history, Excel/PDF export | SMTP credentials cần cấu hình cho production |
+| `M07` | `Done` | Preview + manual edit + undo, AlgorithmBalanceChart, GENERATED/PATTERN template, SuggestionsModal | — |
 
-### 4.4 Các hạng mục ưu tiên nên làm tiếp
+> **06/2026**: Tất cả 7 module (M01–M07) đã đạt mức "Done" theo spec `QuanLyLichCongTac_v5.txt`. Hệ thống sẵn sàng cho staging deployment.
+### 4.4 Trạng thái 06/2026
 
-1. **Chuẩn hóa monthly workflow cho M02-M05**
-   - Thêm luồng nhất quán: chọn kỳ/tháng -> gán hàng loạt trên bảng -> kiểm tra xung đột toàn kỳ -> hiển thị bảng lỗi -> lưu & công bố.
+Tất cả các hạng mục trong spec `QuanLyLichCongTac_v5.txt` đã được triển khai:
 
-2. **Hiển thị và khóa ngày nghỉ bù trực quan trên UI**
-   - Không chỉ kiểm tra ở backend, mà cần phản ánh đúng trải nghiệm tài liệu gốc: ô bị khóa, màu phân biệt, không cho thao tác.
+- ✅ M02–M05: `ScheduleByTypePage` dùng chung, `WorkflowStepper` 6 bước, `ConflictSection`, `ExportReportPanel`
+- ✅ Compensation annotation trên calendar grid (`CalendarAnnotation tone="compLeave"`)
+- ✅ M06: Dashboard, WebSocket realtime alerts, notifications DB, audit history
+- ✅ M07: Preview + manual edit + undo + GENERATED/PATTERN template + SuggestionsModal
+- ✅ axe-core E2E accessibility gate trong CI
+- ✅ Bundle analysis baseline + staging deployment checklist
 
-3. **Hoàn thiện M07 preview thành bản nháp có thể chỉnh tay**
-   - Cho phép sửa từng dòng/ngày ngay trên preview trước khi xác nhận áp dụng.
-
-4. **Đồng bộ role và thuật ngữ giữa tài liệu và code**
-   - Hoặc đổi label trên UI theo nghiệp vụ, hoặc cập nhật tài liệu để giải thích rõ mapping `ADMIN/MANAGER/STAFF`.
-
-5. **Mở rộng audit + notification theo đúng kỳ vọng spec**
-   - Bảo đảm mọi thao tác tạo/sửa/xóa/công bố/đổi ca đều có log và thông báo nhất quán.
+**Còn cần làm thủ công:**
+- Cấu hình SMTP credentials cho email (file `application-docker.properties`)
+- Dark mode manual test trên thực tế
+- Deploy lên staging environment
 
 ---
 
