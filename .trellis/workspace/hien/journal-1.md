@@ -239,8 +239,38 @@ Sau khi Trellis được setup, team đã chạy liên tiếp các task:
 | `06-18-06-18-new-features` | 7 backend features mới (WebSocket, bulk L01, L04 weekly, templates API,...) | - |
 | `06-18-06-18-audit-fixes` | FE refactor DRY (4 shift-type pages → 1 shared component) + E2E infra + optimistic mutations | `b62220f` |
 | `06-19-realtime-conflict-badge` | Realtime conflict badge via WebSocket (đang active) | - |
+| `06-22-research-polish` | 6 parallel research agents: M07/WorkloadChart, M03/M04/M05 publish wiring, publish/archive audit, AutoSchedule notifications, overrideConflict WebSocket, M07 template edits. Findings: 8 already fixed, 3 implemented (P6/P10/P11). | - |
 
-### Key technical decisions
+### 2026-06-22 — Research gaps fix (P0-P2)
+
+**Context**: 6 research agents chạy song song để audit audit logging, notifications, WebSocket, M07 preview→chart, template edits.
+
+**Findings summary** (8 đã fix sẵn, 3 cần implement):
+
+| Priority | Gap | Status |
+|---|---|---|
+| P0 | `publishPeriod()` audit log | Already fixed (line 143) |
+| P0 | `archivePeriod()` audit log | Already fixed (line 236) |
+| P0 | M03/M04/M05 publish wiring (`ScheduleByTypePage`) | Already fixed |
+| P0 | `BulkScheduleModal` comp-day validation | Already fixed (backend) |
+| P1 | `WorkloadChart` preview vs DB data | Already fixed (`previewSchedules` prop) |
+| P1 | `applyTemplateWithEdits()` ignores edits | **Implemented** (3 files) |
+| P1 | AutoSchedule notifications to staff | Already fixed |
+| P1 | `overrideConflict()` WebSocket broadcast | Already fixed |
+| P2 | Frontend `dryRunPublish` call | Already fixed |
+| P2 | Exchange approval compensation_day INSERT audit | **Implemented** |
+| P2 | `CONFLICT_BATCH` per-conflict IDs | **Implemented** |
+
+**Changes made**:
+
+- `ScheduleTemplateService.java`: Thêm `applyTemplateWithEdits()` — deserialize source schedules, apply edit map (slotId→newStaffId), copy to target period, auto-create L01 compensation days.
+- `ScheduleTemplateController.java`: Thêm `POST /{templateId}/apply/{periodId}/with-edits` endpoint.
+- `api-client.ts`: Thêm `applyTemplateWithEdits()` API call.
+- `useAutoSchedule.ts`: `applyTemplateWithEdits` now passes edits array, no longer ignores `_edits`.
+- `ScheduleExchangeService.java`: Thêm `auditHistoryService.logAction()` cho 2 compensation_day INSERT trong `approveExchange()`.
+- `ConflictDetectionService.java`: Thêm `conflictBroadcastService.broadcastConflictBatch()` sau `checkPeriodConflicts()`.
+
+**Lines used**: ~257 / 2000
 
 1. **Monorepo split**: 2 packages (`backend`/`frontend`) thay vì 1 — phù hợp với dự án có team BE/FE tách biệt
 2. **Custom skills**: `trellis-before-dev` + `trellis-check` + `trellis-implement` được tùy biến cho Hospital Scheduler patterns

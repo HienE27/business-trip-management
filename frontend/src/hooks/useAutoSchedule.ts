@@ -145,18 +145,24 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   );
 
   const applyTemplateWithEdits = useCallback(
-    async (templateId: number, periodId: number | null, _edits: TemplatePreviewItem[]) => {
+    async (templateId: number, periodId: number | null, edits: TemplatePreviewItem[]) => {
       if (!periodId) return;
       try {
+        setApplying(true);
         setMessage(null);
-        const result = await api.applyTemplate(templateId, periodId);
+        const mappedEdits = edits
+          .filter((e) => e.assignedStaffId !== null)
+          .map((e) => ({ slotId: e.id, assignedStaffId: e.assignedStaffId as number }));
+        const result = await api.applyTemplateWithEdits(templateId, periodId, mappedEdits);
         const count = result.data?.appliedCount ?? 0;
-        setMessage("Đã áp dụng mẫu lịch — " + count + " ca được tạo.");
+        setMessage("Đã áp dụng mẫu lịch với chỉnh sửa — " + count + " ca được tạo.");
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("schedules-changed"));
         }
       } catch (error) {
-        setMessage(getErrorMessage(error, "Không thể áp dụng mẫu lịch."));
+        setMessage(getErrorMessage(error, "Không thể áp dụng mẫu lịch với chỉnh sửa."));
+      } finally {
+        setApplying(false);
       }
     },
     []

@@ -256,7 +256,9 @@ public class ScheduleExchangeService {
                     .compensationDate(compensationDateCalculator.calculate(targetWorkDate))
                     .note("Ngày nghỉ bù từ đổi ca: " + targetOldStaff.getFullName() + " -> " + requesterOldStaff.getFullName())
                     .build();
-            compensationDayRepository.save(newCompForRequester);
+            CompensationDay savedCompForRequester = compensationDayRepository.save(newCompForRequester);
+            auditHistoryService.logAction("compensation_day", savedCompForRequester.getId(), AuditHistory.ActionType.INSERT,
+                    null, savedCompForRequester, reviewerId);
         }
         if (requesterIsL01) {
             CompensationDay newCompForTarget = CompensationDay.builder()
@@ -267,7 +269,9 @@ public class ScheduleExchangeService {
                     .compensationDate(compensationDateCalculator.calculate(requesterWorkDate))
                     .note("Ngày nghỉ bù từ đổi ca: " + requesterOldStaff.getFullName() + " -> " + targetOldStaff.getFullName())
                     .build();
-            compensationDayRepository.save(newCompForTarget);
+            CompensationDay savedCompForTarget = compensationDayRepository.save(newCompForTarget);
+            auditHistoryService.logAction("compensation_day", savedCompForTarget.getId(), AuditHistory.ActionType.INSERT,
+                    null, savedCompForTarget, reviewerId);
         }
 
         scheduleRepository.save(requesterSchedule);

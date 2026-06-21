@@ -221,7 +221,7 @@ public class ConflictDetectionService {
 
         List<String> coverageGaps = detectCoverageGaps(periodId);
 
-        return ConflictCheckResponse.builder()
+        ConflictCheckResponse response = ConflictCheckResponse.builder()
                 .periodId(periodId)
                 .hasConflicts(!conflictDetails.isEmpty())
                 .totalConflicts(conflictDetails.size())
@@ -230,6 +230,20 @@ public class ConflictDetectionService {
                 .hasCoverageGaps(!coverageGaps.isEmpty())
                 .totalCoverageGaps(coverageGaps.size())
                 .build();
+
+        // Broadcast the batch to all connected dashboard clients.
+        // Each conflict in the payload already carries its own scheduleId and staffName,
+        // so listeners can individually track which schedules remain unresolved.
+        if (!conflictDetails.isEmpty()) {
+            try {
+                conflictBroadcastService.broadcastConflictBatch(conflictDetails, periodId);
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
+                        .warn("Failed to broadcast conflict batch for period {}: {}", periodId, e.getMessage());
+            }
+        }
+
+        return response;
     }
 
     /**

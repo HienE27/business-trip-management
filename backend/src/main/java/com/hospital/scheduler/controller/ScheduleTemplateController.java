@@ -94,4 +94,19 @@ public class ScheduleTemplateController {
         List<TemplatePreviewItem> preview = templateService.previewTemplate(templateId, periodId);
         return ResponseEntity.ok(ApiResponse.success(preview, "Xem trước mẫu lịch thành công"));
     }
+
+    @PostMapping("/{templateId}/apply/{periodId}/with-edits")
+    @Operation(summary = "Áp dụng mẫu lịch GENERATED vào kỳ lịch với các chỉnh sửa của người dùng")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> applyTemplateWithEdits(
+            @PathVariable Integer templateId,
+            @PathVariable Integer periodId,
+            @Valid @RequestBody com.hospital.scheduler.dto.request.TemplateApplyWithEditsRequest request) {
+        request.setTemplateId(templateId);
+        request.setPeriodId(periodId);
+        int count = templateService.applyTemplateWithEdits(request);
+        return ResponseEntity.ok(ApiResponse.success(
+                Map.of("templateId", templateId, "periodId", periodId, "appliedCount", count),
+                "Áp dụng mẫu lịch với chỉnh sửa thành công, đã tạo " + count + " lịch trực"));
+    }
 }

@@ -18,6 +18,7 @@ import com.hospital.scheduler.repository.ScheduleTemplateRepository;
 import com.hospital.scheduler.repository.ShiftRequirementRepository;
 import com.hospital.scheduler.repository.ShiftTypeRepository;
 import com.hospital.scheduler.repository.SpecialtyRepository;
+import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.entity.CompensationDay;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class ScheduleTemplateService {
     private final SpecialtyRepository specialtyRepository;
     private final SchedulePeriodRepository periodRepository;
     private final ShiftRequirementRepository requirementRepository;
+    private final StaffRepository staffRepository;
     private final ObjectMapper objectMapper;
 
     private static final String[] VIETNAMESE_DAYS = { "", "T2", "T3", "T4", "T5", "T6", "T7", "CN" };
@@ -340,5 +342,94 @@ public class ScheduleTemplateService {
 
         ScheduleTemplate saved = templateRepository.save(template);
         return ScheduleTemplateResponse.fromEntity(saved);
+    }
+
+    /**
+     * Apply a GENERATED template with user edits.
+     * Deserializes the source schedule IDs, applies staff changes from the edits list,
+     * then copies each (potentially edited) schedule into the target period.
+     *
+     * @param request contains templateId, periodId, and a list of edits
+     * @return the number of schedules successfully created
+     */
+    @Transactional
+    public int applyTemplateWithEdits(com.hospital.scheduler.dto.request.TemplateApplyWithEditsRequest request) {
+        ScheduleTemplate template = templateRepository.findById(request.getTemplateId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mẫu lịch với ID: " + request.getTemplateId()));
+
+        var period = periodRepository.findById(request.getPeriodId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + request.getPeriodId()));
+
+        if (!"GENERATED".equals(template.getTemplateType())) {
+            throw new BadRequestException("Chỉ hỗ trợ áp dụng mẫu GENERATED với chỉnh sửa.");
+        }
+
+        if (period.getStatus() != com.hospital.scheduler.entity.SchedulePeriod.PeriodStatus.DRAFT) {
+            throw new BadRequestException("Chỉ có thể áp dụng mẫu lịch khi kỳ lịch ở trạng thái DRAFT");
+        }
+
+        if (template.getGeneratedScheduleIds() == null || template.getGeneratedScheduleIds().isBlank()) {
+            return 0;
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        List<Integer> sourceScheduleIds;
+        try {
+            sourceScheduleIds = mapper.readValue(template.getGeneratedScheduleIds(),
+                    mapper.getTypeFactory().constructCollectionType(List.class, Integer.class));
+        } catch (JsonProcessingException e) {
+            throw new BadRequestException("Không thể đọc danh sách lịch gốc từ mẫu: " + e.getMessage());
+        }
+
+        List<com.hospital.scheduler.entity.Schedule> sourceSchedules = scheduleRepository.findAllById(sourceScheduleIds);
+
+        // Build edit lookup: sourceScheduleId -> newStaffId
+        java.util.Map<Integer, Integer> editMap = new java.util.HashMap<>();
+        if (request.getEdits() != null) {
+            for (var edit : request.getEdits()) {
+                if (edit.getSlotId() != null && edit.getAssignedStaffId() != null) {
+                    editMap.put(edit.getSlotId(), edit.getAssignedStaffId());
+                }
+            }
+        }
+
+        int appliedCount = 0;
+        for (com.hospital.scheduler.entity.Schedule source : sourceSchedules) {
+            // Apply edit if present
+            com.hospital.scheduler.entity.Staff targetStaff = source.getStaff();
+            if (editMap.containsKey(source.getId())) {
+                Integer newStaffId = editMap.get(source.getId());
+                targetStaff = staffRepository.findById(newStaffId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + newStaffId));
+            }
+
+            com.hospital.scheduler.entity.Schedule copy = com.hospital.scheduler.entity.Schedule.builder()
+                    .period(period)
+                    .staff(targetStaff)
+                    .shiftType(source.getShiftType())
+                    .workDate(source.getWorkDate())
+                    .hasConflict(false)
+                    .build();
+            com.hospital.scheduler.entity.Schedule saved = scheduleRepository.save(copy);
+            appliedCount++;
+
+            // Auto-create compensation day for L01 schedules
+            if (Boolean.TRUE.equals(source.getShiftType().getIsOvernight())) {
+                LocalDate compDate = compensationDateCalculator.calculate(saved.getWorkDate());
+                if (compensationDayRepository.findByStaffIdAndCompensationDate(saved.getStaff().getId(), compDate).isEmpty()) {
+                    CompensationDay compDay = CompensationDay.builder()
+                            .schedule(saved)
+                            .staff(saved.getStaff())
+                            .period(period)
+                            .shiftDate(saved.getWorkDate())
+                            .compensationDate(compDate)
+                            .note("Ngày nghỉ bù tự động từ mẫu lịch GENERATED (có chỉnh sửa)")
+                            .build();
+                    compensationDayRepository.save(compDay);
+                }
+            }
+        }
+
+        return appliedCount;
     }
 }

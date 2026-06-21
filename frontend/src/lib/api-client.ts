@@ -827,6 +827,17 @@ class ApiClient {
     return this.request<TemplatePreviewItem[]>(`/schedule-templates/${templateId}/preview/${periodId}`);
   }
 
+  async applyTemplateWithEdits(
+    templateId: number,
+    periodId: number,
+    edits: { slotId: number; assignedStaffId: number }[]
+  ): Promise<ApiResponse<{ templateId: number; periodId: number; appliedCount: number }>> {
+    return this.request<{ templateId: number; periodId: number; appliedCount: number }>(
+      `/schedule-templates/${templateId}/apply/${periodId}/with-edits`,
+      { method: "POST", body: JSON.stringify({ edits }) }
+    );
+  }
+
   // Audit History
   async getAllAuditHistory(): Promise<ApiResponse<AuditHistory[]>> {
     return this.request<AuditHistory[]>("/audit-history");
