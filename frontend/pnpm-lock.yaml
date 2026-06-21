@@ -11,6 +11,9 @@ importers:
 
   .:
     dependencies:
+      '@stomp/stompjs':
+        specifier: ^7.3.0
+        version: 7.3.0
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -33,9 +36,6 @@ importers:
       '@playwright/test':
         specifier: ^1.50.0
         version: 1.61.0
-      '@stomp/stompjs':
-        specifier: ^7.3.0
-        version: 7.3.0
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.3.1
