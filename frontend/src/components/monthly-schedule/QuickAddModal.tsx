@@ -6,7 +6,7 @@ import { FormSelect, FormTextarea, Button } from "@/components/ui";
 import { StaffSearchCombobox } from "@/components/ui/StaffSearchCombobox";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { CompensationDay, Schedule, Staff } from "@/types/api";
+import type { CompensationDay, Holiday, Schedule, Staff } from "@/types/api";
 import type { ScheduleTab } from "./types";
 import { TAB_OPTIONS } from "./constants";
 
@@ -16,6 +16,8 @@ export type QuickAddModalProps = {
   defaultShiftTypeId: ScheduleTab;
   staffList: Staff[];
   schedules?: Schedule[];
+  /** National holidays — selected date will show an advisory warning. */
+  holidays?: Holiday[];
   compensationDays?: CompensationDay[];
   /** ISO date string (YYYY-MM-DD) lower bound of the active period. */
   periodStart?: string;
@@ -44,6 +46,7 @@ export const QuickAddModal = memo(function QuickAddModal({
   defaultShiftTypeId,
   staffList,
   schedules = [],
+  holidays,
   compensationDays,
   onOptimisticAdd,
   onCommit,
@@ -118,6 +121,20 @@ export const QuickAddModal = memo(function QuickAddModal({
       );
       if (isCompDay) {
         setError("Ngày này là ngày nghỉ bù của nhân sự này. Không thể xếp lịch.");
+        setSubmitting(false);
+        return;
+      }
+    }
+
+    // Client-side guard: refuse to send a request when the
+    // picked date is a national or registered holiday.
+    if (holidays) {
+      const dateStr = date.toISOString().slice(0, 10);
+      const holiday = holidays.find((h) => h.holidayDate === dateStr);
+      if (holiday) {
+        setError(
+          `Ngày ${date.toLocaleDateString("vi-VN")} là ngày lễ: ${holiday.name}. Không thể xếp lịch vào ngày nghỉ lễ.`
+        );
         setSubmitting(false);
         return;
       }

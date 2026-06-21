@@ -833,11 +833,12 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       ))}
 
       {selectedPeriodId && (
-        <QuickAddModal
+          <QuickAddModal
           date={addModalDate}
           periodId={selectedPeriodId}
           defaultShiftTypeId={config.shiftTypeId}
           staffList={activeStaff}
+          schedules={schedules}
           compensationDays={compensationDays}
           onOptimisticAdd={handleOptimisticAdd}
           onCommit={handleCommit}

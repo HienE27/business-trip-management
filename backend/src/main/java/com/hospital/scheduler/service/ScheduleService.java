@@ -112,6 +112,10 @@ public class ScheduleService {
             throw new BadRequestException("Chỉ có thể thêm lịch khi kỳ lịch ở trạng thái DRAFT");
         }
 
+        if (holidayRepository.existsByHolidayDate(request.getWorkDate())) {
+            throw new BadRequestException("Ngày " + request.getWorkDate() + " là ngày nghỉ lễ. Không thể xếp lịch vào ngày nghỉ lễ.");
+        }
+
         Staff staff = staffRepository.findById(request.getStaffId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + request.getStaffId()));
 
@@ -193,6 +197,10 @@ public class ScheduleService {
 
         if (request.getWorkDate().isBefore(period.getStartDate()) || request.getWorkDate().isAfter(period.getEndDate())) {
             throw new BadRequestException("Ngày làm việc phải nằm trong kỳ lịch");
+        }
+
+        if (holidayRepository.existsByHolidayDate(request.getWorkDate())) {
+            throw new BadRequestException("Ngày " + request.getWorkDate() + " là ngày nghỉ lễ. Không thể xếp lịch vào ngày nghỉ lễ.");
         }
 
         // Snapshot old state for audit before any mutation

@@ -109,10 +109,9 @@ public class ScheduleExchangeService {
             throw new BadRequestException("Không thể đổi ca khi kỳ lịch chưa được công bố");
         }
 
-        boolean requesterIsL01 = ConflictDetectionService.SHIFT_TYPE_L01.equals(requesterSchedule.getShiftType().getId());
-        boolean targetIsL01 = ConflictDetectionService.SHIFT_TYPE_L01.equals(targetSchedule.getShiftType().getId());
-        if (!requesterIsL01 && !targetIsL01) {
-            throw new BadRequestException("Chỉ hỗ trợ đổi ca L01 (trực 24/24). Vui lòng chọn ca trực 24/24.");
+        // Verify same period
+        if (!requesterSchedule.getPeriod().getId().equals(targetSchedule.getPeriod().getId())) {
+            throw new BadRequestException("Hai lịch phải thuộc cùng một kỳ lịch.");
         }
 
         compensationDayRepository.findByStaffIdAndCompensationDate(requesterId, targetSchedule.getWorkDate())

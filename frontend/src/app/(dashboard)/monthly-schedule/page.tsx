@@ -19,7 +19,7 @@ import { useScheduleDetailModal } from "@/hooks/monthly-schedule/useScheduleDeta
 import { useScheduleWorkspace } from "@/hooks/useScheduleWorkspace";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { ConflictDetail } from "@/types/api";
+import type { ConflictDetail, Holiday } from "@/types/api";
 import type { ConflictItem } from "@/types/schedule";
 import type { MonthlyPanel, WorkflowStepId } from "@/components/monthly-schedule/types";
 import { downloadBlob, getInitialCalendar } from "@/components/monthly-schedule/utils";
@@ -115,6 +115,7 @@ export default function MonthlySchedulePage() {
   const [notified, setNotified] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [dryRunData, setDryRunData] = useState<import("@/types/api").PublishDryRunResponse | null>(null);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
 
@@ -162,6 +163,18 @@ export default function MonthlySchedulePage() {
     setLocalMessage(null);
     void wsActions.refreshWorkspace();
   }, [wsActions]);
+
+  // Fetch holidays when the selected period changes, so QuickAddModal
+  // can show an advisory warning when the picked date is a holiday.
+  useEffect(() => {
+    if (!selectedPeriod) {
+      setHolidays([]);
+      return;
+    }
+    api.get<Holiday[]>("/holidays/active")
+      .then(setHolidays)
+      .catch(() => setHolidays([]));
+  }, [selectedPeriod]);
 
   const handleCheckConflicts = useCallback(async () => {
     setCheckingConflicts(true);
@@ -381,6 +394,7 @@ export default function MonthlySchedulePage() {
         defaultShiftTypeId={selectedTab === "ALL" ? "L01" : selectedTab}
         staffList={activeStaff}
         schedules={schedules}
+        holidays={holidays}
         compensationDays={compensationDays}
         onSuccess={() => {
           setAddModalDate(null);

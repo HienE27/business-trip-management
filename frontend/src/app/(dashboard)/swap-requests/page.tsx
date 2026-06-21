@@ -85,10 +85,10 @@ function SwapRequestsContent() {
 
       if (!managerView) {
         const schedules = await api.get<Schedule[]>(`/schedules/staff/${meRes.id}`);
-        const ownL01 = (schedules ?? []).filter((schedule) => schedule.shiftType.id === "L01");
-        setMySchedules(ownL01);
+        if (ignoreRef.current) return;
+        setMySchedules(schedules ?? []);
 
-        const periodIds = Array.from(new Set(ownL01.map((schedule) => schedule.periodId)));
+        const periodIds = Array.from(new Set((schedules ?? []).map((s) => s.periodId)));
         const relatedSchedules = await Promise.all(
           periodIds.map((periodId) => api.get<Schedule[]>(`/schedules/period/${periodId}`)),
         );
@@ -96,7 +96,7 @@ function SwapRequestsContent() {
         setAllSchedules(
           relatedSchedules
             .flatMap((items) => items ?? [])
-            .filter((schedule) => schedule.shiftType.id === "L01" && schedule.staff.id !== meRes.id),
+            .filter((schedule) => schedule.staff.id !== meRes.id),
         );
       } else {
         if (ignoreRef.current) return;
@@ -280,7 +280,7 @@ function SwapRequestsContent() {
             <div className="space-y-3">
               <h2 className="text-title-lg font-semibold text-on-surface">Gửi yêu cầu đổi trực</h2>
               <p className="text-label-md text-on-surface-variant">
-                Chỉ hỗ trợ đổi giữa các ca L01 trong cùng kỳ đã được công bố.
+                Hỗ trợ đổi giữa các loại lịch (L01–L04) trong cùng kỳ đã được công bố.
               </p>
 
               <div className="space-y-2.5">
@@ -372,7 +372,7 @@ function SwapRequestsContent() {
               <ul className="mt-2 space-y-1.5 text-label-md text-on-surface-variant">
                 <li className="flex items-start gap-1.5">
                   <span className="material-symbols-outlined text-[14px] text-outline shrink-0 mt-0.5">info</span>
-                  Chỉ đổi được giữa 2 lịch L01 trong cùng kỳ.
+                  Hỗ trợ đổi giữa các loại lịch (L01–L04) trong cùng kỳ đã được công bố.
                 </li>
                 <li className="flex items-start gap-1.5">
                   <span className="material-symbols-outlined text-[14px] text-outline shrink-0 mt-0.5">info</span>
