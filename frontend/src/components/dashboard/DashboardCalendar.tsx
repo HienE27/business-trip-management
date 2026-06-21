@@ -81,6 +81,7 @@ export const DashboardCalendar = memo(function DashboardCalendar({
   const [currentWeekStart, setCurrentWeekStart] = useState(() => weekStartOf(new Date()));
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const [compDayTooltip, setCompDayTooltip] = useState<{ x: number; y: number; staffName: string; date: string } | null>(null);
   const [overflow, setOverflow] = useState<{ items: CalendarItem[]; anchor: { x: number; y: number } } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
@@ -592,6 +593,30 @@ export const DashboardCalendar = memo(function DashboardCalendar({
                     setFocusedCellIndex(cellIndex);
                     handleCellClick(event, cell);
                   }}
+                  onMouseEnter={(e) => {
+                    if (isCompLocked) {
+                      // Build the comp-day tooltip from calendarAnnotations matching this date.
+                      const compAnnotations = (annotations ?? []).filter(
+                        (a) => a.date === cell.dateStr && (a.tone === "compLeave" || a.isCompensation)
+                      );
+                      if (compAnnotations.length > 0) {
+                        setCompDayTooltip({
+                          x: e.clientX,
+                          y: e.clientY,
+                          staffName: compAnnotations.map((a) => a.label.replace("Nghỉ bù · ", "")).join(", "),
+                          date: cell.dateStr,
+                        });
+                      }
+                    }
+                  }}
+                  onMouseMove={(e) => {
+                    if (isCompLocked) {
+                      setCompDayTooltip((prev) =>
+                        prev ? { ...prev, x: e.clientX, y: e.clientY } : null
+                      );
+                    }
+                  }}
+                  onMouseLeave={() => setCompDayTooltip(null)}
                   onKeyDown={(event) => {
                     setFocusedCellIndex(cellIndex);
                     // Arrow key navigation (roving tabindex)
@@ -991,6 +1016,40 @@ export const DashboardCalendar = memo(function DashboardCalendar({
           canEdit={!!onEditSchedule}
           onClose={() => setTooltip(null)}
         />
+      )}
+
+      {/* ── Compensation Day Tooltip ─────────────────────────────────── */}
+      {compDayTooltip && (
+        <div
+          className="fixed z-[100] pointer-events-none"
+          style={{
+            left: compDayTooltip.x + 8,
+            top: compDayTooltip.y + 8,
+          }}
+          aria-hidden="true"
+        >
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl px-4 py-3 min-w-[200px] max-w-[280px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-7 h-7 rounded-full bg-surface-container-high flex items-center justify-center">
+                <span className="material-symbols-outlined text-sm text-outline">hotel</span>
+              </div>
+              <p className="text-label-md font-semibold text-on-surface">Ngày nghỉ bù</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-label-sm text-on-surface-variant">
+                Ngày: <span className="text-on-surface font-medium">{new Date(compDayTooltip.date + "T00:00:00").toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}</span>
+              </p>
+              {compDayTooltip.staffName && (
+                <p className="text-label-sm text-on-surface-variant">
+                  Nhân sự: <span className="text-on-surface font-medium">{compDayTooltip.staffName}</span>
+                </p>
+              )}
+            </div>
+            <div className="mt-2 pt-2 border-t border-outline-variant/50">
+              <p className="text-[11px] text-outline">Không thể xếp lịch vào ngày này</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Overflow Popover ─────────────────────────────────────────── */}
