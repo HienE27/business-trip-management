@@ -349,6 +349,7 @@ export default function DashboardPage() {
               compensationDays={compensationDays}
               viewMode="matrix"
               isReadOnly={true}
+              canEditOverride={true}
               selectedTab={selectedTab}
               onFilterTypeChange={(filter) => filters.setTab(filter as "L01" | "L02" | "L03" | "L04" | "ALL")}
               onRefresh={() => void refresh()}

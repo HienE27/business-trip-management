@@ -198,9 +198,11 @@ type ScheduleCalendarWidgetProps = {
   isReadOnly?: boolean;
   /** Khi true: ẩn toolbar filter trên calendar (dashboard read-only). */
   hideFilters?: boolean;
+  /** Bật nút Sửa trong tooltip (bypass isReadOnly cho inline edit trên dashboard). */
+  canEditOverride?: boolean;
 };
 
-export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, viewMode: externalViewMode, showViewToggle = true, isReadOnly = false, hideFilters = false, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail, onViewModeChange, selectedTab, onFilterTypeChange, compensationDays }: ScheduleCalendarWidgetProps) {
+export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, viewMode: externalViewMode, showViewToggle = true, isReadOnly = false, hideFilters = false, canEditOverride = false, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail, onViewModeChange, selectedTab, onFilterTypeChange, compensationDays }: ScheduleCalendarWidgetProps) {
   const [internalView, setInternalView] = useState<"calendar" | "table" | "matrix">("calendar");
   const view = externalViewMode ?? internalView;
   const scrollYRef = useRef(0);
@@ -225,7 +227,7 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({ sch
   const [deleting, setDeleting] = useState(false);
   const [conflictItem, setConflictItem] = useState<ConflictItem | null>(null);
   const role = useRole();
-  const canEdit = canEditSchedule(role) && !isReadOnly;
+  const canEdit = canEditSchedule(role) && (!isReadOnly || canEditOverride);
   const router = useRouter();
   const toast = useToast();
 
@@ -356,6 +358,8 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({ sch
               shiftTypeFilter={selectedTab}
               onViewDetail={canEdit ? (s) => setEditSchedule(s) : undefined}
               onCellClick={(date, staffId) => { onAddClick?.(date, staffId); }}
+              onRefresh={onRefresh}
+              canEdit={canEdit}
             />
           </div>
         ) : (

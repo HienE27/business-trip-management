@@ -1,8 +1,9 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { TONE, SHIFT_FULL_LABEL, SHIFT_SHORT, type CalendarItem } from "./calendar/constants";
 import { buildScheduleMatrix, type MatrixRow } from "./calendar/buildScheduleMatrix";
+import { EventTooltip, type TooltipData } from "./calendar/EventTooltip";
 import type { Schedule, CompensationDay } from "@/types/api";
 import type { ScheduleTone } from "@/types/schedule";
 
@@ -14,10 +15,14 @@ export type ScheduleMatrixGridProps = {
   compensationDays?: CompensationDay[];
   /** Filter shifts by type (L01/L02/L03/L04). Pass "ALL" to show all. */
   shiftTypeFilter?: string;
-  /** Called when user clicks a shift chip */
+  /** Called when user clicks a shift chip to open detail/edit */
   onViewDetail?: (schedule: Schedule) => void;
   /** Called when user clicks an empty cell to assign */
   onCellClick?: (date: Date, staffId: number) => void;
+  /** Called after inline edit saves to refresh data */
+  onRefresh?: () => void;
+  /** Override edit button visibility (defaults to true when onViewDetail is provided) */
+  canEdit?: boolean;
 };
 
 function ShiftChip({
@@ -27,7 +32,7 @@ function ShiftChip({
 }: {
   item: CalendarItem;
   compact?: boolean;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent) => void;
 }) {
   const tone = TONE[item.tone] ?? TONE.neutral;
   return (
@@ -35,7 +40,7 @@ function ShiftChip({
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        onClick?.();
+        onClick?.(e);
       }}
       className={`w-full rounded border px-1 py-0.5 text-left transition-all hover:brightness-90 ${tone.bg} ${tone.text} ${tone.border} ${compact ? "text-[10px]" : "text-[11px]"}`}
       title={`${item.staffName} · ${SHIFT_FULL_LABEL[item.shiftTypeId] ?? item.shiftLabel}`}
@@ -61,11 +66,12 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
   shiftTypeFilter = "ALL",
   onViewDetail,
   onCellClick,
+  onRefresh,
+  canEdit,
 }: ScheduleMatrixGridProps) {
   const matrix = useMemo<MatrixRow[]>(
     () => {
       const all = buildScheduleMatrix(schedules, staffList, year, month, compensationDays);
-      // Apply shift type filter
       if (shiftTypeFilter === "ALL") return all.rows;
       return all.rows.map((row) => {
         const filtered = new Map<number, CalendarItem[]>();
@@ -79,6 +85,21 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
       });
     },
     [schedules, staffList, year, month, compensationDays, shiftTypeFilter]
+  );
+
+  const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+
+  const handleCellClick = useCallback(
+    (item: CalendarItem, e: React.MouseEvent) => {
+      if (item.schedule) {
+        setTooltip({
+          x: e.clientX,
+          y: e.clientY,
+          item,
+        });
+      }
+    },
+    []
   );
 
   if (staffList.length === 0) {
@@ -103,7 +124,6 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                 </div>
               </th>
               {staffList.map((staff) => {
-                // Count total shifts for this staff in current month
                 const totalShifts = schedules.filter(
                   (s) =>
                     s.staff.id === staff.id &&
@@ -144,7 +164,6 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
           </thead>
           <tbody>
             {matrix.map((row) => {
-              // Row stats: count non-empty cells
               const rowCount = Array.from(row.cells.values()).filter(
                 (items) => items.length > 0
               ).length;
@@ -180,7 +199,6 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                     const isComp = row.isCompensation?.get(staff.id) ?? false;
 
                     if (isComp) {
-                      // Locked: compensation day — show rest badge
                       return (
                         <td
                           key={`${row.dateStr}-${staff.id}`}
@@ -201,7 +219,6 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                     }
 
                     if (items.length === 0) {
-                      // Empty cell: show add button on hover
                       return (
                         <td
                           key={`${row.dateStr}-${staff.id}`}
@@ -237,13 +254,12 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                           <ShiftChip
                             item={items[0]}
                             compact
-                            onClick={() => onViewDetail?.(items[0].schedule)}
+                            onClick={(e) => handleCellClick(items[0], e)}
                           />
                         </td>
                       );
                     }
 
-                    // Multiple shifts: show chips + overflow count
                     const visible = items.slice(0, 2);
                     const overflow = items.length - visible.length;
                     return (
@@ -257,7 +273,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                               key={i}
                               item={item}
                               compact
-                              onClick={() => onViewDetail?.(item.schedule)}
+                              onClick={(e) => handleCellClick(item, e)}
                             />
                           ))}
                           {overflow > 0 && (
@@ -286,6 +302,20 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
           </tbody>
         </table>
       </div>
+
+      {/* Inline edit tooltip */}
+      {tooltip && (
+        <EventTooltip
+          data={tooltip}
+          onEdit={onViewDetail ?? (() => {})}
+          onDelete={onViewDetail ?? (() => {})}
+          onResolve={() => {}}
+          onViewDetail={(s) => { onViewDetail?.(s); setTooltip(null); }}
+          onRefresh={onRefresh}
+          onClose={() => setTooltip(null)}
+          canEdit={canEdit ?? !!onViewDetail}
+        />
+      )}
     </div>
   );
 });
