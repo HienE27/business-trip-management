@@ -169,6 +169,45 @@ jobs:
           path: frontend/playwright-report
           retention-days: 5
 
+  accessibility:
+    name: Accessibility (axe-core)
+    runs-on: ubuntu-latest
+    env:
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_LOGIN_PATH: ${{ vars.E2E_LOGIN_PATH || '/login' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ./frontend
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: ./frontend
+
+      - name: Build production bundle
+        run: pnpm build
+        working-directory: ./frontend
+
+      - name: Run axe-core accessibility scan
+        run: pnpm exec playwright test tests/e2e/accessibility.spec.ts --project=chromium
+        working-directory: ./frontend
+
   docker-build:
     name: Docker Build & Push
     needs: build
