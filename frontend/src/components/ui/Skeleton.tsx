@@ -25,7 +25,11 @@ export function Skeleton({ className = "" }: SkeletonProps) {
 
 export function SkeletonCard() {
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-3 space-y-2">
+    <div
+      aria-busy={true}
+      aria-label="Đang tải thẻ dữ liệu"
+      className="bg-surface-container-lowest border border-outline-variant rounded-lg p-3 space-y-2"
+    >
       <div className="flex items-center gap-3">
         <Skeleton className="size-8 rounded-full" />
         <div className="flex-1 space-y-1.5">
@@ -51,7 +55,7 @@ export function SkeletonTable({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
         <thead>
           <tr className="border-b border-outline-variant">
             {Array.from({ length: cols }).map((_, i) => (
-              <th key={i} className="p-3">
+              <th key={i} scope="col" className="p-3">
                 <Skeleton className="h-3 w-full rounded" />
               </th>
             ))}
@@ -114,12 +118,16 @@ export function SkeletonCalendar() {
 
 export function SkeletonKPI() {
   return (
-    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+    <div
+      aria-busy={true}
+      aria-label="Đang tải chỉ số KPI"
+      className="grid gap-3 md:grid-cols-2 lg:grid-cols-4"
+    >
       {Array.from({ length: 4 }).map((_, i) => (
         <div
           key={i}
-          className="bg-surface-container-lowest border border-outline-variant rounded-lg p-4 shadow-sm"
           aria-hidden="true"
+          className="bg-surface-container-lowest border border-outline-variant rounded-lg p-4 shadow-sm"
         >
           <Skeleton className="h-3 w-20 rounded mb-2" />
           <Skeleton className="h-6 w-12 rounded mb-1" />
@@ -177,8 +185,9 @@ export function SkeletonPanel() {
 export function SkeletonStatCard() {
   return (
     <div
+      aria-busy={true}
+      aria-label="Đang tải thẻ thống kê"
       className="bg-surface-container-lowest border border-outline-variant rounded-lg p-4 text-center"
-      aria-hidden="true"
     >
       <Skeleton className="h-8 w-12 mx-auto rounded mb-1" />
       <Skeleton className="h-3 w-16 mx-auto rounded" />

@@ -30,7 +30,7 @@ export const ConflictSection = memo(function ConflictSection({
     <ConflictInspector
       conflicts={conflicts}
       emptyLabel="Không có xung đột cho loại lịch đang chọn."
-      title="Conflict panel"
+      title="Bảng xung đột"
       description="Click vào xung đột để focus đúng ngày lịch và mở chi tiết xử lý."
       selectedConflict={selectedConflict}
       onSelect={(conflict) => {

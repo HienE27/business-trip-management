@@ -802,12 +802,15 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           )}
         </section>
       ) : !selectedPeriod ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant bg-surface py-20 gap-4">
+        <section
+          aria-label="Chưa chọn kỳ lịch"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant bg-surface py-20 gap-4"
+        >
           <span aria-hidden="true" className="material-symbols-outlined text-5xl text-outline">
             {config.emptyIcon}
           </span>
-          <p className="text-on-surface-variant">{config.emptyMessage}</p>
-        </div>
+          <h2 className="text-on-surface-variant font-normal">{config.emptyMessage}</h2>
+        </section>
       ) : loading ? (
         <Skeleton className="h-96 rounded-xl" />
       ) : (

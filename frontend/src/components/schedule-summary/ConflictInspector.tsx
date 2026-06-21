@@ -38,7 +38,7 @@ export function ConflictInspector({
           <p className="mt-1 text-label-sm text-on-surface-variant">{description}</p>
         </div>
 
-        <div className="divide-y divide-outline-variant/50">
+        <div aria-live="polite" className="divide-y divide-outline-variant/50">
           {conflicts.length === 0 ? (
             <div className="flex items-center gap-2 px-5 py-6 text-label-md text-secondary">
               <span className="material-symbols-outlined text-[20px]">check_circle</span>
