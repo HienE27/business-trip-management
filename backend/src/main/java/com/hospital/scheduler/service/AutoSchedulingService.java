@@ -274,6 +274,21 @@ public class AutoSchedulingService {
             createdSchedules = runGreedy(period, requirements, activeStaff, save,
                     request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
         }
+
+        // Notify staff for greedy and round-robin (backtracking has its own inside the if(save) block)
+        if (save && !"BACKTRACKING".equals(algorithmType) && !createdSchedules.isEmpty()) {
+            var staffMap = createdSchedules.stream()
+                    .collect(java.util.stream.Collectors.groupingBy(s -> s.getStaff().getId()));
+            for (var entry : staffMap.entrySet()) {
+                List<Schedule> staffSchedules = entry.getValue();
+                String dutyList = staffSchedules.stream()
+                        .map(s -> s.getWorkDate() + " (" + s.getShiftType().getName() + ")")
+                        .collect(Collectors.joining("; "));
+                notificationService.createNotification(entry.getKey(), new NotificationDTO(
+                        "Bạn được phân công ca trực tự động",
+                        "Bạn vừa được phân công " + staffSchedules.size() + " ca trực tự động trong kỳ lịch.\nDanh sách: " + dutyList));
+            }
+        }
         List<String> warnings = buildWarnings(requirements, createdSchedules);
 
         long executionTime = System.currentTimeMillis() - startTime;
