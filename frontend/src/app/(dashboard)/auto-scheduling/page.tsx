@@ -331,7 +331,7 @@ export default function AutoSchedulingPage() {
     clearPreview();
     setRemovedShifts(new Set());
     setAddedShifts([]);
-    void runPreview(selectedPeriodId);
+    void runPreview(selectedPeriodId, excludedStaffIds);
   };
 
   const handleApplyPreview = async () => {

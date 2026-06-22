@@ -91,10 +91,23 @@ export default function MonthlySchedulePage() {
     viewMode,
     parsedScheduleId,
     periodId: periodIdFromUrl,
+    parsedStaffId: staffIdFromUrl,
     setQueryState,
     openScheduleDetail,
     closeScheduleDetail,
   } = useMonthlyScheduleUrlState();
+
+  const [staffFilterId, setStaffFilterId] = useState<number | null>(null);
+
+  // Sync staff filter from URL on mount / navigation
+  useEffect(() => {
+    setStaffFilterId(staffIdFromUrl);
+  }, [staffIdFromUrl]);
+
+  const handleStaffFilterChange = useCallback((staffId: number | null) => {
+    setStaffFilterId(staffId);
+    setQueryState({ staffId });
+  }, [setQueryState]);
 
   // Only restore scroll when view actually changes (calendar ↔ table).
   // Tab/filter changes do NOT change view — no scroll restore needed.
@@ -340,6 +353,35 @@ export default function MonthlySchedulePage() {
         </div>
       )}
 
+      {/* Filter bar: staff picker */}
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3">
+        <span className="flex items-center gap-1.5 text-label-md text-on-surface-variant font-semibold shrink-0">
+          <span className="material-symbols-outlined text-[18px] text-outline" aria-hidden="true">filter_list</span>
+          Lọc nhân sự:
+        </span>
+        <select
+          className="h-9 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-label-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+          value={staffFilterId ?? ""}
+          onChange={(e) => {
+            const val = e.target.value;
+            handleStaffFilterChange(val ? Number(val) : null);
+          }}
+          aria-label="Lọc theo nhân sự"
+        >
+          <option value="">Tất cả nhân sự</option>
+          {activeStaff.map((staff) => (
+            <option key={staff.id} value={staff.id}>{staff.fullName}</option>
+          ))}
+        </select>
+        {staffFilterId !== null && (
+          <span className="text-label-sm text-on-surface-variant">
+            đang xem lịch của <strong className="text-on-surface">
+              {activeStaff.find((s) => s.id === staffFilterId)?.fullName ?? `#${staffFilterId}`}
+            </strong>
+          </span>
+        )}
+      </div>
+
       <KPISection kpis={kpis} />
 
       {/* Export report panel — shown when user clicks "Xuất báo cáo" step */}
@@ -359,7 +401,7 @@ export default function MonthlySchedulePage() {
           coverages={computedCoverages}
           activeStaff={activeStaff}
           specialties={specialties}
-          staffFilterId={null}
+          staffFilterId={staffFilterId}
           specialtyFilterId={null}
           selectedPeriodId={selectedPeriodId}
           initialYear={initialCalendar.year}

@@ -48,7 +48,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [message, setMessage] = useState<string | null>(null);
   const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "ROUND_ROBIN" | "BACKTRACKING">("GREEDY");
 
-  const runPreview = useCallback(async (periodId: number | null) => {
+  const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[]) => {
     if (!periodId) return;
     try {
       setRunning(true);
@@ -57,6 +57,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         periodId,
         algorithmType,
         maxIterations: 1000,
+        excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
       });
       setPreviewResult(result.data);
       setEditedPreview([]);

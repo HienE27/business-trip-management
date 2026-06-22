@@ -53,7 +53,7 @@ export function useMonthlyScheduleUrlState() {
   }), [searchParams]);
 
   const setQueryState = useCallback(
-    (next: { tab?: ScheduleTab; panel?: MonthlyPanel; view?: ViewMode; periodId?: number | null }) => {
+    (next: { tab?: ScheduleTab; panel?: MonthlyPanel; view?: ViewMode; periodId?: number | null; staffId?: number | null }) => {
       const params = new URLSearchParams(searchParams.toString());
       if (next.tab) params.set("tab", next.tab);
       if (next.panel) params.set("panel", next.panel);
@@ -63,6 +63,13 @@ export function useMonthlyScheduleUrlState() {
           params.delete("periodId");
         } else {
           params.set("periodId", String(next.periodId));
+        }
+      }
+      if (next.staffId !== undefined) {
+        if (next.staffId === null) {
+          params.delete("staffId");
+        } else {
+          params.set("staffId", String(next.staffId));
         }
       }
       router.replace(toMonthlyScheduleUrl(params), { scroll: false });

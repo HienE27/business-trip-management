@@ -318,6 +318,7 @@ export interface AutoScheduleRequest {
   algorithmType?: string;
   maxIterations?: number;
   autoAssign?: boolean;
+  excludedStaffIds?: number[];
 }
 
 export interface AutoScheduleSummary {

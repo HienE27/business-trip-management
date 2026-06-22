@@ -7,7 +7,9 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
 import { ROLE_LABELS } from "@/lib/roleLabels";
-import type { Staff, Specialty } from "@/types/api";
+import { useRole, canViewAuditLog } from "@/hooks/useRole";
+import type { Staff, Specialty, AuditHistory } from "@/types/api";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type StaffFormData = {
   username: string;
@@ -35,6 +37,131 @@ const emptyForm: StaffFormData = {
   roles: [],
 };
 
+// ─── Audit helpers (same pattern as /audit-history page) ───────────────────────
+
+function fmtTime(dateStr: string) {
+  try {
+    return new Date(dateStr).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  } catch { return dateStr; }
+}
+
+function fmtDateShort(dateStr: string) {
+  try {
+    const VI_DAY_SHORT = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+    const d = new Date(dateStr + "T12:00:00");
+    return `${VI_DAY_SHORT[d.getDay()]}, ${d.toLocaleDateString("vi-VN")}`;
+  } catch { return dateStr; }
+}
+
+const ACTION_STYLE: Record<string, { label: string; icon: string; iconBg: string; chipColor: string }> = {
+  CREATE: { label: "Tạo mới", icon: "add_circle", iconBg: "bg-secondary-container text-secondary", chipColor: "text-secondary" },
+  UPDATE: { label: "Cập nhật", icon: "edit",       iconBg: "bg-primary-fixed text-primary",   chipColor: "text-primary" },
+  DELETE: { label: "Xóa",      icon: "delete",     iconBg: "bg-error-container text-error",  chipColor: "text-error"  },
+};
+
+function getActionStyle(action: string) {
+  return ACTION_STYLE[action] ?? { label: action, icon: "info", iconBg: "bg-surface-container-high text-on-surface-variant", chipColor: "text-on-surface-variant" };
+}
+
+// ─── Tab definitions ───────────────────────────────────────────────────────────
+
+type TabId = "info" | "audit";
+
+const TABS_EDIT: { id: TabId; label: string }[] = [
+  { id: "info",  label: "Thông tin" },
+  { id: "audit", label: "Lịch sử thay đổi" },
+];
+
+// ─── Audit panel (inline, same query as /audit-history/table/{tableName}/{recordId}) ──
+
+function AuditList({ staffId }: { staffId: number }) {
+  const [records, setRecords] = useState<AuditHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void (async () => {
+      setLoading(true);
+      try {
+        const res = await api.get<AuditHistory[]>(
+          `/audit-history/table/staff/record/${staffId}`
+        );
+        setRecords(res ?? []);
+      } catch { setRecords([]); }
+      finally { setLoading(false); }
+    })();
+  }, [staffId]);
+
+  if (loading) {
+    return (
+      <div className="divide-y divide-outline-variant">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex items-start gap-3 px-4 py-3">
+            <Skeleton className="h-7 w-7 rounded-lg shrink-0" />
+            <div className="flex flex-col min-w-0 flex-1 gap-2">
+              <Skeleton className="h-3 w-48 rounded" />
+              <Skeleton className="h-3 w-32 rounded" />
+            </div>
+            <Skeleton className="h-3 w-10 rounded shrink-0" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (records.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <span className="material-symbols-outlined text-4xl text-outline">history</span>
+        <p className="text-body-sm text-on-surface-variant">Chưa có thay đổi nào được ghi nhận.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-outline-variant">
+      {records.map((r) => {
+        const st = getActionStyle(r.action);
+        const userDisplay = r.userName ?? (r.userId > 0 ? `#${r.userId}` : null);
+        return (
+          <div
+            key={r.id}
+            className="flex items-start gap-3 px-4 py-3 hover:bg-surface-container-low transition-colors"
+          >
+            <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${st.iconBg}`}>
+              <span className="material-symbols-outlined text-[14px]">{st.icon}</span>
+            </div>
+            <div className="flex flex-col min-w-0 flex-1 gap-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-[12px] font-bold shrink-0 ${st.chipColor}`}>{st.label}</span>
+                <span className="text-[12px] text-on-surface font-semibold shrink-0">Staff</span>
+                <span className="text-[11px] text-on-surface-variant shrink-0">#{r.recordId}</span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {userDisplay && (
+                  <span className="text-[12px] text-on-surface-variant shrink-0">{userDisplay}</span>
+                )}
+                {r.ipAddress && (
+                  <span className="text-[11px] text-outline shrink-0">· {r.ipAddress}</span>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-0.5 shrink-0">
+              <span className="text-[12px] text-on-surface-variant tabular-nums">
+                {fmtTime(r.createdAt)}
+              </span>
+              <span className="text-[11px] text-outline">
+                {fmtDateShort(r.createdAt.split("T")[0])}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Main edit page ────────────────────────────────────────────────────────────
+
 export default function StaffEditPage() {
   return <StaffEditContent />;
 }
@@ -43,6 +170,8 @@ function StaffEditContent() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const staffId = Number(params.id);
+  const role = useRole();
+  const canSeeAudit = canViewAuditLog(role);
 
   const [staff, setStaff] = useState<Staff | null>(null);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
@@ -50,6 +179,7 @@ function StaffEditContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>("info");
   const toast = useToast();
 
   const fetchData = useCallback(async () => {
@@ -182,17 +312,57 @@ function StaffEditContent() {
       ) : (
         <section className="max-w-2xl mx-auto">
           <article className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
-            <div className="flex items-center gap-3 px-6 py-4 border-b border-outline-variant bg-surface">
-              <span className="material-symbols-outlined text-[22px] text-primary">edit</span>
-              <div>
-                <h2 className="text-[18px] font-semibold text-on-surface">Chỉnh sửa hồ sơ</h2>
-                <p className="text-[12px] text-on-surface-variant">
-                  Cập nhật thông tin nhân viên \u2013 mật khẩu chỉ thay đổi khi nhập mới.
-                </p>
-              </div>
+            {/* ── Tab bar ── */}
+            <div
+              role="tablist"
+              aria-label="Hồ sơ nhân sự"
+              className="border-b border-outline-variant flex overflow-x-auto bg-surface-container-low px-4"
+            >
+              {TABS_EDIT.map((tab) => {
+                if (tab.id === "audit" && !canSeeAudit) return null;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    role="tab"
+                    type="button"
+                    aria-selected={isActive}
+                    aria-controls={`tabpanel-${tab.id}`}
+                    id={`tab-${tab.id}`}
+                    className={`px-4 py-3 font-label-md text-label-md border-b-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                      isActive
+                        ? "text-primary border-primary"
+                        : "text-on-surface-variant border-transparent hover:text-on-surface hover:bg-surface-container-high"
+                    }`}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
 
-            <form className="p-6 space-y-6" id="staff-edit-form" onSubmit={handleSubmit}>
+            {/* ── Tab panels (preserve form state via display:none) ── */}
+
+            {/* "Thông tin" tab — edit form */}
+            <div
+              id="tabpanel-info"
+              role="tabpanel"
+              aria-labelledby="tab-info"
+              hidden={activeTab !== "info"}
+              className={activeTab === "info" ? undefined : "hidden"}
+            >
+              <div className="flex items-center gap-3 px-6 py-4 border-b border-outline-variant bg-surface">
+                <span className="material-symbols-outlined text-[22px] text-primary">edit</span>
+                <div>
+                  <h2 className="text-[18px] font-semibold text-on-surface">Chỉnh sửa hồ sơ</h2>
+                  <p className="text-[12px] text-on-surface-variant">
+                    Cập nhật thông tin nhân viên \u2013 mật khẩu chỉ thay đổi khi nhập mới.
+                  </p>
+                </div>
+              </div>
+
+              <form className="p-6 space-y-6" id="staff-edit-form" onSubmit={handleSubmit}>
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex flex-col gap-1.5 col-span-2">
                   <span className="text-[13px] font-semibold text-on-surface">Username <span className="text-error">*</span></span>
@@ -376,6 +546,28 @@ function StaffEditContent() {
                 )}
               </button>
             </div>
+            </div>
+
+            {/* "Lịch sử thay đổi" tab */}
+            {canSeeAudit && (
+              <div
+                id="tabpanel-audit"
+                role="tabpanel"
+                aria-labelledby="tab-audit"
+                className={activeTab === "audit" ? undefined : "hidden"}
+              >
+                <div className="flex items-center gap-3 px-6 py-4 border-b border-outline-variant bg-surface">
+                  <span className="material-symbols-outlined text-[22px] text-primary">history</span>
+                  <div>
+                    <h2 className="text-[18px] font-semibold text-on-surface">Lịch sử thay đổi</h2>
+                    <p className="text-[12px] text-on-surface-variant">
+                      Nhật ký chỉnh sửa của nhân viên \u2013 cập nhật mỗi khi lưu thay đổi.
+                    </p>
+                  </div>
+                </div>
+                <AuditList staffId={staffId} />
+              </div>
+            )}
           </article>
         </section>
       )}
