@@ -242,8 +242,34 @@ public class SchedulePeriodService {
     }
 
     public BulkPeriodResponse bulkPublish(List<Integer> periodIds, Integer publishedById) {
+        // Batch-fetch all periods in one query
+        List<SchedulePeriod> periods = periodRepository.findAllByIdIn(periodIds);
+        Map<Integer, SchedulePeriod> periodMap = periods.stream()
+                .collect(Collectors.toMap(SchedulePeriod::getId, p -> p));
+
         List<BulkPeriodResponse.PeriodResult> results = periodIds.stream()
-                .map(id -> publishSingleResult(id, publishedById))
+                .map(id -> {
+                    SchedulePeriod period = periodMap.get(id);
+                    // Pre-validate: not found or not DRAFT
+                    if (period == null) {
+                        return BulkPeriodResponse.PeriodResult.builder()
+                                .id(id)
+                                .success(false)
+                                .message("Không tìm thấy kỳ lịch với ID: " + id)
+                                .processedAt(java.time.LocalDateTime.now())
+                                .build();
+                    }
+                    if (period.getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
+                        return BulkPeriodResponse.PeriodResult.builder()
+                                .id(id)
+                                .periodName(period.getPeriodName())
+                                .success(false)
+                                .message("Kỳ lịch '" + period.getPeriodName() + "' không ở trạng thái DRAFT (hiện tại: " + period.getStatus() + ")")
+                                .processedAt(java.time.LocalDateTime.now())
+                                .build();
+                    }
+                    return publishSingleResult(id, publishedById);
+                })
                 .toList();
         return BulkPeriodResponse.of(results);
     }
@@ -270,8 +296,34 @@ public class SchedulePeriodService {
     }
 
     public BulkPeriodResponse bulkArchive(List<Integer> periodIds) {
+        // Batch-fetch all periods in one query
+        List<SchedulePeriod> periods = periodRepository.findAllByIdIn(periodIds);
+        Map<Integer, SchedulePeriod> periodMap = periods.stream()
+                .collect(Collectors.toMap(SchedulePeriod::getId, p -> p));
+
         List<BulkPeriodResponse.PeriodResult> results = periodIds.stream()
-                .map(this::archiveSingleResult)
+                .map(id -> {
+                    SchedulePeriod period = periodMap.get(id);
+                    // Pre-validate: not found or not PUBLISHED
+                    if (period == null) {
+                        return BulkPeriodResponse.PeriodResult.builder()
+                                .id(id)
+                                .success(false)
+                                .message("Không tìm thấy kỳ lịch với ID: " + id)
+                                .processedAt(java.time.LocalDateTime.now())
+                                .build();
+                    }
+                    if (period.getStatus() != SchedulePeriod.PeriodStatus.PUBLISHED) {
+                        return BulkPeriodResponse.PeriodResult.builder()
+                                .id(id)
+                                .periodName(period.getPeriodName())
+                                .success(false)
+                                .message("Kỳ lịch '" + period.getPeriodName() + "' không ở trạng thái PUBLISHED (hiện tại: " + period.getStatus() + ")")
+                                .processedAt(java.time.LocalDateTime.now())
+                                .build();
+                    }
+                    return archiveSingleResult(id);
+                })
                 .toList();
         return BulkPeriodResponse.of(results);
     }

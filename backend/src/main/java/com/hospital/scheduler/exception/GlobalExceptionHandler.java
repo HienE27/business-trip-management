@@ -1,6 +1,6 @@
 package com.hospital.scheduler.exception;
 
-import com.hospital.scheduler.dto.ErrorResponse;
+import com.hospital.scheduler.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,99 +19,60 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(AuthorizationDeniedException.class)
-    public ResponseEntity<ErrorResponse> handleAuthorizationDenied(
-            AuthorizationDeniedException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ErrorResponse.builder()
+    private static ResponseEntity<ApiResponse<?>> errorResponse(HttpStatus status, String message) {
+        return ResponseEntity
+                .status(status)
+                .body(ApiResponse.<Object>builder()
+                        .success(false)
+                        .message(message)
                         .timestamp(LocalDateTime.now())
-                        .status(HttpStatus.FORBIDDEN.value())
-                        .error("Forbidden")
-                        .message("Access denied: " + ex.getMessage())
-                        .path(request.getRequestURI())
                         .build());
+    }
+
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    public ResponseEntity<ApiResponse<?>> handleAuthorizationDenied(
+            AuthorizationDeniedException ex, HttpServletRequest request) {
+        return errorResponse(HttpStatus.FORBIDDEN, "Access denied: " + ex.getMessage());
     }
 
     @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ErrorResponse> handleAuthentication(
+    public ResponseEntity<ApiResponse<?>> handleAuthentication(
             AuthenticationException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ErrorResponse.builder()
-                        .timestamp(LocalDateTime.now())
-                        .status(HttpStatus.UNAUTHORIZED.value())
-                        .error("Unauthorized")
-                        .message("Authentication failed: " + ex.getMessage())
-                        .path(request.getRequestURI())
-                        .build());
+        return errorResponse(HttpStatus.UNAUTHORIZED, "Authentication failed: " + ex.getMessage());
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleResourceNotFound(
+    public ResponseEntity<ApiResponse<?>> handleResourceNotFound(
             ResourceNotFoundException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.builder()
-                        .timestamp(LocalDateTime.now())
-                        .status(HttpStatus.NOT_FOUND.value())
-                        .error("Not Found")
-                        .message(ex.getMessage())
-                        .path(request.getRequestURI())
-                        .build());
+        return errorResponse(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
     @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<ErrorResponse> handleBadRequest(
+    public ResponseEntity<ApiResponse<?>> handleBadRequest(
             BadRequestException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.builder()
-                        .timestamp(LocalDateTime.now())
-                        .status(HttpStatus.BAD_REQUEST.value())
-                        .error("Bad Request")
-                        .message(ex.getMessage())
-                        .path(request.getRequestURI())
-                        .build());
+        return errorResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     @ExceptionHandler(ConflictException.class)
-    public ResponseEntity<ErrorResponse> handleConflict(
+    public ResponseEntity<ApiResponse<?>> handleConflict(
             ConflictException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ErrorResponse.builder()
-                        .timestamp(LocalDateTime.now())
-                        .status(HttpStatus.CONFLICT.value())
-                        .error("Conflict")
-                        .message(ex.getMessage())
-                        .path(request.getRequestURI())
-                        .build());
+        return errorResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(ForbiddenOperationException.class)
-    public ResponseEntity<ErrorResponse> handleForbiddenOperation(
+    public ResponseEntity<ApiResponse<?>> handleForbiddenOperation(
             ForbiddenOperationException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ErrorResponse.builder()
-                        .timestamp(LocalDateTime.now())
-                        .status(HttpStatus.FORBIDDEN.value())
-                        .error("Forbidden")
-                        .message(ex.getMessage())
-                        .path(request.getRequestURI())
-                        .build());
+        return errorResponse(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ErrorResponse> handleBadCredentials(
+    public ResponseEntity<ApiResponse<?>> handleBadCredentials(
             BadCredentialsException ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ErrorResponse.builder()
-                        .timestamp(LocalDateTime.now())
-                        .status(HttpStatus.UNAUTHORIZED.value())
-                        .error("Unauthorized")
-                        .message(ex.getMessage())
-                        .path(request.getRequestURI())
-                        .build());
+        return errorResponse(HttpStatus.UNAUTHORIZED, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidation(
+    public ResponseEntity<ApiResponse<?>> handleValidation(
             MethodArgumentNotValidException ex, HttpServletRequest request) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
@@ -121,26 +82,17 @@ public class GlobalExceptionHandler {
         });
 
         return ResponseEntity.badRequest()
-                .body(ErrorResponse.builder()
-                        .timestamp(LocalDateTime.now())
-                        .status(HttpStatus.BAD_REQUEST.value())
-                        .error("Validation Error")
+                .body(ApiResponse.<Map<String, String>>builder()
+                        .success(false)
                         .message("Input validation failed")
-                        .path(request.getRequestURI())
-                        .fieldErrors(errors)
+                        .data(errors)
+                        .timestamp(LocalDateTime.now())
                         .build());
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneral(
+    public ResponseEntity<ApiResponse<?>> handleGeneral(
             Exception ex, HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ErrorResponse.builder()
-                        .timestamp(LocalDateTime.now())
-                        .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                        .error("Internal Server Error")
-                        .message(ex.getMessage())
-                        .path(request.getRequestURI())
-                        .build());
+        return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
     }
 }

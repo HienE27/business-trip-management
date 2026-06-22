@@ -13,4 +13,6 @@ public interface SchedulePeriodRepository extends JpaRepository<SchedulePeriod, 
     List<SchedulePeriod> findByStatusOrderByStartDateDesc(SchedulePeriod.PeriodStatus status);
     Optional<SchedulePeriod> findByStartDateAndEndDate(LocalDate startDate, LocalDate endDate);
     List<SchedulePeriod> findAllByStartDateAndEndDate(LocalDate startDate, LocalDate endDate);
+
+    List<SchedulePeriod> findAllByIdIn(List<Integer> ids);
 }

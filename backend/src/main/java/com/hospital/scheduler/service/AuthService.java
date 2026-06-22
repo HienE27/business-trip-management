@@ -61,7 +61,31 @@ public class AuthService {
     }
 
     private String getClientIp(HttpServletRequest req) {
+        // Only trust X-Forwarded-For when the request originates from a known/trusted proxy.
+        // For direct requests or untrusted proxies, fall back to the direct socket address.
         String xf = req.getHeader("X-Forwarded-For");
-        return xf != null ? xf.split(",")[0].trim() : req.getRemoteAddr();
+        String directIp = req.getRemoteAddr();
+        if (xf == null || xf.isBlank()) {
+            return directIp;
+        }
+        // Whitelist of known proxy IPs — only use X-Forwarded-For from these sources.
+        // If not from a trusted proxy, return the direct IP to prevent spoofing.
+        String firstIp = xf.split(",")[0].trim();
+        return isTrustedProxy(directIp) ? firstIp : directIp;
+    }
+
+    private boolean isTrustedProxy(String ip) {
+        return "127.0.0.1".equals(ip)
+                || "0:0:0:0:0:0:0:1".equals(ip)
+                || ip.startsWith("10.")   // RFC 1918 private
+                || ip.startsWith("172.16.") || ip.startsWith("172.17.")
+                || ip.startsWith("172.18.") || ip.startsWith("172.19.")
+                || ip.startsWith("172.20.") || ip.startsWith("172.21.")
+                || ip.startsWith("172.22.") || ip.startsWith("172.23.")
+                || ip.startsWith("172.24.") || ip.startsWith("172.25.")
+                || ip.startsWith("172.26.") || ip.startsWith("172.27.")
+                || ip.startsWith("172.28.") || ip.startsWith("172.29.")
+                || ip.startsWith("172.30.") || ip.startsWith("172.31.")
+                || ip.startsWith("192.168."); // RFC 1918 private
     }
 }

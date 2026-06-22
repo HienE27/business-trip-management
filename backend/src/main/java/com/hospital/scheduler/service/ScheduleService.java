@@ -16,6 +16,7 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.HolidayRepository;
+import com.hospital.scheduler.repository.ScheduleConflictRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.ShiftRequirementRepository;
@@ -44,6 +45,7 @@ public class ScheduleService {
     private final ShiftTypeRepository shiftTypeRepository;
     private final ShiftRequirementRepository requirementRepository;
     private final CompensationDayRepository compensationDayRepository;
+    private final ScheduleConflictRepository scheduleConflictRepository;
     private final HolidayRepository holidayRepository;
     private final ConflictDetectionService conflictDetectionService;
     private final AuditHistoryService auditHistoryService;
@@ -70,8 +72,12 @@ public class ScheduleService {
     }
 
     public List<ScheduleResponse> getSchedulesByStaff(Integer staffId) {
-        return scheduleRepository.findByStaffId(staffId).stream()
-                .map(s -> toResponse(s, null))
+        List<Schedule> schedules = scheduleRepository.findByStaffId(staffId);
+        if (schedules.isEmpty()) return List.of();
+        Map<Integer, List<String>> conflictMap = buildConflictReasonsMap(
+                schedules, null);
+        return schedules.stream()
+                .map(s -> toResponse(s, null, conflictMap))
                 .collect(Collectors.toList());
     }
 
@@ -250,7 +256,7 @@ public class ScheduleService {
             period = targetPeriod;
         }
 
-        if (wasL01 && shiftTypeChanged) {
+        if (wasL01 && (shiftTypeChanged || staffChanged)) {
             List<CompensationDay> compDays = compensationDayRepository.findByScheduleId(id);
             compensationDayRepository.deleteAll(compDays);
         }
@@ -326,13 +332,38 @@ public class ScheduleService {
     }
 
     public List<ScheduleResponse> getSchedulesByPeriodAndDate(Integer periodId, LocalDate date) {
-        return scheduleRepository.findByPeriodIdAndWorkDate(periodId, date).stream()
-                .map(s -> toResponse(s, null))
+        List<Schedule> schedules = scheduleRepository.findByPeriodIdAndWorkDate(periodId, date);
+        if (schedules.isEmpty()) return List.of();
+        Map<Integer, List<String>> conflictMap = buildConflictReasonsMap(schedules, periodId);
+        return schedules.stream()
+                .map(s -> toResponse(s, null, conflictMap))
                 .collect(Collectors.toList());
     }
 
     public ConflictCheckResponse checkConflictsInPeriod(Integer periodId) {
         return conflictDetectionService.checkPeriodConflicts(periodId);
+    }
+
+    /**
+     * Batch-fetch all unresolved schedule conflicts for a list of schedules in one DB call.
+     * Returns a map: scheduleId -> list of conflict reason strings.
+     */
+    private Map<Integer, List<String>> buildConflictReasonsMap(List<Schedule> schedules, Integer periodId) {
+        if (schedules.isEmpty()) return Map.of();
+
+        List<Integer> scheduleIds = schedules.stream()
+                .map(Schedule::getId)
+                .collect(Collectors.toList());
+
+        List<ScheduleConflict> conflicts = (periodId != null)
+                ? scheduleConflictRepository.findUnresolvedByScheduleIdsIn(scheduleIds)
+                : scheduleConflictRepository.findByScheduleIdsIn(scheduleIds);
+
+        return conflicts.stream()
+                .collect(Collectors.groupingBy(
+                        c -> c.getSchedule().getId(),
+                        Collectors.mapping(c -> c.getConflictType().name(), Collectors.toList())
+                ));
     }
 
     public List<StaffResponse> findReplacements(Integer periodId, LocalDate workDate, String shiftTypeId,
@@ -776,10 +807,18 @@ public class ScheduleService {
     }
 
     private ScheduleResponse toResponse(Schedule schedule) {
-        return toResponse(schedule, null);
+        return toResponse(schedule, null, Map.of());
     }
 
     private ScheduleResponse toResponse(Schedule schedule, LocalDate compDateOverride) {
+        return toResponse(schedule, compDateOverride, Map.of());
+    }
+
+    private ScheduleResponse toResponse(
+            Schedule schedule,
+            LocalDate compDateOverride,
+            Map<Integer, List<String>> conflictReasonsMap) {
+
         List<String> staffRoles = schedule.getStaff().getStaffRoles().stream()
                 .map(StaffRole::getRole)
                 .filter(java.util.Objects::nonNull)
@@ -790,13 +829,7 @@ public class ScheduleService {
                 .sorted()
                 .collect(Collectors.toList());
 
-        List<String> conflictReasons = conflictDetectionService.detectAllConflicts(
-                schedule.getStaff().getId(),
-                schedule.getWorkDate(),
-                schedule.getShiftType().getId(),
-                schedule.getId(),
-                schedule.getPeriod().getId()
-        );
+        List<String> conflictReasons = conflictReasonsMap.getOrDefault(schedule.getId(), List.of());
 
         LocalDate compensationDate = compDateOverride != null ? compDateOverride
                 : compensationDayRepository.findByScheduleId(schedule.getId()).stream()
