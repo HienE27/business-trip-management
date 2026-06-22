@@ -448,26 +448,23 @@ public class AutoSchedulingService {
                                             Set<Integer> excludedStaffIds) {
         List<Schedule> bestSolution = new ArrayList<>();
         List<Schedule> currentSolution = new ArrayList<>();
-        // Track in-memory assignments for backtracking: staffId_workDate -> set of shiftTypeIds
+
+        // Group by date and sort dates — process by date (like greedy/round-robin),
+        // not all-L01-then-all-L02 which exhausts staff before L02 can be assigned
+        Map<LocalDate, List<ShiftRequirement>> byDate = requirements.stream()
+                .collect(Collectors.groupingBy(ShiftRequirement::getWorkDate));
+        List<LocalDate> sortedDates = byDate.keySet().stream().sorted().toList();
+
+        // Total staff-slots needed — used for early termination when a complete solution is found
+        int totalNeeded = requirements.stream()
+                .mapToInt(com.hospital.scheduler.entity.ShiftRequirement::getRequiredStaffCount)
+                .sum();
+
         List<Map<String, Set<String>>> assignmentHistory = new ArrayList<>();
         assignmentHistory.add(new HashMap<>());
 
-        List<ShiftRequirement> sortedRequirements = requirements.stream()
-                .sorted(Comparator.comparingInt((ShiftRequirement r) -> {
-                    String id = r.getShiftType().getId();
-                    if (ConflictDetectionService.SHIFT_TYPE_L01.equals(id)) return 0;
-                    if (ConflictDetectionService.SHIFT_TYPE_L02.equals(id)) return 1;
-                    if (ConflictDetectionService.SHIFT_TYPE_L03.equals(id)) return 2;
-                    if (ConflictDetectionService.SHIFT_TYPE_L04.equals(id)) return 3;
-                    return 4;
-                })
-                        .thenComparing((ShiftRequirement r) -> r.getSpecialty() != null ? 0 : 1)
-                        .thenComparing(r -> r.getRequiredStaffCount())
-                        .reversed())
-                .collect(Collectors.toList());
-
-        backtrack(period, sortedRequirements, activeStaff, 0, currentSolution, bestSolution,
-                  new HashMap<>(), assignmentHistory, maxIterations, excludedStaffIds, save);
+        backtrackByDate(period, byDate, sortedDates, 0, currentSolution, bestSolution,
+                new HashMap<>(), assignmentHistory, maxIterations, excludedStaffIds, save, totalNeeded);
 
         if (save) {
             List<Schedule> allSaved = new java.util.ArrayList<>();
@@ -554,6 +551,99 @@ public class AutoSchedulingService {
             backtrack(period, requirements, activeStaff, index + 1,
                     currentSolution, bestSolution, staffWorkload, assignmentHistory,
                     maxIterations - 1, excludedStaffIds, save);
+
+            assignmentHistory.remove(assignmentHistory.size() - 1);
+            staffWorkload.merge(staff.getId(), -1, (oldVal, ignore) -> oldVal <= 0 ? 0 : oldVal);
+            currentSolution.remove(currentSolution.size() - 1);
+        }
+    }
+
+    /**
+     * Backtrack by date — processes all shift requirements for each day together,
+     * then moves to the next day. This matches greedy/round-robin behavior and
+     * prevents L01 from consuming all staff before L02/L03/L04 for the same day
+     * can be assigned.
+     */
+    private void backtrackByDate(SchedulePeriod period, Map<LocalDate, List<ShiftRequirement>> byDate,
+                                  List<LocalDate> sortedDates, int dateIndex,
+                                  List<Schedule> currentSolution, List<Schedule> bestSolution,
+                                  Map<Integer, Integer> staffWorkload,
+                                  List<Map<String, Set<String>>> assignmentHistory, int maxIterations,
+                                  Set<Integer> excludedStaffIds, boolean save, int totalNeeded) {
+
+        // Always save current solution — ensures the first complete path is preserved
+        if (currentSolution.size() > bestSolution.size()) {
+            bestSolution.clear();
+            bestSolution.addAll(currentSolution);
+        }
+
+        if (maxIterations <= 0) return;
+        if (dateIndex >= sortedDates.size()) return;
+
+        LocalDate workDate = sortedDates.get(dateIndex);
+        List<ShiftRequirement> dayReqs = sortRequirementsByPriority(byDate.get(workDate));
+
+        assignDay(period, dayReqs, workDate, currentSolution, staffWorkload,
+                  assignmentHistory, excludedStaffIds, save,
+                  () -> backtrackByDate(period, byDate, sortedDates, dateIndex + 1,
+                          currentSolution, bestSolution, staffWorkload, assignmentHistory,
+                          maxIterations - 1, excludedStaffIds, save, totalNeeded));
+    }
+
+    /**
+     * Assigns all requirements for a single day using backtracking.
+     * Recursively tries each staff slot for each requirement.
+     */
+    private void assignDay(SchedulePeriod period, List<ShiftRequirement> dayReqs, LocalDate workDate,
+                           List<Schedule> currentSolution, Map<Integer, Integer> staffWorkload,
+                           List<Map<String, Set<String>>> assignmentHistory,
+                           Set<Integer> excludedStaffIds, boolean save, Runnable onBacktrack) {
+        // Base: all requirements assigned for this day — try next date
+        if (dayReqs.isEmpty()) {
+            onBacktrack.run();
+            return;
+        }
+
+        ShiftRequirement req = dayReqs.get(0);
+        List<ShiftRequirement> remainingReqs = dayReqs.subList(1, dayReqs.size());
+        String shiftTypeId = req.getShiftType().getId();
+        int toAssign = req.getRequiredStaffCount();
+
+        // Staff already assigned this day — must be excluded from findReplacements
+        Set<Integer> assignedToday = currentSolution.stream()
+                .filter(s -> s.getWorkDate().equals(workDate))
+                .map(s -> s.getStaff().getId())
+                .collect(Collectors.toSet());
+
+        Set<Integer> excludeAll = new HashSet<>(assignedToday);
+        if (excludedStaffIds != null) excludeAll.addAll(excludedStaffIds);
+
+        List<Staff> candidates = conflictDetectionService.findReplacements(
+                period.getId(), workDate, shiftTypeId, null, toAssign, excludeAll, !save);
+
+        candidates = filterBySpecialty(candidates, req.getSpecialty() != null ? req.getSpecialty().getId() : null);
+        candidates.sort(Comparator.comparingInt(s -> staffWorkload.getOrDefault(s.getId(), 0)));
+
+        if (candidates.isEmpty()) return;
+
+        for (Staff staff : candidates) {
+            Map<String, Set<String>> currentAssignments = assignmentHistory.get(assignmentHistory.size() - 1);
+            if (hasInMemoryConflictForBacktrack(staff.getId(), workDate, shiftTypeId, currentAssignments)) {
+                continue;
+            }
+
+            Schedule schedule = buildScheduleForBacktrack(period, staff, req.getShiftType(), workDate, req);
+            if (schedule == null) continue;
+
+            currentSolution.add(schedule);
+            staffWorkload.merge(staff.getId(), 1, Integer::sum);
+
+            Map<String, Set<String>> newAssignments = new HashMap<>(currentAssignments);
+            newAssignments.computeIfAbsent(staff.getId() + "_" + workDate, k -> new HashSet<>()).add(shiftTypeId);
+            assignmentHistory.add(newAssignments);
+
+            assignDay(period, remainingReqs, workDate, currentSolution, staffWorkload,
+                      assignmentHistory, excludedStaffIds, save, onBacktrack);
 
             assignmentHistory.remove(assignmentHistory.size() - 1);
             staffWorkload.merge(staff.getId(), -1, (oldVal, ignore) -> oldVal <= 0 ? 0 : oldVal);
@@ -1305,10 +1395,10 @@ public class AutoSchedulingService {
 
         Set<Integer> adjacentL01 = new HashSet<>();
         for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, prevDay, prevDay)) {
-            if (SHIFT_TYPE_L01.equals(s.getShiftType().getId())) adjacentL01.add(s.getStaff().getId());
+            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(s.getShiftType().getId())) adjacentL01.add(s.getStaff().getId());
         }
         for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, nextDay, nextDay)) {
-            if (SHIFT_TYPE_L01.equals(s.getShiftType().getId())) adjacentL01.add(s.getStaff().getId());
+            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(s.getShiftType().getId())) adjacentL01.add(s.getStaff().getId());
         }
 
         return new BatchConflictData(onLeave, onComp, daySchedules, adjacentL01);

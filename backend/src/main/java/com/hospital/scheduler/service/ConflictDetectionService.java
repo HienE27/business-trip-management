@@ -135,7 +135,7 @@ public class ConflictDetectionService {
     }
 
     public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipMaxShifts) {
-        return !detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, skipShiftTypeConflict, skipMaxShifts).isEmpty();
+        return !detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, null, skipCompensationDay, skipShiftTypeConflict, skipMaxShifts).isEmpty();
     }
 
     public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
@@ -425,12 +425,12 @@ public class ConflictDetectionService {
             schedulesByStaff.computeIfAbsent(s.getStaff().getId(), k -> new java.util.ArrayList<>()).add(s);
         }
 
-        Set<Integer> hasAdjacentSchedule = new java.util.HashSet<>();
+        Set<Integer> hasAdjacentL01 = new java.util.HashSet<>();
         for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, prevDay, prevDay)) {
-            hasAdjacentSchedule.add(s.getStaff().getId());
+            if (SHIFT_TYPE_L01.equals(s.getShiftType().getId())) hasAdjacentL01.add(s.getStaff().getId());
         }
         for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, nextDay, nextDay)) {
-            hasAdjacentSchedule.add(s.getStaff().getId());
+            if (SHIFT_TYPE_L01.equals(s.getShiftType().getId())) hasAdjacentL01.add(s.getStaff().getId());
         }
 
         ShiftType shiftType = shiftTypeRepository.findById(shiftTypeId).orElse(null);
@@ -442,7 +442,8 @@ public class ConflictDetectionService {
             if (excludedStaffIds != null && excludedStaffIds.contains(staff.getId())) continue;
             if (onLeaveStaffIds.contains(staff.getId())) continue;
             if (onCompDayStaffIds.contains(staff.getId())) continue;
-            if (hasAdjacentSchedule.contains(staff.getId())) continue;
+            // Adjacent restriction only applies to L01
+            if (SHIFT_TYPE_L01.equals(shiftTypeId) && hasAdjacentL01.contains(staff.getId())) continue;
 
             // Same-day shift-type conflict: L01↔L02 or L03↔L04
             List<Schedule> daySchedules = schedulesByStaff.get(staff.getId());
