@@ -5,6 +5,7 @@ import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,11 +36,15 @@ class AutoSchedulingServiceTest {
     @Mock private StaffRepository staffRepository;
     @Mock private ShiftRequirementRepository requirementRepository;
     @Mock private CompensationDayRepository compensationDayRepository;
+    @Mock private LeaveRequestRepository leaveRequestRepository;
     @Mock private AlgorithmMetricsRepository metricsRepository;
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private CompensationDateCalculator compensationDateCalculator;
     @Mock private NotificationService notificationService;
+    @Mock private AlgorithmConfigService algorithmConfigService;
+    @Mock private HolidayRepository holidayRepository;
+    @Mock private ShiftTypeRepository shiftTypeRepository;
 
     @InjectMocks
     private AutoSchedulingService autoSchedulingService;

@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.request.AutoScheduleRequestDTO;
 import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,11 +42,15 @@ class AutoSchedulingServiceConcurrencyTest {
     @Mock private StaffRepository staffRepository;
     @Mock private ShiftRequirementRepository requirementRepository;
     @Mock private CompensationDayRepository compensationDayRepository;
+    @Mock private LeaveRequestRepository leaveRequestRepository;
     @Mock private AlgorithmMetricsRepository metricsRepository;
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private CompensationDateCalculator compensationDateCalculator;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private NotificationService notificationService;
+    @Mock private AlgorithmConfigService algorithmConfigService;
+    @Mock private HolidayRepository holidayRepository;
+    @Mock private ShiftTypeRepository shiftTypeRepository;
 
     private AutoSchedulingService autoSchedulingService;
 
@@ -53,8 +58,9 @@ class AutoSchedulingServiceConcurrencyTest {
     void setUp() {
         autoSchedulingService = new AutoSchedulingService(
                 scheduleRepository, periodRepository, staffRepository, requirementRepository,
-                compensationDayRepository, metricsRepository, conflictDetectionService,
-                auditHistoryService, compensationDateCalculator, notificationService
+                compensationDayRepository, leaveRequestRepository, metricsRepository,
+                conflictDetectionService, auditHistoryService, compensationDateCalculator, notificationService,
+                algorithmConfigService, holidayRepository, shiftTypeRepository
         );
 
         SchedulePeriod testPeriod = SchedulePeriod.builder().id(1).periodName("Tháng 6/2026 - Concurrency")

@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.request.AutoScheduleRequestDTO;
 import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.service.AutoSchedulingService;
 import com.hospital.scheduler.service.ConflictDetectionService;
 import com.hospital.scheduler.service.AuditHistoryService;
@@ -41,11 +42,15 @@ class AutoSchedulingServiceIntegrationTest {
     @Mock private StaffRepository staffRepository;
     @Mock private ShiftRequirementRepository requirementRepository;
     @Mock private CompensationDayRepository compensationDayRepository;
+    @Mock private LeaveRequestRepository leaveRequestRepository;
     @Mock private AlgorithmMetricsRepository algorithmMetricsRepository;
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private CompensationDateCalculator compensationDateCalculator;
     @Mock private NotificationService notificationService;
+    @Mock private AlgorithmConfigService algorithmConfigService;
+    @Mock private HolidayRepository holidayRepository;
+    @Mock private ShiftTypeRepository shiftTypeRepository;
 
     private AutoSchedulingService autoSchedulingService;
 
@@ -56,8 +61,9 @@ class AutoSchedulingServiceIntegrationTest {
     void setUp() {
         autoSchedulingService = new AutoSchedulingService(
                 scheduleRepository, periodRepository, staffRepository, requirementRepository,
-                compensationDayRepository, algorithmMetricsRepository, conflictDetectionService,
-                auditHistoryService, compensationDateCalculator, notificationService
+                compensationDayRepository, leaveRequestRepository, algorithmMetricsRepository,
+                conflictDetectionService, auditHistoryService, compensationDateCalculator, notificationService,
+                algorithmConfigService, holidayRepository, shiftTypeRepository
         );
 
         testPeriod = SchedulePeriod.builder()

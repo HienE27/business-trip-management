@@ -11,12 +11,14 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import com.hospital.scheduler.util.DateUtils;
+import com.hospital.scheduler.algorithm.AutoGenConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -32,16 +34,28 @@ public class AutoSchedulingService {
     private final StaffRepository staffRepository;
     private final ShiftRequirementRepository requirementRepository;
     private final CompensationDayRepository compensationDayRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
     private final AlgorithmMetricsRepository metricsRepository;
     private final ConflictDetectionService conflictDetectionService;
     private final AuditHistoryService auditHistoryService;
     private final CompensationDateCalculator compensationDateCalculator;
     private final NotificationService notificationService;
+    private final AlgorithmConfigService algorithmConfigService;
+    private final HolidayRepository holidayRepository;
+    private final ShiftTypeRepository shiftTypeRepository;
 
     // Thread-local so concurrent requests don't share state
     private final ThreadLocal<Map<String, Set<String>>> inMemoryAssignments = ThreadLocal.withInitial(HashMap::new);
     private final ThreadLocal<Set<String>> inMemoryCompensationShiftDates = ThreadLocal.withInitial(HashSet::new);
     private final ThreadLocal<Set<String>> allCompensationShiftDates = ThreadLocal.withInitial(HashSet::new);
+
+    // Batch-loaded conflict data for a single scheduling run (avoid N+1)
+    private record BatchConflictData(
+            Set<Integer> onLeaveStaffIds,
+            Set<Integer> onCompDayStaffIds,
+            Map<Integer, List<Schedule>> daySchedulesByStaff,
+            Set<Integer> hasAdjacentSchedule
+    ) {}
 
     public AutoScheduleResponse previewSchedule(AutoScheduleRequestDTO request) {
         inMemoryAssignments.set(new HashMap<>());
@@ -203,7 +217,24 @@ public class AutoSchedulingService {
                     .filter(s -> !excluded.contains(s.getId()))
                     .collect(Collectors.toList());
         }
-        List<ShiftRequirement> requirements = new ArrayList<>(requirementRepository.findByPeriodId(period.getId()));
+
+        // Auto-generate requirements if enabled (per M07 spec)
+        List<ShiftRequirement> requirements;
+        List<AutoScheduleResponse.GeneratedRequirementInfo> generatedRequirements = null;
+        if (Boolean.TRUE.equals(request.getAutoGenerateRequirements())) {
+            var autoGenConfig = algorithmConfigService.getAutoGenConfig();
+            if (autoGenConfig.isPresent() && autoGenConfig.get().enabled()) {
+                requirements = generateRequirementsForPeriod(period, autoGenConfig.get(), activeStaff);
+                generatedRequirements = requirements.stream()
+                        .filter(r -> r.getNote() != null && r.getNote().startsWith("AUTO:"))
+                        .map(this::toGeneratedRequirementInfo)
+                        .toList();
+            } else {
+                requirements = new ArrayList<>(requirementRepository.findByPeriodId(period.getId()));
+            }
+        } else {
+            requirements = new ArrayList<>(requirementRepository.findByPeriodId(period.getId()));
+        }
 
         // Pre-load existing compensation days from the same period so greedy doesn't assign L01 on a day
         // that is already someone's compensation day (confirmed day off — cannot assign L01)
@@ -269,7 +300,7 @@ public class AutoSchedulingService {
 
         String actionType = save ? "Xếp lịch tự động thành công" : "Xem trước lịch";
 
-        return AutoScheduleResponse.builder()
+        var responseBuilder = AutoScheduleResponse.builder()
                 .success(true)
                 .message(warnings.isEmpty() ? actionType : actionType + " với " + warnings.size() + " cảnh báo")
                 .periodId(period.getId())
@@ -280,8 +311,14 @@ public class AutoSchedulingService {
                 .conflictCount(warnings.size())
                 .totalSchedulesCreated(createdSchedules.size())
                 .schedules(scheduleSummaries)
-                .executedAt(LocalDateTime.now())
-                .build();
+                .generatedRequirements(generatedRequirements)
+                .executedAt(LocalDateTime.now());
+
+        if (request.getExcludedStaffIds() != null) {
+            responseBuilder.excludedStaffIds(request.getExcludedStaffIds());
+        }
+
+        return responseBuilder.build();
     }
 
     // ==================== GREEDY ALGORITHM ====================
@@ -291,15 +328,24 @@ public class AutoSchedulingService {
         List<Schedule> createdSchedules = new ArrayList<>();
         Map<LocalDate, List<ShiftRequirement>> requirementsByDate = groupRequirementsByDate(requirements);
 
+        // Pre-load ALL conflict data upfront to avoid N+1 queries
+        Map<LocalDate, BatchConflictData> conflictDataByDate = new HashMap<>();
+        LocalDate periodEnd = period.getEndDate();
+        for (LocalDate date = period.getStartDate(); !date.isAfter(periodEnd); date = date.plusDays(1)) {
+            conflictDataByDate.put(date, loadBatchConflictData(date));
+        }
+
         LocalDate currentDate = period.getStartDate();
-        while (!currentDate.isAfter(period.getEndDate())) {
+        while (!currentDate.isAfter(periodEnd)) {
             List<ShiftRequirement> todayReqs = sortRequirementsByPriority(
                     requirementsByDate.getOrDefault(currentDate, Collections.emptyList()));
 
+            BatchConflictData todayConflicts = conflictDataByDate.get(currentDate);
             Set<Integer> assignedStaffIds = new HashSet<>();
             for (ShiftRequirement req : todayReqs) {
                 final LocalDate workDate = currentDate;
-                List<Staff> eligibleStaff = filterAndSortEligibleStaff(activeStaff, req, excludedStaffIds, !save,
+                List<Staff> eligibleStaff = filterAndSortEligibleStaffBatch(
+                        activeStaff, req, excludedStaffIds, todayConflicts, !save,
                         Comparator.comparingLong(s -> scheduleRepository.countByStaffIdAndPeriodId(s.getId(), period.getId())));
 
                 int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
@@ -1076,5 +1122,227 @@ public class AutoSchedulingService {
             list.add(schedule);
             return schedule;
         }
+    }
+
+    /**
+     * Auto-generate shift requirements for all days in the period.
+     * Respects holidays (skip/partial mode), generates one requirement per (date × shiftType).
+     * Used by M07-F01 to auto-generate requirements per spec.
+     */
+    private List<ShiftRequirement> generateRequirementsForPeriod(SchedulePeriod period, AutoGenConfig config, List<Staff> activeStaff) {
+        List<ShiftRequirement> generated = new ArrayList<>();
+
+        // Pre-load holidays
+        Set<LocalDate> holidays = holidayRepository.findActiveHolidaysBetween(period.getStartDate(), period.getEndDate())
+                .stream()
+                .map(Holiday::getHolidayDate)
+                .collect(Collectors.toSet());
+
+        // Pre-load shift types
+        Map<String, ShiftType> shiftTypeMap = shiftTypeRepository.findAll().stream()
+                .collect(Collectors.toMap(ShiftType::getId, s -> s));
+
+        ShiftType l01 = shiftTypeMap.get("L01");
+        ShiftType l02 = shiftTypeMap.get("L02");
+        ShiftType l03 = shiftTypeMap.get("L03");
+        ShiftType l04 = shiftTypeMap.get("L04");
+
+        if (l01 == null || l02 == null || l03 == null || l04 == null) {
+            throw new BadRequestException("Không tìm thấy shift types L01-L04 trong hệ thống");
+        }
+
+        LocalDate current = period.getStartDate();
+        while (!current.isAfter(period.getEndDate())) {
+            LocalDate date = current;
+            boolean isHoliday = holidays.contains(date);
+            DayOfWeek dow = date.getDayOfWeek();
+
+            // L01: 2 người/ngày (skip nếu holiday)
+            if (!isHoliday || !"SKIP".equals(config.holidayMode())) {
+                ShiftRequirement reqL01 = ShiftRequirement.builder()
+                        .period(period)
+                        .shiftType(l01)
+                        .workDate(date)
+                        .specialty(null)
+                        .requiredStaffCount(config.l01RequiredPerDay())
+                        .note("AUTO:L01:" + date)
+                        .build();
+                generated.add(reqL01);
+            }
+
+            // L02: 2 người/ngày (skip nếu holiday)
+            if (!isHoliday || !"SKIP".equals(config.holidayMode())) {
+                ShiftRequirement reqL02 = ShiftRequirement.builder()
+                        .period(period)
+                        .shiftType(l02)
+                        .workDate(date)
+                        .specialty(null)
+                        .requiredStaffCount(config.l02RequiredPerDay())
+                        .note("AUTO:L02:" + date)
+                        .build();
+                generated.add(reqL02);
+            }
+
+            // L03: 2 người/ngày (50% nếu holiday mode = PARTIAL)
+            if (config.holidayMode().equals("PARTIAL")) {
+                ShiftRequirement reqL03 = ShiftRequirement.builder()
+                        .period(period)
+                        .shiftType(l03)
+                        .workDate(date)
+                        .specialty(null)
+                        .requiredStaffCount(isHoliday ? 1 : config.l03RequiredPerDay())
+                        .note("AUTO:L03:" + date)
+                        .build();
+                generated.add(reqL03);
+            } else if (!isHoliday) {
+                ShiftRequirement reqL03 = ShiftRequirement.builder()
+                        .period(period)
+                        .shiftType(l03)
+                        .workDate(date)
+                        .specialty(null)
+                        .requiredStaffCount(config.l03RequiredPerDay())
+                        .note("AUTO:L03:" + date)
+                        .build();
+                generated.add(reqL03);
+            }
+
+            // L04: 2 người/ngày (skip nếu holiday)
+            if (!isHoliday || !"SKIP".equals(config.holidayMode())) {
+                ShiftRequirement reqL04 = ShiftRequirement.builder()
+                        .period(period)
+                        .shiftType(l04)
+                        .workDate(date)
+                        .specialty(null)
+                        .requiredStaffCount(config.l04RequiredPerDay())
+                        .note("AUTO:L04:" + date)
+                        .build();
+                generated.add(reqL04);
+            }
+
+            current = current.plusDays(1);
+        }
+
+        // Save all generated requirements
+        List<ShiftRequirement> saved = requirementRepository.saveAll(generated);
+
+        return saved;
+    }
+
+    private AutoScheduleResponse.GeneratedRequirementInfo toGeneratedRequirementInfo(ShiftRequirement r) {
+        return AutoScheduleResponse.GeneratedRequirementInfo.builder()
+                .workDate(r.getWorkDate().toString())
+                .shiftTypeId(r.getShiftType().getId())
+                .shiftTypeName(r.getShiftType().getName())
+                .requiredStaffCount(r.getRequiredStaffCount())
+                .specialtyName(r.getSpecialty() != null ? r.getSpecialty().getName() : null)
+                .wasAutoGenerated(true)
+                .build();
+    }
+
+    // ==================== BATCH CONFLICT DATA LOADING (avoids N+1) ====================
+
+    /**
+     * Load all conflict-check data for a single date in one shot.
+     * Replaces the O(N) per-staff queries that were causing the hang.
+     */
+    private BatchConflictData loadBatchConflictData(LocalDate date) {
+        LocalDate prevDay = date.minusDays(1);
+        LocalDate nextDay = date.plusDays(1);
+
+        Set<Integer> onLeave = new HashSet<>();
+        for (LeaveRequest lr : leaveRequestRepository.findApprovedByDate(date)) {
+            onLeave.add(lr.getStaff().getId());
+        }
+
+        Set<Integer> onComp = new HashSet<>();
+        for (CompensationDay cd : compensationDayRepository.findByDate(date)) {
+            onComp.add(cd.getStaff().getId());
+        }
+
+        Map<Integer, List<Schedule>> daySchedules = new HashMap<>();
+        for (Schedule s : scheduleRepository.findByWorkDateWithDetails(date)) {
+            daySchedules.computeIfAbsent(s.getStaff().getId(), k -> new ArrayList<>()).add(s);
+        }
+
+        Set<Integer> adjacent = new HashSet<>();
+        for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, prevDay, prevDay)) {
+            adjacent.add(s.getStaff().getId());
+        }
+        for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, nextDay, nextDay)) {
+            adjacent.add(s.getStaff().getId());
+        }
+
+        return new BatchConflictData(onLeave, onComp, daySchedules, adjacent);
+    }
+
+    /**
+     * Batch-aware version of filterAndSortEligibleStaff that uses pre-loaded conflict data
+     * instead of making per-staff DB queries for leave/compensation/shift-type conflicts.
+     * Only falls back to the DB when checking max shifts (per-staff quota).
+     */
+    private List<Staff> filterAndSortEligibleStaffBatch(
+            List<Staff> pool,
+            ShiftRequirement req,
+            Set<Integer> excludedStaffIds,
+            BatchConflictData batchData,
+            boolean skipCompensationCheck,
+            Comparator<Staff> sortComparator) {
+
+        ShiftType shiftType = req.getShiftType();
+        String shiftTypeId = shiftType.getId();
+        boolean isOvernight = Boolean.TRUE.equals(shiftType.getIsOvernight());
+
+        List<Staff> eligible = new ArrayList<>();
+        for (Staff staff : pool) {
+            if (excludedStaffIds != null && excludedStaffIds.contains(staff.getId())) continue;
+
+            // 1. Check max shifts (only L01)
+            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
+                if (conflictDetectionService.hasExceededMaxShifts(staff.getId(), req.getPeriod().getId(), ConflictDetectionService.SHIFT_TYPE_L01)) {
+                    continue;
+                }
+            }
+
+            // 2. Check specialty
+            if (req.getSpecialty() != null && (staff.getSpecialty() == null
+                    || !staff.getSpecialty().getId().equals(req.getSpecialty().getId()))) {
+                continue;
+            }
+
+            // 3. In-memory assignment conflict (from this scheduling run)
+            if (hasInMemoryConflict(staff.getId(), req.getWorkDate(), shiftTypeId)) {
+                continue;
+            }
+
+            // 4. Use batch-loaded data instead of per-staff queries
+            if (batchData.onLeaveStaffIds().contains(staff.getId())) continue;
+
+            if (!skipCompensationCheck && batchData.onCompDayStaffIds().contains(staff.getId())) continue;
+
+            if (batchData.hasAdjacentSchedule().contains(staff.getId())) continue;
+
+            // Same-day shift-type conflict
+            List<Schedule> daySchedules = batchData.daySchedulesByStaff().get(staff.getId());
+            if (daySchedules != null) {
+                boolean hasConflict = false;
+                for (Schedule s : daySchedules) {
+                    boolean existingIsOvernight = Boolean.TRUE.equals(s.getShiftType().getIsOvernight());
+                    if (isOvernight != existingIsOvernight) { hasConflict = true; break; }
+                    if (!isOvernight && !existingIsOvernight) {
+                        String eid = s.getShiftType().getId();
+                        if ((ConflictDetectionService.SHIFT_TYPE_L03.equals(shiftTypeId) && ConflictDetectionService.SHIFT_TYPE_L04.equals(eid))
+                                || (ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId) && ConflictDetectionService.SHIFT_TYPE_L03.equals(eid))) {
+                            hasConflict = true; break;
+                        }
+                    }
+                }
+                if (hasConflict) continue;
+            }
+
+            eligible.add(staff);
+        }
+
+        eligible.sort(sortComparator);
+        return eligible;
     }
 }
