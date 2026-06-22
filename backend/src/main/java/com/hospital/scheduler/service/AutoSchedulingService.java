@@ -56,7 +56,7 @@ public class AutoSchedulingService {
             Set<Integer> onLeaveStaffIds,
             Set<Integer> onCompDayStaffIds,
             Map<Integer, List<Schedule>> daySchedulesByStaff,
-            Set<Integer> hasAdjacentSchedule
+            Set<Integer> adjacentL01StaffIds
     ) {}
 
     public AutoScheduleResponse previewSchedule(AutoScheduleRequestDTO request) {
@@ -1303,15 +1303,15 @@ public class AutoSchedulingService {
             daySchedules.computeIfAbsent(s.getStaff().getId(), k -> new ArrayList<>()).add(s);
         }
 
-        Set<Integer> adjacent = new HashSet<>();
+        Set<Integer> adjacentL01 = new HashSet<>();
         for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, prevDay, prevDay)) {
-            adjacent.add(s.getStaff().getId());
+            if (SHIFT_TYPE_L01.equals(s.getShiftType().getId())) adjacentL01.add(s.getStaff().getId());
         }
         for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, nextDay, nextDay)) {
-            adjacent.add(s.getStaff().getId());
+            if (SHIFT_TYPE_L01.equals(s.getShiftType().getId())) adjacentL01.add(s.getStaff().getId());
         }
 
-        return new BatchConflictData(onLeave, onComp, daySchedules, adjacent);
+        return new BatchConflictData(onLeave, onComp, daySchedules, adjacentL01);
     }
 
     /**
@@ -1358,7 +1358,9 @@ public class AutoSchedulingService {
 
             if (!skipCompensationCheck && batchData.onCompDayStaffIds().contains(staff.getId())) continue;
 
-            if (batchData.hasAdjacentSchedule().contains(staff.getId())) continue;
+            // Adjacent day restriction only applies to L01 (trực 24/24 cannot work two consecutive days)
+            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)
+                    && batchData.adjacentL01StaffIds().contains(staff.getId())) continue;
 
             // Same-day shift-type conflict
             List<Schedule> daySchedules = batchData.daySchedulesByStaff().get(staff.getId());
