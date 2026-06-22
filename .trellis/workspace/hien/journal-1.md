@@ -284,4 +284,24 @@ Sau khi Trellis được setup, team đã chạy liên tiếp các task:
 - **Shared page refactor**: Config-driven `ScheduleByTypePage` giảm ~700 LOC duplicate
 - **Optimistic mutation contract**: 3 callbacks (optimistic/commit/rollback) cho calendar grids
 
-**Lines used**: ~220 / 2000
+## 2026-06-22 — Staging Deploy Pre-checks
+
+**Task**: `06-22-staging-deploy` (status: in_progress)
+
+**Local pre-deploy checks (ALL GREEN)**:
+- Backend `./mvnw test`: 206/206 pass (was 192; +14 new tests)
+- Backend `./mvnw package`: BUILD SUCCESS
+- Frontend `pnpm exec tsc --noEmit`: 0 errors
+- Frontend `pnpm build`: Compiled successfully (30/30 static pages)
+- `Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml`: all present + well-structured
+
+**Fixes made during pre-checks** (commit `563c635`):
+1. `ScheduleServiceTest`: missing `@Mock HolidayRepository` → 6 NPE errors
+   (regression — recent ScheduleService change added HolidayRepository dep)
+2. `ScheduleExchangeService.createExchange`: enforced business rule
+   "at least one schedule must be L01 (24/24 duty)" — was missing
+
+**Next**: Need staging infrastructure access from user to proceed with
+actual docker push + deploy (DB host, SMTP creds, domain, JWT secret).
+
+**Lines used**: ~250 / 2000
