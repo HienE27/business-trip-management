@@ -39,6 +39,14 @@ public class ScheduleController {
     private final CompensationDayService compensationDayService;
     private final AuthContextService authContextService;
 
+    @GetMapping("/conflicts/check")
+    @Operation(summary = "Kiểm tra xung đột lịch trong kỳ (query alias)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<ConflictCheckResponse>> checkConflictsQuery(
+            @RequestParam("periodId") Integer periodId) {
+        return ResponseEntity.ok(ApiResponse.success(scheduleService.checkConflictsInPeriod(periodId)));
+    }
+
     @GetMapping("/conflicts/check/{periodId}")
     @Operation(summary = "Kiểm tra xung đột lịch trong kỳ")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
