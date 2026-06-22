@@ -506,10 +506,10 @@ export const DashboardCalendar = memo(function DashboardCalendar({
                 <p className="text-label-sm font-semibold text-on-surface-variant mb-2">Loại lịch</p>
                 <div className="space-y-1.5">
                   {[
-                    { label: "Trực 24/24", color: "bg-primary" },
-                    { label: "Thông tầm", color: "bg-secondary" },
-                    { label: "Dịch vụ", color: "bg-tertiary" },
-                    { label: "Chuyên gia", color: "bg-expert" },
+                    { label: "Trực 24/24", color: "bg-shift-24" },
+                    { label: "Thông tầm", color: "bg-shift-all-day" },
+                    { label: "Dịch vụ", color: "bg-shift-service" },
+                    { label: "Chuyên gia", color: "bg-shift-expert" },
                   ].map((l) => (
                     <div key={l.label} className="flex items-center gap-2">
                       <div aria-hidden="true" className={`w-5 h-3 rounded-sm ${l.color}`} />
@@ -532,7 +532,7 @@ export const DashboardCalendar = memo(function DashboardCalendar({
             {WEEKDAYS.map((d, i) => (
               <div
                 key={d}
-                className={`py-2.5 text-center text-label-md font-bold uppercase tracking-wider border-b border-r border-outline-variant bg-surface-container-low leading-tight ${
+                className={`py-2.5 text-center text-label-md font-bold uppercase tracking-wider border-b border-r-0 border-outline-variant bg-surface-container-low leading-tight ${
                   i >= 5 ? "text-error" : "text-on-surface-variant"
                 }`}
               >
@@ -553,7 +553,7 @@ export const DashboardCalendar = memo(function DashboardCalendar({
 
           {/* Cells / Empty state */}
           {filteredSchedules.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center p-8 bg-surface-container-low/30">
+            <div className="flex-1 flex items-center justify-center p-8 bg-surface">
               <EmptyState
                 icon="event_busy"
                 title="Chưa có lịch nào trong tháng này"
@@ -713,7 +713,10 @@ export const DashboardCalendar = memo(function DashboardCalendar({
                     {cell.hasConflict && !isToday(cell) ? (
                       <span className="material-symbols-outlined text-[11px] text-error">warning</span>
                     ) : isCompLocked ? (
-                      <span className="material-symbols-outlined text-[11px] text-outline" title="Ngày nghỉ bù — khóa">lock</span>
+                      <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-surface-container-high text-[9px] font-bold text-outline" aria-label="Ngày nghỉ bù — khóa">
+                        <span className="material-symbols-outlined text-[10px]">lock</span>
+                        KHÓA
+                      </span>
                     ) : primaryAnnotation ? (
                       <span className="rounded-full bg-surface-container-high px-1.5 py-0.5 text-label-sm font-semibold text-on-surface-variant truncate max-w-[80px]" title={primaryAnnotation.label}>
                         {primaryAnnotation.label}
@@ -860,10 +863,10 @@ export const DashboardCalendar = memo(function DashboardCalendar({
                   <p className="text-label-sm font-bold text-on-surface-variant mb-2 leading-tight">Loại lịch</p>
                   <div className="space-y-1.5">
                     {[
-                      { label: "Trực 24/24", color: "bg-primary", id: "duty24" },
-                      { label: "Thông tầm", color: "bg-secondary", id: "allDay" },
-                      { label: "Dịch vụ", color: "bg-tertiary", id: "serviceClinic" },
-                      { label: "Chuyên gia", color: "bg-expert", id: "expertClinic" },
+                      { label: "Trực 24/24", color: "bg-shift-24", id: "duty24" },
+                      { label: "Thông tầm", color: "bg-shift-all-day", id: "allDay" },
+                      { label: "Dịch vụ", color: "bg-shift-service", id: "serviceClinic" },
+                      { label: "Chuyên gia", color: "bg-shift-expert", id: "expertClinic" },
                     ].map((l) => (
                       <div key={l.id} className="flex items-center gap-2">
                         <div aria-hidden="true" className={`w-5 h-3 rounded-sm ${l.color}`} />
@@ -925,10 +928,10 @@ export const DashboardCalendar = memo(function DashboardCalendar({
               <p className="text-label-sm font-semibold text-on-surface-variant mb-2">Loại lịch</p>
               <div className="space-y-1.5">
                 {[
-                  { label: "Trực 24/24", color: "bg-primary",       id: "duty24"       },
-                  { label: "Thông tầm",   color: "bg-secondary",  id: "allDay"       },
-                  { label: "Dịch vụ",     color: "bg-tertiary",    id: "serviceClinic"},
-                  { label: "Chuyên gia",  color: "bg-expert",   id: "expertClinic" },
+                  { label: "Trực 24/24", color: "bg-shift-24",       id: "duty24"       },
+                  { label: "Thông tầm",   color: "bg-shift-all-day",  id: "allDay"       },
+                  { label: "Dịch vụ",     color: "bg-shift-service", id: "serviceClinic"},
+                  { label: "Chuyên gia",  color: "bg-shift-expert",  id: "expertClinic" },
                 ].map((l) => (
                   <div key={l.id} className="flex items-center gap-2">
                     <div aria-hidden="true" className={`w-5 h-3 rounded-sm ${l.color}`} />

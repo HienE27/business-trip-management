@@ -358,14 +358,12 @@ export default function StaffProfilePage() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse" aria-label="Page Table">
                       <thead>
                         <tr className="bg-surface-container-low border-b border-outline-variant">
                           {["Ngày", "Loại lịch", "Trạng thái"].map((h) => (
-                            <th
-                              key={h}
-                              className="py-3 px-4 text-label-sm text-on-surface-variant font-semibold"
-                            >
+                            <th scope="col" key={h}
+                              className="py-3 px-4 text-label-sm text-on-surface-variant font-semibold">
                               {h}
                             </th>
                           ))}

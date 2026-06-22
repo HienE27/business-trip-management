@@ -8,7 +8,7 @@ export const TONE: Record<
   ScheduleTone,
   { bg: string; text: string; border: string; dot: string }
 > = {
-  duty24: { bg: "bg-shift-24", text: "text-on-shift-24", border: "border-l-primary", dot: "bg-primary" },
+  duty24: { bg: "bg-shift-24", text: "text-on-shift-24", border: "border-l-red-500", dot: "bg-red-500" },
   allDay: { bg: "bg-shift-all-day", text: "text-on-shift-all-day", border: "border-l-secondary", dot: "bg-secondary" },
   serviceClinic: { bg: "bg-shift-service", text: "text-on-shift-service", border: "border-l-error", dot: "bg-tertiary" },
   expertClinic: { bg: "bg-shift-expert", text: "text-on-shift-expert", border: "border-l-shift-expert", dot: "bg-shift-expert" },

@@ -263,17 +263,17 @@ function AlgorithmHistoryContent() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse" aria-label="Page Table">
               <thead>
                 <tr className="bg-surface-container-low border-b border-outline-variant">
-                  <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase w-10">Chọn</th>
-                  <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thời gian</th>
-                  <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Kỳ lịch</th>
-                  <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thuật toán</th>
-                  <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Độ phủ</th>
-                  <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Cân bằng</th>
-                  <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Xung đột</th>
-                  <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thời gian chạy</th>
+                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase w-10">Chọn</th>
+                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thời gian</th>
+                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Kỳ lịch</th>
+                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thuật toán</th>
+                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Độ phủ</th>
+                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Cân bằng</th>
+                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Xung đột</th>
+                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thời gian chạy</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">

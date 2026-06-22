@@ -26,7 +26,7 @@ export type ShiftColorSet = {
  */
 export const SHIFT_COLORS: Record<ScheduleTab, ShiftColorSet> = {
   ALL: { bg: "bg-surface-container-low", text: "text-on-surface", dot: "bg-outline", label: "Tất cả" },
-  L01: { bg: "bg-shift-24",       text: "text-on-shift-24",       dot: "bg-blue-500",    label: "Trực 24/24" },
+  L01: { bg: "bg-shift-24",       text: "text-on-shift-24",       dot: "bg-red-500",    label: "Trực 24/24" },
   L02: { bg: "bg-shift-all-day", text: "text-on-shift-all-day",   dot: "bg-green-500",   label: "Thông tầm" },
   L03: { bg: "bg-shift-service", text: "text-on-shift-service",   dot: "bg-orange-500",  label: "Dịch vụ" },
   L04: { bg: "bg-shift-expert",  text: "text-on-shift-expert",    dot: "bg-purple-500",  label: "Chuyên gia" },

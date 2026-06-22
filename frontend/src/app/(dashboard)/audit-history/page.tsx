@@ -141,7 +141,7 @@ function SyntaxHighlight({ json }: { json: string }) {
   const lines = formatted.split("\n");
   return (
     <div className="rounded bg-[#0d1117] text-[12px] overflow-x-auto">
-      <table className="w-full">
+      <table className="w-full" aria-label="Page Table">
         <tbody>
           {lines.map((line, i) => {
             const highlighted = line

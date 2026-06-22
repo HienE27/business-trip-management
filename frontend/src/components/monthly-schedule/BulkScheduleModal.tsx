@@ -200,13 +200,13 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
               }
             >
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse" aria-label="Bulkschedulemodal Table">
                   <thead>
                     <tr className="bg-surface-container-low border-b border-outline-variant">
-                      <th className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase w-40">
+                      <th scope="col" className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase w-40">
                         Ngày
                       </th>
-                      <th className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase">
+                      <th scope="col" className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase">
                         Nhân sự
                       </th>
                     </tr>
@@ -401,19 +401,19 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
               title={<span className="text-label-md">Chi tiết kết quả</span>}
             >
               <div className="max-h-72 overflow-y-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse" aria-label="Bulkschedulemodal Table">
                   <thead className="sticky top-0 bg-surface-container-low z-10">
                     <tr className="border-b border-outline-variant">
-                      <th className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase w-40">
+                      <th scope="col" className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase w-40">
                         Ngày
                       </th>
-                      <th className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase">
+                      <th scope="col" className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase">
                         Nhân sự
                       </th>
-                      <th className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase w-28 text-center">
+                      <th scope="col" className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase w-28 text-center">
                         Trạng thái
                       </th>
-                      <th className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase">
+                      <th scope="col" className="py-2.5 px-4 text-label-sm text-on-surface-variant uppercase">
                         Ghi chú lỗi
                       </th>
                     </tr>

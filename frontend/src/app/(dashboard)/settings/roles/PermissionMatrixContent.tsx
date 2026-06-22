@@ -181,7 +181,7 @@ export function PermissionMatrixContent() {
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-outline-variant shadow-sm">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full text-left border-collapse" aria-label="Permissionmatrixcontent Table">
           <thead>
             <tr className="bg-surface-container-low border-b border-outline-variant">
               <th

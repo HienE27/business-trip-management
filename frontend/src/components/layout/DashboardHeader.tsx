@@ -61,6 +61,7 @@ export function DashboardHeader(props: {
   title: string;
   description: string;
   onMenuToggle?: () => void;
+  mobileOpen?: boolean;
 }) {
   const { notifications, markAllRead } = useNotifications();
 
@@ -70,7 +71,9 @@ export function DashboardHeader(props: {
       <div className="flex-1 flex items-center gap-2 md:gap-3 min-w-0">
         {props.onMenuToggle && (
         <button
-          aria-label="Menu"
+          aria-expanded={props.mobileOpen}
+          aria-controls="app-sidebar"
+          aria-label="Mở menu điều hướng"
           onClick={props.onMenuToggle}
           className="p-3 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden shrink-0"
         >

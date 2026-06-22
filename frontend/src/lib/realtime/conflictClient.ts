@@ -75,11 +75,11 @@ export function createConflictClient(options: ConflictClientOptions): ConflictCl
   let subscription: StompSubscription | null = null;
 
   const client = new Client({
-    // @stomp/stompjs v7 requires brokerURL; webSocketFactory alone is not enough.
-    // We pass the WS URL as brokerURL so the library knows where to connect.
-    // When webSocketFactory is also provided, it takes precedence over brokerURL.
     brokerURL: options.url,
     webSocketFactory: options.webSocketFactory,
+    // Fixed 5s reconnect delay. The underlying @stomp/stompjs will retry indefinitely.
+    // To use exponential backoff (e.g. 1s→2s→4s→8s capped at 30s), pass a function
+    // when @stomp/stompjs types support it: reconnectDelay: (c) => Math.min(5000*2**c, 30000).
     reconnectDelay: RECONNECT_DELAY_MS,
     heartbeatIncoming: HEARTBEAT_INCOMING_MS,
     heartbeatOutgoing: HEARTBEAT_OUTGOING_MS,

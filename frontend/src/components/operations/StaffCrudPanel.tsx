@@ -723,7 +723,7 @@ export function StaffCrudPanel() {
               <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           ) : (
-            <table className="w-full border-collapse text-left">
+            <table className="w-full border-collapse text-left" aria-label="Staffcrudpanel Table">
               <thead className="bg-surface-container-low border-b border-outline-variant">
                 <tr>
                   <th scope="col" className="px-3 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Nhân viên</th>

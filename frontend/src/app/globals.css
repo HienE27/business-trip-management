@@ -51,8 +51,8 @@
   --color-on-expert-container: #3b1c07;
 
   /* ── Shift-type Containers (used in calendar tones) ── */
-  --color-shift-24:        #dbe1ff;
-  --color-on-shift-24:     #00174b;
+  --color-shift-24:        #fecaca;
+  --color-on-shift-24:     #7f1d1d;
   --color-shift-all-day:   #dcfce7;
   --color-on-shift-all-day:#14532d;
   --color-shift-service:   #ffedd5;
@@ -144,8 +144,8 @@
     --color-outline-variant:            #43474f;
 
     /* Shift containers (keep light tint colors readable on dark) */
-    --color-shift-24:                  #1e2d5e;
-    --color-on-shift-24:               #c7d4ff;
+    --color-shift-24:                  #7f1d1d;
+    --color-on-shift-24:               #fee2e2;
     --color-shift-all-day:             #0e3319;
     --color-on-shift-all-day:          #86efac;
     --color-shift-service:             #3d1c07;
@@ -176,8 +176,8 @@
   --color-surface-tint:                #a0b4ff;
   --color-outline:                    #8d9299;
   --color-outline-variant:             #43474f;
-  --color-shift-24:                   #1e2d5e;
-  --color-on-shift-24:               #c7d4ff;
+  --color-shift-24:                   #7f1d1d;
+  --color-on-shift-24:               #fee2e2;
   --color-shift-all-day:              #0e3319;
   --color-on-shift-all-day:           #86efac;
   --color-shift-service:              #3d1c07;
@@ -218,8 +218,8 @@ html.dark {
   --color-surface-tint:                #a0b4ff;
   --color-outline:                    #8d9299;
   --color-outline-variant:             #43474f;
-  --color-shift-24:                   #1e2d5e;
-  --color-on-shift-24:               #c7d4ff;
+  --color-shift-24:                   #7f1d1d;
+  --color-on-shift-24:               #fee2e2;
   --color-shift-all-day:              #0e3319;
   --color-on-shift-all-day:           #86efac;
   --color-shift-service:              #3d1c07;

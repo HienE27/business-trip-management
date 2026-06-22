@@ -346,17 +346,17 @@ function ReportsStaffContent() {
               }
             />
           ) : (
-            <table className="w-full border-collapse text-left" data-testid="staff-workload-table">
+            <table className="w-full border-collapse text-left" data-testid="staff-workload-table" aria-label="Page Table">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container-low">
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Nhân sự</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Khoa</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-center">Tổng ca</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L01</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L02</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L03</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L04</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Tải trọng</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Nhân sự</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Khoa</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant text-center">Tổng ca</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L01</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L02</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L03</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L04</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Tải trọng</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">

@@ -37,14 +37,14 @@ export function ShiftDetailTable({ shift, className = "" }: ShiftDetailTableProp
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full text-left border-collapse" aria-label="Shiftdetailtable Table">
           <thead>
             <tr className="bg-surface-container-low border-b border-outline-variant text-on-surface-variant text-label-sm">
-              <th className="p-4 font-semibold w-12 text-center align-middle">STT</th>
-              <th className="p-4 font-semibold align-middle">Họ và tên</th>
-              <th className="p-4 font-semibold align-middle">Chức danh / Vai trò</th>
-              <th className="p-4 font-semibold align-middle">Vị trí công tác cụ thể</th>
-              <th className="p-4 font-semibold align-middle">Ghi chú chuyên môn</th>
+              <th scope="col" className="p-4 font-semibold w-12 text-center align-middle">STT</th>
+              <th scope="col" className="p-4 font-semibold align-middle">Họ và tên</th>
+              <th scope="col" className="p-4 font-semibold align-middle">Chức danh / Vai trò</th>
+              <th scope="col" className="p-4 font-semibold align-middle">Vị trí công tác cụ thể</th>
+              <th scope="col" className="p-4 font-semibold align-middle">Ghi chú chuyên môn</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/50">

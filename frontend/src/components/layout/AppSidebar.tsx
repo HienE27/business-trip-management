@@ -145,6 +145,7 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
       )}
 
       <aside
+        id="app-sidebar"
         aria-label="Điều hướng chính"
         className={`
           fixed left-0 top-0 h-screen w-64 border-r border-outline-variant
@@ -278,8 +279,8 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
                         <span
                           className="ml-auto inline-flex items-center justify-center
                             min-w-[20px] h-4 px-1.5 rounded-full
-                            bg-surface-container-highest text-[10px] font-bold
-                            text-on-surface-variant group-hover/header:bg-surface-container-high
+                            bg-primary-fixed text-on-primary-fixed-dim text-[10px] font-bold
+                            group-hover/header:bg-primary-fixed-dim
                             transition-colors"
                         >
                           {group.items.length}

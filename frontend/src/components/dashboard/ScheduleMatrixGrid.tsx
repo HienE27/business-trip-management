@@ -114,11 +114,11 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
   return (
     <div className="rounded-xl border border-outline-variant bg-surface-container-lowest overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-[12px]">
+        <table className="w-full border-collapse text-[12px]" aria-label="Schedulematrixgrid Table">
           <thead>
             <tr>
               {/* Fixed first column: date header */}
-              <th className="sticky left-0 z-20 min-w-[80px] bg-surface-container-low border-b border-r border-outline-variant px-3 py-2.5 text-left font-semibold text-on-surface-variant">
+              <th scope="col" className="sticky left-0 z-20 min-w-[80px] bg-surface-container-low border-b border-r border-outline-variant px-3 py-2.5 text-left font-semibold text-on-surface-variant">
                 <div className="flex flex-col items-center gap-0.5">
                   <span className="text-[11px] uppercase tracking-wide">Ngày</span>
                 </div>
@@ -131,10 +131,8 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                     new Date(s.workDate).getMonth() === month
                 ).length;
                 return (
-                  <th
-                    key={staff.id}
-                    className="min-w-[100px] border-b border-r border-outline-variant bg-surface-container-low px-2 py-2.5 text-center"
-                  >
+                  <th scope="col" key={staff.id}
+                    className="min-w-[100px] border-b border-r border-outline-variant bg-surface-container-low px-2 py-2.5 text-center">
                     <div className="flex flex-col items-center gap-1">
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-fixed text-[12px] font-bold text-primary">
                         {staff.fullName
@@ -157,7 +155,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                 );
               })}
               {/* Stats column */}
-              <th className="min-w-[60px] border-b border-outline-variant bg-surface-container-low px-2 py-2.5 text-center">
+              <th scope="col" className="min-w-[60px] border-b border-outline-variant bg-surface-container-low px-2 py-2.5 text-center">
                 <span className="text-[11px] font-semibold text-on-surface-variant">Tổng</span>
               </th>
             </tr>

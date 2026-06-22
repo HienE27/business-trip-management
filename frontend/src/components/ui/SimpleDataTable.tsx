@@ -19,7 +19,7 @@ function badgeTone(value: string): BadgeTone {
 export function SimpleDataTable({ headers, rows, statusColumn }: SimpleDataTableProps) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] border-collapse text-left">
+      <table className="w-full min-w-[720px] border-collapse text-left" aria-label="Simpledatatable Table">
         <thead>
           <tr className="border-b border-outline-variant bg-surface-container-low">
             {headers.map((header) => (

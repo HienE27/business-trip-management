@@ -78,14 +78,14 @@ function MetricsHistorySection({ periodId }: { periodId: number | null }) {
 
   return (
     <div className="overflow-x-auto max-h-48">
-      <table className="w-full text-left border-collapse">
+      <table className="w-full text-left border-collapse" aria-label="Page Table">
         <thead className="bg-surface-container-low border-b border-outline-variant sticky top-0">
           <tr>
-            <th className="p-2 text-label-xs text-on-surface-variant uppercase">Thuật toán</th>
-            <th className="p-2 text-label-xs text-on-surface-variant uppercase">Thời gian</th>
-            <th className="p-2 text-label-xs text-on-surface-variant uppercase">Tỷ lệ phủ</th>
-            <th className="p-2 text-label-xs text-on-surface-variant uppercase">Cân bằng</th>
-            <th className="p-2 text-label-xs text-on-surface-variant uppercase">Xung đột</th>
+            <th scope="col" className="p-2 text-label-xs text-on-surface-variant uppercase">Thuật toán</th>
+            <th scope="col" className="p-2 text-label-xs text-on-surface-variant uppercase">Thời gian</th>
+            <th scope="col" className="p-2 text-label-xs text-on-surface-variant uppercase">Tỷ lệ phủ</th>
+            <th scope="col" className="p-2 text-label-xs text-on-surface-variant uppercase">Cân bằng</th>
+            <th scope="col" className="p-2 text-label-xs text-on-surface-variant uppercase">Xung đột</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-outline-variant/30">
@@ -772,12 +772,12 @@ export default function AutoSchedulingPage() {
               }
             >
               <div className="overflow-x-auto max-h-80">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse" aria-label="Page Table">
                   <thead className="sticky top-0 bg-surface-container-low border-b border-outline-variant">
                     <tr>
-                      <th className="p-3 text-label-xs text-on-surface-variant uppercase">Ngày</th>
-                      <th className="p-3 text-label-xs text-on-surface-variant uppercase">Loại lịch</th>
-                      <th className="p-3 text-label-xs text-on-surface-variant uppercase">Nhân sự</th>
+                      <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Ngày</th>
+                      <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Loại lịch</th>
+                      <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Nhân sự</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/30 overflow-y-auto">

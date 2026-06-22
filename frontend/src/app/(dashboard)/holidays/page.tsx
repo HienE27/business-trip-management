@@ -170,14 +170,14 @@ export default function HolidaysPage() {
       <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm">
         <div className="overflow-x-auto">
           {loading ? (
-            <table className="w-full border-collapse text-left">
+            <table className="w-full border-collapse text-left" aria-label="Page Table">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container-low">
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Ngày lễ</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Tên ngày lễ</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Loại</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Mô tả</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-right">Thao tác</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Ngày lễ</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Tên ngày lễ</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Loại</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Mô tả</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">
@@ -205,14 +205,14 @@ export default function HolidaysPage() {
               }
             />
           ) : (
-            <table className="w-full border-collapse text-left">
+            <table className="w-full border-collapse text-left" aria-label="Page Table">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container-low">
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Ngày lễ</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Tên ngày lễ</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Loại</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant">Mô tả</th>
-                  <th className="px-5 py-3 text-label-sm text-on-surface-variant text-right">Thao tác</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Ngày lễ</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Tên ngày lễ</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Loại</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Mô tả</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">

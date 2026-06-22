@@ -268,17 +268,17 @@ export default function RequirementsPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse" aria-label="Page Table">
                 <thead>
                   <tr className="bg-surface-container-low border-b border-outline-variant">
-                    <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Kỳ lịch</th>
-                    <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Ngày</th>
-                    <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Loại ca</th>
-                    <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Chuyên khoa</th>
-                    <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Cần</th>
-                    <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Đã gán</th>
-                    <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Ghi chú</th>
-                    <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-right">Thao tác</th>
+                    <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Kỳ lịch</th>
+                    <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Ngày</th>
+                    <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Loại ca</th>
+                    <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Chuyên khoa</th>
+                    <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Cần</th>
+                    <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Đã gán</th>
+                    <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Ghi chú</th>
+                    <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">

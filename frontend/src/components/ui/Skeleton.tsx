@@ -51,7 +51,7 @@ export function SkeletonTable({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
       aria-label="Đang tải dữ liệu bảng"
     >
       <span className="sr-only">Đang tải dữ liệu bảng</span>
-      <table className="w-full" aria-hidden="true">
+      <table className="w-full" aria-hidden="true" aria-label="Skeleton Table">
         <thead>
           <tr className="border-b border-outline-variant">
             {Array.from({ length: cols }).map((_, i) => (

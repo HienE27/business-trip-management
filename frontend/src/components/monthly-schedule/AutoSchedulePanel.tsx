@@ -151,13 +151,13 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               </div>
             </div>
             <div className="max-h-80 overflow-x-auto overflow-y-auto">
-              <table className="w-full text-left">
+              <table className="w-full text-left" aria-label="Autoschedulepanel Table">
                 <thead className="sticky top-0 z-10 border-b border-outline-variant bg-surface-container-low">
                   <tr>
-                    <th className="px-3 py-2 text-label-xs uppercase text-on-surface-variant">Ngày</th>
-                    <th className="px-3 py-2 text-label-xs uppercase text-on-surface-variant">Loại lịch</th>
-                    <th className="px-3 py-2 text-label-xs uppercase text-on-surface-variant">Nhân sự</th>
-                    <th className="w-28 px-3 py-2 text-center text-label-xs uppercase text-on-surface-variant">Tình trạng</th>
+                    <th scope="col" className="px-3 py-2 text-label-xs uppercase text-on-surface-variant">Ngày</th>
+                    <th scope="col" className="px-3 py-2 text-label-xs uppercase text-on-surface-variant">Loại lịch</th>
+                    <th scope="col" className="px-3 py-2 text-label-xs uppercase text-on-surface-variant">Nhân sự</th>
+                    <th scope="col" className="w-28 px-3 py-2 text-center text-label-xs uppercase text-on-surface-variant">Tình trạng</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">

@@ -107,7 +107,7 @@ export function ScheduleTableView({
       />
 
       <div className="flex-1 overflow-auto">
-        <table className="w-full border-collapse border border-outline-variant text-label-sm">
+        <table className="w-full border-collapse border border-outline-variant text-label-sm" aria-label="Scheduletableview Table">
           <ScheduleTableHeader sortKey={filters.sortKey} sortDir={filters.sortDir} onSort={handleSort} />
           <tbody className="divide-y divide-outline-variant/40">
             {pageData.length === 0 ? (

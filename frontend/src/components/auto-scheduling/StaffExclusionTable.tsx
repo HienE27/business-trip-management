@@ -71,7 +71,7 @@ export function StaffExclusionTable({
   return (
     <div>
       <div className="overflow-x-auto border border-outline-variant/50 rounded-lg">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full text-left border-collapse" aria-label="Staffexclusiontable Table">
           <thead>
             <tr className="bg-surface-container-low border-b border-outline-variant/50">
               <th scope="col" className="p-3 w-10 text-center">

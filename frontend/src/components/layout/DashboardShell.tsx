@@ -39,6 +39,7 @@ export function DashboardShell({
         <DashboardHeader
           title={title}
           description={description}
+          mobileOpen={mobileOpen}
           onMenuToggle={() => setMobileOpen((v) => !v)}
         />
         <main

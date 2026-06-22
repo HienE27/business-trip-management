@@ -134,15 +134,15 @@ export function ApplyTemplateModal({
             Bạn có thể sửa nhân sự được phân công cho từng ca trước khi xác nhận.
           </p>
           <div className="overflow-x-auto max-h-80">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse" aria-label="Applytemplatemodal Table">
               <thead className="sticky top-0 bg-surface-container-low border-b border-outline-variant">
                 <tr>
-                  <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Ngày</th>
-                  <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Thứ</th>
-                  <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Loại ca</th>
-                  <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Chuyên khoa</th>
-                  <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Số người</th>
-                  <th className="p-2.5 text-label-xs text-on-surface-variant uppercase">Nhân sự phân công</th>
+                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Ngày</th>
+                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Thứ</th>
+                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Loại ca</th>
+                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Chuyên khoa</th>
+                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Số người</th>
+                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Nhân sự phân công</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/30">

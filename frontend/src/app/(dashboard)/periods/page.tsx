@@ -302,14 +302,14 @@ export default function PeriodsPage() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse" aria-label="Page Table">
                   <thead>
                     <tr className="bg-surface-container-low border-b border-outline-variant">
-                      <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Tên kỳ lịch</th>
-                      <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Ngày bắt đầu</th>
-                      <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Ngày kết thúc</th>
-                      <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Trạng thái</th>
-                      <th className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thao tác</th>
+                      <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Tên kỳ lịch</th>
+                      <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Ngày bắt đầu</th>
+                      <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Ngày kết thúc</th>
+                      <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Trạng thái</th>
+                      <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant">
