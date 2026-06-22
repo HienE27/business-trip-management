@@ -260,11 +260,7 @@ CREATE TABLE schedule (
         FOREIGN KEY (requirement_id, period_id, work_date, shift_type_id)
         REFERENCES shift_requirement(id, period_id, work_date, shift_type_id),
 
-    UNIQUE KEY uk_schedule_unique (period_id, staff_id, shift_type_id, work_date),
-    UNIQUE KEY uk_schedule_id_staff (id, staff_id),
-    UNIQUE KEY uk_schedule_id_staff_period (id, staff_id, period_id),
-    UNIQUE KEY uk_schedule_id_staff_period_date (id, staff_id, period_id, work_date),
-    UNIQUE KEY uk_schedule_id_period_date_shift (id, period_id, work_date, shift_type_id)
+    UNIQUE KEY uk_schedule_unique (period_id, staff_id, shift_type_id, work_date)
 ) ENGINE=InnoDB;
 
 -- =====================================================
@@ -283,6 +279,8 @@ CREATE TABLE compensation_day (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
+    CONSTRAINT fk_compensation_staff
+        FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
     CONSTRAINT fk_compensation_schedule_consistency
         FOREIGN KEY (schedule_id, staff_id, period_id, shift_date)
         REFERENCES schedule(id, staff_id, period_id, work_date)
