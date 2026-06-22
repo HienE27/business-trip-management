@@ -7,6 +7,7 @@ import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.service.AutoSchedulingService;
 import com.hospital.scheduler.service.ConflictDetectionService;
 import com.hospital.scheduler.service.AuditHistoryService;
+import com.hospital.scheduler.service.NotificationService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,6 +45,7 @@ class AutoSchedulingServiceIntegrationTest {
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private CompensationDateCalculator compensationDateCalculator;
+    @Mock private NotificationService notificationService;
 
     private AutoSchedulingService autoSchedulingService;
 
@@ -55,7 +57,7 @@ class AutoSchedulingServiceIntegrationTest {
         autoSchedulingService = new AutoSchedulingService(
                 scheduleRepository, periodRepository, staffRepository, requirementRepository,
                 compensationDayRepository, algorithmMetricsRepository, conflictDetectionService,
-                auditHistoryService, compensationDateCalculator
+                auditHistoryService, compensationDateCalculator, notificationService
         );
 
         testPeriod = SchedulePeriod.builder()
