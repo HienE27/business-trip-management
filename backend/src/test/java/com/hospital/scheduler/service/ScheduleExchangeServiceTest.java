@@ -171,8 +171,8 @@ class ScheduleExchangeServiceTest {
     class CreateExchange {
 
         @Test
-        @DisplayName("Hợp lệ với L01 -> tạo thành công")
-        void validL01Exchange_shouldCreate() {
+        @DisplayName("Cùng loại (L01↔L01) -> tạo thành công")
+        void sameTypeL01Exchange_shouldCreate() {
             ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
                     .periodId(1)
                     .requesterScheduleId(10)
@@ -243,32 +243,66 @@ class ScheduleExchangeServiceTest {
         }
 
         @Test
-        @DisplayName("Cả hai không phải L01 -> throw BadRequestException")
-        void neitherIsL01_shouldThrow() {
+        @DisplayName("Cùng loại L02↔L02 -> hợp lệ")
+        void sameTypeL02_shouldSucceed() {
             testPeriod.setStatus(SchedulePeriod.PeriodStatus.PUBLISHED);
             ShiftType shiftL02 = ShiftType.builder()
                     .id("L02").name("Lịch thông tầm").isOvernight(false).build();
-            Schedule nonL01ScheduleA = Schedule.builder()
+            Schedule l02ScheduleA = Schedule.builder()
                     .id(10).period(testPeriod).staff(staffA).shiftType(shiftL02)
                     .workDate(LocalDate.of(2026, 6, 5)).build();
-            Schedule nonL01ScheduleB = Schedule.builder()
+            Schedule l02ScheduleB = Schedule.builder()
                     .id(20).period(testPeriod).staff(staffB).shiftType(shiftL02)
                     .workDate(LocalDate.of(2026, 6, 10)).build();
 
             ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
                     .periodId(1).requesterScheduleId(10).targetScheduleId(20).build();
             when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
-            when(scheduleRepository.findById(10)).thenReturn(Optional.of(nonL01ScheduleA));
-            when(scheduleRepository.findById(20)).thenReturn(Optional.of(nonL01ScheduleB));
+            when(scheduleRepository.findById(10)).thenReturn(Optional.of(l02ScheduleA));
+            when(scheduleRepository.findById(20)).thenReturn(Optional.of(l02ScheduleB));
+            when(exchangeRepository.save(any(ScheduleExchange.class)))
+                    .thenAnswer(inv -> {
+                        ScheduleExchange e = inv.getArgument(0);
+                        e.setId(6);
+                        e.setCreatedAt(LocalDateTime.now());
+                        e.setUpdatedAt(LocalDateTime.now());
+                        return e;
+                    });
 
-            assertThatThrownBy(() -> exchangeService.createExchange(1, dto))
-                    .isInstanceOf(BadRequestException.class)
-                    .hasMessageContaining("L01");
+            ScheduleExchangeResponse result = exchangeService.createExchange(1, dto);
+            assertThat(result.getId()).isEqualTo(6);
+            assertThat(result.getStatus()).isEqualTo(ScheduleExchangeResponse.ExchangeStatus.PENDING);
         }
 
         @Test
-        @DisplayName("Một là L01 một không -> hợp lệ (đổi với ca L01)")
-        void oneIsL01_shouldSucceed() {
+        @DisplayName("Khác loại (L01 vs L02) -> throw BadRequestException")
+        void crossType_shouldThrow() {
+            testPeriod.setStatus(SchedulePeriod.PeriodStatus.PUBLISHED);
+            ShiftType shiftL01 = ShiftType.builder()
+                    .id("L01").name("Lịch trực 24/24").isOvernight(true).build();
+            ShiftType shiftL02 = ShiftType.builder()
+                    .id("L02").name("Lịch thông tầm").isOvernight(false).build();
+            Schedule l01ScheduleA = Schedule.builder()
+                    .id(10).period(testPeriod).staff(staffA).shiftType(shiftL01)
+                    .workDate(LocalDate.of(2026, 6, 5)).build();
+            Schedule l02ScheduleB = Schedule.builder()
+                    .id(20).period(testPeriod).staff(staffB).shiftType(shiftL02)
+                    .workDate(LocalDate.of(2026, 6, 10)).build();
+
+            ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
+                    .periodId(1).requesterScheduleId(10).targetScheduleId(20).build();
+            when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
+            when(scheduleRepository.findById(10)).thenReturn(Optional.of(l01ScheduleA));
+            when(scheduleRepository.findById(20)).thenReturn(Optional.of(l02ScheduleB));
+
+            assertThatThrownBy(() -> exchangeService.createExchange(1, dto))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("khác loại");
+        }
+
+        @Test
+        @DisplayName("Khác loại (L02 vs L01) -> throw BadRequestException")
+        void crossTypeL02_L01_shouldThrow() {
             ShiftType shiftL02 = ShiftType.builder()
                     .id("L02").name("Lịch thông tầm").isOvernight(false).build();
             Schedule nonL01ScheduleA = Schedule.builder()
@@ -280,18 +314,51 @@ class ScheduleExchangeServiceTest {
             when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
             when(scheduleRepository.findById(10)).thenReturn(Optional.of(nonL01ScheduleA));
             when(scheduleRepository.findById(20)).thenReturn(Optional.of(scheduleB));
-            when(exchangeRepository.save(any(ScheduleExchange.class)))
-                    .thenAnswer(inv -> {
-                        ScheduleExchange e = inv.getArgument(0);
-                        e.setId(5);
-                        e.setCreatedAt(LocalDateTime.now());
-                        e.setUpdatedAt(LocalDateTime.now());
-                        return e;
-                    });
 
-            ScheduleExchangeResponse result = exchangeService.createExchange(1, dto);
+            assertThatThrownBy(() -> exchangeService.createExchange(1, dto))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("khác loại");
+        }
 
-            assertThat(result.getId()).isEqualTo(5);
+        // -------------------------------------------------------------------------
+        // M3: Target staff inactive → rejection
+        // -------------------------------------------------------------------------
+        @Test
+        @DisplayName("M3: Nhân sự được đổi đang ngừng hoạt động -> throw BadRequestException")
+        void targetStaffInactive_shouldThrow() {
+            Staff inactiveStaff = Staff.builder()
+                    .id(2).username("nurseB").fullName("Tran Thi B").isActive(false).build();
+            Schedule inactiveSchedule = Schedule.builder()
+                    .id(20).period(testPeriod).staff(inactiveStaff).shiftType(scheduleB.getShiftType())
+                    .workDate(LocalDate.of(2026, 6, 10)).build();
+
+            ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
+                    .periodId(1).requesterScheduleId(10).targetScheduleId(20).build();
+            when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
+            when(scheduleRepository.findById(10)).thenReturn(Optional.of(scheduleA));
+            when(scheduleRepository.findById(20)).thenReturn(Optional.of(inactiveSchedule));
+
+            assertThatThrownBy(() -> exchangeService.createExchange(1, dto))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("ngừng hoạt động");
+        }
+
+        // -------------------------------------------------------------------------
+        // M4: Archived period → rejection
+        // -------------------------------------------------------------------------
+        @Test
+        @DisplayName("M4: Kỳ lịch đang lưu trữ (ARCHIVED) -> throw BadRequestException")
+        void archivedPeriod_shouldThrow() {
+            testPeriod.setStatus(SchedulePeriod.PeriodStatus.ARCHIVED);
+            ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
+                    .periodId(1).requesterScheduleId(10).targetScheduleId(20).build();
+            when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
+            when(scheduleRepository.findById(10)).thenReturn(Optional.of(scheduleA));
+            when(scheduleRepository.findById(20)).thenReturn(Optional.of(scheduleB));
+
+            assertThatThrownBy(() -> exchangeService.createExchange(1, dto))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("chưa được công bố");
         }
     }
 
@@ -419,6 +486,22 @@ class ScheduleExchangeServiceTest {
         @DisplayName("Kỳ lịch quay về DRAFT -> throw BadRequestException")
         void periodBackToDraft_shouldThrow() {
             testPeriod.setStatus(SchedulePeriod.PeriodStatus.DRAFT);
+            Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
+            when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+
+            assertThatThrownBy(() -> exchangeService.approveExchange(1, 3, null))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("chưa được công bố");
+        }
+
+        // -------------------------------------------------------------------------
+        // M4: Archived period in approveExchange
+        // -------------------------------------------------------------------------
+        @Test
+        @DisplayName("M4: Kỳ lịch đang lưu trữ (ARCHIVED) trong duyệt -> throw BadRequestException")
+        void archivedPeriod_shouldThrow() {
+            testPeriod.setStatus(SchedulePeriod.PeriodStatus.ARCHIVED);
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));

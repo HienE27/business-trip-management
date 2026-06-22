@@ -123,7 +123,7 @@ class ReportExportServiceTest {
     void exportWorkloadWithFilter() throws Exception {
         when(scheduleRepository.findByPeriodId(1)).thenReturn(List.of(sampleSchedule));
 
-        byte[] data = reportExportService.exportWorkloadReportToExcel(1, 1, LocalDate.of(2026, 6, 1));
+        byte[] data = reportExportService.exportWorkloadReportToExcel(1, null, 1, LocalDate.of(2026, 6, 1));
 
         assertThat(data).isNotEmpty();
     }

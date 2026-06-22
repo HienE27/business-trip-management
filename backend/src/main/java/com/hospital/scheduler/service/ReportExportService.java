@@ -113,13 +113,18 @@ public class ReportExportService {
     }
 
     public byte[] exportWorkloadReportToExcel(Integer periodId) throws IOException {
-        return exportWorkloadReportToExcel(periodId, null, null);
+        return exportWorkloadReportToExcel(periodId, null, null, null);
     }
 
-    public byte[] exportWorkloadReportToExcel(Integer periodId, Integer staffId,
+    public byte[] exportWorkloadReportToExcel(Integer periodId, String shiftTypeId, Integer staffId,
                                             java.time.LocalDate startDate) throws IOException {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
 
+        if (shiftTypeId != null && !shiftTypeId.isBlank()) {
+            schedules = schedules.stream()
+                    .filter(s -> shiftTypeId.equals(s.getShiftType().getId()))
+                    .toList();
+        }
         if (staffId != null) {
             schedules = schedules.stream()
                     .filter(s -> staffId.equals(s.getStaff().getId()))

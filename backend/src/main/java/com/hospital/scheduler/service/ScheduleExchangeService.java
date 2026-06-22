@@ -105,7 +105,11 @@ public class ScheduleExchangeService {
 
         Staff targetStaff = targetSchedule.getStaff();
 
-        if (requesterSchedule.getPeriod().getStatus() == SchedulePeriod.PeriodStatus.DRAFT) {
+        if (!Boolean.TRUE.equals(targetStaff.getIsActive())) {
+            throw new BadRequestException("Nhân sự được đổi đang ngừng hoạt động, không thể đổi ca");
+        }
+
+        if (requesterSchedule.getPeriod().getStatus() != SchedulePeriod.PeriodStatus.PUBLISHED) {
             throw new BadRequestException("Không thể đổi ca khi kỳ lịch chưa được công bố");
         }
 
@@ -114,11 +118,12 @@ public class ScheduleExchangeService {
             throw new BadRequestException("Hai lịch phải thuộc cùng một kỳ lịch.");
         }
 
-        // Business rule: only L01 (24/24 duty) shifts can be exchanged
-        boolean requesterIsL01 = "L01".equals(requesterSchedule.getShiftType().getId());
-        boolean targetIsL01 = "L01".equals(targetSchedule.getShiftType().getId());
-        if (!requesterIsL01 && !targetIsL01) {
-            throw new BadRequestException("Chỉ có ca trực L01 (24/24) mới có thể yêu cầu đổi ca");
+        // Business rule: same shift type required for exchange (L01↔L01, L02↔L02, L03↔L03, L04↔L04)
+        String requesterShiftType = requesterSchedule.getShiftType().getId();
+        String targetShiftType = targetSchedule.getShiftType().getId();
+        if (!requesterShiftType.equals(targetShiftType)) {
+            throw new BadRequestException(
+                    "Chỉ có thể đổi ca cùng loại. Ca của bạn (" + requesterShiftType + ") khác loại với ca được đổi (" + targetShiftType + ").");
         }
 
         compensationDayRepository.findByStaffIdAndCompensationDate(requesterId, targetSchedule.getWorkDate())
@@ -183,7 +188,7 @@ public class ScheduleExchangeService {
         LocalDate requesterWorkDate = requesterSchedule.getWorkDate();
         LocalDate targetWorkDate = targetSchedule.getWorkDate();
 
-        if (requesterSchedule.getPeriod().getStatus() == SchedulePeriod.PeriodStatus.DRAFT) {
+        if (requesterSchedule.getPeriod().getStatus() != SchedulePeriod.PeriodStatus.PUBLISHED) {
             throw new BadRequestException("Không thể duyệt đổi ca khi kỳ lịch chưa được công bố");
         }
 

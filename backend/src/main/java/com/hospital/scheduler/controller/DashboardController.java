@@ -118,9 +118,10 @@ public class DashboardController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> exportWorkloadReportToExcel(
             @PathVariable Integer periodId,
+            @RequestParam(required = false) String shiftTypeId,
             @RequestParam(required = false) Integer staffId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate) throws Exception {
-        byte[] excelData = reportExportService.exportWorkloadReportToExcel(periodId, staffId, startDate);
+        byte[] excelData = reportExportService.exportWorkloadReportToExcel(periodId, shiftTypeId, staffId, startDate);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
         headers.setContentDispositionFormData("attachment", "thong_ke_tai_" + periodId + ".xlsx");

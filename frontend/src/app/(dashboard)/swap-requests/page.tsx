@@ -280,7 +280,7 @@ function SwapRequestsContent() {
             <div className="space-y-3">
               <h2 className="text-title-lg font-semibold text-on-surface">Gửi yêu cầu đổi trực</h2>
               <p className="text-label-md text-on-surface-variant">
-                Hỗ trợ đổi giữa các loại lịch (L01–L04) trong cùng kỳ đã được công bố.
+                Hỗ trợ đổi ca cùng loại (L01↔L01, L02↔L02, L03↔L03, L04↔L04) trong cùng kỳ đã được công bố.
               </p>
 
               <div className="space-y-2.5">
@@ -372,7 +372,7 @@ function SwapRequestsContent() {
               <ul className="mt-2 space-y-1.5 text-label-md text-on-surface-variant">
                 <li className="flex items-start gap-1.5">
                   <span className="material-symbols-outlined text-[14px] text-outline shrink-0 mt-0.5">info</span>
-                  Hỗ trợ đổi giữa các loại lịch (L01–L04) trong cùng kỳ đã được công bố.
+                  Hỗ trợ đổi ca cùng loại (L01↔L01, L02↔L02, L03↔L03, L04↔L04) trong cùng kỳ đã được công bố.
                 </li>
                 <li className="flex items-start gap-1.5">
                   <span className="material-symbols-outlined text-[14px] text-outline shrink-0 mt-0.5">info</span>
@@ -445,15 +445,15 @@ function SwapRequestsContent() {
         <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm">
           <div className="overflow-x-auto">
             {loading ? (
-              <table className="w-full border-collapse text-left">
+              <table className="w-full border-collapse text-left" aria-label="Page Table">
                 <thead>
                   <tr className="border-b border-outline-variant bg-surface-container-low">
-                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Người yêu cầu</th>
-                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Người đổi cùng</th>
-                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Ca ban đầu</th>
-                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Ca đề xuất</th>
-                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Trạng thái</th>
-                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant text-right">Thao tác</th>
+                    <th scope="col" className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Người yêu cầu</th>
+                    <th scope="col" className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Người đổi cùng</th>
+                    <th scope="col" className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Ca ban đầu</th>
+                    <th scope="col" className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Ca đề xuất</th>
+                    <th scope="col" className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Trạng thái</th>
+                    <th scope="col" className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/50">
@@ -475,15 +475,15 @@ function SwapRequestsContent() {
                 title="Chưa có yêu cầu đổi trực nào"
               />
             ) : (
-              <table className="w-full border-collapse text-left">
+              <table className="w-full border-collapse text-left" aria-label="Page Table">
                 <thead>
                   <tr className="border-b border-outline-variant bg-surface-container-low">
-                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Người yêu cầu</th>
-                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Người đổi cùng</th>
-                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Ca ban đầu</th>
-                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Ca đề xuất</th>
-                    <th className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Trạng thái</th>
-                    <th className="px-4 py-2.5 text-right text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Thao tác</th>
+                    <th scope="col" className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Người yêu cầu</th>
+                    <th scope="col" className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Người đổi cùng</th>
+                    <th scope="col" className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Ca ban đầu</th>
+                    <th scope="col" className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Ca đề xuất</th>
+                    <th scope="col" className="px-4 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Trạng thái</th>
+                    <th scope="col" className="px-4 py-2.5 text-right text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/50">

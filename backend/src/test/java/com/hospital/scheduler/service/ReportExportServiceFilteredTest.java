@@ -219,7 +219,7 @@ class ReportExportServiceFilteredTest {
     @Test
     @DisplayName("Workload filter staffId=1 → counts only staffA")
     void workloadFilterByStaff() throws Exception {
-        byte[] data = reportExportService.exportWorkloadReportToExcel(PERIOD_ID, 1, null);
+        byte[] data = reportExportService.exportWorkloadReportToExcel(PERIOD_ID, null, 1, null);
 
         Sheet sheet = sheetOf(data);
         // Header + 1 data row for staffA
@@ -232,7 +232,7 @@ class ReportExportServiceFilteredTest {
     @Test
     @DisplayName("Workload no filter → 3 staff rows")
     void workloadNoFilter() throws Exception {
-        byte[] data = reportExportService.exportWorkloadReportToExcel(PERIOD_ID, null, null);
+        byte[] data = reportExportService.exportWorkloadReportToExcel(PERIOD_ID, null, null, null);
 
         Sheet sheet = sheetOf(data);
         assertThat(sheet.getLastRowNum()).isEqualTo(3);
@@ -242,9 +242,20 @@ class ReportExportServiceFilteredTest {
     @DisplayName("Workload with date range that excludes all → header only")
     void workloadEmptyByDateRange() throws Exception {
         byte[] data = reportExportService.exportWorkloadReportToExcel(
-                PERIOD_ID, null, LocalDate.of(2027, 1, 1));
+                PERIOD_ID, null, null, LocalDate.of(2027, 1, 1));
 
         Sheet sheet = sheetOf(data);
         assertThat(sheet.getLastRowNum()).isEqualTo(0);
+    }
+
+    @DisplayName("Workload filter shiftTypeId=L01 → counts only L01 shifts")
+    void workloadFilterByShiftType() throws Exception {
+        byte[] data = reportExportService.exportWorkloadReportToExcel(PERIOD_ID, "L01", null, null);
+
+        Sheet sheet = sheetOf(data);
+        // All 3 staff appear but with L01 count only
+        assertThat(sheet.getLastRowNum()).isEqualTo(3);
+        // Staff A has 1 L01 schedule in test data
+        assertThat(sheet.getRow(1).getCell(4).getNumericCellValue()).isEqualTo(1.0);
     }
 }
