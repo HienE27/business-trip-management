@@ -19,18 +19,23 @@ import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class SchedulePeriodService {
+
+    private static final Logger log = LoggerFactory.getLogger(SchedulePeriodService.class);
 
     private final SchedulePeriodRepository periodRepository;
     private final ScheduleRepository scheduleRepository;
@@ -124,9 +129,8 @@ public class SchedulePeriodService {
 
         // Warn if there are coverage gaps but do not block publication
         if (conflictCheck.isHasCoverageGaps()) {
-            org.slf4j.LoggerFactory.getLogger(SchedulePeriodService.class)
-                    .warn("Publishing period {} with {} coverage gaps: {}",
-                            id, conflictCheck.getTotalCoverageGaps(), conflictCheck.getCoverageGaps());
+            log.warn("Publishing period {} with {} coverage gaps: {}",
+                    id, conflictCheck.getTotalCoverageGaps(), conflictCheck.getCoverageGaps());
         }
 
         Staff publishedBy = null;
@@ -192,8 +196,7 @@ public class SchedulePeriodService {
         try {
             staffingCoverage = conflictDetectionService.validateStaffingCoverage(id);
         } catch (Exception e) {
-            org.slf4j.LoggerFactory.getLogger(SchedulePeriodService.class)
-                    .warn("Could not generate staffing coverage for period {}: {}", id, e.getMessage());
+            log.warn("Could not generate staffing coverage for period {}: {}", id, e.getMessage());
         }
 
         return PublishDryRunResponse.builder()
