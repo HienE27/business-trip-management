@@ -287,7 +287,13 @@ public class AutoSchedulingService {
             saveMetrics(period, algorithmType, (int) executionTime, coverageRate, balanceScore, warnings.size());
         }
 
+        // Deduplicate by staffId+workDate+shiftTypeId to avoid React key warnings
+        Set<String> seen = new java.util.LinkedHashSet<>();
         List<AutoScheduleResponse.ScheduleSummary> scheduleSummaries = createdSchedules.stream()
+                .filter(s -> {
+                    String key = s.getStaff().getId() + "_" + s.getWorkDate() + "_" + s.getShiftType().getId();
+                    return seen.add(key);
+                })
                 .map(s -> AutoScheduleResponse.ScheduleSummary.builder()
                         .scheduleId(s.getId())
                         .staffId(s.getStaff().getId())
@@ -345,7 +351,7 @@ public class AutoSchedulingService {
             for (ShiftRequirement req : todayReqs) {
                 final LocalDate workDate = currentDate;
                 List<Staff> eligibleStaff = filterAndSortEligibleStaffBatch(
-                        activeStaff, req, excludedStaffIds, todayConflicts, !save,
+                        activeStaff, req, excludedStaffIds, assignedStaffIds, todayConflicts, !save,
                         Comparator.comparingLong(s -> scheduleRepository.countByStaffIdAndPeriodId(s.getId(), period.getId())));
 
                 int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
@@ -385,7 +391,12 @@ public class AutoSchedulingService {
             Set<Integer> assignedStaffIds = new HashSet<>();
             for (ShiftRequirement req : todayReqs) {
                 final LocalDate workDate = currentDate;
-                List<Staff> eligibleStaff = filterAndSortEligibleStaff(activeStaff, req, excludedStaffIds, !save,
+                // Pre-filter: remove staff already assigned to another requirement today
+                final Set<Integer> finalAssigned = assignedStaffIds;
+                List<Staff> availablePool = activeStaff.stream()
+                        .filter(s -> !finalAssigned.contains(s.getId()))
+                        .collect(Collectors.toList());
+                List<Staff> eligibleStaff = filterAndSortEligibleStaff(availablePool, req, excludedStaffIds, !save,
                         Comparator.comparingInt(s -> staffRotationIndex.getOrDefault(s.getId(), 0)));
 
                 int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
@@ -1284,6 +1295,7 @@ public class AutoSchedulingService {
             List<Staff> pool,
             ShiftRequirement req,
             Set<Integer> excludedStaffIds,
+            Set<Integer> assignedStaffIds,
             BatchConflictData batchData,
             boolean skipCompensationCheck,
             Comparator<Staff> sortComparator) {
@@ -1295,6 +1307,8 @@ public class AutoSchedulingService {
         List<Staff> eligible = new ArrayList<>();
         for (Staff staff : pool) {
             if (excludedStaffIds != null && excludedStaffIds.contains(staff.getId())) continue;
+            // Skip staff already assigned to another requirement on the same day
+            if (assignedStaffIds != null && assignedStaffIds.contains(staff.getId())) continue;
 
             // 1. Check max shifts (only L01)
             if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
