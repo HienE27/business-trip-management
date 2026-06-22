@@ -1,0 +1,93 @@
+# docker-compose.staging.yml - Staging deployment
+# Usage:
+#   1. cp .env.staging.example .env.staging  (then fill real values, do NOT commit)
+#   2. docker compose --env-file .env.staging -f docker-compose.staging.yml --profile with-db up -d
+#      (use `--profile with-db` only on first deploy if you want compose to start MySQL too;
+#       normally the staging DB is external)
+#
+# This file is the staging counterpart of docker-compose.yml.
+# It assumes MySQL runs externally (managed RDS / Cloud SQL) — only backend + frontend are deployed.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: hospital-scheduler-backend:staging
+    container_name: hospital-scheduler-backend-staging
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE:-staging}
+      DB_HOST: ${MYSQL_HOST}
+      DB_PORT: ${MYSQL_PORT:-3306}
+      DB_NAME: ${MYSQL_DATABASE:-hospital_scheduler}
+      DB_USERNAME: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      SERVER_PORT: 8080
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      APP_EMAIL_ENABLED: ${APP_EMAIL_ENABLED:-true}
+      APP_EMAIL_FROM: ${APP_EMAIL_FROM}
+      APP_EMAIL_CONFLICT_ENABLED: ${APP_EMAIL_CONFLICT_ENABLED:-true}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - hospital-network
+    volumes:
+      - backend_logs:/app/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: hospital-scheduler-frontend:staging
+    container_name: hospital-scheduler-frontend-staging
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - hospital-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  hospital-network:
+    driver: bridge
+
+volumes:
+  backend_logs:
+    driver: local

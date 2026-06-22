@@ -55,6 +55,10 @@ NEXT_PUBLIC_WS_URL=wss://staging-api.hospital-scheduler.example.com/ws
 
 ## Docker Deployment
 
+> **Tip:** A dedicated `docker-compose.staging.yml` is provided in the repo root,
+> plus `.env.staging.example` (copy to `.env.staging` locally, do **not** commit).
+> Use that compose file instead of the inline commands below when you can.
+
 ### Backend
 
 ```bash
