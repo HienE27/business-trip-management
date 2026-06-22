@@ -124,6 +124,21 @@ Annotation: `@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")` (xem `StaffControl
 - Trạng thái: `PENDING` → `APPROVED` (manager duyệt) → swap schedule owners.
 - Hoặc `REJECTED` / `CANCELLED`.
 
+### 7.1 Chỉ ca L01 (24/24) mới được đổi — HARD CONSTRAINT
+
+**Hai ca trong `createExchange` ÍT NHẤT MỘT phải là L01.** Lý do: L01 là ca qua đêm 24/24, có nghỉ bù kèm theo — chỉ loại ca này mới có ý nghĩa khi đổi giữa hai nhân sự (tránh staff ôm đồm ca L02/L03/L04 của người khác).
+
+```java
+// Trong ScheduleExchangeService.createExchange
+boolean requesterIsL01 = "L01".equals(requesterSchedule.getShiftType().getId());
+boolean targetIsL01    = "L01".equals(targetSchedule.getShiftType().getId());
+if (!requesterIsL01 && !targetIsL01) {
+    throw new BadRequestException("Chỉ có ca trực L01 (24/24) mới có thể yêu cầu đổi ca");
+}
+```
+
+→ Enforced sau các check `cùng period` + `cùng status PUBLISHED`, trước khi save `ScheduleExchange`.
+
 ---
 
 ## 8. Auto Scheduling (M07)
@@ -175,6 +190,8 @@ public void validateSchedule(ScheduleRequest req) {
 | Tạo L01 ngày thứ 7 → compensation_day | Thứ 3 tuần sau |
 | Tạo L01 ngày Chủ Nhật → compensation_day | Thứ 2 tuần sau |
 | Tạo L01 ngày thường rơi vào ngày lễ | Lùi sang ngày làm tiếp |
+| Đổi ca: cả 2 schedules đều không phải L01 | ❌ `BadRequestException` "Chỉ có ca trực L01..." |
+| Đổi ca: 1 trong 2 là L01 | ✅ OK, tạo `ScheduleExchange` PENDING |
 
 ---
 
@@ -187,5 +204,6 @@ public void validateSchedule(ScheduleRequest req) {
 | Thay đổi permission role | Update §5 + update `SecurityConfig` + update test |
 | Thay đổi period workflow | Update §4 + update `SchedulePeriod` entity + update `SchedulePeriodService` |
 | Thay đổi conflict rule | Update §2, §9 + update `ConflictDetectionService` + update test |
+| Thay đổi exchange eligibility (vd: cho phép L02 đổi) | Update §7.1 + update `ScheduleExchangeService` + update test |
 
 **Mọi thay đổi business rule PHẢI được review bởi team lead và ghi vào CHANGELOG.**

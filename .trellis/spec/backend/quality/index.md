@@ -138,6 +138,7 @@ class ScheduleServiceTest {
 | `Thread.sleep()` trong test | Test flaky, dùng `awaitility` hoặc polling |
 | Test phụ thuộc thứ tự execution | Mỗi `@Test` phải độc lập |
 | Commit message "fix bug" | Dùng Conventional Commits: `fix(schedule): validate compensation date` |
+| Thêm dependency mới vào Service mà quên update test mock | Khi thêm field `final FooRepository fooRepository` + `@RequiredArgsConstructor`, **PHẢI** thêm `@Mock private FooRepository` vào test class — nếu không sẽ ra NPE ở runtime (mocks field = null vì constructor injection fail). **Rule**: Sau khi thêm dependency vào service, re-run `./mvnw test -Dtest=<ServiceName>Test` để confirm 0 NPE trước khi commit. |
 
 ---
 
@@ -164,6 +165,7 @@ chore(deps): cập nhật springdoc lên 3.0.3
 - [ ] Có thay đổi schema → check `hospital_scheduler_business_final.sql`
 - [ ] Có thay đổi API → check Swagger + update README nếu cần
 - [ ] Có business rule mới → check `business-rules.md` đã update
+- [ ] Có thêm dependency mới vào service → check test class có `@Mock` cho dep đó (tránh NPE ở runtime)
 - [ ] Conflict detection có chạy không? (`grep "ConflictDetectionService"`)
 - [ ] Audit log có ghi không? (`grep "auditHistoryService"`)
 - [ ] Test coverage đủ happy path + edge case
