@@ -228,7 +228,6 @@ public class SchedulePeriodService {
                 .endDate(period.getEndDate())
                 .publishedBy(period.getPublishedBy())
                 .publishedAt(period.getPublishedAt())
-                .createdBy(period.getCreatedBy())
                 .createdAt(period.getCreatedAt())
                 .build();
 
