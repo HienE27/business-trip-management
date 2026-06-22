@@ -160,4 +160,51 @@ If staging deploy fails:
 - **Conflict alerts**: Backend must have email configured for conflict
   alert emails to send.
 - **Production**: After staging is stable, production deploy uses the same
+
+---
+
+## Local-Staging Verification (2026-06-22)
+
+Pre-deploy verification using local-staging profile against local MySQL
+(no Docker required). Useful as a "deploy dry-run" before touching real
+staging infra.
+
+### Setup
+- Local MySQL 8.0 running on Windows (root / 123456)
+- Create DB: `CREATE DATABASE hospital_scheduler_staging CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+- Backend profile: `application-local-staging.properties` (uses local MySQL, disabled email, INFO logging)
+
+### Run
+```bash
+cd backend
+.\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local-staging
+```
+
+### Smoke test results
+
+| Endpoint | Result | Notes |
+|---|---|---|
+| `GET /actuator/health` | ✅ 200 UP | All components healthy (db, disk, ping) |
+| `POST /api/v1/auth/login` (admin/admin123) | ✅ 200 | JWT token issued, userId=1, roles=[ADMIN, MANAGER] |
+| `GET /api/v1/staff` | ✅ 200 | Returns 20 seeded users (1 admin + 2 manager + 17 staff) |
+| `GET /api/v1/periods` | ✅ 200 | June 2026 (PUBLISHED) + July 2026 (DRAFT) |
+| `GET /api/v1/shift-types` | ✅ 200 | L01, L02, L03, L04 |
+| `GET /api/v1/schedules/conflicts/check?periodId=1` | ❌ 500 | **Pre-existing bug** — separate task to fix |
+| `GET http://localhost:3000` (existing dev server) | ✅ 200 | Next.js HTML, lang="vi", UTF-8 |
+
+### DataSeeder output (auto-runs on first start)
+- ✅ Seeded roles: ADMIN, MANAGER, STAFF
+- ✅ Seeded 4 specialties (Bác sĩ, Điều dưỡng, Kỹ thuật viên, Dược sĩ)
+- ✅ Seeded shift types L01–L04
+- ✅ Seeded 8 holidays for 2026
+- ✅ Seeded 8 schedule templates
+- ✅ Seeded 20 users (1 admin + 2 manager + 17 staff)
+- ✅ Seeded June 2026 PUBLISHED period (full 30-day schedule + 1 injected conflict)
+- ✅ Seeded July 2026 DRAFT period (requirements only)
+- ✅ Seeded 3 leave requests, 2 swap requests, 4 notifications, audit history
+
+### Known issues found
+1. `/api/v1/schedules/conflicts/check?periodId=1` returns 500 — needs investigation
+   (separate task, not blocking staging deploy — feature is reachable from
+   UI but server-side error appears on direct API hit)
   Docker images tagged with the release SHA.
