@@ -1017,7 +1017,8 @@ public class AutoSchedulingService {
         Map<Integer, Long> staffScheduleCount = schedules.stream()
                 .collect(Collectors.groupingBy(s -> s.getStaff().getId(), Collectors.counting()));
 
-        if (staffScheduleCount.size() <= 1) return BigDecimal.valueOf(100);
+        // If only 1 staff assigned (all work to one person) → 0% balance
+        if (staffScheduleCount.size() <= 1) return BigDecimal.valueOf(0);
 
         double avg = (double) schedules.size() / totalStaff;
         double variance = staffScheduleCount.values().stream()
