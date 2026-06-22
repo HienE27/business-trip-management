@@ -39,6 +39,7 @@ class AutoSchedulingServiceTest {
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private CompensationDateCalculator compensationDateCalculator;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks
     private AutoSchedulingService autoSchedulingService;
