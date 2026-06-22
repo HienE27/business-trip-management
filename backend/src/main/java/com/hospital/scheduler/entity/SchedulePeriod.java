@@ -66,6 +66,10 @@ public class SchedulePeriod {
     @Builder.Default
     private Set<ShiftRequirement> shiftRequirements = new HashSet<>();
 
+    @OneToMany(mappedBy = "period", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<CompensationDay> compensationDays = new HashSet<>();
+
     public enum PeriodStatus {
         DRAFT, PUBLISHED, ARCHIVED
     }
