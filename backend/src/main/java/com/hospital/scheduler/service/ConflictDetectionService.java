@@ -75,9 +75,16 @@ public class ConflictDetectionService {
 
     public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
                                            Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict) {
+        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, skipShiftTypeConflict, false);
+    }
+
+    public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
+                                           Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipMaxShifts) {
         List<String> conflicts = detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, skipShiftTypeConflict);
         // max shifts chỉ áp dụng cho L01 (ca trực 24/24)
-        detectMaxShiftsConflict(staffId, periodId, excludeScheduleId, shiftTypeId).ifPresent(conflicts::add);
+        if (!skipMaxShifts) {
+            detectMaxShiftsConflict(staffId, periodId, excludeScheduleId, shiftTypeId).ifPresent(conflicts::add);
+        }
         return conflicts;
     }
 
@@ -124,7 +131,11 @@ public class ConflictDetectionService {
     }
 
     public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay, boolean skipShiftTypeConflict) {
-        return !detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, skipShiftTypeConflict).isEmpty();
+        return hasAnyConflict(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, skipShiftTypeConflict, false);
+    }
+
+    public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipMaxShifts) {
+        return !detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, skipShiftTypeConflict, skipMaxShifts).isEmpty();
     }
 
     public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {

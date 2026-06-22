@@ -13,6 +13,7 @@ import com.hospital.scheduler.util.CompensationDateCalculator;
 import com.hospital.scheduler.util.DateUtils;
 import com.hospital.scheduler.algorithm.AutoGenConfig;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -275,11 +277,16 @@ public class AutoSchedulingService {
         List<String> warnings = buildWarnings(requirements, createdSchedules);
 
         long executionTime = System.currentTimeMillis() - startTime;
+        int totalRequiredStaffNeeded = requirements.stream()
+                .mapToInt(com.hospital.scheduler.entity.ShiftRequirement::getRequiredStaffCount)
+                .sum();
         int totalRequired = requirements.size();
-        BigDecimal coverageRate = totalRequired > 0
-                ? BigDecimal.valueOf((double) createdSchedules.size() / totalRequired * 100)
-                : BigDecimal.ZERO;
         int distinctStaffAssigned = (int) createdSchedules.stream().map(s -> s.getStaff().getId()).distinct().count();
+        BigDecimal coverageRate = totalRequiredStaffNeeded > 0
+                ? BigDecimal.valueOf((double) createdSchedules.size() / totalRequiredStaffNeeded * 100)
+                : BigDecimal.ZERO;
+        log.info("AutoSchedule result: created={} of needed={} requirements={} distinctStaff={} activeStaff={}",
+                createdSchedules.size(), totalRequiredStaffNeeded, totalRequired, distinctStaffAssigned, activeStaff.size());
         int staffCount = distinctStaffAssigned > 0 ? distinctStaffAssigned : 1;
         BigDecimal balanceScore = calculateBalanceScore(createdSchedules, staffCount);
 
@@ -355,6 +362,10 @@ public class AutoSchedulingService {
                         Comparator.comparingLong(s -> scheduleRepository.countByStaffIdAndPeriodId(s.getId(), period.getId())));
 
                 int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
+                if (log.isDebugEnabled()) {
+                    log.debug("runGreedy date={} req={} eligible={} toAssign={} assignedSoFar={}",
+                        workDate, req.getShiftType().getId(), eligibleStaff.size(), toAssign, assignedStaffIds.size());
+                }
                 for (int i = 0; i < toAssign; i++) {
                     Staff staff = eligibleStaff.get(i);
                     Schedule saved = buildAndSaveSchedule(period, staff, req, workDate, save, createdSchedules);
@@ -396,7 +407,7 @@ public class AutoSchedulingService {
                 List<Staff> availablePool = activeStaff.stream()
                         .filter(s -> !finalAssigned.contains(s.getId()))
                         .collect(Collectors.toList());
-                List<Staff> eligibleStaff = filterAndSortEligibleStaff(availablePool, req, excludedStaffIds, !save,
+                List<Staff> eligibleStaff = filterAndSortEligibleStaff(availablePool, req, excludedStaffIds, !save, true,
                         Comparator.comparingInt(s -> staffRotationIndex.getOrDefault(s.getId(), 0)));
 
                 int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
@@ -1091,7 +1102,7 @@ public class AutoSchedulingService {
     }
 
     private List<Staff> filterAndSortEligibleStaff(List<Staff> pool, ShiftRequirement req,
-                                                    Set<Integer> excludedStaffIds, boolean skipCompensationCheck,
+                                                    Set<Integer> excludedStaffIds, boolean skipCompensationCheck, boolean skipMaxShifts,
                                                     Comparator<Staff> sortComparator) {
         return pool.stream()
                 .filter(s -> excludedStaffIds == null || !excludedStaffIds.contains(s.getId()))
@@ -1099,7 +1110,8 @@ public class AutoSchedulingService {
                     if (req.getSpecialty() != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(req.getSpecialty().getId()))) {
                         return false;
                     }
-                    if (conflictDetectionService.hasAnyConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId(), null, skipCompensationCheck)) {
+                    // M07 spec: auto-scheduling skips max shifts check per "không giới hạn cố định"
+                    if (conflictDetectionService.hasAnyConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId(), null, skipCompensationCheck, false, skipMaxShifts)) {
                         return false;
                     }
                     if (hasInMemoryConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId())) {
@@ -1311,12 +1323,9 @@ public class AutoSchedulingService {
             // Skip staff already assigned to another requirement on the same day
             if (assignedStaffIds != null && assignedStaffIds.contains(staff.getId())) continue;
 
-            // 1. Check max shifts (only L01)
-            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
-                if (conflictDetectionService.hasExceededMaxShifts(staff.getId(), req.getPeriod().getId(), ConflictDetectionService.SHIFT_TYPE_L01)) {
-                    continue;
-                }
-            }
+            // Note: max shifts check is intentionally SKIPPED in auto-scheduling per M07 spec:
+            // "Hệ thống tự phân bổ đều số ngày cho 20 nhân sự, không giới hạn cố định"
+            // The greedy algorithm already distributes shifts evenly by preferring staff with fewer assignments
 
             // 2. Check specialty
             if (req.getSpecialty() != null && (staff.getSpecialty() == null
