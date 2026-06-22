@@ -41,6 +41,7 @@ class ScheduleServiceTest {
     @Mock private ShiftTypeRepository shiftTypeRepository;
     @Mock private ShiftRequirementRepository requirementRepository;
     @Mock private CompensationDayRepository compensationDayRepository;
+    @Mock private HolidayRepository holidayRepository;
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private AuthContextService authContextService;

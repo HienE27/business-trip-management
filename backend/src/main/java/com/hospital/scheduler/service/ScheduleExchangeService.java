@@ -114,6 +114,13 @@ public class ScheduleExchangeService {
             throw new BadRequestException("Hai lịch phải thuộc cùng một kỳ lịch.");
         }
 
+        // Business rule: only L01 (24/24 duty) shifts can be exchanged
+        boolean requesterIsL01 = "L01".equals(requesterSchedule.getShiftType().getId());
+        boolean targetIsL01 = "L01".equals(targetSchedule.getShiftType().getId());
+        if (!requesterIsL01 && !targetIsL01) {
+            throw new BadRequestException("Chỉ có ca trực L01 (24/24) mới có thể yêu cầu đổi ca");
+        }
+
         compensationDayRepository.findByStaffIdAndCompensationDate(requesterId, targetSchedule.getWorkDate())
                 .ifPresent(cd -> {
                     throw new BadRequestException("Không thể đổi ca: nhân sự yêu cầu có ngày nghỉ bù vào ngày " + targetSchedule.getWorkDate());
