@@ -123,6 +123,60 @@ public class DashboardService {
         return result;
     }
 
+    /**
+     * Thống kê chi tiết theo loại ca (L03/L04) theo tuần hoặc tháng.
+     * Phục vụ M04-F05 và M05-F05.
+     */
+    public DashboardResponse.ShiftTypeDetailStatistics getShiftTypeDetailStatistics(
+            Integer periodId, String shiftTypeId, String groupBy) {
+
+        List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
+        String finalShiftTypeId = (shiftTypeId != null) ? shiftTypeId : "L03";
+
+        List<Schedule> filtered = schedules.stream()
+                .filter(s -> finalShiftTypeId.equals(s.getShiftType().getId()))
+                .toList();
+
+        // Group by week or month
+        Map<String, Long> byGroup = filtered.stream()
+                .collect(Collectors.groupingBy(
+                        s -> {
+                            LocalDate d = s.getWorkDate();
+                            if ("week".equalsIgnoreCase(groupBy)) {
+                                int week = d.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear());
+                                return "W" + String.format("%02d", week);
+                            } else {
+                                return "Tháng " + d.getMonthValue();
+                            }
+                        },
+                        Collectors.counting()
+                ));
+
+        // Group by staff
+        Map<Integer, List<Schedule>> byStaffMap = filtered.stream()
+                .collect(Collectors.groupingBy(s -> s.getStaff().getId()));
+
+        List<DashboardResponse.ShiftTypeDetailStatistics.StaffShiftDetail> byStaff = byStaffMap.entrySet().stream()
+                .map(entry -> {
+                    Staff staff = entry.getValue().get(0).getStaff();
+                    return DashboardResponse.ShiftTypeDetailStatistics.StaffShiftDetail.builder()
+                            .staffId(staff.getId())
+                            .staffName(staff.getFullName())
+                            .totalDays(entry.getValue().size())
+                            .build();
+                })
+                .sorted(Comparator.comparing(DashboardResponse.ShiftTypeDetailStatistics.StaffShiftDetail::getTotalDays).reversed())
+                .toList();
+
+        return DashboardResponse.ShiftTypeDetailStatistics.builder()
+                .shiftTypeId(finalShiftTypeId)
+                .shiftTypeName("L03".equals(finalShiftTypeId) ? "Phòng khám dịch vụ" : "Phòng khám chuyên gia")
+                .totalDays(filtered.size())
+                .byGroup(byGroup)
+                .byStaff(byStaff)
+                .build();
+    }
+
     public List<DashboardResponse.PeriodSummary> getPeriodSummaries() {
         return periodRepository.findAll().stream()
                 .map(period -> {

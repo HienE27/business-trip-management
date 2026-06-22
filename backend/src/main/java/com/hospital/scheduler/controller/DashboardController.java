@@ -64,6 +64,17 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getStaffWorkloadByPeriod(periodId)));
     }
 
+    @GetMapping("/shift-type/{shiftTypeId}/statistics")
+    @Operation(summary = "Thống kê chi tiết theo loại ca (L03/L04) theo tuần hoặc tháng — phục vụ M04-F05 và M05-F05")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<DashboardResponse.ShiftTypeDetailStatistics>> getShiftTypeStatistics(
+            @PathVariable String shiftTypeId,
+            @RequestParam Integer periodId,
+            @RequestParam(required = false, defaultValue = "month") String groupBy) {
+        return ResponseEntity.ok(ApiResponse.success(
+                dashboardService.getShiftTypeDetailStatistics(periodId, shiftTypeId, groupBy)));
+    }
+
     @GetMapping("/periods")
     @Operation(summary = "Lấy tóm tắt các kỳ lịch")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")

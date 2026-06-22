@@ -2,6 +2,8 @@ package com.hospital.scheduler.dto.response;
 
 import lombok.*;
 import java.time.LocalDate;
+import java.util.Map;
+import java.util.List;
 
 @Getter
 @Setter
@@ -82,5 +84,36 @@ public class DashboardResponse {
         private String status;
         private long scheduleCount;
         private long staffCount;
+    }
+
+    /**
+     * Phân tích chi tiết theo loại ca (L03/L04) theo tuần hoặc tháng.
+     * Phục vụ M04-F05 và M05-F05.
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ShiftTypeDetailStatistics {
+        /** Chỉ L03 hoặc L04 */
+        private String shiftTypeId;
+        private String shiftTypeName;
+        private long totalDays;
+        /** Các nhóm: key = "W01", "W02"... hoặc "Month X" */
+        private Map<String, Long> byGroup;
+        /** Thống kê theo nhân sự */
+        private List<StaffShiftDetail> byStaff;
+
+        @Getter
+        @Setter
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @Builder
+        public static class StaffShiftDetail {
+            private Integer staffId;
+            private String staffName;
+            private long totalDays;
+        }
     }
 }

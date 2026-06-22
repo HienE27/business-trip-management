@@ -54,7 +54,6 @@ public class ScheduleConflict {
     public enum ConflictType {
         LEAVE_CONFLICT,
         MAX_SHIFT_EXCEEDED,
-        BACK_TO_BACK_SHIFT,
         SPECIALTY_MISMATCH,
         REQUIREMENT_NOT_MET,
         DUPLICATE_ASSIGNMENT,

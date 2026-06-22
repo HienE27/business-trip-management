@@ -23,11 +23,11 @@ const mockedApi = vi.mocked(api);
 
 const fakeConflict: ConflictItem = {
   id: "42",
-  type: "BACK_TO_BACK",
+  type: "COMPENSATION_CONFLICT",
   staffName: "BS. Nguyễn Văn A",
   date: "2026-06-15",
   severity: "Chặn lưu",
-  detail: "Nhân sự đã có ca trực ngày hôm trước.",
+  detail: "Nhân sự có ngày nghỉ bù vào ngày này.",
   periodId: 1,
   workDate: "2026-06-15",
   shiftTypeId: "L01",

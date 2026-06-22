@@ -83,7 +83,7 @@ const fakeConflictWith: ConflictCheckResponse = {
   hasConflicts: true,
   totalConflicts: 3,
   conflicts: [
-    { type: "BACK_TO_BACK", staffId: 1, workDate: "2026-06-15", description: "test" },
+    { type: "COMPENSATION_CONFLICT", staffId: 1, workDate: "2026-06-15", description: "test" },
   ] as never,
 };
 
