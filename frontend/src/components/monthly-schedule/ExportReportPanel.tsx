@@ -5,6 +5,7 @@ import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import type { ScheduleExportFilters } from "@/lib/api-client";
 import type { SchedulePeriod, ShiftStatistics } from "@/types/api";
 
 export type ExportReportPanelProps = {
@@ -166,6 +167,7 @@ function QuickExportButton({
   icon,
   periodId,
   format,
+  filters,
   onSuccess,
   onError,
 }: {
@@ -173,6 +175,7 @@ function QuickExportButton({
   icon: string;
   periodId: number;
   format: ExportFormat;
+  filters?: ScheduleExportFilters;
   onSuccess: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
@@ -182,17 +185,18 @@ function QuickExportButton({
     setLoading(true);
     try {
       let blob: Blob;
+      const safeFilters = filters ?? {};
       switch (format) {
         case "excel-schedule":
-          blob = await api.exportScheduleExcel(periodId);
+          blob = await api.exportScheduleExcel(periodId, safeFilters);
           downloadFile(blob, `lich-cong-tac-${periodId}.xlsx`);
           break;
         case "pdf-schedule":
-          blob = await api.exportSchedulePdf(periodId);
+          blob = await api.exportSchedulePdf(periodId, safeFilters);
           downloadFile(blob, `lich-cong-tac-${periodId}.pdf`);
           break;
         case "excel-workload":
-          blob = await api.exportWorkloadExcel(periodId);
+          blob = await api.exportWorkloadExcel(periodId, safeFilters);
           downloadFile(blob, `thong-ke-tai-nhan-su-${periodId}.xlsx`);
           break;
       }
