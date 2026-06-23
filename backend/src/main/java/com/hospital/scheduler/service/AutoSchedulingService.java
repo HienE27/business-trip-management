@@ -444,24 +444,21 @@ public class AutoSchedulingService {
                     log.debug("runGreedy date={} req={} eligible={} toAssign={} assignedSoFar={}",
                         workDate, req.getShiftType().getId(), eligibleStaff.size(), toAssign, assignedStaffIds.size());
                 }
-                for (int i = 0; i < toAssign; i++) {
-                    Staff staff = eligibleStaff.get(i);
-                    // Defensive: skip if already assigned to another shift today
+                int assignedCount = 0;
+                int staffIndex = 0;
+                while (assignedCount < toAssign && staffIndex < eligibleStaff.size()) {
+                    Staff staff = eligibleStaff.get(staffIndex);
+                    staffIndex++;
+                    // Skip if already assigned to another shift today
                     // (can happen when L01/L02/L03 share the same eligible pool)
                     if (assignedStaffIds.contains(staff.getId())) {
-                        // Try next staff in the list instead
-                        if (i + 1 < eligibleStaff.size()) {
-                            i++; // will be incremented again by for-loop → skip current
-                            staff = eligibleStaff.get(i);
-                            if (assignedStaffIds.contains(staff.getId())) continue;
-                        } else {
-                            continue;
-                        }
+                        continue;
                     }
                     Schedule saved = buildAndSaveSchedule(period, staff, req, workDate, save, createdSchedules);
                     if (saved == null) continue;
                     trackAssignment(staff, workDate, req.getShiftType().getId());
                     assignedStaffIds.add(staff.getId());
+                    assignedCount++;
                     // CRITICAL: Mark L01 as assigned to prevent duplicate L01 assignments
                     if (ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
                         l01AssignedToday = true;
@@ -540,12 +537,20 @@ public class AutoSchedulingService {
                         fairnessComparator);
 
                 int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
-                for (int i = 0; i < toAssign; i++) {
-                    Staff staff = eligibleStaff.get(i);
+                int assignedCount = 0;
+                int staffIndex = 0;
+                while (assignedCount < toAssign && staffIndex < eligibleStaff.size()) {
+                    Staff staff = eligibleStaff.get(staffIndex);
+                    staffIndex++;
+                    // Skip if already assigned to another shift today
+                    if (assignedStaffIds.contains(staff.getId())) {
+                        continue;
+                    }
                     Schedule saved = buildAndSaveSchedule(period, staff, req, workDate, save, createdSchedules);
                     trackAssignment(staff, workDate, req.getShiftType().getId());
                     assignedStaffIds.add(staff.getId());
                     staffRotationIndex.merge(staff.getId(), 1, Integer::sum);
+                    assignedCount++;
                     // CRITICAL: Mark L01 as assigned to prevent duplicate L01 assignments
                     if (ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
                         l01AssignedToday = true;

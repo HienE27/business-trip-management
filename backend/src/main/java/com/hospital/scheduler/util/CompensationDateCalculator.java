@@ -104,7 +104,7 @@ public class CompensationDateCalculator {
                 .collect(Collectors.toSet());
 
         LocalDate current = raw;
-        for (int outer = 0; outer < 30; outer++) {
+        for (int outer = 0; outer < 365; outer++) {
             LocalDate next = advanceOneStep(current, holidays, isFriOrSatDuty);
             if (next.equals(current)) return current; // stable
             current = next;
