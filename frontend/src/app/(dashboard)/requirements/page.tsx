@@ -60,7 +60,7 @@ export default function RequirementsPage() {
       setError(null);
       const [reqData, periodData, specialtyData] = await Promise.all([
         api.get<ShiftRequirement[]>("/shift-requirements"),
-        api.get<SchedulePeriod[]>("/schedule-periods"),
+        api.get<SchedulePeriod[]>("/periods"),
         api.get<Specialty[]>("/specialties/active"),
       ]);
       setRequirements(reqData ?? []);
