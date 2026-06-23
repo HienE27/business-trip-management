@@ -302,3 +302,23 @@ pnpm playwright test
 - `backend/HELP.md` — hướng dẫn backend current-state
 - `frontend/README.md` — hướng dẫn frontend current-state
 - `screenshots/` — ảnh chụp màn hình phục vụ demo và báo cáo
+
+## Changelog
+
+### v1.1 (06/2026)
+
+**Bug Fixes:**
+- Fix API endpoint mismatch: `/schedule-periods` → `/periods` cho requirements page
+- Fix null specialty reference trong requirements page (L01/L02 không có specialty)
+- Fix scroll-behavior warning trong browser console
+
+**Features:**
+- WorkflowStepper 6 bước cho M02-M05
+- ConflictSection và ExportReportPanel đồng bộ
+- Preview + manual edit + undo cho Auto Scheduling
+- GENERATED/PATTERN template support
+
+### v1.0 (05/2026)
+- Initial release với 4 loại lịch (L01-L04)
+- Backend Spring Boot + MySQL
+- Frontend Next.js 16
