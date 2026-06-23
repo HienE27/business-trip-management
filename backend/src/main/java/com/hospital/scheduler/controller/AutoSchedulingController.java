@@ -184,4 +184,25 @@ public class AutoSchedulingController {
         configService.deleteConfig(paramKey);
         return ResponseEntity.ok(ApiResponse.success((Void) null, "Xóa cấu hình thành công"));
     }
+
+    // ============================================================
+    // Runtime Config Endpoints (Convenience endpoints)
+    // ============================================================
+
+    @GetMapping("/runtime-config")
+    @Operation(summary = "Lấy cấu hình runtime của thuật toán (tất cả tham số chính)")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<AlgorithmConfigService.AlgorithmRuntimeConfig>> getRuntimeConfig() {
+        AlgorithmConfigService.AlgorithmRuntimeConfig config = configService.getRuntimeConfig();
+        return ResponseEntity.ok(ApiResponse.success(config));
+    }
+
+    @PutMapping("/runtime-config")
+    @Operation(summary = "Cập nhật cấu hình runtime của thuật toán")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<AlgorithmConfigService.AlgorithmRuntimeConfig>> updateRuntimeConfig(
+            @RequestBody AlgorithmConfigService.AlgorithmRuntimeConfig config) {
+        configService.saveRuntimeConfig(config);
+        return ResponseEntity.ok(ApiResponse.success(config, "Cập nhật cấu hình runtime thành công"));
+    }
 }

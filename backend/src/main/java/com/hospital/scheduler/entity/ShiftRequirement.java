@@ -33,7 +33,7 @@ public class ShiftRequirement {
     private ShiftType shiftType;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "specialty_id", nullable = false)
+    @JoinColumn(name = "specialty_id", nullable = true)
     private Specialty specialty;
 
     @Column(name = "required_staff_count", nullable = false)

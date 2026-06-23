@@ -55,9 +55,10 @@ public class SecurityConfig {
 
                 // Authorization rules
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints - Swagger & Auth
+                        // Public endpoints - Swagger, Auth & WebSocket
                         .requestMatchers(
                                 "/api/v1/auth/**",
+                                "/ws/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",

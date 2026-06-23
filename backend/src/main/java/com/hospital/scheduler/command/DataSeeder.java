@@ -3,6 +3,7 @@ package com.hospital.scheduler.command;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
+import com.hospital.scheduler.algorithm.AutoGenConfig;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +39,7 @@ public class DataSeeder implements CommandLineRunner {
     private final com.hospital.scheduler.repository.AuditHistoryRepository auditHistoryRepository;
     private final CompensationDateCalculator compensationDateCalculator;
     private final HolidayRepository holidayRepository;
+    private final com.hospital.scheduler.service.AlgorithmConfigService algorithmConfigService;
     private static final Logger log = LoggerFactory.getLogger(DataSeeder.class);
 
     // ⚠️  Muốn re-seed (thêm staff mới) → drop database + restart backend
@@ -47,6 +49,7 @@ public class DataSeeder implements CommandLineRunner {
         seedSpecialties();
         seedShiftTypes();
         seedHolidays();
+        seedAlgorithmConfig();
         seedScheduleTemplates();
         seedAdminUser();
         seedPeriodsAndSchedules();
@@ -126,6 +129,32 @@ public class DataSeeder implements CommandLineRunner {
             }
         }
         log.info("✅ Seeded " + holidays.length + " holidays for 2026");
+    }
+
+    private void seedAlgorithmConfig() {
+        // Only seed if config table is empty
+        var existing = algorithmConfigService.getAutoGenConfig();
+        if (existing.isPresent()) {
+            log.info("Algorithm config already exists, skipping seed");
+            return;
+        }
+
+        // Seed auto-gen config with defaults
+        AutoGenConfig defaults = AutoGenConfig.builder()
+                .enabled(false)  // Disabled by default
+                .l01RequiredPerDay(2)
+                .l02RequiredPerDay(2)
+                .l03RequiredPerDay(1)
+                .l04RequiredPerDay(1)
+                .minL01PerWeek(1)
+                .minL02PerWeek(3)
+                .minL03PerWeek(2)
+                .minL04PerWeek(1)
+                .holidayMode("SKIP")
+                .build();
+        algorithmConfigService.saveAutoGenConfig(defaults);
+
+        log.info("✅ Seeded algorithm auto-gen config with defaults");
     }
 
     private void seedScheduleTemplates() {

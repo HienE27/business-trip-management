@@ -13,6 +13,10 @@ const CreateConfigModal = dynamic(
   () => import("./CreateConfigModal").then((m) => m.CreateConfigModal),
   { loading: () => null },
 );
+const RuntimeConfigCard = dynamic(
+  () => import("./RuntimeConfigCard").then((m) => m.RuntimeConfigCard),
+  { loading: () => null },
+);
 
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -294,6 +298,9 @@ function AlgorithmConfigContent() {
   return (
     <>
       <div className="space-y-6">
+        {/* Runtime Config Card - All main parameters in one place */}
+        <RuntimeConfigCard onConfigSaved={() => void loadConfigs()} />
+
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">

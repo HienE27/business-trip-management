@@ -10,14 +10,15 @@ interface Props {
   templates: ScheduleTemplate[];
   loadingTemplates: boolean;
   selectedTemplateId: number | null;
+  selectedTemplate: ScheduleTemplate | null;
   templatePreview: TemplatePreviewItem[] | null;
   previewLoading: boolean;
-  editingStaffIds: Map<number, number>;
+  editingStaffIds: Map<string | number, number>;
   activeStaff: Staff[];
   onClose: () => void;
   onPreview: (templateId: number) => void;
   onApply: () => void;
-  onStaffEdit: (slotId: number, staffId: number) => void;
+  onStaffEdit: (slotId: string | number, staffId: number) => void;
   onClearSelection: () => void;
 }
 
@@ -26,6 +27,7 @@ export function ApplyTemplateModal({
   templates,
   loadingTemplates,
   selectedTemplateId,
+  selectedTemplate,
   templatePreview,
   previewLoading,
   editingStaffIds,
@@ -98,8 +100,9 @@ export function ApplyTemplateModal({
                     </button>
                     <button
                       type="button"
-                      onClick={onApply}
-                      className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-label-sm font-medium text-on-primary hover:bg-primary/90 transition-colors"
+                      onClick={() => onPreview(t.id)}
+                      disabled={previewLoading}
+                      className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-label-sm font-medium text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-50"
                     >
                       <span className="material-symbols-outlined text-[14px]">check</span>
                       Áp dụng
@@ -129,56 +132,92 @@ export function ApplyTemplateModal({
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-label-sm text-on-surface-variant">
-            Mẫu này sẽ tạo <strong className="text-on-surface">{templatePreview.length}</strong> yêu cầu nhân sự trong kỳ.
-            Bạn có thể sửa nhân sự được phân công cho từng ca trước khi xác nhận.
-          </p>
-          <div className="overflow-x-auto max-h-80">
-            <table className="w-full text-left border-collapse" aria-label="Applytemplatemodal Table">
-              <thead className="sticky top-0 bg-surface-container-low border-b border-outline-variant">
-                <tr>
-                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Ngày</th>
-                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Thứ</th>
-                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Loại ca</th>
-                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Chuyên khoa</th>
-                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Số người</th>
-                  <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Nhân sự phân công</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/30">
-                {templatePreview.map((item) => {
-                  const currentStaffId = editingStaffIds.get(item.id) ?? item.assignedStaffId ?? 0;
-                  return (
-                    <tr key={item.id} className="hover:bg-surface-container-low/50 transition-colors">
-                      <td className="p-2.5 text-label-sm text-on-surface">{formatDate(item.workDate)}</td>
-                      <td className="p-2.5 text-label-sm text-on-surface-variant">{item.dayOfWeek}</td>
-                      <td className="p-2.5 text-label-sm text-on-surface-variant">{item.shiftTypeName}</td>
-                      <td className="p-2.5 text-label-sm text-on-surface-variant">{item.specialtyName ?? "—"}</td>
-                      <td className="p-2.5 text-label-sm text-on-surface-variant text-center">{item.requiredStaffCount}</td>
-                      <td className="p-2.5">
-                        <div className="relative">
-                          <select
-                            className="h-8 w-full appearance-none rounded-md border border-outline-variant bg-surface-container-lowest px-2 pr-7 text-label-sm text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
-                            value={currentStaffId}
-                            onChange={(e) => onStaffEdit(item.id, Number(e.target.value))}
-                          >
-                            <option value={0}>-- Chưa phân công --</option>
-                            {activeStaff.map((s) => (
-                              <option key={s.id} value={s.id}>{s.fullName}</option>
-                            ))}
-                          </select>
-                          <span className="material-symbols-outlined pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-outline text-[14px]">expand_more</span>
-                        </div>
-                      </td>
+          {selectedTemplate?.templateType === "GENERATED" ? (
+            <>
+              <p className="text-label-sm text-on-surface-variant">
+                Mẫu này sẽ tạo <strong className="text-on-surface">{templatePreview.length}</strong> ca trực trong kỳ.
+                Bạn có thể sửa nhân sự được phân công cho từng ca trước khi xác nhận.
+              </p>
+              <div className="overflow-x-auto max-h-80">
+                <table className="w-full text-left border-collapse" aria-label="Applytemplatemodal Table">
+                  <thead className="sticky top-0 bg-surface-container-low border-b border-outline-variant">
+                    <tr>
+                      <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Ngày</th>
+                      <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Thứ</th>
+                      <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Loại ca</th>
+                      <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Chuyên khoa</th>
+                      <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Số người</th>
+                      <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Nhân sự phân công</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-label-xs text-on-surface-variant italic">
-            Lưu ý: Việc phân công nhân sự ở đây chỉ là tham khảo. Sau khi áp dụng, hệ thống sẽ tự động tạo yêu cầu nhân sự theo mẫu.
-          </p>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant/30">
+                    {templatePreview.map((item) => {
+                      const slotKey = item.id > 0 ? item.id : `${item.workDate}_${item.shiftTypeId}`;
+                      const currentStaffId = editingStaffIds.get(slotKey) ?? item.assignedStaffId ?? 0;
+                      return (
+                        <tr key={slotKey} className="hover:bg-surface-container-low/50 transition-colors">
+                          <td className="p-2.5 text-label-sm text-on-surface">{formatDate(item.workDate)}</td>
+                          <td className="p-2.5 text-label-sm text-on-surface-variant">{item.dayOfWeek}</td>
+                          <td className="p-2.5 text-label-sm text-on-surface-variant">{item.shiftTypeName}</td>
+                          <td className="p-2.5 text-label-sm text-on-surface-variant">{item.specialtyName ?? "—"}</td>
+                          <td className="p-2.5 text-label-sm text-on-surface-variant text-center">{item.requiredStaffCount}</td>
+                          <td className="p-2.5">
+                            <div className="relative">
+                              <select
+                                className="h-8 w-full appearance-none rounded-md border border-outline-variant bg-surface-container-lowest px-2 pr-7 text-label-sm text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+                                value={currentStaffId}
+                                onChange={(e) => onStaffEdit(slotKey, Number(e.target.value))}
+                              >
+                                <option value={0}>-- Chưa phân công --</option>
+                                {activeStaff.map((s) => (
+                                  <option key={s.id} value={s.id}>{s.fullName}</option>
+                                ))}
+                              </select>
+                              <span className="material-symbols-outlined pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-outline text-[14px]">expand_more</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-label-xs text-on-surface-variant italic">
+                Lưu ý: Việc phân công nhân sự ở đây chỉ là tham khảo. Sau khi áp dụng, hệ thống sẽ tự động tạo lịch trực theo mẫu.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-label-sm text-on-surface-variant">
+                Mẫu PATTERN sẽ tạo <strong className="text-on-surface">{templatePreview.length}</strong> yêu cầu nhân sự trong kỳ.
+                Hệ thống sẽ tự động phân công nhân sự phù hợp khi áp dụng.
+              </p>
+              <div className="overflow-x-auto max-h-80">
+                <table className="w-full text-left border-collapse" aria-label="Applytemplatemodal Table">
+                  <thead className="sticky top-0 bg-surface-container-low border-b border-outline-variant">
+                    <tr>
+                      <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Ngày</th>
+                      <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Thứ</th>
+                      <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Loại ca</th>
+                      <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Chuyên khoa</th>
+                      <th scope="col" className="p-2.5 text-label-xs text-on-surface-variant uppercase">Số người</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant/30">
+                    {templatePreview.map((item, idx) => (
+                      <tr key={`${item.workDate}_${item.shiftTypeId}_${idx}`} className="hover:bg-surface-container-low/50 transition-colors">
+                        <td className="p-2.5 text-label-sm text-on-surface">{formatDate(item.workDate)}</td>
+                        <td className="p-2.5 text-label-sm text-on-surface-variant">{item.dayOfWeek}</td>
+                        <td className="p-2.5 text-label-sm text-on-surface-variant">{item.shiftTypeName}</td>
+                        <td className="p-2.5 text-label-sm text-on-surface-variant">{item.specialtyName ?? "—"}</td>
+                        <td className="p-2.5 text-label-sm text-on-surface-variant text-center">{item.requiredStaffCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
       <ModalFooter>

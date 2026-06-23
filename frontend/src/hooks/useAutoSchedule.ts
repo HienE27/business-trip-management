@@ -8,6 +8,7 @@ import type { AutoScheduleResult, TemplatePreviewItem } from "@/types/api";
 export type AutoScheduleState = {
   previewResult: AutoScheduleResult | null;
   editedPreview: Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
+  removedShifts: Set<string>;
   removedShiftTypes: Set<string>;
   applying: boolean;
   running: boolean;
@@ -29,9 +30,10 @@ export type AutoScheduleActions = {
   ) => Promise<void>;
   loadTemplate: (templateId: number, periodId: number | null) => Promise<void>;
   previewTemplate: (templateId: number, periodId: number | null) => Promise<TemplatePreviewItem[]>;
-  applyTemplateWithEdits: (templateId: number, periodId: number, edits: TemplatePreviewItem[]) => Promise<void>;
+  applyTemplateWithEdits: (templateId: number, periodId: number | null, edits: { slotId: number; assignedStaffId: number }[]) => Promise<void>;
   editStaff: (workDate: string, shiftTypeId: string, staffId: number) => void;
   editShiftType: (workDate: string, oldShiftTypeId: string, newShiftTypeId: string, staffId: number) => void;
+  removeShift: (workDate: string, shiftTypeId: string, staffId: number) => void;
   resetEdits: () => void;
   clearPreview: () => void;
   clearMessage: () => void;
@@ -42,6 +44,7 @@ export type AutoScheduleActions = {
 export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [previewResult, setPreviewResult] = useState<AutoScheduleResult | null>(null);
   const [editedPreview, setEditedPreview] = useState<Array<{ workDate: string; shiftTypeId: string; staffId: number }>>([]);
+  const [removedShifts, setRemovedShifts] = useState<Set<string>>(new Set());
   const [removedShiftTypes, setRemovedShiftTypes] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
   const [running, setRunning] = useState(false);
@@ -61,6 +64,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
       });
       setPreviewResult(result.data);
       setEditedPreview([]);
+      setRemovedShifts(new Set());
       setRemovedShiftTypes(new Set());
     } catch (error) {
       setMessage(getErrorMessage(error, "Không thể chạy auto schedule."));
@@ -86,6 +90,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         setMessage("Đã áp dụng phương án phân công.");
         setPreviewResult(null);
         setEditedPreview([]);
+        setRemovedShifts(new Set());
         setRemovedShiftTypes(new Set());
         onSuccess();
       } catch (error) {
@@ -146,15 +151,12 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   );
 
   const applyTemplateWithEdits = useCallback(
-    async (templateId: number, periodId: number | null, edits: TemplatePreviewItem[]) => {
+    async (templateId: number, periodId: number | null, edits: { slotId: number; assignedStaffId: number }[]) => {
       if (!periodId) return;
       try {
         setApplying(true);
         setMessage(null);
-        const mappedEdits = edits
-          .filter((e) => e.assignedStaffId !== null)
-          .map((e) => ({ slotId: e.id, assignedStaffId: e.assignedStaffId as number }));
-        const result = await api.applyTemplateWithEdits(templateId, periodId, mappedEdits);
+        const result = await api.applyTemplateWithEdits(templateId, periodId, edits);
         const count = result.data?.appliedCount ?? 0;
         setMessage("Đã áp dụng mẫu lịch với chỉnh sửa — " + count + " ca được tạo.");
         if (typeof window !== "undefined") {
@@ -212,8 +214,17 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
     []
   );
 
+  const removeShift = useCallback((workDate: string, shiftTypeId: string, staffId: number) => {
+    setRemovedShifts((prev) => {
+      const next = new Set(prev);
+      next.add(`${workDate}_${shiftTypeId}_${staffId}`);
+      return next;
+    });
+  }, []);
+
   const resetEdits = useCallback(() => {
     setEditedPreview([]);
+    setRemovedShifts(new Set());
     setRemovedShiftTypes(new Set());
     setMessage("Đã hủy thay đổi.");
   }, []);
@@ -221,6 +232,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const clearPreview = useCallback(() => {
     setPreviewResult(null);
     setEditedPreview([]);
+    setRemovedShifts(new Set());
     setRemovedShiftTypes(new Set());
   }, []);
 
@@ -230,7 +242,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   }, []);
 
   return [
-    { previewResult, editedPreview, removedShiftTypes, applying, running, message, algorithmType },
-    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType },
+    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType },
+    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType },
   ];
 }

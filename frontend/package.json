@@ -17,9 +17,11 @@
     "clsx": "^2.1.1",
     "next": "16.2.6",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-window": "^1.8.10"
   },
   "devDependencies": {
+    "@types/react-window": "^1.8.8",
     "@axe-core/playwright": "^4.11.3",
     "@next/bundle-analyzer": "^16.2.9",
     "@playwright/test": "^1.50.0",

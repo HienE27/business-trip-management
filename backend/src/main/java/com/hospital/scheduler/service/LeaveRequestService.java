@@ -148,6 +148,41 @@ public class LeaveRequestService {
 
         // Auto-propose replacements for affected schedules
         List<ReplacementProposal> proposals = findReplacementsForLeave(leaveRequestId);
+
+        // Notify the reviewer (manager) with full replacement proposals so they can act immediately
+        List<Staff> managers = staffRepository.findAll().stream()
+                .filter(s -> s.getStaffRoles().stream()
+                        .anyMatch(sr -> sr.getRole() != null && (
+                                RoleName.ADMIN.equals(sr.getRole().getName()) || RoleName.MANAGER.equals(sr.getRole().getName()))))
+                .collect(Collectors.toList());
+
+        StringBuilder managerMsg = new StringBuilder("Yêu cầu nghỉ phép của ");
+        managerMsg.append(leaveRequest.getStaff().getFullName());
+        managerMsg.append(" (");
+        managerMsg.append(leaveRequest.getStartDate());
+        managerMsg.append(" - ");
+        managerMsg.append(leaveRequest.getEndDate());
+        managerMsg.append(") đã được duyệt. ");
+        if (!proposals.isEmpty()) {
+            managerMsg.append("Các ca cần thay thế: ");
+            proposals.forEach(p -> {
+                managerMsg.append("\n• ").append(p.getShiftTypeName())
+                        .append(" ngày ").append(p.getWorkDate())
+                        .append(" - Ứng viên: ");
+                if (p.getPrimaryCandidate() != null) managerMsg.append(p.getPrimaryCandidate().getFullName());
+                if (p.getSecondaryCandidate() != null) managerMsg.append(", ").append(p.getSecondaryCandidate().getFullName());
+                if (p.getTertiaryCandidate() != null) managerMsg.append(", ").append(p.getTertiaryCandidate().getFullName());
+            });
+        } else {
+            managerMsg.append("Không có ca nào cần thay thế.");
+        }
+
+        for (Staff manager : managers) {
+            notificationService.createNotification(manager.getId(),
+                    new NotificationDTO("Phân công thay ca sau duyệt nghỉ phép", managerMsg.toString()));
+        }
+
+        // Also notify the primary candidate directly (existing logic)
         for (ReplacementProposal proposal : proposals) {
             if (proposal.getPrimaryCandidate() != null) {
                 String msg = "Nhân sự " + leaveRequest.getStaff().getFullName()

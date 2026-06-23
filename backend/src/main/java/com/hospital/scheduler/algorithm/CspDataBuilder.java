@@ -133,6 +133,12 @@ class CspDataBuilder {
         boolean[][] leaveMatrix = new boolean[numStaff][numDays];
         if (leaveRequests == null) return leaveMatrix;
 
+        // Cache epoch days outside inner loop for O(1) lookup
+        long[] dayEpochs = new long[numDays];
+        for (int d = 0; d < numDays; d++) {
+            dayEpochs[d] = dates.get(d).toEpochDay();
+        }
+
         for (LeaveRequest lr : leaveRequests) {
             if (lr.getStatus() != LeaveRequest.LeaveStatus.APPROVED || lr.getStaff() == null) continue;
             int staffIdx = findStaffIdx(staffList, lr.getStaff().getId());
@@ -140,7 +146,7 @@ class CspDataBuilder {
             long startEpoch = lr.getStartDate().toEpochDay();
             long endEpoch = lr.getEndDate().toEpochDay();
             for (int d = 0; d < numDays; d++) {
-                long dayEpoch = dates.get(d).toEpochDay();
+                long dayEpoch = dayEpochs[d];
                 if (dayEpoch >= startEpoch && dayEpoch <= endEpoch) {
                     leaveMatrix[staffIdx][d] = true;
                 }

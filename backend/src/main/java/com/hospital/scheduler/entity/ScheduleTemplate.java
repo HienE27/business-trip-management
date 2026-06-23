@@ -68,6 +68,9 @@ public class ScheduleTemplate {
     @Column(name = "generated_schedule_ids", columnDefinition = "TEXT")
     private String generatedScheduleIds;
 
+    @Column(name = "pattern_config", columnDefinition = "TEXT")
+    private String patternConfig;
+
     @Column(name = "source_period_name", length = 100)
     private String sourcePeriodName;
 }

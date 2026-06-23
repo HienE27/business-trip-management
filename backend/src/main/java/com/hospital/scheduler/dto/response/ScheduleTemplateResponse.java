@@ -28,6 +28,7 @@ public class ScheduleTemplateResponse {
     private String algorithmConfig;
     private String templateType;
     private String generatedScheduleIds;
+    private String patternConfig;
 
     @Getter
     @Setter
@@ -63,6 +64,7 @@ public class ScheduleTemplateResponse {
                 .algorithmConfig(template.getAlgorithmConfig())
                 .templateType(template.getTemplateType())
                 .generatedScheduleIds(template.getGeneratedScheduleIds())
+                .patternConfig(template.getPatternConfig())
                 .build();
     }
 }

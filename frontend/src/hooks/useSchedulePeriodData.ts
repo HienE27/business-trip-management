@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
+import { queryCache, invalidateEndpoint } from "@/lib/queryCache";
 import type {
   CompensationDay,
   ConflictCheckResponse,
@@ -163,10 +164,14 @@ export function useSchedulePeriodData(
       setLoading(true);
       setMessage(null);
       try {
+        // Use queryCache to deduplicate: if another component is already
+        // fetching these, this call returns the same Promise.
         const [periodData, staffData, specialtyData] = await Promise.all([
-          api.get<SchedulePeriod[]>("/periods"),
-          api.get<Staff[]>("/staff/active"),
-          api.get<Specialty[]>("/specialties").catch(() => [] as Specialty[]),
+          queryCache("/periods", () => api.get<SchedulePeriod[]>("/periods")),
+          queryCache("/staff/active", () => api.get<Staff[]>("/staff/active")),
+          queryCache("/specialties", () =>
+            api.get<Specialty[]>("/specialties").catch(() => [] as Specialty[])
+          ),
         ]);
 
         if (!active) return;

@@ -9,7 +9,6 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.util.List;
 
-@Repository
 public interface ShiftRequirementRepository extends JpaRepository<ShiftRequirement, Integer> {
     List<ShiftRequirement> findByPeriodId(Integer periodId);
 
@@ -21,4 +20,10 @@ public interface ShiftRequirementRepository extends JpaRepository<ShiftRequireme
             @Param("periodId") Integer periodId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT sr FROM ShiftRequirement sr WHERE sr.period.id = :periodId AND sr.workDate = :workDate AND sr.shiftType.id = :shiftTypeId")
+    java.util.Optional<ShiftRequirement> findByPeriodIdAndWorkDateAndShiftTypeId(
+            @Param("periodId") Integer periodId,
+            @Param("workDate") LocalDate workDate,
+            @Param("shiftTypeId") String shiftTypeId);
 }

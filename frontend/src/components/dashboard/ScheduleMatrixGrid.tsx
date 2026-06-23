@@ -7,6 +7,78 @@ import { EventTooltip, type TooltipData } from "./calendar/EventTooltip";
 import type { Schedule, CompensationDay } from "@/types/api";
 import type { ScheduleTone } from "@/types/schedule";
 
+type MatrixRowCellProps = {
+  row: MatrixRow;
+  staffId: number;
+  staffName: string;
+  onCellClick?: (date: Date, staffId: number) => void;
+  onItemClick: (item: CalendarItem, e: React.MouseEvent) => void;
+};
+
+const MatrixRowCell = memo(function MatrixRowCell({ row, staffId, staffName, onCellClick, onItemClick }: MatrixRowCellProps) {
+  const items = row.cells.get(staffId) ?? [];
+  const isComp = row.isCompensation?.get(staffId) ?? false;
+
+  if (isComp) {
+    return (
+      <td className="border-b border-r border-outline-variant p-1 align-top h-16 bg-surface-container-high/60 cursor-default" title="Ngày nghỉ bù">
+        <div className="h-full flex flex-col items-center justify-center gap-1">
+          <div className="flex items-center gap-1 rounded-full bg-outline px-2 py-0.5 text-[10px] font-semibold text-white">
+            <span className="material-symbols-outlined text-[12px]">hotel</span>NB
+          </div>
+          <span className="text-[9px] text-outline text-center leading-tight">Nghỉ bù</span>
+        </div>
+      </td>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <td className="border-b border-r border-outline-variant p-1 align-top h-16">
+        <div className="h-full flex items-center justify-center">
+          {onCellClick ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onCellClick(row.date, staffId); }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 hover:bg-primary/20 text-primary"
+              title={`Thêm ca cho ${staffName} ngày ${row.dayLabel}`}
+            >
+              <span className="material-symbols-outlined text-[14px]">add</span>
+            </button>
+          ) : (
+            <span className="material-symbols-outlined text-[14px] text-outline/40">remove</span>
+          )}
+        </div>
+      </td>
+    );
+  }
+
+  if (items.length === 1) {
+    return (
+      <td className="border-b border-r border-outline-variant p-1 align-top h-16">
+        <ShiftChip item={items[0]} compact onClick={(e) => onItemClick(items[0], e)} />
+      </td>
+    );
+  }
+
+  const visible = items.slice(0, 2);
+  const overflow = items.length - visible.length;
+  return (
+    <td className="border-b border-r border-outline-variant p-1 align-top h-16">
+      <div className="space-y-0.5">
+        {visible.map((item, i) => (
+          <ShiftChip key={i} item={item} compact onClick={(e) => onItemClick(item, e)} />
+        ))}
+        {overflow > 0 && (
+          <div className="rounded border border-primary/20 bg-primary/5 px-1 py-0.5 text-[10px] font-semibold text-primary text-center">
+            +{overflow} ca
+          </div>
+        )}
+      </div>
+    </td>
+  );
+});
+
 export type ScheduleMatrixGridProps = {
   schedules: Schedule[];
   staffList: { id: number; fullName: string }[];
@@ -15,6 +87,10 @@ export type ScheduleMatrixGridProps = {
   compensationDays?: CompensationDay[];
   /** Filter shifts by type (L01/L02/L03/L04). Pass "ALL" to show all. */
   shiftTypeFilter?: string;
+  /** Week mode: start of the week (Monday). */
+  weekStart?: Date;
+  /** Week mode: end of the week (Sunday). */
+  weekEnd?: Date;
   /** Called when user clicks a shift chip to open detail/edit */
   onViewDetail?: (schedule: Schedule) => void;
   /** Called when user clicks an empty cell to assign */
@@ -64,6 +140,8 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
   month,
   compensationDays = [],
   shiftTypeFilter = "ALL",
+  weekStart,
+  weekEnd,
   onViewDetail,
   onCellClick,
   onRefresh,
@@ -71,7 +149,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
 }: ScheduleMatrixGridProps) {
   const matrix = useMemo<MatrixRow[]>(
     () => {
-      const all = buildScheduleMatrix(schedules, staffList, year, month, compensationDays);
+      const all = buildScheduleMatrix(schedules, staffList, year, month, compensationDays, weekStart, weekEnd);
       if (shiftTypeFilter === "ALL") return all.rows;
       return all.rows.map((row) => {
         const filtered = new Map<number, CalendarItem[]>();
@@ -84,8 +162,20 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
         return { ...row, cells: filtered };
       });
     },
-    [schedules, staffList, year, month, compensationDays, shiftTypeFilter]
+    [schedules, staffList, year, month, compensationDays, shiftTypeFilter, weekStart, weekEnd]
   );
+
+  // Pre-compute total shifts per staff (memoized — avoids O(n*m) inside map)
+  const staffShiftCounts = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const s of schedules) {
+      const d = new Date(s.workDate);
+      if (d.getFullYear() === year && d.getMonth() === month) {
+        counts.set(s.staff.id, (counts.get(s.staff.id) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [schedules, year, month]);
 
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
 
@@ -124,12 +214,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                 </div>
               </th>
               {staffList.map((staff) => {
-                const totalShifts = schedules.filter(
-                  (s) =>
-                    s.staff.id === staff.id &&
-                    new Date(s.workDate).getFullYear() === year &&
-                    new Date(s.workDate).getMonth() === month
-                ).length;
+                const totalShifts = staffShiftCounts.get(staff.id) ?? 0;
                 return (
                   <th scope="col" key={staff.id}
                     className="min-w-[100px] border-b border-r border-outline-variant bg-surface-container-low px-2 py-2.5 text-center">
@@ -161,12 +246,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
             </tr>
           </thead>
           <tbody>
-            {matrix.map((row) => {
-              const rowCount = Array.from(row.cells.values()).filter(
-                (items) => items.length > 0
-              ).length;
-
-              return (
+            {matrix.map((row) => (
                 <tr
                   key={row.dateStr}
                   className={`group ${
@@ -191,112 +271,30 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                     </div>
                   </td>
 
-                  {/* Schedule cells */}
-                  {staffList.map((staff) => {
-                    const items = row.cells.get(staff.id) ?? [];
-                    const isComp = row.isCompensation?.get(staff.id) ?? false;
+                  {/* Schedule cells — MatrixRowCell is memoized */}
+                  {staffList.map((staff) => (
+                    <MatrixRowCell
+                      key={`${row.dateStr}-${staff.id}`}
+                      row={row}
+                      staffId={staff.id}
+                      staffName={staff.fullName}
+                      onCellClick={onCellClick}
+                      onItemClick={handleCellClick}
+                    />
+                  ))}
 
-                    if (isComp) {
-                      return (
-                        <td
-                          key={`${row.dateStr}-${staff.id}`}
-                          className="border-b border-r border-outline-variant p-1 align-top h-16 bg-surface-container-high/60 cursor-default"
-                          title="Ngày nghỉ bù — không thể xếp lịch"
-                        >
-                          <div className="h-full flex flex-col items-center justify-center gap-1">
-                            <div className="flex items-center gap-1 rounded-full bg-outline px-2 py-0.5 text-[10px] font-semibold text-white">
-                              <span className="material-symbols-outlined text-[12px]">hotel</span>
-                              NB
-                            </div>
-                            <span className="text-[9px] text-outline text-center leading-tight">
-                              Nghỉ bù
-                            </span>
-                          </div>
-                        </td>
-                      );
-                    }
-
-                    if (items.length === 0) {
-                      return (
-                        <td
-                          key={`${row.dateStr}-${staff.id}`}
-                          className="border-b border-r border-outline-variant p-1 align-top h-16"
-                        >
-                          <div className="h-full flex items-center justify-center">
-                            {onCellClick ? (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onCellClick(row.date, staff.id);
-                                }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 hover:bg-primary/20 text-primary"
-                                title={`Thêm ca cho ${staff.fullName} ngày ${row.dayLabel}`}
-                              >
-                                <span className="material-symbols-outlined text-[14px]">add</span>
-                              </button>
-                            ) : (
-                              <span className="material-symbols-outlined text-[14px] text-outline/40">remove</span>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    }
-
-                    if (items.length === 1) {
-                      return (
-                        <td
-                          key={`${row.dateStr}-${staff.id}`}
-                          className="border-b border-r border-outline-variant p-1 align-top h-16"
-                        >
-                          <ShiftChip
-                            item={items[0]}
-                            compact
-                            onClick={(e) => handleCellClick(items[0], e)}
-                          />
-                        </td>
-                      );
-                    }
-
-                    const visible = items.slice(0, 2);
-                    const overflow = items.length - visible.length;
-                    return (
-                      <td
-                        key={`${row.dateStr}-${staff.id}`}
-                        className="border-b border-r border-outline-variant p-1 align-top h-16"
-                      >
-                        <div className="space-y-0.5">
-                          {visible.map((item, i) => (
-                            <ShiftChip
-                              key={i}
-                              item={item}
-                              compact
-                              onClick={(e) => handleCellClick(item, e)}
-                            />
-                          ))}
-                          {overflow > 0 && (
-                            <div className="flex items-center justify-center rounded border bg-surface-container-low px-1 py-0.5 text-[10px] text-on-surface-variant font-medium">
-                              +{overflow} ca
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })}
-
-                  {/* Row stats: total assignments this day */}
+                  {/* Row stats */}
                   <td className="border-b border-outline-variant px-2 py-2 text-center align-middle">
-                    {rowCount > 0 ? (
+                    {row.rowCount > 0 ? (
                       <span className="inline-flex h-6 min-w-[24px] items-center justify-center rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">
-                        {rowCount}
+                        {row.rowCount}
                       </span>
                     ) : (
                       <span className="material-symbols-outlined text-[14px] text-outline/40">remove</span>
                     )}
                   </td>
                 </tr>
-              );
-            })}
+              ))}
           </tbody>
         </table>
       </div>

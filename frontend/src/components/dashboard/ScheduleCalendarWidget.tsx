@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
 import { ScheduleTableView } from "@/components/dashboard/ScheduleTableView";
 import { ScheduleMatrixGrid } from "@/components/dashboard/ScheduleMatrixGrid";
+import { MatrixGridWrapper } from "@/components/dashboard/MatrixGridWrapper";
 import { FAB } from "@/components/ui/FAB";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { Button, FormSelect, FormInput, FormTextarea } from "@/components/ui";
@@ -204,6 +205,7 @@ type ScheduleCalendarWidgetProps = {
 
 export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, viewMode: externalViewMode, showViewToggle = true, isReadOnly = false, hideFilters = false, canEditOverride = false, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail, onViewModeChange, selectedTab, onFilterTypeChange, compensationDays }: ScheduleCalendarWidgetProps) {
   const [internalView, setInternalView] = useState<"calendar" | "table" | "matrix">("calendar");
+  const [matrixViewMode, setMatrixViewMode] = useState<"month" | "week">("month");
   const view = externalViewMode ?? internalView;
   const scrollYRef = useRef(0);
   const setView = (nextView: "calendar" | "table" | "matrix") => {
@@ -307,6 +309,40 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({ sch
             Ma trận
           </button>
         </div>
+
+        {/* Matrix view: Tháng / Tuần toggle */}
+        {view === "matrix" && (
+          <div
+            role="group"
+            aria-label="Chế độ xem ma trận"
+            className="flex items-center gap-1 rounded-lg bg-surface-container-low p-1"
+          >
+            <button
+              type="button"
+              onClick={() => setMatrixViewMode("month")}
+              aria-pressed={matrixViewMode === "month"}
+              className={`rounded-md px-3 py-1 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                matrixViewMode === "month"
+                  ? "bg-surface-container-lowest text-primary shadow-sm"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              Tháng
+            </button>
+            <button
+              type="button"
+              onClick={() => setMatrixViewMode("week")}
+              aria-pressed={matrixViewMode === "week"}
+              className={`rounded-md px-3 py-1 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                matrixViewMode === "week"
+                  ? "bg-surface-container-lowest text-primary shadow-sm"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              Tuần
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="px-3 pb-3">
@@ -349,11 +385,12 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({ sch
           />
         ) : view === "matrix" ? (
           <div className="px-1">
-            <ScheduleMatrixGrid
+            <MatrixGridWrapper
               schedules={schedules}
-              staffList={staffList}
+              staffList={staffList ?? []}
               year={initialYear ?? new Date().getFullYear()}
               month={initialMonth ?? new Date().getMonth()}
+              viewMode={matrixViewMode}
               compensationDays={compensationDays}
               shiftTypeFilter={selectedTab}
               onViewDetail={canEdit ? (s) => setEditSchedule(s) : undefined}

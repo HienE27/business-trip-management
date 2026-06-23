@@ -95,7 +95,7 @@ class CspResultBuilder {
         Map<Integer, Integer> shiftCounts = new HashMap<>();
         for (String key : assignments.keySet()) {
             int staffId = Integer.parseInt(key.split("\\|")[0]);
-            shiftCounts.merge(staffId, 1, Integer::sum);
+            shiftCounts.merge(staffId, 1, (a, b) -> (a == null ? 0 : a) + (b == null ? 0 : b));
         }
         return shiftCounts;
     }
@@ -122,21 +122,28 @@ class CspResultBuilder {
     private List<Map<String, Object>> buildUnassignedDaysReport(
             ProblemData data, Map<String, String> assignments, List<LocalDate> dates) {
 
+        // Pre-compute assigned counts per (dayIdx, shiftIdx) for O(1) lookup
+        Map<String, Integer> assignedCountMap = new HashMap<>();
+        for (Map.Entry<String, String> e : assignments.entrySet()) {
+            String[] parts = e.getKey().split("\\|");
+            if (parts.length != 2) continue;
+            LocalDate assignDate = LocalDate.parse(parts[1]);
+            int dayIdx = (int) java.time.temporal.ChronoUnit.DAYS.between(dates.get(0), assignDate);
+            String shiftType = e.getValue();
+            int shiftIdx = CspConstants.getShiftIdx(shiftType);
+            if (shiftIdx < 0) continue;
+            String key = dayIdx + "|" + shiftIdx;
+            assignedCountMap.merge(key, 1, (a, b) -> (a == null ? 0 : a) + (b == null ? 0 : b));
+        }
+
         List<Map<String, Object>> unassignedDays = new ArrayList<>();
         for (int d = 0; d < data.numDays; d++) {
             for (int s = 0; s < data.numShifts; s++) {
                 int required = data.slotCount[d][s];
                 if (required <= 0) continue;
 
-                int assigned = 0;
-                for (Map.Entry<String, String> e : assignments.entrySet()) {
-                    String[] parts = e.getKey().split("\\|");
-                    if (parts.length != 2) continue;
-                    LocalDate assignDate = LocalDate.parse(parts[1]);
-                    if (assignDate.equals(dates.get(d)) && e.getValue().equals(SHIFT_ORDER[s])) {
-                        assigned++;
-                    }
-                }
+                String key = d + "|" + s;
+                int assigned = assignedCountMap.getOrDefault(key, 0);
 
                 if (assigned < required) {
                     Map<String, Object> day = new HashMap<>();

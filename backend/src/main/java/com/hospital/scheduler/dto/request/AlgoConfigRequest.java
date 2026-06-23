@@ -15,7 +15,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AlgoConfigRequest {
 
-    @NotBlank(message = "Param key không được để trống")
+    public interface CreateOnly {}
+
+    @NotBlank(message = "Param key không được để trống", groups = CreateOnly.class)
     @Size(max = 50, message = "Param key tối đa 50 ký tự")
     private String paramKey;
 
@@ -23,7 +25,7 @@ public class AlgoConfigRequest {
     @Size(max = 500, message = "Param value tối đa 500 ký tự")
     private String paramValue;
 
-    @NotNull(message = "Value type không được để trống")
+    @NotNull(message = "Value type không được để trống", groups = CreateOnly.class)
     private ValueType valueType;
 
     @Size(max = 255, message = "Description tối đa 255 ký tự")

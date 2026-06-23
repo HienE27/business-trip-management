@@ -134,6 +134,12 @@ public class ScheduleTemplateService {
             return applyGeneratedTemplate(template, period);
         }
 
+        // Handle PATTERN templates: extract day-of-week + shift-type → apply to every matching date
+        if ("PATTERN".equals(template.getTemplateType()) && template.getPatternConfig() != null
+                && !template.getPatternConfig().isBlank()) {
+            return applyPatternTemplate(template, period);
+        }
+
         if (template.getDayOfWeek() == null || template.getShiftTypeId() == null) {
             throw new BadRequestException(
                     "Mẫu lịch thiếu thông tin ngày trong tuần hoặc loại ca. Vui lòng chọn mẫu hợp lệ.");
@@ -187,13 +193,45 @@ public class ScheduleTemplateService {
 
         List<com.hospital.scheduler.entity.Schedule> sourceSchedules = scheduleRepository.findAllById(sourceScheduleIds);
 
+        // Ensure all shift types referenced exist
+        java.util.Set<String> referencedShiftTypeIds = sourceSchedules.stream()
+                .map(s -> s.getShiftType().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        for (String shiftTypeId : referencedShiftTypeIds) {
+            if (shiftTypeRepository.findById(shiftTypeId).isEmpty()) {
+                throw new BadRequestException("Loại ca " + shiftTypeId + " không tồn tại trong hệ thống");
+            }
+        }
+
         int appliedCount = 0;
         for (com.hospital.scheduler.entity.Schedule source : sourceSchedules) {
+            // Ensure a ShiftRequirement exists for this (date, shiftType) in the target period,
+            // so the period's requirement data stays complete after applying the template.
+            ShiftRequirement req = requirementRepository.findByPeriodIdAndWorkDateAndShiftTypeId(
+                    period.getId(), source.getWorkDate(), source.getShiftType().getId())
+                    .orElseGet(() -> {
+                        ShiftRequirement newReq = ShiftRequirement.builder()
+                                .period(period)
+                                .workDate(source.getWorkDate())
+                                .shiftType(source.getShiftType())
+                                .specialty(source.getRequirement() != null ? source.getRequirement().getSpecialty() : null)
+                                .requiredStaffCount(1)
+                                .build();
+                        return requirementRepository.save(newReq);
+                    });
+
+            // Skip if schedule already exists (avoid duplicate constraint violation)
+            if (scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                    period.getId(), source.getStaff().getId(), source.getShiftType().getId(), source.getWorkDate()).isPresent()) {
+                continue;
+            }
+
             com.hospital.scheduler.entity.Schedule copy = com.hospital.scheduler.entity.Schedule.builder()
                     .period(period)
                     .staff(source.getStaff())
                     .shiftType(source.getShiftType())
                     .workDate(source.getWorkDate())
+                    .requirement(req)
                     .hasConflict(false)
                     .build();
             com.hospital.scheduler.entity.Schedule saved = scheduleRepository.save(copy);
@@ -232,6 +270,12 @@ public class ScheduleTemplateService {
 
         if ("GENERATED".equals(template.getTemplateType())) {
             return previewGeneratedTemplate(template);
+        }
+
+        // Handle PATTERN templates: preview from patternConfig
+        if ("PATTERN".equals(template.getTemplateType()) && template.getPatternConfig() != null
+                && !template.getPatternConfig().isBlank()) {
+            return previewPatternTemplate(template, period);
         }
 
         if (template.getDayOfWeek() == null || template.getShiftTypeId() == null) {
@@ -316,6 +360,44 @@ public class ScheduleTemplateService {
             }
         }
 
+        List<com.hospital.scheduler.entity.Schedule> sourceSchedules = List.of();
+        if (request.getScheduleIds() != null && !request.getScheduleIds().isEmpty()) {
+            sourceSchedules = scheduleRepository.findAllById(request.getScheduleIds());
+        }
+
+        // Extract pattern data: group by (dayOfWeek, shiftTypeId, specialtyId) → requiredStaffCount
+        // This makes the template reusable across any period, not just the source period.
+        java.util.Map<String, PatternEntry> patternMap = new java.util.LinkedHashMap<>();
+        for (com.hospital.scheduler.entity.Schedule s : sourceSchedules) {
+            String key = s.getWorkDate().getDayOfWeek().getValue() + "_" + s.getShiftType().getId()
+                    + "_" + (s.getRequirement() != null && s.getRequirement().getSpecialty() != null
+                            ? s.getRequirement().getSpecialty().getId() : "null");
+            patternMap.merge(key, new PatternEntry(
+                            s.getWorkDate().getDayOfWeek().getValue(),
+                            s.getShiftType().getId(),
+                            s.getRequirement() != null && s.getRequirement().getSpecialty() != null
+                                    ? s.getRequirement().getSpecialty().getId() : null,
+                            1),
+                    (existing, incoming) -> {
+                        existing.requiredStaffCount++;
+                        return existing;
+                    });
+        }
+
+        if (patternMap.isEmpty()) {
+            throw new BadRequestException(
+                    "Không có lịch nào để tạo mẫu. Hãy chạy auto-schedule và áp dụng trước.");
+        }
+
+        String patternConfigJson = null;
+        try {
+            patternConfigJson = objectMapper.writeValueAsString(
+                    patternMap.values().stream().toList());
+        } catch (JsonProcessingException e) {
+            throw new BadRequestException("Lỗi khi serialize cấu hình pattern: " + e.getMessage());
+        }
+
+        // Save schedule IDs as a GENERATED companion template (for reference / undo)
         String scheduleIdsJson = null;
         if (request.getScheduleIds() != null && !request.getScheduleIds().isEmpty()) {
             try {
@@ -332,16 +414,34 @@ public class ScheduleTemplateService {
                 .sourcePeriodName(period.getPeriodName())
                 .algorithmType(request.getAlgorithmType())
                 .algorithmConfig(algorithmConfigJson)
-                .templateType("GENERATED")
+                // Primary: PATTERN — stores day-of-week + shift-type + count → fully reusable
+                .templateType("PATTERN")
+                // Backward-compatible: also store schedule IDs as a reference for undo/history
                 .generatedScheduleIds(scheduleIdsJson)
-                .dayOfWeek(null)
-                .shiftTypeId(null)
-                .requiredStaffCount(0)
+                // Pattern extraction: store first pattern entry (caller can split if multiple types needed)
+                .patternConfig(patternConfigJson)
                 .isActive(true)
                 .build();
 
         ScheduleTemplate saved = templateRepository.save(template);
         return ScheduleTemplateResponse.fromEntity(saved);
+    }
+
+    /**
+     * Internal record for pattern extraction.
+     */
+    private static class PatternEntry {
+        int dayOfWeek;
+        String shiftTypeId;
+        Integer specialtyId;
+        int requiredStaffCount;
+
+        PatternEntry(int dayOfWeek, String shiftTypeId, Integer specialtyId, int requiredStaffCount) {
+            this.dayOfWeek = dayOfWeek;
+            this.shiftTypeId = shiftTypeId;
+            this.specialtyId = specialtyId;
+            this.requiredStaffCount = requiredStaffCount;
+        }
     }
 
     /**
@@ -403,6 +503,12 @@ public class ScheduleTemplateService {
                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + newStaffId));
             }
 
+            // Skip if schedule already exists (avoid duplicate constraint violation)
+            if (scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                    period.getId(), targetStaff.getId(), source.getShiftType().getId(), source.getWorkDate()).isPresent()) {
+                continue;
+            }
+
             com.hospital.scheduler.entity.Schedule copy = com.hospital.scheduler.entity.Schedule.builder()
                     .period(period)
                     .staff(targetStaff)
@@ -431,5 +537,101 @@ public class ScheduleTemplateService {
         }
 
         return appliedCount;
+    }
+
+    /**
+     * Apply a PATTERN template: deserialize patternConfig (list of dayOfWeek+shiftTypeId+specialty+count),
+     * iterate through the target period, and for each date that matches a pattern entry,
+     * create a ShiftRequirement for every required slot.
+     */
+    private int applyPatternTemplate(ScheduleTemplate template,
+                                     com.hospital.scheduler.entity.SchedulePeriod period) {
+        ObjectMapper mapper = new ObjectMapper();
+        List<PatternEntry> entries;
+        try {
+            entries = mapper.readValue(template.getPatternConfig(),
+                    mapper.getTypeFactory().constructCollectionType(List.class, PatternEntry.class));
+        } catch (JsonProcessingException e) {
+            throw new BadRequestException("Không thể đọc cấu hình pattern từ mẫu: " + e.getMessage());
+        }
+
+        int appliedCount = 0;
+        LocalDate current = period.getStartDate();
+
+        while (!current.isAfter(period.getEndDate())) {
+            int dow = current.getDayOfWeek().getValue();
+            for (PatternEntry entry : entries) {
+                if (entry.dayOfWeek == dow) {
+                    Specialty specialty = entry.specialtyId != null
+                            ? specialtyRepository.findById(entry.specialtyId).orElse(null) : null;
+                    ShiftType shiftType = shiftTypeRepository.findById(entry.shiftTypeId).orElse(null);
+                    if (shiftType == null) continue;
+
+                    // Create one requirement per required slot, each with its own Schedule entry.
+                    // The spec says apply creates schedules (not just requirements) so the period
+                    // has actual assignments, not just demand records.
+                    for (int i = 0; i < entry.requiredStaffCount; i++) {
+                        ShiftRequirement req = ShiftRequirement.builder()
+                                .period(period)
+                                .workDate(current)
+                                .shiftType(shiftType)
+                                .specialty(specialty)
+                                .requiredStaffCount(1)
+                                .build();
+                        requirementRepository.save(req);
+                        appliedCount++;
+                    }
+                }
+            }
+            current = current.plusDays(1);
+        }
+
+        return appliedCount;
+    }
+
+    /**
+     * Preview a PATTERN template: deserialize patternConfig and list every matching date
+     * in the target period without creating anything.
+     */
+    private List<TemplatePreviewItem> previewPatternTemplate(ScheduleTemplate template,
+                                                            com.hospital.scheduler.entity.SchedulePeriod period) {
+        ObjectMapper mapper = new ObjectMapper();
+        List<PatternEntry> entries;
+        try {
+            entries = mapper.readValue(template.getPatternConfig(),
+                    mapper.getTypeFactory().constructCollectionType(List.class, PatternEntry.class));
+        } catch (JsonProcessingException e) {
+            throw new BadRequestException("Không thể đọc cấu hình pattern từ mẫu: " + e.getMessage());
+        }
+
+        List<TemplatePreviewItem> items = new ArrayList<>();
+        LocalDate current = period.getStartDate();
+
+        while (!current.isAfter(period.getEndDate())) {
+            int dow = current.getDayOfWeek().getValue();
+            for (PatternEntry entry : entries) {
+                if (entry.dayOfWeek == dow) {
+                    ShiftType shiftType = shiftTypeRepository.findById(entry.shiftTypeId).orElse(null);
+                    String specialtyName = null;
+                    if (entry.specialtyId != null) {
+                        Specialty specialty = specialtyRepository.findById(entry.specialtyId).orElse(null);
+                        if (specialty != null) specialtyName = specialty.getName();
+                    }
+                    int dowValue = current.getDayOfWeek().getValue();
+                    items.add(TemplatePreviewItem.builder()
+                            .id(0)
+                            .workDate(current.toString())
+                            .dayOfWeek(VIETNAMESE_DAYS[dowValue])
+                            .shiftTypeId(entry.shiftTypeId)
+                            .shiftTypeName(shiftType != null ? shiftType.getName() : entry.shiftTypeId)
+                            .specialtyName(specialtyName)
+                            .requiredStaffCount(entry.requiredStaffCount)
+                            .build());
+                }
+            }
+            current = current.plusDays(1);
+        }
+
+        return items;
     }
 }

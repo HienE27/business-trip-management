@@ -138,14 +138,14 @@ class CspSearchEngine {
         int shiftIdx = data.varShift[var];
         String shiftType = SHIFT_ORDER[shiftIdx];
 
-        // 1. BR-01/02: same-day conflicting shifts
-        for (int v = 0; v < data.numVars; v++) {
-            if (v == var || assignment[v] >= 0) continue;
-            if (data.varDay[v] != dayIdx) continue;
-            String otherShiftType = SHIFT_ORDER[data.varShift[v]];
-            if (conflicts(shiftType, otherShiftType) && domains[v].get(staffIdx)) {
-                domains[v].clear(staffIdx);
-                trailVar[trailPtr[0]] = v;
+        // 1. BR-01/02: same-day conflicting shifts — iterate only neighbors via constraintGraph
+        for (int neighbor : data.constraintGraph[var]) {
+            if (assignment[neighbor] >= 0) continue;
+            if (data.varDay[neighbor] != dayIdx) continue;
+            String otherShiftType = SHIFT_ORDER[data.varShift[neighbor]];
+            if (conflicts(shiftType, otherShiftType) && domains[neighbor].get(staffIdx)) {
+                domains[neighbor].clear(staffIdx);
+                trailVar[trailPtr[0]] = neighbor;
                 trailStaff[trailPtr[0]] = staffIdx;
                 trailPtr[0]++;
             }
@@ -186,10 +186,11 @@ class CspSearchEngine {
         if (data.holidayDays[dayIdx]) return false;
         if (staffWorkload[staffIdx] >= data.staffMaxShifts[staffIdx]) return false;
 
-        // BR-01/02: existing same-day assignments for this staff
-        for (int v = 0; v < data.numVars; v++) {
-            if (assignment[v] == staffIdx && data.varDay[v] == dayIdx && v != var) {
-                if (conflicts(shiftType, SHIFT_ORDER[data.varShift[v]])) return false;
+        // BR-01/02: same-day conflicting shifts — check via constraintGraph neighbors
+        for (int neighbor : data.constraintGraph[var]) {
+            if (assignment[neighbor] == staffIdx) {
+                String otherShiftType = SHIFT_ORDER[data.varShift[neighbor]];
+                if (conflicts(shiftType, otherShiftType)) return false;
             }
         }
 
@@ -231,7 +232,7 @@ class CspSearchEngine {
 
     private boolean isGoal(BitSet[] domains, int[] assignment, ProblemData data) {
         for (int v = 0; v < data.numVars; v++) {
-            if (assignment[v] < 0 && !domains[v].isEmpty()) return false;
+            if (assignment[v] < 0) return false;
         }
         return true;
     }

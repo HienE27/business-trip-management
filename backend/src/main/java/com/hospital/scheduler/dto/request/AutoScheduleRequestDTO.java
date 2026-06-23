@@ -25,5 +25,8 @@ public class AutoScheduleRequestDTO {
     private Boolean autoAssign = true;
 
     @Builder.Default
+    private Boolean autoGenerateRequirements = false;
+
+    @Builder.Default
     private List<Integer> excludedStaffIds = List.of();
 }

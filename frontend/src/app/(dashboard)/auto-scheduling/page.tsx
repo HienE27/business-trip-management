@@ -1,17 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { EmptyState } from "@/components/ui/EmptyState";
 
 const ApplyConfirmationModal = dynamic(
   () => import("./ApplyConfirmationModal").then((m) => m.ApplyConfirmationModal),
-  { loading: () => null },
-);
-const AddShiftModal = dynamic(
-  () => import("./AddShiftModal").then((m) => m.AddShiftModal),
   { loading: () => null },
 );
 const SaveTemplateModal = dynamic(
@@ -31,26 +27,30 @@ const BulkPublishModal = dynamic(
   { loading: () => null },
 );
 
-import { AlgorithmTip } from "@/components/auto-scheduling/AlgorithmTip";
-import { BusinessRulesPanel } from "@/components/auto-scheduling/BusinessRulesPanel";
-import { StaffExclusionTable } from "@/components/auto-scheduling/StaffExclusionTable";
+// Heavy chart/panel components — code-split so they don't block initial paint
+const WorkloadChart = dynamic(
+  () => import("@/components/auto-scheduling/WorkloadChart").then((m) => m.WorkloadChart),
+  { loading: () => <Skeleton className="h-64 rounded-xl" /> },
+);
+const AlgorithmBalanceChart = dynamic(
+  () => import("@/components/auto-scheduling/AlgorithmBalanceChart").then((m) => m.AlgorithmBalanceChart),
+  { loading: () => <Skeleton className="h-64 rounded-xl" /> },
+);
+const AutoSchedulePanel = dynamic(
+  () => import("@/components/monthly-schedule/AutoSchedulePanel").then((m) => m.AutoSchedulePanel),
+  { loading: () => <Skeleton className="h-96 rounded-xl" /> },
+);
+const StaffExclusionTable = dynamic(
+  () => import("@/components/auto-scheduling/StaffExclusionTable").then((m) => m.StaffExclusionTable),
+  { loading: () => <Skeleton className="h-48 rounded-xl" /> },
+);
+
 import { useAutoSchedule } from "@/hooks/useAutoSchedule";
 import { useRole, canManage } from "@/hooks/useRole";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/date";
 import { getErrorMessage } from "@/lib/errors";
-import type { SchedulePeriod, Staff, AlgorithmMetrics, ReplacementSuggestion, AutoScheduleSummary, ShiftType, ScheduleTemplate, TemplatePreviewItem } from "@/types/api";
-import { WorkloadChart } from "@/components/auto-scheduling/WorkloadChart";
-import { AlgorithmBalanceChart } from "@/components/auto-scheduling/AlgorithmBalanceChart";
-import { UnassignedReportCard } from "@/components/auto-scheduling/UnassignedReportCard";
-
-type AlgoType = "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING";
-
-const ALGO_OPTIONS: { id: AlgoType; label: string; desc: string }[] = [
-  { id: "GREEDY", label: "Tham lam (Greedy)", desc: "Ưu tiên phủ lịch nhanh, đơn giản." },
-  { id: "ROUND_ROBIN", label: "Luân phiên (Round Robin)", desc: "Chia đều số ca, cân bằng tải." },
-  { id: "BACKTRACKING", label: "Backtracking", desc: "Tìm kiếm sâu hơn, tối ưu hơn nhưng chậm hơn." },
-];
+import type { SchedulePeriod, Staff, AlgorithmMetrics, ReplacementSuggestion, AutoScheduleSummary, ScheduleTemplate, TemplatePreviewItem } from "@/types/api";
 
 function MetricsHistorySection({ periodId }: { periodId: number | null }) {
   const [metrics, setMetrics] = useState<AlgorithmMetrics[]>([]);
@@ -108,156 +108,6 @@ function MetricsHistorySection({ periodId }: { periodId: number | null }) {
   );
 }
 
-function EditableScheduleRow({
-  schedule,
-  allStaff,
-  allShiftTypes,
-  isEdited,
-  isShiftTypeEdited,
-  isRemoved,
-  isAdded,
-  onEdit,
-  onShiftTypeChange,
-  onRemove,
-  onRestore,
-  onSuggestReplacement,
-}: {
-  schedule: AutoScheduleSummary;
-  allStaff: Staff[];
-  allShiftTypes: ShiftType[];
-  isEdited: boolean;
-  isShiftTypeEdited?: boolean;
-  isRemoved?: boolean;
-  isAdded?: boolean;
-  onEdit: (staffId: number) => void;
-  onShiftTypeChange?: (newShiftTypeId: string) => void;
-  onRemove?: () => void;
-  onRestore?: () => void;
-  onSuggestReplacement?: (schedule: AutoScheduleSummary) => void;
-}) {
-  const [staffOpen, setStaffOpen] = useState(false);
-  const [typeOpen, setTypeOpen] = useState(false);
-
-  return (
-    <tr className={`hover:bg-surface transition-colors ${isEdited || isShiftTypeEdited ? "bg-primary-fixed/10" : ""} ${isAdded ? "bg-secondary-fixed/10" : ""} ${isRemoved ? "opacity-40 line-through" : ""}`}>
-      <td className="p-3 text-label-sm text-on-surface">{formatDate(schedule.workDate)}</td>
-      <td className="p-3">
-        {isRemoved ? (
-          <span className="text-label-sm text-outline line-through">{schedule.shiftTypeName}</span>
-        ) : (
-          <div className="relative">
-            <button
-              type="button"
-              className={`inline-flex items-center gap-1 text-label-sm rounded px-2 py-1 border transition-colors ${
-                isShiftTypeEdited
-                  ? "border-primary bg-primary-fixed/20 text-primary"
-                  : "border-transparent text-on-surface hover:bg-surface-container-low"
-              }`}
-              onClick={() => setTypeOpen((v) => !v)}
-            >
-              <span>{schedule.shiftTypeName}</span>
-              {isShiftTypeEdited && <span className="material-symbols-outlined text-[14px] text-primary">edit</span>}
-            </button>
-            {typeOpen && onShiftTypeChange && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setTypeOpen(false)} />
-                <div className="absolute left-0 top-full mt-1 z-50 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg w-44 max-h-52 overflow-y-auto">
-                  {allShiftTypes.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      className={`w-full text-left px-3 py-2 text-label-sm hover:bg-primary-fixed/20 transition-colors ${
-                        t.id === schedule.shiftTypeId ? "bg-primary-fixed/10 text-primary font-semibold" : "text-on-surface"
-                      }`}
-                      onClick={() => { onShiftTypeChange(t.id); setTypeOpen(false); }}
-                    >
-                      {t.name}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </td>
-      <td className="p-3 text-label-sm">
-        {isRemoved ? (
-          <div className="flex items-center gap-2">
-            <span className="text-label-sm text-outline line-through">{schedule.staffName}</span>
-            {onRestore && (
-              <button
-                type="button"
-                onClick={onRestore}
-                className="text-label-sm text-primary hover:underline"
-              >
-                Hoàn tác
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <button
-                type="button"
-                className={`inline-flex items-center gap-1.5 text-label-sm rounded px-2 py-1 border transition-colors ${
-                  isEdited
-                    ? "border-primary bg-primary-fixed/20 text-primary"
-                    : "border-transparent text-on-surface hover:bg-surface-container-low"
-                }`}
-                onClick={() => setStaffOpen((v) => !v)}
-              >
-                <span>{schedule.staffName}</span>
-                {isEdited && <span className="material-symbols-outlined text-[14px] text-primary">edit</span>}
-              </button>
-              {staffOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setStaffOpen(false)} />
-                  <div className="absolute left-0 top-full mt-1 z-50 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg w-48 max-h-56 overflow-y-auto">
-                    {allStaff.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        className={`w-full text-left px-3 py-2 text-label-sm hover:bg-primary-fixed/20 transition-colors ${
-                          s.id === schedule.staffId ? "bg-primary-fixed/10 text-primary font-semibold" : "text-on-surface"
-                        }`}
-                        onClick={() => { onEdit(s.id); setStaffOpen(false); }}
-                      >
-                        {s.fullName}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-            {onSuggestReplacement && schedule.scheduleId && (
-              <button
-                type="button"
-                onClick={() => onSuggestReplacement(schedule)}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-primary-fixed text-on-surface-variant hover:text-primary transition-colors shrink-0"
-                title="Đề xuất người thay thế"
-                aria-label="Đề xuất người thay thế"
-              >
-                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">swap_horiz</span>
-              </button>
-            )}
-            {onRemove && (
-              <button
-                type="button"
-                onClick={onRemove}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-error-container text-on-surface-variant hover:text-error transition-colors shrink-0"
-                title="Xóa ca trực"
-                aria-label="Xóa ca trực"
-              >
-                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span>
-              </button>
-            )}
-          </div>
-        )}
-      </td>
-    </tr>
-  );
-}
-
 export default function AutoSchedulingPage() {
   const role = useRole();
   const isManager = canManage(role);
@@ -271,14 +121,10 @@ export default function AutoSchedulingPage() {
   const [suggestionsModalOpen, setSuggestionsModalOpen] = useState(false);
   const [suggestionsData, setSuggestionsData] = useState<ReplacementSuggestion | null>(null);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
-  const [addShiftModalOpen, setAddShiftModalOpen] = useState(false);
-  const [removedShifts, setRemovedShifts] = useState<Set<string>>(new Set());
-  const [addedShifts, setAddedShifts] = useState<AutoScheduleSummary[]>([]);
 
   const [autoState, autoActions] = useAutoSchedule();
-  const { previewResult, editedPreview, removedShiftTypes, applying, running, message, algorithmType } = autoState;
-  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, resetEdits, clearPreview, setMessage: hookSetMessage, setAlgorithmType } = autoActions;
+  const { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType } = autoState;
+  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, setMessage, setAlgorithmType } = autoActions;
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
@@ -289,25 +135,19 @@ export default function AutoSchedulingPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [templatePreview, setTemplatePreview] = useState<TemplatePreviewItem[] | null>(null);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
-  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<number>>(new Set());
-  const [bulkOperation, setBulkOperation] = useState<"publish" | "archive">("publish");
-  const [bulkSubmitting, setBulkSubmitting] = useState(false);
-  const [bulkResults, setBulkResults] = useState<{ success: number; failure: number; results: Array<{ id: number; periodName: string; success: boolean; message: string }> } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingStaffIds, setEditingStaffIds] = useState<Map<number, number>>(new Map());
 
   const loadWorkspace = useCallback(async () => {
     try {
       setLoading(true);
-      const [periodData, staffData, shiftTypeData] = await Promise.all([
+      const [periodData, staffData] = await Promise.all([
         api.get<SchedulePeriod[]>("/periods"),
         api.get<Staff[]>("/staff/active"),
-        api.get<ShiftType[]>("/shift-types"),
       ]);
       const list = periodData ?? [];
       setPeriods(list);
       setActiveStaff(staffData ?? []);
-      setShiftTypes(shiftTypeData ?? []);
       const draft = list.find((p) => p.status === "DRAFT") ?? list[0] ?? null;
       setSelectedPeriodId(draft?.id ?? null);
     } catch (err) {
@@ -328,77 +168,23 @@ export default function AutoSchedulingPage() {
 
   const handleRunPreview = () => {
     if (!selectedPeriodId) return;
-    clearPreview();
-    setRemovedShifts(new Set());
-    setAddedShifts([]);
     void runPreview(selectedPeriodId, excludedStaffIds);
   };
 
   const handleApplyPreview = async () => {
     if (!previewResult) return;
-
-    // Build merged list: original minus removed, plus added, plus edited
-    const removedKeys = removedShifts;
-    const removedShiftTypeKeys = removedShiftTypes;
-    const originalSchedules = previewResult.schedules.filter(
-      (s) =>
-        !removedKeys.has(`${s.workDate}_${s.shiftTypeId}_${s.staffId}`) &&
-        !removedShiftTypeKeys.has(`${s.workDate}_${s.shiftTypeId}_${s.staffId}`)
-    );
     const merged: Array<{ workDate: string; shiftTypeId: string; staffId: number }> = [
-      ...originalSchedules.map((s) => ({
-        workDate: s.workDate,
-        shiftTypeId: s.shiftTypeId,
-        staffId: s.staffId,
-      })),
-      ...addedShifts.map((s) => ({
+      ...previewResult.schedules.map((s) => ({
         workDate: s.workDate,
         shiftTypeId: s.shiftTypeId,
         staffId: s.staffId,
       })),
       ...editedPreview,
     ];
-
     await applyPreview(selectedPeriodId, merged, () => {
       setApplyModalOpen(false);
-      setRemovedShifts(new Set());
-      setAddedShifts([]);
       void loadWorkspace();
     });
-  };
-
-  const getRowKey = (schedule: AutoScheduleSummary) =>
-    `${schedule.workDate}_${schedule.shiftTypeId}_${schedule.staffId}`;
-
-  const handleRemoveShift = (schedule: AutoScheduleSummary) => {
-    const key = getRowKey(schedule);
-    setRemovedShifts((prev) => {
-      const next = new Set(prev);
-      next.add(key);
-      return next;
-    });
-  };
-
-  const handleAddShift = (newShift: AutoScheduleSummary) => {
-    setAddedShifts((prev) => [...prev, newShift]);
-  };
-
-  const handleRestoreAddedShift = (index: number) => {
-    setAddedShifts((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const isRowEdited = (schedule: AutoScheduleSummary) => {
-    return editedPreview.some(
-      (e) => e.workDate === schedule.workDate && e.shiftTypeId === schedule.shiftTypeId
-    );
-  };
-
-  const isRowShiftTypeEdited = (schedule: AutoScheduleSummary) => {
-    return removedShiftTypes.has(`${schedule.workDate}_${schedule.shiftTypeId}_${schedule.staffId}`);
-  };
-
-  const handleRowEdit = (schedule: AutoScheduleSummary, staffId: number) => {
-    editStaff(schedule.workDate, schedule.shiftTypeId, staffId);
   };
 
   const handleSuggestReplacement = async (schedule: AutoScheduleSummary) => {
@@ -418,31 +204,6 @@ export default function AutoSchedulingPage() {
 
   const handleResetEdits = () => {
     resetEdits();
-    setRemovedShifts(new Set());
-    setAddedShifts([]);
-  };
-
-  /**
-   * Called when user picks a different shift type for a row in the preview table.
-   * The old (date, shiftType, staff) entry is marked removed, and the new one
-   * is added to editedPreview so it gets sent as part of the merged list.
-   */
-  const handleShiftTypeChange = (
-    schedule: AutoScheduleSummary,
-    newShiftTypeId: string
-  ) => {
-    const key = `${schedule.workDate}_${schedule.shiftTypeId}_${schedule.staffId}`;
-    setRemovedShifts((prev) => {
-      const next = new Set(prev);
-      next.add(key);
-      return next;
-    });
-    editShiftType(
-      schedule.workDate,
-      schedule.shiftTypeId,
-      newShiftTypeId,
-      schedule.staffId
-    );
   };
 
   const handleLoadTemplates = async () => {
@@ -477,18 +238,28 @@ export default function AutoSchedulingPage() {
   const handleApplyTemplateConfirmed = async () => {
     if (!selectedTemplateId || !selectedPeriodId) return;
     try {
-      await applyTemplateWithEdits(selectedTemplateId, selectedPeriodId, []);
+      // Build the merged edits from the template preview table.
+      // Only include items where the user changed the staff assignment.
+      // slotId may be a composite string for PATTERN templates; convert to number if numeric.
+      const edits = Array.from(editingStaffIds.entries())
+        .filter(([, staffId]) => staffId !== 0)
+        .map(([slotId, staffId]) => {
+          const slotIdNum = typeof slotId === "string" && /^\d+$/.test(slotId) ? Number(slotId) : 0;
+          return { slotId: slotIdNum, assignedStaffId: staffId };
+        });
+      await applyTemplateWithEdits(selectedTemplateId, selectedPeriodId, edits);
       setApplyTemplateModalOpen(false);
       setTemplates([]);
       setTemplatePreview(null);
       setSelectedTemplateId(null);
+      setEditingStaffIds(new Map());
       void loadWorkspace();
     } catch (error) {
-      hookSetMessage(getErrorMessage(error, "Không thể áp dụng mẫu lịch."));
+      setMessage(getErrorMessage(error, "Không thể áp dụng mẫu lịch."));
     }
   };
 
-  const handleStaffEdit = (slotId: number, staffId: number) => {
+  const handleStaffEdit = (slotId: string | number, staffId: number) => {
     setEditingStaffIds((prev) => {
       const next = new Map(prev);
       next.set(slotId, staffId);
@@ -519,6 +290,27 @@ export default function AutoSchedulingPage() {
           {loadMessage}
         </div>
       )}
+      {/* Quick links */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-label-sm text-on-surface-variant">Xem nhanh:</span>
+          <Link
+            href="/auto-scheduling/algorithm-config"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface hover:bg-surface-container-low hover:border-primary/40 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[14px]">tune</span>
+            Cấu hình thuật toán
+          </Link>
+          <Link
+            href="/auto-scheduling/history"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface hover:bg-surface-container-low hover:border-primary/40 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[14px]">history</span>
+            Lịch sử chạy
+          </Link>
+        </div>
+      </div>
+
       {/* Period Selector */}
       <SectionCard
         title="Kỳ lịch"
@@ -577,65 +369,48 @@ export default function AutoSchedulingPage() {
                 Kỳ lịch đã công bố — chỉ có thể xem, không chỉnh sửa.
               </p>
             )}
-            {!previewResult && (
-              <div className="mt-2">
-                <UnassignedReportCard periodId={selectedPeriodId} />
-              </div>
-            )}
           </div>
         ) : (
           <p className="text-body-sm text-on-surface-variant">Chưa có kỳ lịch nào.</p>
         )}
       </SectionCard>
 
-      {/* Algorithm Config + Rules */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard
-          title="Cấu hình thuật toán"
-          description="Chọn thuật toán và giới hạn trước khi chạy."
-        >
-          <div className="p-4 space-y-4">
-            <fieldset>
-              <legend className="text-label-md font-semibold text-on-surface mb-2">Thuật toán</legend>
-              <div className="space-y-2" role="radiogroup" aria-label="Chọn thuật toán">
-                {ALGO_OPTIONS.map((opt) => (
-                  <label
-                    key={opt.id}
-                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      algorithmType === opt.id
-                        ? "border-primary bg-primary-fixed/20"
-                        : "border-outline-variant hover:border-primary/40"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      className="mt-0.5 accent-primary cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      name="algo-type"
-                      value={opt.id}
-                      checked={algorithmType === opt.id}
-                      onChange={() => setAlgorithmType(opt.id)}
-                    />
-                    <div>
-                      <p className="text-label-md font-semibold text-on-surface">{opt.label}</p>
-                      <p className="text-label-sm text-on-surface-variant">{opt.desc}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          </div>
-        </SectionCard>
-
-        <div className="space-y-4">
-          <BusinessRulesPanel />
-          <AlgorithmTip />
+      {/* Main AutoScheduling panel — contains algorithm, rules, exclusions, KPI, table, actions */}
+      {!isManager ? (
+        <div className="rounded-xl border border-tertiary/30 bg-tertiary/5 p-5 flex items-center gap-3">
+          <span className="material-symbols-outlined text-tertiary text-[22px]">lock</span>
+          <p className="text-body-sm text-on-surface">
+            Chỉ <strong>Quản lý</strong> hoặc <strong>Admin</strong> mới có quyền chạy tự động xếp lịch.
+          </p>
         </div>
-      </div>
+      ) : (
+        <AutoSchedulePanel
+          previewResult={previewResult}
+          editedPreview={editedPreview}
+          activeStaff={activeStaff}
+          applyingPreview={applying}
+          runningAutoSchedule={running}
+          message={message}
+          algorithmType={algorithmType}
+          selectedPeriod={selectedPeriod}
+          selectedPeriodId={selectedPeriodId}
+          selectedPeriodStatus={selectedPeriod?.status}
+          conflictKeys={new Set()}
+          onPreview={handleRunPreview}
+          onApplyPreview={() => setApplyModalOpen(true)}
+          onResetEdits={handleResetEdits}
+          onEditStaff={(workDate, shiftTypeId, staffId) => editStaff(workDate, shiftTypeId, staffId)}
+          onSetAlgorithmType={setAlgorithmType}
+          isManager={isManager}
+          onSaveTemplate={() => setSaveModalOpen(true)}
+          onApplyTemplate={openApplyTemplateModal}
+        />
+      )}
 
-      {/* Staff Exclusions */}
+      {/* Staff exclusions — collapsible after panel */}
       <SectionCard
         title="Ngoại lệ nhân sự"
-        description="Chọn nhân sự bị loại trừ khỏi lịch tự động (đi công tác, nghỉ dài ngày)."
+        description="Loại trừ nhân sự khỏi lịch tự động (đi công tác, nghỉ dài ngày)."
       >
         <StaffExclusionTable
           staff={activeStaff}
@@ -645,211 +420,24 @@ export default function AutoSchedulingPage() {
         />
       </SectionCard>
 
-      {/* Actions */}
-      {!isManager ? (
-        <div className="rounded-xl border border-tertiary/30 bg-tertiary/5 p-5 flex items-center gap-3">
-          <span className="material-symbols-outlined text-tertiary text-[22px]">lock</span>
-          <p className="text-body-sm text-on-surface">
-            Chỉ <strong>Quản lý</strong> hoặc <strong>Admin</strong> mới có quyền chạy tự động xếp lịch.
-          </p>
-        </div>
-      ) : (
-        <div className="flex items-center gap-3 p-4 bg-surface-container-lowest rounded-xl border border-outline-variant flex-wrap">
-          <button
-            type="button"
-            onClick={handleRunPreview}
-            disabled={!canRun}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]">auto_mode</span>
-            {running ? "Đang chạy..." : "Tự động xếp lịch"}
-          </button>
-          <button
-            type="button"
-            onClick={openApplyTemplateModal}
-            disabled={!canRun}
-            className="inline-flex items-center gap-2 rounded-lg border border-outline-variant bg-surface px-4 py-2.5 text-label-md text-on-surface hover:bg-surface-container-low transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span className="material-symbols-outlined text-[18px]">bookmark_added</span>
-            Áp dụng mẫu lịch
-          </button>
-          {previewResult && (
-            <>
-              <button
-                type="button"
-                onClick={() => setApplyModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-secondary px-5 py-2.5 text-label-md font-semibold text-on-secondary hover:bg-secondary/90 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[18px]">check</span>
-                Áp dụng phương án
-              </button>
-              <button
-                type="button"
-                onClick={handleResetEdits}
-                className="inline-flex items-center gap-2 rounded-lg border border-outline-variant bg-surface px-4 py-2.5 text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
-              >
-                Đặt lại
-              </button>
-              <button
-                type="button"
-                onClick={() => setSaveModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg border border-outline-variant bg-surface px-4 py-2.5 text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
-              >
-                <span className="material-symbols-outlined text-[18px]">bookmark_add</span>
-                Lưu mẫu lịch
-              </button>
-            </>
-          )}
-          {message && (
-            <span className="text-label-sm text-on-surface-variant ml-auto">{message}</span>
-          )}
-        </div>
-      )}
-
-      {/* Preview Results */}
+      {/* Charts + History — only when preview exists */}
       {previewResult && (
         <div className="space-y-4">
-          {/* Metrics bar */}
-          <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-            {[
-              { label: "Phương án", value: previewResult.algorithmType, accent: "bg-primary-fixed text-primary" },
-              { label: "Tổng ca tạo", value: previewResult.totalSchedulesCreated, accent: "bg-surface-container-lowest text-on-surface" },
-              { label: "Tỷ lệ phủ", value: `${Math.round(previewResult.coverageRate * 100)}%`, accent: "bg-secondary-container text-on-secondary-container" },
-              { label: "Xung đột", value: previewResult.conflictCount, accent: previewResult.conflictCount > 0 ? "bg-error-container text-error" : "bg-surface-container-lowest text-outline" },
-            ].map((m) => (
-              <div key={m.label} className={`rounded-xl border border-outline-variant p-4 ${m.accent}`}>
-                <p className="text-label-sm opacity-80 mb-1">{m.label}</p>
-                <p className="text-headline-md font-bold">{m.value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Unassigned Report (after preview) */}
-          <UnassignedReportCard periodId={selectedPeriodId} />
-
-          {/* M07-F09 — algorithm balance chart driven by the in-memory preview */}
-          <AlgorithmBalanceChart
-            schedules={previewResult.schedules}
-          />
-
           <div className="grid gap-4 lg:grid-cols-2">
-            {/* Preview table with inline edit */}
-            <SectionCard
-              title="Phương án phân công"
-              description={`${previewResult.schedules.length} ca được tạo trong ${previewResult.executionTimeMs}ms — nhấn loại lịch hoặc nhân sự để chỉnh sửa`}
-              action={
-                <div className="flex items-center gap-3 flex-wrap">
-                  {(editedPreview.length > 0 || removedShifts.size > 0 || removedShiftTypes.size > 0 || addedShifts.length > 0) && (
-                    <span className="text-label-sm text-primary">
-                      {editedPreview.length > 0 && <>{editedPreview.length} ca đã sửa</>}
-                      {editedPreview.length > 0 && removedShifts.size > 0 && <>, </>}
-                      {removedShifts.size > 0 && <>{removedShifts.size} ca đã xóa</>}
-                      {(editedPreview.length > 0 || removedShifts.size > 0) && removedShiftTypes.size > 0 && <>, </>}
-                      {removedShiftTypes.size > 0 && <>{removedShiftTypes.size} ca đổi loại lịch</>}
-                      {(editedPreview.length > 0 || removedShifts.size > 0 || removedShiftTypes.size > 0) && addedShifts.length > 0 && <>, </>}
-                      {addedShifts.length > 0 && <>{addedShifts.length} ca thêm mới</>}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setAddShiftModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-label-sm font-semibold text-on-primary hover:bg-primary/90 transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">add</span>
-                    Thêm ca trực
-                  </button>
-                  {(editedPreview.length > 0 || removedShifts.size > 0 || removedShiftTypes.size > 0) && (
-                    <button
-                      type="button"
-                      onClick={handleResetEdits}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-label-sm text-on-surface hover:bg-surface-container-low transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">restart_alt</span>
-                      Hoàn tác
-                    </button>
-                  )}
-                </div>
-              }
-            >
-              <div className="overflow-x-auto max-h-80">
-                <table className="w-full text-left border-collapse" aria-label="Page Table">
-                  <thead className="sticky top-0 bg-surface-container-low border-b border-outline-variant">
-                    <tr>
-                      <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Ngày</th>
-                      <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Loại lịch</th>
-                      <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Nhân sự</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-outline-variant/30 overflow-y-auto">
-                    {previewResult.schedules
-                      .filter((s) => {
-                        const key = `${s.workDate}_${s.shiftTypeId}_${s.staffId}`;
-                        return !removedShifts.has(key) && !removedShiftTypes.has(key);
-                      })
-                      .slice(0, 50)
-                      .map((s) => (
-                        <EditableScheduleRow
-                          key={`${s.workDate}_${s.shiftTypeId}_${s.staffId}`}
-                          schedule={s}
-                          allStaff={activeStaff}
-                          allShiftTypes={shiftTypes}
-                          isEdited={isRowEdited(s)}
-                          isShiftTypeEdited={isRowShiftTypeEdited(s)}
-                          onEdit={(staffId) => handleRowEdit(s, staffId)}
-                          onShiftTypeChange={(newTypeId) => handleShiftTypeChange(s, newTypeId)}
-                          onRemove={() => handleRemoveShift(s)}
-                          onSuggestReplacement={handleSuggestReplacement}
-                        />
-                      ))}
-                    {addedShifts.map((s, i) => (
-                      <EditableScheduleRow
-                        key={`added_${i}`}
-                        schedule={s}
-                        allStaff={activeStaff}
-                        allShiftTypes={shiftTypes}
-                        isEdited={false}
-                        isAdded
-                        onEdit={(staffId) => {
-                          const updated = [...addedShifts];
-                          updated[i] = { ...s, staffId, staffName: activeStaff.find((st) => st.id === staffId)?.fullName ?? s.staffName };
-                          setAddedShifts(updated);
-                        }}
-                        onRemove={() => handleRestoreAddedShift(i)}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-                {(() => {
-                  const visibleOriginal = previewResult.schedules.filter((s) => !removedShifts.has(`${s.workDate}_${s.shiftTypeId}_${s.staffId}`)).length;
-                  const totalVisible = visibleOriginal + addedShifts.length;
-                  if (previewResult.schedules.length > 50) {
-                    return (
-                      <p className="text-label-sm text-on-surface-variant text-center py-2 border-t border-outline-variant">
-                        Hiển thị {Math.min(50, visibleOriginal)}/{previewResult.schedules.length} ca ({totalVisible} đang hiển thị)
-                      </p>
-                    );
-                  }
-                  return null;
-                })()}
+            <SectionCard title="Biểu đồ cân bằng" description="Phân bổ ca trực theo thuật toán.">
+              <div className="p-4">
+                <AlgorithmBalanceChart schedules={previewResult.schedules} />
               </div>
             </SectionCard>
 
-            {/* Workload chart — shows preview workload when available, otherwise saved DB workload */}
-            <SectionCard
-              title="Khối lượng theo nhân sự"
-              description="Biểu đồ phân bổ ca trực theo nhân sự trong kỳ lịch."
-            >
+            <SectionCard title="Khối lượng theo nhân sự" description="Biểu đồ phân bổ ca trực theo nhân sự trong kỳ lịch.">
               <div className="p-4">
                 <WorkloadChart periodId={selectedPeriodId!} previewSchedules={previewResult?.schedules} />
               </div>
             </SectionCard>
           </div>
 
-          {/* Metrics History */}
-          <SectionCard
-            title="Lịch sử chạy thuật toán"
-            description="Các lần chạy trước đó cho kỳ lịch này."
-          >
+          <SectionCard title="Lịch sử chạy thuật toán" description="Các lần chạy trước đó cho kỳ lịch này.">
             <MetricsHistorySection periodId={selectedPeriodId} />
           </SectionCard>
         </div>
@@ -864,16 +452,6 @@ export default function AutoSchedulingPage() {
         removedShiftTypes={removedShiftTypes}
         applying={applying}
         onApply={handleApplyPreview}
-      />
-
-      {/* Add Shift Modal */}
-      <AddShiftModal
-        open={addShiftModalOpen}
-        onClose={() => setAddShiftModalOpen(false)}
-        shiftTypes={shiftTypes}
-        staffList={activeStaff}
-        selectedPeriod={selectedPeriod}
-        onAdd={handleAddShift}
       />
 
       <SaveTemplateModal
@@ -910,6 +488,7 @@ export default function AutoSchedulingPage() {
         templates={templates}
         loadingTemplates={loadingTemplates}
         selectedTemplateId={selectedTemplateId}
+        selectedTemplate={selectedTemplateId ? templates.find(t => t.id === selectedTemplateId) ?? null : null}
         templatePreview={templatePreview}
         previewLoading={previewLoading}
         editingStaffIds={editingStaffIds}
@@ -924,7 +503,7 @@ export default function AutoSchedulingPage() {
       <BulkPublishModal
         open={bulkModalOpen}
         periods={periods}
-        onClose={() => { setBulkModalOpen(false); setBulkResults(null); setBulkSelectedIds(new Set()); }}
+        onClose={() => { setBulkModalOpen(false); }}
         onRefresh={loadWorkspace}
       />
     </>

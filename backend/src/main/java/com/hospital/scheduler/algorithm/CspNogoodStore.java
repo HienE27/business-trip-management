@@ -17,52 +17,84 @@ import java.util.stream.Collectors;
  * proven cannot be simultaneously satisfied. Before exploring a new branch
  * the search asks {@link #isNogood(int[], int)} whether the current partial
  * assignment subsumes any stored nogood; if so it skips the branch.
+ *
+ * Optimization: varIndex maps varIdx → Set of nogood keys containing that variable.
+ * This lets isNogood() retrieve only relevant nogoods in O(1) per variable
+ * instead of scanning all nogoods on every call.
  */
 @Component
 class CspNogoodStore {
 
     private static final int MAX_NOGOODS = 1000;
 
+    /** varIdx → Set of nogood keys (canonical strings) that contain this variable */
+    private final Map<Integer, Set<String>> varIndex = new HashMap<>();
+    /** Canonical nogood key → Set of (varIdx, staffIdx) pairs in that clause */
     private final Map<String, Set<int[]>> nogoods = new HashMap<>();
     private int nogoodsLearned = 0;
 
     /**
      * Learn a new conflict clause. The store is bounded by {@link #MAX_NOGOODS};
      * the oldest entry is evicted when full.
+     *
+     * Also updates the varIndex for O(1) retrieval of relevant nogoods.
      */
     void addNogood(Set<int[]> conflict, String reason) {
         if (nogoods.size() >= MAX_NOGOODS) {
             String oldest = nogoods.keySet().iterator().next();
-            nogoods.remove(oldest);
+            Set<int[]> evicted = nogoods.remove(oldest);
+            if (evicted != null) {
+                for (int[] pair : evicted) {
+                    Set<String> varSet = varIndex.get(pair[0]);
+                    if (varSet != null) varSet.remove(pair[0] + "|" + pair[1]);
+                }
+            }
         }
         String key = conflict.stream()
                 .sorted(Comparator.comparingInt(a -> a[0]))
                 .map(a -> a[0] + "|" + a[1])
                 .collect(Collectors.joining(","));
         nogoods.put(key, conflict);
+
+        for (int[] pair : conflict) {
+            varIndex.computeIfAbsent(pair[0], k -> new HashSet<>()).add(key);
+        }
         nogoodsLearned++;
     }
 
     /**
-     * Check whether the current partial assignment subsumes any stored
-     * nogood. A subsumption means: for every (var, staff) in the nogood,
+     * Fast nogood subsumption check: retrieve only nogoods containing at least
+     * one assigned variable via varIndex, then verify full subsumption.
+     *
+     * A subsumption means: for every (var, staff) in the nogood,
      * either var is unassigned or var is assigned to staff. In that case
      * we know the branch will fail, so the search can prune it.
      */
     boolean isNogood(int[] currentAssignment, int numVars) {
-        for (Map.Entry<String, Set<int[]>> entry : nogoods.entrySet()) {
-            String[] parts = entry.getKey().split(",");
-            boolean subsumes = true;
-            for (String part : parts) {
-                String[] varStaff = part.split("\\|");
-                int var = Integer.parseInt(varStaff[0]);
-                int staff = Integer.parseInt(varStaff[1]);
-                if (var < numVars && currentAssignment[var] >= 0 && currentAssignment[var] != staff) {
-                    subsumes = false;
-                    break;
+        Set<String> checked = new HashSet<>();
+
+        for (int v = 0; v < numVars; v++) {
+            if (currentAssignment[v] < 0) continue;
+            Set<String> relevantKeys = varIndex.get(v);
+            if (relevantKeys == null) continue;
+
+            for (String key : relevantKeys) {
+                if (!checked.add(key)) continue;
+
+                Set<int[]> clause = nogoods.get(key);
+                if (clause == null) continue;
+
+                boolean subsumes = true;
+                for (int[] pair : clause) {
+                    int var = pair[0];
+                    int staff = pair[1];
+                    if (var < numVars && currentAssignment[var] >= 0 && currentAssignment[var] != staff) {
+                        subsumes = false;
+                        break;
+                    }
                 }
+                if (subsumes) return true;
             }
-            if (subsumes) return true;
         }
         return false;
     }
