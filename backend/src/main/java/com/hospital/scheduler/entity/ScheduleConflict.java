@@ -8,7 +8,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "schedule_conflict")
+@Table(name = "schedule_conflict", uniqueConstraints = {
+    @UniqueConstraint(name = "uk_schedule_unresolved", columnNames = {"schedule_id", "is_resolved"})
+})
 @Getter
 @Setter
 @NoArgsConstructor

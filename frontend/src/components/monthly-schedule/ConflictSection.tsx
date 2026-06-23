@@ -3,7 +3,6 @@
 import { memo } from "react";
 import { ConflictInspector } from "@/components/schedule-summary/ConflictInspector";
 import type { ConflictDetail } from "@/types/api";
-import type { ConflictItem } from "@/types/schedule";
 
 export type ConflictSectionProps = {
   conflicts: ConflictDetail[];
@@ -13,7 +12,7 @@ export type ConflictSectionProps = {
   onClose: () => void;
   onFocusDate: (date: string) => void;
   onShowConflicts: () => void;
-  onResolve: (conflict: ConflictItem) => void;
+  onResolve: (conflict: ConflictDetail) => void;
 };
 
 export const ConflictSection = memo(function ConflictSection({
@@ -40,19 +39,7 @@ export const ConflictSection = memo(function ConflictSection({
       }}
       onClose={onClose}
       onResolve={(conflict) => {
-        onResolve({
-          id: String(conflict.scheduleId),
-          type: "SCHEDULE_CONFLICT",
-          staffName: conflict.staffName,
-          date: new Date(conflict.workDate).toLocaleDateString("vi-VN"),
-          severity: "Chặn lưu",
-          detail: `Xung đột: ${conflict.conflictReasons.join("; ")}`,
-          shiftType: conflict.shiftTypeName,
-          periodId: selectedPeriodId ?? undefined,
-          workDate: conflict.workDate,
-          shiftTypeId: conflict.shiftTypeId,
-          originalStaffId: conflict.scheduleId,
-        });
+        onResolve(conflict);
       }}
     />
   );

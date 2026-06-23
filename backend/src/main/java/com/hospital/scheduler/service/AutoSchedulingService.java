@@ -117,6 +117,11 @@ public class AutoSchedulingService {
 
             LocalDate workDate = LocalDate.parse(item.getWorkDate());
 
+            // Check if workDate is a holiday
+            if (holidayRepository.existsByHolidayDate(workDate)) {
+                throw new ConflictException("Không thể phân công vào ngày lễ: " + workDate);
+            }
+
             // Pre-check the in-loop assignments so we never save a sibling conflict
             // (e.g. L01 then L02 in the same preview for the same staff+date).
             if (hasInLoopConflict(inApplyLoop, staff.getId(), workDate, shiftType.getId())) {

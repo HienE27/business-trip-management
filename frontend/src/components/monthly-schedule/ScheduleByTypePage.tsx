@@ -205,8 +205,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       const periodName = periods.find((p) => p.id === selectedPeriodId)?.periodName ?? "";
       await Promise.all(
         activeStaff.map((staff) =>
-          api.post("/notifications", {
-            staffId: staff.id,
+          api.createNotification(staff.id, {
             title: `Thông báo lịch trực – ${periodName}`,
             message: `Lịch trực của bạn đã được cập nhật. Vui lòng kiểm tra chi tiết trong hệ thống.`,
           })
@@ -684,7 +683,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
             setSelectedPanel("conflicts");
           }}
           onResolve={(conflict) => {
-            setSelectedConflict(conflict as unknown as ConflictDetail);
+            setSelectedConflict(conflict);
           }}
         />
       )}
@@ -715,7 +714,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
             setSelectedPanel("conflicts");
           }}
           onResolve={(conflict) => {
-            setSelectedConflict(conflict as unknown as ConflictDetail);
+            setSelectedConflict(conflict);
           }}
         />
       )}

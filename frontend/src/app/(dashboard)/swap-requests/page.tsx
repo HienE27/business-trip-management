@@ -641,20 +641,20 @@ function SwapRequestsContent() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.requesterSchedule.shiftType.id)} bg-surface`}>
+                <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.requesterSchedule?.shiftType?.id ?? "")} bg-surface`}>
                   <p className="text-label-sm text-on-surface-variant mb-1">Ca ban đầu</p>
-                  <p className="text-body-sm font-medium text-on-surface">{formatDateFull(selectedExchange.requesterSchedule.workDate)}</p>
-                  <p className="text-label-md text-on-surface-variant">{selectedExchange.requesterSchedule.shiftType.name}</p>
+                  <p className="text-body-sm font-medium text-on-surface">{formatDateFull(selectedExchange.requesterSchedule?.workDate ?? "")}</p>
+                  <p className="text-label-md text-on-surface-variant">{selectedExchange.requesterSchedule?.shiftType?.name ?? "—"}</p>
                   {selectedExchange.status === "APPROVED" && (
                     <span className="mt-1.5 inline-flex items-center gap-1 text-label-sm text-secondary">
                       <span className="material-symbols-outlined text-[12px]">check</span> Đã đổi
                     </span>
                   )}
                 </div>
-                <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.targetSchedule.shiftType.id)} bg-surface`}>
+                <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.targetSchedule?.shiftType?.id ?? "")} bg-surface`}>
                   <p className="text-label-sm text-on-surface-variant mb-1">Ca đề xuất</p>
-                  <p className="text-body-sm font-medium text-on-surface">{formatDateFull(selectedExchange.targetSchedule.workDate)}</p>
-                  <p className="text-label-md text-on-surface-variant">{selectedExchange.targetSchedule.shiftType.name}</p>
+                  <p className="text-body-sm font-medium text-on-surface">{formatDateFull(selectedExchange.targetSchedule?.workDate ?? "")}</p>
+                  <p className="text-label-md text-on-surface-variant">{selectedExchange.targetSchedule?.shiftType?.name ?? "—"}</p>
                 </div>
               </div>
 

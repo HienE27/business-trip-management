@@ -335,13 +335,14 @@ public class LeaveRequestService {
             throw new BadRequestException("Ngày bắt đầu không được trong quá khứ");
         }
 
-        // Check for overlapping APPROVED leave requests
+        // Check for overlapping APPROVED or PENDING leave requests
         List<LeaveRequest> overlappingLeaves = leaveRequestRepository.findByStaffIdAndDateRange(
                 staffId, dto.getStartDate(), dto.getEndDate());
-        boolean hasApprovedOverlap = overlappingLeaves.stream()
-                .anyMatch(lr -> lr.getStatus() == LeaveRequest.LeaveStatus.APPROVED);
-        if (hasApprovedOverlap) {
-            throw new BadRequestException("Nhân sự đã có ngày nghỉ phép được duyệt trùng với khoảng thời gian này");
+        boolean hasOverlap = overlappingLeaves.stream()
+                .anyMatch(lr -> lr.getStatus() == LeaveRequest.LeaveStatus.APPROVED
+                        || lr.getStatus() == LeaveRequest.LeaveStatus.PENDING);
+        if (hasOverlap) {
+            throw new BadRequestException("Nhân sự đã có yêu cầu nghỉ phép trùng với khoảng thời gian này");
         }
 
         // Check for compensation days in the date range
