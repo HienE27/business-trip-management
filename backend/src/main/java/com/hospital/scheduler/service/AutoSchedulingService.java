@@ -176,14 +176,25 @@ public class AutoSchedulingService {
                     "Bạn vừa được phân công " + staffSchedules.size() + " ca trực tự động trong kỳ lịch.\nDanh sách: " + dutyList));
         }
 
-        int totalRequired = request.getSchedules().size();
-        BigDecimal coverageRate = totalRequired > 0
-                ? BigDecimal.valueOf((double) savedSchedules.size() / totalRequired * 100)
+        // Load requirements for coverage calculation (B7: coverage = saved vs needed)
+        List<ShiftRequirement> periodRequirements = requirementRepository.findByPeriodId(period.getId());
+        int totalRequiredStaffNeeded = periodRequirements.stream()
+                .mapToInt(ShiftRequirement::getRequiredStaffCount)
+                .sum();
+
+        BigDecimal coverageRate = totalRequiredStaffNeeded > 0
+                ? BigDecimal.valueOf((double) savedSchedules.size() / totalRequiredStaffNeeded * 100)
                 : BigDecimal.ZERO;
-        BigDecimal balanceScore = calculateBalanceScore(savedSchedules, (int) savedSchedules.stream()
+
+        // Build unassigned days report (B7: danh sách ngày chưa phân công đầy đủ)
+        List<Map<String, Object>> unassignedDays = buildUnassignedDays(periodRequirements, savedSchedules);
+
+        int distinctStaffAssigned = (int) savedSchedules.stream()
                 .map(s -> s.getStaff().getId())
                 .distinct()
-                .count());
+                .count();
+        int staffCount = distinctStaffAssigned > 0 ? distinctStaffAssigned : 1;
+        BigDecimal balanceScore = calculateBalanceScore(savedSchedules, staffCount);
 
         long executionTime = System.currentTimeMillis() - startTime;
 
@@ -198,6 +209,7 @@ public class AutoSchedulingService {
                 .conflictCount(0)
                 .totalSchedulesCreated(savedSchedules.size())
                 .schedules(summaries)
+                .unassignedDays(unassignedDays)
                 .executedAt(LocalDateTime.now())
                 .build();
     }
@@ -211,6 +223,13 @@ public class AutoSchedulingService {
         if (period.getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
             throw new BadRequestException("Chỉ có thể xếp lịch tự động khi kỳ lịch ở trạng thái DRAFT");
         }
+
+        // Load runtime config from DB (or use defaults if not set)
+        AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig = algorithmConfigService.getRuntimeConfig();
+        log.info("Using runtime config: maxIterations={}, weekendWeight={}, overnightRecoveryHours={}, greedyThreshold={}, balanceMin={}",
+                runtimeConfig.getMaxIterations(), runtimeConfig.getWeekendWeight(),
+                runtimeConfig.getOvernightRecoveryHours(), runtimeConfig.getGreedyCoverageThreshold(),
+                runtimeConfig.getBalanceScoreMin());
 
         List<Staff> activeStaff = staffRepository.findByIsActiveTrue();
         if (request.getExcludedStaffIds() != null && !request.getExcludedStaffIds().isEmpty()) {
@@ -267,9 +286,16 @@ public class AutoSchedulingService {
             createdSchedules = runRoundRobin(period, requirements, activeStaff, save,
                     request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
         } else if ("BACKTRACKING".equals(algorithmType)) {
+            // Use config from DB or fallback to request value or default
+            int maxIterations = request.getMaxIterations() != null 
+                    ? request.getMaxIterations() 
+                    : runtimeConfig.getMaxIterations();
+            long backtrackTimeLimitNs = runtimeConfig.getBacktrackTimeLimitSeconds() * 1_000_000_000L;
             createdSchedules = runBacktracking(period, requirements, activeStaff, save,
-                    request.getMaxIterations() != null ? request.getMaxIterations() : 1000,
+                    maxIterations, backtrackTimeLimitNs,
                     request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
+            log.info("Backtracking completed with {} schedules (iterations: {}, timeLimit: {}s)",
+                    createdSchedules.size(), maxIterations, runtimeConfig.getBacktrackTimeLimitSeconds());
         } else {
             createdSchedules = runGreedy(period, requirements, activeStaff, save,
                     request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
@@ -363,6 +389,17 @@ public class AutoSchedulingService {
             conflictDataByDate.put(date, loadBatchConflictData(date));
         }
 
+        // Pre-load per-shift-type counts for balanced distribution
+        Map<Integer, Map<String, Long>> staffShiftTypeCounts = new HashMap<>();
+        for (Staff staff : activeStaff) {
+            Map<String, Long> counts = new HashMap<>();
+            counts.put("L01", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L01"));
+            counts.put("L02", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L02"));
+            counts.put("L03", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L03"));
+            counts.put("L04", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L04"));
+            staffShiftTypeCounts.put(staff.getId(), counts);
+        }
+
         LocalDate currentDate = period.getStartDate();
         while (!currentDate.isAfter(periodEnd)) {
             List<ShiftRequirement> todayReqs = sortRequirementsByPriority(
@@ -370,11 +407,37 @@ public class AutoSchedulingService {
 
             BatchConflictData todayConflicts = conflictDataByDate.get(currentDate);
             Set<Integer> assignedStaffIds = new HashSet<>();
+            boolean l01AssignedToday = false;  // CRITICAL: Only 1 L01 per day per spec M02
             for (ShiftRequirement req : todayReqs) {
+                // CRITICAL FIX: If L01 already assigned today, skip remaining L01 requirements
+                if (ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
+                    if (l01AssignedToday) {
+                        log.debug("Skipping duplicate L01 requirement for date={} - already assigned today", currentDate);
+                        continue;
+                    }
+                }
+
                 final LocalDate workDate = currentDate;
+                final String shiftTypeId = req.getShiftType().getId();
+
+                // CRITICAL FIX: Fairness by SHIFT TYPE, not total shifts
+                // Staff with fewer of THIS shift type get higher priority
+                Comparator<Staff> fairnessComparator = Comparator
+                        .comparingLong((Staff s) -> {
+                            Map<String, Long> counts = staffShiftTypeCounts.get(s.getId());
+                            return counts != null ? counts.getOrDefault(shiftTypeId, 0L) : 0L;
+                        })
+                        // Secondary: if same count, prefer staff with fewer TOTAL shifts for overall balance
+                        .thenComparingLong(s -> {
+                            Map<String, Long> counts = staffShiftTypeCounts.get(s.getId());
+                            if (counts == null) return 0L;
+                            return counts.getOrDefault("L01", 0L) + counts.getOrDefault("L02", 0L)
+                                    + counts.getOrDefault("L03", 0L) + counts.getOrDefault("L04", 0L);
+                        });
+
                 List<Staff> eligibleStaff = filterAndSortEligibleStaffBatch(
                         activeStaff, req, excludedStaffIds, assignedStaffIds, todayConflicts, !save,
-                        Comparator.comparingLong(s -> scheduleRepository.countByStaffIdAndPeriodId(s.getId(), period.getId())));
+                        fairnessComparator);
 
                 int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
                 if (log.isDebugEnabled()) {
@@ -383,10 +446,29 @@ public class AutoSchedulingService {
                 }
                 for (int i = 0; i < toAssign; i++) {
                     Staff staff = eligibleStaff.get(i);
+                    // Defensive: skip if already assigned to another shift today
+                    // (can happen when L01/L02/L03 share the same eligible pool)
+                    if (assignedStaffIds.contains(staff.getId())) {
+                        // Try next staff in the list instead
+                        if (i + 1 < eligibleStaff.size()) {
+                            i++; // will be incremented again by for-loop → skip current
+                            staff = eligibleStaff.get(i);
+                            if (assignedStaffIds.contains(staff.getId())) continue;
+                        } else {
+                            continue;
+                        }
+                    }
                     Schedule saved = buildAndSaveSchedule(period, staff, req, workDate, save, createdSchedules);
                     if (saved == null) continue;
                     trackAssignment(staff, workDate, req.getShiftType().getId());
                     assignedStaffIds.add(staff.getId());
+                    // CRITICAL: Mark L01 as assigned to prevent duplicate L01 assignments
+                    if (ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
+                        l01AssignedToday = true;
+                    }
+                    // Update in-memory counts for next iteration
+                    staffShiftTypeCounts.computeIfAbsent(staff.getId(), k -> new HashMap<>())
+                            .merge(shiftTypeId, 1L, Long::sum);
                     if (save && ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
                         createCompensationDayForAuto(saved);
                     }
@@ -409,21 +491,53 @@ public class AutoSchedulingService {
 
         Map<LocalDate, List<ShiftRequirement>> requirementsByDate = groupRequirementsByDate(requirements);
 
+        // Pre-load per-shift-type counts for balanced distribution
+        Map<Integer, Map<String, Long>> staffShiftTypeCounts = new HashMap<>();
+        for (Staff staff : activeStaff) {
+            Map<String, Long> counts = new HashMap<>();
+            counts.put("L01", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L01"));
+            counts.put("L02", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L02"));
+            counts.put("L03", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L03"));
+            counts.put("L04", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L04"));
+            staffShiftTypeCounts.put(staff.getId(), counts);
+        }
+
         LocalDate currentDate = period.getStartDate();
         while (!currentDate.isAfter(period.getEndDate())) {
             List<ShiftRequirement> todayReqs = sortRequirementsByPriority(
                     requirementsByDate.getOrDefault(currentDate, Collections.emptyList()));
 
             Set<Integer> assignedStaffIds = new HashSet<>();
+            boolean l01AssignedToday = false;  // CRITICAL: Only 1 L01 per day per spec M02
             for (ShiftRequirement req : todayReqs) {
+                // CRITICAL FIX: If L01 already assigned today, skip remaining L01 requirements
+                if (ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
+                    if (l01AssignedToday) {
+                        log.debug("Skipping duplicate L01 requirement for date={} - already assigned today", currentDate);
+                        continue;
+                    }
+                }
+
                 final LocalDate workDate = currentDate;
+                final String shiftTypeId = req.getShiftType().getId();
+
                 // Pre-filter: remove staff already assigned to another requirement today
                 final Set<Integer> finalAssigned = assignedStaffIds;
                 List<Staff> availablePool = activeStaff.stream()
                         .filter(s -> !finalAssigned.contains(s.getId()))
                         .collect(Collectors.toList());
+
+                // CRITICAL FIX: Fairness by SHIFT TYPE, not rotation index
+                // Staff with fewer of THIS shift type get higher priority
+                Comparator<Staff> fairnessComparator = Comparator
+                        .comparingLong((Staff s) -> {
+                            Map<String, Long> counts = staffShiftTypeCounts.get(s.getId());
+                            return counts != null ? counts.getOrDefault(shiftTypeId, 0L) : 0L;
+                        })
+                        .thenComparingInt(s -> staffRotationIndex.getOrDefault(s.getId(), 0));
+
                 List<Staff> eligibleStaff = filterAndSortEligibleStaff(availablePool, req, excludedStaffIds, !save, true,
-                        Comparator.comparingInt(s -> staffRotationIndex.getOrDefault(s.getId(), 0)));
+                        fairnessComparator);
 
                 int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
                 for (int i = 0; i < toAssign; i++) {
@@ -432,6 +546,13 @@ public class AutoSchedulingService {
                     trackAssignment(staff, workDate, req.getShiftType().getId());
                     assignedStaffIds.add(staff.getId());
                     staffRotationIndex.merge(staff.getId(), 1, Integer::sum);
+                    // CRITICAL: Mark L01 as assigned to prevent duplicate L01 assignments
+                    if (ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
+                        l01AssignedToday = true;
+                    }
+                    // Update in-memory counts for next iteration
+                    staffShiftTypeCounts.computeIfAbsent(staff.getId(), k -> new HashMap<>())
+                            .merge(shiftTypeId, 1L, Long::sum);
                     if (save && ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId())) {
                         createCompensationDayForAuto(saved);
                     }
@@ -443,8 +564,10 @@ public class AutoSchedulingService {
     }
 
     // ==================== BACKTRACKING ALGORITHM ====================
+
     private List<Schedule> runBacktracking(SchedulePeriod period, List<ShiftRequirement> requirements,
                                             List<Staff> activeStaff, boolean save, int maxIterations,
+                                            long backtrackTimeLimitNs,
                                             Set<Integer> excludedStaffIds) {
         List<Schedule> bestSolution = new ArrayList<>();
         List<Schedule> currentSolution = new ArrayList<>();
@@ -460,11 +583,30 @@ public class AutoSchedulingService {
                 .mapToInt(com.hospital.scheduler.entity.ShiftRequirement::getRequiredStaffCount)
                 .sum();
 
+        // Use time-based deadline instead of iteration counter — prevents runaway recursion
+        // while still allowing thorough exploration within the time budget.
+        final long deadline = System.nanoTime() + backtrackTimeLimitNs;
+
         List<Map<String, Set<String>>> assignmentHistory = new ArrayList<>();
         assignmentHistory.add(new HashMap<>());
 
+        // Pre-load per-shift-type counts for balanced distribution
+        Map<Integer, Map<String, Long>> staffShiftTypeCounts = new HashMap<>();
+        for (Staff staff : activeStaff) {
+            Map<String, Long> counts = new HashMap<>();
+            counts.put("L01", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L01"));
+            counts.put("L02", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L02"));
+            counts.put("L03", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L03"));
+            counts.put("L04", scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staff.getId(), period.getId(), "L04"));
+            staffShiftTypeCounts.put(staff.getId(), counts);
+        }
+
         backtrackByDate(period, byDate, sortedDates, 0, currentSolution, bestSolution,
-                new HashMap<>(), assignmentHistory, maxIterations, excludedStaffIds, save, totalNeeded);
+                new HashMap<>(), assignmentHistory, maxIterations, excludedStaffIds, save, totalNeeded, deadline,
+                staffShiftTypeCounts);
+
+        log.info("Backtracking done: best solution has {} schedules (needed: {}, deadline reached: {})",
+                bestSolution.size(), totalNeeded, System.nanoTime() >= deadline);
 
         if (save) {
             List<Schedule> allSaved = new java.util.ArrayList<>();
@@ -504,9 +646,10 @@ public class AutoSchedulingService {
                            List<Schedule> currentSolution, List<Schedule> bestSolution,
                            Map<Integer, Integer> staffWorkload,
                            List<Map<String, Set<String>>> assignmentHistory, int maxIterations,
-                           Set<Integer> excludedStaffIds, boolean save) {
+                           Set<Integer> excludedStaffIds, boolean save, long deadline) {
 
         if (maxIterations <= 0) return;
+        if (System.nanoTime() >= deadline) return;
 
         if (currentSolution.size() > bestSolution.size()) {
             bestSolution.clear();
@@ -550,7 +693,7 @@ public class AutoSchedulingService {
 
             backtrack(period, requirements, activeStaff, index + 1,
                     currentSolution, bestSolution, staffWorkload, assignmentHistory,
-                    maxIterations - 1, excludedStaffIds, save);
+                    maxIterations - 1, excludedStaffIds, save, deadline);
 
             assignmentHistory.remove(assignmentHistory.size() - 1);
             staffWorkload.merge(staff.getId(), -1, (oldVal, ignore) -> oldVal <= 0 ? 0 : oldVal);
@@ -569,7 +712,9 @@ public class AutoSchedulingService {
                                   List<Schedule> currentSolution, List<Schedule> bestSolution,
                                   Map<Integer, Integer> staffWorkload,
                                   List<Map<String, Set<String>>> assignmentHistory, int maxIterations,
-                                  Set<Integer> excludedStaffIds, boolean save, int totalNeeded) {
+                                  Set<Integer> excludedStaffIds, boolean save, int totalNeeded,
+                                  long deadline,
+                                  Map<Integer, Map<String, Long>> staffShiftTypeCounts) {
 
         // Always save current solution — ensures the first complete path is preserved
         if (currentSolution.size() > bestSolution.size()) {
@@ -579,15 +724,21 @@ public class AutoSchedulingService {
 
         if (maxIterations <= 0) return;
         if (dateIndex >= sortedDates.size()) return;
+        if (System.nanoTime() >= deadline) return; // hard stop — return best found so far
 
         LocalDate workDate = sortedDates.get(dateIndex);
         List<ShiftRequirement> dayReqs = sortRequirementsByPriority(byDate.get(workDate));
+
+        // CRITICAL: Track L01 assignment per day to prevent multiple L01 assignments
+        final boolean[] l01AssignedToday = {false};
 
         assignDay(period, dayReqs, workDate, currentSolution, staffWorkload,
                   assignmentHistory, excludedStaffIds, save,
                   () -> backtrackByDate(period, byDate, sortedDates, dateIndex + 1,
                           currentSolution, bestSolution, staffWorkload, assignmentHistory,
-                          maxIterations - 1, excludedStaffIds, save, totalNeeded));
+                          maxIterations - 1, excludedStaffIds, save, totalNeeded, deadline,
+                          staffShiftTypeCounts),
+                  deadline, staffShiftTypeCounts, l01AssignedToday);
     }
 
     /**
@@ -597,19 +748,30 @@ public class AutoSchedulingService {
     private void assignDay(SchedulePeriod period, List<ShiftRequirement> dayReqs, LocalDate workDate,
                            List<Schedule> currentSolution, Map<Integer, Integer> staffWorkload,
                            List<Map<String, Set<String>>> assignmentHistory,
-                           Set<Integer> excludedStaffIds, boolean save, Runnable onBacktrack) {
+                           Set<Integer> excludedStaffIds, boolean save, Runnable onBacktrack,
+                           long deadline,
+                           Map<Integer, Map<String, Long>> staffShiftTypeCounts,
+                           boolean[] l01AssignedToday) {
         // Base: all requirements assigned for this day — try next date
         if (dayReqs.isEmpty()) {
-            onBacktrack.run();
+            if (System.nanoTime() < deadline) onBacktrack.run();
             return;
         }
 
         ShiftRequirement req = dayReqs.get(0);
         List<ShiftRequirement> remainingReqs = dayReqs.subList(1, dayReqs.size());
         String shiftTypeId = req.getShiftType().getId();
+
+        // CRITICAL: Skip duplicate L01 requirements (only 1 L01 per day per spec M02)
+        if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId) && l01AssignedToday[0]) {
+            assignDay(period, remainingReqs, workDate, currentSolution, staffWorkload,
+                      assignmentHistory, excludedStaffIds, save, onBacktrack, deadline,
+                      staffShiftTypeCounts, l01AssignedToday);
+            return;
+        }
+
         int toAssign = req.getRequiredStaffCount();
 
-        // Staff already assigned this day — must be excluded from findReplacements
         Set<Integer> assignedToday = currentSolution.stream()
                 .filter(s -> s.getWorkDate().equals(workDate))
                 .map(s -> s.getStaff().getId())
@@ -622,11 +784,18 @@ public class AutoSchedulingService {
                 period.getId(), workDate, shiftTypeId, null, toAssign, excludeAll, !save);
 
         candidates = filterBySpecialty(candidates, req.getSpecialty() != null ? req.getSpecialty().getId() : null);
-        candidates.sort(Comparator.comparingInt(s -> staffWorkload.getOrDefault(s.getId(), 0)));
+
+        // CRITICAL FIX: Sort by THIS shift type count, not total workload
+        candidates.sort(Comparator.comparingLong((Staff s) -> {
+            Map<String, Long> counts = staffShiftTypeCounts.get(s.getId());
+            return counts != null ? counts.getOrDefault(shiftTypeId, 0L) : 0L;
+        }));
 
         if (candidates.isEmpty()) return;
 
         for (Staff staff : candidates) {
+            if (System.nanoTime() >= deadline) return; // stop exploring — time's up
+
             Map<String, Set<String>> currentAssignments = assignmentHistory.get(assignmentHistory.size() - 1);
             if (hasInMemoryConflictForBacktrack(staff.getId(), workDate, shiftTypeId, currentAssignments)) {
                 continue;
@@ -638,15 +807,33 @@ public class AutoSchedulingService {
             currentSolution.add(schedule);
             staffWorkload.merge(staff.getId(), 1, Integer::sum);
 
+            // CRITICAL: Update shift type counts for fairness
+            staffShiftTypeCounts.computeIfAbsent(staff.getId(), k -> new HashMap<>())
+                    .merge(shiftTypeId, 1L, Long::sum);
+
+            // CRITICAL: Mark L01 as assigned for the day
+            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
+                l01AssignedToday[0] = true;
+            }
+
             Map<String, Set<String>> newAssignments = new HashMap<>(currentAssignments);
             newAssignments.computeIfAbsent(staff.getId() + "_" + workDate, k -> new HashSet<>()).add(shiftTypeId);
             assignmentHistory.add(newAssignments);
 
             assignDay(period, remainingReqs, workDate, currentSolution, staffWorkload,
-                      assignmentHistory, excludedStaffIds, save, onBacktrack);
+                      assignmentHistory, excludedStaffIds, save, onBacktrack, deadline,
+                      staffShiftTypeCounts, l01AssignedToday);
+
+            // CRITICAL: Reset L01 flag on backtrack
+            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
+                l01AssignedToday[0] = false;
+            }
 
             assignmentHistory.remove(assignmentHistory.size() - 1);
             staffWorkload.merge(staff.getId(), -1, (oldVal, ignore) -> oldVal <= 0 ? 0 : oldVal);
+            // Rollback shift type count
+            staffShiftTypeCounts.computeIfAbsent(staff.getId(), k -> new HashMap<>())
+                    .merge(shiftTypeId, -1L, (oldVal, ignore) -> oldVal <= 0 ? 0L : oldVal);
             currentSolution.remove(currentSolution.size() - 1);
         }
     }
@@ -1173,6 +1360,31 @@ public class AutoSchedulingService {
         return metricsRepository.findAll().stream()
                 .map(this::metricsToDTO)
                 .toList();
+    }
+
+    private List<Map<String, Object>> buildUnassignedDays(List<ShiftRequirement> requirements, List<Schedule> schedules) {
+        Map<String, Long> assignedCount = schedules.stream()
+                .collect(Collectors.groupingBy(
+                        s -> s.getWorkDate() + "_" + s.getShiftType().getId(),
+                        Collectors.counting()));
+
+        List<Map<String, Object>> unassigned = new ArrayList<>();
+        for (ShiftRequirement req : requirements) {
+            String key = req.getWorkDate() + "_" + req.getShiftType().getId();
+            long assigned = assignedCount.getOrDefault(key, 0L);
+            if (assigned < req.getRequiredStaffCount()) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("workDate", req.getWorkDate());
+                item.put("dayOfWeek", DateUtils.getDayOfWeekVietnamese(req.getWorkDate().getDayOfWeek()));
+                item.put("shiftTypeId", req.getShiftType().getId());
+                item.put("shiftTypeName", req.getShiftType().getName());
+                item.put("requiredStaffCount", req.getRequiredStaffCount());
+                item.put("assignedStaffCount", (int) assigned);
+                item.put("missingCount", req.getRequiredStaffCount() - (int) assigned);
+                unassigned.add(item);
+            }
+        }
+        return unassigned;
     }
 
     private AlgorithmMetricsDTO metricsToDTO(AlgorithmMetrics m) {
