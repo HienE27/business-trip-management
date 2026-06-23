@@ -824,6 +824,13 @@ public class AutoSchedulingService {
             // CRITICAL: Mark L01 as assigned for the day
             if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
                 l01AssignedToday[0] = true;
+                // Track compensation date for L01 so L02/L03/L04 can't be assigned on that day
+                LocalDate compDate = compensationDateCalculator.calculate(workDate);
+                if (compDate != null) {
+                    String compKey = staff.getId() + "_" + compDate;
+                    inMemoryCompensationShiftDates.get().add(compKey);
+                    allCompensationShiftDates.get().add(staff.getId() + "_" + compDate.toString());
+                }
             }
 
             Map<String, Set<String>> newAssignments = new HashMap<>(currentAssignments);
@@ -837,6 +844,13 @@ public class AutoSchedulingService {
             // CRITICAL: Reset L01 flag on backtrack
             if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
                 l01AssignedToday[0] = false;
+                // Rollback compensation date tracking
+                LocalDate compDate = compensationDateCalculator.calculate(workDate);
+                if (compDate != null) {
+                    String compKey = staff.getId() + "_" + compDate;
+                    inMemoryCompensationShiftDates.get().remove(compKey);
+                    allCompensationShiftDates.get().remove(staff.getId() + "_" + compDate.toString());
+                }
             }
 
             assignmentHistory.remove(assignmentHistory.size() - 1);

@@ -317,6 +317,8 @@ public class ConflictDetectionService {
         if (hasApprovedLeave) {
             return java.util.Optional.of("Nhân sự có ngày nghỉ phép được duyệt trong ngày này");
         }
+        // Note: PENDING leaves are NOT blocked here - they are handled through the approval flow
+        // when leave is approved, the schedule becomes conflicted and replacement is found
         return java.util.Optional.empty();
     }
 
