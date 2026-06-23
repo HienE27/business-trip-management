@@ -58,7 +58,11 @@ public class ConflictDetectionService {
         if (!skipShiftTypeConflict) {
             detectShiftTypeConflict(staffId, workDate, shiftTypeId, excludeScheduleId).ifPresent(conflicts::add);
         }
-        detectBackToBackConflict(staffId, workDate, shiftTypeId, excludeScheduleId).ifPresent(conflicts::add);
+        // Back-to-back check chỉ áp dụng cho L01 (trực 24/24) vì nó chiếm 24h liên tục
+        // L02, L03, L04 không cần check vì chỉ là ca trong ngày
+        if (SHIFT_TYPE_L01.equals(shiftTypeId)) {
+            detectBackToBackConflict(staffId, workDate, excludeScheduleId).ifPresent(conflicts::add);
+        }
 
         return conflicts;
     }
@@ -321,7 +325,7 @@ public class ConflictDetectionService {
                 .map(cd -> "Ngày này là ngày nghỉ bù của nhân sự");
     }
 
-    private java.util.Optional<String> detectBackToBackConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
+    private java.util.Optional<String> detectBackToBackConflict(Integer staffId, LocalDate workDate, Integer excludeScheduleId) {
         LocalDate prevDay = workDate.minusDays(1);
         LocalDate nextDay = workDate.plusDays(1);
 
