@@ -43,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi" className={`${inter.variable} h-full antialiased`}>
+    <html lang="vi" className={`${inter.variable} h-full antialiased`} data-scroll-behavior="smooth">
       <head>
         {/* eslint-disable-next-line @next/next/google-font-display */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
