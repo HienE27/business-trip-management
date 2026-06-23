@@ -234,9 +234,11 @@ public class SchedulePeriodService {
         period.setStatus(SchedulePeriod.PeriodStatus.ARCHIVED);
         SchedulePeriod saved = periodRepository.save(period);
 
-        // Audit: log the archive action
+        // Audit: log the archive action with current user as actor
+        Integer currentStaffId = authContextService.getCurrentStaff() != null 
+                ? authContextService.getCurrentStaff().getId() : null;
         auditHistoryService.logAction("schedule_period", saved.getId(), AuditHistory.ActionType.UPDATE,
-                prev, saved, null);
+                prev, saved, currentStaffId);
 
         return toResponse(saved);
     }

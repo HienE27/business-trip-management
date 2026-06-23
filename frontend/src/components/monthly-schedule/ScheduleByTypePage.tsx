@@ -213,12 +213,14 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       );
       setNotified(true);
       setMessage(`Đã gửi thông báo đến ${activeStaff.length} nhân sự.`);
+      toastSuccess(`Đã gửi thông báo đến ${activeStaff.length} nhân sự.`);
     } catch {
       setMessage("Không thể gửi thông báo.");
+      toastError("Không thể gửi thông báo.");
     } finally {
       setNotifying(false);
     }
-  }, [selectedPeriodId, activeStaff, periods]);
+  }, [selectedPeriodId, activeStaff, periods, toastSuccess, toastError]);
 
   const handlePublish = useCallback(async () => {
     if (!selectedPeriodId) return;
