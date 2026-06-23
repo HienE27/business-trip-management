@@ -18,6 +18,7 @@ import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
+import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +43,7 @@ public class SchedulePeriodService {
     private final CompensationDayRepository compensationDayRepository;
     private final StaffRepository staffRepository;
     private final AuditHistoryService auditHistoryService;
+    private final AuthContextService authContextService;
     private final ConflictDetectionService conflictDetectionService;
     private final NotificationService notificationService;
     private final EmailService emailService;
