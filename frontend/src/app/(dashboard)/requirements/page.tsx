@@ -97,7 +97,7 @@ export default function RequirementsPage() {
       periodId: r.periodId,
       workDate: r.workDate,
       shiftTypeId: r.shiftType.id,
-      specialtyId: r.specialty.id,
+      specialtyId: r.specialty?.id ?? "",
       requiredCount: r.requiredStaffCount,
       note: r.note ?? "",
     });
@@ -295,7 +295,7 @@ export default function RequirementsPage() {
                             {r.shiftType.name}
                           </span>
                         </td>
-                        <td className="py-2 px-4 text-on-surface font-label-md">{r.specialty.name}</td>
+                        <td className="py-2 px-4 text-on-surface font-label-md">{r.specialty?.name ?? "—"}</td>
                         <td className="py-2 px-4 text-center font-label-md text-on-surface font-bold">{r.requiredStaffCount}</td>
                         <td className="py-2 px-4 text-center font-label-md">
                           <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-[12px] font-bold ${
