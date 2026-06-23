@@ -82,6 +82,18 @@ class AutoSchedulingServiceConcurrencyTest {
             return s;
         });
         lenient().when(metricsRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Mock runtime config to return defaults
+        lenient().when(algorithmConfigService.getRuntimeConfig())
+                .thenReturn(AlgorithmConfigService.AlgorithmRuntimeConfig.builder()
+                        .maxIterations(1000)
+                        .weekendWeight(java.math.BigDecimal.valueOf(2.0))
+                        .overnightRecoveryHours(24)
+                        .greedyCoverageThreshold(java.math.BigDecimal.valueOf(0.85))
+                        .balanceScoreMin(java.math.BigDecimal.valueOf(0.70))
+                        .autoCompensationEnabled(true)
+                        .backtrackTimeLimitSeconds(60)
+                        .build());
     }
 
     @Test

@@ -31,13 +31,14 @@ function adaptToSchedule(item: AutoScheduleSummary): Schedule {
     shiftType: {
       id: item.shiftTypeId,
       name: item.shiftTypeName,
+      isOvernight: false,
     },
     workDate: item.workDate,
     notes: "",
-    isActive: true,
+    hasConflict: false,
     createdAt: "",
     updatedAt: "",
-  } as Schedule;
+  };
 }
 
 /** Parse YYYY-MM-DD (or YYYY-MM-DDTHH:...) into a Date at local midnight */

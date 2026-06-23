@@ -415,9 +415,9 @@ function CellValue({ index, schedule }: { index: number; schedule: Schedule }) {
           <p className="text-label-sm font-semibold text-on-surface truncate leading-snug">
             {schedule.staff.fullName}
           </p>
-          {schedule.staff.specialty && (
+          {schedule.staff.specialtyName && (
             <p className="text-label-sm text-on-surface-variant truncate leading-snug">
-              {schedule.staff.specialty}
+              {schedule.staff.specialtyName}
             </p>
           )}
         </div>
@@ -425,29 +425,6 @@ function CellValue({ index, schedule }: { index: number; schedule: Schedule }) {
     );
   }
   if (index === 4) {
-    if (schedule.staff2) {
-      return (
-        <div className="px-3 py-3.5 flex items-center gap-2 min-w-0">
-          <div
-            className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${schedule.shiftType.id === "L01" ? "bg-red-50" : schedule.shiftType.id === "L02" ? "bg-blue-50" : schedule.shiftType.id === "L03" ? "bg-green-50" : "bg-purple-50"}`}
-          >
-            <span className="text-[11px] font-bold">
-              {schedule.staff2.fullName
-                .split(" ")
-                .slice(-2)
-                .map((p) => p[0])
-                .join("")
-                .toUpperCase()}
-            </span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-label-sm font-semibold text-on-surface truncate leading-snug">
-              {schedule.staff2.fullName}
-            </p>
-          </div>
-        </div>
-      );
-    }
     return (
       <div className="px-3 py-3.5 flex items-center">
         <span className="text-label-sm text-on-surface-variant">—</span>

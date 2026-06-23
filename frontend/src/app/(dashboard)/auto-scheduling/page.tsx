@@ -136,7 +136,7 @@ export default function AutoSchedulingPage() {
   const [templatePreview, setTemplatePreview] = useState<TemplatePreviewItem[] | null>(null);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [editingStaffIds, setEditingStaffIds] = useState<Map<number, number>>(new Map());
+  const [editingStaffIds, setEditingStaffIds] = useState<Map<string | number, number>>(new Map());
 
   const loadWorkspace = useCallback(async () => {
     try {
@@ -261,7 +261,7 @@ export default function AutoSchedulingPage() {
 
   const handleStaffEdit = (slotId: string | number, staffId: number) => {
     setEditingStaffIds((prev) => {
-      const next = new Map(prev);
+      const next = new Map<string | number, number>(prev);
       next.set(slotId, staffId);
       return next;
     });

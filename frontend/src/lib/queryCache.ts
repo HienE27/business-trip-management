@@ -73,8 +73,8 @@ export async function queryCache<T>(
   }
 
   // Start new request
-  let settle: (v: T) => void;
-  let fail: (e: unknown) => void;
+  let settle!: (v: T) => void;
+  let fail!: (e: unknown) => void;
   const promise = new Promise<T>((resolve, reject) => {
     settle = resolve;
     fail = reject;

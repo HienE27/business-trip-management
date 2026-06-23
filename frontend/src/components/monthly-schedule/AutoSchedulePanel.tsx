@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { KPICard } from "@/components/ui/KPICard";
 import { AutoScheduleMatrixGrid } from "./AutoScheduleMatrixGrid";
 import { SectionCard } from "@/components/ui/SectionCard";
 import type { AutoScheduleResult, SchedulePeriod } from "@/types/api";
@@ -283,27 +284,27 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               icon="event_available"
               label="Đã tạo"
               value={previewResult.totalSchedulesCreated}
-              tone="success"
+              variant="success"
             />
             <KpiCard
               icon="donut_large"
               label="Phủ bì"
               value={coverageRate}
               suffix="%"
-              tone={coverageRate >= 90 ? "success" : coverageRate >= 70 ? "warning" : "error"}
+              variant={coverageRate >= 90 ? "success" : coverageRate >= 70 ? "warning" : "error"}
             />
             <KpiCard
               icon="balance"
               label="Cân bằng"
               value={typeof previewResult.balanceScore === "number" ? Math.round(previewResult.balanceScore) : 0}
               suffix="%"
-              tone="neutral"
+              variant="default"
             />
             <KpiCard
               icon={previewResult.conflictCount > 0 ? "warning" : "check_circle"}
               label="Xung đột"
               value={previewResult.conflictCount}
-              tone={previewResult.conflictCount > 0 ? "error" : "success"}
+              variant={previewResult.conflictCount > 0 ? "error" : "success"}
             />
           </div>
 

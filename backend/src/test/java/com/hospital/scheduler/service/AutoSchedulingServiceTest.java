@@ -99,6 +99,18 @@ class AutoSchedulingServiceTest {
         // Mock findAll() to return empty list
         lenient().when(compensationDayRepository.findAll())
                 .thenReturn(Collections.emptyList());
+
+        // Mock runtime config to return defaults
+        lenient().when(algorithmConfigService.getRuntimeConfig())
+                .thenReturn(AlgorithmConfigService.AlgorithmRuntimeConfig.builder()
+                        .maxIterations(1000)
+                        .weekendWeight(BigDecimal.valueOf(2.0))
+                        .overnightRecoveryHours(24)
+                        .greedyCoverageThreshold(BigDecimal.valueOf(0.85))
+                        .balanceScoreMin(BigDecimal.valueOf(0.70))
+                        .autoCompensationEnabled(true)
+                        .backtrackTimeLimitSeconds(60)
+                        .build());
     }
 
     // ==================== Setup Validation Tests ====================

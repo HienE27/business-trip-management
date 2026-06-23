@@ -102,6 +102,7 @@ export interface Schedule {
   conflictReasons?: string[];
   notes?: string | null;
   hasConflict: boolean;
+  conflictCount?: number;
   createdAt: string;
   updatedAt: string;
 }

@@ -83,6 +83,18 @@ class AutoSchedulingServiceIntegrationTest {
         when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staff1));
         when(conflictDetectionService.detectAllConflicts(anyInt(), any(), anyString(), any())).thenReturn(Collections.emptyList());
         lenient().when(compensationDateCalculator.calculate(any(LocalDate.class))).thenReturn(LocalDate.of(2026, 6, 8));
+
+        // Mock runtime config to return defaults
+        lenient().when(algorithmConfigService.getRuntimeConfig())
+                .thenReturn(AlgorithmConfigService.AlgorithmRuntimeConfig.builder()
+                        .maxIterations(1000)
+                        .weekendWeight(java.math.BigDecimal.valueOf(2.0))
+                        .overnightRecoveryHours(24)
+                        .greedyCoverageThreshold(java.math.BigDecimal.valueOf(0.85))
+                        .balanceScoreMin(java.math.BigDecimal.valueOf(0.70))
+                        .autoCompensationEnabled(true)
+                        .backtrackTimeLimitSeconds(60)
+                        .build());
     }
 
     @Test
