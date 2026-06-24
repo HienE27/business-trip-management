@@ -31,8 +31,8 @@ export function CompareModal({ runA, runB, periodNameA, periodNameB, onClose }: 
     },
     {
       label: "Độ phủ (Coverage)",
-      a: `${((runA.coverageRate ?? 0) * 100).toFixed(1)}%`,
-      b: `${((runB.coverageRate ?? 0) * 100).toFixed(1)}%`,
+      a: `${(runA.coverageRate ?? 0).toFixed(1)}%`,
+      b: `${(runB.coverageRate ?? 0).toFixed(1)}%`,
       aGood: (runA.coverageRate ?? 0) >= (runB.coverageRate ?? 0),
       bGood: (runB.coverageRate ?? 0) >= (runA.coverageRate ?? 0),
     },

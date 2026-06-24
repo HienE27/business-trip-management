@@ -34,7 +34,7 @@ export function ApplyConfirmationModal({
       {previewResult && (
         <div className="mt-3 p-3 bg-surface-container-low rounded-lg text-label-sm text-on-surface-variant space-y-1">
           <p>Tổng ca: <strong className="text-on-surface">{previewResult.totalSchedulesCreated}</strong></p>
-          <p>Tỷ lệ phủ: <strong className="text-on-surface">{Math.round(previewResult.coverageRate * 100)}%</strong></p>
+          <p>Tỷ lệ phủ: <strong className="text-on-surface">{Math.round(previewResult.coverageRate)}%</strong></p>
           <p>Xung đột: <strong className="text-error">{previewResult.conflictCount}</strong></p>
           {editedPreview.length > 0 && (
             <p className="text-primary">Có <strong>{editedPreview.length}</strong> ca đã chỉnh sửa thủ công.</p>

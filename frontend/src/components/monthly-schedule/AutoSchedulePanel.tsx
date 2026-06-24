@@ -27,11 +27,16 @@ export type AutoSchedulePanelProps = {
   selectedPeriod: SchedulePeriod | null;
   selectedPeriodId: number | null;
   selectedPeriodStatus?: string;
+  /** Bật/tắt tự động tạo yêu cầu nhân sự trước khi chạy thuật toán */
+  autoGenerateRequirements: boolean;
+  onSetAutoGenerateRequirements: (value: boolean) => void;
   conflictKeys: Set<string>;
   onPreview: () => void;
   onApplyPreview: () => void;
   onResetEdits: () => void;
   onEditStaff: (workDate: string, shiftTypeId: string, staffId: number) => void;
+  /** Mở modal chỉnh sửa một ca trực trên preview grid */
+  onEditPreviewItem?: (item: import("@/types/api").AutoScheduleSummary) => void;
   onSetAlgorithmType: (type: AlgorithmType) => void;
   /** Mở modal lưu mẫu lịch (M07-F10) */
   onSaveTemplate?: () => void;
@@ -169,9 +174,12 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   onApplyPreview,
   onResetEdits,
   onEditStaff,
+  onEditPreviewItem,
   onSetAlgorithmType,
   onSaveTemplate,
   onApplyTemplate,
+  autoGenerateRequirements,
+  onSetAutoGenerateRequirements,
   isManager = true,
 }: AutoSchedulePanelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("month");
@@ -256,6 +264,27 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
           <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-label-sm text-amber-700 border border-amber-200">
             <span className="material-symbols-outlined text-[16px]" aria-hidden="true">info</span>
             Chỉ kỳ lịch ở trạng thái <strong className="font-semibold">DRAFT</strong> mới có thể xếp tự động
+          </div>
+        )}
+        {isDraft && (
+          <div className="mt-3 flex items-center gap-3 rounded-lg bg-surface-container-low px-3 py-2">
+            <label className="flex cursor-pointer items-center gap-2 text-label-sm text-on-surface">
+              <input
+                type="checkbox"
+                checked={autoGenerateRequirements}
+                onChange={(e) => onSetAutoGenerateRequirements(e.target.checked)}
+                className="h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary"
+              />
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[16px] text-on-surface-variant" aria-hidden="true">auto_mode</span>
+                Tự động tạo yêu cầu nhân sự
+              </span>
+            </label>
+            <span className="text-label-xs text-on-surface-variant ml-auto">
+              {autoGenerateRequirements
+                ? "Tự động phân bổ theo cấu hình hệ thống (khuyến nghị)"
+                : "Sử dụng yêu cầu đã có trong kỳ lịch"}
+            </span>
           </div>
         )}
         {message && (
@@ -482,6 +511,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                 viewMode={viewMode}
                 filteredStaffIds={selectedStaffIds}
                 editedPreview={editedPreview}
+                onEditItem={onEditPreviewItem}
               />
             </div>
           </div>

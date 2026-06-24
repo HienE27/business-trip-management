@@ -16,7 +16,10 @@ export type AutoScheduleMatrixGridProps = {
   filteredStaffIds: Set<number>;
   editedPreview: Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
   onViewDetail?: (schedule: Schedule) => void;
-  onCellClick?: (date: Date, staffId: number) => void;
+  /** Called when user clicks an item chip in the preview grid */
+  onEditItem?: (item: AutoScheduleSummary) => void;
+  /** Called when user clicks an empty cell to add a new assignment */
+  onAddItem?: (date: Date, staffId: number) => void;
   onRefresh?: () => void;
 };
 
@@ -98,7 +101,8 @@ export function AutoScheduleMatrixGrid({
   filteredStaffIds,
   editedPreview,
   onViewDetail,
-  onCellClick,
+  onEditItem,
+  onAddItem,
   onRefresh,
 }: AutoScheduleMatrixGridProps) {
   // Filter staff columns
@@ -218,7 +222,13 @@ export function AutoScheduleMatrixGrid({
         weekStart={weekRange?.weekStart}
         weekEnd={weekRange?.weekEnd}
         onViewDetail={onViewDetail}
-        onCellClick={onCellClick}
+        onItemClickOverride={onEditItem ? (schedule) => {
+          const item = filteredSchedules.find(
+            (s) => s.workDate === schedule.workDate && s.staffId === schedule.staff.id && s.shiftTypeId === schedule.shiftType.id
+          );
+          if (item) onEditItem(item);
+        } : undefined}
+        onCellClick={onAddItem}
         onRefresh={onRefresh}
         canEdit={false}
       />

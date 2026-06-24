@@ -95,6 +95,8 @@ export type ScheduleMatrixGridProps = {
   onViewDetail?: (schedule: Schedule) => void;
   /** Called when user clicks an empty cell to assign */
   onCellClick?: (date: Date, staffId: number) => void;
+  /** Override shift chip click → tooltip flow; called with the underlying Schedule */
+  onItemClickOverride?: (schedule: Schedule, e: React.MouseEvent) => void;
   /** Called after inline edit saves to refresh data */
   onRefresh?: () => void;
   /** Override edit button visibility (defaults to true when onViewDetail is provided) */
@@ -144,6 +146,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
   weekEnd,
   onViewDetail,
   onCellClick,
+  onItemClickOverride,
   onRefresh,
   canEdit,
 }: ScheduleMatrixGridProps) {
@@ -181,7 +184,9 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
 
   const handleCellClick = useCallback(
     (item: CalendarItem, e: React.MouseEvent) => {
-      if (item.schedule) {
+      if (onItemClickOverride && item.schedule) {
+        onItemClickOverride(item.schedule, e);
+      } else if (item.schedule) {
         setTooltip({
           x: e.clientX,
           y: e.clientY,
@@ -189,7 +194,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
         });
       }
     },
-    []
+    [onItemClickOverride]
   );
 
   if (staffList.length === 0) {

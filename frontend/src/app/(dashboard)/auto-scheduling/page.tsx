@@ -22,6 +22,10 @@ const ApplyTemplateModal = dynamic(
   () => import("./ApplyTemplateModal").then((m) => m.ApplyTemplateModal),
   { loading: () => null },
 );
+const PreviewEditModal = dynamic(
+  () => import("@/components/auto-scheduling/PreviewEditModal").then((m) => m.PreviewEditModal),
+  { loading: () => null },
+);
 const BulkPublishModal = dynamic(
   () => import("./BulkPublishModal").then((m) => m.BulkPublishModal),
   { loading: () => null },
@@ -93,7 +97,7 @@ function MetricsHistorySection({ periodId }: { periodId: number | null }) {
             <tr key={m.id} className="hover:bg-surface transition-colors">
               <td className="p-2 text-label-sm text-primary font-semibold">{m.algorithmType}</td>
               <td className="p-2 text-label-sm text-on-surface">{m.executionTimeMs}ms</td>
-              <td className="p-2 text-label-sm text-on-surface">{typeof m.coverageRate === 'number' ? `${Math.round(m.coverageRate * 100)}%` : '—'}</td>
+              <td className="p-2 text-label-sm text-on-surface">{typeof m.coverageRate === 'number' ? `${Math.round(m.coverageRate)}%` : '—'}</td>
               <td className="p-2 text-label-sm text-on-surface">{typeof m.balanceScore === 'number' ? m.balanceScore.toFixed(2) : '—'}</td>
               <td className="p-2 text-label-sm">
                 <span className={m.conflictCount > 0 ? "text-error font-semibold" : "text-secondary"}>
@@ -125,6 +129,7 @@ export default function AutoSchedulingPage() {
   const [autoState, autoActions] = useAutoSchedule();
   const { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType } = autoState;
   const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, setMessage, setAlgorithmType } = autoActions;
+  const [autoGenReq, setAutoGenReq] = useState(true);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
@@ -137,6 +142,7 @@ export default function AutoSchedulingPage() {
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingStaffIds, setEditingStaffIds] = useState<Map<string | number, number>>(new Map());
+  const [previewEditItem, setPreviewEditItem] = useState<import("@/types/api").AutoScheduleSummary | null>(null);
 
   const loadWorkspace = useCallback(async () => {
     try {
@@ -168,7 +174,7 @@ export default function AutoSchedulingPage() {
 
   const handleRunPreview = () => {
     if (!selectedPeriodId) return;
-    void runPreview(selectedPeriodId, excludedStaffIds);
+    void runPreview(selectedPeriodId, excludedStaffIds, autoGenReq);
   };
 
   const handleApplyPreview = async () => {
@@ -400,7 +406,10 @@ export default function AutoSchedulingPage() {
           onApplyPreview={() => setApplyModalOpen(true)}
           onResetEdits={handleResetEdits}
           onEditStaff={(workDate, shiftTypeId, staffId) => editStaff(workDate, shiftTypeId, staffId)}
+          onEditPreviewItem={(item) => setPreviewEditItem(item)}
           onSetAlgorithmType={setAlgorithmType}
+          autoGenerateRequirements={autoGenReq}
+          onSetAutoGenerateRequirements={setAutoGenReq}
           isManager={isManager}
           onSaveTemplate={() => setSaveModalOpen(true)}
           onApplyTemplate={openApplyTemplateModal}
@@ -505,6 +514,25 @@ export default function AutoSchedulingPage() {
         periods={periods}
         onClose={() => { setBulkModalOpen(false); }}
         onRefresh={loadWorkspace}
+      />
+
+      <PreviewEditModal
+        open={previewEditItem !== null}
+        onClose={() => setPreviewEditItem(null)}
+        item={previewEditItem}
+        staffList={activeStaff}
+        shiftTypes={[
+          { id: "L01", name: "Trực 24/24" },
+          { id: "L02", name: "Lịch thông tầm" },
+          { id: "L03", name: "Phòng khám dịch vụ" },
+          { id: "L04", name: "Phòng khám chuyên gia" },
+        ]}
+        onSave={(workDate, shiftTypeId, staffId) => {
+          if (previewEditItem) {
+            editShiftType(workDate, previewEditItem.shiftTypeId, shiftTypeId, staffId);
+          }
+          setPreviewEditItem(null);
+        }}
       />
     </>
   );

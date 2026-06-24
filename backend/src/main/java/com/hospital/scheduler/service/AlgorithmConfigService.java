@@ -152,14 +152,11 @@ public class AlgorithmConfigService {
      */
     public java.util.Optional<AutoGenConfig> getAutoGenConfig() {
         var enabledOpt = configRepository.findByParamKey(AUTO_GEN_ENABLED);
-        if (enabledOpt.isEmpty()) {
-            return java.util.Optional.empty();
-        }
-        boolean enabled = Boolean.parseBoolean(enabledOpt.get().getParamValue());
-        if (!enabled) {
-            return java.util.Optional.empty();
-        }
-        
+        boolean enabled = enabledOpt.isPresent()
+                ? Boolean.parseBoolean(enabledOpt.get().getParamValue())
+                : true;  // Default to true so auto-scheduling works out-of-the-box
+        // Always return a config with defaults — even if AUTO_GEN_ENABLED is missing from DB,
+        // fall back to defaults so auto-scheduling works out-of-the-box without manual config setup.
         return java.util.Optional.of(AutoGenConfig.builder()
                 .enabled(enabled)
                 .l01RequiredPerDay(getIntValue(AUTO_GEN_L01_PER_DAY, 1))  // 1 người L01/ngày

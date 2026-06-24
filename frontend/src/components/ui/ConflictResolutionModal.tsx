@@ -4,13 +4,16 @@ import { useState } from "react";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import type { ConflictDetail, Staff } from "@/types/api";
 import type { ConflictItem } from "@/types/schedule";
-import type { Staff } from "@/types/api";
+
+/** Unified conflict shape — accepts ConflictDetail (API) or ConflictItem (legacy calendar) */
+type ConflictForResolution = ConflictDetail | ConflictItem;
 
 type ConflictResolutionModalProps = {
   open: boolean;
   onClose: () => void;
-  conflict: ConflictItem | null;
+  conflict: ConflictForResolution | null;
   onRefresh?: () => void;
 };
 
@@ -107,8 +110,8 @@ export function ConflictResolutionModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Giải quyết xung đột"
-      description={conflict ? `${conflict.staffName} — ${conflict.date}` : ""}
+          title="Giải quyết xung đột"
+          description={conflict ? `${conflict.staffName} — ${"date" in conflict ? conflict.date : conflict.workDate}` : ""}
       size="md"
     >
       {done ? (
@@ -130,7 +133,9 @@ export function ConflictResolutionModal({
                 <div>
                   <p className="text-label-md text-error font-semibold">Thông tin xung đột</p>
                   <p className="text-label-sm text-on-surface-variant mt-1 leading-relaxed">
-                    {conflict.detail}
+                    {"detail" in conflict
+                      ? conflict.detail
+                      : (conflict as ConflictDetail).conflictReasons?.join("; ") ?? "Xung đột lịch trực"}
                   </p>
                 </div>
               </div>

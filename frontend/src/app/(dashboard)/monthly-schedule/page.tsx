@@ -141,7 +141,7 @@ export default function MonthlySchedulePage() {
   } = wsState;
 
   const [selectedConflict, setSelectedConflict] = useState<ConflictDetail | null>(null);
-  const [resolvingConflict, setResolvingConflict] = useState<ConflictItem | null>(null);
+  const [resolvingConflict, setResolvingConflict] = useState<ConflictDetail | null>(null);
   const [focusDate, setFocusDate] = useState<string | null>(null);
   const [addModalDate, setAddModalDate] = useState<Date | null>(null);
   const [checkingConflicts, setCheckingConflicts] = useState(false);

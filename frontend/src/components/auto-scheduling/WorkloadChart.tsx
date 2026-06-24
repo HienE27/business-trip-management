@@ -338,7 +338,7 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
       const totalShifts = rawStaff.reduce((sum, s) => sum + s.totalShifts, 0);
       const totalStaff = rawStaff.length;
       const avg = totalStaff > 0
-        ? rawStaff.reduce((sum, s) => sum + (s.totalShifts * 100 / (s.totalShifts || 1)), 0) / totalStaff
+        ? rawStaff.reduce((sum, s) => sum + (s.totalShifts / (totalShifts / totalStaff || 1) * 100), 0) / totalStaff
         : 0;
       const maxW = rawStaff.length > 0 ? Math.max(...rawStaff.map((s) => s.totalShifts)) : 0;
       const minW = rawStaff.length > 0 ? Math.min(...rawStaff.map((s) => s.totalShifts)) : 0;

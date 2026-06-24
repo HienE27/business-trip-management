@@ -319,6 +319,7 @@ export interface AutoScheduleRequest {
   algorithmType?: string;
   maxIterations?: number;
   autoAssign?: boolean;
+  autoGenerateRequirements?: boolean;
   excludedStaffIds?: number[];
 }
 
@@ -537,6 +538,14 @@ export interface ConflictDetail {
   shiftTypeId: string;
   shiftTypeName: string;
   conflictReasons: string[];
+  /** Period ID — required for replacement suggestion in ConflictResolutionModal */
+  periodId?: number;
+  /** Original staff ID — used to exclude current assignee from replacement candidates */
+  originalStaffId?: number;
+  /** Legacy shape compatibility for ConflictItem consumers */
+  id?: string;
+  type?: string;
+  severity?: "Chặn lưu" | "Cảnh báo";
 }
 
 export interface CompensationDay {

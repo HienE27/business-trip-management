@@ -132,10 +132,14 @@ public class AutoSchedulingService {
             // Re-validate against persisted state. The auto-scheduling algorithm may have
             // produced a preview minutes ago — DB state can have changed since then
             // (other managers added schedules, leave requests were approved, etc.).
-            // Pass skipCompensationDay=false and skipShiftTypeConflict=false to keep
-            // all hard constraints enforced.
-            conflictDetectionService.validateAndThrow(
-                    staff.getId(), workDate, shiftType.getId(), null, period.getId());
+            // Skip back-to-back conflict because the algorithm already enforced this during preview.
+            // Skip schedule if conflict detected instead of throwing to allow partial save.
+            if (conflictDetectionService.hasAnyConflict(
+                    staff.getId(), workDate, shiftType.getId(), null, false, false, false, true)) {
+                log.warn("Conflict when applying schedule, skipping: staffId={}, workDate={}, shiftType={}, periodId={}",
+                        staff.getId(), workDate, shiftType.getId(), period.getId());
+                continue;
+            }
 
             Schedule schedule = Schedule.builder()
                     .period(period)
@@ -145,6 +149,15 @@ public class AutoSchedulingService {
                     .requirement(requirement)
                     .hasConflict(false)
                     .build();
+
+            // Check if schedule already exists to avoid duplicate key error
+            boolean exists = scheduleRepository.existsByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                    period.getId(), staff.getId(), shiftType.getId(), workDate);
+            if (exists) {
+                log.warn("Schedule already exists, skipping: staffId={}, workDate={}, shiftType={}",
+                        staff.getId(), workDate, shiftType.getId());
+                continue;
+            }
 
             Schedule saved = scheduleRepository.save(schedule);
             inApplyLoop.computeIfAbsent(staff.getId() + "_" + workDate, k -> new HashSet<>())
@@ -267,6 +280,22 @@ public class AutoSchedulingService {
         List<CompensationDay> existingCompDays = compensationDayRepository.findByPeriodId(period.getId());
         for (CompensationDay cd : existingCompDays) {
             allCompensationShiftDates.get().add(cd.getStaff().getId() + "_" + cd.getCompensationDate().toString());
+        }
+
+        // CRITICAL: Pre-load existing schedules from the same period into memory
+        // This ensures the algorithm sees all already-assigned shifts and avoids conflicts
+        // that would fail at apply-preview time (e.g., back-to-back L01 checks)
+        List<Schedule> existingSchedules = scheduleRepository.findByPeriodId(period.getId());
+        for (Schedule existing : existingSchedules) {
+            String key = existing.getStaff().getId() + "_" + existing.getWorkDate();
+            inMemoryAssignments.get().computeIfAbsent(key, k -> new HashSet<>()).add(existing.getShiftType().getId());
+            // Also track compensation dates from existing L01 shifts
+            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(existing.getShiftType().getId())) {
+                LocalDate compDate = compensationDateCalculator.calculate(existing.getWorkDate());
+                if (compDate != null) {
+                    allCompensationShiftDates.get().add(existing.getStaff().getId() + "_" + compDate.toString());
+                }
+            }
         }
 
         // P2-8: Enforce L01→L02→L03→L04 processing order per spec
@@ -1452,7 +1481,8 @@ public class AutoSchedulingService {
                         return false;
                     }
                     // M07 spec: auto-scheduling skips max shifts check per "không giới hạn cố định"
-                    if (conflictDetectionService.hasAnyConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId(), null, skipCompensationCheck, false, skipMaxShifts)) {
+                    // skipBackToBackConflict=true to let in-memory tracking handle this constraint
+                    if (conflictDetectionService.hasAnyConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId(), null, skipCompensationCheck, false, skipMaxShifts, true)) {
                         return false;
                     }
                     if (hasInMemoryConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId())) {

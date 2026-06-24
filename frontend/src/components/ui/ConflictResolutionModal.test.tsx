@@ -3,8 +3,8 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConflictResolutionModal } from "@/components/ui/ConflictResolutionModal";
 import { api } from "@/lib/api";
+import type { Staff, Schedule, ConflictDetail } from "@/types/api";
 import type { ConflictItem } from "@/types/schedule";
-import type { Staff, Schedule } from "@/types/api";
 
 vi.mock("@/lib/api-client", () => ({
   api: {
@@ -21,16 +21,19 @@ vi.mock("@/lib/api-client", () => ({
 
 const mockedApi = vi.mocked(api);
 
-const fakeConflict: ConflictItem = {
+const fakeConflict: ConflictDetail | ConflictItem = {
+  scheduleId: 42,
+  staffName: "BS. Nguyễn Văn A",
+  workDate: "2026-06-15",
+  shiftTypeId: "L01",
+  shiftTypeName: "Trực 24/24",
+  conflictReasons: ["Nhân sự có ngày nghỉ bù vào ngày này."],
   id: "42",
   type: "COMPENSATION_CONFLICT",
-  staffName: "BS. Nguyễn Văn A",
   date: "2026-06-15",
   severity: "Chặn lưu",
   detail: "Nhân sự có ngày nghỉ bù vào ngày này.",
   periodId: 1,
-  workDate: "2026-06-15",
-  shiftTypeId: "L01",
   shiftType: "Trực 24/24",
   originalStaffId: 1,
 };
@@ -271,7 +274,7 @@ describe("ConflictResolutionModal", () => {
   });
 
   it("does not render conflict detail block when conflict is null", () => {
-    const detail = fakeConflict.detail ?? "";
+    const detail = "detail" in fakeConflict ? fakeConflict.detail : (fakeConflict as ConflictDetail).conflictReasons?.join("; ");
     render(<ConflictResolutionModal {...baseProps} conflict={null} />);
     if (detail) {
       expect(screen.queryByText(detail)).not.toBeInTheDocument();

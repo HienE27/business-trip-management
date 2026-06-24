@@ -38,7 +38,8 @@ function formatDateTime(iso: string) {
 }
 
 function CoverageBar({ value }: { value: number }) {
-  const pct = Math.round(value * 100);
+  // coverageRate from API is already 0-100, no need to multiply
+  const pct = Math.min(100, Math.max(0, Math.round(value)));
   const color = pct >= 90 ? "bg-secondary" : pct >= 70 ? "bg-primary" : pct >= 50 ? "bg-tertiary" : "bg-error";
   return (
     <div className="flex items-center gap-2">

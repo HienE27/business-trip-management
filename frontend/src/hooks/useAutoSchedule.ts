@@ -14,10 +14,11 @@ export type AutoScheduleState = {
   running: boolean;
   message: string | null;
   algorithmType: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING";
+  autoGenerateRequirements: boolean;
 };
 
 export type AutoScheduleActions = {
-  runPreview: (periodId: number | null, excludedStaffIds?: number[]) => Promise<void>;
+  runPreview: (periodId: number | null, excludedStaffIds?: number[], autoGenerateReq?: boolean) => Promise<void>;
   applyPreview: (
     periodId: number | null,
     edited: Array<{ workDate: string; shiftTypeId: string; staffId: number }>,
@@ -39,6 +40,7 @@ export type AutoScheduleActions = {
   clearMessage: () => void;
   setMessage: (msg: string) => void;
   setAlgorithmType: (type: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING") => void;
+  setAutoGenerateRequirements: (value: boolean) => void;
 };
 
 export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
@@ -50,8 +52,9 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "ROUND_ROBIN" | "BACKTRACKING">("GREEDY");
+  const [autoGenerateRequirements, setAutoGenerateRequirements] = useState(true);
 
-  const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[]) => {
+  const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[], autoGenerateReq?: boolean) => {
     if (!periodId) return;
     try {
       setRunning(true);
@@ -61,6 +64,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         algorithmType,
         maxIterations: 1000,
         excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
+        autoGenerateRequirements: autoGenerateReq ?? true,
       });
       setPreviewResult(result.data);
       setEditedPreview([]);
@@ -239,10 +243,14 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const clearMessage = useCallback(() => setMessage(null), []);
   const setAlgoType = useCallback((type: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING") => {
     setAlgorithmType(type);
-  }, []);
+  }, [setAlgorithmType]);
+
+  const setAutoGen = useCallback((value: boolean) => {
+    setAutoGenerateRequirements(value);
+  }, [setAutoGenerateRequirements]);
 
   return [
-    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType },
-    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType },
+    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType, autoGenerateRequirements },
+    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType, setAutoGenerateRequirements: setAutoGen },
   ];
 }

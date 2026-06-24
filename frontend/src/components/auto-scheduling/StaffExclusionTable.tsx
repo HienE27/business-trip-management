@@ -76,15 +76,15 @@ export function StaffExclusionTable({
             <tr className="bg-surface-container-low border-b border-outline-variant/50">
               <th scope="col" className="p-3 w-10 text-center">
                 <input
-                  aria-label="Chọn tất cả nhân sự"
+                  aria-label="Chọn tất cả nhân sự tham gia xếp lịch"
                   className="rounded border-outline-variant text-primary focus:ring-primary"
                   type="checkbox"
-                  checked={excludedIds.length === staff.length && staff.length > 0}
+                  checked={excludedIds.length === 0}
                   onChange={(e) => {
                     if (e.target.checked) {
-                      onExclusionsChange(staff.map((s) => s.id));
-                    } else {
                       onExclusionsChange([]);
+                    } else {
+                      onExclusionsChange(staff.map((s) => s.id));
                     }
                   }}
                 />
@@ -92,7 +92,7 @@ export function StaffExclusionTable({
               <th scope="col" className="p-3 font-label-sm text-on-surface-variant">Nhân sự</th>
               <th scope="col" className="p-3 font-label-sm text-on-surface-variant">Vai trò</th>
               <th scope="col" className="p-3 font-label-sm text-on-surface-variant text-center">
-                Loại trừ hoàn toàn
+                Không tham gia
               </th>
               <th scope="col" className="p-3 font-label-sm text-on-surface-variant">
                 Số ca tối đa/tháng
@@ -107,11 +107,11 @@ export function StaffExclusionTable({
                 <tr className="hover:bg-surface transition-colors" key={s.id}>
                   <td className="p-3 text-center">
                     <input
-                      aria-label={`Loại trừ nhân sự ${s.fullName}`}
+                      aria-label={`Chọn nhân sự ${s.fullName} tham gia xếp lịch`}
                       className="rounded border-outline-variant text-primary focus:ring-primary"
                       type="checkbox"
-                      checked={isExcluded}
-                      onChange={(e) => toggleExclusion(s.id, e.target.checked)}
+                      checked={!isExcluded}
+                      onChange={(e) => toggleExclusion(s.id, !e.target.checked)}
                     />
                   </td>
                   <td className="p-3">
@@ -152,8 +152,8 @@ export function StaffExclusionTable({
       <div className="mt-3 flex items-center justify-between text-label-sm text-on-surface-variant">
         <span>
           {excludedIds.length > 0
-            ? `Đã chọn ${excludedIds.length} / ${staff.length} nhân sự`
-            : `Hiển thị ${staff.length} nhân sự`}
+            ? `Đã loại trừ ${excludedIds.length} / ${staff.length} nhân sự`
+            : `Tất cả ${staff.length} nhân sự được tham gia xếp lịch`}
         </span>
         {excludedIds.length > 0 && (
           <button
@@ -161,7 +161,7 @@ export function StaffExclusionTable({
             onClick={() => onExclusionsChange([])}
             type="button"
           >
-            Bỏ chọn tất cả
+            Bỏ loại trừ tất cả
           </button>
         )}
       </div>

@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   useCallback,
@@ -9,6 +11,7 @@ import {
 } from "react";
 import type { NavigationItem } from "@/types/schedule";
 import { ConflictBadge } from "@/components/realtime/ConflictBadge";
+import { useNotifications } from "@/components/ui/NotificationContext";
 import {
   groupNavigationItems,
   type SidebarGroupKey,
@@ -336,6 +339,10 @@ function SidebarLink({
   onNavigate?: () => void;
 }) {
   const isActive = !!item.active;
+  const { unreadCount } = useNotifications();
+
+  const showNotificationBadge = item.href === "/notifications" && unreadCount > 0;
+
   return (
     <Link
       href={item.href}
@@ -364,6 +371,11 @@ function SidebarLink({
       </span>
       <span className="truncate flex-1">{item.label}</span>
       {isConflicts ? <ConflictBadge /> : null}
+      {showNotificationBadge && (
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-on-error ring-2 ring-surface shrink-0">
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
     </Link>
   );
 }
