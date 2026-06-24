@@ -84,11 +84,123 @@ public class ConflictDetectionService {
 
     public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
                                            Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipMaxShifts) {
-        List<String> conflicts = detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, skipShiftTypeConflict);
+        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, skipShiftTypeConflict, skipMaxShifts, false);
+    }
+
+    public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
+                                           Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipMaxShifts, boolean skipBackToBackConflict) {
+        List<String> conflicts = new ArrayList<>();
+
+        detectLeaveConflict(staffId, workDate).ifPresent(conflicts::add);
+        if (!skipCompensationDay) {
+            detectCompensationConflict(staffId, workDate).ifPresent(conflicts::add);
+        }
+        if (!skipShiftTypeConflict) {
+            detectShiftTypeConflict(staffId, workDate, shiftTypeId, excludeScheduleId, periodId).ifPresent(conflicts::add);
+        }
+        // Back-to-back check chỉ áp dụng cho L01 (trực 24/24) vì nó chiếm 24h liên tục
+        // L02, L03, L04 không cần check vì chỉ là ca trong ngày
+        if (!skipBackToBackConflict && SHIFT_TYPE_L01.equals(shiftTypeId)) {
+            detectBackToBackConflict(staffId, workDate, excludeScheduleId, periodId).ifPresent(conflicts::add);
+        }
         // max shifts chỉ áp dụng cho L01 (ca trực 24/24)
         if (!skipMaxShifts) {
             detectMaxShiftsConflict(staffId, periodId, excludeScheduleId, shiftTypeId).ifPresent(conflicts::add);
         }
+        return conflicts;
+    }
+
+    /**
+     * Batch-aware conflict detection for checkPeriodConflicts.
+     * Uses pre-loaded data maps to avoid O(N) individual DB queries per schedule.
+     */
+    private List<String> detectAllConflictsWithBatch(
+            Integer staffId, LocalDate workDate, String shiftTypeId,
+            Integer excludeScheduleId, Integer periodId,
+            Map<Integer, List<LeaveRequest>> leavesByStaff,
+            Map<Integer, List<CompensationDay>> compDaysByStaff,
+            Map<LocalDate, Map<Integer, List<Schedule>>> schedulesByDateByStaff) {
+
+        List<String> conflicts = new ArrayList<>();
+
+        // Leave conflict — check pre-loaded leaves
+        List<LeaveRequest> staffLeaves = leavesByStaff.getOrDefault(staffId, Collections.emptyList());
+        boolean hasApprovedLeave = staffLeaves.stream()
+                .anyMatch(l -> l.getStatus() == LeaveRequest.LeaveStatus.APPROVED
+                        && !l.getStartDate().isAfter(workDate) && !l.getEndDate().isBefore(workDate));
+        if (hasApprovedLeave) {
+            conflicts.add("Nhân sự có ngày nghỉ phép được duyệt trong ngày này");
+        }
+
+        // Compensation day conflict — check pre-loaded comp days
+        List<CompensationDay> staffCompDays = compDaysByStaff.getOrDefault(staffId, Collections.emptyList());
+        boolean hasCompDay = staffCompDays.stream()
+                .anyMatch(cd -> cd.getCompensationDate() != null && cd.getCompensationDate().equals(workDate));
+        if (hasCompDay) {
+            conflicts.add("Ngày này là ngày nghỉ bù của nhân sự");
+        }
+
+        // Shift-type conflict — check pre-loaded same-day schedules
+        Map<Integer, List<Schedule>> sameDaySchedules = schedulesByDateByStaff.get(workDate);
+        if (sameDaySchedules != null) {
+            List<Schedule> staffDaySchedules = sameDaySchedules.getOrDefault(staffId, Collections.emptyList());
+            ShiftType newShiftType = shiftTypeRepository.findById(shiftTypeId).orElse(null);
+            boolean newIsOvernight = newShiftType != null && Boolean.TRUE.equals(newShiftType.getIsOvernight());
+
+            for (Schedule s : staffDaySchedules) {
+                if (excludeScheduleId != null && s.getId().equals(excludeScheduleId)) continue;
+
+                boolean existingIsOvernight = s.getShiftType() != null && Boolean.TRUE.equals(s.getShiftType().getIsOvernight());
+                if (newIsOvernight != existingIsOvernight) {
+                    conflicts.add("Trùng loại ca: lịch trực 24/24 và ca thường không thể cùng ngày");
+                    break;
+                }
+                if (!newIsOvernight && !existingIsOvernight) {
+                    String nid = newShiftType != null ? newShiftType.getId() : "";
+                    String eid = s.getShiftType() != null ? s.getShiftType().getId() : "";
+                    if (("L03".equals(nid) && "L04".equals(eid)) || ("L04".equals(nid) && "L03".equals(eid))) {
+                        conflicts.add("Trùng phòng khám dịch vụ và phòng khám chuyên gia trong ngày");
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Back-to-back conflict — check pre-loaded adjacent-day schedules (only for L01)
+        if (SHIFT_TYPE_L01.equals(shiftTypeId)) {
+            LocalDate prevDay = workDate.minusDays(1);
+            LocalDate nextDay = workDate.plusDays(1);
+            Map<Integer, List<Schedule>> prevDaySchedules = schedulesByDateByStaff.get(prevDay);
+            Map<Integer, List<Schedule>> nextDaySchedules = schedulesByDateByStaff.get(nextDay);
+
+            List<Schedule> adjacent = new ArrayList<>();
+            if (prevDaySchedules != null) {
+                adjacent.addAll(prevDaySchedules.getOrDefault(staffId, Collections.emptyList()));
+            }
+            if (nextDaySchedules != null) {
+                adjacent.addAll(nextDaySchedules.getOrDefault(staffId, Collections.emptyList()));
+            }
+            // Only consider schedules from THIS period (same periodId)
+            boolean hasAdjacent = adjacent.stream()
+                    .anyMatch(s -> s.getPeriod() != null && periodId.equals(s.getPeriod().getId()));
+            if (hasAdjacent) {
+                conflicts.add("Nhân sự có ca trực liền kề (trước hoặc sau) trong ngày " + workDate + " — không đủ thời gian nghỉ");
+            }
+        }
+
+        // Max shifts conflict — only for L01
+        if (SHIFT_TYPE_L01.equals(shiftTypeId)) {
+            if (periodId != null) {
+                staffRepository.findById(staffId).ifPresent(staff -> {
+                    long currentCount = scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staffId, periodId, shiftTypeId);
+                    int maxShifts = staff.getMaxShiftsPerMonth() != null ? staff.getMaxShiftsPerMonth() : 5;
+                    if (currentCount >= maxShifts) {
+                        conflicts.add("Nhân sự đã đạt giới hạn " + maxShifts + " ngày trực 24/24/tháng");
+                    }
+                });
+            }
+        }
+
         return conflicts;
     }
 
@@ -139,7 +251,11 @@ public class ConflictDetectionService {
     }
 
     public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipMaxShifts) {
-        return !detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, null, skipCompensationDay, skipShiftTypeConflict, skipMaxShifts).isEmpty();
+        return hasAnyConflict(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, skipShiftTypeConflict, skipMaxShifts, false);
+    }
+
+    public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipMaxShifts, boolean skipBackToBackConflict) {
+        return !detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, null, skipCompensationDay, skipShiftTypeConflict, skipMaxShifts, skipBackToBackConflict).isEmpty();
     }
 
     public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
@@ -156,6 +272,13 @@ public class ConflictDetectionService {
 
     public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict) {
         List<String> conflicts = detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, skipShiftTypeConflict);
+        if (!conflicts.isEmpty()) {
+            throw new ConflictException("Phát hiện xung đột: " + String.join("; ", conflicts));
+        }
+    }
+
+    public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipBackToBackConflict) {
+        List<String> conflicts = detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, skipShiftTypeConflict, false, skipBackToBackConflict);
         if (!conflicts.isEmpty()) {
             throw new ConflictException("Phát hiện xung đột: " + String.join("; ", conflicts));
         }
@@ -181,12 +304,52 @@ public class ConflictDetectionService {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
         List<ConflictCheckResponse.ConflictDetail> conflictDetails = new ArrayList<>();
 
+        // ── Batch-load all conflict data upfront (4 queries) instead of O(N) per-schedule ──
+        // Collect all unique dates in the period for adjacent-day queries
+        Set<LocalDate> periodDates = schedules.stream()
+                .map(Schedule::getWorkDate)
+                .collect(java.util.stream.Collectors.toSet());
+
+        // Batch 1: all approved leaves within the period's date range
+        LocalDate minDate = periodDates.stream().min(LocalDate::compareTo).orElse(null);
+        LocalDate maxDate = periodDates.stream().max(LocalDate::compareTo).orElse(null);
+
+        Map<Integer, List<LeaveRequest>> leavesByStaff = new java.util.HashMap<>();
+        if (minDate != null && maxDate != null) {
+            for (LeaveRequest lr : leaveRequestRepository.findApprovedInRange(minDate, maxDate)) {
+                leavesByStaff.computeIfAbsent(lr.getStaff().getId(), k -> new java.util.ArrayList<>()).add(lr);
+            }
+        }
+
+        // Batch 2: all compensation days within the period
+        Map<Integer, List<CompensationDay>> compDaysByStaff = new java.util.HashMap<>();
+        if (minDate != null && maxDate != null) {
+            for (CompensationDay cd : compensationDayRepository.findInRange(minDate, maxDate)) {
+                compDaysByStaff.computeIfAbsent(cd.getStaff().getId(), k -> new java.util.ArrayList<>()).add(cd);
+            }
+        }
+
+        // Batch 3: all schedules (period + adjacent days) for shift-type and back-to-back checks
+        Set<LocalDate> adjacentDates = new java.util.HashSet<>(periodDates);
+        if (minDate != null) adjacentDates.add(minDate.minusDays(1));
+        if (maxDate != null) adjacentDates.add(maxDate.plusDays(1));
+
+        Map<LocalDate, Map<Integer, List<Schedule>>> schedulesByDateByStaff = new java.util.HashMap<>();
+        for (LocalDate d : adjacentDates) {
+            for (Schedule s : scheduleRepository.findByWorkDateWithDetails(d)) {
+                schedulesByDateByStaff.computeIfAbsent(d, k -> new java.util.HashMap<>())
+                        .computeIfAbsent(s.getStaff().getId(), k -> new java.util.ArrayList<>()).add(s);
+            }
+        }
+
         for (Schedule schedule : schedules) {
             Staff staff = schedule.getStaff();
             LocalDate workDate = schedule.getWorkDate();
             String shiftTypeId = schedule.getShiftType().getId();
 
-            List<String> conflicts = detectAllConflicts(staff.getId(), workDate, shiftTypeId, schedule.getId());
+            List<String> conflicts = detectAllConflictsWithBatch(
+                    staff.getId(), workDate, shiftTypeId, schedule.getId(), periodId,
+                    leavesByStaff, compDaysByStaff, schedulesByDateByStaff);
             if (!conflicts.isEmpty()) {
                 schedule.setHasConflict(true);
                 scheduleRepository.save(schedule);
@@ -328,14 +491,25 @@ public class ConflictDetectionService {
     }
 
     private java.util.Optional<String> detectBackToBackConflict(Integer staffId, LocalDate workDate, Integer excludeScheduleId) {
+        return detectBackToBackConflict(staffId, workDate, excludeScheduleId, null);
+    }
+
+    private java.util.Optional<String> detectBackToBackConflict(Integer staffId, LocalDate workDate, Integer excludeScheduleId, Integer periodId) {
         LocalDate prevDay = workDate.minusDays(1);
         LocalDate nextDay = workDate.plusDays(1);
 
         List<Schedule> adjacentSchedules = new java.util.ArrayList<>();
-        scheduleRepository.findByStaffIdAndDateRange(staffId, prevDay, prevDay)
-                .forEach(s -> { if (excludeScheduleId == null || !s.getId().equals(excludeScheduleId)) adjacentSchedules.add(s); });
-        scheduleRepository.findByStaffIdAndDateRange(staffId, nextDay, nextDay)
-                .forEach(s -> { if (excludeScheduleId == null || !s.getId().equals(excludeScheduleId)) adjacentSchedules.add(s); });
+        if (periodId != null) {
+            scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(staffId, periodId, prevDay, prevDay)
+                    .forEach(s -> { if (excludeScheduleId == null || !s.getId().equals(excludeScheduleId)) adjacentSchedules.add(s); });
+            scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(staffId, periodId, nextDay, nextDay)
+                    .forEach(s -> { if (excludeScheduleId == null || !s.getId().equals(excludeScheduleId)) adjacentSchedules.add(s); });
+        } else {
+            scheduleRepository.findByStaffIdAndDateRange(staffId, prevDay, prevDay)
+                    .forEach(s -> { if (excludeScheduleId == null || !s.getId().equals(excludeScheduleId)) adjacentSchedules.add(s); });
+            scheduleRepository.findByStaffIdAndDateRange(staffId, nextDay, nextDay)
+                    .forEach(s -> { if (excludeScheduleId == null || !s.getId().equals(excludeScheduleId)) adjacentSchedules.add(s); });
+        }
 
         if (adjacentSchedules.isEmpty()) {
             return java.util.Optional.empty();
@@ -345,7 +519,17 @@ public class ConflictDetectionService {
 
     private java.util.Optional<String> detectShiftTypeConflict(Integer staffId, LocalDate workDate,
                                                                 String shiftTypeId, Integer excludeScheduleId) {
-        List<Schedule> existingSchedules = scheduleRepository.findByStaffIdAndWorkDate(staffId, workDate);
+        return detectShiftTypeConflict(staffId, workDate, shiftTypeId, excludeScheduleId, null);
+    }
+
+    private java.util.Optional<String> detectShiftTypeConflict(Integer staffId, LocalDate workDate,
+                                                                String shiftTypeId, Integer excludeScheduleId, Integer periodId) {
+        List<Schedule> existingSchedules;
+        if (periodId != null) {
+            existingSchedules = scheduleRepository.findByStaffIdAndWorkDateAndPeriodId(staffId, workDate, periodId);
+        } else {
+            existingSchedules = scheduleRepository.findByStaffIdAndWorkDate(staffId, workDate);
+        }
 
         com.hospital.scheduler.entity.ShiftType newShiftType = shiftTypeRepository.findById(shiftTypeId).orElse(null);
         boolean newIsOvernight = newShiftType != null && Boolean.TRUE.equals(newShiftType.getIsOvernight());

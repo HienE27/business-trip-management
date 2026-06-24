@@ -227,7 +227,9 @@ export function BulkPublishModal({ open, periods, onClose, onRefresh }: Props) {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-label-md text-on-surface truncate">{r.periodName}</p>
-                    {!r.success && <p className="text-[11px] text-error truncate">{r.message}</p>}
+                    {!r.success && (
+                      <p className="text-[11px] text-error" title={r.message}>{r.message}</p>
+                    )}
                   </div>
                 </div>
               ))}

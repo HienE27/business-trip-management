@@ -75,6 +75,9 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
     @Query("SELECT s FROM Schedule s WHERE s.staff.id = :staffId AND s.workDate = :workDate")
     List<Schedule> findByStaffIdAndWorkDate(@Param("staffId") Integer staffId, @Param("workDate") LocalDate workDate);
 
+    @Query("SELECT s FROM Schedule s WHERE s.staff.id = :staffId AND s.workDate = :workDate AND s.period.id = :periodId")
+    List<Schedule> findByStaffIdAndWorkDateAndPeriodId(@Param("staffId") Integer staffId, @Param("workDate") LocalDate workDate, @Param("periodId") Integer periodId);
+
     @Query("""
             SELECT s
             FROM Schedule s
@@ -113,6 +116,9 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
     @Query("SELECT COUNT(s) FROM Schedule s WHERE s.staff.id = :staffId AND s.period.id = :periodId AND s.id <> :excludeScheduleId")
     long countByStaffIdAndPeriodIdExcluding(@Param("staffId") Integer staffId, @Param("periodId") Integer periodId, @Param("excludeScheduleId") Integer excludeScheduleId);
 
+    boolean existsByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+            Integer periodId, Integer staffId, String shiftTypeId, LocalDate workDate);
+
     @Query("SELECT COUNT(s) FROM Schedule s WHERE s.period.id = :periodId AND s.workDate = :workDate AND s.shiftType.id = :shiftTypeId")
     long countByPeriodIdAndWorkDateAndShiftTypeId(
             @Param("periodId") Integer periodId,
@@ -122,6 +128,13 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
     @Query("SELECT s FROM Schedule s WHERE s.staff.id = :staffId AND s.workDate BETWEEN :startDate AND :endDate ORDER BY s.workDate")
     List<Schedule> findByStaffIdAndDateRange(
             @Param("staffId") Integer staffId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT s FROM Schedule s WHERE s.staff.id = :staffId AND s.period.id = :periodId AND s.workDate BETWEEN :startDate AND :endDate ORDER BY s.workDate")
+    List<Schedule> findByStaffIdAndDateRangeAndPeriodId(
+            @Param("staffId") Integer staffId,
+            @Param("periodId") Integer periodId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 

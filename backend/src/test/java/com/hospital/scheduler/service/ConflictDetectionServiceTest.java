@@ -1,5 +1,6 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.dto.response.ConflictCheckResponse;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.repository.*;
@@ -629,11 +630,11 @@ class ConflictDetectionServiceTest {
                     .period(period1)
                     .build();
 
-            when(scheduleRepository.findByStaffIdAndDateRange(testStaff.getId(), prevDay, prevDay))
+            when(scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(testStaff.getId(), period1.getId(), prevDay, prevDay))
                     .thenReturn(List.of(adjacentSchedule));
 
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", null, 1);
+                    testStaff.getId(), monday, "L01", null, period1.getId());
 
             assertThat(conflicts)
                     .anyMatch(c -> c.contains("ca trực liền kề"));
@@ -651,11 +652,11 @@ class ConflictDetectionServiceTest {
                     .period(period1)
                     .build();
 
-            when(scheduleRepository.findByStaffIdAndDateRange(testStaff.getId(), nextDay, nextDay))
+            when(scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(testStaff.getId(), period1.getId(), nextDay, nextDay))
                     .thenReturn(List.of(adjacentSchedule));
 
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", null, 1);
+                    testStaff.getId(), monday, "L01", null, period1.getId());
 
             assertThat(conflicts)
                     .anyMatch(c -> c.contains("ca trực liền kề"));
@@ -664,11 +665,11 @@ class ConflictDetectionServiceTest {
         @Test
         @DisplayName("Khong co ca truc lien ke -> OK")
         void noAdjacentShift_shouldPass() {
-            when(scheduleRepository.findByStaffIdAndDateRange(anyInt(), any(), any()))
+            when(scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(anyInt(), anyInt(), any(), any()))
                     .thenReturn(Collections.emptyList());
 
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", null, 1);
+                    testStaff.getId(), monday, "L01", null, period1.getId());
 
             assertThat(conflicts)
                     .noneMatch(c -> c.contains("ca trực liền kề"));
@@ -686,15 +687,189 @@ class ConflictDetectionServiceTest {
                     .period(period1)
                     .build();
 
-            when(scheduleRepository.findByStaffIdAndDateRange(testStaff.getId(), prevDay, prevDay))
+            when(scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(testStaff.getId(), period1.getId(), prevDay, prevDay))
                     .thenReturn(List.of(sameSchedule));
 
             // excludeScheduleId = 100, same schedule ID -> skip it
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", 100, 1);
+                    testStaff.getId(), monday, "L01", 100, period1.getId());
 
             assertThat(conflicts)
                     .noneMatch(c -> c.contains("ca trực liền kề"));
+        }
+    }
+
+    // ==================== checkPeriodConflicts: periodId scoping ====================
+    @Nested
+    @DisplayName("checkPeriodConflicts: KHÔNG false-positive khi có schedule từ period khác")
+    class CheckPeriodConflictsPeriodScoping {
+
+        /**
+         * Bug: detectAllConflicts không nhận periodId → detectBackToBackConflict
+         * gọi findByStaffIdAndDateRange (null periodId) → lấy schedule từ MỌI period.
+         * → Period July check thấy L01 từ period June → false positive.
+         * Fix: truyền periodId → findByStaffIdAndDateRangeAndPeriodId → đúng period.
+         */
+        @Test
+        @DisplayName("Schedule cùng staff, cùng ngày nhưng period khác -> KHÔNG conflict")
+        void scheduleSameStaffSameDayDifferentPeriod_noConflict() {
+            SchedulePeriod periodJune = SchedulePeriod.builder()
+                    .id(10)
+                    .periodName("Tháng 6/2026")
+                    .startDate(LocalDate.of(2026, 6, 1))
+                    .endDate(LocalDate.of(2026, 6, 30))
+                    .build();
+
+            SchedulePeriod periodJuly = SchedulePeriod.builder()
+                    .id(20)
+                    .periodName("Tháng 7/2026")
+                    .startDate(LocalDate.of(2026, 7, 1))
+                    .endDate(LocalDate.of(2026, 7, 31))
+                    .build();
+
+            // L01 ngày 1/7 trong period July
+            Schedule scheduleJuly = Schedule.builder()
+                    .id(200)
+                    .staff(testStaff)
+                    .workDate(LocalDate.of(2026, 7, 1))
+                    .shiftType(shiftL01)
+                    .period(periodJuly)
+                    .hasConflict(false)
+                    .build();
+
+            // L01 ngày 1/6 trong period June — cùng ngày (1), cùng staff, nhưng period KHÁC
+            Schedule scheduleJune = Schedule.builder()
+                    .id(100)
+                    .staff(testStaff)
+                    .workDate(LocalDate.of(2026, 6, 1))
+                    .shiftType(shiftL01)
+                    .period(periodJune)
+                    .build();
+
+            // Khi check period July: findByPeriodId trả về chỉ scheduleJuly
+            when(scheduleRepository.findByPeriodId(20))
+                    .thenReturn(List.of(scheduleJuly));
+
+            // findApprovedInRange: no leaves
+            when(leaveRequestRepository.findApprovedInRange(any(), any()))
+                    .thenReturn(Collections.emptyList());
+
+            // findInRange: no compensation days
+            when(compensationDayRepository.findInRange(any(), any()))
+                    .thenReturn(Collections.emptyList());
+
+            // findByWorkDateWithDetails: trả về cả scheduleJune và scheduleJuly cho ngày 1/6 và 1/7
+            // Nhưng batch check phải filter theo periodId → scheduleJuly (period 20) không conflict
+            // với scheduleJune (period 10) vì khác period
+            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 1)))
+                    .thenReturn(List.of(scheduleJuly));
+            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 6, 30)))
+                    .thenReturn(List.of(scheduleJune)); // adjacent cho July 1
+            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 2)))
+                    .thenReturn(Collections.emptyList());
+
+            ConflictCheckResponse result = conflictDetectionService.checkPeriodConflicts(20);
+
+            assertThat(result.isHasConflicts()).isFalse();
+            assertThat(result.getConflicts()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Schedule cùng staff, cùng ngày, cùng period -> CÓ conflict")
+        void scheduleSameStaffSameDaySamePeriod_hasConflict() {
+            // L01 ngày 1/7 và L02 ngày 1/7 — cùng period → conflict
+            Schedule scheduleL01 = Schedule.builder()
+                    .id(300)
+                    .staff(testStaff)
+                    .workDate(LocalDate.of(2026, 7, 1))
+                    .shiftType(shiftL01)
+                    .period(period1)
+                    .hasConflict(false)
+                    .build();
+
+            Schedule scheduleL02 = Schedule.builder()
+                    .id(301)
+                    .staff(testStaff)
+                    .workDate(LocalDate.of(2026, 7, 1))
+                    .shiftType(shiftL02)
+                    .period(period1)
+                    .hasConflict(false)
+                    .build();
+
+            when(scheduleRepository.findByPeriodId(period1.getId()))
+                    .thenReturn(List.of(scheduleL01, scheduleL02));
+            when(leaveRequestRepository.findApprovedInRange(any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findInRange(any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 1)))
+                    .thenReturn(List.of(scheduleL01, scheduleL02));
+            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 6, 30)))
+                    .thenReturn(Collections.emptyList());
+            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 2)))
+                    .thenReturn(Collections.emptyList());
+            when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(any()))
+                    .thenReturn(Collections.emptyList());
+            when(scheduleConflictRepository.save(any(ScheduleConflict.class)))
+                    .thenAnswer(inv -> {
+                        ScheduleConflict c = inv.getArgument(0);
+                        c.setId(9002);
+                        return c;
+                    });
+
+            ConflictCheckResponse result = conflictDetectionService.checkPeriodConflicts(period1.getId());
+
+            assertThat(result.isHasConflicts()).isTrue();
+            assertThat(result.getTotalConflicts()).isGreaterThan(0);
+        }
+
+        @Test
+        @DisplayName("L01 adjacent trong cùng period -> CÓ back-to-back conflict")
+        void adjacentL01SamePeriod_hasConflict() {
+            Schedule scheduleL01Mon = Schedule.builder()
+                    .id(400)
+                    .staff(testStaff)
+                    .workDate(LocalDate.of(2026, 7, 6)) // Monday
+                    .shiftType(shiftL01)
+                    .period(period1)
+                    .hasConflict(false)
+                    .build();
+
+            Schedule adjacentL01 = Schedule.builder()
+                    .id(401)
+                    .staff(testStaff)
+                    .workDate(LocalDate.of(2026, 7, 5)) // Sunday — adjacent
+                    .shiftType(shiftL01)
+                    .period(period1) // same period
+                    .build();
+
+            when(scheduleRepository.findByPeriodId(period1.getId()))
+                    .thenReturn(List.of(scheduleL01Mon));
+            when(leaveRequestRepository.findApprovedInRange(any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findInRange(any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 6)))
+                    .thenReturn(List.of(scheduleL01Mon));
+            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 5)))
+                    .thenReturn(List.of(adjacentL01));
+            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 7)))
+                    .thenReturn(Collections.emptyList());
+            when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(any()))
+                    .thenReturn(Collections.emptyList());
+            when(scheduleConflictRepository.save(any(ScheduleConflict.class)))
+                    .thenAnswer(inv -> {
+                        ScheduleConflict c = inv.getArgument(0);
+                        c.setId(9003);
+                        return c;
+                    });
+
+            ConflictCheckResponse result = conflictDetectionService.checkPeriodConflicts(period1.getId());
+
+            assertThat(result.isHasConflicts()).isTrue();
+            assertThat(result.getConflicts()).anyMatch(c ->
+                    c.getConflictReasons().stream()
+                            .anyMatch(r -> r.contains("liền kề")));
         }
     }
 
@@ -728,9 +903,17 @@ class ConflictDetectionServiceTest {
 
             when(scheduleRepository.findByPeriodId(period1.getId()))
                     .thenReturn(List.of(schedule));
-            when(scheduleRepository.findByStaffIdAndDateRange(
-                    testStaff.getId(), monday.minusDays(1), monday.minusDays(1)))
+            // Batch methods (new implementation — no O(N) individual queries)
+            when(leaveRequestRepository.findApprovedInRange(any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findInRange(any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(scheduleRepository.findByWorkDateWithDetails(monday))
+                    .thenReturn(List.of(schedule));
+            when(scheduleRepository.findByWorkDateWithDetails(monday.minusDays(1)))
                     .thenReturn(List.of(adjacentSchedule));
+            when(scheduleRepository.findByWorkDateWithDetails(monday.plusDays(1)))
+                    .thenReturn(Collections.emptyList());
             when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(schedule.getId()))
                     .thenReturn(Collections.emptyList()); // no prior conflict -> new
             when(scheduleConflictRepository.save(any(ScheduleConflict.class)))
@@ -782,9 +965,17 @@ class ConflictDetectionServiceTest {
 
             when(scheduleRepository.findByPeriodId(period1.getId()))
                     .thenReturn(List.of(schedule));
-            when(scheduleRepository.findByStaffIdAndDateRange(
-                    testStaff.getId(), monday.minusDays(1), monday.minusDays(1)))
+            // Batch methods (new implementation — no O(N) individual queries)
+            when(leaveRequestRepository.findApprovedInRange(any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findInRange(any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(scheduleRepository.findByWorkDateWithDetails(monday))
+                    .thenReturn(List.of(schedule));
+            when(scheduleRepository.findByWorkDateWithDetails(monday.minusDays(1)))
                     .thenReturn(List.of(adjacentSchedule));
+            when(scheduleRepository.findByWorkDateWithDetails(monday.plusDays(1)))
+                    .thenReturn(Collections.emptyList());
             when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(schedule.getId()))
                     .thenReturn(List.of(preExisting));
             when(shiftRequirementRepository.findByPeriodId(period1.getId()))

@@ -35,4 +35,8 @@ public interface CompensationDayRepository extends JpaRepository<CompensationDay
     /** Batch query: all compensation days for a specific date (no staff filter). */
     @Query("SELECT cd FROM CompensationDay cd WHERE cd.compensationDate = :date")
     List<CompensationDay> findByDate(@Param("date") LocalDate date);
+
+    /** Batch query: all compensation days within a date range (no staff filter, for period-level batch checks). */
+    @Query("SELECT cd FROM CompensationDay cd WHERE cd.compensationDate BETWEEN :startDate AND :endDate")
+    List<CompensationDay> findInRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 }
