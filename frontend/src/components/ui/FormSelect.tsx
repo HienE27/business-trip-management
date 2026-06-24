@@ -1,6 +1,7 @@
 "use client";
 
 import type { SelectHTMLAttributes } from "react";
+import { useId } from "react";
 
 /* ── FormSelect ──
  *
@@ -38,7 +39,8 @@ export function FormSelect({
   value,
   ...rest
 }: FormSelectProps) {
-  const inputId = id ?? `select-${Math.random().toString(36).slice(2)}`;
+  const uid = useId();
+  const inputId = id ?? `select-${uid}`;
   const errorId = error ? `${inputId}-error` : undefined;
   const hintId = hint ? `${inputId}-hint` : undefined;
 

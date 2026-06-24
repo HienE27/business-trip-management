@@ -29,6 +29,8 @@ type FormInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & {
   flush?: boolean;
 };
 
+import { useId } from "react";
+
 export function FormInput({
   label,
   error,
@@ -43,7 +45,8 @@ export function FormInput({
   required,
   ...rest
 }: FormInputProps) {
-  const inputId = id ?? `input-${Math.random().toString(36).slice(2)}`;
+  const uid = useId();
+  const inputId = id ?? `input-${uid}`;
   const errorId = error ? `${inputId}-error` : undefined;
   const hintId = hint ? `${inputId}-hint` : undefined;
 

@@ -1,6 +1,7 @@
 "use client";
 
 import type { InputHTMLAttributes } from "react";
+import { useId } from "react";
 
 /* ── FormCheckbox ──
  *
@@ -25,7 +26,8 @@ export function FormCheckbox({
   disabled,
   ...rest
 }: FormCheckboxProps) {
-  const inputId = id ?? `checkbox-${Math.random().toString(36).slice(2)}`;
+  const uid = useId();
+  const inputId = id ?? `checkbox-${uid}`;
 
   return (
     <div className="flex items-start gap-2.5">

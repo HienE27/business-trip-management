@@ -1,6 +1,7 @@
 "use client";
 
 import type { TextareaHTMLAttributes } from "react";
+import { useId } from "react";
 
 /* ── FormTextarea ──
  *
@@ -35,7 +36,8 @@ export function FormTextarea({
   value,
   ...rest
 }: FormTextareaProps) {
-  const inputId = id ?? `textarea-${Math.random().toString(36).slice(2)}`;
+  const uid = useId();
+  const inputId = id ?? `textarea-${uid}`;
   const errorId = error ? `${inputId}-error` : undefined;
   const hintId = hint ? `${inputId}-hint` : undefined;
   const charCount = typeof value === "string" ? value.length : 0;

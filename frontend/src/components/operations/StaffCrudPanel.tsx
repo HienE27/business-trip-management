@@ -3,7 +3,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { getRoleLabel, ROLE_LABELS } from "@/lib/roleLabels";
@@ -108,6 +108,7 @@ function getStatusDot(record: StaffResponse) {
 }
 
 export function StaffCrudPanel() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [records, setRecords] = useState<StaffResponse[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
@@ -306,7 +307,7 @@ export function StaffCrudPanel() {
   }
 
   function openEditPage(id: number) {
-    window.location.href = `/staff/${id}/edit`;
+    router.push(`/staff/${id}/edit`);
   }
 
   function editStaff(record: StaffResponse) {

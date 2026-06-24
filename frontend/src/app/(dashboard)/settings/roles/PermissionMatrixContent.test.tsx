@@ -3,6 +3,8 @@ import { render, screen, act, waitFor } from '@testing-library/react';
 import { ToastProvider } from '@/components/ui/ToastProvider';
 import { PermissionMatrixContent } from './PermissionMatrixContent';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // ── Mock setup ────────────────────────────────────────────────────────────────
 const { getMatrixMock, toggleMock } = vi.hoisted(() => ({
   getMatrixMock: vi.fn(),

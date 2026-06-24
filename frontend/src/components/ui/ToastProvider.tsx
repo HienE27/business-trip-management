@@ -82,7 +82,11 @@ function ToastItem({
   const onDismissRef = useRef(onDismiss);
   const toastIdRef = useRef(toast.id);
 
+  // Ref pattern: stable callback ref — intentional mutation during render
+  // eslint-disable-next-line react-hooks/refs
   onDismissRef.current = onDismiss;
+  // Ref pattern: stable ID ref — intentional mutation during render
+  // eslint-disable-next-line react-hooks/refs
   toastIdRef.current = toast.id;
 
   useEffect(() => {

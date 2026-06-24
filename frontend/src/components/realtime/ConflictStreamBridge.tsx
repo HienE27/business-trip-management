@@ -47,10 +47,15 @@ export function ConflictToastBridge() {
   // the current state to every freshly-connected subscriber, so without
   // this guard the user gets a noisy toast on every F5 even when the
   // sessionStorage dedupe somehow misses.
-  const mountedAtRef = useRef<number>(Date.now());
+  const mountedAtRef = useRef<number>(0);
   const BATCH_SUPPRESS_WINDOW_MS = 3_000;
 
   useEffect(() => {
+    // Set mount timestamp once on mount (outside the early-return guard)
+    if (mountedAtRef.current === 0) {
+      mountedAtRef.current = Date.now();
+    }
+
     if (state.recentEvents.length === 0) return;
 
     // Walk from oldest to newest, only firing for events we

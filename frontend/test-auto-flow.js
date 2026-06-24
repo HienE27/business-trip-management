@@ -1,4 +1,4 @@
-const puppeteer = require('puppeteer');
+import puppeteer from 'puppeteer';
 
 async function run() {
   const browser = await puppeteer.launch({
@@ -95,7 +95,7 @@ async function run() {
         if (data.data && data.data.data) {
           console.log('  coverage:', data.data.data.coverageRate, 'created:', data.data.data.totalSchedulesCreated);
         }
-      } catch(e) {
+      } catch(_e) {
         console.log('PARSE ERROR:', r.text.substring(0, 100));
       }
     });

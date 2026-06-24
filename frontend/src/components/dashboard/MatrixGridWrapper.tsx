@@ -85,12 +85,9 @@ export function MatrixGridWrapper({
   }, [schedules]);
 
   // Sync weekOffset to 0 when a new schedule period loads (schedules.length changes)
-  // Use flushSync to update state synchronously and avoid double-render
-  const prevSchedulesLen = useRef(schedules.length);
-  if (schedules.length !== prevSchedulesLen.current) {
-    prevSchedulesLen.current = schedules.length;
+  useEffect(() => {
     setWeekOffset(0);
-  }
+  }, [schedules.length]);
 
   const currentWeek = useMemo(
     () => getWeekRangeOffset(anchorMonday, weekOffset),
