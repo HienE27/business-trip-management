@@ -10,6 +10,7 @@ import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
+import com.hospital.scheduler.security.AuthContextService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,6 +45,7 @@ class SchedulePeriodServiceTest {
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private NotificationService notificationService;
     @Mock private EmailService emailService;
+    @Mock private AuthContextService authContextService;
 
     @InjectMocks
     private SchedulePeriodService periodService;
