@@ -204,12 +204,22 @@ Auth hiện dùng JWT lưu trong cookie HTTP-only tên `medschedule_access_token
 
 ### Auto scheduling
 
-- `POST /api/v1/auto-schedule/preview`
-- `POST /api/v1/auto-schedule`
-- `GET /api/v1/auto-schedule/unassigned/{periodId}` (M07-F06)
-- `GET /api/v1/auto-schedule/suggest-replacements/{scheduleId}`
-- `GET /api/v1/auto-schedule/workload-chart/{periodId}`
-- `GET /api/v1/auto-schedule/metrics/period/{periodId}`
+- `POST /api/v1/auto-scheduling/preview` — Xem trước lịch
+- `POST /api/v1/auto-scheduling/apply` — Áp dụng lịch
+- `POST /api/v1/auto-scheduling/save-template` — M07-F10: Lưu thành template
+- `GET /api/v1/auto-scheduling/templates` — M07-F10c: Liệt kê templates
+- `GET /api/v1/auto-scheduling/templates/{id}` — M07-F10d: Chi tiết template
+- `POST /api/v1/auto-scheduling/templates` — M07-F10b: Lưu cấu hình thuật toán thành template
+- `POST /api/v1/auto-scheduling/apply-template` — Áp dụng template
+- `GET /api/v1/auto-scheduling/metrics/period/{periodId}` — Metrics thuật toán
+- `GET /api/v1/auto-scheduling/unassigned-report` — Báo cáo ngày chưa phân công (M07-F06)
+- `GET /api/v1/auto-scheduling/suggest-replacements/{scheduleId}` — Đề xuất thay thế (M07-F08)
+- `GET /api/v1/auto-scheduling/unassigned/{periodId}` — Danh sách ngày chưa đủ nhân sự
+- `GET /api/v1/algorithm-config` — Lấy cấu hình thuật toán
+- `PUT /api/v1/algorithm-config` — Cập nhật cấu hình
+- `GET /api/v1/algorithm-config/runtime` — Lấy runtime config (greedy_coverage_threshold, balance_score_min, weekend_weight...)
+- `PUT /api/v1/algorithm-config/runtime` — Cập nhật runtime config
+- `POST /api/v1/algorithm-config/sync-descriptions` — Đồng bộ mô tả params từ code
 
 ### Roles & Permissions (M01-F05)
 
@@ -246,7 +256,7 @@ Những phần đã thấy rõ trong code:
 - Export PDF cho lịch tổng hợp nếu service PDF khả dụng trong môi trường chạy
 - Auto scheduling với các luồng preview, run, báo cáo unassigned, workload chart, metrics
 - Seed dữ liệu mẫu để demo nhanh (20 nhân sự, 2 kỳ lịch)
-- 204 unit tests trong backend, 0 failures
+- 221 backend unit + integration tests, 300 frontend unit tests
 
 ### Frontend
 
@@ -259,7 +269,48 @@ Những phần đã thấy rõ trong code:
 - Workflow Stepper cho Auto Scheduling
 - Ma trận phân quyền (`/settings/roles`) cho ADMIN
 - Inline quick-edit trên calendar
-- 30 unit tests + Playwright E2E tests
+- 300 frontend unit tests + Playwright E2E tests
+
+### M07 — Thuật toán Auto Scheduling
+
+Hệ thống có 3 thuật toán auto-scheduling, chạy qua `AutoSchedulingService`:
+
+| Thuật toán | Mô tả |
+|---|---|
+| `GREEDY` | Mỗi ngày chọn nhân sự có ít ngày công nhất, theo từng loại lịch |
+| `ROUND_ROBIN` | Luân phiên xoay vòng theo thứ tự danh sách nhân sự |
+| `BACKTRACKING` | Thử từng phương án, quay lui nếu vi phạm ràng buộc |
+
+Cấu hình thuật toán (17 params trong `algorithm_config`):
+
+**Auto-generation (10 params)** — tự tạo `shift_requirement` khi mở kỳ lịch mới:
+
+| param_key | Mô tả | Mặc định |
+|---|---|
+| `auto_gen_enabled` | Bật/tắt auto-gen | `true` |
+| `auto_gen_l01_per_day` | Số nhân sự L01/ngày | `2` |
+| `auto_gen_l02_per_day` | Số nhân sự L02/ngày | `2` |
+| `auto_gen_l03_per_day` | Số nhân sự L03/ngày | `2` |
+| `auto_gen_l04_per_day` | Số nhân sự L04/ngày | `2` |
+| `auto_gen_l01_per_week` | Số L01 tối thiểu/tuần/người | `1` |
+| `auto_gen_l02_per_week` | Số L02 tối thiểu/tuần/người | `3` |
+| `auto_gen_l03_per_week` | Số L03 tối thiểu/tuần/người | `2` |
+| `auto_gen_l04_per_week` | Số L04 tối thiểu/tuần/người | `1` |
+| `auto_gen_holiday_mode` | Xử lý ngày lễ: `SKIP`/`PARTIAL` | `SKIP` |
+
+**Runtime algorithm (7 params)** — ảnh hưởng cách thuật toán chạy:
+
+| param_key | Mô tả | Mặc định |
+|---|---|
+| `max_iterations` | Số vòng lặp tối đa backtracking | `1000` |
+| `weekend_weight` | Hệ số phạt cuối tuần (T7/CN) | `2` |
+| `overnight_recovery_hours` | Khoảng cách nghỉ L01-L01 | `24` |
+| `greedy_coverage_threshold` | Ngưỡng phủ lịch để Greedy dừng sớm (0.5-1.0) | `0.85` |
+| `balance_score_min` | Ngưỡng cân bằng tải — Greedy fallback sang Round Robin nếu thấp hơn (0.3-1.0) | `0.70` |
+| `auto_compensation_enabled` | Tự động tạo ngày nghỉ bù | `false` |
+| `backtrack_time_limit_seconds` | Timeout backtracking (giây) | `60` |
+
+Cấu hình tại `/auto-scheduling/algorithm-config`. Runtime params đang áp dụng hiển thị ngay trên header của `/auto-scheduling`.
 
 Các điểm cần hiểu đúng khi đọc tài liệu:
 
