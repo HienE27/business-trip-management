@@ -51,6 +51,7 @@ class AutoSchedulingServiceConcurrencyTest {
     @Mock private AlgorithmConfigService algorithmConfigService;
     @Mock private HolidayRepository holidayRepository;
     @Mock private ShiftTypeRepository shiftTypeRepository;
+    @Mock private SpecialtyRepository specialtyRepository;
 
     private AutoSchedulingService autoSchedulingService;
 
@@ -60,7 +61,7 @@ class AutoSchedulingServiceConcurrencyTest {
                 scheduleRepository, periodRepository, staffRepository, requirementRepository,
                 compensationDayRepository, leaveRequestRepository, metricsRepository,
                 conflictDetectionService, auditHistoryService, compensationDateCalculator, notificationService,
-                algorithmConfigService, holidayRepository, shiftTypeRepository
+                algorithmConfigService, holidayRepository, shiftTypeRepository, specialtyRepository
         );
 
         SchedulePeriod testPeriod = SchedulePeriod.builder().id(1).periodName("Tháng 6/2026 - Concurrency")

@@ -27,7 +27,16 @@ vi.mock('@/hooks/useToast', () => ({
 }));
 
 // Mock next/navigation
+const mockRouter = {
+  push: vi.fn(),
+  replace: vi.fn(),
+  back: vi.fn(),
+  forward: vi.fn(),
+  refresh: vi.fn(),
+  prefetch: vi.fn(),
+};
 vi.mock('next/navigation', () => ({
+  useRouter: () => mockRouter,
   useSearchParams: () => ({
     get: vi.fn().mockReturnValue(null),
   }),
@@ -49,6 +58,7 @@ const mockSpecialties = [
 const mockStaffMembers = [
   {
     id: 1,
+    staffCode: 'NS001',
     username: 'nguyenvana',
     fullName: 'Nguyễn Văn A',
     phone: '0912345678',
@@ -56,13 +66,14 @@ const mockStaffMembers = [
     specialty: { id: 1, name: 'Nội khoa' },
     maxShiftsPerMonth: 5,
     isActive: true,
-    status: 'ACTIVE',
+    status: 'active',
     roles: ['STAFF'],
     createdAt: '2024-01-01',
     updatedAt: '2024-01-01',
   },
   {
     id: 2,
+    staffCode: 'NS002',
     username: 'tranthib',
     fullName: 'Trần Thị B',
     phone: '0987654321',
@@ -70,7 +81,7 @@ const mockStaffMembers = [
     specialty: { id: 2, name: 'Ngoại khoa' },
     maxShiftsPerMonth: 6,
     isActive: true,
-    status: 'ACTIVE',
+    status: 'active',
     roles: ['MANAGER'],
     createdAt: '2024-01-01',
     updatedAt: '2024-01-01',
@@ -107,7 +118,7 @@ describe('StaffCrudPanel', () => {
   it('should render filter dropdowns', async () => {
     await renderPanel();
     expect(screen.getByLabelText(/Lọc theo vai trò/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Loc theo trang thai/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Lọc theo trạng thái/)).toBeInTheDocument();
   });
 
   it('should render action buttons', async () => {

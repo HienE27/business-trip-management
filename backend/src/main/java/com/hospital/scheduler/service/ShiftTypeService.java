@@ -24,18 +24,21 @@ public class ShiftTypeService {
     private final AuditHistoryService auditHistoryService;
     private final AuthContextService authContextService;
 
+    @Transactional(readOnly = true)
     public List<ShiftTypeResponse> getAllShiftTypes() {
         return shiftTypeRepository.findAll().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<ShiftTypeResponse> getActiveShiftTypes() {
         return shiftTypeRepository.findByIsActiveTrue().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public ShiftTypeResponse getShiftTypeById(String id) {
         ShiftType shiftType = shiftTypeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + id));

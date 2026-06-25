@@ -29,10 +29,10 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary:   "bg-primary text-on-primary hover:opacity-90 active:scale-[0.98]",
-  secondary: "border border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low",
-  danger:    "bg-error text-on-error hover:opacity-90 active:scale-[0.98]",
-  ghost:     "bg-transparent text-on-surface hover:bg-surface-container-low",
+  primary:   "bg-primary text-on-primary hover:opacity-90 hover:shadow-md active:scale-[0.98]",
+  secondary: "border border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low hover:shadow-sm active:scale-[0.98]",
+  danger:    "bg-error text-on-error hover:opacity-90 hover:shadow-md active:scale-[0.98]",
+  ghost:     "bg-transparent text-on-surface hover:bg-surface-container-low active:scale-[0.98]",
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
@@ -67,7 +67,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       aria-busy={loading}
       className={[
         "inline-flex items-center justify-center font-semibold",
-        "transition-all duration-150",
+        "transition-all duration-200",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
         "disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none",
         VARIANT_CLASSES[variant],
@@ -115,7 +115,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       title={label}
       className={[
         "inline-flex items-center justify-center rounded-lg",
-        "transition-all duration-150",
+        "transition-all duration-200",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
         "disabled:opacity-50 disabled:cursor-not-allowed",
         VARIANT_CLASSES[variant],

@@ -491,21 +491,25 @@ export default function AuditHistoryPage() {
         {/* KPI Cards */}
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {([
-            { l: "Tổng sự kiện", v: summary.total,  ic: "history",    bg: "bg-surface-container-low",  co: "text-on-surface-variant" },
-            { l: "Tạo mới",      v: summary.create,  ic: "add_circle", bg: "bg-secondary-container",    co: "text-secondary"          },
-            { l: "Cập nhật",     v: summary.update,  ic: "edit",       bg: "bg-primary-fixed",          co: "text-primary"           },
-            { l: "Xóa",          v: summary.delete,   ic: "delete",     bg: "bg-error-container",        co: "text-error"             },
+            { l: "Tổng sự kiện", v: summary.total, ic: "history", bg: "bg-surface-container-low" },
+            { l: "Tạo mới",      v: summary.create,  ic: "add_circle", bg: "bg-secondary-container" },
+            { l: "Cập nhật",     v: summary.update,  ic: "edit",       bg: "bg-primary-fixed" },
+            { l: "Xóa",          v: summary.delete,   ic: "delete",     bg: "bg-error-container" },
           ] as const).map((s) => (
             <div
-              className="flex items-center gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm hover:bg-surface-container-low transition-colors"
+              className="group relative flex items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md"
               key={s.l}
             >
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${s.bg}`}>
-                <span className={`material-symbols-outlined text-[20px] ${s.co}`}>{s.ic}</span>
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${s.bg} transition-transform duration-200 group-hover:scale-105`}>
+                <span className={`material-symbols-outlined text-[20px] ${
+                  s.ic === "add_circle" ? "text-secondary" :
+                  s.ic === "edit" ? "text-primary" :
+                  s.ic === "delete" ? "text-error" : "text-on-surface-variant"
+                }`}>{s.ic}</span>
               </div>
               <div className="min-w-0">
-                <p className="text-[12px] font-medium text-on-surface-variant leading-none">{s.l}</p>
-                <p className="text-[24px] font-bold text-on-surface leading-none mt-1.5">
+                <p className="text-label-sm text-on-surface-variant leading-none">{s.l}</p>
+                <p className="text-headline-lg font-bold text-on-surface leading-none mt-1">
                   {loading ? "—" : s.v.toLocaleString("vi")}
                 </p>
               </div>

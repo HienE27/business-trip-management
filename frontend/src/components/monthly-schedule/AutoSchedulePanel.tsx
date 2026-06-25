@@ -1,19 +1,10 @@
 "use client";
 
-import { memo, useEffect, useMemo, useState } from "react";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { KPICard } from "@/components/ui/KPICard";
+import { memo, useEffect, useState } from "react";
 import { AutoScheduleMatrixGrid } from "./AutoScheduleMatrixGrid";
-import { SectionCard } from "@/components/ui/SectionCard";
-import type { AutoScheduleResult, SchedulePeriod } from "@/types/api";
-import type { Staff } from "@/types/api";
-import { ALGORITHM_OPTIONS } from "./constants";
-import type { ScheduleTab } from "./types";
-import type { ViewMode } from "./AutoScheduleMatrixGrid";
-
+import type { AutoScheduleResult, SchedulePeriod, Staff } from "@/types/api";
 
 type AlgorithmType = "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING";
-
 type EditedPreview = Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
 
 export type AutoSchedulePanelProps = {
@@ -27,136 +18,23 @@ export type AutoSchedulePanelProps = {
   selectedPeriod: SchedulePeriod | null;
   selectedPeriodId: number | null;
   selectedPeriodStatus?: string;
-  /** Bật/tắt tự động tạo yêu cầu nhân sự trước khi chạy thuật toán */
   autoGenerateRequirements: boolean;
   onSetAutoGenerateRequirements: (value: boolean) => void;
-  conflictKeys: Set<string>;
   onPreview: () => void;
   onApplyPreview: () => void;
   onResetEdits: () => void;
-  onEditStaff: (workDate: string, shiftTypeId: string, staffId: number) => void;
-  /** Mở modal chỉnh sửa một ca trực trên preview grid */
   onEditPreviewItem?: (item: import("@/types/api").AutoScheduleSummary) => void;
   onSetAlgorithmType: (type: AlgorithmType) => void;
-  /** Mở modal lưu mẫu lịch (M07-F10) */
   onSaveTemplate?: () => void;
-  /** Mở modal áp dụng mẫu lịch (M07-F10) */
   onApplyTemplate?: () => void;
-  /** Có quyền quản lý — để ẩn/hiện nút template */
   isManager?: boolean;
 };
 
-const ALGORITHM_CARDS: Record<AlgorithmType, { icon: string; color: string; description: string; badge: string }> = {
-  GREEDY: {
-    icon: "bolt",
-    color: "text-amber-600 bg-amber-50 border-amber-200",
-    description: "Ưu tiên nhân sự ít ca nhất mỗi ngày. Nhanh, phù hợp kỳ ngắn.",
-    badge: "bg-amber-100 text-amber-800 border-amber-300",
-  },
-  ROUND_ROBIN: {
-    icon: "autorenew",
-    color: "text-blue-600 bg-blue-50 border-blue-200",
-    description: "Luân chuyển đều theo vòng tròn. Đảm bảo công bằng tuyệt đối.",
-    badge: "bg-blue-100 text-blue-800 border-blue-300",
-  },
-  BACKTRACKING: {
-    icon: "route",
-    color: "text-purple-600 bg-purple-50 border-purple-200",
-    description: "Tìm kiếm tất cả phương án, chọn kết quả tốt nhất. Chậm hơn nhưng tối ưu hơn.",
-    badge: "bg-purple-100 text-purple-800 border-purple-300",
-  },
+const ALGO_COLORS: Record<AlgorithmType, { icon: string; active: string; inactive: string }> = {
+  GREEDY: { icon: "bolt", active: "bg-primary text-on-primary", inactive: "text-primary bg-primary-fixed hover:bg-primary-fixed/70" },
+  ROUND_ROBIN: { icon: "autorenew", active: "bg-secondary text-on-secondary", inactive: "text-secondary bg-secondary-container hover:bg-secondary-container/70" },
+  BACKTRACKING: { icon: "route", active: "bg-tertiary text-on-tertiary", inactive: "text-tertiary bg-tertiary-container hover:bg-tertiary-container/70" },
 };
-
-function KpiCard({
-  icon,
-  label,
-  value,
-  suffix,
-  trend,
-  variant = "default",
-}: {
-  icon: string;
-  label: string;
-  value: string | number;
-  suffix?: string;
-  trend?: "up" | "down" | "neutral";
-  variant?: "default" | "success" | "warning" | "error";
-}) {
-  const variantClasses = {
-    default: "bg-surface-container-lowest border-outline-variant",
-    success: "bg-secondary-container border-secondary/30",
-    warning: "bg-amber-50 border-amber-200",
-    error: "bg-error-container border-error/30",
-  };
-
-  const iconBg = {
-    default: "bg-primary-fixed text-primary",
-    success: "bg-secondary-container text-secondary",
-    warning: "bg-amber-50 text-amber-600",
-    error: "bg-error-container text-error",
-  };
-
-  return (
-    <div className={`relative overflow-hidden rounded-xl border p-4 shadow-sm ${variantClasses[variant]} transition-all hover:shadow-md`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-label-sm font-medium uppercase tracking-wide text-on-surface-variant">{label}</p>
-          <div className="mt-1.5 flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold tabular-nums text-on-surface">{value}</span>
-            {suffix && <span className="text-label-sm font-medium text-on-surface-variant">{suffix}</span>}
-          </div>
-          {trend && (
-            <div className={`mt-1 flex items-center gap-1 text-label-xs font-medium ${
-              trend === "up" ? "text-secondary" : trend === "down" ? "text-error" : "text-on-surface-variant"
-            }`}>
-              <span className="material-symbols-outlined text-[12px]">
-                {trend === "up" ? "arrow_upward" : trend === "down" ? "arrow_downward" : "remove"}
-              </span>
-            </div>
-          )}
-        </div>
-        <div className={`flex shrink-0 items-center justify-center rounded-lg p-2 ${iconBg[variant]}`}>
-          <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 0" }}>{icon}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CoverageBar({ rate }: { rate: number }) {
-  const pct = Math.min(100, Math.max(0, rate));
-  const color = pct >= 90 ? "bg-secondary" : pct >= 70 ? "bg-amber-500" : "bg-error";
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-label-xs text-on-surface-variant">
-        <span>Tỷ lệ phủ bì</span>
-        <span className="font-semibold text-on-surface">{pct}%</span>
-      </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-surface-variant">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${color}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function UnassignedBadge({ missing }: { missing: number }) {
-  if (missing === 0) return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-secondary-container px-2.5 py-0.5 text-label-xs font-semibold text-on-secondary-container">
-      <span className="material-symbols-outlined text-[12px]">check_circle</span>
-      Đủ
-    </span>
-  );
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-error-container px-2.5 py-0.5 text-label-xs font-semibold text-on-error-container">
-      <span className="material-symbols-outlined text-[12px]">warning</span>
-      Thiếu {missing}
-    </span>
-  );
-}
 
 export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   previewResult,
@@ -169,441 +47,317 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   selectedPeriod,
   selectedPeriodId,
   selectedPeriodStatus,
-  conflictKeys,
+  autoGenerateRequirements,
+  onSetAutoGenerateRequirements,
   onPreview,
   onApplyPreview,
   onResetEdits,
-  onEditStaff,
   onEditPreviewItem,
   onSetAlgorithmType,
   onSaveTemplate,
   onApplyTemplate,
-  autoGenerateRequirements,
-  onSetAutoGenerateRequirements,
   isManager = true,
 }: AutoSchedulePanelProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<number>>(new Set());
   const [staffFilterOpen, setStaffFilterOpen] = useState(false);
   const [showUnassigned, setShowUnassigned] = useState(false);
   const isDraft = selectedPeriodStatus === "DRAFT";
 
-  // Reset view/filters when period changes
   useEffect(() => {
     setViewMode("month");
     setSelectedStaffIds(new Set());
   }, [selectedPeriodId]);
 
-  const algoCard = ALGORITHM_CARDS[algorithmType];
-
-  // Unassigned days from response
   const unassignedDays = previewResult?.unassignedDays ?? [];
-  const totalMissing = unassignedDays.reduce((sum: number, d: any) => sum + (d.missingCount ?? 0), 0);
-
-  const statusMessageIsSuccess = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng") || message?.toLowerCase().includes("đã hủy") || message?.toLowerCase().includes("đã làm mới");
-
+  const totalMissing = unassignedDays.reduce((sum: number, d: unknown) => sum + ((d as { missingCount?: number }).missingCount ?? 0), 0);
   const coverageRate = previewResult ? Math.round(previewResult.coverageRate) : 0;
+  const balanceScore = previewResult?.balanceScore ?? 0;
+  const statusMsgOk = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng") || message?.toLowerCase().includes("đã hủy");
 
   return (
-    <SectionCard
-      title="Xếp lịch tự động"
-      description="Chọn thuật toán, chạy preview và áp dụng phương án vào kỳ lịch."
-      action={
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onPreview}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md font-medium text-on-primary shadow-sm transition-all hover:bg-primary/90 hover:shadow disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            disabled={runningAutoSchedule || !selectedPeriodId || !isDraft}
-          >
-            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">play_arrow</span>
-            {runningAutoSchedule ? "Đang chạy…" : previewResult ? "Làm mới" : "Chạy ngay"}
-          </button>
-        </div>
-      }
-    >
-      {/* Algorithm selector - always visible */}
-      <div className="border-b border-outline-variant p-5">
-        <p className="mb-3 text-label-sm font-medium uppercase tracking-wide text-on-surface-variant">Chọn thuật toán</p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {(Object.keys(ALGORITHM_CARDS) as AlgorithmType[]).map((type) => {
-            const card = ALGORITHM_CARDS[type];
-            const isSelected = algorithmType === type;
-            return (
+    <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
+      {/* ── Top control bar ─────────────────────────────────── */}
+      <div className="flex flex-col gap-0 border-b border-outline-variant">
+
+        {/* Row 1: algorithm pills + action */}
+        <div className="flex flex-wrap items-center gap-2 p-3">
+          {/* Algorithm pills */}
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <span className="material-symbols-outlined text-[16px] text-on-surface-variant shrink-0" aria-hidden="true">psychology</span>
+            <div className="flex gap-1.5 flex-wrap">
+              {(Object.keys(ALGO_COLORS) as AlgorithmType[]).map((type) => {
+                const cfg = ALGO_COLORS[type];
+                const sel = algorithmType === type;
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => onSetAlgorithmType(type)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-label-sm font-semibold transition-all cursor-pointer ${sel ? cfg.active : cfg.inactive}`}
+                  >
+                    <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{cfg.icon}</span>
+                    {type.replace("_", " ")}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right actions */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isDraft && (
+              <label className="flex items-center gap-1.5 text-label-xs text-on-surface-variant cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoGenerateRequirements}
+                  onChange={(e) => onSetAutoGenerateRequirements(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-outline text-primary accent-primary"
+                />
+                Auto-gen
+              </label>
+            )}
+            <button
+              type="button"
+              onClick={onPreview}
+              disabled={runningAutoSchedule || !selectedPeriodId || !isDraft}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {runningAutoSchedule ? (
+                <><div className="size-3.5 animate-spin rounded-full border border-on-primary border-t-transparent" /> Đang chạy…</>
+              ) : (
+                <><span className="material-symbols-outlined text-[14px]" aria-hidden="true">play_arrow</span> {previewResult ? "Làm mới" : "Chạy"}</>
+              )}
+            </button>
+            {previewResult && (
               <button
-                key={type}
                 type="button"
-                onClick={() => onSetAlgorithmType(type)}
-                className={`group relative cursor-pointer rounded-xl border-2 p-4 text-left transition-all ${
-                  isSelected
-                    ? `${card.color} border-current shadow-sm`
-                    : "border-outline-variant bg-surface-container-lowest hover:border-on-surface-variant hover:bg-surface-container-low"
-                }`}
+                onClick={onApplyPreview}
+                disabled={applyingPreview}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-on-secondary text-label-sm font-semibold hover:bg-secondary/90 disabled:opacity-50 transition-colors"
               >
-                {isSelected && (
-                  <span className="absolute right-3 top-3 material-symbols-outlined text-[18px] text-current" aria-hidden="true">check_circle</span>
+                {applyingPreview ? (
+                  <><div className="size-3.5 animate-spin rounded-full border border-on-secondary border-t-transparent" /> Đang áp dụng…</>
+                ) : (
+                  <><span className="material-symbols-outlined text-[14px]" aria-hidden="true">check</span> Áp dụng{editedPreview.length > 0 ? `+${editedPreview.length}` : ""}</>
                 )}
-                <div className="flex items-center gap-2.5 mb-2">
-                  <span className={`material-symbols-outlined text-[22px] ${isSelected ? "text-current" : "text-on-surface-variant group-hover:text-on-surface"}`} aria-hidden="true">{card.icon}</span>
-                  <span className="font-semibold text-on-surface">{type.replace("_", " ")}</span>
-                </div>
-                <p className={`text-label-sm leading-relaxed ${isSelected ? "text-current" : "text-on-surface-variant"}`}>
-                  {card.description}
-                </p>
               </button>
-            );
-          })}
+            )}
+          </div>
         </div>
-        {runningAutoSchedule && (
-          <div className="mt-3 flex items-center gap-2 text-label-sm text-primary" aria-live="polite">
-            <div className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden="true" />
-            Đang chạy thuật toán…
-          </div>
-        )}
-        {!isDraft && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-label-sm text-amber-700 border border-amber-200">
-            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">info</span>
-            Chỉ kỳ lịch ở trạng thái <strong className="font-semibold">DRAFT</strong> mới có thể xếp tự động
-          </div>
-        )}
-        {isDraft && (
-          <div className="mt-3 flex items-center gap-3 rounded-lg bg-surface-container-low px-3 py-2">
-            <label className="flex cursor-pointer items-center gap-2 text-label-sm text-on-surface">
-              <input
-                type="checkbox"
-                checked={autoGenerateRequirements}
-                onChange={(e) => onSetAutoGenerateRequirements(e.target.checked)}
-                className="h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary"
-              />
-              <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[16px] text-on-surface-variant" aria-hidden="true">auto_mode</span>
-                Tự động tạo yêu cầu nhân sự
+
+        {/* Row 2: status message + warnings */}
+        {(!isDraft || message || runningAutoSchedule) && (
+          <div className="px-3 pb-3 flex flex-wrap items-center gap-2">
+            {!isDraft && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-tertiary-container text-on-tertiary-container text-label-xs font-semibold border border-tertiary/20">
+                <span className="material-symbols-outlined text-[12px]">info</span>
+                Chỉ kỳ DRAFT mới xếp được
               </span>
-            </label>
-            <span className="text-label-xs text-on-surface-variant ml-auto">
-              {autoGenerateRequirements
-                ? "Tự động phân bổ theo cấu hình hệ thống (khuyến nghị)"
-                : "Sử dụng yêu cầu đã có trong kỳ lịch"}
-            </span>
-          </div>
-        )}
-        {message && (
-          <div
-            className={`mt-3 flex items-center gap-2 rounded-lg border px-4 py-2.5 text-label-sm ${
-              statusMessageIsSuccess
-                ? "bg-secondary-container border-secondary/30 text-secondary"
-                : "bg-error-container border-error/30 text-error"
-            }`}
-            role="status"
-          >
-            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
-              {statusMessageIsSuccess ? "check_circle" : "error"}
-            </span>
-            {message}
+            )}
+            {runningAutoSchedule && (
+              <span className="inline-flex items-center gap-1 text-label-xs text-primary">
+                <div className="size-3 animate-spin rounded-full border border-primary border-t-transparent" />
+                Đang chạy thuật toán…
+              </span>
+            )}
+            {message && (
+              <span className={`inline-flex items-center gap-1 text-label-xs font-medium ${
+                statusMsgOk ? "text-secondary" : "text-error"
+              }`}>
+                <span className="material-symbols-outlined text-[12px]">{statusMsgOk ? "check_circle" : "error"}</span>
+                {message}
+              </span>
+            )}
           </div>
         )}
       </div>
 
-      {/* Results */}
+      {/* ── Preview results ──────────────────────────────────── */}
       {previewResult ? (
-        <div className="p-5 space-y-5">
-          {/* KPI Row */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <KpiCard
-              icon="event_available"
-              label="Đã tạo"
-              value={previewResult.totalSchedulesCreated}
-              variant="success"
-            />
-            <KpiCard
-              icon="donut_large"
-              label="Phủ bì"
-              value={coverageRate}
-              suffix="%"
-              variant={coverageRate >= 90 ? "success" : coverageRate >= 70 ? "warning" : "error"}
-            />
-            <KpiCard
-              icon="balance"
-              label="Cân bằng"
-              value={typeof previewResult.balanceScore === "number" ? Math.round(previewResult.balanceScore) : 0}
-              suffix="%"
-              variant="default"
-            />
-            <KpiCard
-              icon={previewResult.conflictCount > 0 ? "warning" : "check_circle"}
-              label="Xung đột"
-              value={previewResult.conflictCount}
-              variant={previewResult.conflictCount > 0 ? "error" : "success"}
-            />
+        <div className="p-3 space-y-3">
+          {/* KPI strip */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { icon: "event_available", label: "Tạo", value: previewResult.totalSchedulesCreated, tone: "text-secondary" },
+              { icon: "radio_button_checked", label: "Phủ", value: `${coverageRate}%`, tone: coverageRate >= 90 ? "text-secondary" : coverageRate >= 70 ? "text-primary" : "text-error" },
+              { icon: "balance", label: "CB", value: `${Math.round(balanceScore * 100)}%`, tone: balanceScore >= 0.75 ? "text-secondary" : "text-primary" },
+              { icon: previewResult.conflictCount > 0 ? "warning" : "check_circle", label: "XĐ", value: previewResult.conflictCount, tone: previewResult.conflictCount > 0 ? "text-error" : "text-secondary" },
+            ].map((kpi) => (
+              <div key={kpi.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low border border-outline-variant">
+                <span className="material-symbols-outlined text-[14px] text-on-surface-variant" aria-hidden="true">{kpi.icon}</span>
+                <span className={`font-bold text-[15px] tabular-nums ${kpi.tone}`}>{kpi.value}</span>
+                <span className="text-label-xs text-on-surface-variant">{kpi.label}</span>
+              </div>
+            ))}
+
+            {/* Quick actions */}
+            {isManager && (
+              <div className="ml-auto flex items-center gap-1">
+                <button type="button" onClick={onSaveTemplate}
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-outline-variant text-label-xs text-on-surface hover:bg-surface-container-low transition-colors cursor-pointer"
+                  title="Lưu mẫu">
+                  <span className="material-symbols-outlined text-[12px]">bookmark_add</span> Lưu mẫu
+                </button>
+                <button type="button" onClick={onApplyTemplate}
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-outline-variant text-label-xs text-on-surface hover:bg-surface-container-low transition-colors cursor-pointer"
+                  title="Áp dụng mẫu">
+                  <span className="material-symbols-outlined text-[12px]">download</span> Mẫu
+                </button>
+                {editedPreview.length > 0 && (
+                  <button type="button" onClick={onResetEdits}
+                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-label-xs text-error hover:bg-error-container transition-colors cursor-pointer">
+                    <span className="material-symbols-outlined text-[12px]">undo</span> Hủy {editedPreview.length}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Coverage bar */}
-          <CoverageBar rate={coverageRate} />
-
-          {/* View toggle + staff filter */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* View mode toggle */}
-            <div className="flex items-center gap-1 rounded-lg border border-outline-variant bg-surface-container-low p-1">
+          {/* Unassigned alert */}
+          {unassignedDays.length > 0 && (
+            <div className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border ${totalMissing > 0 ? "bg-error-container border-error/30" : "bg-secondary-container border-secondary/30"}`}>
+              <div className="flex items-center gap-2">
+                <span className={`material-symbols-outlined text-[16px] ${totalMissing > 0 ? "text-error" : "text-secondary"}`} aria-hidden="true">
+                  {totalMissing > 0 ? "warning" : "check_circle"}
+                </span>
+                <span className={`text-label-sm font-semibold ${totalMissing > 0 ? "text-error" : "text-secondary"}`}>
+                  {totalMissing > 0 ? `${unassignedDays.length} ngày thiếu ${totalMissing} NS` : "Đủ nhân sự"}
+                </span>
+              </div>
               <button
                 type="button"
-                onClick={() => setViewMode("week")}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm font-medium transition-all ${
-                  viewMode === "week"
-                    ? "bg-primary text-on-primary shadow-sm"
-                    : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-                }`}
+                onClick={() => setShowUnassigned(!showUnassigned)}
+                className="text-label-xs text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">view_week</span>
-                Tuần
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("month")}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm font-medium transition-all ${
-                  viewMode === "month"
-                    ? "bg-primary text-on-primary shadow-sm"
-                    : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-                }`}
-              >
-                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">calendar_view_month</span>
-                Tháng
+                {showUnassigned ? "Ẩn" : "Chi tiết"}
               </button>
             </div>
+          )}
 
-            {/* Staff filter */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setStaffFilterOpen(!staffFilterOpen)}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-label-sm font-medium transition-all ${
-                  selectedStaffIds.size > 0
-                    ? "border-primary bg-primary-fixed/30 text-primary"
-                    : "border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container-high"
-                }`}
-              >
-                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">filter_list</span>
-                {selectedStaffIds.size > 0 ? `Nhân sự (${selectedStaffIds.size})` : "Tất cả nhân sự"}
-                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{staffFilterOpen ? "expand_less" : "expand_more"}</span>
-              </button>
+          {/* Unassigned details */}
+          {showUnassigned && unassignedDays.length > 0 && (
+            <div className="border border-outline-variant rounded-lg overflow-hidden">
+              <div className="overflow-x-auto max-h-32">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-surface-container-low border-b border-outline-variant">
+                      <th className="p-2 text-label-xs text-on-surface-variant uppercase">Ngày</th>
+                      <th className="p-2 text-label-xs text-on-surface-variant uppercase">Loại ca</th>
+                      <th className="p-2 text-label-xs text-on-surface-variant uppercase text-right">Thiếu</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant/30">
+                    {unassignedDays.map((day: unknown, idx: number) => {
+                      const d = day as { workDate: string; shiftTypeId: string; shiftTypeName: string; missingCount: number; requiredStaffCount: number };
+                      return (
+                        <tr key={idx} className="hover:bg-surface-container-lowest transition-colors">
+                          <td className="p-2 text-label-sm text-on-surface">
+                            {new Date(d.workDate).toLocaleDateString("vi-VN", { weekday: "short", day: "numeric", month: "short" })}
+                          </td>
+                          <td className="p-2 text-label-sm text-on-surface-variant">{d.shiftTypeName}</td>
+                          <td className="p-2 text-label-sm text-error font-semibold text-right">{d.missingCount}/{d.requiredStaffCount}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-              {staffFilterOpen && (
-                <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-outline-variant bg-surface-container-lowest p-3 shadow-lg">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-label-sm font-semibold text-on-surface">Lọc nhân sự</p>
+          {/* Matrix header + view toggle + staff filter */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-label-xs text-on-surface-variant">
+                {new Set(previewResult.schedules.map(s => s.workDate.split("T")[0])).size} ngày · {previewResult.totalSchedulesCreated} ca
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-lg border border-outline-variant bg-surface-container-low p-0.5">
+                {[{ key: "week", icon: "view_week" }, { key: "month", icon: "calendar_view_month" }].map(m => (
+                  <button key={m.key} type="button" onClick={() => setViewMode(m.key as "week" | "month")}
+                    className={`p-1.5 rounded-md transition-colors ${viewMode === m.key ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container-high"}`}>
+                    <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{m.icon}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="relative">
+                <button type="button" onClick={() => setStaffFilterOpen(!staffFilterOpen)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-label-xs font-medium transition-colors cursor-pointer ${
+                    selectedStaffIds.size > 0 ? "border-primary bg-primary-fixed/20 text-primary" : "border-outline-variant text-on-surface-variant hover:border-primary"
+                  }`}>
+                  <span className="material-symbols-outlined text-[12px]" aria-hidden="true">filter_list</span>
+                  {selectedStaffIds.size > 0 ? `Lọc (${selectedStaffIds.size})` : "Tất cả NS"}
+                </button>
+                {staffFilterOpen && (
+                  <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-outline-variant bg-surface-container-lowest p-2 shadow-lg">
+                    <div className="max-h-40 overflow-y-auto space-y-0.5">
+                      {activeStaff.map(staff => {
+                        const sel = selectedStaffIds.has(staff.id);
+                        return (
+                          <label key={staff.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-container-low cursor-pointer">
+                            <input type="checkbox" checked={sel}
+                              onChange={() => setSelectedStaffIds(prev => { const n = new Set(prev); n.has(staff.id) ? n.delete(staff.id) : n.add(staff.id); return n; })}
+                              className="h-3.5 w-3.5 rounded border-outline text-primary accent-primary" />
+                            <span className="text-label-xs text-on-surface truncate">{staff.fullName}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                     {selectedStaffIds.size > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedStaffIds(new Set())}
-                        className="text-label-xs text-primary hover:underline"
-                      >
+                      <button type="button" onClick={() => setSelectedStaffIds(new Set())}
+                        className="mt-2 w-full text-center text-label-xs text-primary hover:underline cursor-pointer">
                         Bỏ lọc
                       </button>
                     )}
                   </div>
-                  <div className="max-h-48 space-y-1 overflow-y-auto">
-                    {activeStaff.map((staff) => {
-                      const isSelected = selectedStaffIds.has(staff.id);
-                      return (
-                        <label
-                          key={staff.id}
-                          className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-container-low"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => {
-                              setSelectedStaffIds((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(staff.id)) next.delete(staff.id);
-                                else next.add(staff.id);
-                                return next;
-                              });
-                            }}
-                            className="h-4 w-4 rounded border-outline text-primary accent-primary"
-                          />
-                          <span className="text-label-sm text-on-surface">{staff.fullName}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Unassigned days alert */}
-          {unassignedDays.length > 0 && (
-            <div className={`rounded-xl border p-4 transition-all ${
-              totalMissing > 0 ? "bg-error-container border-error/30" : "bg-secondary-container border-secondary/30"
-            }`}>
-              <button
-                type="button"
-                onClick={() => setShowUnassigned(!showUnassigned)}
-                className="flex w-full items-center justify-between text-left"
-              >
-                <div className="flex items-center gap-2">
-                  <span className={`material-symbols-outlined text-[20px] ${totalMissing > 0 ? "text-error" : "text-secondary"}`} aria-hidden="true">
-                    {totalMissing > 0 ? "warning" : "check_circle"}
-                  </span>
-                  <div>
-                    <p className={`font-semibold text-on-surface ${totalMissing > 0 ? "text-error" : "text-secondary"}`}>
-                      {totalMissing > 0 ? `${unassignedDays.length} ngày chưa đủ nhân sự` : "Tất cả ngày đã đủ nhân sự"}
-                    </p>
-                    {totalMissing > 0 && (
-                      <p className="text-label-sm text-on-surface-variant">Tổng thiếu {totalMissing} nhân sự trên {unassignedDays.length} ngày</p>
-                    )}
-                  </div>
-                </div>
-                <span className={`material-symbols-outlined text-on-surface-variant transition-transform ${showUnassigned ? "rotate-180" : ""}`} aria-hidden="true">expand_more</span>
-              </button>
-              {showUnassigned && (
-                <div className="mt-3 space-y-2">
-                  {unassignedDays.map((day: any, idx: number) => (
-                    <div key={idx} className="flex items-center justify-between rounded-lg bg-surface-container-lowest px-3 py-2 text-label-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-on-surface">{new Date(day.workDate).toLocaleDateString("vi-VN", { weekday: "short", day: "numeric", month: "short" })}</span>
-                        <span className={`rounded border px-1.5 py-0.5 text-label-xs font-semibold ${
-                          day.shiftTypeId === "L01" ? "bg-red-100 text-red-700 border-red-200" :
-                          day.shiftTypeId === "L02" ? "bg-blue-100 text-blue-700 border-blue-200" :
-                          day.shiftTypeId === "L03" ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
-                          "bg-purple-100 text-purple-700 border-purple-200"
-                        }`}>{day.shiftTypeName}</span>
-                      </div>
-                      <span className="text-error font-semibold">Thiếu {day.missingCount}/{day.requiredStaffCount}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Schedule matrix: rows=dates, cols=staff (same pattern as ScheduleMatrixGrid) */}
-          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b border-outline-variant bg-surface-container-low px-4 py-3">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[20px] text-primary" aria-hidden="true">grid_view</span>
-                <div>
-                  <p className="font-semibold text-on-surface">Phương án phân công</p>
-                  <p className="text-label-xs text-on-surface-variant">
-                    {new Set(previewResult.schedules.map((s) => s.workDate.split("T")[0])).size} ngày · {previewResult.totalSchedulesCreated} ca trực
-                  </p>
-                </div>
-              </div>
-              {editedPreview.length > 0 && (
-                <button
-                  type="button"
-                  onClick={onResetEdits}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-label-sm font-medium text-error transition-colors hover:bg-error-container"
-                >
-                  <span className="material-symbols-outlined text-[14px]" aria-hidden="true">undo</span>
-                  Hủy thay đổi ({editedPreview.length})
-                </button>
-              )}
-            </div>
-
-            <div className="p-3">
-              <AutoScheduleMatrixGrid
-                key={viewMode}
-                schedules={previewResult.schedules}
-                activeStaff={activeStaff}
-                year={selectedPeriod ? new Date(selectedPeriod.startDate).getFullYear() : new Date().getFullYear()}
-                month={selectedPeriod ? new Date(selectedPeriod.startDate).getMonth() : new Date().getMonth()}
-                viewMode={viewMode}
-                filteredStaffIds={selectedStaffIds}
-                editedPreview={editedPreview}
-                onEditItem={onEditPreviewItem}
-              />
-            </div>
-          </div>
-
-          {/* Action bar */}
-          <div className="flex items-center justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-low p-4">
-            <div className="flex items-center gap-2 text-label-sm text-on-surface-variant">
-              {editedPreview.length > 0 ? (
-                <>
-                  <span className="material-symbols-outlined text-[16px] text-amber-600" aria-hidden="true">edit</span>
-                  <span><strong className="text-on-surface">{editedPreview.length}</strong> thay đổi đang chờ áp dụng</span>
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">info</span>
-                  <span>Xem trước phương án trước khi áp dụng vào kỳ lịch</span>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {/* M07-F10: Template actions */}
-              {isManager && previewResult && (
-                <>
-                  <button
-                    type="button"
-                    onClick={onSaveTemplate}
-                    className="flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-sm font-medium text-on-surface transition-colors hover:bg-surface-container-high disabled:opacity-50"
-                    title="Lưu phương án hiện tại thành mẫu để sử dụng lại sau"
-                  >
-                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">bookmark_add</span>
-                    Lưu mẫu
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onApplyTemplate}
-                    className="flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-sm font-medium text-on-surface transition-colors hover:bg-surface-container-high disabled:opacity-50"
-                    title="Áp dụng mẫu lịch đã lưu vào kỳ hiện tại"
-                  >
-                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">download</span>
-                    Áp dụng mẫu
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={onApplyPreview}
-                disabled={applyingPreview || !previewResult}
-                className="flex items-center gap-2 rounded-lg bg-secondary px-5 py-2.5 text-label-md font-semibold text-on-secondary shadow-sm transition-all hover:bg-secondary/90 hover:shadow disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
-              >
-                {applyingPreview ? (
-                  <>
-                    <div className="size-4 animate-spin rounded-full border-2 border-on-secondary border-t-transparent" aria-hidden="true" />
-                    Đang áp dụng…
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[18px]" aria-hidden="true">check_circle</span>
-                    Áp dụng phương án
-                    {editedPreview.length > 0 && <span className="ml-1 rounded bg-white/20 px-1.5 py-0.5 text-label-xs">+{editedPreview.length}</span>}
-                  </>
                 )}
-              </button>
+              </div>
             </div>
           </div>
+
+          {/* Schedule matrix */}
+          <AutoScheduleMatrixGrid
+            key={viewMode}
+            schedules={previewResult.schedules}
+            activeStaff={activeStaff}
+            year={selectedPeriod ? new Date(selectedPeriod.startDate).getFullYear() : new Date().getFullYear()}
+            month={selectedPeriod ? new Date(selectedPeriod.startDate).getMonth() : new Date().getMonth()}
+            viewMode={viewMode}
+            filteredStaffIds={selectedStaffIds}
+            editedPreview={editedPreview}
+            onEditItem={onEditPreviewItem}
+          />
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-4 p-10">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-fixed">
-            <span className="material-symbols-outlined text-[36px] text-primary" aria-hidden="true">auto_mode</span>
+        /* ── Empty state ──────────────────────────────────── */
+        <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-fixed">
+            <span className="material-symbols-outlined text-[28px] text-primary" aria-hidden="true">auto_mode</span>
           </div>
-          <div className="text-center">
-            <h3 className="text-headline-md font-semibold text-on-surface">Sẵn sàng xếp lịch tự động</h3>
-            <p className="mt-1 text-body-sm text-on-surface-variant max-w-sm">
-              Chọn thuật toán phù hợp và nhấn <strong>Chạy ngay</strong> để hệ thống tự động phân bổ ca trực cho kỳ lịch.
-            </p>
-          </div>
-          <div className="flex flex-col items-center gap-1.5 text-label-sm text-on-surface-variant">
-            <div className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">check_circle</span>
-              Tự động phát hiện xung đột lịch trực
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">check_circle</span>
-              Tạo ngày nghỉ bù cho ca trực 24/24
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">check_circle</span>
-              Cân bằng tải đều cho 20 nhân sự
-            </div>
-          </div>
+          {!isManager ? (
+            <>
+              <div className="text-center">
+                <p className="font-semibold text-on-surface">Không có quyền xếp lịch</p>
+                <p className="text-label-sm text-on-surface-variant mt-1">Chỉ Quản lý hoặc Admin mới được phép chạy auto-scheduling.</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-center">
+                <p className="font-semibold text-on-surface">Sẵn sàng xếp lịch tự động</p>
+                <p className="text-label-sm text-on-surface-variant mt-1">Chọn thuật toán phù hợp và nhấn <strong>Chạy</strong> để phân bổ ca trực.</p>
+              </div>
+              <div className="flex items-center gap-4 text-label-xs text-on-surface-variant">
+                <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[12px] text-secondary">check_circle</span> Phát hiện xung đột</span>
+                <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[12px] text-secondary">check_circle</span> Tạo nghỉ bù</span>
+                <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[12px] text-secondary">check_circle</span> Cân bằng tải</span>
+              </div>
+            </>
+          )}
         </div>
       )}
-    </SectionCard>
+    </div>
   );
 });

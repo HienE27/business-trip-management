@@ -53,7 +53,7 @@ export function RuntimeConfigCard({ onConfigSaved }: RuntimeConfigCardProps) {
       await api.updateRuntimeConfig(form);
       setConfig(form);
       setEditing(false);
-      success("Lưu cấu hình thành công!");
+      success("Lưu cấu hình thành công");
       onConfigSaved?.();
     } catch (err) {
       error(getErrorMessage(err, "Lưu cấu hình thất bại"));

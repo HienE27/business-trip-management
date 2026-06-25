@@ -15,15 +15,15 @@ public interface CompensationDayRepository extends JpaRepository<CompensationDay
     List<CompensationDay> findByStaffId(Integer staffId);
     List<CompensationDay> findByCompensationDate(LocalDate compensationDate);
     Optional<CompensationDay> findByStaffIdAndCompensationDate(Integer staffId, LocalDate compensationDate);
-    @Query("SELECT cd FROM CompensationDay cd WHERE cd.staff.id = :staffId AND cd.period.id = :periodId")
+    @Query("SELECT cd FROM CompensationDay cd JOIN FETCH cd.staff WHERE cd.staff.id = :staffId AND cd.period.id = :periodId")
     List<CompensationDay> findByStaffIdAndPeriodId(@Param("staffId") Integer staffId, @Param("periodId") Integer periodId);
-    @Query("SELECT cd FROM CompensationDay cd WHERE cd.schedule.id = :scheduleId")
+    @Query("SELECT cd FROM CompensationDay cd JOIN FETCH cd.staff JOIN FETCH cd.schedule WHERE cd.schedule.id = :scheduleId")
     List<CompensationDay> findByScheduleId(@Param("scheduleId") Integer scheduleId);
 
-    @Query("SELECT cd FROM CompensationDay cd WHERE cd.period.id = :periodId")
+    @Query("SELECT cd FROM CompensationDay cd JOIN FETCH cd.staff WHERE cd.period.id = :periodId")
     List<CompensationDay> findByPeriodId(@Param("periodId") Integer periodId);
 
-    @Query("SELECT cd FROM CompensationDay cd JOIN FETCH cd.staff WHERE cd.period.id = :periodId")
+    @Query("SELECT cd FROM CompensationDay cd JOIN FETCH cd.schedule JOIN FETCH cd.staff WHERE cd.period.id = :periodId")
     List<CompensationDay> findByPeriodIdWithStaff(@Param("periodId") Integer periodId);
 
     @Query("SELECT cd FROM CompensationDay cd WHERE cd.staff.id = :staffId AND cd.compensationDate BETWEEN :startDate AND :endDate")
@@ -39,4 +39,7 @@ public interface CompensationDayRepository extends JpaRepository<CompensationDay
     /** Batch query: all compensation days within a date range (no staff filter, for period-level batch checks). */
     @Query("SELECT cd FROM CompensationDay cd WHERE cd.compensationDate BETWEEN :startDate AND :endDate")
     List<CompensationDay> findInRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT cd FROM CompensationDay cd JOIN FETCH cd.staff JOIN FETCH cd.schedule WHERE cd.schedule.id IN :scheduleIds")
+    List<CompensationDay> findByScheduleIds(@Param("scheduleIds") List<Integer> scheduleIds);
 }

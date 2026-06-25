@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 const ApplyConfirmationModal = dynamic(
@@ -52,7 +51,6 @@ const StaffExclusionTable = dynamic(
 import { useAutoSchedule } from "@/hooks/useAutoSchedule";
 import { useRole, canManage } from "@/hooks/useRole";
 import { api } from "@/lib/api";
-import { formatDate } from "@/lib/date";
 import { getErrorMessage } from "@/lib/errors";
 import type { SchedulePeriod, Staff, AlgorithmMetrics, ReplacementSuggestion, AutoScheduleSummary, ScheduleTemplate, TemplatePreviewItem } from "@/types/api";
 
@@ -128,7 +126,7 @@ export default function AutoSchedulingPage() {
 
   const [autoState, autoActions] = useAutoSchedule();
   const { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType } = autoState;
-  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, setMessage, setAlgorithmType } = autoActions;
+  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editShiftType, resetEdits, clearPreview, setMessage, setAlgorithmType } = autoActions;
   const [autoGenReq, setAutoGenReq] = useState(true);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
@@ -290,96 +288,57 @@ export default function AutoSchedulingPage() {
   }
 
   return (
-    <>
+    <div className="space-y-4">
       {loadMessage && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error flex items-start gap-2">
+          <span className="material-symbols-outlined text-[18px] shrink-0">error</span>
           {loadMessage}
         </div>
       )}
-      {/* Quick links */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-label-sm text-on-surface-variant">Xem nhanh:</span>
-          <Link
-            href="/auto-scheduling/algorithm-config"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface hover:bg-surface-container-low hover:border-primary/40 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[14px]">tune</span>
-            Cấu hình thuật toán
+
+      {/* Header row: title + period selector + quick links */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="sr-only">Xếp lịch tự động</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Period selector */}
+          <div className="relative">
+            <label htmlFor="auto-period-select" className="sr-only">Kỳ xếp lịch</label>
+            <select
+              id="auto-period-select"
+              className="h-8 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-7 text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+              value={selectedPeriodId ?? ""}
+              onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
+            >
+              {periods.map((p) => (
+                <option key={p.id} value={p.id}>{p.periodName}</option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[14px]">expand_more</span>
+          </div>
+          {selectedPeriod && (
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${selectedPeriod.status === "DRAFT" ? "bg-primary-fixed text-primary" : "bg-secondary-container text-on-secondary-container"}`}>
+              {selectedPeriod.status === "DRAFT" ? "Nháp" : "Đã công bố"}
+            </span>
+          )}
+          {/* Quick links */}
+          <Link href="/auto-scheduling/algorithm-config" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-xs text-on-surface hover:border-primary/40 transition-colors">
+            <span className="material-symbols-outlined text-[13px]">tune</span> Cấu hình
           </Link>
-          <Link
-            href="/auto-scheduling/history"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant bg-surface text-label-sm text-on-surface hover:bg-surface-container-low hover:border-primary/40 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[14px]">history</span>
-            Lịch sử chạy
+          <Link href="/auto-scheduling/history" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-xs text-on-surface hover:border-primary/40 transition-colors">
+            <span className="material-symbols-outlined text-[13px]">history</span> Lịch sử
           </Link>
+          <Link href="/monthly-schedule" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-xs text-on-surface hover:border-primary/40 transition-colors">
+            <span className="material-symbols-outlined text-[13px]">calendar_month</span> Lịch trực
+          </Link>
+          {isManager && (
+            <button type="button" onClick={() => setBulkModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary text-label-xs font-semibold text-on-primary hover:bg-primary/90 transition-colors cursor-pointer"
+              title="Công bố hàng loạt">
+              <span className="material-symbols-outlined text-[13px]">bolt</span>
+            </button>
+          )}
         </div>
       </div>
-
-      {/* Period Selector */}
-      <SectionCard
-        title="Kỳ lịch"
-        description="Chọn kỳ lịch cần xếp tự động. Chỉ kỳ ở trạng thái Nháp mới có thể chỉnh sửa."
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <label htmlFor="auto-period-select" className="sr-only">Kỳ xếp lịch</label>
-              <select
-                id="auto-period-select"
-                className="h-10 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-label-md text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 min-w-[200px]"
-                value={selectedPeriodId ?? ""}
-                onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
-              >
-                {periods.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.periodName}
-                  </option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[18px]">expand_more</span>
-            </div>
-            {selectedPeriod && (
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                selectedPeriod.status === "DRAFT"
-                  ? "bg-primary-fixed text-primary"
-                  : "bg-secondary-container text-on-secondary-container"
-              }`}>
-                {selectedPeriod.status === "DRAFT" ? "Nháp" : "Đã công bố"}
-              </span>
-            )}
-            {isManager && (
-              <button
-                type="button"
-                onClick={() => setBulkModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-[11px] font-semibold hover:bg-primary/90 transition-colors"
-                title="Công bố hàng loạt nhiều kỳ lịch"
-              >
-                <span className="material-symbols-outlined text-[14px]">bolt</span>
-                Công bố hàng loạt
-              </button>
-            )}
-          </div>
-        }
-      >
-        {selectedPeriod ? (
-          <div className="p-4 bg-surface-container-low rounded-lg space-y-2">
-            <p className="text-body-sm text-on-surface">
-              <span className="font-semibold">Thời gian:</span>{" "}
-              {formatDate(selectedPeriod.startDate)} –{" "}
-              {formatDate(selectedPeriod.endDate)}
-            </p>
-            {selectedPeriod.status !== "DRAFT" && (
-              <p className="mt-1 text-label-sm text-error flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">warning</span>
-                Kỳ lịch đã công bố — chỉ có thể xem, không chỉnh sửa.
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="text-body-sm text-on-surface-variant">Chưa có kỳ lịch nào.</p>
-        )}
-      </SectionCard>
 
       {/* Main AutoScheduling panel — contains algorithm, rules, exclusions, KPI, table, actions */}
       {!isManager ? (
@@ -401,11 +360,9 @@ export default function AutoSchedulingPage() {
           selectedPeriod={selectedPeriod}
           selectedPeriodId={selectedPeriodId}
           selectedPeriodStatus={selectedPeriod?.status}
-          conflictKeys={new Set()}
           onPreview={handleRunPreview}
           onApplyPreview={() => setApplyModalOpen(true)}
           onResetEdits={handleResetEdits}
-          onEditStaff={(workDate, shiftTypeId, staffId) => editStaff(workDate, shiftTypeId, staffId)}
           onEditPreviewItem={(item) => setPreviewEditItem(item)}
           onSetAlgorithmType={setAlgorithmType}
           autoGenerateRequirements={autoGenReq}
@@ -416,41 +373,45 @@ export default function AutoSchedulingPage() {
         />
       )}
 
-      {/* Staff exclusions — collapsible after panel */}
-      <SectionCard
-        title="Ngoại lệ nhân sự"
-        description="Loại trừ nhân sự khỏi lịch tự động (đi công tác, nghỉ dài ngày)."
-      >
+      {/* Staff exclusions */}
+      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-outline-variant bg-surface-container-low flex items-center gap-2">
+          <span className="material-symbols-outlined text-[16px] text-on-surface-variant" aria-hidden="true">block</span>
+          <p className="text-label-sm font-semibold text-on-surface">Ngoại lệ nhân sự</p>
+          <span className="text-[11px] text-on-surface-variant">Loại trừ nhân sự khỏi lịch tự động</span>
+        </div>
         <StaffExclusionTable
           staff={activeStaff}
           excludedIds={excludedStaffIds}
           onExclusionsChange={setExcludedStaffIds}
           loading={loading}
         />
-      </SectionCard>
+      </div>
 
       {/* Charts + History — only when preview exists */}
       {previewResult && (
-        <div className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <SectionCard title="Biểu đồ cân bằng" description="Phân bổ ca trực theo thuật toán.">
-              <div className="p-4">
-                <AlgorithmBalanceChart schedules={previewResult.schedules} />
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Khối lượng theo nhân sự" description="Biểu đồ phân bổ ca trực theo nhân sự trong kỳ lịch.">
-              <div className="p-4">
-                <WorkloadChart periodId={selectedPeriodId!} previewSchedules={previewResult?.schedules} />
-              </div>
-            </SectionCard>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
+            <div className="px-3 py-2 border-b border-outline-variant bg-surface-container-low">
+              <p className="text-label-sm font-semibold text-on-surface">Biểu đồ cân bằng</p>
+            </div>
+            <div className="p-3">
+              <AlgorithmBalanceChart schedules={previewResult.schedules} />
+            </div>
           </div>
 
-          <SectionCard title="Lịch sử chạy thuật toán" description="Các lần chạy trước đó cho kỳ lịch này.">
-            <MetricsHistorySection periodId={selectedPeriodId} />
-          </SectionCard>
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
+            <div className="px-3 py-2 border-b border-outline-variant bg-surface-container-low">
+              <p className="text-label-sm font-semibold text-on-surface">Khối lượng theo nhân sự</p>
+            </div>
+            <div className="p-3">
+              <WorkloadChart periodId={selectedPeriodId!} previewSchedules={previewResult?.schedules} />
+            </div>
+          </div>
         </div>
       )}
+
+      {previewResult && <MetricsHistorySection periodId={selectedPeriodId} />}
 
       <ApplyConfirmationModal
         open={applyModalOpen}
@@ -534,6 +495,6 @@ export default function AutoSchedulingPage() {
           setPreviewEditItem(null);
         }}
       />
-    </>
+    </div>
   );
 }

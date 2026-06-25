@@ -5,6 +5,7 @@ import com.hospital.scheduler.dto.response.CoverageReportDTO;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.util.DateUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Lazy;
@@ -35,10 +36,12 @@ public class ConflictDetectionService {
     private final StaffRepository staffRepository;
     private final ShiftRequirementRepository shiftRequirementRepository;
     private final ShiftTypeRepository shiftTypeRepository;
+    private final AuthContextService authContextService;
     @Lazy
     private final EmailService emailService;
     @Lazy
     private final ConflictBroadcastService conflictBroadcastService;
+    private final SystemLogService systemLogService;
 
     public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
         return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, false, false);
@@ -119,7 +122,8 @@ public class ConflictDetectionService {
             Integer excludeScheduleId, Integer periodId,
             Map<Integer, List<LeaveRequest>> leavesByStaff,
             Map<Integer, List<CompensationDay>> compDaysByStaff,
-            Map<LocalDate, Map<Integer, List<Schedule>>> schedulesByDateByStaff) {
+            Map<LocalDate, Map<Integer, List<Schedule>>> schedulesByDateByStaff,
+            Map<String, ShiftType> shiftTypeById) {
 
         List<String> conflicts = new ArrayList<>();
 
@@ -144,7 +148,7 @@ public class ConflictDetectionService {
         Map<Integer, List<Schedule>> sameDaySchedules = schedulesByDateByStaff.get(workDate);
         if (sameDaySchedules != null) {
             List<Schedule> staffDaySchedules = sameDaySchedules.getOrDefault(staffId, Collections.emptyList());
-            ShiftType newShiftType = shiftTypeRepository.findById(shiftTypeId).orElse(null);
+            ShiftType newShiftType = shiftTypeById.get(shiftTypeId);
             boolean newIsOvernight = newShiftType != null && Boolean.TRUE.equals(newShiftType.getIsOvernight());
 
             for (Schedule s : staffDaySchedules) {
@@ -294,21 +298,45 @@ public class ConflictDetectionService {
         if (!conflicts.isEmpty()) {
             String description = String.join("; ", conflicts);
             staffRepository.findById(staffId).ifPresent(staff -> {
-                emailService.sendConflictAlertToStaff(staff, null, description);
+                try {
+                    emailService.sendConflictAlertToStaff(staff, null, description);
+                } catch (Exception e) {
+                    org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
+                            .warn("Failed to send conflict email for staff {}: {}", staffId, e.getMessage());
+                    try {
+                        systemLogService.logSystem("EMAIL_FAILURE",
+                                "Failed to send conflict alert email for staff ID=" + staffId +
+                                ", staff=" + staff.getFullName() + ", reason: " + e.getMessage(),
+                                authContextService.getCurrentStaff().getId(), null, null);
+                    } catch (Exception logEx) {
+                        org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
+                                .error("Failed to log email failure for staff {}: {}", staffId, logEx.getMessage());
+                    }
+                }
             });
             throw new ConflictException("Phát hiện xung đột: " + description);
         }
     }
 
+    @Transactional
     public ConflictCheckResponse checkPeriodConflicts(Integer periodId) {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
         List<ConflictCheckResponse.ConflictDetail> conflictDetails = new ArrayList<>();
+
+        // Collect schedules for batch update (performance optimization)
+        List<Schedule> schedulesToUpdate = new ArrayList<>();
 
         // ── Batch-load all conflict data upfront (4 queries) instead of O(N) per-schedule ──
         // Collect all unique dates in the period for adjacent-day queries
         Set<LocalDate> periodDates = schedules.stream()
                 .map(Schedule::getWorkDate)
                 .collect(java.util.stream.Collectors.toSet());
+
+        // Batch 0: pre-load all shift types (only 4, but needed for batch conflict check)
+        Map<String, ShiftType> shiftTypeById = new java.util.HashMap<>();
+        for (ShiftType st : shiftTypeRepository.findAll()) {
+            shiftTypeById.put(st.getId(), st);
+        }
 
         // Batch 1: all approved leaves within the period's date range
         LocalDate minDate = periodDates.stream().min(LocalDate::compareTo).orElse(null);
@@ -349,10 +377,10 @@ public class ConflictDetectionService {
 
             List<String> conflicts = detectAllConflictsWithBatch(
                     staff.getId(), workDate, shiftTypeId, schedule.getId(), periodId,
-                    leavesByStaff, compDaysByStaff, schedulesByDateByStaff);
+                    leavesByStaff, compDaysByStaff, schedulesByDateByStaff, shiftTypeById);
             if (!conflicts.isEmpty()) {
                 schedule.setHasConflict(true);
-                scheduleRepository.save(schedule);
+                schedulesToUpdate.add(schedule);
 
                 String description = String.join("; ", conflicts);
                 ConflictCheckResponse.ConflictDetail conflictDetail = ConflictCheckResponse.ConflictDetail.builder()
@@ -376,6 +404,17 @@ public class ConflictDetectionService {
                 } catch (Exception e) {
                     org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
                             .warn("Failed to send conflict email for schedule {}: {}", schedule.getId(), e.getMessage());
+                    // Log failure to system log for manual follow-up
+                    try {
+                        systemLogService.logSystem("EMAIL_FAILURE",
+                                "Failed to send conflict alert email for schedule ID=" + schedule.getId() +
+                                ", staff=" + staff.getFullName() + " (" + staff.getId() + ")" +
+                                ", reason: " + e.getMessage(),
+                                authContextService.getCurrentStaff().getId(), null, null);
+                    } catch (Exception logEx) {
+                        org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
+                                .error("Failed to log email failure for schedule {}: {}", schedule.getId(), logEx.getMessage());
+                    }
                 }
 
                 // Only broadcast when the conflict is genuinely new — re-running the
@@ -393,8 +432,13 @@ public class ConflictDetectionService {
             } else if (Boolean.TRUE.equals(schedule.getHasConflict())) {
                 // Conflict was resolved since the last check — clear the flag.
                 schedule.setHasConflict(false);
-                scheduleRepository.save(schedule);
+                schedulesToUpdate.add(schedule);
             }
+        }
+
+        // Batch save all schedule updates (performance optimization)
+        if (!schedulesToUpdate.isEmpty()) {
+            scheduleRepository.saveAll(schedulesToUpdate);
         }
 
         List<String> coverageGaps = detectCoverageGaps(periodId);
@@ -626,6 +670,20 @@ public class ConflictDetectionService {
         ShiftType shiftType = shiftTypeRepository.findById(shiftTypeId).orElse(null);
         boolean newIsOvernight = shiftType != null && Boolean.TRUE.equals(shiftType.getIsOvernight());
 
+        // OPTIMIZATION: Pre-load all shift counts in ONE query (instead of N×1 per staff)
+        Map<Integer, Long> staffL01Counts = new java.util.HashMap<>();
+        if (SHIFT_TYPE_L01.equals(shiftTypeId)) {
+            List<Object[]> counts = scheduleRepository.countAllByPeriodIdGroupByStaffAndShiftType(periodId);
+            for (Object[] row : counts) {
+                Integer sid = (Integer) row[0];
+                String tid = (String) row[1];
+                Long cnt = (Long) row[2];
+                if (SHIFT_TYPE_L01.equals(tid)) {
+                    staffL01Counts.put(sid, cnt);
+                }
+            }
+        }
+
         List<Staff> replacements = new ArrayList<>();
         for (Staff staff : staffRepository.findByIsActiveTrue()) {
             if (originalStaffId != null && staff.getId().equals(originalStaffId)) continue;
@@ -634,6 +692,13 @@ public class ConflictDetectionService {
             if (onCompDayStaffIds.contains(staff.getId())) continue;
             // Adjacent restriction only applies to L01
             if (SHIFT_TYPE_L01.equals(shiftTypeId) && hasAdjacentL01.contains(staff.getId())) continue;
+
+            // Check max shifts limit for L01 (24/24 duty shifts) — use pre-loaded counts
+            if (SHIFT_TYPE_L01.equals(shiftTypeId)) {
+                long currentCount = staffL01Counts.getOrDefault(staff.getId(), 0L);
+                int maxShifts = staff.getMaxShiftsPerMonth() != null ? staff.getMaxShiftsPerMonth() : 5;
+                if (currentCount >= maxShifts) continue;
+            }
 
             // Same-day shift-type conflict: L01↔L02 or L03↔L04
             List<Schedule> daySchedules = schedulesByStaff.get(staff.getId());

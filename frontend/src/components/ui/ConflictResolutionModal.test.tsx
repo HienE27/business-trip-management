@@ -40,6 +40,7 @@ const fakeConflict: ConflictDetail | ConflictItem = {
 
 const fakeStaff: Staff = {
   id: 2,
+  staffCode: "NV002",
   username: "tranthib",
   fullName: "BS. Trần Thị B",
   email: "b@hospital.vn",
@@ -55,7 +56,7 @@ const fakeStaff: Staff = {
 const fakeSchedule: Schedule = {
   id: 42,
   periodId: 1,
-  staff: { id: 1, fullName: "BS. Nguyễn Văn A", specialtyName: null },
+  staff: { id: 1, staffCode: "NV001", fullName: "BS. Nguyễn Văn A", specialtyName: null },
   shiftType: { id: "L01", name: "Trực 24/24", isOvernight: true },
   workDate: "2026-06-15T00:00:00",
   notes: null,
@@ -202,7 +203,7 @@ describe("ConflictResolutionModal", () => {
     // Wait briefly for the updateSchedule call and refresh to fire
     // (the api-client implementation awaits a real microtask chain).
     await new Promise((r) => setTimeout(r, 50));
-    // eslint-disable-next-line no-console
+     
     console.log("DEBUG mock calls:", {
       get: mockedApi.get.mock.calls.length,
       updateSchedule: mockedApi.updateSchedule.mock.calls.length,

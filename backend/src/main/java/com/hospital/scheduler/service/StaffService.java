@@ -52,6 +52,16 @@ public class StaffService {
     private final StaffImportParser staffImportParser;
     private final NotificationService notificationService;
 
+    /**
+     * Generate unique staff code in format NV001, NV002, etc.
+     * Uses database-level MAX query for efficiency.
+     */
+    private String generateStaffCode() {
+        String prefix = "NV";
+        int maxNum = staffRepository.findMaxStaffCodeNumber(prefix, prefix.length());
+        return prefix + String.format("%03d", maxNum + 1);
+    }
+
     /** Generate a random temporary password for bulk-imported staff. */
     private String generateTempPassword() {
         StringBuilder sb = new StringBuilder(TEMP_PASSWORD_LENGTH);
@@ -62,7 +72,7 @@ public class StaffService {
     }
 
     public List<StaffResponse> getAllStaff() {
-        return staffRepository.findAll().stream()
+        return staffRepository.findAllWithRoles().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -118,6 +128,7 @@ public class StaffService {
         };
 
         Staff staff = Staff.builder()
+                .staffCode(generateStaffCode())
                 .username(request.getUsername())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
@@ -221,14 +232,16 @@ public class StaffService {
                 targetRoles.add(role);
             }
 
-            // Identify roles to remove
+            // Identify roles to remove — OPTIMIZATION: use Set lookup instead of nested stream O(N²)
+            Set<Integer> targetIds = targetRoles.stream().map(AppRole::getId).collect(Collectors.toSet());
             List<StaffRole> toRemove = staff.getStaffRoles().stream()
-                    .filter(sr -> targetRoles.stream().noneMatch(tr -> tr.getId().equals(sr.getRoleId())))
+                    .filter(sr -> !targetIds.contains(sr.getRoleId()))
                     .collect(Collectors.toList());
 
-            // Identify role IDs to add
+            // Identify role IDs to add — OPTIMIZATION: use Set lookup
+            Set<Integer> existingIds = staff.getStaffRoles().stream().map(StaffRole::getRoleId).collect(Collectors.toSet());
             List<AppRole> toAdd = targetRoles.stream()
-                    .filter(tr -> staff.getStaffRoles().stream().noneMatch(sr -> sr.getRoleId().equals(tr.getId())))
+                    .filter(tr -> !existingIds.contains(tr.getId()))
                     .collect(Collectors.toList());
 
             // Apply removals
@@ -299,6 +312,7 @@ public class StaffService {
 
         return StaffResponse.builder()
                 .id(staff.getId())
+                .staffCode(staff.getStaffCode())
                 .username(staff.getUsername())
                 .fullName(staff.getFullName())
                 .phone(staff.getPhone())
@@ -573,12 +587,15 @@ public class StaffService {
         for (Staff us : toSaveUpdate) {
             List<AppRole> targetRoles = staffTargetRolesMap.get(us);
             if (targetRoles != null) {
+                // OPTIMIZATION: use Set lookup instead of nested stream O(N²)
+                Set<Integer> targetIds = targetRoles.stream().map(AppRole::getId).collect(Collectors.toSet());
                 List<StaffRole> toRemove = us.getStaffRoles().stream()
-                        .filter(sr -> targetRoles.stream().noneMatch(tr -> tr.getId().equals(sr.getRoleId())))
+                        .filter(sr -> !targetIds.contains(sr.getRoleId()))
                         .collect(Collectors.toList());
 
+                Set<Integer> existingIds = us.getStaffRoles().stream().map(StaffRole::getRoleId).collect(Collectors.toSet());
                 List<AppRole> toAdd = targetRoles.stream()
-                        .filter(tr -> us.getStaffRoles().stream().noneMatch(sr -> sr.getRoleId().equals(tr.getId())))
+                        .filter(tr -> !existingIds.contains(tr.getId()))
                         .collect(Collectors.toList());
 
                 us.getStaffRoles().removeAll(toRemove);

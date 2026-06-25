@@ -90,7 +90,7 @@ class DashboardServiceTest {
 
         assertThat(result.getSummary().getTotalStaff()).isEqualTo(10);
         assertThat(result.getSummary().getActiveStaff()).isEqualTo(1);
-        assertThat(result.getSummary().getTotalSchedules()).isEqualTo(20);
+        assertThat(result.getSummary().getTotalSchedules()).isEqualTo(1);
         assertThat(result.getShiftStatistics().getL01Count()).isEqualTo(1);
     }
 

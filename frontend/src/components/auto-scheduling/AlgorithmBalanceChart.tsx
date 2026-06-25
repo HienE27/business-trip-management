@@ -22,7 +22,7 @@ import type { AutoScheduleSummary } from '@/types/api';
 
 export interface AlgorithmBalanceChartProps {
   schedules: AutoScheduleSummary[];
-  /** Staff caps keyed by staffId. Falls back to 6 if absent. */
+  /** Staff caps keyed by staffId. Falls back to 5 (Staff default maxShiftsPerMonth) if absent. */
   staffCaps?: Record<number, number>;
   /** Caption used in the heading. */
   title?: string;
@@ -76,7 +76,7 @@ export function AlgorithmBalanceChart({
           staffId: s.staffId,
           staffName: s.staffName,
           L01: 0, L02: 0, L03: 0, L04: 0, total: 0,
-          cap: staffCaps[s.staffId] ?? 6,
+          cap: staffCaps[s.staffId] ?? 5,
           ratio: 0,
           status: 'balanced',
         });

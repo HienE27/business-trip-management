@@ -40,11 +40,14 @@ class ScheduleServiceBulkL01Test {
     @Mock private ShiftTypeRepository shiftTypeRepository;
     @Mock private ShiftRequirementRepository requirementRepository;
     @Mock private CompensationDayRepository compensationDayRepository;
+    @Mock private ScheduleConflictRepository scheduleConflictRepository;
+    @Mock private HolidayRepository holidayRepository;
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private AuthContextService authContextService;
     @Mock private CompensationDateCalculator compensationDateCalculator;
     @Mock private NotificationService notificationService;
+    @Mock private ConflictBroadcastService conflictBroadcastService;
 
     @InjectMocks
     private ScheduleService scheduleService;
@@ -75,6 +78,10 @@ class ScheduleServiceBulkL01Test {
                 .startTime(java.time.LocalTime.of(7, 30))
                 .endTime(java.time.LocalTime.of(7, 30))
                 .build();
+
+        // Default stubbing for HolidayRepository and ScheduleConflictRepository
+        when(holidayRepository.existsByHolidayDate(any(LocalDate.class))).thenReturn(false);
+        when(scheduleConflictRepository.findUnresolvedByScheduleIdsIn(anyList())).thenReturn(List.of());
     }
 
     @Nested
@@ -98,7 +105,7 @@ class ScheduleServiceBulkL01Test {
 
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(l01ShiftType));
-            when(staffRepository.findById(1)).thenReturn(Optional.of(testStaff));
+            when(staffRepository.findAllById(anyList())).thenReturn(List.of(testStaff));
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any()))
                     .thenReturn(Optional.empty());
             doNothing().when(conflictDetectionService).validateAndThrow(anyInt(), any(), anyString(), any(), anyInt());
@@ -173,7 +180,7 @@ class ScheduleServiceBulkL01Test {
 
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(l01ShiftType));
-            when(staffRepository.findById(999)).thenReturn(Optional.empty());
+            when(staffRepository.findAllById(anyList())).thenReturn(List.of());
 
             BulkL01Response result = scheduleService.createBulkL01(request);
 
@@ -200,7 +207,7 @@ class ScheduleServiceBulkL01Test {
 
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(l01ShiftType));
-            when(staffRepository.findById(2)).thenReturn(Optional.of(inactiveStaff));
+            when(staffRepository.findAllById(anyList())).thenReturn(List.of(testStaff, inactiveStaff));
 
             BulkL01Response result = scheduleService.createBulkL01(request);
 
@@ -220,7 +227,7 @@ class ScheduleServiceBulkL01Test {
 
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(l01ShiftType));
-            when(staffRepository.findById(1)).thenReturn(Optional.of(testStaff));
+            when(staffRepository.findAllById(anyList())).thenReturn(List.of(testStaff));
 
             BulkL01Response result = scheduleService.createBulkL01(request);
 
@@ -240,7 +247,7 @@ class ScheduleServiceBulkL01Test {
 
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(l01ShiftType));
-            when(staffRepository.findById(1)).thenReturn(Optional.of(testStaff));
+            when(staffRepository.findAllById(anyList())).thenReturn(List.of(testStaff));
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any()))
                     .thenReturn(Optional.empty());
             doThrow(new ConflictException("Ngày này là ngày nghỉ bù"))
@@ -270,8 +277,7 @@ class ScheduleServiceBulkL01Test {
 
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(l01ShiftType));
-            when(staffRepository.findById(1)).thenReturn(Optional.of(testStaff));
-            when(staffRepository.findById(999)).thenReturn(Optional.empty());
+            when(staffRepository.findAllById(anyList())).thenReturn(List.of(testStaff));
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any()))
                     .thenReturn(Optional.empty());
             doNothing().when(conflictDetectionService).validateAndThrow(anyInt(), any(), anyString(), any(), anyInt());

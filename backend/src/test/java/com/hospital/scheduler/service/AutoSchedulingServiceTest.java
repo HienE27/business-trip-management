@@ -45,6 +45,7 @@ class AutoSchedulingServiceTest {
     @Mock private AlgorithmConfigService algorithmConfigService;
     @Mock private HolidayRepository holidayRepository;
     @Mock private ShiftTypeRepository shiftTypeRepository;
+    @Mock private SpecialtyRepository specialtyRepository;
 
     @InjectMocks
     private AutoSchedulingService autoSchedulingService;

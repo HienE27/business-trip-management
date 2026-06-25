@@ -25,6 +25,9 @@ public class Staff {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @Column(name = "staff_code", unique = true, length = 20)
+    private String staffCode;
+
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 

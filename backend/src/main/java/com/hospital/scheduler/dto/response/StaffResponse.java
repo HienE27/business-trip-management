@@ -11,6 +11,7 @@ import java.util.List;
 @Builder
 public class StaffResponse {
     private Integer id;
+    private String staffCode;
     private String username;
     private String fullName;
     private String phone;

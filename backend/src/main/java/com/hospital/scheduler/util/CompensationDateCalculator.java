@@ -116,6 +116,7 @@ public class CompensationDateCalculator {
      * Advance by exactly one step from the given date.
      * Returns the same date unchanged if it is already valid
      * (used as a sentinel so the outer loop can detect stability).
+     * Throws IllegalStateException if no valid day is found within 60 iterations.
      */
     private LocalDate advanceOneStep(LocalDate date, Set<LocalDate> holidays, boolean isFriOrSatDuty) {
         if (!isInvalidDay(date, holidays, isFriOrSatDuty)) return date;
@@ -125,7 +126,10 @@ public class CompensationDateCalculator {
             if (!isInvalidDay(cursor, holidays, isFriOrSatDuty)) return cursor;
             cursor = cursor.plusDays(1);
         }
-        return date; // safety: return unchanged if no valid day found in 60 days
+        // Safety: throw exception instead of looping forever or returning unchanged date
+        throw new IllegalStateException(
+            "CompensationDateCalculator: No valid compensation day found within 60 days of " + date +
+            ". Check holiday configuration and weekday rules.");
     }
 
     /**

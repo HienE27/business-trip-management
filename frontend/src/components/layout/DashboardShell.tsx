@@ -47,7 +47,7 @@ export function DashboardShell({
           id="main-content"
           tabIndex={-1}
         >
-          <div className="max-w-[1440px] mx-auto flex flex-col gap-3 md:gap-4">
+          <div className="flex flex-col gap-3 md:gap-4">
             {children}
           </div>
         </main>

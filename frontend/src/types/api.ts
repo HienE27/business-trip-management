@@ -35,6 +35,7 @@ export interface StaffSpecialty {
 
 export interface Staff {
   id: number;
+  staffCode: string;
   username: string;
   fullName: string;
   phone?: string;
@@ -84,6 +85,7 @@ export interface Schedule {
   staff: {
     id: number;
     username?: string;
+    staffCode?: string;
     fullName: string;
     specialtyName?: string | null;
     roles?: string[];

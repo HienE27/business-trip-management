@@ -11,9 +11,14 @@ import java.util.List;
 
 @Repository
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Integer> {
-    List<LeaveRequest> findByStaffId(Integer staffId);
-    List<LeaveRequest> findByStatus(LeaveRequest.LeaveStatus status);
-    List<LeaveRequest> findByReviewedBy(Integer reviewedById);
+    @Query("SELECT lr FROM LeaveRequest lr LEFT JOIN FETCH lr.staff WHERE lr.staff.id = :staffId")
+    List<LeaveRequest> findByStaffId(@Param("staffId") Integer staffId);
+
+    @Query("SELECT lr FROM LeaveRequest lr LEFT JOIN FETCH lr.staff WHERE lr.status = :status")
+    List<LeaveRequest> findByStatus(@Param("status") LeaveRequest.LeaveStatus status);
+
+    @Query("SELECT lr FROM LeaveRequest lr LEFT JOIN FETCH lr.reviewedBy WHERE lr.reviewedBy.id = :reviewedById")
+    List<LeaveRequest> findByReviewedBy(@Param("reviewedById") Integer reviewedById);
 
     @Query("SELECT lr FROM LeaveRequest lr WHERE lr.staff.id = :staffId AND " +
            "(lr.startDate <= :endDate AND lr.endDate >= :startDate)")

@@ -172,6 +172,11 @@ public class ReportExportService {
                             Collectors.groupingBy(s -> s.getShiftType().getId(), Collectors.counting())
                     ));
 
+            // OPTIMIZATION: pre-compute conflict counts per staff in ONE pass (instead of O(N²) stream per row)
+            Map<Integer, Long> conflictCountMap = schedules.stream()
+                    .filter(s -> Boolean.TRUE.equals(s.getHasConflict()))
+                    .collect(Collectors.groupingBy(s -> s.getStaff().getId(), Collectors.counting()));
+
             Map<Integer, Staff> staffMap = schedules.stream()
                     .collect(Collectors.toMap(s -> s.getStaff().getId(), Schedule::getStaff, (a, b) -> a));
 
@@ -190,9 +195,7 @@ public class ReportExportService {
                 createCell(row, 5, stats.getOrDefault(ConflictDetectionService.SHIFT_TYPE_L02, 0L).intValue(), dataStyle);
                 createCell(row, 6, stats.getOrDefault(ConflictDetectionService.SHIFT_TYPE_L03, 0L).intValue(), dataStyle);
                 createCell(row, 7, stats.getOrDefault(ConflictDetectionService.SHIFT_TYPE_L04, 0L).intValue(), dataStyle);
-                long conflictCount = schedules.stream()
-                        .filter(s -> s.getStaff().getId().equals(entry.getKey()) && s.getHasConflict())
-                        .count();
+                long conflictCount = conflictCountMap.getOrDefault(entry.getKey(), 0L);
                 createCell(row, 8, (int) conflictCount, dataStyle);
             }
 

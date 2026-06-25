@@ -1,4 +1,4 @@
-/* eslint-disable @next/next/no-page-custom-font */
+ 
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { AuthGuard } from "@/components/auth/AuthGuard";
@@ -45,11 +45,11 @@ export default function RootLayout({
   return (
     <html lang="vi" className={`${inter.variable} h-full antialiased`} data-scroll-behavior="smooth">
       <head>
-        {/* eslint-disable-next-line @next/next/google-font-display */}
+        { }
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        {/* eslint-disable-next-line @next/next/google-font-display */}
+        { }
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* eslint-disable-next-line @next/next/google-font-display */}
+        { }
         <link
           href={materialSymbolsStylesheet}
           rel="stylesheet"

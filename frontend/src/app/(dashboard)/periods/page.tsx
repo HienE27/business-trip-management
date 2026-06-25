@@ -166,10 +166,24 @@ export default function PeriodsPage() {
     setConfirmOpen(true);
   };
 
+  const handleDelete = async (id: number) => {
+    setError(null);
+    setMessage(null);
+    try {
+      await api.deletePeriod(id);
+      setMessage("Xóa kỳ lịch thành công.");
+      void loadPeriods();
+    } catch (err) {
+      setError(getErrorMessage(err, "Xóa thất bại."));
+    }
+  };
+
   const handleConfirm = async () => {
     if (deleteTargetId == null) return;
     if (deleteAction === "archive") {
       await handleArchive(deleteTargetId);
+    } else if (deleteAction === "delete") {
+      await handleDelete(deleteTargetId);
     }
     setConfirmOpen(false);
     setDeleteTargetId(null);
@@ -349,6 +363,13 @@ export default function PeriodsPage() {
                                   disabled={archivingId === p.id}
                                 >
                                   <span className="material-symbols-outlined text-[20px]">archive</span>
+                                </button>
+                                <button
+                                  className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container transition-colors text-error"
+                                  title="Xóa"
+                                  onClick={() => confirmDeleteOrArchive(p.id, "delete")}
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">delete</span>
                                 </button>
                               </>
                             )}

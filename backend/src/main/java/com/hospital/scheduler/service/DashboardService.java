@@ -28,10 +28,15 @@ public class DashboardService {
     private final ScheduleExchangeRepository exchangeRepository;
 
     public DashboardResponse getDashboardSummary(Integer periodId) {
+        // Get schedules filtered by period (or all if no period specified)
+        List<Schedule> periodSchedules = (periodId != null)
+                ? scheduleRepository.findByPeriodId(periodId)
+                : scheduleRepository.findAll();
+
         DashboardResponse.DashboardSummary summary = DashboardResponse.DashboardSummary.builder()
                 .totalStaff(staffRepository.count())
                 .activeStaff(staffRepository.findByIsActiveTrue().size())
-                .totalSchedules(scheduleRepository.count())
+                .totalSchedules((long) periodSchedules.size())
                 .totalPeriods(periodRepository.count())
                 .pendingLeaveRequests((long) leaveRequestRepository.findPendingRequests().size())
                 .pendingScheduleExchanges((long) exchangeRepository.findByStatus(ScheduleExchange.ExchangeStatus.PENDING).size())
@@ -251,9 +256,16 @@ public class DashboardService {
 
         Map<Integer, Long> perStaffMap = filtered.stream()
                 .collect(Collectors.groupingBy(s -> s.getStaff().getId(), Collectors.counting()));
+
+        // OPTIMIZATION: batch load all staff names in ONE query instead of N individual findById
+        List<Integer> staffIds = new java.util.ArrayList<>(perStaffMap.keySet());
+        Map<Integer, Staff> staffMap = staffIds.isEmpty() ? java.util.Collections.emptyMap()
+                : staffRepository.findAllById(staffIds).stream()
+                        .collect(Collectors.toMap(Staff::getId, s -> s));
+
         List<StaffDailyCount> perStaff = perStaffMap.entrySet().stream()
                 .map(e -> {
-                    Staff staff = staffRepository.findById(e.getKey()).orElse(null);
+                    Staff staff = staffMap.get(e.getKey());
                     return StaffDailyCount.builder()
                             .staffId(e.getKey())
                             .staffFullName(staff != null ? staff.getFullName() : null)

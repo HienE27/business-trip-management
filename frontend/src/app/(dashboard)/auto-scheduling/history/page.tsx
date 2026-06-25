@@ -184,12 +184,25 @@ function AlgorithmHistoryContent() {
   const canCompare = compareA != null && compareB != null;
 
   return (
-    <>
+    <div className="space-y-5">
       {message && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error mb-4">
-          {message}
+        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+          <div className="flex items-start gap-2">
+            <span className="material-symbols-outlined text-[18px] shrink-0">error</span>
+            {message}
+          </div>
         </div>
       )}
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-display-lg font-bold text-on-surface">Lịch sử thuật toán</h1>
+          <p className="mt-1 text-body-md text-on-surface-variant">
+            Xem và so sánh các lần chạy auto-scheduling trước đó.
+          </p>
+        </div>
+      </div>
+
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
         <div className="flex items-center gap-3 flex-wrap">
@@ -304,6 +317,6 @@ function AlgorithmHistoryContent() {
           onClose={() => { setOpenCompare(false); setCompareA(null); setCompareB(null); }}
         />
       )}
-    </>
+    </div>
   );
 }

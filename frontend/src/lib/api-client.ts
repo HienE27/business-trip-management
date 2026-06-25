@@ -338,6 +338,10 @@ class ApiClient {
     return this.request<SchedulePeriod>(`/periods/${id}/archive`, { method: "POST" });
   }
 
+  async deletePeriod(id: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/periods/${id}`, { method: "DELETE" });
+  }
+
   // Dashboard
   async getDashboard(): Promise<ApiResponse<DashboardData>> {
     return this.request<DashboardData>("/dashboard");
@@ -661,6 +665,12 @@ class ApiClient {
   async deleteAlgorithmConfig(paramKey: string): Promise<ApiResponse<void>> {
     return this.request<void>(`/auto-schedule/config/${encodeURIComponent(paramKey)}`, {
       method: "DELETE",
+    });
+  }
+
+  async syncAlgorithmConfigDescriptions(): Promise<ApiResponse<Record<string, string>>> {
+    return this.request<Record<string, string>>("/auto-schedule/config/sync-descriptions", {
+      method: "POST",
     });
   }
 

@@ -26,24 +26,28 @@ public class HolidayService {
     private final NotificationService notificationService;
     private final AuthContextService authContextService;
 
+    @Transactional(readOnly = true)
     public List<HolidayResponse> getAllHolidays() {
         return holidayRepository.findAll().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<HolidayResponse> getActiveHolidays() {
         return holidayRepository.findByIsActiveTrue().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<HolidayResponse> getHolidaysByYear(Integer year) {
         return holidayRepository.findByYear(year).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public HolidayResponse getHolidayById(Integer id) {
         Holiday holiday = holidayRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ngày lễ với ID: " + id));

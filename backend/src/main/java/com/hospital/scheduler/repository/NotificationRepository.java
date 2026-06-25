@@ -12,12 +12,12 @@ import java.util.List;
 
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Integer> {
-    @Query("SELECT n FROM Notification n WHERE n.staff.id = :staffId ORDER BY n.createdAt DESC")
+    @Query("SELECT n FROM Notification n LEFT JOIN FETCH n.staff WHERE n.staff.id = :staffId ORDER BY n.createdAt DESC")
     List<Notification> findByStaffIdOrderByCreatedAtDesc(@Param("staffId") Integer staffId);
 
     Page<Notification> findByStaffId(Integer staffId, Pageable pageable);
 
-    @Query("SELECT n FROM Notification n WHERE n.staff.id = :staffId AND n.isRead = false ORDER BY n.createdAt DESC")
+    @Query("SELECT n FROM Notification n LEFT JOIN FETCH n.staff WHERE n.staff.id = :staffId AND n.isRead = false ORDER BY n.createdAt DESC")
     List<Notification> findUnreadByStaffId(@Param("staffId") Integer staffId);
 
     @org.springframework.data.jpa.repository.Modifying

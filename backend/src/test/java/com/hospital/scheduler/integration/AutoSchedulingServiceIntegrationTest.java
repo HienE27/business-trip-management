@@ -51,6 +51,7 @@ class AutoSchedulingServiceIntegrationTest {
     @Mock private AlgorithmConfigService algorithmConfigService;
     @Mock private HolidayRepository holidayRepository;
     @Mock private ShiftTypeRepository shiftTypeRepository;
+    @Mock private SpecialtyRepository specialtyRepository;
 
     private AutoSchedulingService autoSchedulingService;
 
@@ -63,7 +64,7 @@ class AutoSchedulingServiceIntegrationTest {
                 scheduleRepository, periodRepository, staffRepository, requirementRepository,
                 compensationDayRepository, leaveRequestRepository, algorithmMetricsRepository,
                 conflictDetectionService, auditHistoryService, compensationDateCalculator, notificationService,
-                algorithmConfigService, holidayRepository, shiftTypeRepository
+                algorithmConfigService, holidayRepository, shiftTypeRepository, specialtyRepository
         );
 
         testPeriod = SchedulePeriod.builder()

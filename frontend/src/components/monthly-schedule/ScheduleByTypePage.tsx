@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WorkflowStepper } from "@/components/monthly-schedule/WorkflowStepper";
 import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleCalendarSection";
@@ -76,9 +77,13 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const isManager = canManage(role);
   const isExpertMode = config.expertClinicMode === true;
   const { success: toastSuccess, error: toastError } = useToast();
+  const searchParams = useSearchParams();
+  const urlPeriodId = searchParams.get("periodId");
 
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(
+    urlPeriodId ? Number(urlPeriodId) : null
+  );
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [compensationDays, setCompensationDays] = useState<CompensationDay[]>([]);
   const [activeStaff, setActiveStaff] = useState<Staff[]>([]);
@@ -109,7 +114,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const [bulkSelectedDates, setBulkSelectedDates] = useState<string[]>([]);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
-  const loadBaseData = useCallback(async () => {
+  const loadBaseData = useCallback(async (options?: { keepCurrentPeriod?: boolean }) => {
     try {
       setLoading(true);
       const requests: [Promise<SchedulePeriod[]>, Promise<Staff[]>, Promise<Specialty[]> | null] = [
@@ -122,18 +127,21 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       setPeriods(pList);
       setActiveStaff(staffData ?? []);
       setSpecialties(specialtyData ?? []);
-      const draft = pList.find((p) => p.status === "DRAFT") ?? pList[0] ?? null;
-      setSelectedPeriodId(draft?.id ?? null);
+
+      // Only auto-select period on first load if no period is selected yet
+      if (!options?.keepCurrentPeriod) {
+        const current = selectedPeriodId;
+        if (!current || !pList.find((p) => p.id === current)) {
+          const draft = pList.find((p) => p.status === "DRAFT") ?? pList[0] ?? null;
+          setSelectedPeriodId(draft?.id ?? null);
+        }
+      }
     } catch {
       setMessage("Không thể tải dữ liệu. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
-  }, [isExpertMode]);
-
-  useEffect(() => {
-    void loadBaseData();
-  }, [loadBaseData]);
+  }, [isExpertMode, selectedPeriodId]);
 
   /**
    * Optimistic insert helpers. We add the temp schedule straight
@@ -222,16 +230,44 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     }
   }, [selectedPeriodId, activeStaff, periods, toastSuccess, toastError]);
 
+  // Reload schedules only (used after publish, bulk operations)
+  const reloadSchedules = useCallback(async () => {
+    if (!selectedPeriodId) return;
+    try {
+      setLoading(true);
+      if (isExpertMode) {
+        const data = await api.get<Schedule[]>("/schedules/expert-clinic", {
+          periodId: selectedPeriodId,
+          ...(selectedSpecialtyId ? { specialtyId: selectedSpecialtyId } : {}),
+        });
+        setSchedules(data ?? []);
+      } else {
+        const [scheduleData, compData] = await Promise.all([
+          api.get<Schedule[]>(`/schedules/period/${selectedPeriodId}`),
+          api.get<CompensationDay[]>(`/schedules/compensation-days/${selectedPeriodId}`),
+        ]);
+        setSchedules(
+          (scheduleData ?? []).filter((s) => s.shiftType.id === config.shiftTypeId)
+        );
+        setCompensationDays(compData ?? []);
+      }
+    } catch {
+      setMessage(config.fetchErrorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedPeriodId, selectedSpecialtyId, isExpertMode, config.shiftTypeId, config.fetchErrorMessage]);
+
   const handlePublish = useCallback(async () => {
     if (!selectedPeriodId) return;
     setPublishing(true);
     setMessage(null);
     try {
-      const published = await api.publishPeriod(selectedPeriodId);
-      setSelectedPeriodId(selectedPeriodId); // trigger re-fetch to get updated status
+      await api.publishPeriod(selectedPeriodId);
       setMessage("Kỳ lịch đã được công bố thành công.");
-      toastSuccess("Kỳ lịch đã được công bố thành công!");
-      void loadBaseData();
+      toastSuccess("Kỳ lịch đã được công bố thành công");
+      // Reload schedules to reflect new status
+      await reloadSchedules();
     } catch (err) {
       const msg = getErrorMessage(err, "Không thể công bố kỳ lịch.");
       setMessage(msg);
@@ -239,7 +275,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     } finally {
       setPublishing(false);
     }
-  }, [selectedPeriodId, loadBaseData, toastSuccess, toastError]);
+  }, [selectedPeriodId, reloadSchedules, toastSuccess, toastError]);
 
   const handleWorkflowStep = useCallback((stepId: WorkflowStepId) => {
     if (stepId === "conflicts") {
@@ -270,10 +306,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   }, []);
 
   const handleBulkSuccess = useCallback(() => {
-    void loadBaseData();
-    // Auto re-check conflicts after bulk submit
+    void reloadSchedules();
     void handleDryRunPublish();
-  }, [loadBaseData, handleDryRunPublish]);
+  }, [reloadSchedules, handleDryRunPublish]);
 
   const selectedPeriod = useMemo(
     () => periods.find((p) => p.id === selectedPeriodId) ?? null,
@@ -291,45 +326,105 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     [schedules]
   );
 
-  const handleRefresh = useCallback(() => {
-    if (!selectedPeriodId) return;
+  // Effect 1: Load base data ONCE when component mounts (periods, staff, specialties)
+  const [baseDataLoaded, setBaseDataLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBase = async () => {
+      try {
+        const [periodData, staffData, specialtyData] = await Promise.all([
+          api.get<SchedulePeriod[]>("/periods"),
+          api.get<Staff[]>("/staff/active"),
+          isExpertMode ? api.get<Specialty[]>("/specialties/active") : Promise.resolve(null),
+        ]);
+
+        if (cancelled) return;
+
+        setPeriods(periodData ?? []);
+        setActiveStaff(staffData ?? []);
+        setSpecialties(specialtyData ?? []);
+
+        // Auto-select DRAFT period if nothing selected
+        const pList = periodData ?? [];
+        if (!selectedPeriodId || !pList.find((p) => p.id === selectedPeriodId)) {
+          const draft = pList.find((p) => p.status === "DRAFT") ?? pList[0] ?? null;
+          if (draft?.id) setSelectedPeriodId(draft.id);
+        }
+
+        // Always mark base data as loaded, even if no period was auto-selected
+        setBaseDataLoaded(true);
+      } catch {
+        // Silent fail for base data
+      }
+    };
+
+    void loadBase();
+    return () => { cancelled = true; };
+  }, []); // Run once only
+
+  // Effect 1b: Set loading=false when no period is selected (after base data loads)
+  useEffect(() => {
+    if (baseDataLoaded && !selectedPeriodId) {
+      setLoading(false);
+    }
+  }, [baseDataLoaded, selectedPeriodId]);
+
+  // Effect 2: Load schedules when period changes (FAST - no base data)
+  useEffect(() => {
+    if (!selectedPeriodId || !baseDataLoaded) return;
+
+    let cancelled = false;
     setLoading(true);
     setMessage(null);
 
-    if (isExpertMode) {
-      api.get<Schedule[]>("/schedules/expert-clinic", {
-        periodId: selectedPeriodId,
-        ...(selectedSpecialtyId ? { specialtyId: selectedSpecialtyId } : {}),
-      })
-        .then((data) => setSchedules(data ?? []))
-        .catch(() => setMessage(config.fetchErrorMessage))
-        .finally(() => setLoading(false));
-      return;
-    }
+    const loadSchedules = async () => {
+      try {
+        if (isExpertMode) {
+          const data = await api.get<Schedule[]>("/schedules/expert-clinic", {
+            periodId: selectedPeriodId,
+            ...(selectedSpecialtyId ? { specialtyId: selectedSpecialtyId } : {}),
+          });
+          if (!cancelled) setSchedules(data ?? []);
+        } else {
+          const [scheduleData, compData] = await Promise.all([
+            api.get<Schedule[]>(`/schedules/period/${selectedPeriodId}`),
+            api.get<CompensationDay[]>(`/schedules/compensation-days/${selectedPeriodId}`),
+          ]);
+          if (!cancelled) {
+            setSchedules(
+              (scheduleData ?? []).filter((s) => s.shiftType.id === config.shiftTypeId)
+            );
+            setCompensationDays(compData ?? []);
+          }
+        }
+      } catch {
+        if (!cancelled) setMessage(config.fetchErrorMessage);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
 
-    Promise.all([
-      api.get<Schedule[]>(`/schedules/period/${selectedPeriodId}`),
-      api.get<CompensationDay[]>(`/schedules/compensation-days/${selectedPeriodId}`),
-    ])
-      .then(([scheduleData, compData]) => {
-        setSchedules(
-          (scheduleData ?? []).filter((s) => s.shiftType.id === config.shiftTypeId)
-        );
-        setCompensationDays(compData ?? []);
-      })
-      .catch(() => setMessage(config.fetchErrorMessage))
-      .finally(() => setLoading(false));
-  }, [
-    selectedPeriodId,
-    selectedSpecialtyId,
-    isExpertMode,
-    config.shiftTypeId,
-    config.fetchErrorMessage,
-  ]);
+    void loadSchedules();
+    return () => { cancelled = true; };
+  }, [selectedPeriodId, selectedSpecialtyId, isExpertMode, config.shiftTypeId, config.fetchErrorMessage, baseDataLoaded]);
 
+  // Sync selectedPeriodId when URL changes
   useEffect(() => {
-    handleRefresh();
-  }, [handleRefresh]);
+    if (urlPeriodId) {
+      const newId = Number(urlPeriodId);
+      if (newId !== selectedPeriodId) {
+        setSelectedPeriodId(newId);
+      }
+    }
+  }, [urlPeriodId]); // Intentionally NOT including selectedPeriodId to avoid infinite loop
+
+  const handleRefresh = useCallback(() => {
+    // Force re-render by temporarily clearing and restoring periodId
+    const currentId = selectedPeriodId;
+    setSelectedPeriodId(null);
+    setTimeout(() => setSelectedPeriodId(currentId), 50);
+  }, [selectedPeriodId]);
 
   // Reset workflow state when period changes
   useEffect(() => {

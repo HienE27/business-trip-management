@@ -31,32 +31,54 @@ const REPORT_CARDS = [
 
 export default function ReportsPage() {
   return (
-    <div className="space-y-4">
-      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3 shadow-sm">
-        <p className="text-label-sm font-medium text-on-surface-variant">Trung tâm báo cáo</p>
-        <h2 className="mt-1 text-headline-md text-on-surface">Báo cáo vận hành</h2>
-        <p className="mt-1 text-label-sm leading-5 text-on-surface-variant max-w-3xl">
-          Chọn loại báo cáo để xem chi tiết. Các báo cáo sử dụng dữ liệu thực từ backend.
-        </p>
+    <div className="space-y-6">
+      {/* Page Header */}
+      <section className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-label-sm text-on-surface-variant flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[16px]">dashboard</span>
+            Trung tâm báo cáo
+          </p>
+          <h1 className="mt-1 text-headline-lg font-semibold text-on-surface">Báo cáo vận hành</h1>
+          <p className="mt-1 text-body-sm text-on-surface-variant max-w-2xl">
+            Chọn loại báo cáo để xem chi tiết. Các báo cáo sử dụng dữ liệu thực từ backend.
+          </p>
+        </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Report Cards */}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {REPORT_CARDS.map((card) => (
           <article
             key={card.title}
-            className={`flex h-full flex-col rounded-xl border border-l-4 ${card.accent} bg-surface-container-lowest p-4 shadow-sm transition-colors hover:bg-surface-container-low`}
+            className={`group relative flex flex-col rounded-xl border border-l-4 ${card.accent} bg-surface-container-lowest p-5 shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md hover:-translate-y-0.5`}
           >
-            <span className="material-symbols-outlined w-fit rounded-lg bg-primary-fixed px-1.5 py-1.5 text-[18px] text-primary">
-              {card.icon}
-            </span>
-            <h3 className="mt-3 text-title-lg font-semibold text-on-surface leading-tight">{card.title}</h3>
-            <p className="mt-1 flex-1 text-label-sm leading-5 text-on-surface-variant">{card.description}</p>
+            {/* Icon */}
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-fixed text-primary shadow-sm transition-transform duration-200 group-hover:scale-105">
+              <span className="material-symbols-outlined text-[22px]">
+                {card.icon}
+              </span>
+            </div>
+
+            {/* Content */}
+            <div className="mt-4 flex flex-1 flex-col">
+              <h3 className="text-title-lg font-semibold text-on-surface leading-tight">
+                {card.title}
+              </h3>
+              <p className="mt-2 flex-1 text-label-sm leading-5 text-on-surface-variant">
+                {card.description}
+              </p>
+            </div>
+
+            {/* CTA Button */}
             <Link
               href={card.href}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-label-sm font-medium text-on-primary transition-colors hover:bg-primary/90"
+              className="mt-4 inline-flex w-fit items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md font-medium text-on-primary shadow-sm transition-all duration-200 hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             >
               {card.cta}
-              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+              <span className="material-symbols-outlined text-[16px] transition-transform duration-200 group-hover:translate-x-0.5">
+                arrow_forward
+              </span>
             </Link>
           </article>
         ))}

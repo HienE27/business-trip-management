@@ -58,7 +58,9 @@ public class ScheduleService {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
         if (schedules.isEmpty()) return List.of();
 
-        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByPeriodIdWithStaff(periodId)
+        // OPTIMIZATION: batch load all compensation days for the period in ONE query
+        List<Integer> scheduleIds = schedules.stream().map(Schedule::getId).collect(Collectors.toList());
+        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByScheduleIds(scheduleIds)
                 .stream()
                 .collect(Collectors.toMap(
                         cd -> cd.getSchedule().getId(),
@@ -84,13 +86,17 @@ public class ScheduleService {
     public List<ScheduleResponse> getExpertClinicSchedules(Integer periodId, Integer specialtyId) {
         List<Schedule> schedules = scheduleRepository.findExpertClinicByPeriodAndSpecialty(periodId, specialtyId);
         if (schedules.isEmpty()) return List.of();
-        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByPeriodIdWithStaff(periodId)
+
+        // OPTIMIZATION: batch load all compensation days in ONE query
+        List<Integer> scheduleIds = schedules.stream().map(Schedule::getId).collect(Collectors.toList());
+        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByScheduleIds(scheduleIds)
                 .stream()
                 .collect(Collectors.toMap(
                         cd -> cd.getSchedule().getId(),
                         CompensationDay::getCompensationDate,
                         (a, b) -> a
                 ));
+
         return schedules.stream()
                 .map(s -> toResponse(s, compDateMap.get(s.getId())))
                 .collect(Collectors.toList());
@@ -99,12 +105,15 @@ public class ScheduleService {
     public ScheduleResponse getScheduleById(Integer id) {
         Schedule schedule = scheduleRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + id));
-        LocalDate compDate = compensationDayRepository.findByScheduleId(id).stream()
-                .map(CompensationDay::getCompensationDate)
-                .filter(java.util.Objects::nonNull)
-                .min(Comparator.naturalOrder())
-                .orElse(null);
-        return toResponse(schedule, compDate);
+        // OPTIMIZATION: batch load all comp days for this schedule in ONE query
+        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByScheduleIds(List.of(id))
+                .stream()
+                .collect(Collectors.toMap(
+                        cd -> cd.getSchedule().getId(),
+                        CompensationDay::getCompensationDate,
+                        (a, b) -> a
+                ));
+        return toResponse(schedule, compDateMap.get(id));
     }
 
     public ScheduleResponse createSchedule(ScheduleRequest request) {
@@ -428,7 +437,17 @@ public class ScheduleService {
                 .note("Ngày nghỉ bù tự động từ ca L01")
                 .build();
 
-        CompensationDay saved = compensationDayRepository.save(compDay);
+        CompensationDay saved = null;
+        try {
+            saved = compensationDayRepository.save(compDay);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            // Database-level unique constraint (uk_compensation_staff_date) caught a duplicate.
+            // This can happen via race condition or pre-existing data.
+            org.slf4j.LoggerFactory.getLogger(ScheduleService.class)
+                    .warn("Compensation day already exists for staff {} on {} (DB constraint): {}",
+                            schedule.getStaff().getId(), compensationDate, e.getMessage());
+            return;
+        }
         if (saved != null && saved.getId() != null) {
             auditHistoryService.logAction("compensation_day", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, authContextService.getCurrentStaff().getId());
         }
@@ -455,6 +474,15 @@ public class ScheduleService {
         ShiftType l01ShiftType = shiftTypeRepository.findById(ConflictDetectionService.SHIFT_TYPE_L01)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca L01"));
 
+        // OPTIMIZATION: batch load all staff upfront to avoid N individual findById calls
+        List<Integer> staffIds = request.getEntries().stream()
+                .map(BulkL01Request.L01Entry::getStaffId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Integer, Staff> staffMap = staffIds.isEmpty() ? Collections.emptyMap()
+                : staffRepository.findAllById(staffIds).stream()
+                        .collect(Collectors.toMap(Staff::getId, s -> s));
+
         // Track in-loop assignments to catch sibling L01↔L02 conflicts
         Map<String, Set<String>> inLoopAssignments = new java.util.HashMap<>();
 
@@ -474,12 +502,20 @@ public class ScheduleService {
                 continue;
             }
 
-            // Validate staff exists and is ACTIVE
-            Staff staff;
-            try {
-                staff = staffRepository.findById(staffId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + staffId));
-            } catch (ResourceNotFoundException e) {
+            // Validate: do not schedule on holidays
+            if (holidayRepository.existsByHolidayDate(workDate)) {
+                errors.add("Ngày " + workDate + " là ngày nghỉ lễ");
+                results.add(BulkL01Response.BulkL01ScheduleResult.builder()
+                        .staffId(staffId)
+                        .workDate(workDate.toString())
+                        .error("Ngày nghỉ lễ, không thể xếp lịch")
+                        .build());
+                continue;
+            }
+
+            // Validate staff exists and is ACTIVE — OPTIMIZATION: use pre-loaded staff map
+            Staff staff = staffMap.get(staffId);
+            if (staff == null) {
                 errors.add("Nhân sự ID " + staffId + " không tồn tại");
                 results.add(BulkL01Response.BulkL01ScheduleResult.builder()
                         .staffId(staffId)
@@ -552,12 +588,22 @@ public class ScheduleService {
             // Auto-create compensation day
             createCompensationDay(saved);
 
+            // OPTIMIZATION: calculate compDate directly without extra DB query
+            LocalDate compDate = compensationDateCalculator.calculate(saved.getWorkDate());
+
             auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT,
                     null, saved, authContextService.getCurrentStaff().getId());
 
-            notificationService.createNotification(staffId,
-                    new NotificationDTO("Phân công lịch mới",
-                            "Bạn được phân công lịch L01 ngày " + workDate));
+            // Notify staff with compensation date if applicable
+            if (compDate != null) {
+                notificationService.createNotification(staffId,
+                        new NotificationDTO("Phân công lịch mới",
+                                "Bạn được phân công lịch L01 ngày " + workDate + ". Ngày nghỉ bù: " + compDate + "."));
+            } else {
+                notificationService.createNotification(staffId,
+                        new NotificationDTO("Phân công lịch mới",
+                                "Bạn được phân công lịch L01 ngày " + workDate + "."));
+            }
 
             results.add(BulkL01Response.BulkL01ScheduleResult.builder()
                     .scheduleId(saved.getId())
@@ -602,6 +648,15 @@ public class ScheduleService {
         ShiftType shiftType = shiftTypeRepository.findById(shiftTypeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + shiftTypeId));
 
+        // OPTIMIZATION: batch load all staff upfront to avoid N individual findById calls
+        List<Integer> bulkStaffIds = request.getEntries().stream()
+                .map(BulkScheduleRequest.BulkScheduleEntry::getStaffId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Integer, Staff> bulkStaffMap = bulkStaffIds.isEmpty() ? Collections.emptyMap()
+                : staffRepository.findAllById(bulkStaffIds).stream()
+                        .collect(Collectors.toMap(Staff::getId, s -> s));
+
         Map<String, Set<String>> inLoopAssignments = new HashMap<>();
 
         for (BulkScheduleRequest.BulkScheduleEntry entry : request.getEntries()) {
@@ -618,11 +673,9 @@ public class ScheduleService {
                 continue;
             }
 
-            Staff staff;
-            try {
-                staff = staffRepository.findById(staffId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + staffId));
-            } catch (ResourceNotFoundException e) {
+            // OPTIMIZATION: use pre-loaded staff map
+            Staff staff = bulkStaffMap.get(staffId);
+            if (staff == null) {
                 results.add(BulkScheduleResponse.BulkResultEntry.builder()
                         .workDate(workDate.toString())
                         .staffId(staffId)
@@ -709,16 +762,10 @@ public class ScheduleService {
                 createCompensationDay(saved);
             }
 
-            auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT,
-                    null, saved, authContextService.getCurrentStaff().getId());
-
+            // OPTIMIZATION: calculate compDate directly without extra DB query
             LocalDate compDate = null;
             if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
-                compDate = compensationDayRepository.findByScheduleId(saved.getId()).stream()
-                        .map(CompensationDay::getCompensationDate)
-                        .filter(java.util.Objects::nonNull)
-                        .min(Comparator.naturalOrder())
-                        .orElse(null);
+                compDate = compensationDateCalculator.calculate(saved.getWorkDate());
             }
 
             if (compDate != null) {
@@ -767,8 +814,9 @@ public class ScheduleService {
                 .filter(s -> !s.getWorkDate().isBefore(effectiveWeekStart) && !s.getWorkDate().isAfter(weekEnd))
                 .collect(java.util.stream.Collectors.toList());
 
-        // Build compensation day map
-        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByPeriodIdWithStaff(periodId)
+        // OPTIMIZATION: batch load all compensation days in ONE query
+        List<Integer> scheduleIds = allL04.stream().map(Schedule::getId).collect(Collectors.toList());
+        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByScheduleIds(scheduleIds)
                 .stream()
                 .collect(java.util.stream.Collectors.toMap(
                         cd -> cd.getSchedule().getId(),

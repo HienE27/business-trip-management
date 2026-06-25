@@ -20,6 +20,7 @@ type StaffStatus = "active" | "on_leave" | "inactive";
 
 type StaffResponse = {
   id: number;
+  staffCode: string;
   username: string;
   fullName: string;
   phone: string;
@@ -209,7 +210,7 @@ export function StaffCrudPanel() {
         String(new Set(records.map((r) => r.specialty?.name).filter(Boolean)).size).padStart(2, "0"),
       ],
     ],
-    [records],
+    [records]
   );
 
   const filteredRecords = useMemo(() => {
@@ -223,6 +224,7 @@ export function StaffCrudPanel() {
       const matchesKeyword = !keyword
         ? true
         : record.fullName.toLowerCase().includes(keyword) ||
+          record.staffCode.toLowerCase().includes(keyword) ||
           record.username.toLowerCase().includes(keyword) ||
           (record.specialty?.name ?? "").toLowerCase().includes(keyword) ||
           record.email.toLowerCase().includes(keyword);
@@ -599,16 +601,21 @@ export function StaffCrudPanel() {
         </div>
       </div>
 
-      <section className="flex flex-col justify-between gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-3 md:p-4 shadow-sm sm:flex-row sm:items-center">
-        <div>
-          <p className="text-label-sm text-on-surface-variant">Nhân sự</p>
-          <p className="mt-0.5 text-body-sm text-on-surface-variant leading-snug">
-            Quản lý cơ sở dữ liệu nhân viên, chức vụ và trạng thái hoạt động trong hệ thống.
-          </p>
+      <section className="flex flex-col justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 md:p-5 shadow-sm sm:flex-row sm:items-center">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-fixed">
+            <span className="material-symbols-outlined text-[20px] text-primary">groups</span>
+          </div>
+          <div>
+            <p className="text-label-sm text-on-surface-variant">Nhân sự</p>
+            <p className="mt-0.5 text-body-sm text-on-surface-variant leading-relaxed max-w-lg">
+              Quản lý cơ sở dữ liệu nhân viên, chức vụ và trạng thái hoạt động trong hệ thống.
+            </p>
+          </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <button
-            className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 h-10 text-label-md font-medium text-on-surface shadow-sm transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 h-10 text-label-md font-medium text-on-surface shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             onClick={handleExportExcel}
             type="button"
           >
@@ -616,7 +623,7 @@ export function StaffCrudPanel() {
             Xuất Excel
           </button>
           <Link
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 h-10 text-label-md font-medium text-on-primary shadow-sm transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 h-10 text-label-md font-medium text-on-primary shadow-sm transition-all duration-200 hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             href="/staff/create"
           >
             <span aria-hidden="true" className="material-symbols-outlined text-[18px]">add</span>
@@ -625,19 +632,24 @@ export function StaffCrudPanel() {
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {summary.map(([label, value]) => (
           <div
-            className="rounded-lg border border-outline-variant bg-surface-container-lowest p-3 shadow-sm hover:bg-surface-container-low transition-colors"
+            className="group relative flex items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md"
             key={label}
           >
-            <p className="text-label-md font-medium text-on-surface-variant">{label}</p>
-            <p className="mt-1 text-headline-lg font-bold leading-[28px] text-on-surface">{value}</p>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-fixed transition-transform duration-200 group-hover:scale-105">
+              <span className="material-symbols-outlined text-[20px] text-primary">groups</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-label-sm text-on-surface-variant truncate">{label}</p>
+              <p className="mt-0.5 text-headline-lg font-bold leading-none text-on-surface">{value}</p>
+            </div>
           </div>
         ))}
       </section>
 
-      <section className="rounded-lg border border-outline-variant bg-surface-container-lowest p-3 shadow-sm flex flex-wrap lg:flex-nowrap items-center gap-3">
+      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm flex flex-wrap lg:flex-nowrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <span aria-hidden="true" className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">
             search
@@ -645,7 +657,7 @@ export function StaffCrudPanel() {
           <input
             aria-label="Tìm kiếm nhân sự"
             autoComplete="off"
-            className="w-full rounded-lg border border-transparent bg-surface-container-low py-2 pl-9 pr-3 text-body-sm text-on-surface transition-all placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-9 pr-3 text-body-sm text-on-surface transition-all placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
             name="staffSearch"
             onChange={(e) => setSearchKeyword(e.target.value)}
             placeholder="Tìm kiếm tên, email hoặc mã nhân viên..."
@@ -653,10 +665,10 @@ export function StaffCrudPanel() {
           />
         </div>
 
-        <div className="relative w-full lg:w-40">
+        <div className="relative w-full lg:w-44">
           <select
             aria-label="Lọc theo vai trò"
-            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
             onChange={(e) => setRoleFilter(e.target.value)}
             value={roleFilter}
           >
@@ -670,10 +682,10 @@ export function StaffCrudPanel() {
           </span>
         </div>
 
-        <div className="relative w-full lg:w-40">
+        <div className="relative w-full lg:w-44">
           <select
             aria-label="Lọc theo khoa phòng"
-            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
             value={specialtyFilter}
             onChange={(e) => setSpecialtyFilter(e.target.value === "" ? "" : Number(e.target.value) || 0)}
           >
@@ -687,10 +699,10 @@ export function StaffCrudPanel() {
           </span>
         </div>
 
-        <div className="relative w-full lg:w-40">
+        <div className="relative w-full lg:w-44">
           <select
-            aria-label="Loc theo trang thai"
-            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            aria-label="Lọc theo trạng thái"
+            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
             onChange={(e) => setStatusFilter(e.target.value)}
             value={statusFilter}
           >
@@ -704,12 +716,12 @@ export function StaffCrudPanel() {
           </span>
         </div>
 
-        <div className="relative w-full lg:w-40">
+        <div className="relative w-full lg:w-44">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">badge</span>
           <input
             type="text"
             aria-label="Lọc theo chức vụ"
-            className="w-full h-10 pl-9 pr-3 rounded-lg border border-transparent bg-surface-container-low text-body-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            className="w-full h-10 pl-9 pr-3 rounded-lg border border-transparent bg-surface-container-low text-body-sm text-on-surface placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
             placeholder="Chức vụ..."
             value={positionFilter}
             onChange={(e) => setPositionFilter(e.target.value)}
@@ -717,7 +729,7 @@ export function StaffCrudPanel() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden flex flex-col">
+      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -727,20 +739,20 @@ export function StaffCrudPanel() {
             <table className="w-full border-collapse text-left" aria-label="Staffcrudpanel Table">
               <thead className="bg-surface-container-low border-b border-outline-variant">
                 <tr>
-                  <th scope="col" className="px-3 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Nhân viên</th>
-                  <th scope="col" className="px-3 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Mã NV</th>
-                  <th scope="col" className="px-3 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Chức vụ</th>
-                  <th scope="col" className="px-3 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Vai trò</th>
-                  <th scope="col" className="px-3 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Khoa/Phòng</th>
-                  <th scope="col" className="px-3 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">SĐT</th>
-                  <th scope="col" className="px-3 py-2.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Trạng thái</th>
-                  <th scope="col" className="px-3 py-2.5 text-right text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Thao tác</th>
+                  <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Nhân viên</th>
+                  <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Mã NV</th>
+                  <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Chức vụ</th>
+                  <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Vai trò</th>
+                  <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Khoa/Phòng</th>
+                  <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">SĐT</th>
+                  <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Trạng thái</th>
+                  <th scope="col" className="px-4 py-3 text-right text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">
                 {pagedRecords.length === 0 ? (
                   <tr>
-                    <td className="px-3 py-8 text-center text-body-sm text-on-surface-variant" colSpan={8}>
+                    <td className="px-4 py-12 text-center text-body-sm text-on-surface-variant" colSpan={8}>
                       {searchKeyword || statusFilter
                         ? "Không tìm thấy nhân sự phù hợp"
                         : "Chưa có nhân sự nào"}
@@ -748,34 +760,34 @@ export function StaffCrudPanel() {
                   </tr>
                 ) : (
                   pagedRecords.map((record) => (
-                    <tr className="group transition-colors hover:bg-surface-container-low h-11" key={record.id}>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-fixed font-bold text-label-sm text-on-primary-fixed-variant">
+                    <tr className="group transition-colors hover:bg-surface-container-lowest h-12" key={record.id}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-fixed font-bold text-label-sm text-on-primary-fixed-variant">
                             {getInitials(record.fullName)}
                           </div>
-                          <div>
-                            <p className="text-label-md font-semibold text-on-surface leading-tight">{record.fullName}</p>
-                            <p className="text-label-sm text-on-surface-variant leading-tight">{record.email}</p>
+                          <div className="min-w-0">
+                            <p className="text-label-md font-semibold text-on-surface leading-tight truncate max-w-[180px]">{record.fullName}</p>
+                            <p className="text-label-sm text-on-surface-variant leading-tight truncate max-w-[180px]">{record.email || "—"}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-label-md text-on-surface-variant">{record.username}</td>
-                      <td className="px-3 py-2 text-label-md text-on-surface">{record.position || "—"}</td>
-                      <td className="px-3 py-2 text-label-md text-on-surface">{getRoleLabel(record.roles)}</td>
-                      <td className="px-3 py-2 text-label-md text-on-surface">{record.specialty?.name ?? "—"}</td>
-                      <td className="px-3 py-2 text-label-md text-on-surface-variant">{record.phone || "-"}</td>
-                      <td className="px-3 py-2">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-label-sm font-medium ${getStatusClass(record)}`}>
-                          <span className={`h-1 w-1 rounded-full ${getStatusDot(record)}`} />
+                      <td className="px-4 py-3 text-label-md text-primary font-semibold">{record.staffCode}</td>
+                      <td className="px-4 py-3 text-label-md text-on-surface">{record.position || "—"}</td>
+                      <td className="px-4 py-3 text-label-md text-on-surface">{getRoleLabel(record.roles)}</td>
+                      <td className="px-4 py-3 text-label-md text-on-surface">{record.specialty?.name ?? "—"}</td>
+                      <td className="px-4 py-3 text-label-md text-on-surface-variant">{record.phone || "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-label-sm font-medium ${getStatusClass(record)}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${getStatusDot(record)}`} />
                           {getStatusLabel(record)}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right">
-                        <div className="flex items-center justify-end gap-0.5">
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                           <Link
                             aria-label={`Xem chi tiết ${record.fullName}`}
-                            className="p-1 rounded text-outline hover:text-primary hover:bg-surface-container transition-colors"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors"
                             href={`/staff/${record.id}`}
                             title="Xem chi tiết"
                           >
@@ -783,7 +795,7 @@ export function StaffCrudPanel() {
                           </Link>
                           <button
                             aria-label={`Chỉnh sửa ${record.fullName}`}
-                            className="p-1 rounded text-outline hover:text-primary hover:bg-surface-container transition-colors"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors"
                             onClick={() => openEditPage(record.id)}
                             title="Chỉnh sửa"
                             type="button"
@@ -792,7 +804,7 @@ export function StaffCrudPanel() {
                           </button>
                           <button
                             aria-label={`Xóa ${record.fullName}`}
-                            className="p-1 rounded text-outline hover:text-error hover:bg-error-container transition-colors"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-error hover:bg-error-container transition-colors"
                             onClick={() => requestDelete(record.id, record.fullName)}
                             title="Xóa"
                             type="button"
@@ -809,7 +821,7 @@ export function StaffCrudPanel() {
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-surface-variant bg-surface-container-lowest px-4 py-3">
+        <div className="flex items-center justify-between border-t border-outline-variant bg-surface-container-low px-4 py-3">
           <p className="text-body-sm text-on-surface-variant">
             Hiển thị{" "}
             <span className="font-medium text-on-surface">
@@ -825,7 +837,7 @@ export function StaffCrudPanel() {
           <div className="flex items-center gap-1">
             <button
               aria-label="Trang truoc"
-              className="p-1.5 rounded-md text-outline-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               type="button"
@@ -834,16 +846,16 @@ export function StaffCrudPanel() {
             </button>
             {pageNumbers.map((page, idx) =>
               page === "..." ? (
-                <span className="px-1 text-outline-variant font-label-md" key={`ellipsis-${idx}`}>
+                <span className="px-1 text-on-surface-variant font-label-md" key={`ellipsis-${idx}`}>
                   ...
                 </span>
               ) : (
                 <button
                   key={page}
-                  className={`w-8 h-8 rounded-md font-label-md flex items-center justify-center transition-colors ${
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg font-label-md transition-colors ${
                     currentPage === page
-                      ? "bg-primary text-on-primary"
-                      : "text-on-surface-variant hover:bg-surface-container"
+                      ? "bg-primary text-on-primary shadow-sm"
+                      : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
                   }`}
                   onClick={() => handlePageClick(page)}
                   type="button"
@@ -854,7 +866,7 @@ export function StaffCrudPanel() {
             )}
             <button
               aria-label="Trang sau"
-              className="p-1.5 rounded-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               type="button"

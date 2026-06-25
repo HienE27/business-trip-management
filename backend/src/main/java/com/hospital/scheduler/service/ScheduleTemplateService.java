@@ -249,7 +249,12 @@ public class ScheduleTemplateService {
                             .compensationDate(compDate)
                             .note("Ngày nghỉ bù tự động từ mẫu lịch GENERATED")
                             .build();
-                    compensationDayRepository.save(compDay);
+                    try {
+                        compensationDayRepository.save(compDay);
+                    } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                        org.slf4j.LoggerFactory.getLogger(ScheduleTemplateService.class)
+                                .warn("Compensation day already exists for staff {} on {}: {}", saved.getStaff().getId(), compDate, e.getMessage());
+                    }
                 }
             }
         }
@@ -531,7 +536,12 @@ public class ScheduleTemplateService {
                             .compensationDate(compDate)
                             .note("Ngày nghỉ bù tự động từ mẫu lịch GENERATED (có chỉnh sửa)")
                             .build();
-                    compensationDayRepository.save(compDay);
+                    try {
+                        compensationDayRepository.save(compDay);
+                    } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                        org.slf4j.LoggerFactory.getLogger(ScheduleTemplateService.class)
+                                .warn("Compensation day already exists for staff {} on {}: {}", saved.getStaff().getId(), compDate, e.getMessage());
+                    }
                 }
             }
         }
@@ -555,6 +565,15 @@ public class ScheduleTemplateService {
             throw new BadRequestException("Không thể đọc cấu hình pattern từ mẫu: " + e.getMessage());
         }
 
+        // OPTIMIZATION: pre-load all ShiftTypes and Specialties in ONE query each
+        java.util.Set<String> shiftTypeIds = entries.stream().map(e -> e.shiftTypeId).collect(java.util.stream.Collectors.toSet());
+        java.util.Set<Integer> specialtyIds = entries.stream().map(e -> e.specialtyId).filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        java.util.Map<String, ShiftType> shiftTypeMap = shiftTypeRepository.findAllById(shiftTypeIds).stream()
+                .collect(java.util.stream.Collectors.toMap(ShiftType::getId, s -> s));
+        java.util.Map<Integer, Specialty> specialtyMap = specialtyIds.isEmpty() ? java.util.Collections.emptyMap()
+                : specialtyRepository.findAllById(specialtyIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(Specialty::getId, s -> s));
+
         int appliedCount = 0;
         LocalDate current = period.getStartDate();
 
@@ -562,9 +581,8 @@ public class ScheduleTemplateService {
             int dow = current.getDayOfWeek().getValue();
             for (PatternEntry entry : entries) {
                 if (entry.dayOfWeek == dow) {
-                    Specialty specialty = entry.specialtyId != null
-                            ? specialtyRepository.findById(entry.specialtyId).orElse(null) : null;
-                    ShiftType shiftType = shiftTypeRepository.findById(entry.shiftTypeId).orElse(null);
+                    Specialty specialty = entry.specialtyId != null ? specialtyMap.get(entry.specialtyId) : null;
+                    ShiftType shiftType = shiftTypeMap.get(entry.shiftTypeId);
                     if (shiftType == null) continue;
 
                     // Create one requirement per required slot, each with its own Schedule entry.
@@ -604,6 +622,15 @@ public class ScheduleTemplateService {
             throw new BadRequestException("Không thể đọc cấu hình pattern từ mẫu: " + e.getMessage());
         }
 
+        // OPTIMIZATION: pre-load all ShiftTypes and Specialties in ONE query each
+        java.util.Set<String> shiftTypeIds = entries.stream().map(e -> e.shiftTypeId).collect(java.util.stream.Collectors.toSet());
+        java.util.Set<Integer> specialtyIds = entries.stream().map(e -> e.specialtyId).filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        java.util.Map<String, ShiftType> shiftTypeMap = shiftTypeRepository.findAllById(shiftTypeIds).stream()
+                .collect(java.util.stream.Collectors.toMap(ShiftType::getId, s -> s));
+        java.util.Map<Integer, Specialty> specialtyMap = specialtyIds.isEmpty() ? java.util.Collections.emptyMap()
+                : specialtyRepository.findAllById(specialtyIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(Specialty::getId, s -> s));
+
         List<TemplatePreviewItem> items = new ArrayList<>();
         LocalDate current = period.getStartDate();
 
@@ -611,10 +638,10 @@ public class ScheduleTemplateService {
             int dow = current.getDayOfWeek().getValue();
             for (PatternEntry entry : entries) {
                 if (entry.dayOfWeek == dow) {
-                    ShiftType shiftType = shiftTypeRepository.findById(entry.shiftTypeId).orElse(null);
+                    ShiftType shiftType = shiftTypeMap.get(entry.shiftTypeId);
                     String specialtyName = null;
                     if (entry.specialtyId != null) {
-                        Specialty specialty = specialtyRepository.findById(entry.specialtyId).orElse(null);
+                        Specialty specialty = specialtyMap.get(entry.specialtyId);
                         if (specialty != null) specialtyName = specialty.getName();
                     }
                     int dowValue = current.getDayOfWeek().getValue();

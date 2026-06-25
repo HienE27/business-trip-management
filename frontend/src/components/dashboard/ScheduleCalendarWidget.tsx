@@ -101,7 +101,7 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
       {done ? (
         <div className="flex flex-col items-center gap-4 py-8">
           <span aria-hidden="true" className="material-symbols-outlined text-[48px] text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-          <p className="text-title-lg text-on-surface font-semibold">Đã tạo thành công!</p>
+          <p className="text-title-lg text-on-surface font-semibold">Đã tạo thành công</p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -18,4 +18,14 @@ public interface AuditHistoryRepository extends JpaRepository<AuditHistory, Inte
     List<AuditHistory> findByDateRange(
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT ah FROM AuditHistory ah LEFT JOIN FETCH ah.changedBy WHERE ah.tableName = :tableName AND ah.recordId = :recordId")
+    List<AuditHistory> findByTableNameAndRecordIdWithChangedBy(
+            @Param("tableName") String tableName,
+            @Param("recordId") Integer recordId);
+
+    @Query("SELECT ah FROM AuditHistory ah LEFT JOIN FETCH ah.changedBy WHERE ah.createdAt BETWEEN :startDate AND :endDate ORDER BY ah.createdAt DESC")
+    List<AuditHistory> findByDateRangeWithChangedBy(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 }

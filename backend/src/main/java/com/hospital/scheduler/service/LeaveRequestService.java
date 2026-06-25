@@ -104,11 +104,7 @@ public class LeaveRequestService {
         auditHistoryService.logAction("leave_request", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
 
         // Notify managers about the new leave request
-        List<Staff> managers = staffRepository.findAll().stream()
-                .filter(s -> s.getStaffRoles().stream()
-                        .anyMatch(sr -> sr.getRole() != null && (
-                                RoleName.ADMIN.equals(sr.getRole().getName()) || RoleName.MANAGER.equals(sr.getRole().getName()))))
-                .collect(Collectors.toList());
+        List<Staff> managers = staffRepository.findManagers();
         for (Staff manager : managers) {
             notificationService.createNotification(manager.getId(),
                     new NotificationDTO("Yêu cầu nghỉ phép mới",
@@ -149,12 +145,8 @@ public class LeaveRequestService {
         // Auto-propose replacements for affected schedules
         List<ReplacementProposal> proposals = findReplacementsForLeave(leaveRequestId);
 
-        // Notify the reviewer (manager) with full replacement proposals so they can act immediately
-        List<Staff> managers = staffRepository.findAll().stream()
-                .filter(s -> s.getStaffRoles().stream()
-                        .anyMatch(sr -> sr.getRole() != null && (
-                                RoleName.ADMIN.equals(sr.getRole().getName()) || RoleName.MANAGER.equals(sr.getRole().getName()))))
-                .collect(Collectors.toList());
+        // Notify the reviewer (manager) with full replacement proposals
+        List<Staff> managers = staffRepository.findManagers();
 
         StringBuilder managerMsg = new StringBuilder("Yêu cầu nghỉ phép của ");
         managerMsg.append(leaveRequest.getStaff().getFullName());

@@ -268,20 +268,25 @@ function LeaveRequestsContent() {
         </div>
       )}
 
-      {/* Stats row */}
-      <section className="grid gap-3 md:grid-cols-4">
+      {/* Stats row - KPI Cards */}
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
-          { label: "Tổng yêu cầu", value: stats.total, accent: "border-l-outline" },
-          { label: "Chờ duyệt", value: stats.pending, accent: "border-l-tertiary" },
-          { label: "Đã duyệt", value: stats.approved, accent: "border-l-secondary" },
-          { label: "Từ chối", value: stats.rejected, accent: "border-l-error" },
+          { label: "Tổng yêu cầu", value: stats.total, icon: "event", accent: "border-l-outline" },
+          { label: "Chờ duyệt", value: stats.pending, icon: "pending_actions", accent: "border-l-tertiary" },
+          { label: "Đã duyệt", value: stats.approved, icon: "check_circle", accent: "border-l-secondary" },
+          { label: "Từ chối", value: stats.rejected, icon: "cancel", accent: "border-l-error" },
         ].map((item) => (
           <article
             key={item.label}
-            className={`rounded-lg border border-t-2 border-r border-b border-outline-variant bg-surface-container-lowest p-3 shadow-sm hover:bg-surface-container-low transition-colors ${item.accent}`}
+            className={`group relative flex items-center gap-3 rounded-xl border-t-2 ${item.accent} border border-r border-b border-outline-variant bg-surface-container-lowest p-4 shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md`}
           >
-            <p className="text-[11px] font-medium text-on-surface-variant">{item.label}</p>
-            <p className="mt-1 text-[22px] font-bold leading-none text-on-surface">{loading ? "\u2014" : item.value}</p>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-container-low transition-transform duration-200 group-hover:scale-105">
+              <span className="material-symbols-outlined text-[20px] text-on-surface-variant">{item.icon}</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-label-sm text-on-surface-variant truncate">{item.label}</p>
+              <p className="mt-0.5 text-headline-lg font-bold leading-none text-on-surface">{loading ? "—" : item.value}</p>
+            </div>
           </article>
         ))}
       </section>

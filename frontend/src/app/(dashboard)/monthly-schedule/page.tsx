@@ -396,7 +396,7 @@ export default function MonthlySchedulePage() {
       {/* Row 2: Calendar — full width, then info panels below */}
       <div className="border border-outline-variant overflow-hidden rounded-xl">
         <ScheduleCalendarSection
-          schedules={schedules}
+          schedules={filteredSchedules}
           calendarAnnotations={calendarAnnotations}
           coverages={computedCoverages}
           activeStaff={activeStaff}

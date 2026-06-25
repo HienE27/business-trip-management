@@ -51,8 +51,8 @@ export function FormInput({
   const hintId = hint ? `${inputId}-hint` : undefined;
 
   const borderColor = error
-    ? "border-error focus:border-error focus:ring-error/20"
-    : "border-outline-variant focus:border-primary focus:ring-primary/20";
+    ? "border-error focus:border-error focus:ring-error/30 focus:shadow-sm"
+    : "border-outline-variant focus:border-primary focus:ring-primary/30 focus:shadow-sm";
 
   return (
     <div className="flex flex-col gap-1">

@@ -13,6 +13,8 @@ public class StaffRequest {
 
     private String username;
 
+    private String staffCode;
+
     @NotBlank(message = "Họ tên không được để trống")
     @Size(max = 100, message = "Họ tên không quá 100 ký tự")
     private String fullName;

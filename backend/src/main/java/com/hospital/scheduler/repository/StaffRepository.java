@@ -18,12 +18,14 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
     List<Staff> findBySpecialtyId(Integer specialtyId);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
+    boolean existsByStaffCode(String staffCode);
     @Query("SELECT s FROM Staff s LEFT JOIN FETCH s.staffRoles WHERE s.id = :id")
     Optional<Staff> findByIdWithRoles(Integer id);
 
     @Query("SELECT DISTINCT s FROM Staff s LEFT JOIN FETCH s.specialty LEFT JOIN FETCH s.staffRoles sr LEFT JOIN FETCH sr.role " +
            "WHERE (:keyword IS NULL OR LOWER(s.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-           "OR LOWER(s.username) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "OR LOWER(s.username) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "OR LOWER(s.staffCode) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:specialtyId IS NULL OR s.specialty.id = :specialtyId) " +
            "AND (:status IS NULL OR s.status = :status) " +
            "AND (:role IS NULL OR (sr.role IS NOT NULL AND UPPER(sr.role.name) = UPPER(:role))) " +
@@ -37,4 +39,23 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
     @Query("SELECT DISTINCT s FROM Staff s LEFT JOIN FETCH s.staffRoles sr LEFT JOIN FETCH sr.role " +
            "WHERE sr.role.name IN ('MANAGER', 'ADMIN')")
     List<Staff> findManagers();
+
+    @Query("SELECT DISTINCT s FROM Staff s LEFT JOIN FETCH s.specialty LEFT JOIN FETCH s.staffRoles sr LEFT JOIN FETCH sr.role")
+    List<Staff> findAllWithRoles();
+
+    /**
+     * Find the maximum numeric suffix of staff codes with the given prefix.
+     * Uses database-level MAX for efficiency instead of loading all staff.
+     * Returns 0 if no matching codes exist.
+     */
+    @Query(value = "SELECT COALESCE(MAX(CAST(SUBSTRING(staff_code, :prefixLen + 1) AS UNSIGNED)), 0) " +
+                   "FROM staff WHERE staff_code LIKE CONCAT(:prefix, '%')", nativeQuery = true)
+    int findMaxStaffCodeNumber(@Param("prefix") String prefix, @Param("prefixLen") int prefixLen);
+
+    /**
+     * Find staff by IDs with roles pre-fetched for efficient batch lookups.
+     * Avoids N+1 queries when validating multiple schedules.
+     */
+    @Query("SELECT s FROM Staff s LEFT JOIN FETCH s.staffRoles sr LEFT JOIN FETCH sr.role WHERE s.id IN :ids")
+    List<Staff> findByIdsWithRoles(@Param("ids") List<Integer> ids);
 }

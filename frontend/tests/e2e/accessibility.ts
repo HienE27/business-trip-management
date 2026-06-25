@@ -25,7 +25,7 @@ export async function scanPage(
   label: string,
   loginAs: (() => Promise<boolean>) | null,
 ): Promise<void> {
-  // eslint-disable-next-line no-console
+   
   console.log(`[axe] Scanning ${label} (${path})…`);
 
   await page.goto(path);
@@ -34,7 +34,7 @@ export async function scanPage(
   if (loginAs) {
     const loggedIn = await loginAs();
     if (!loggedIn) {
-      // eslint-disable-next-line no-console
+       
       console.warn(`[axe] Could not authenticate for ${path} — skipping`);
       return;
     }
@@ -57,7 +57,7 @@ export async function scanPage(
   const violations = results.violations;
 
   if (violations.length === 0) {
-    // eslint-disable-next-line no-console
+     
     console.log(`[axe] ✓ ${label}: no violations`);
     return;
   }
@@ -66,7 +66,7 @@ export async function scanPage(
   const moderate = violations.filter((v) => v.impact === 'moderate');
   const minor = violations.filter((v) => v.impact === 'minor');
 
-  // eslint-disable-next-line no-console
+   
   console.error(
     `[axe] ✗ ${label}: ${violations.length} violations` +
       ` (${critical.length} critical, ${moderate.length} moderate, ${minor.length} minor)`,
@@ -74,7 +74,7 @@ export async function scanPage(
 
   for (const v of violations) {
     const nodes = v.nodes.slice(0, 3).map((n) => n.target.join(' > ')).join(', ');
-    // eslint-disable-next-line no-console
+     
     console.error(`  [${v.impact}] ${v.help}: ${nodes}`);
   }
 

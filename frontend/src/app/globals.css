@@ -152,6 +152,10 @@
     --color-on-shift-service:          #fed7aa;
     --color-shift-expert:              #2e1c55;
     --color-on-shift-expert:           #d8b4fe;
+
+    /* Primary Container Dark Mode */
+    --color-primary-container:          #1e3a5f;
+    --color-on-primary-container:       #dbeafe;
   }
 }
 
@@ -183,7 +187,11 @@
   --color-shift-service:              #3d1c07;
   --color-on-shift-service:           #fed7aa;
   --color-shift-expert:              #2e1c55;
-  --color-on-shift-expert:            #d8b4fe;
+    --color-on-shift-expert:            #d8b4fe;
+
+    /* Primary Container Dark Mode */
+    --color-primary-container:          #1e3a5f;
+    --color-on-primary-container:       #dbeafe;
 }
 
 [data-theme="dark"] .dark\:surface-lowest    { background-color: var(--color-surface-container-lowest); }
@@ -225,7 +233,11 @@ html.dark {
   --color-shift-service:              #3d1c07;
   --color-on-shift-service:           #fed7aa;
   --color-shift-expert:              #2e1c55;
-  --color-on-shift-expert:            #d8b4fe;
+    --color-on-shift-expert:            #d8b4fe;
+
+    /* Primary Container Dark Mode */
+    --color-primary-container:          #1e3a5f;
+    --color-on-primary-container:       #dbeafe;
 }
 
 /* Dark mode surface utility classes */

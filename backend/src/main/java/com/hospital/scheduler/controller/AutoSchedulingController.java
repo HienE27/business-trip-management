@@ -185,6 +185,14 @@ public class AutoSchedulingController {
         return ResponseEntity.ok(ApiResponse.success((Void) null, "Xóa cấu hình thành công"));
     }
 
+    @PostMapping("/config/sync-descriptions")
+    @Operation(summary = "Đồng bộ mô tả các tham số thuật toán theo phiên bản code hiện tại")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, String>>> syncDescriptions() {
+        Map<String, String> result = configService.syncDescriptions();
+        return ResponseEntity.ok(ApiResponse.success(result, "Đã đồng bộ " + result.size() + " mô tả"));
+    }
+
     // ============================================================
     // Runtime Config Endpoints (Convenience endpoints)
     // ============================================================

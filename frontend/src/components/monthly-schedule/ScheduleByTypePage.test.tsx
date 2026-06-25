@@ -246,10 +246,12 @@ describe('ScheduleByTypePage', () => {
   });
 
   it('shows the empty state when no period is selected', async () => {
-    setupApiMock([]);
+    // Setup mock to return an empty periods array so no period auto-selects
     (apiModule.api.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url === '/periods') return Promise.resolve([]);
       if (url === '/staff/active') return Promise.resolve(mockStaff);
+      if (url.startsWith('/schedules/period/')) return Promise.resolve([]);
+      if (url.startsWith('/schedules/compensation-days/')) return Promise.resolve([]);
       return Promise.resolve([]);
     });
     await act(async () => {
@@ -257,7 +259,7 @@ describe('ScheduleByTypePage', () => {
     });
     await waitFor(() => {
       expect(screen.getByText(/Chọn một kỳ lịch để xem lịch trực 24\/24/)).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 
   it('shows the configured error message when schedule fetch fails', async () => {

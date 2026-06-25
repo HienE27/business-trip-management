@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,20 +37,52 @@ public class ShiftRequirementService {
     private final AuditHistoryService auditHistoryService;
 
     public List<ShiftRequirementResponse> getAllRequirements() {
-        return requirementRepository.findAll().stream()
+        List<ShiftRequirement> requirements = requirementRepository.findAll();
+        // OPTIMIZATION: batch load all counts in ONE query per period, then per-period lookup
+        // Group requirements by periodId for efficient count loading
+        Map<Integer, List<ShiftRequirement>> byPeriod = requirements.stream()
+                .collect(Collectors.groupingBy(r -> r.getPeriod().getId()));
+
+        // Load counts per period
+        Map<Integer, Map<String, Long>> countMaps = new java.util.HashMap<>();
+        for (Integer periodId : byPeriod.keySet()) {
+            Map<String, Long> countMap = new java.util.HashMap<>();
+            for (Object[] row : scheduleRepository.countGroupedByPeriodWorkDateShiftType(periodId)) {
+                Integer pid = (Integer) row[0];
+                LocalDate date = (LocalDate) row[1];
+                String shiftTypeId = (String) row[2];
+                Long cnt = (Long) row[3];
+                countMap.put(pid + "_" + date + "_" + shiftTypeId, cnt);
+            }
+            countMaps.put(periodId, countMap);
+        }
+
+        return requirements.stream()
                 .map(req -> {
-                    long count = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
-                            req.getPeriod().getId(), req.getWorkDate(), req.getShiftType().getId());
+                    Map<String, Long> countMap = countMaps.get(req.getPeriod().getId());
+                    long count = countMap != null ? countMap.getOrDefault(
+                            req.getPeriod().getId() + "_" + req.getWorkDate() + "_" + req.getShiftType().getId(), 0L) : 0L;
                     return ShiftRequirementResponse.fromEntityWithAssignedCount(req, count);
                 })
                 .collect(Collectors.toList());
     }
 
     public List<ShiftRequirementResponse> getRequirementsByPeriod(Integer periodId) {
-        return requirementRepository.findByPeriodId(periodId).stream()
+        List<ShiftRequirement> requirements = requirementRepository.findByPeriodId(periodId);
+        // OPTIMIZATION: batch load all counts in ONE query
+        Map<String, Long> countMap = new java.util.HashMap<>();
+        for (Object[] row : scheduleRepository.countGroupedByPeriodWorkDateShiftType(periodId)) {
+            Integer pid = (Integer) row[0];
+            LocalDate date = (LocalDate) row[1];
+            String shiftTypeId = (String) row[2];
+            Long cnt = (Long) row[3];
+            countMap.put(pid + "_" + date + "_" + shiftTypeId, cnt);
+        }
+
+        return requirements.stream()
                 .map(req -> {
-                    long count = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
-                            periodId, req.getWorkDate(), req.getShiftType().getId());
+                    long count = countMap.getOrDefault(
+                            req.getPeriod().getId() + "_" + req.getWorkDate() + "_" + req.getShiftType().getId(), 0L);
                     return ShiftRequirementResponse.fromEntityWithAssignedCount(req, count);
                 })
                 .collect(Collectors.toList());
@@ -66,10 +99,21 @@ public class ShiftRequirementService {
     }
 
     public List<ShiftRequirementResponse> getRequirementsByPeriodAndDateRange(Integer periodId, LocalDate startDate, LocalDate endDate) {
-        return requirementRepository.findByPeriodIdAndDateRange(periodId, startDate, endDate).stream()
+        List<ShiftRequirement> requirements = requirementRepository.findByPeriodIdAndDateRange(periodId, startDate, endDate);
+        // OPTIMIZATION: batch load all counts in ONE query
+        Map<String, Long> countMap = new java.util.HashMap<>();
+        for (Object[] row : scheduleRepository.countGroupedByPeriodWorkDateShiftType(periodId)) {
+            Integer pid = (Integer) row[0];
+            LocalDate date = (LocalDate) row[1];
+            String shiftTypeId = (String) row[2];
+            Long cnt = (Long) row[3];
+            countMap.put(pid + "_" + date + "_" + shiftTypeId, cnt);
+        }
+
+        return requirements.stream()
                 .map(req -> {
-                    long count = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
-                            periodId, req.getWorkDate(), req.getShiftType().getId());
+                    long count = countMap.getOrDefault(
+                            req.getPeriod().getId() + "_" + req.getWorkDate() + "_" + req.getShiftType().getId(), 0L);
                     return ShiftRequirementResponse.fromEntityWithAssignedCount(req, count);
                 })
                 .collect(Collectors.toList());

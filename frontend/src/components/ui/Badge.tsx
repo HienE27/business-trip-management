@@ -22,8 +22,8 @@ const toneClasses: Record<NonNullable<BadgeProps["tone"]>, string> = {
 const dotColors: Record<NonNullable<BadgeProps["tone"]>, string> = {
   success: "bg-secondary",
   warning: "bg-tertiary",
-  error: "bg-error",
-  danger: "bg-error",
+  error: "bg-error animate-pulse",
+  danger: "bg-error animate-pulse",
   info: "bg-primary",
   neutral: "bg-outline",
 };

@@ -24,18 +24,21 @@ public class SpecialtyService {
     private final AuditHistoryService auditHistoryService;
     private final AuthContextService authContextService;
 
+    @Transactional(readOnly = true)
     public List<SpecialtyResponse> getAllSpecialties() {
         return specialtyRepository.findAll().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<SpecialtyResponse> getActiveSpecialties() {
         return specialtyRepository.findByIsActiveTrue().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public SpecialtyResponse getSpecialtyById(Integer id) {
         Specialty specialty = specialtyRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chuyên khoa với ID: " + id));

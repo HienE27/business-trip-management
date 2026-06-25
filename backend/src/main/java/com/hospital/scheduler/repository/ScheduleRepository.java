@@ -155,4 +155,28 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
     List<Schedule> findExpertClinicByPeriodAndSpecialty(
             @Param("periodId") Integer periodId,
             @Param("specialtyId") Integer specialtyId);
+
+    /**
+     * Batch load all L01 schedules within a date range in a single query.
+     * Replaces 2 queries per day (prevDay + nextDay) with 1 query per period.
+     */
+    @Query("SELECT s FROM Schedule s WHERE s.shiftType.id = 'L01' AND s.workDate BETWEEN :startDate AND :endDate")
+    List<Schedule> findL01SchedulesInRange(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
+    /**
+     * Batch load all shift counts for all staff in a single query.
+     * Returns Object[] arrays: [staffId, shiftTypeId, count].
+     * Replaces 4 queries per staff (N×4 → 1 query total).
+     */
+    @Query("SELECT s.staff.id, s.shiftType.id, COUNT(s) FROM Schedule s WHERE s.period.id = :periodId GROUP BY s.staff.id, s.shiftType.id")
+    List<Object[]> countAllByPeriodIdGroupByStaffAndShiftType(@Param("periodId") Integer periodId);
+
+    /**
+     * Batch query: count schedules grouped by period, workDate, and shiftType.
+     * Replaces N individual countByPeriodIdAndWorkDateAndShiftTypeId calls → 1 query.
+     */
+    @Query("SELECT s.period.id, s.workDate, s.shiftType.id, COUNT(s) FROM Schedule s WHERE s.period.id = :periodId GROUP BY s.period.id, s.workDate, s.shiftType.id")
+    List<Object[]> countGroupedByPeriodWorkDateShiftType(@Param("periodId") Integer periodId);
 }

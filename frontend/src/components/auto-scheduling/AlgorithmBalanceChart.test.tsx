@@ -30,8 +30,8 @@ describe('AlgorithmBalanceChart', () => {
   it('shows the correct total / cap per row', () => {
     render(<AlgorithmBalanceChart schedules={schedules} />);
     const rows = screen.getAllByTestId('algo-balance-row');
-    expect(rows[0].textContent).toMatch(/3\s*\/\s*6/); // BS.A: 3 total
-    expect(rows[1].textContent).toMatch(/1\s*\/\s*6/); // BS.B
+    expect(rows[0].textContent).toMatch(/3\s*ca\s*\/\s*giới hạn\s*5\s*\(\s*60\s*%\s*\)/); // BS.A: 3 total
+    expect(rows[1].textContent).toMatch(/1\s*ca\s*\/\s*giới hạn\s*5\s*\(\s*20\s*%\s*\)/); // BS.B
   });
 
   it('uses custom caps when provided', () => {

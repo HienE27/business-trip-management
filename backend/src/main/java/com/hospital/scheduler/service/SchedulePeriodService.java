@@ -155,13 +155,16 @@ public class SchedulePeriodService {
 
         // Send per-staff notifications with individual schedule details
         List<Staff> activeStaff = staffRepository.findByIsActiveTrue();
+
+        // OPTIMIZATION: pre-group schedules by staff in ONE pass (O(N) instead of O(N×M))
+        Map<Integer, List<Schedule>> schedulesByStaff = periodSchedules.stream()
+                .collect(Collectors.groupingBy(s -> s.getStaff().getId()));
+        Map<Integer, List<CompensationDay>> compDaysByStaff = periodCompDays.stream()
+                .collect(Collectors.groupingBy(cd -> cd.getStaff().getId()));
+
         for (Staff staff : activeStaff) {
-            List<Schedule> staffSchedules = periodSchedules.stream()
-                    .filter(s -> s.getStaff().getId().equals(staff.getId()))
-                    .toList();
-            List<CompensationDay> staffCompDays = periodCompDays.stream()
-                    .filter(cd -> cd.getStaff().getId().equals(staff.getId()))
-                    .toList();
+            List<Schedule> staffSchedules = schedulesByStaff.getOrDefault(staff.getId(), List.of());
+            List<CompensationDay> staffCompDays = compDaysByStaff.getOrDefault(staff.getId(), List.of());
 
             String dutyList = staffSchedules.stream()
                     .map(s -> s.getWorkDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + " (" + s.getShiftType().getName() + ")")

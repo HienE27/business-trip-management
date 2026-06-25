@@ -23,7 +23,7 @@ type PendingRequest<T> = {
 // In-memory cache: key → { promise, timestamp }
 const pending = new Map<string, PendingRequest<unknown>>();
 // Separate cache for resolved data
-const dataCache = new Map<string, { data: unknown; timestamp: number }>();
+export const dataCache = new Map<string, { data: unknown; timestamp: number }>();
 
 // Cache TTL: 30 seconds for most queries, 5 minutes for stable reference data
 const TTL_SHORT = 30_000;

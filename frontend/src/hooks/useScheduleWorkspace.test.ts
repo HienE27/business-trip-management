@@ -36,6 +36,7 @@ const fakePeriod: SchedulePeriod = {
 
 const fakeStaff: Staff = {
   id: 1,
+  staffCode: "NV001",
   username: "nvana",
   fullName: "Nguyễn Văn A",
   email: "a@hospital.vn",
@@ -51,7 +52,7 @@ const fakeStaff: Staff = {
 const fakeSchedule: Schedule = {
   id: 1,
   periodId: 1,
-  staff: { id: 1, fullName: "Nguyễn Văn A", specialtyName: null },
+  staff: { id: 1, staffCode: "NV001", fullName: "Nguyễn Văn A", specialtyName: null },
   shiftType: { id: "L01", name: "Trực 24/24", isOvernight: true },
   workDate: "2026-06-15T00:00:00",
   notes: null,

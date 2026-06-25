@@ -29,7 +29,7 @@ public class CompensationDay {
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "schedule_id", nullable = false)
+    @JoinColumn(name = "schedule_id", nullable = true)
     private Schedule schedule;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -12,10 +12,14 @@ import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.AlgorithmConfigRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -47,7 +51,8 @@ public class AlgorithmConfigService {
     public static final String BACKTRACK_TIME_LIMIT_SECONDS = "backtrack_time_limit_seconds";
 
     public List<AlgorithmConfigDTO> getAllConfigs() {
-        return configRepository.findAll().stream()
+        // OPTIMIZATION: use JOIN FETCH to avoid N+1 on updatedBy lazy loading
+        return configRepository.findAllWithUpdatedBy().stream()
                 .map(this::toDTO)
                 .toList();
     }
@@ -176,16 +181,88 @@ public class AlgorithmConfigService {
      */
     @Transactional
     public void saveAutoGenConfig(AutoGenConfig config) {
-        upsert(AUTO_GEN_ENABLED, String.valueOf(config.enabled()), AlgorithmConfig.ValueType.BOOLEAN, "Bật/tắt tự động tạo yêu cầu");
-        upsert(AUTO_GEN_L01_PER_DAY, String.valueOf(config.l01RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số người cần cho L01 mỗi ngày");
-        upsert(AUTO_GEN_L02_PER_DAY, String.valueOf(config.l02RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số người cần cho L02 mỗi ngày");
-        upsert(AUTO_GEN_L03_PER_DAY, String.valueOf(config.l03RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số người cần cho L03 mỗi ngày");
-        upsert(AUTO_GEN_L04_PER_DAY, String.valueOf(config.l04RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số người cần cho L04 mỗi ngày");
-        upsert(AUTO_GEN_L01_PER_WEEK, String.valueOf(config.minL01PerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số L01 tối thiểu mỗi tuần");
-        upsert(AUTO_GEN_L02_PER_WEEK, String.valueOf(config.minL02PerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số L02 tối thiểu mỗi tuần");
-        upsert(AUTO_GEN_L03_PER_WEEK, String.valueOf(config.minL03PerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số L03 tối thiểu mỗi tuần");
-        upsert(AUTO_GEN_L04_PER_WEEK, String.valueOf(config.minL04PerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số L04 tối thiểu mỗi tuần");
-        upsert(AUTO_GEN_HOLIDAY_MODE, config.holidayMode(), AlgorithmConfig.ValueType.STRING, "Chế độ ngày lễ: SKIP hoặc PARTIAL");
+        upsert(AUTO_GEN_ENABLED, String.valueOf(config.enabled()), AlgorithmConfig.ValueType.BOOLEAN,
+                "Tự động tạo yêu cầu nhân sự khi mở kỳ lịch mới. Bật ON để hệ thống tự đề xuất lịch cho từng người.");
+        upsert(AUTO_GEN_L01_PER_DAY, String.valueOf(config.l01RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối thiểu cần xếp cho ca L01 (Lịch trực 24/24) mỗi ngày. Tăng nếu tỷ lệ phủ L01 chưa đạt.");
+        upsert(AUTO_GEN_L02_PER_DAY, String.valueOf(config.l02RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối thiểu cần xếp cho ca L02 (Lịch thông tầm) mỗi ngày. Điều chỉnh theo nhu cầu khám thường.");
+        upsert(AUTO_GEN_L03_PER_DAY, String.valueOf(config.l03RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối thiểu cần xếp cho ca L03 (Phòng khám dịch vụ) mỗi ngày.");
+        upsert(AUTO_GEN_L04_PER_DAY, String.valueOf(config.l04RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối thiểu cần xếp cho ca L04 (Phòng khám chuyên gia) mỗi ngày.");
+        upsert(AUTO_GEN_L01_PER_WEEK, String.valueOf(config.minL01PerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L01 tối thiểu mỗi người trong 1 tuần. Giúp đảm bảo công bằng phân bổ trực đêm cho nhân sự.");
+        upsert(AUTO_GEN_L02_PER_WEEK, String.valueOf(config.minL02PerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L02 tối thiểu mỗi người trong 1 tuần. Đảm bảo mỗi người có đủ ca ngày theo quy định.");
+        upsert(AUTO_GEN_L03_PER_WEEK, String.valueOf(config.minL03PerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L03 tối thiểu mỗi người trong 1 tuần.");
+        upsert(AUTO_GEN_L04_PER_WEEK, String.valueOf(config.minL04PerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L04 tối thiểu mỗi người trong 1 tuần.");
+        upsert(AUTO_GEN_HOLIDAY_MODE, config.holidayMode(), AlgorithmConfig.ValueType.STRING,
+                "Xử lý khi gặp ngày lễ: SKIP = bỏ qua ngày lễ (không xếp lịch), PARTIAL = vẫn xếp lịch nhưng giảm cường độ.");
+    }
+
+    /**
+     * Sync descriptions for all well-known algorithm config parameters
+     * using the canonical strings defined in code.
+     * Unknown params are kept intact.
+     */
+    @Transactional
+    public Map<String, String> syncDescriptions() {
+        LinkedHashMap<String, String> map = new LinkedHashMap<>();
+        upsert(AUTO_GEN_ENABLED, getStringValue(AUTO_GEN_ENABLED, "true"), AlgorithmConfig.ValueType.BOOLEAN,
+                "Tự động tạo yêu cầu nhân sự khi mở kỳ lịch mới. Bật ON để hệ thống tự đề xuất lịch cho từng người.");
+        map.put(AUTO_GEN_ENABLED, "OK");
+        upsert(AUTO_GEN_L01_PER_DAY, getStringValue(AUTO_GEN_L01_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối thiểu cần xếp cho ca L01 (Lịch trực 24/24) mỗi ngày. Tăng nếu tỷ lệ phủ L01 chưa đạt.");
+        map.put(AUTO_GEN_L01_PER_DAY, "OK");
+        upsert(AUTO_GEN_L02_PER_DAY, getStringValue(AUTO_GEN_L02_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối thiểu cần xếp cho ca L02 (Lịch thông tầm) mỗi ngày. Điều chỉnh theo nhu cầu khám thường.");
+        map.put(AUTO_GEN_L02_PER_DAY, "OK");
+        upsert(AUTO_GEN_L03_PER_DAY, getStringValue(AUTO_GEN_L03_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối thiểu cần xếp cho ca L03 (Phòng khám dịch vụ) mỗi ngày.");
+        map.put(AUTO_GEN_L03_PER_DAY, "OK");
+        upsert(AUTO_GEN_L04_PER_DAY, getStringValue(AUTO_GEN_L04_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối thiểu cần xếp cho ca L04 (Phòng khám chuyên gia) mỗi ngày.");
+        map.put(AUTO_GEN_L04_PER_DAY, "OK");
+        upsert(AUTO_GEN_L01_PER_WEEK, getStringValue(AUTO_GEN_L01_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L01 tối thiểu mỗi người trong 1 tuần. Giúp đảm bảo công bằng phân bổ trực đêm cho nhân sự.");
+        map.put(AUTO_GEN_L01_PER_WEEK, "OK");
+        upsert(AUTO_GEN_L02_PER_WEEK, getStringValue(AUTO_GEN_L02_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L02 tối thiểu mỗi người trong 1 tuần. Đảm bảo mỗi người có đủ ca ngày theo quy định.");
+        map.put(AUTO_GEN_L02_PER_WEEK, "OK");
+        upsert(AUTO_GEN_L03_PER_WEEK, getStringValue(AUTO_GEN_L03_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L03 tối thiểu mỗi người trong 1 tuần.");
+        map.put(AUTO_GEN_L03_PER_WEEK, "OK");
+        upsert(AUTO_GEN_L04_PER_WEEK, getStringValue(AUTO_GEN_L04_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L04 tối thiểu mỗi người trong 1 tuần.");
+        map.put(AUTO_GEN_L04_PER_WEEK, "OK");
+        upsert(AUTO_GEN_HOLIDAY_MODE, getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"), AlgorithmConfig.ValueType.STRING,
+                "Xử lý khi gặp ngày lễ: SKIP = bỏ qua ngày lễ (không xếp lịch), PARTIAL = vẫn xếp lịch nhưng giảm cường độ.");
+        map.put(AUTO_GEN_HOLIDAY_MODE, "OK");
+        upsert(MAX_ITERATIONS, getStringValue(MAX_ITERATIONS, "1000"), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp tối đa cho thuật toán backtracking. Tăng lên nếu thuật toán chưa hết thời gian mà vẫn chưa tìm được lời giải tốt; giảm xuống nếu chạy quá lâu.");
+        map.put(MAX_ITERATIONS, "OK");
+        upsert(WEEKEND_WEIGHT, getStringValue(WEEKEND_WEIGHT, "2"), AlgorithmConfig.ValueType.NUMBER,
+                "Hệ số phạt khi xếp lịch cho người vào thứ 7 / chủ nhật. Giá trị càng cao → thuật toán càng tránh xếp ca cuối tuần. Đặt 1 để tắt ưu tiên.");
+        map.put(WEEKEND_WEIGHT, "OK");
+        upsert(OVERNIGHT_RECOVERY_HOURS, getStringValue(OVERNIGHT_RECOVERY_HOURS, "24"), AlgorithmConfig.ValueType.NUMBER,
+                "Khoảng cách nghỉ bắt buộc giữa hai ca trực 24/24 liên tiếp của cùng một người. Thường đặt 24h để đảm bảo nghỉ ngơi đủ.");
+        map.put(OVERNIGHT_RECOVERY_HOURS, "OK");
+        upsert(GREEDY_COVERAGE_THRESHOLD, getStringValue(GREEDY_COVERAGE_THRESHOLD, "0.85"), AlgorithmConfig.ValueType.NUMBER,
+                "Ngưỡng phủ lịch tối thiểu (0.0–1.0). Khi tỷ lệ lịch đã phủ đạt mức này, thuật toán greedy sẽ dừng sớm. Giảm → chạy nhanh hơn; tăng → phủ kỹ hơn.");
+        map.put(GREEDY_COVERAGE_THRESHOLD, "OK");
+        upsert(BALANCE_SCORE_MIN, getStringValue(BALANCE_SCORE_MIN, "0.75"), AlgorithmConfig.ValueType.NUMBER,
+                "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
+        map.put(BALANCE_SCORE_MIN, "OK");
+        upsert(AUTO_COMPENSATION_ENABLED, getStringValue(AUTO_COMPENSATION_ENABLED, "true"), AlgorithmConfig.ValueType.BOOLEAN,
+                "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
+        map.put(AUTO_COMPENSATION_ENABLED, "OK");
+        upsert(BACKTRACK_TIME_LIMIT_SECONDS, getStringValue(BACKTRACK_TIME_LIMIT_SECONDS, "60"), AlgorithmConfig.ValueType.NUMBER,
+                "Thời gian tối đa cho phép thuật toán backtracking chạy (giây). Hết thời gian → dừng và trả kết quả tốt nhất đã tìm được.");
+        map.put(BACKTRACK_TIME_LIMIT_SECONDS, "OK");
+        return map;
     }
 
     private void upsert(String paramKey, String value, AlgorithmConfig.ValueType valueType, String description) {
@@ -236,13 +313,20 @@ public class AlgorithmConfigService {
      */
     @Transactional
     public void saveRuntimeConfig(AlgorithmRuntimeConfig config) {
-        upsert(MAX_ITERATIONS, String.valueOf(config.getMaxIterations()), AlgorithmConfig.ValueType.NUMBER, "Số vòng lặp tối đa cho thuật toán backtracking");
-        upsert(WEEKEND_WEIGHT, String.valueOf(config.getWeekendWeight()), AlgorithmConfig.ValueType.NUMBER, "Trọng số cuối tuần (càng cao càng tránh xếp cuối tuần)");
-        upsert(OVERNIGHT_RECOVERY_HOURS, String.valueOf(config.getOvernightRecoveryHours()), AlgorithmConfig.ValueType.NUMBER, "Số giờ nghỉ bắt buộc sau trực 24/24");
-        upsert(GREEDY_COVERAGE_THRESHOLD, String.valueOf(config.getGreedyCoverageThreshold()), AlgorithmConfig.ValueType.NUMBER, "Ngưỡng phủ lịch tối thiểu (0.0-1.0)");
-        upsert(BALANCE_SCORE_MIN, String.valueOf(config.getBalanceScoreMin()), AlgorithmConfig.ValueType.NUMBER, "Ngưỡng cân bằng tải tối thiểu (0.0-1.0)");
-        upsert(AUTO_COMPENSATION_ENABLED, String.valueOf(config.isAutoCompensationEnabled()), AlgorithmConfig.ValueType.BOOLEAN, "Tự động tạo ngày nghỉ bù sau trực 24/24");
-        upsert(BACKTRACK_TIME_LIMIT_SECONDS, String.valueOf(config.getBacktrackTimeLimitSeconds()), AlgorithmConfig.ValueType.NUMBER, "Giới hạn thời gian chạy backtracking (giây)");
+        upsert(MAX_ITERATIONS, String.valueOf(config.getMaxIterations()), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp tối đa cho thuật toán backtracking. Tăng lên nếu thuật toán chưa hết thời gian mà vẫn chưa tìm được lời giải tốt; giảm xuống nếu chạy quá lâu.");
+        upsert(WEEKEND_WEIGHT, String.valueOf(config.getWeekendWeight()), AlgorithmConfig.ValueType.NUMBER,
+                "Hệ số phạt khi xếp lịch cho người vào thứ 7 / chủ nhật. Giá trị càng cao → thuật toán càng tránh xếp ca cuối tuần. Đặt 1 để tắt ưu tiên.");
+        upsert(OVERNIGHT_RECOVERY_HOURS, String.valueOf(config.getOvernightRecoveryHours()), AlgorithmConfig.ValueType.NUMBER,
+                "Khoảng cách nghỉ bắt buộc giữa hai ca trực 24/24 liên tiếp của cùng một người. Thường đặt 24h để đảm bảo nghỉ ngơi đủ.");
+        upsert(GREEDY_COVERAGE_THRESHOLD, String.valueOf(config.getGreedyCoverageThreshold()), AlgorithmConfig.ValueType.NUMBER,
+                "Ngưỡng phủ lịch tối thiểu (0.0–1.0). Khi tỷ lệ lịch đã phủ đạt mức này, thuật toán greedy sẽ dừng sớm. Giảm → chạy nhanh hơn; tăng → phủ kỹ hơn.");
+        upsert(BALANCE_SCORE_MIN, String.valueOf(config.getBalanceScoreMin()), AlgorithmConfig.ValueType.NUMBER,
+                "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
+        upsert(AUTO_COMPENSATION_ENABLED, String.valueOf(config.isAutoCompensationEnabled()), AlgorithmConfig.ValueType.BOOLEAN,
+                "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
+        upsert(BACKTRACK_TIME_LIMIT_SECONDS, String.valueOf(config.getBacktrackTimeLimitSeconds()), AlgorithmConfig.ValueType.NUMBER,
+                "Thời gian tối đa cho phép thuật toán backtracking chạy (giây). Hết thời gian → dừng và trả kết quả tốt nhất đã tìm được.");
     }
 
     private boolean getBooleanValue(String paramKey, boolean defaultValue) {
