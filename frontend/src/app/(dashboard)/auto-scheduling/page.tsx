@@ -52,6 +52,7 @@ import { useAutoSchedule } from "@/hooks/useAutoSchedule";
 import { useRole, canManage } from "@/hooks/useRole";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { RuntimeParamsChips } from "@/components/auto-scheduling/RuntimeParamsChips";
 import type { SchedulePeriod, Staff, AlgorithmMetrics, ReplacementSuggestion, AutoScheduleSummary, ScheduleTemplate, TemplatePreviewItem } from "@/types/api";
 
 function MetricsHistorySection({ periodId }: { periodId: number | null }) {
@@ -321,6 +322,7 @@ export default function AutoSchedulingPage() {
             </span>
           )}
           {/* Quick links */}
+          <RuntimeParamsChips compact />
           <Link href="/auto-scheduling/algorithm-config" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-xs text-on-surface hover:border-primary/40 transition-colors">
             <span className="material-symbols-outlined text-[13px]">tune</span> Cấu hình
           </Link>

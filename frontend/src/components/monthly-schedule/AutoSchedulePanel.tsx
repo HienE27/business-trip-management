@@ -178,6 +178,19 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
         <div className="p-3 space-y-3">
           {/* KPI strip */}
           <div className="flex flex-wrap gap-2">
+            {/* Algorithm badge */}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-semibold text-label-xs ${
+              previewResult.algorithmType === "ROUND_ROBIN"
+                ? "bg-secondary-container text-on-secondary-container border-secondary/30"
+                : previewResult.algorithmType === "BACKTRACKING"
+                ? "bg-tertiary-container text-on-tertiary-container border-tertiary/30"
+                : "bg-primary-fixed text-primary border-primary/30"
+            }`}>
+              <span className="material-symbols-outlined text-[12px]" aria-hidden="true">
+                {previewResult.algorithmType === "ROUND_ROBIN" ? "autorenew" : previewResult.algorithmType === "BACKTRACKING" ? "route" : "bolt"}
+              </span>
+              {previewResult.algorithmType.replace("_", " ")}
+            </div>
             {[
               { icon: "event_available", label: "Tạo", value: previewResult.totalSchedulesCreated, tone: "text-secondary" },
               { icon: "radio_button_checked", label: "Phủ", value: `${coverageRate}%`, tone: coverageRate >= 90 ? "text-secondary" : coverageRate >= 70 ? "text-primary" : "text-error" },

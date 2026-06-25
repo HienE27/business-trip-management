@@ -1,0 +1,4 @@
+feat(frontend): add runtime params chips and algorithm badge to auto-scheduling UI
+
+- RuntimeParamsChips: show weekend_weight / greedy_coverage_threshold / balance_score_min in header bar
+- AutoSchedulePanel: show algorithm badge (GREEDY / ROUND_ROBIN / BACKTRACKING) in KPI strip based on actual response
