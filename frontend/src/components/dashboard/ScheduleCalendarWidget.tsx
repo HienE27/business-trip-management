@@ -1,27 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, memo } from "react";
-import { useRouter } from "next/navigation";
-import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
-import { ScheduleTableView } from "@/components/dashboard/ScheduleTableView";
-import { ScheduleMatrixGrid } from "@/components/dashboard/ScheduleMatrixGrid";
+import { useState, useEffect, memo } from "react";
 import { MatrixGridWrapper } from "@/components/dashboard/MatrixGridWrapper";
 import { FAB } from "@/components/ui/FAB";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { Button, FormSelect, FormInput, FormTextarea } from "@/components/ui";
-import { ConflictResolutionModal } from "@/components/ui/ConflictResolutionModal";
 import { useRole, canEditSchedule } from "@/hooks/useRole";
 import { useToast } from "@/components/ui/ToastProvider";
 import { api } from "@/lib/api";
 import type { CompensationDay, Schedule } from "@/types/api";
-import type { ConflictItem } from "@/types/schedule";
-
-type CalendarAnnotation = {
-  date: string;
-  label: string;
-  tone?: "compLeave" | "warning" | "neutral" | "holiday";
-  description?: string;
-};
 
 type QuickScheduleModalProps = {
   open: boolean;
@@ -43,14 +30,12 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
   const [notes, setNotes] = useState<string>("");
   const toast = useToast();
 
-  // Auto-clear message
   useEffect(() => {
     if (!message) return;
     const t = setTimeout(() => setMessage(null), 4000);
     return () => clearTimeout(t);
   }, [message]);
 
-  // Reset form when modal opens
   useEffect(() => {
     if (open) {
       setDone(false);
@@ -123,7 +108,6 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
             ]}
             required
           />
-
           <FormSelect
             label="Nhân sự"
             id="q-staff"
@@ -133,7 +117,6 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
             options={staffList.map((s) => ({ value: String(s.id), label: s.fullName }))}
             required
           />
-
           <FormInput
             label="Ngày"
             id="q-date"
@@ -142,7 +125,6 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
             onChange={(e) => setWorkDate(e.target.value)}
             required
           />
-
           <FormTextarea
             label="Ghi chú"
             id="q-notes"
@@ -151,7 +133,6 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
-
           <ModalFooter>
             <Button type="button" variant="secondary" onClick={onClose}>
               Hủy
@@ -173,64 +154,40 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
 }
 
 type ScheduleCalendarWidgetProps = {
-  schedules: Schedule[];
-  calendarAnnotations?: CalendarAnnotation[];
-  coverages?: Record<string, { required: number; assigned: number }>;
+  schedules?: Schedule[];
   staffList?: { id: number; fullName: string }[];
-  staffFilter?: number | null;
-  specialtyList?: { id: number; name: string }[];
-  specialtyFilter?: number | null;
   initialYear?: number;
   initialMonth?: number;
   periodId?: number | null;
-  viewMode?: "calendar" | "table" | "matrix";
-  showViewToggle?: boolean;
   onRefresh?: () => void;
-  onDayClick?: (date: Date, items?: unknown[]) => void;
   onAddClick?: (date: Date, staffId?: number) => void;
-  onStaffFilterChange?: (staffId: number | null) => void;
-  onSpecialtyFilterChange?: (specialtyId: number | null) => void;
-  onViewDetail?: (schedule: Schedule) => void;
-  onViewModeChange?: (view: "calendar" | "table" | "matrix") => void;
   selectedTab?: string;
   onFilterTypeChange?: (filter: string) => void;
   compensationDays?: CompensationDay[];
-  /** Khi true: chỉ xem (dashboard), ẩn mọi thao tác CRUD. Khi false/undefined: cho phép sửa/xóa (monthly-schedule). */
   isReadOnly?: boolean;
-  /** Khi true: ẩn toolbar filter trên calendar (dashboard read-only). */
-  hideFilters?: boolean;
-  /** Bật nút Sửa trong tooltip (bypass isReadOnly cho inline edit trên dashboard). */
   canEditOverride?: boolean;
+  onViewDetail?: (schedule: Schedule) => void;
 };
 
-export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({ schedules, calendarAnnotations = [], coverages = {}, staffList = [], staffFilter: externalStaffFilter, specialtyList = [], specialtyFilter: externalSpecialtyFilter, initialYear, initialMonth, periodId, viewMode: externalViewMode, showViewToggle = true, isReadOnly = false, hideFilters = false, canEditOverride = false, onRefresh, onDayClick, onAddClick, onStaffFilterChange, onSpecialtyFilterChange, onViewDetail, onViewModeChange, selectedTab, onFilterTypeChange, compensationDays }: ScheduleCalendarWidgetProps) {
-  const [internalView, setInternalView] = useState<"calendar" | "table" | "matrix">("calendar");
+export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
+  schedules,
+  staffList = [],
+  initialYear,
+  initialMonth,
+  periodId,
+  isReadOnly = false,
+  canEditOverride = false,
+  onRefresh,
+  onAddClick,
+  selectedTab,
+  onFilterTypeChange,
+  compensationDays,
+  onViewDetail,
+}: ScheduleCalendarWidgetProps) {
   const [matrixViewMode, setMatrixViewMode] = useState<"month" | "week">("month");
-  const view = externalViewMode ?? internalView;
-  const scrollYRef = useRef(0);
-  const setView = (nextView: "calendar" | "table" | "matrix") => {
-    if (view !== nextView) {
-      scrollYRef.current = window.scrollY;
-    }
-    if (externalViewMode === undefined) setInternalView(nextView);
-    onViewModeChange?.(nextView);
-  };
-  useEffect(() => {
-    const saved = scrollYRef.current;
-    if (saved > 0) {
-      scrollYRef.current = 0;
-      requestAnimationFrame(() => window.scrollTo(0, saved));
-    }
-  }, [view]);
   const [quickOpen, setQuickOpen] = useState(false);
-  const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<Schedule | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [conflictItem, setConflictItem] = useState<ConflictItem | null>(null);
   const role = useRole();
   const canEdit = canEditSchedule(role) && (!isReadOnly || canEditOverride);
-  const router = useRouter();
   const toast = useToast();
 
   const fabActions = canEdit ? [
@@ -242,186 +199,55 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({ sch
     },
   ] : [];
 
-  const handleDelete = async (schedule: Schedule) => {
-    setDeleteConfirm(schedule);
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteConfirm) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/schedules/${deleteConfirm.id}`);
-      setDeleteConfirm(null);
-      onRefresh?.();
-    } catch {
-      toast.error("Không thể xóa ca trực. Vui lòng thử lại.");
-      setDeleteConfirm(null);
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   return (
     <div className="flex flex-col pt-1">
+      {/* Matrix view: Month / Week toggle */}
       <div className="flex items-center justify-end px-4 pt-3 pb-2">
         <div
           role="group"
-          aria-label="Chọn chế độ xem"
+          aria-label="Chế độ xem ma trận"
           className="flex items-center gap-1 rounded-lg bg-surface-container-low p-1"
         >
           <button
             type="button"
-            onClick={() => setView("calendar")}
-            aria-pressed={view === "calendar"}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-              view === "calendar"
+            onClick={() => setMatrixViewMode("month")}
+            aria-pressed={matrixViewMode === "month"}
+            className={`rounded-md px-3 py-1 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              matrixViewMode === "month"
                 ? "bg-surface-container-lowest text-primary shadow-sm"
                 : "text-on-surface-variant hover:text-on-surface"
             }`}
           >
-            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">calendar_month</span>
-            Lịch biểu
+            Tháng
           </button>
           <button
             type="button"
-            onClick={() => setView("table")}
-            aria-pressed={view === "table"}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-              view === "table"
+            onClick={() => setMatrixViewMode("week")}
+            aria-pressed={matrixViewMode === "week"}
+            className={`rounded-md px-3 py-1 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              matrixViewMode === "week"
                 ? "bg-surface-container-lowest text-primary shadow-sm"
                 : "text-on-surface-variant hover:text-on-surface"
             }`}
           >
-            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">table</span>
-            Bảng dữ liệu
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("matrix")}
-            aria-pressed={view === "matrix"}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-              view === "matrix"
-                ? "bg-surface-container-lowest text-primary shadow-sm"
-                : "text-on-surface-variant hover:text-on-surface"
-            }`}
-          >
-            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">grid_view</span>
-            Ma trận
+            Tuần
           </button>
         </div>
-
-        {/* Matrix view: Tháng / Tuần toggle */}
-        {view === "matrix" && (
-          <div
-            role="group"
-            aria-label="Chế độ xem ma trận"
-            className="flex items-center gap-1 rounded-lg bg-surface-container-low p-1"
-          >
-            <button
-              type="button"
-              onClick={() => setMatrixViewMode("month")}
-              aria-pressed={matrixViewMode === "month"}
-              className={`rounded-md px-3 py-1 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                matrixViewMode === "month"
-                  ? "bg-surface-container-lowest text-primary shadow-sm"
-                  : "text-on-surface-variant hover:text-on-surface"
-              }`}
-            >
-              Tháng
-            </button>
-            <button
-              type="button"
-              onClick={() => setMatrixViewMode("week")}
-              aria-pressed={matrixViewMode === "week"}
-              className={`rounded-md px-3 py-1 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                matrixViewMode === "week"
-                  ? "bg-surface-container-lowest text-primary shadow-sm"
-                  : "text-on-surface-variant hover:text-on-surface"
-              }`}
-            >
-              Tuần
-            </button>
-          </div>
-        )}
       </div>
 
       <div className="px-3 pb-3">
-        <div key={view} className="animate-fade-in">
-        {view === "calendar" ? (
-          <DashboardCalendar
-            schedules={schedules}
-            annotations={calendarAnnotations}
-            coverages={coverages}
-            staffList={staffList}
-            staffFilter={externalStaffFilter}
-            specialtyList={specialtyList}
-            specialtyFilter={externalSpecialtyFilter}
-            initialYear={initialYear}
-            initialMonth={initialMonth}
-            onEditSchedule={canEdit ? (s) => setEditSchedule(s) : undefined}
-            onDeleteSchedule={canEdit ? handleDelete : undefined}
-            onResolveConflict={canEdit ? (s) => setConflictItem({
-              id: String(s.id),
-              staffName: s.staff.fullName,
-              date: new Date(s.workDate).toLocaleDateString("vi-VN"),
-              detail: `Xung đột lịch trực ${s.shiftType.name} ngày ${new Date(s.workDate).toLocaleDateString("vi-VN")}`,
-              type: "SCHEDULE_CONFLICT",
-              severity: "Chặn lưu",
-              shiftType: s.shiftType.name,
-              periodId: s.periodId,
-              workDate: s.workDate,
-              shiftTypeId: s.shiftType.id,
-              originalStaffId: s.staff.id,
-            }) : undefined}
-            onDayClick={onDayClick}
-            onAddClick={onAddClick}
-            onStaffFilterChange={onStaffFilterChange}
-            onSpecialtyFilterChange={onSpecialtyFilterChange}
-            onViewDetail={onViewDetail}
-            onRefresh={onRefresh}
-            selectedTab={selectedTab}
-            onFilterTypeChange={onFilterTypeChange}
-            hideFilters={isReadOnly || hideFilters}
-          />
-        ) : view === "matrix" ? (
-          <div className="px-1">
-            <MatrixGridWrapper
-              schedules={schedules}
-              staffList={staffList ?? []}
-              year={initialYear ?? new Date().getFullYear()}
-              month={initialMonth ?? new Date().getMonth()}
-              viewMode={matrixViewMode}
-              compensationDays={compensationDays}
-              shiftTypeFilter={selectedTab}
-              onViewDetail={canEdit ? (s) => setEditSchedule(s) : undefined}
-              onCellClick={(date, staffId) => { onAddClick?.(date, staffId); }}
-              onRefresh={onRefresh}
-              canEdit={canEdit}
-            />
-          </div>
-        ) : (
-          <ScheduleTableView
-            schedules={schedules}
-            canEdit={canEdit}
-            onEdit={canEdit ? (s) => setEditSchedule(s) : undefined}
-            onDelete={canEdit ? handleDelete : undefined}
-            onResolveConflict={canEdit ? (s) => setConflictItem({
-              id: String(s.id),
-              staffName: s.staff.fullName,
-              date: new Date(s.workDate).toLocaleDateString("vi-VN"),
-              detail: `Xung đột lịch trực ${s.shiftType.name} ngày ${new Date(s.workDate).toLocaleDateString("vi-VN")}`,
-              type: "SCHEDULE_CONFLICT",
-              severity: "Chặn lưu",
-              shiftType: s.shiftType.name,
-              periodId: s.periodId,
-              workDate: s.workDate,
-              shiftTypeId: s.shiftType.id,
-              originalStaffId: s.staff.id,
-            }) : undefined}
-            onViewDetail={onViewDetail}
-          />
-        )}
-        </div>
+        <MatrixGridWrapper
+          schedules={schedules ?? []}
+          staffList={staffList ?? []}
+          year={initialYear ?? new Date().getFullYear()}
+          month={initialMonth ?? new Date().getMonth()}
+          viewMode={matrixViewMode}
+          compensationDays={compensationDays}
+          shiftTypeFilter={selectedTab}
+          onCellClick={(date, staffId) => { onAddClick?.(date, staffId); }}
+          onRefresh={onRefresh}
+          canEdit={canEdit}
+        />
       </div>
 
       {!isReadOnly && <FAB actions={fabActions} />}
@@ -429,115 +255,13 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({ sch
       {/* Quick Create Modal */}
       {!isReadOnly && (
         <QuickScheduleModal
-        open={quickOpen}
-        onClose={() => setQuickOpen(false)}
-        onSuccess={onRefresh}
-        periodId={periodId ?? null}
-        staffList={staffList}
-        defaultShiftTypeId="L01"
-        compensationDays={compensationDays}
-      />
-      )}
-
-      {/* Edit Modal — redirects to detail page for full editing */}
-      {!isReadOnly && (
-        <Modal
-          open={!!editSchedule}
-          onClose={() => setEditSchedule(null)}
-          title="Chỉnh sửa ca trực"
-          description={editSchedule ? `${editSchedule.staff.fullName} — ${new Date(editSchedule.workDate).toLocaleDateString("vi-VN")}` : ""}
-          size="md"
-        >
-          {editSchedule && (
-            <div className="space-y-4">
-              <div className="bg-surface-container-low rounded-lg p-4 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-label-sm text-on-surface-variant">Loại lịch</span>
-                  <span className="text-label-md text-on-surface font-medium">{editSchedule.shiftType.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-label-sm text-on-surface-variant">Nhân sự</span>
-                  <span className="text-label-md text-on-surface font-medium">{editSchedule.staff.fullName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-label-sm text-on-surface-variant">Ngày</span>
-                  <span className="text-label-md text-on-surface font-medium">{new Date(editSchedule.workDate).toLocaleDateString("vi-VN")}</span>
-                </div>
-              </div>
-              <div className="bg-primary-fixed/30 rounded-lg border border-primary/20 px-4 py-3 text-label-sm text-on-primary-fixed-variant">
-                <span className="material-symbols-outlined text-[16px] align-text-bottom mr-1">info</span>
-                Chỉnh sửa chi tiết tại trang chuyên biệt — nơi có đầy đủ form và ràng buộc.
-              </div>
-            <ModalFooter>
-              <Button type="button" variant="secondary" onClick={() => setEditSchedule(null)}>
-                Hủy
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                loading={editing}
-                onClick={async () => {
-                  if (!editSchedule) return;
-                  setEditing(true);
-                  try {
-                    // Delete the schedule (same as QuickScheduleModal flow — clear slot, re-create)
-                    await api.delete(`/schedules/${editSchedule.id}`);
-                    toast.success("Đã xóa ca trực. Tạo lại với thông tin mới tại form bên dưới.");
-                    setEditSchedule(null);
-                    onRefresh?.();
-                    // Open quick add pre-filled
-                    setQuickOpen(true);
-                  } catch {
-                    toast.error("Không thể xóa ca trực. Vui lòng thử lại.");
-                    setEditing(false);
-                  }
-                }}
-              >
-                Xóa & Tạo mới
-              </Button>
-            </ModalFooter>
-            </div>
-          )}
-        </Modal>
-      )}
-
-      {/* Delete Confirm Modal */}
-      {!isReadOnly && (
-        <Modal
-          open={!!deleteConfirm}
-          onClose={() => setDeleteConfirm(null)}
-          title="Xác nhận xóa ca trực"
-          description={deleteConfirm ? `${deleteConfirm.staff.fullName} — ${new Date(deleteConfirm.workDate).toLocaleDateString("vi-VN")}` : ""}
-          size="sm"
-        >
-          <div className="space-y-4">
-            <p className="text-label-md text-on-surface-variant leading-relaxed">
-              Bạn có chắc muốn xóa ca trực này? Hành động này không thể hoàn tác.
-            </p>
-            <ModalFooter>
-              <Button type="button" variant="secondary" onClick={() => setDeleteConfirm(null)}>
-                Hủy
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                loading={deleting}
-                onClick={confirmDelete}
-              >
-                Xóa
-              </Button>
-            </ModalFooter>
-          </div>
-        </Modal>
-      )}
-
-      {/* Conflict Resolution Modal */}
-      {!isReadOnly && (
-        <ConflictResolutionModal
-          open={!!conflictItem}
-          onClose={() => setConflictItem(null)}
-          conflict={conflictItem}
-          onRefresh={onRefresh}
+          open={quickOpen}
+          onClose={() => setQuickOpen(false)}
+          onSuccess={onRefresh}
+          periodId={periodId ?? null}
+          staffList={staffList}
+          defaultShiftTypeId="L01"
+          compensationDays={compensationDays}
         />
       )}
     </div>

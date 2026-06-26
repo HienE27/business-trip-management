@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScheduleMatrixGrid } from "@/components/dashboard/ScheduleMatrixGrid";
 import type { Schedule } from "@/types/api";
 
@@ -19,6 +19,10 @@ export type MatrixGridWrapperProps = {
   compensationDays?: import("@/types/api").CompensationDay[];
   /** Filter by shift type (L01/L02/L03/L04) */
   shiftTypeFilter?: string;
+  /** Conflict dates — Set of date strings (YYYY-MM-DD) */
+  conflictDates?: Set<string>;
+  /** When true: only show rows that have conflicts */
+  showConflictOnly?: boolean;
   onViewDetail?: (schedule: Schedule) => void;
   onCellClick?: (date: Date, staffId: number) => void;
   onRefresh?: () => void;
@@ -71,12 +75,16 @@ export function MatrixGridWrapper({
   viewMode,
   compensationDays,
   shiftTypeFilter,
+  conflictDates,
+  showConflictOnly: initialShowConflictOnly,
   onViewDetail,
   onCellClick,
   onRefresh,
   canEdit,
 }: MatrixGridWrapperProps) {
   const [weekOffset, setWeekOffset] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showConflictOnly, setShowConflictOnly] = useState(initialShowConflictOnly ?? false);
 
   // Derive anchor Monday from schedules — memoized, runs once per schedules array ref
   const anchorMonday = useMemo(() => {
@@ -102,8 +110,72 @@ export function MatrixGridWrapper({
   const handlePrevWeek = useCallback(() => setWeekOffset((o) => o - 1), []);
   const handleNextWeek = useCallback(() => setWeekOffset((o) => o + 1), []);
 
+  // Filter staff columns by search query
+  const filteredStaffList = useMemo(() => {
+    if (!searchQuery.trim()) return staffList;
+    const q = searchQuery.toLowerCase();
+    return staffList.filter((s) => s.fullName.toLowerCase().includes(q));
+  }, [staffList, searchQuery]);
+
   return (
     <div className="flex flex-col gap-3">
+      {/* Search bar */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]" aria-hidden="true">search</span>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm kiếm nhân sự..."
+            className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low rounded-lg border border-transparent
+              focus:border-primary focus:bg-surface-container-lowest focus:ring-1 focus:ring-primary/20 focus:outline-none
+              text-body-sm text-on-surface placeholder:text-outline transition-all"
+            aria-label="Tìm kiếm nhân sự trong ma trận"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors"
+              aria-label="Xóa tìm kiếm"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          )}
+        </div>
+        {searchQuery && filteredStaffList.length > 0 && (
+          <span className="text-label-sm text-on-surface-variant shrink-0">
+            {filteredStaffList.length}/{staffList.length} nhân sự
+          </span>
+        )}
+        {searchQuery && filteredStaffList.length === 0 && (
+          <span className="text-label-sm text-error shrink-0">Không tìm thấy nhân sự</span>
+        )}
+      </div>
+
+      {/* Conflict filter toggle */}
+      {conflictDates && conflictDates.size > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowConflictOnly((v) => !v)}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-label-sm font-medium transition-all border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+            showConflictOnly
+              ? "bg-error-container text-on-error-container border-error/20"
+              : "bg-surface-container-low text-on-surface-variant border-transparent hover:bg-surface-container-high hover:text-on-surface"
+          }`}
+          title="Chỉ hiện ngày có xung đột"
+        >
+          <span className="material-symbols-outlined text-[16px]">warning</span>
+          Chỉ xung đột
+          <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold ${
+            showConflictOnly ? "bg-error text-white" : "bg-error/20 text-error"
+          }`}>
+            {conflictDates.size}
+          </span>
+        </button>
+      )}
+
       {viewMode === "week" && (
         <div className="flex items-center justify-between rounded-lg border border-outline-variant bg-surface-container-low px-4 py-2">
           <button
@@ -132,13 +204,14 @@ export function MatrixGridWrapper({
 
       <ScheduleMatrixGrid
         schedules={schedules}
-        staffList={staffList}
+        staffList={filteredStaffList}
         year={gridYear}
         month={gridMonth}
         weekStart={weekRange?.weekStart}
         weekEnd={weekRange?.weekEnd}
         compensationDays={compensationDays}
         shiftTypeFilter={shiftTypeFilter}
+        conflictDates={showConflictOnly ? conflictDates : undefined}
         onViewDetail={onViewDetail}
         onCellClick={onCellClick}
         onRefresh={onRefresh}

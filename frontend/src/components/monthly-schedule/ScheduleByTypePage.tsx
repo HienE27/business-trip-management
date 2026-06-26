@@ -27,7 +27,7 @@ import type {
   Specialty,
   Staff,
 } from "@/types/api";
-import type { MonthlyPanel, ScheduleTab, ViewMode, WorkflowStepId } from "@/components/monthly-schedule/types";
+import type { MonthlyPanel, ScheduleTab, WorkflowStepId } from "@/components/monthly-schedule/types";
 
 export type ScheduleTypeConfig = {
   /** Sidebar section key, drives the active highlight. */
@@ -98,7 +98,6 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const [selectedTab, setSelectedTab] = useState<ScheduleTab>(
     isExpertMode ? "ALL" : (config.shiftTypeId as ScheduleTab)
   );
-  const [viewMode, setViewMode] = useState<ViewMode>("matrix");
   const [selectedPanel, setSelectedPanel] = useState<MonthlyPanel>("summary");
   const [showStats, setShowStats] = useState(false);
   const [conflictData, setConflictData] = useState<ConflictCheckResponse | null>(null);
@@ -437,38 +436,6 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     () => schedules.find((s) => s.id === detailScheduleId) ?? null,
     [schedules, detailScheduleId]
   );
-
-  const calendarAnnotations = useMemo(() => {
-    const compByDate = new Map<string, CompensationDay[]>();
-    for (const cd of compensationDays) {
-      const key = cd.compensationDate.split("T")[0];
-      const list = compByDate.get(key) ?? [];
-      list.push(cd);
-      compByDate.set(key, list);
-    }
-    const compAnnotations = Array.from(compByDate.entries()).map(([date, days]) => {
-      const staffNames = days.map((d) => d.staffName);
-      const label =
-        staffNames.length === 1
-          ? `Nghỉ bù · ${staffNames[0]}`
-          : `Nghỉ bù · ${staffNames[0]}${staffNames.length > 1 ? ` (+${staffNames.length - 1})` : ""}`;
-      return {
-        date,
-        label,
-        tone: "compLeave" as const,
-        description: config.compDescription,
-      };
-    });
-
-    const holidayAnnotations = (holidays ?? []).map((h) => ({
-      date: h.holidayDate.split("T")[0],
-      label: `Ngày lễ · ${h.name}`,
-      tone: "holiday" as const,
-      description: h.description ?? h.name,
-    }));
-
-    return [...compAnnotations, ...holidayAnnotations];
-  }, [compensationDays, holidays, config.compDescription]);
 
   if (loading && periods.length === 0) {
     return (
@@ -916,20 +883,13 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       ) : (
         <ScheduleCalendarSection
           schedules={schedules}
-          calendarAnnotations={calendarAnnotations}
-          coverages={{}}
           activeStaff={activeStaff}
-          specialties={isExpertMode ? specialties : []}
-          staffFilterId={null}
-          specialtyFilterId={isExpertMode ? selectedSpecialtyId : null}
           selectedPeriodId={selectedPeriodId}
           initialYear={initialCalendar.year}
           initialMonth={initialCalendar.month}
-          viewMode={viewMode}
           selectedTab={isExpertMode ? selectedTab : (config.shiftTypeId satisfies ScheduleTab)}
           compensationDays={compensationDays}
           onRefresh={handleRefresh}
-          onFocusDate={() => undefined}
           onAddDate={(date) => {
             if (!selectedPeriod) return;
             const start = new Date(selectedPeriod.startDate);
@@ -940,21 +900,12 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
               setAddModalDate(date);
             }
           }}
-          onStaffFilterChange={() => undefined}
-          onSpecialtyFilterChange={
-            isExpertMode ? setSelectedSpecialtyId : () => undefined
-          }
-          onViewDetail={
-            (schedule) => setDetailScheduleId(schedule.id)
-          }
-          onViewModeChange={setViewMode}
+          onViewDetail={(schedule) => setDetailScheduleId(schedule.id)}
           onFilterTypeChange={
             isExpertMode
               ? (filter: string) => setSelectedTab(filter as ScheduleTab)
               : () => undefined
           }
-          hideFilters={!isExpertMode}
-          showViewToggle
         />
       ))}
 

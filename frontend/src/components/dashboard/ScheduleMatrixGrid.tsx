@@ -1,11 +1,10 @@
 "use client";
 
 import { memo, useCallback, useMemo, useState } from "react";
-import { TONE, SHIFT_FULL_LABEL, SHIFT_SHORT, type CalendarItem } from "./calendar/constants";
+import { TONE, SHIFT_FULL_LABEL, type CalendarItem } from "./calendar/constants";
 import { buildScheduleMatrix, type MatrixRow } from "./calendar/buildScheduleMatrix";
 import { EventTooltip, type TooltipData } from "./calendar/EventTooltip";
 import type { Schedule, CompensationDay } from "@/types/api";
-import type { ScheduleTone } from "@/types/schedule";
 
 type MatrixRowCellProps = {
   row: MatrixRow;
@@ -87,6 +86,8 @@ export type ScheduleMatrixGridProps = {
   compensationDays?: CompensationDay[];
   /** Filter shifts by type (L01/L02/L03/L04). Pass "ALL" to show all. */
   shiftTypeFilter?: string;
+  /** Conflict dates — Set of date strings (YYYY-MM-DD). Rows with these dates get a warning indicator. */
+  conflictDates?: Set<string>;
   /** Week mode: start of the week (Monday). */
   weekStart?: Date;
   /** Week mode: end of the week (Sunday). */
@@ -142,6 +143,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
   month,
   compensationDays = [],
   shiftTypeFilter = "ALL",
+  conflictDates,
   weekStart,
   weekEnd,
   onViewDetail,
@@ -153,19 +155,25 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
   const matrix = useMemo<MatrixRow[]>(
     () => {
       const all = buildScheduleMatrix(schedules, staffList, year, month, compensationDays, weekStart, weekEnd);
-      if (shiftTypeFilter === "ALL") return all.rows;
-      return all.rows.map((row) => {
-        const filtered = new Map<number, CalendarItem[]>();
-        for (const [staffId, items] of row.cells) {
-          const filteredItems = items.filter(
-            (item) => item.shiftTypeId === shiftTypeFilter
-          );
-          filtered.set(staffId, filteredItems);
-        }
-        return { ...row, cells: filtered };
-      });
+      let rows = all.rows;
+      if (shiftTypeFilter !== "ALL") {
+        rows = rows.map((row) => {
+          const filtered = new Map<number, CalendarItem[]>();
+          for (const [staffId, items] of row.cells) {
+            const filteredItems = items.filter(
+              (item) => item.shiftTypeId === shiftTypeFilter
+            );
+            filtered.set(staffId, filteredItems);
+          }
+          return { ...row, cells: filtered };
+        });
+      }
+      if (conflictDates && conflictDates.size > 0) {
+        rows = rows.filter((row) => conflictDates.has(row.dateStr));
+      }
+      return rows;
     },
-    [schedules, staffList, year, month, compensationDays, shiftTypeFilter, weekStart, weekEnd]
+    [schedules, staffList, year, month, compensationDays, shiftTypeFilter, weekStart, weekEnd, conflictDates]
   );
 
   // Pre-compute total shifts per staff (memoized — avoids O(n*m) inside map)
@@ -260,8 +268,15 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                 >
                   {/* Date label cell */}
                   <td className="sticky left-0 z-20 border-b border-r border-outline-variant bg-surface-container-low px-3 py-2 font-semibold">
-                    <div className="flex flex-col">
-                      <span className="text-[13px] text-on-surface">{row.dayLabel}</span>
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[13px] text-on-surface">{row.dayLabel}</span>
+                        {conflictDates?.has(row.dateStr) && (
+                          <span className="flex items-center justify-center w-4 h-4 rounded-full bg-error" title="Ngày có xung đột">
+                            <span className="material-symbols-outlined text-[10px] text-white">warning</span>
+                          </span>
+                        )}
+                      </div>
                       <span
                         className={`text-[11px] font-medium ${
                           row.dayOfWeek === "CN"

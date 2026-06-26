@@ -395,29 +395,17 @@ export default function DashboardPage() {
           <div className="rounded-lg border border-outline-variant bg-surface-container-lowest overflow-hidden shadow-sm">
             <ScheduleCalendarWidget
               schedules={schedules}
-              calendarAnnotations={calendarAnnotations}
-              coverages={computedCoverages}
               staffList={staffList}
-              staffFilter={selectedStaffId}
-              specialtyList={[]}
               initialYear={initialCalendarYear}
               initialMonth={initialCalendarMonth}
               periodId={selectedPeriod.id}
               compensationDays={compensationDays}
-              viewMode="matrix"
               isReadOnly={true}
-              canEditOverride={true}
               selectedTab={selectedTab}
               onFilterTypeChange={(filter) =>
                 filters.setTab(filter as "L01" | "L02" | "L03" | "L04" | "ALL")
               }
               onRefresh={() => void refresh()}
-              onDayClick={(date) => {
-                const dateStr = date.toISOString().slice(0, 10);
-                setDate(dateStr);
-                router.push(`/monthly-schedule?date=${dateStr}`);
-              }}
-              onStaffFilterChange={(staffId) => setStaffId(staffId)}
             />
           </div>
         </section>

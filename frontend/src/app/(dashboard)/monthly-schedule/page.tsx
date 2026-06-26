@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton, SkeletonCalendar, SkeletonKPI, SkeletonTable } from "@/components/ui/Skeleton";
@@ -84,11 +84,9 @@ const ReviewSnapshotPanel = dynamic(
 export default function MonthlySchedulePage() {
   const role = useRole();
   const [wsState, wsActions] = useScheduleWorkspace();
-  const scrollYRef = useRef(0);
   const {
     selectedTab,
     selectedPanel,
-    viewMode,
     parsedScheduleId,
     periodId: periodIdFromUrl,
     parsedStaffId: staffIdFromUrl,
@@ -108,16 +106,6 @@ export default function MonthlySchedulePage() {
     setStaffFilterId(staffId);
     setQueryState({ staffId });
   }, [setQueryState]);
-
-  // Only restore scroll when view actually changes (calendar ↔ table).
-  // Tab/filter changes do NOT change view — no scroll restore needed.
-  useEffect(() => {
-    const saved = scrollYRef.current;
-    if (saved > 0) {
-      scrollYRef.current = 0;
-      requestAnimationFrame(() => window.scrollTo(0, saved));
-    }
-  }, [viewMode]);
 
   // Sync workspace khi URL periodId thay đổi
   useEffect(() => {
@@ -316,8 +304,7 @@ export default function MonthlySchedulePage() {
             publishing={publishing}
             canPublish={canManage(role)}
             onPeriodChange={handlePeriodChange}
-            onTabChange={(tab) => {
-              scrollYRef.current = window.scrollY;
+          onTabChange={(tab) => {
               setQueryState({ tab });
             }}
             onRefresh={handleRefresh}
@@ -397,20 +384,13 @@ export default function MonthlySchedulePage() {
       <div className="border border-outline-variant overflow-hidden rounded-xl">
         <ScheduleCalendarSection
           schedules={filteredSchedules}
-          calendarAnnotations={calendarAnnotations}
-          coverages={computedCoverages}
           activeStaff={activeStaff}
-          specialties={specialties}
-          staffFilterId={staffFilterId}
-          specialtyFilterId={null}
           selectedPeriodId={selectedPeriodId}
           initialYear={initialCalendar.year}
           initialMonth={initialCalendar.month}
-          viewMode={viewMode}
           selectedTab={selectedTab}
           compensationDays={compensationDays}
           onRefresh={handleRefresh}
-          onFocusDate={setFocusDate}
           onAddDate={(date) => {
             if (!selectedPeriod) return;
             const start = new Date(selectedPeriod.startDate);
@@ -421,12 +401,8 @@ export default function MonthlySchedulePage() {
               setAddModalDate(date);
             }
           }}
-          onStaffFilterChange={() => undefined}
-          onSpecialtyFilterChange={() => undefined}
           onViewDetail={(schedule) => openScheduleDetail(schedule.id)}
-          onViewModeChange={(view) => setQueryState({ view })}
           onFilterTypeChange={(filter) => setQueryState({ tab: filter as "L01" | "L02" | "L03" | "L04" | "ALL" })}
-          hideFilters={false}
         />
       </div>
 

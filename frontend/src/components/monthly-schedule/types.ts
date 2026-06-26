@@ -1,7 +1,6 @@
 import type { ConflictCheckResponse, ConflictDetail, PublishDryRunResponse, Schedule, SchedulePeriod, Staff } from "@/types/api";
 
 export type ScheduleTab = "L01" | "L02" | "L03" | "L04" | "ALL";
-export type ViewMode = "calendar" | "table" | "matrix";
 export type MonthlyPanel = "overview" | "conflicts" | "summary" | "workload";
 export type WorkflowStepId = "auto-schedule" | "conflicts" | "review" | "export" | "publish" | "notify";
 export type WorkflowStatus = "pending" | "active" | "completed" | "error";
@@ -54,7 +53,6 @@ export type MonthlyDerivedData = {
 export type MonthlyScheduleQueryState = {
   selectedTab: ScheduleTab;
   selectedPanel: MonthlyPanel;
-  viewMode: ViewMode;
   parsedScheduleId: number | null;
   parsedStaffId: number | null;
   parsedSpecialtyId: number | null;

@@ -25,7 +25,6 @@ describe("useMonthlyScheduleUrlState", () => {
     const { result } = renderHook(() => useMonthlyScheduleUrlState());
     expect(result.current.selectedTab).toBe("ALL");
     expect(result.current.selectedPanel).toBe("overview");
-    expect(result.current.viewMode).toBe("matrix");
     expect(result.current.parsedScheduleId).toBeNull();
     expect(result.current.parsedStaffId).toBeNull();
     expect(result.current.parsedSpecialtyId).toBeNull();
@@ -54,12 +53,6 @@ describe("useMonthlyScheduleUrlState", () => {
     mockSearchParams = new URLSearchParams("panel=garbage");
     const { result } = renderHook(() => useMonthlyScheduleUrlState());
     expect(result.current.selectedPanel).toBe("overview");
-  });
-
-  it("parses view mode (calendar/table)", () => {
-    mockSearchParams = new URLSearchParams("view=table");
-    const { result } = renderHook(() => useMonthlyScheduleUrlState());
-    expect(result.current.viewMode).toBe("table");
   });
 
   it("parses numeric IDs from query string", () => {

@@ -2,6 +2,7 @@ package com.hospital.scheduler.dto.request;
 
 import jakarta.validation.constraints.*;
 import lombok.*;
+import java.time.LocalDateTime;
 
 
 @Getter

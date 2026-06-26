@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { MonthlyPanel, MonthlyScheduleQueryState, ScheduleTab, ViewMode } from "@/components/monthly-schedule/types";
+import type { MonthlyPanel, MonthlyScheduleQueryState, ScheduleTab } from "@/components/monthly-schedule/types";
 
 function getTab(searchParams: URLSearchParams): ScheduleTab {
   const tab = searchParams.get("tab")?.toUpperCase();
@@ -14,12 +14,6 @@ function getPanel(searchParams: URLSearchParams): MonthlyPanel {
   const panel = searchParams.get("panel");
   if (panel === "conflicts" || panel === "summary") return panel;
   return "overview";
-}
-
-function getViewMode(searchParams: URLSearchParams): ViewMode {
-  const v = searchParams.get("view");
-  if (v === "calendar" || v === "table" || v === "matrix") return v;
-  return "matrix";
 }
 
 function getNumberParam(searchParams: URLSearchParams, key: string) {
@@ -45,7 +39,6 @@ export function useMonthlyScheduleUrlState() {
   const queryState = useMemo<MonthlyScheduleQueryState>(() => ({
     selectedTab: getTab(searchParams),
     selectedPanel: getPanel(searchParams),
-    viewMode: getViewMode(searchParams),
     parsedScheduleId: getNumberParam(searchParams, "scheduleId"),
     parsedStaffId: getNumberParam(searchParams, "staffId"),
     parsedSpecialtyId: getNumberParam(searchParams, "specialtyId"),
@@ -53,11 +46,10 @@ export function useMonthlyScheduleUrlState() {
   }), [searchParams]);
 
   const setQueryState = useCallback(
-    (next: { tab?: ScheduleTab; panel?: MonthlyPanel; view?: ViewMode; periodId?: number | null; staffId?: number | null }) => {
+    (next: { tab?: ScheduleTab; panel?: MonthlyPanel; periodId?: number | null; staffId?: number | null }) => {
       const params = new URLSearchParams(searchParams.toString());
       if (next.tab) params.set("tab", next.tab);
       if (next.panel) params.set("panel", next.panel);
-      if (next.view) params.set("view", next.view);
       if (next.periodId !== undefined) {
         if (next.periodId === null) {
           params.delete("periodId");

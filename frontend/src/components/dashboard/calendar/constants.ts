@@ -40,29 +40,6 @@ export const SHIFT_ORDER: Record<string, number> = {
   L04: 4,
 };
 
-export const MAX_VISIBLE_GROUPS = 2;
-export const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"] as const;
-
-export function addDays(d: Date, days: number): Date {
-  const result = new Date(d);
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
-export function weekStartOf(d: Date): Date {
-  const result = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const dow = (result.getDay() + 6) % 7;
-  result.setDate(result.getDate() - dow);
-  return result;
-}
-
-export function getStaffCode(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
-  const last = parts[parts.length - 1];
-  return last.slice(0, 3).toUpperCase();
-}
-
 export function shiftTypeToTone(id: string): ScheduleTone {
   switch (id) {
     case "L01": return "duty24";
@@ -71,10 +48,6 @@ export function shiftTypeToTone(id: string): ScheduleTone {
     case "L04": return "expertClinic";
     default: return "neutral";
   }
-}
-
-export function formatFullDate(date: Date) {
-  return date.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 export type CalendarItem = {
@@ -86,49 +59,3 @@ export type CalendarItem = {
   isOvernight: boolean;
   schedule: Schedule;
 };
-
-export type CalendarAnnotationTone = "compLeave" | "warning" | "neutral" | "holiday";
-
-export type CalendarAnnotation = {
-  date: string;
-  label: string;
-  tone?: CalendarAnnotationTone;
-  description?: string;
-  isCompensation?: boolean;
-  locked?: boolean;
-  isHoliday?: boolean;
-  holidayName?: string;
-  coverage?: { required: number; assigned: number };
-  coverageShiftTypeId?: string;
-};
-
-export type CalendarCell = {
-  day: number;
-  isWeekend: boolean;
-  isCurrentMonth: boolean;
-  hasConflict: boolean;
-  isCompensation: boolean;
-  items: CalendarItem[];
-  annotations: CalendarAnnotation[];
-  dateStr: string;
-  date: Date;
-};
-
-export type CalendarViewMode = "month" | "week";
-
-export function summarizeItems(items: CalendarItem[]) {
-  const map = new Map<string, { shiftTypeId: string; label: string; count: number; tone: ScheduleTone }>();
-  for (const item of items) {
-    const current = map.get(item.shiftTypeId) ?? {
-      shiftTypeId: item.shiftTypeId,
-      label: SHIFT_SHORT[item.shiftTypeId] ?? item.shiftLabel,
-      count: 0,
-      tone: item.tone,
-    };
-    current.count += 1;
-    map.set(item.shiftTypeId, current);
-  }
-  return Array.from(map.values()).sort(
-    (a, b) => (SHIFT_ORDER[a.shiftTypeId] ?? 99) - (SHIFT_ORDER[b.shiftTypeId] ?? 99)
-  );
-}

@@ -171,9 +171,9 @@ class AutoSchedulingServiceTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(testPeriod));
             when(staffRepository.findByIsActiveTrue()).thenReturn(testStaffList);
             when(requirementRepository.findByPeriodId(1)).thenReturn(testRequirements);
-            // Signature: findReplacements(Integer, LocalDate, String, Integer, Integer, Set<Integer>)
-            when(conflictDetectionService.findReplacements(anyInt(), any(LocalDate.class), anyString(), any(), anyInt(), anySet()))
-                    .thenReturn(new ArrayList<>(testStaffList));
+            // Greedy uses filterAndSortEligibleStaffBatch -> hasAnyConflict
+            when(conflictDetectionService.hasAnyConflict(anyInt(), any(LocalDate.class), anyString(), isNull(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean()))
+                    .thenReturn(false);
             when(scheduleRepository.countByStaffIdAndPeriodId(anyInt(), anyInt())).thenReturn(0L);
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any(LocalDate.class)))
                     .thenReturn(Optional.empty());
@@ -197,7 +197,9 @@ class AutoSchedulingServiceTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(testPeriod));
             when(staffRepository.findByIsActiveTrue()).thenReturn(testStaffList);
             when(requirementRepository.findByPeriodId(1)).thenReturn(testRequirements);
-            when(conflictDetectionService.findReplacements(anyInt(), any(LocalDate.class), anyString(), any(), anyInt(), anySet()))
+            // Round Robin uses findReplacements(periodId, date, shiftTypeId, originalStaffId, requiredCount, excludedStaffIds, skipCompensationDay) - 7 params
+            when(conflictDetectionService.findReplacements(
+                    anyInt(), any(LocalDate.class), anyString(), isNull(), anyInt(), any(), eq(true)))
                     .thenReturn(new ArrayList<>(testStaffList));
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any(LocalDate.class)))
                     .thenReturn(Optional.empty());
@@ -221,7 +223,10 @@ class AutoSchedulingServiceTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(testPeriod));
             when(staffRepository.findByIsActiveTrue()).thenReturn(testStaffList);
             when(requirementRepository.findByPeriodId(1)).thenReturn(testRequirements);
-            when(conflictDetectionService.findReplacements(anyInt(), any(LocalDate.class), anyString(), any(), anyInt(), anySet()))
+            // Backtracking uses findReplacements(periodId, date, shiftTypeId, originalStaffId, requiredCount, excludedStaffIds, skipCompensationDay) - 7 params
+            // Note: excludedStaffIds is empty Set {} (not null), so use any() not isNull()
+            when(conflictDetectionService.findReplacements(
+                    anyInt(), any(LocalDate.class), anyString(), isNull(), anyInt(), any(), eq(true)))
                     .thenReturn(new ArrayList<>(testStaffList));
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any(LocalDate.class)))
                     .thenReturn(Optional.empty());
@@ -245,7 +250,10 @@ class AutoSchedulingServiceTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(testPeriod));
             when(staffRepository.findByIsActiveTrue()).thenReturn(testStaffList);
             when(requirementRepository.findByPeriodId(1)).thenReturn(testRequirements);
-            when(conflictDetectionService.findReplacements(anyInt(), any(LocalDate.class), anyString(), any(), anyInt(), anySet()))
+            // Backtracking uses findReplacements(periodId, date, shiftTypeId, originalStaffId, requiredCount, excludedStaffIds, skipCompensationDay) - 7 params
+            // Note: excludedStaffIds is empty Set {} (not null), so use any() not isNull()
+            when(conflictDetectionService.findReplacements(
+                    anyInt(), any(LocalDate.class), anyString(), isNull(), anyInt(), any(), eq(true)))
                     .thenReturn(new ArrayList<>(testStaffList));
             when(scheduleRepository.countByStaffIdAndPeriodId(anyInt(), anyInt())).thenReturn(0L);
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any(LocalDate.class)))
@@ -275,8 +283,9 @@ class AutoSchedulingServiceTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(testPeriod));
             when(staffRepository.findByIsActiveTrue()).thenReturn(testStaffList);
             when(requirementRepository.findByPeriodId(1)).thenReturn(testRequirements);
-            when(conflictDetectionService.findReplacements(anyInt(), any(LocalDate.class), anyString(), any(), anyInt(), anySet()))
-                    .thenReturn(new ArrayList<>(testStaffList));
+            // Greedy uses filterAndSortEligibleStaffBatch -> hasAnyConflict
+            when(conflictDetectionService.hasAnyConflict(anyInt(), any(LocalDate.class), anyString(), isNull(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean()))
+                    .thenReturn(false);
             when(scheduleRepository.countByStaffIdAndPeriodId(anyInt(), anyInt())).thenReturn(0L);
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any(LocalDate.class)))
                     .thenReturn(Optional.empty());
@@ -300,7 +309,8 @@ class AutoSchedulingServiceTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(testPeriod));
             when(staffRepository.findByIsActiveTrue()).thenReturn(testStaffList);
             when(requirementRepository.findByPeriodId(1)).thenReturn(testRequirements);
-            when(conflictDetectionService.findReplacements(anyInt(), any(LocalDate.class), anyString(), any(), anyInt(), anySet()))
+            when(conflictDetectionService.findReplacements(
+                    anyInt(), any(LocalDate.class), anyString(), isNull(), anyInt(), any(), eq(true)))
                     .thenReturn(new ArrayList<>(testStaffList));
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any(LocalDate.class)))
                     .thenReturn(Optional.empty());
@@ -323,7 +333,10 @@ class AutoSchedulingServiceTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(testPeriod));
             when(staffRepository.findByIsActiveTrue()).thenReturn(testStaffList);
             when(requirementRepository.findByPeriodId(1)).thenReturn(testRequirements);
-            when(conflictDetectionService.findReplacements(anyInt(), any(LocalDate.class), anyString(), any(), anyInt(), anySet()))
+            // Backtracking uses findReplacements(periodId, date, shiftTypeId, originalStaffId, requiredCount, excludedStaffIds, skipCompensationDay) - 7 params
+            // Note: excludedStaffIds is empty Set {} (not null), so use any() not isNull()
+            when(conflictDetectionService.findReplacements(
+                    anyInt(), any(LocalDate.class), anyString(), isNull(), anyInt(), any(), eq(true)))
                     .thenReturn(new ArrayList<>(testStaffList));
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any(LocalDate.class)))
                     .thenReturn(Optional.empty());
@@ -335,6 +348,8 @@ class AutoSchedulingServiceTest {
 
             AutoScheduleResponse result = autoSchedulingService.autoSchedule(request);
 
+            // Note: with mock data (no real ConflictDetectionService), filterBySpecialty may reduce candidates.
+            // This test verifies the algorithm completes without crashing.
             assertThat(result.isSuccess()).isTrue();
             assertThat(result.getExecutionTimeMs()).isGreaterThanOrEqualTo(0);
         }
@@ -353,8 +368,8 @@ class AutoSchedulingServiceTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(testPeriod));
             when(staffRepository.findByIsActiveTrue()).thenReturn(testStaffList);
             when(requirementRepository.findByPeriodId(1)).thenReturn(testRequirements);
-            when(conflictDetectionService.findReplacements(anyInt(), any(LocalDate.class), anyString(), any(), anyInt(), anySet()))
-                    .thenReturn(new ArrayList<>(testStaffList));
+            when(conflictDetectionService.hasAnyConflict(anyInt(), any(LocalDate.class), anyString(), isNull(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean()))
+                    .thenReturn(false);
             when(scheduleRepository.countByStaffIdAndPeriodId(anyInt(), anyInt())).thenReturn(0L);
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any(LocalDate.class)))
                     .thenReturn(Optional.empty());
@@ -366,7 +381,6 @@ class AutoSchedulingServiceTest {
 
             AutoScheduleResponse result = autoSchedulingService.autoSchedule(request);
 
-            // Verify that the response contains compensation day info
             assertThat(result.isSuccess()).isTrue();
         }
     }
@@ -384,8 +398,8 @@ class AutoSchedulingServiceTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(testPeriod));
             when(staffRepository.findByIsActiveTrue()).thenReturn(testStaffList);
             when(requirementRepository.findByPeriodId(1)).thenReturn(testRequirements);
-            when(conflictDetectionService.findReplacements(anyInt(), any(LocalDate.class), anyString(), any(), anyInt(), anySet()))
-                    .thenReturn(new ArrayList<>(testStaffList));
+            when(conflictDetectionService.hasAnyConflict(anyInt(), any(LocalDate.class), anyString(), isNull(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean()))
+                    .thenReturn(false);
             when(scheduleRepository.countByStaffIdAndPeriodId(anyInt(), anyInt())).thenReturn(0L);
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any(LocalDate.class)))
                     .thenReturn(Optional.empty());
@@ -403,8 +417,8 @@ class AutoSchedulingServiceTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(testPeriod));
             when(staffRepository.findByIsActiveTrue()).thenReturn(testStaffList);
             when(requirementRepository.findByPeriodId(1)).thenReturn(testRequirements);
-            when(conflictDetectionService.findReplacements(anyInt(), any(LocalDate.class), anyString(), any(), anyInt(), anySet()))
-                    .thenReturn(new ArrayList<>(testStaffList));
+            when(conflictDetectionService.hasAnyConflict(anyInt(), any(LocalDate.class), anyString(), isNull(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean()))
+                    .thenReturn(false);
             when(scheduleRepository.countByStaffIdAndPeriodId(anyInt(), anyInt())).thenReturn(0L);
             when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(anyInt(), anyInt(), anyString(), any(LocalDate.class)))
                     .thenReturn(Optional.empty());
@@ -435,6 +449,9 @@ class AutoSchedulingServiceTest {
             when(staffRepository.findByIsActiveTrue()).thenReturn(testStaffList);
             when(requirementRepository.findByPeriodId(1)).thenReturn(
                     List.of(testRequirements.get(0), unassignableReq));
+            when(conflictDetectionService.hasAnyConflict(anyInt(), any(LocalDate.class), anyString(), isNull(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean()))
+                    .thenReturn(false);
+            when(scheduleRepository.countByStaffIdAndPeriodId(anyInt(), anyInt())).thenReturn(0L);
 
             AutoScheduleResponse result = autoSchedulingService.autoSchedule(request);
 
