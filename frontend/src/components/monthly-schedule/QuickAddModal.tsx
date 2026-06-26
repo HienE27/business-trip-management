@@ -213,6 +213,25 @@ export const QuickAddModal = memo(function QuickAddModal({
       .map((s) => s.staff.id);
   }, [schedules, dateKey, shiftTypeId]);
 
+  /** Staff IDs that have a conflicting schedule type on this date.
+   * L01 ↔ L02: same staff, same date → conflict.
+   * L03 ↔ L04: same staff, same date → conflict.
+   * When selecting L01/L02, cross-block other type; when selecting L03/L04, cross-block other type.
+   */
+  const existingConflictStaffIds = useMemo(() => {
+    if (!dateKey || !["L01", "L02", "L03", "L04"].includes(shiftTypeId)) return [];
+    const conflictMap: Record<string, string[]> = {
+      L01: ["L02"],
+      L02: ["L01"],
+      L03: ["L04"],
+      L04: ["L03"],
+    };
+    const conflictingTypes = conflictMap[shiftTypeId] ?? [];
+    return schedules
+      .filter((s) => s.workDate === dateKey && conflictingTypes.includes(s.shiftType.id))
+      .map((s) => s.staff.id);
+  }, [schedules, dateKey, shiftTypeId]);
+
   return (
     <Modal open={date !== null} onClose={onClose} title="Thêm lịch nhanh" size="md">
       {date && (
@@ -250,6 +269,7 @@ export const QuickAddModal = memo(function QuickAddModal({
             workDate={dateKey ?? ""}
             compensationDays={compensationDays}
             existingScheduleStaffIds={existingScheduleStaffIds}
+            existingConflictStaffIds={existingConflictStaffIds}
             disabled={submitting}
           />
 

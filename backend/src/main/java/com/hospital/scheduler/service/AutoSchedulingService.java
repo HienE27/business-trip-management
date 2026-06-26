@@ -271,7 +271,23 @@ public class AutoSchedulingService {
         if (Boolean.TRUE.equals(request.getAutoGenerateRequirements())) {
             var autoGenConfig = algorithmConfigService.getAutoGenConfig();
             if (autoGenConfig.isPresent() && autoGenConfig.get().enabled()) {
-                requirements = generateRequirementsForPeriod(period, autoGenConfig.get(), activeStaff);
+                // Use holidayMode from request if provided, otherwise fall back to DB config
+                String effectiveHolidayMode = (request.getHolidayMode() != null && !request.getHolidayMode().isBlank())
+                        ? request.getHolidayMode()
+                        : autoGenConfig.get().holidayMode();
+                var configWithMode = new com.hospital.scheduler.algorithm.AutoGenConfig(
+                        autoGenConfig.get().enabled(),
+                        autoGenConfig.get().l01RequiredPerDay(),
+                        autoGenConfig.get().l02RequiredPerDay(),
+                        autoGenConfig.get().l03RequiredPerDay(),
+                        autoGenConfig.get().l04RequiredPerDay(),
+                        autoGenConfig.get().minL01PerWeek(),
+                        autoGenConfig.get().minL02PerWeek(),
+                        autoGenConfig.get().minL03PerWeek(),
+                        autoGenConfig.get().minL04PerWeek(),
+                        effectiveHolidayMode
+                );
+                requirements = generateRequirementsForPeriod(period, configWithMode, activeStaff);
                 generatedRequirements = requirements.stream()
                         .filter(r -> r.getNote() != null && r.getNote().startsWith("AUTO:"))
                         .map(this::toGeneratedRequirementInfo)

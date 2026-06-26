@@ -73,6 +73,9 @@ public class Staff {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "hire_date")
+    private LocalDateTime hireDate;
+
     @OneToMany(mappedBy = "staff", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
     @BatchSize(size = 50)

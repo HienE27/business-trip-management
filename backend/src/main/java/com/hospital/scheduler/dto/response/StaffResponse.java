@@ -23,6 +23,7 @@ public class StaffResponse {
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime hireDate;
     private List<String> roles;
 
     @Getter

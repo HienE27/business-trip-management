@@ -36,7 +36,7 @@ export type WorkloadRow = {
 export type CalendarAnnotation = {
   date: string;
   label: string;
-  tone?: "compLeave" | "warning" | "neutral";
+  tone?: "compLeave" | "warning" | "neutral" | "holiday";
   description?: string;
 };
 

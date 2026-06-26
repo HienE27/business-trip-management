@@ -3,6 +3,7 @@
 import { memo } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { ConfirmDialog } from "@/components/ui";
 import { ShiftDetailInfo } from "@/components/shift-detail/ShiftDetailInfo";
 import { ShiftDetailTable } from "@/components/shift-detail/ShiftDetailTable";
 import { formatDate } from "@/lib/date";
@@ -18,6 +19,7 @@ export type ShiftDetailModalProps = {
   canEdit?: boolean;
   onClose: () => void;
   onSave?: (updated: Schedule) => void;
+  onDelete?: (deletedId: number) => void;
 };
 
 export const ShiftDetailModal = memo(function ShiftDetailModal({
@@ -27,9 +29,12 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
   canEdit = true,
   onClose,
   onSave,
+  onDelete,
 }: ShiftDetailModalProps) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
@@ -79,6 +84,22 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
     }
   }, [scheduleId, formStaffId, formShiftTypeId, schedule, onSave]);
 
+  const handleDelete = useCallback(async () => {
+    if (!scheduleId) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await api.deleteSchedule(scheduleId);
+      onDelete?.(scheduleId);
+      onClose();
+    } catch (err) {
+      setError(getErrorMessage(err, "Không thể xóa lịch trực."));
+      setShowDeleteConfirm(false);
+    } finally {
+      setDeleting(false);
+    }
+  }, [scheduleId, onDelete, onClose]);
+
   const handleClose = useCallback(() => {
     setEditing(false);
     setError(null);
@@ -88,6 +109,7 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
   const isDirty = schedule && (formStaffId !== schedule.staff.id || formShiftTypeId !== schedule.shiftType.id);
 
   return (
+    <>
     <Modal
       open={scheduleId !== null}
       onClose={handleClose}
@@ -118,14 +140,24 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
                     </span>
                   )}
                   {canEdit && !editing && (
-                    <button
-                      type="button"
-                      onClick={() => setEditing(true)}
-                      className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-label-sm font-medium text-on-surface transition-colors hover:bg-surface-container-low"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">edit</span>
-                      Chỉnh sửa
-                    </button>
+                    <div className="ml-auto flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-error/30 bg-error-container px-3 py-1.5 text-label-sm font-medium text-error transition-colors hover:bg-error/10"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                        Xóa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditing(true)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-label-sm font-medium text-on-surface transition-colors hover:bg-surface-container-low"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">edit</span>
+                        Chỉnh sửa
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -246,5 +278,16 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
         </div>
       )}
     </Modal>
+    <ConfirmDialog
+      open={showDeleteConfirm}
+      onClose={() => setShowDeleteConfirm(false)}
+      onConfirm={handleDelete}
+      title="Xóa lịch trực?"
+      description={`Bạn có chắc muốn xóa lịch trực của ${schedule?.staff.fullName} vào ngày ${schedule ? formatDate(schedule.workDate) : ""}? Hành động này không thể hoàn tác.`}
+      confirmLabel="Xóa"
+      variant="danger"
+      loading={deleting}
+    />
+    </>
   );
 });

@@ -33,6 +33,7 @@ type StaffResponse = {
   roles: string[];
   createdAt: string;
   updatedAt: string;
+  hireDate: string | null;
 };
 
 type StaffApiResponse = Omit<StaffResponse, "status" | "roles"> & {
@@ -51,6 +52,7 @@ type StaffFormData = {
   maxShiftsPerMonth: number;
   status: string;
   roles: string[];
+  hireDate: string;
 };
 
 const emptyForm: StaffFormData = {
@@ -64,6 +66,7 @@ const emptyForm: StaffFormData = {
   maxShiftsPerMonth: 5,
   status: "ACTIVE",
   roles: [],
+  hireDate: "",
 };
 
 function normalizeStaffStatus(status: string | null | undefined, isActive: boolean): StaffStatus {
@@ -324,6 +327,7 @@ export function StaffCrudPanel() {
       maxShiftsPerMonth: record.maxShiftsPerMonth ?? 5,
       status: record.status === "active" ? "ACTIVE" : record.status === "on_leave" ? "ON_LEAVE" : "INACTIVE",
       roles: record.roles ?? [],
+      hireDate: record.hireDate ? record.hireDate.split("T")[0] : "",
     });
     setEditingId(record.id);
     setFormOpen(true);
@@ -531,6 +535,15 @@ export function StaffCrudPanel() {
                     if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined }));
                   }}
                   error={fieldErrors.email}
+                  disabled={submitting}
+                />
+
+                <FormInput
+                  label="Ngày vào làm"
+                  name="hireDate"
+                  type="date"
+                  value={form.hireDate ?? ""}
+                  onChange={(e) => updateField("hireDate", e.target.value)}
                   disabled={submitting}
                 />
 

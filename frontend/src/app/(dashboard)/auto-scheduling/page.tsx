@@ -140,8 +140,8 @@ export default function AutoSchedulingPage() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
   const [autoState, autoActions] = useAutoSchedule();
-  const { previewResult, editedPreview, removedShiftTypes, applying, running, message, algorithmType } = autoState;
-  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editShiftType, resetEdits, clearPreview, setMessage, setAlgorithmType } = autoActions;
+  const { previewResult, editedPreview, removedShiftTypes, applying, running, message, algorithmType, holidayMode } = autoState;
+  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editShiftType, resetEdits, clearPreview, setMessage, setAlgorithmType, setHolidayMode } = autoActions;
   const [autoGenReq, setAutoGenReq] = useState(true);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
@@ -411,6 +411,8 @@ export default function AutoSchedulingPage() {
           isManager={isManager}
           onSaveTemplate={() => setSaveModalOpen(true)}
           onApplyTemplate={openApplyTemplateModal}
+          holidayMode={holidayMode}
+          onSetHolidayMode={setHolidayMode}
         />
       )}
 

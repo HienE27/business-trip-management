@@ -139,6 +139,7 @@ public class StaffService {
                 .maxShiftsPerMonth(request.getMaxShiftsPerMonth() != null ? request.getMaxShiftsPerMonth() : 5)
                 .isActive(isActive)
                 .status(status)
+                .hireDate(request.getHireDate())
                 .staffRoles(new HashSet<>())
                 .build();
 
@@ -207,6 +208,10 @@ public class StaffService {
         staff.setEmail(request.getEmail());
         staff.setPosition(request.getPosition());
         staff.setMaxShiftsPerMonth(request.getMaxShiftsPerMonth() != null ? request.getMaxShiftsPerMonth() : 5);
+
+        if (request.getHireDate() != null) {
+            staff.setHireDate(request.getHireDate());
+        }
 
         if (request.getSpecialtyId() != null) {
             Specialty specialty = specialtyRepository.findById(request.getSpecialtyId()).orElse(null);
@@ -324,6 +329,7 @@ public class StaffService {
                 .status(staff.getStatus().name())
                 .createdAt(staff.getCreatedAt())
                 .updatedAt(staff.getUpdatedAt())
+                .hireDate(staff.getHireDate())
                 .roles(roleNames)
                 .build();
     }

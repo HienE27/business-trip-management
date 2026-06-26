@@ -29,4 +29,12 @@ public class AutoScheduleRequestDTO {
 
     @Builder.Default
     private List<Integer> excludedStaffIds = List.of();
+
+    /**
+     * Holiday handling mode for this run.
+     * SKIP = skip all shifts on holidays (default from DB config).
+     * PARTIAL = reduce L03 intensity on holidays.
+     * When null, uses the value from algorithm_config DB.
+     */
+    private String holidayMode;
 }

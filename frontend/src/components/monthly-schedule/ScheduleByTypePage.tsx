@@ -20,6 +20,7 @@ import type {
   CompensationDay,
   ConflictCheckResponse,
   ConflictDetail,
+  Holiday,
   PublishDryRunResponse,
   Schedule,
   SchedulePeriod,
@@ -86,6 +87,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   );
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [compensationDays, setCompensationDays] = useState<CompensationDay[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [activeStaff, setActiveStaff] = useState<Staff[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState<number | null>(null);
@@ -235,28 +237,23 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     if (!selectedPeriodId) return;
     try {
       setLoading(true);
-      if (isExpertMode) {
-        const data = await api.get<Schedule[]>("/schedules/expert-clinic", {
-          periodId: selectedPeriodId,
-          ...(selectedSpecialtyId ? { specialtyId: selectedSpecialtyId } : {}),
-        });
-        setSchedules(data ?? []);
-      } else {
-        const [scheduleData, compData] = await Promise.all([
-          api.get<Schedule[]>(`/schedules/period/${selectedPeriodId}`),
-          api.get<CompensationDay[]>(`/schedules/compensation-days/${selectedPeriodId}`),
-        ]);
-        setSchedules(
-          (scheduleData ?? []).filter((s) => s.shiftType.id === config.shiftTypeId)
-        );
-        setCompensationDays(compData ?? []);
-      }
+      const [scheduleData, compData] = await Promise.all([
+        isExpertMode
+          ? api.get<Schedule[]>("/schedules/expert-clinic", {
+              periodId: selectedPeriodId,
+              ...(selectedSpecialtyId ? { specialtyId: selectedSpecialtyId } : {}),
+            })
+          : api.get<Schedule[]>(`/schedules/period/${selectedPeriodId}`),
+        api.get<CompensationDay[]>(`/schedules/compensation-days/${selectedPeriodId}`),
+      ]);
+      setSchedules(scheduleData ?? []);
+      setCompensationDays(compData ?? []);
     } catch {
       setMessage(config.fetchErrorMessage);
     } finally {
       setLoading(false);
     }
-  }, [selectedPeriodId, selectedSpecialtyId, isExpertMode, config.shiftTypeId, config.fetchErrorMessage]);
+  }, [selectedPeriodId, selectedSpecialtyId, isExpertMode, config.fetchErrorMessage]);
 
   const handlePublish = useCallback(async () => {
     if (!selectedPeriodId) return;
@@ -380,23 +377,24 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
     const loadSchedules = async () => {
       try {
-        if (isExpertMode) {
-          const data = await api.get<Schedule[]>("/schedules/expert-clinic", {
-            periodId: selectedPeriodId,
-            ...(selectedSpecialtyId ? { specialtyId: selectedSpecialtyId } : {}),
-          });
-          if (!cancelled) setSchedules(data ?? []);
-        } else {
-          const [scheduleData, compData] = await Promise.all([
-            api.get<Schedule[]>(`/schedules/period/${selectedPeriodId}`),
-            api.get<CompensationDay[]>(`/schedules/compensation-days/${selectedPeriodId}`),
-          ]);
-          if (!cancelled) {
-            setSchedules(
-              (scheduleData ?? []).filter((s) => s.shiftType.id === config.shiftTypeId)
-            );
-            setCompensationDays(compData ?? []);
+        const params = isExpertMode
+          ? { periodId: selectedPeriodId, ...(selectedSpecialtyId ? { specialtyId: selectedSpecialtyId } : {}) }
+          : {};
+        const [scheduleData, compData, holidayData] = await Promise.all([
+          isExpertMode
+            ? api.get<Schedule[]>("/schedules/expert-clinic", params)
+            : api.get<Schedule[]>(`/schedules/period/${selectedPeriodId}`),
+          api.get<CompensationDay[]>(`/schedules/compensation-days/${selectedPeriodId}`),
+          api.get<Holiday[]>("/holidays/active"),
+        ]);
+        if (!cancelled) {
+          if (!isExpertMode) {
+            setSchedules((scheduleData ?? []).filter((s) => s.shiftType.id === config.shiftTypeId));
+          } else {
+            setSchedules(scheduleData ?? []);
           }
+          setCompensationDays(compData ?? []);
+          setHolidays(holidayData ?? []);
         }
       } catch {
         if (!cancelled) setMessage(config.fetchErrorMessage);
@@ -441,7 +439,6 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   );
 
   const calendarAnnotations = useMemo(() => {
-    if (isExpertMode) return [];
     const compByDate = new Map<string, CompensationDay[]>();
     for (const cd of compensationDays) {
       const key = cd.compensationDate.split("T")[0];
@@ -449,7 +446,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       list.push(cd);
       compByDate.set(key, list);
     }
-    return Array.from(compByDate.entries()).map(([date, days]) => {
+    const compAnnotations = Array.from(compByDate.entries()).map(([date, days]) => {
       const staffNames = days.map((d) => d.staffName);
       const label =
         staffNames.length === 1
@@ -462,7 +459,16 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         description: config.compDescription,
       };
     });
-  }, [compensationDays, isExpertMode, config.compDescription]);
+
+    const holidayAnnotations = (holidays ?? []).map((h) => ({
+      date: h.holidayDate.split("T")[0],
+      label: `Ngày lễ · ${h.name}`,
+      tone: "holiday" as const,
+      description: h.description ?? h.name,
+    }));
+
+    return [...compAnnotations, ...holidayAnnotations];
+  }, [compensationDays, holidays, config.compDescription]);
 
   if (loading && periods.length === 0) {
     return (
@@ -939,9 +945,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
             isExpertMode ? setSelectedSpecialtyId : () => undefined
           }
           onViewDetail={
-            isExpertMode
-              ? () => undefined
-              : (schedule) => setDetailScheduleId(schedule.id)
+            (schedule) => setDetailScheduleId(schedule.id)
           }
           onViewModeChange={setViewMode}
           onFilterTypeChange={
@@ -972,16 +976,15 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         />
       )}
 
-      {!isExpertMode && (
-        <ShiftDetailModal
-          scheduleId={detailScheduleId}
-          schedule={selectedSchedule}
-          loading={false}
-          canEdit={isManager}
-          onClose={() => setDetailScheduleId(null)}
-          onSave={handleRefresh}
-        />
-      )}
+      <ShiftDetailModal
+        scheduleId={detailScheduleId}
+        schedule={selectedSchedule}
+        loading={false}
+        canEdit={isManager}
+        onClose={() => setDetailScheduleId(null)}
+        onSave={handleRefresh}
+        onDelete={handleRefresh}
+      />
 
       {/* Bulk date picker modal */}
       {selectedPeriod && isDraft && (

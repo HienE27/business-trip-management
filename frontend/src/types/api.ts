@@ -323,6 +323,7 @@ export interface AutoScheduleRequest {
   autoAssign?: boolean;
   autoGenerateRequirements?: boolean;
   excludedStaffIds?: number[];
+  holidayMode?: "SKIP" | "PARTIAL";
 }
 
 export interface AutoScheduleSummary {

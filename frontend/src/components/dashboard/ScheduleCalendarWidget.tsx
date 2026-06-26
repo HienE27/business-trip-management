@@ -19,7 +19,7 @@ import type { ConflictItem } from "@/types/schedule";
 type CalendarAnnotation = {
   date: string;
   label: string;
-  tone?: "compLeave" | "warning" | "neutral";
+  tone?: "compLeave" | "warning" | "neutral" | "holiday";
   description?: string;
 };
 

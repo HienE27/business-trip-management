@@ -372,11 +372,17 @@ export const DashboardCalendar = memo(function DashboardCalendar({
                         <span className="material-symbols-outlined text-label-sm">lock</span>
                       </div>
                     )}
+                    {/* Holiday indicator */}
+                    {cell.annotations.some((a) => a.tone === "holiday") && (
+                      <div className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-tertiary-container text-on-tertiary text-label-sm font-bold z-10">
+                        <span className="material-symbols-outlined text-label-sm">celebration</span>
+                      </div>
+                    )}
 
                     {/* Schedule items */}
                     <div className="flex-1 flex flex-col gap-0.5 p-0.5 min-h-0 overflow-hidden z-20">
                       {cell.annotations.map((ann) => {
-                        if (ann.tone === "compLeave" || ann.isCompensation) return null;
+                        if (ann.tone === "compLeave" || ann.isCompensation || ann.tone === "holiday") return null;
                         const annTone = TONE[ann.tone ?? "neutral"] ?? TONE.neutral;
                         return (
                           <div
@@ -717,6 +723,11 @@ export const DashboardCalendar = memo(function DashboardCalendar({
                         <span className="material-symbols-outlined text-[10px]">lock</span>
                         KHÓA
                       </span>
+                    ) : cell.annotations.some((a) => a.tone === "holiday") ? (
+                      <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-tertiary-container text-[9px] font-bold text-on-tertiary" aria-label="Ngày lễ">
+                        <span className="material-symbols-outlined text-[10px]">celebration</span>
+                        LỄ
+                      </span>
                     ) : primaryAnnotation ? (
                       <span className="rounded-full bg-surface-container-high px-1.5 py-0.5 text-label-sm font-semibold text-on-surface-variant truncate max-w-[80px]" title={primaryAnnotation.label}>
                         {primaryAnnotation.label}
@@ -727,7 +738,7 @@ export const DashboardCalendar = memo(function DashboardCalendar({
                   {/* Events */}
                   <div className="flex-1 flex flex-col gap-0.5 p-0.5 min-h-0 overflow-hidden z-20">
                     {cell.annotations.map((annotation) => {
-                      if (annotation.tone === "compLeave" || annotation.isCompensation) return null;
+                      if (annotation.tone === "compLeave" || annotation.isCompensation || annotation.tone === "holiday") return null;
                       const annotationTone = TONE[annotation.tone ?? "neutral"] ?? TONE.neutral;
                       return (
                         <div

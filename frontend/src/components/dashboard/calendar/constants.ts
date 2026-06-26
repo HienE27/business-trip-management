@@ -87,7 +87,7 @@ export type CalendarItem = {
   schedule: Schedule;
 };
 
-export type CalendarAnnotationTone = "compLeave" | "warning" | "neutral";
+export type CalendarAnnotationTone = "compLeave" | "warning" | "neutral" | "holiday";
 
 export type CalendarAnnotation = {
   date: string;
@@ -96,6 +96,8 @@ export type CalendarAnnotation = {
   description?: string;
   isCompensation?: boolean;
   locked?: boolean;
+  isHoliday?: boolean;
+  holidayName?: string;
   coverage?: { required: number; assigned: number };
   coverageShiftTypeId?: string;
 };

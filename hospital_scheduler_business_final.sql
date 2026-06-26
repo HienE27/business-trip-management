@@ -581,8 +581,6 @@ CREATE INDEX idx_template_specialty ON schedule_template(specialty_id);
 CREATE INDEX idx_system_log_staff ON system_log(staff_id);
 CREATE INDEX idx_system_log_created ON system_log(created_at);
 CREATE INDEX idx_system_log_action ON system_log(action_type);
-CREATE INDEX idx_system_log_created ON system_log(created_at);
-CREATE INDEX idx_system_log_action ON system_log(action_type);
 
 CREATE INDEX idx_notification_staff_read ON notification(staff_id, is_read);
 CREATE INDEX idx_notification_created ON notification(created_at);

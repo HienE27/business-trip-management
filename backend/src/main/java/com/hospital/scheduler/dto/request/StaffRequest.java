@@ -37,4 +37,7 @@ public class StaffRequest {
 
     private Integer id;
     private String specialtyName;
+
+    @PastOrPresent(message = "Ngày vào làm không được là ngày trong tương lai")
+    private LocalDateTime hireDate;
 }

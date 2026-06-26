@@ -7,6 +7,7 @@ type GroupedStaff = {
   available: Staff[];
   unavailableCompDay: Staff[];
   unavailableExisting: Staff[];
+  unavailableConflict: Staff[];
 };
 
 function groupStaff(
@@ -14,10 +15,12 @@ function groupStaff(
   workDate: string,
   existingScheduleStaffIds: Set<number>,
   compensationDates: Set<string>,
+  existingConflictStaffIds: Set<number>,
 ): GroupedStaff {
   const available: Staff[] = [];
   const unavailableCompDay: Staff[] = [];
   const unavailableExisting: Staff[] = [];
+  const unavailableConflict: Staff[] = [];
 
   for (const s of list) {
     const key = `${s.id}|${workDate}`;
@@ -25,12 +28,14 @@ function groupStaff(
       unavailableCompDay.push(s);
     } else if (existingScheduleStaffIds.has(s.id)) {
       unavailableExisting.push(s);
+    } else if (existingConflictStaffIds.has(s.id)) {
+      unavailableConflict.push(s);
     } else {
       available.push(s);
     }
   }
 
-  return { available, unavailableCompDay, unavailableExisting };
+  return { available, unavailableCompDay, unavailableExisting, unavailableConflict };
 }
 
 export type StaffSearchComboboxProps = {
@@ -40,6 +45,8 @@ export type StaffSearchComboboxProps = {
   workDate: string;
   compensationDays?: Array<{ staffId: number; compensationDate: string }>;
   existingScheduleStaffIds?: number[];
+  /** Staff IDs that have a conflicting schedule of the opposite type (e.g., L02 when selecting L01). */
+  existingConflictStaffIds?: number[];
   placeholder?: string;
   disabled?: boolean;
   error?: string;
@@ -54,6 +61,7 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
   workDate,
   compensationDays = [],
   existingScheduleStaffIds = [],
+  existingConflictStaffIds = [],
   placeholder = "Tìm kiếm hoặc chọn nhân sự…",
   disabled,
   error,
@@ -80,9 +88,10 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
   const selectedStaff = staffList.find((s) => s.id === Number(value));
 
   const existingSet = new Set(existingScheduleStaffIds);
+  const conflictSet = new Set(existingConflictStaffIds);
   const compDates = new Set(compensationDays.map((c) => `${c.staffId}|${c.compensationDate}`));
 
-  const grouped = groupStaff(staffList, workDate, existingSet, compDates);
+  const grouped = groupStaff(staffList, workDate, existingSet, compDates, conflictSet);
 
   const filtered = query.trim()
     ? {
@@ -103,11 +112,16 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
             s.fullName.toLowerCase().includes(query.toLowerCase()) ||
             s.username.toLowerCase().includes(query.toLowerCase()),
         ),
+        unavailableConflict: grouped.unavailableConflict.filter(
+          (s) =>
+            s.fullName.toLowerCase().includes(query.toLowerCase()) ||
+            s.username.toLowerCase().includes(query.toLowerCase()),
+        ),
       }
     : grouped;
 
   const totalAvailable = filtered.available.length;
-  const totalUnavailable = filtered.unavailableCompDay.length + filtered.unavailableExisting.length;
+  const totalUnavailable = filtered.unavailableCompDay.length + filtered.unavailableExisting.length + filtered.unavailableConflict.length;
   const hasResults = totalAvailable + totalUnavailable > 0;
 
   const openDropdown = useCallback(() => {
@@ -418,6 +432,26 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
                           isUnavailable
                           unavailableIcon="event_available"
                           unavailableText="Đã xếp"
+                          onSelect={() => handleSelect(staff, true)}
+                          onHover={() => {}}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {filtered.unavailableConflict.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-2 pb-1 text-label-sm text-error uppercase tracking-wide font-semibold">
+                        Xung đột loại lịch
+                      </p>
+                      {filtered.unavailableConflict.map((staff) => (
+                        <StaffOption
+                          key={staff.id}
+                          staff={staff}
+                          isActive={false}
+                          isSelected={value === staff.id}
+                          isUnavailable
+                          unavailableIcon="warning"
+                          unavailableText="Xung đột"
                           onSelect={() => handleSelect(staff, true)}
                           onHover={() => {}}
                         />

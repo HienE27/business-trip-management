@@ -15,6 +15,7 @@ export type AutoScheduleState = {
   message: string | null;
   algorithmType: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING";
   autoGenerateRequirements: boolean;
+  holidayMode: "SKIP" | "PARTIAL" | null;
 };
 
 export type AutoScheduleActions = {
@@ -41,6 +42,7 @@ export type AutoScheduleActions = {
   setMessage: (msg: string) => void;
   setAlgorithmType: (type: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING") => void;
   setAutoGenerateRequirements: (value: boolean) => void;
+  setHolidayMode: (mode: "SKIP" | "PARTIAL" | null) => void;
 };
 
 export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
@@ -53,6 +55,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [message, setMessage] = useState<string | null>(null);
   const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "ROUND_ROBIN" | "BACKTRACKING">("GREEDY");
   const [autoGenerateRequirements, setAutoGenerateRequirements] = useState(true);
+  const [holidayMode, setHolidayMode] = useState<"SKIP" | "PARTIAL" | null>(null);
 
   const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[], autoGenerateReq?: boolean) => {
     if (!periodId) return;
@@ -65,6 +68,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         maxIterations: 1000,
         excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
         autoGenerateRequirements: autoGenerateReq ?? true,
+        holidayMode: holidayMode ?? undefined,
       });
       setPreviewResult(result.data);
       setEditedPreview([]);
@@ -75,7 +79,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
     } finally {
       setRunning(false);
     }
-  }, [algorithmType]);
+  }, [algorithmType, holidayMode]);
 
   const applyPreview = useCallback(
     async (
@@ -250,7 +254,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   }, [setAutoGenerateRequirements]);
 
   return [
-    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType, autoGenerateRequirements },
-    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType, setAutoGenerateRequirements: setAutoGen },
+    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType, autoGenerateRequirements, holidayMode },
+    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType, setAutoGenerateRequirements: setAutoGen, setHolidayMode: setHolidayMode },
   ];
 }
