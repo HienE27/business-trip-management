@@ -769,7 +769,6 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         <ConflictSection
           conflicts={conflictData.conflicts ?? []}
           selectedConflict={selectedConflict}
-          selectedPeriodId={selectedPeriodId}
           onSelect={setSelectedConflict}
           onClose={() => setSelectedConflict(null)}
           onFocusDate={() => {
@@ -800,7 +799,6 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
               : []
           }
           selectedConflict={selectedConflict}
-          selectedPeriodId={selectedPeriodId}
           onSelect={setSelectedConflict}
           onClose={() => setSelectedConflict(null)}
           onFocusDate={() => {

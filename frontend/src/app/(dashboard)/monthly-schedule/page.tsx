@@ -435,7 +435,6 @@ export default function MonthlySchedulePage() {
         <ConflictSection
           conflicts={conflictList}
           selectedConflict={selectedConflict}
-          selectedPeriodId={selectedPeriodId}
           onSelect={setSelectedConflict}
           onClose={() => setSelectedConflict(null)}
           onFocusDate={setFocusDate}

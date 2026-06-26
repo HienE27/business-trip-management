@@ -26,12 +26,12 @@ function buildSteps(context: WorkflowContext): WorkflowStepView[] {
   const activeFromPanel = panelMap[context.selectedPanel];
 
   return [
-    { id: "auto-schedule" as WorkflowStepId, title: "Auto", description: "Tự động", status: hasSchedules ? "completed" : "pending" },
-    { id: "conflicts" as WorkflowStepId, title: "Xung đột", description: "Kiểm tra", status: context.checkingConflicts || activeFromPanel === "conflicts" ? "active" : hasConflicts ? "error" : hasConflictCheck ? "completed" : "pending" },
-    { id: "review" as WorkflowStepId, title: "Rà soát", description: "Tổng hợp", status: activeFromPanel === "review" ? "active" : hasSchedules && !hasConflicts ? "completed" : "pending" },
-    { id: "export" as WorkflowStepId, title: "Xuất", description: "Báo cáo", status: context.exporting ? "active" : isPublished ? "completed" : "pending" },
-    { id: "publish" as WorkflowStepId, title: "Công bố", description: "Kỳ lịch", status: context.publishing ? "active" : isPublished ? "completed" : context.dryRunData != null && context.dryRunData.canPublish ? "completed" : hasConflicts ? "error" : "pending" },
-    { id: "notify" as WorkflowStepId, title: "Thông báo", description: "Gửi", status: context.notifying ? "active" : context.notified ? "completed" : "pending" },
+    { id: "auto-schedule" as WorkflowStepId, title: "Auto", description: "Tự động", status: hasSchedules ? "completed" : "pending", statusLabel: hasSchedules ? "Hoàn tất" : "Chờ" },
+    { id: "conflicts" as WorkflowStepId, title: "Xung đột", description: "Kiểm tra", status: context.checkingConflicts || activeFromPanel === "conflicts" ? "active" : hasConflicts ? "error" : hasConflictCheck ? "completed" : "pending", statusLabel: context.checkingConflicts || activeFromPanel === "conflicts" ? "Đang kiểm tra" : hasConflicts ? "Có xung đột" : hasConflictCheck ? "Đã kiểm tra" : "Chờ" },
+    { id: "review" as WorkflowStepId, title: "Rà soát", description: "Tổng hợp", status: activeFromPanel === "review" ? "active" : hasSchedules && !hasConflicts ? "completed" : "pending", statusLabel: activeFromPanel === "review" ? "Đang rà soát" : hasSchedules && !hasConflicts ? "Đã rà soát" : "Chờ" },
+    { id: "export" as WorkflowStepId, title: "Xuất", description: "Báo cáo", status: context.exporting ? "active" : isPublished ? "completed" : "pending", statusLabel: context.exporting ? "Đang xuất" : isPublished ? "Đã xuất" : "Chờ" },
+    { id: "publish" as WorkflowStepId, title: "Công bố", description: "Kỳ lịch", status: context.publishing ? "active" : isPublished ? "completed" : context.dryRunData != null && context.dryRunData.canPublish ? "completed" : hasConflicts ? "error" : "pending", statusLabel: context.publishing ? "Đang công bố" : isPublished ? "Đã công bố" : context.dryRunData != null && context.dryRunData.canPublish ? "Sẵn sàng" : hasConflicts ? "Cần xử lý" : "Chờ" },
+    { id: "notify" as WorkflowStepId, title: "Thông báo", description: "Gửi", status: context.notifying ? "active" : context.notified ? "completed" : "pending", statusLabel: context.notifying ? "Đang gửi" : context.notified ? "Đã gửi" : "Chờ" },
   ];
 }
 

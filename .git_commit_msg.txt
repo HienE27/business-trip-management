@@ -1,0 +1,13 @@
+refactor(frontend): polish auto-scheduling and monthly-schedule UI components
+
+- Update AlgorithmBalanceChart with improved chart rendering and legend
+- Update StaffExclusionTable with better form controls
+- Update WorkloadChart with enhanced visualization
+- Major refactor of AutoSchedulePanel with improved layout and UX
+- Update KPISection with better spacing and card styling
+- Update ReviewSnapshotPanel with enhanced snapshot display
+- Update ScheduleHeader with refined schedule type navigation
+- Update WorkflowStepper with smoother step transitions
+- Update ConflictInspector with improved conflict display
+- Update algorithm-config page with better form layout
+- Update main auto-scheduling page with improved UI

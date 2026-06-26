@@ -4,9 +4,13 @@ import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 
 interface RuntimeParamsSummary {
+  maxIterations: number;
   weekendWeight: number;
+  overnightRecoveryHours: number;
   greedyCoverageThreshold: number;
   balanceScoreMin: number;
+  autoCompensationEnabled: boolean;
+  backtrackTimeLimitSeconds: number;
 }
 
 interface RuntimeParamsChipsProps {
@@ -21,8 +25,8 @@ export function RuntimeParamsChips({ compact = false }: RuntimeParamsChipsProps)
     let ignore = false;
     api.getRuntimeConfig()
       .then((res) => {
-        const d = (res as { data?: RuntimeParamsSummary }).data ?? res as RuntimeParamsSummary;
-        if (!ignore) setParams(d);
+        const raw = (res as { data?: RuntimeParamsSummary }).data ?? (res as unknown as RuntimeParamsSummary);
+        if (!ignore) setParams(raw);
       })
       .catch(() => { /* non-critical */ })
       .finally(() => { if (!ignore) setLoading(false); });
