@@ -85,6 +85,11 @@ class AutoSchedulingServiceIntegrationTest {
         when(conflictDetectionService.detectAllConflicts(anyInt(), any(), anyString(), any())).thenReturn(Collections.emptyList());
         lenient().when(compensationDateCalculator.calculate(any(LocalDate.class))).thenReturn(LocalDate.of(2026, 6, 8));
 
+        // Batch-loading mocks for conflict data optimization
+        lenient().when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
+        lenient().when(compensationDayRepository.findInRange(any(), any())).thenReturn(Collections.emptyList());
+        lenient().when(scheduleRepository.findL01SchedulesInRange(any(), any())).thenReturn(Collections.emptyList());
+
         // Mock runtime config to return defaults
         lenient().when(algorithmConfigService.getRuntimeConfig())
                 .thenReturn(AlgorithmConfigService.AlgorithmRuntimeConfig.builder()

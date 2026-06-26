@@ -8,6 +8,7 @@ import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.util.DateUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -685,6 +687,11 @@ public class ConflictDetectionService {
         }
 
         List<Staff> replacements = new ArrayList<>();
+        List<Staff> allActive = staffRepository.findByIsActiveTrue();
+        if (log.isDebugEnabled()) {
+            log.debug("findReplacements date={} type={} requiredCount={} activeStaff={} onLeave={} onCompDay={} adjacentL01={}",
+                    workDate, shiftTypeId, requiredCount, allActive.size(), onLeaveStaffIds.size(), onCompDayStaffIds.size(), hasAdjacentL01.size());
+        }
         for (Staff staff : staffRepository.findByIsActiveTrue()) {
             if (originalStaffId != null && staff.getId().equals(originalStaffId)) continue;
             if (excludedStaffIds != null && excludedStaffIds.contains(staff.getId())) continue;

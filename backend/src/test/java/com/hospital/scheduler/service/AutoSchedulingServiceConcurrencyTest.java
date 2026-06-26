@@ -76,6 +76,12 @@ class AutoSchedulingServiceConcurrencyTest {
         lenient().when(requirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
         lenient().when(scheduleRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
         lenient().when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staff1, staff2, staff3));
+
+        // Batch-loading mocks for conflict data optimization
+        lenient().when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
+        lenient().when(compensationDayRepository.findInRange(any(), any())).thenReturn(Collections.emptyList());
+        lenient().when(scheduleRepository.findL01SchedulesInRange(any(), any())).thenReturn(Collections.emptyList());
+
         lenient().when(conflictDetectionService.detectAllConflicts(org.mockito.ArgumentMatchers.anyInt(), any(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean(), org.mockito.ArgumentMatchers.anyBoolean())).thenReturn(Collections.emptyList());
         lenient().when(scheduleRepository.save(any())).thenAnswer(inv -> {
             Schedule s = inv.getArgument(0);
