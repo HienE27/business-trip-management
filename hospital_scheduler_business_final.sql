@@ -60,6 +60,7 @@ CREATE TABLE specialty (
 -- =====================================================
 CREATE TABLE staff (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    staff_code VARCHAR(20) NOT NULL UNIQUE COMMENT 'Mã nhân viên duy nhất (VD: NV001)',
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
@@ -69,6 +70,7 @@ CREATE TABLE staff (
     max_shifts_per_month INT NOT NULL DEFAULT 5,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+    hire_date DATETIME NULL COMMENT 'Ngày vào làm',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
