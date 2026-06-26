@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -71,7 +71,7 @@ function Tooltip({
       className="fixed z-50 pointer-events-none"
       style={{ left: x + 12, top: y - 8, transform: "translateY(-100%)" }}
     >
-      <div className="bg-on-surface text-surface text-label-xs rounded-lg px-3 py-2 shadow-xl whitespace-nowrap border border-outline-variant/30">
+      <div className="bg-on-surface text-surface rounded-lg px-3 py-2 shadow-xl whitespace-nowrap border border-outline-variant/30">
         {content}
       </div>
     </div>
@@ -128,7 +128,7 @@ function HorizontalBarChart({ data }: { data: WorkloadChartData }) {
           </div>
 
           {/* Rows */}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {data.staffWorkloadData.map((staff) => {
               const pct = (staff.totalShifts / maxShift) * 100;
               const isOverAvg = avgShift > 0 && staff.totalShifts > avgShift * 1.3;
@@ -143,8 +143,7 @@ function HorizontalBarChart({ data }: { data: WorkloadChartData }) {
                   </div>
 
                   <div
-                    className="relative flex-1 rounded-full h-7 bg-surface-container-low overflow-hidden cursor-default"
-                    style={{ height: 32 }}
+                    className="relative flex-1 rounded-full h-8 bg-surface-container-low overflow-hidden cursor-default"
                     onMouseEnter={(e) =>
                       setTooltip({
                         visible: true,
@@ -215,7 +214,7 @@ function StackedBarChart({ data }: { data: WorkloadChartData }) {
     <>
       <div className="overflow-x-auto" role="img" aria-label="Biểu đồ phân bổ ca theo loại lịch">
         <div style={{ minWidth: 480 }}>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {data.staffWorkloadData.map((staff) => {
               const parts = (
                 [
@@ -236,8 +235,7 @@ function StackedBarChart({ data }: { data: WorkloadChartData }) {
                   </div>
 
                   <div
-                    className="flex-1 flex rounded-full h-7 bg-surface-container-low overflow-hidden"
-                    style={{ height: 32 }}
+                    className="flex-1 flex rounded-full h-8 bg-surface-container-low overflow-hidden"
                     onMouseEnter={(e) =>
                       setTooltip({
                         visible: true,
@@ -366,7 +364,7 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
         const totalStaff = rawStaff.length;
         const avg =
           totalStaff > 0
-            ? rawStaff.reduce((sum, s) => sum + s.workloadPercentage, 0) / totalStaff
+            ? rawStaff.reduce((sum, s) => sum + (s.workloadPercentage / totalStaff), 0)
             : 0;
         const maxW = rawStaff.reduce((max, s) => Math.max(max, s.workloadPercentage), 0);
         const minW =
@@ -395,12 +393,12 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
           })),
         });
       }
-    } catch (err) {
+    } catch {
       toast.error("Không thể tải dữ liệu tải công việc. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
-  }, [periodId]);
+  }, [periodId, previewSchedules, toast]);
 
   useEffect(() => {
     void load();
@@ -421,6 +419,7 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
         icon="bar_chart"
         title="Không có dữ liệu workload cho kỳ lịch này"
         description="Chọn kỳ lịch đã có lịch trực để xem biểu đồ tải công việc."
+        size="compact"
       />
     );
   }
@@ -430,37 +429,25 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
       {/* KPI summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Tổng ca", value: chartData.totalSchedules, accent: "" },
-          {
-            label: "Trung bình",
-            value: chartData.averageWorkload.toFixed(1),
-            accent: "",
-          },
-          {
-            label: "Thấp nhất",
-            value: `${chartData.minWorkload.toFixed(1)}%`,
-            accent: "text-secondary",
-          },
-          {
-            label: "Cao nhất",
-            value: `${chartData.maxWorkload.toFixed(1)}%`,
-            accent: "text-error",
-          },
+          { label: "Tổng ca", value: chartData.totalSchedules, icon: "event_available" },
+          { label: "Trung bình", value: chartData.averageWorkload.toFixed(1), icon: "trending_flat" },
+          { label: "Thấp nhất", value: `${chartData.minWorkload.toFixed(1)}%`, icon: "arrow_downward" },
+          { label: "Cao nhất", value: `${chartData.maxWorkload.toFixed(1)}%`, icon: "arrow_upward" },
         ].map((kpi) => (
-          <div
-            key={kpi.label}
-            className="bg-surface-container-lowest rounded-lg p-3 border border-outline-variant"
-          >
-            <p className="font-label-sm text-on-surface-variant">{kpi.label}</p>
-            <p className={`font-headline-lg font-bold mt-0.5 tabular-nums ${kpi.accent || "text-on-surface"}`}>
-              {kpi.value}
-            </p>
+          <div key={kpi.label} className="flex items-center gap-3 bg-surface-container-low rounded-xl p-3 border border-outline-variant">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-container-high">
+              <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">{kpi.icon}</span>
+            </div>
+            <div>
+              <p className="font-label-xs text-on-surface-variant">{kpi.label}</p>
+              <p className="font-bold text-[20px] text-on-surface tabular-nums">{kpi.value}</p>
+            </div>
           </div>
         ))}
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <Legend />
         <div
           role="group"
@@ -469,21 +456,22 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
         >
           {(
             [
-              ["bar", "Theo ca"],
-              ["stacked", "Theo loại"],
+              ["bar", "Theo ca", "horizontal_distribute"],
+              ["stacked", "Theo loại", "stacked_bar_chart"],
             ] as const
-          ).map(([mode, label]) => (
+          ).map(([mode, label, icon]) => (
             <button
               key={mode}
               type="button"
               onClick={() => setViewMode(mode)}
               aria-pressed={viewMode === mode}
-              className={`px-3 py-1.5 rounded-md text-label-sm transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-sm transition-all ${
                 viewMode === mode
-                  ? "bg-primary text-on-primary font-semibold"
+                  ? "bg-primary text-on-primary font-semibold shadow-sm"
                   : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
               }`}
             >
+              <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{icon}</span>
               {label}
             </button>
           ))}
@@ -498,9 +486,9 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
       )}
 
       {/* Chart notes */}
-      <div className="flex items-center gap-4 pt-1" aria-label="Chú thích biểu đồ">
+      <div className="flex items-center gap-4 pt-2 border-t border-outline-variant" aria-label="Chú thích biểu đồ">
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-primary" aria-hidden="true" />
+          <span className="w-3 h-3 rounded-sm bg-primary" aria-hidden="true" />
           <span className="text-label-xs text-outline">Cao hơn TB ≥ 30%</span>
         </div>
         <div className="flex items-center gap-1.5">

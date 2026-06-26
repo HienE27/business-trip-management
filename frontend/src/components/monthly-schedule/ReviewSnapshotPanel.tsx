@@ -2,6 +2,7 @@
 
 import { memo } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Badge } from "@/components/ui/Badge";
 import type { Schedule } from "@/types/api";
 
 export type ReviewSnapshotPanelProps = {
@@ -10,47 +11,73 @@ export type ReviewSnapshotPanelProps = {
 };
 
 export const ReviewSnapshotPanel = memo(function ReviewSnapshotPanel({ focusDate, schedules }: ReviewSnapshotPanelProps) {
+  const scheduleCount = schedules.length;
+  
   return (
-    <div className="rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
-      <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low">
-        <h3 className="text-[15px] font-semibold text-on-surface leading-tight">
-          Chi tiết ngày
-        </h3>
-        <p className="mt-0.5 text-[11px] text-on-surface-variant leading-tight">
-          {focusDate
-            ? `Focus ${new Date(focusDate).toLocaleDateString("vi-VN")}`
-            : "Chọn ngày trên lịch để xem chi tiết."}
-        </p>
+    <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-4 border-b border-outline-variant bg-surface-container-low">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-fixed">
+            <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden="true">event_note</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-title-sm font-semibold text-on-surface">Chi tiết ngày</h3>
+              {scheduleCount > 0 && (
+                <Badge tone="info" size="sm">{scheduleCount}</Badge>
+              )}
+            </div>
+            <p className="mt-0.5 text-label-xs text-on-surface-variant">
+              {focusDate
+                ? `Focus ${new Date(focusDate).toLocaleDateString("vi-VN", { weekday: "short", day: "numeric", month: "short" })}`
+                : "Chọn ngày trên lịch để xem chi tiết."}
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="divide-y divide-outline-variant/50 max-h-72 overflow-y-auto">
+      {/* Content */}
+      <div className="divide-y divide-outline-variant/50 max-h-80 overflow-y-auto">
         {schedules.length === 0 ? (
-          <EmptyState
-            className="py-8"
-            icon="event_busy"
-            title="Không có lịch tại ngày đang focus"
-            description="Chọn cảnh báo hoặc click ngày trên lịch."
-          />
+          <div className="py-8">
+            <EmptyState
+              className="py-6"
+              icon="event_busy"
+              title="Không có lịch tại ngày đang focus"
+              description="Chọn cảnh báo hoặc click ngày trên lịch."
+              size="compact"
+            />
+          </div>
         ) : (
-          schedules.slice(0, 8).map((schedule) => (
-            <div key={schedule.id} className="flex items-start justify-between gap-3 px-4 py-2.5">
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-on-surface leading-tight truncate">
+          schedules.slice(0, 10).map((schedule) => (
+            <div key={schedule.id} className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-surface-container-low transition-colors">
+              <div className="min-w-0 flex-1">
+                <p className="text-label-md font-medium text-on-surface truncate">
                   {schedule.staff.fullName}
                 </p>
-                <p className="mt-0.5 text-[11px] text-on-surface-variant leading-tight">
+                <p className="mt-0.5 text-label-xs text-on-surface-variant">
                   {new Date(schedule.workDate).toLocaleDateString("vi-VN")} · {schedule.shiftType.name}
                 </p>
               </div>
               {schedule.hasConflict && (
-                <span className="rounded-full bg-error-container px-2 py-0.5 text-[10px] font-semibold text-on-error-container whitespace-nowrap leading-tight">
+                <Badge tone="error" size="sm">
+                  <span className="material-symbols-outlined text-[10px]">warning</span>
                   Xung đột
-                </span>
+                </Badge>
               )}
             </div>
           ))
         )}
       </div>
+      
+      {schedules.length > 10 && (
+        <div className="px-4 py-2 border-t border-outline-variant bg-surface-container-low">
+          <p className="text-label-xs text-on-surface-variant text-center">
+            Hiển thị 10 / {schedules.length} lịch
+          </p>
+        </div>
+      )}
     </div>
   );
 });

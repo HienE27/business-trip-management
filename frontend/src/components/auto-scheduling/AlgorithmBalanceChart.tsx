@@ -17,7 +17,7 @@
  *   - >= 1.5× cap                     → red     (overloaded)
  */
 
-import { useId, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { AutoScheduleSummary } from '@/types/api';
 
 export interface AlgorithmBalanceChartProps {
@@ -58,14 +58,31 @@ function barColor(status: StaffAggregate['status']): string {
   }
 }
 
+function StatusBadge({ status }: { status: StaffAggregate['status'] }) {
+  const config = {
+    overloaded: { icon: 'warning', label: 'Quá tải', bg: 'bg-error-container', text: 'text-on-error-container' },
+    caution: { icon: 'horizontal_rule', label: 'Vượt nhẹ', bg: 'bg-tertiary-fixed', text: 'text-on-tertiary-fixed-variant' },
+    balanced: { icon: 'check_circle', label: 'Cân bằng', bg: 'bg-secondary-container', text: 'text-on-secondary-container' },
+  }[status];
+
+  return (
+    <span
+      aria-label={config.label}
+      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold ${config.bg} ${config.text}`}
+    >
+      <span className="material-symbols-outlined text-[12px]" aria-hidden="true">{config.icon}</span>
+      {config.label}
+    </span>
+  );
+}
+
 export function AlgorithmBalanceChart({
   schedules,
   staffCaps = {},
-  title = 'Cân bằng tải — phương án thuật toán',
-  subtitle = 'M07-F09 · sắp xếp đề xuất trước khi xác nhận',
+  title = 'Cân bằng tải',
+  subtitle = 'Sắp xếp đề xuất trước khi xác nhận',
   limit = 12,
 }: AlgorithmBalanceChartProps) {
-  const uid = useId();
 
   const rows = useMemo<StaffAggregate[]>(() => {
     const map = new Map<number, StaffAggregate>();
@@ -106,10 +123,12 @@ export function AlgorithmBalanceChart({
       <div
         role="status"
         data-testid="algo-balance-empty"
-        className="flex flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant bg-surface py-10 gap-2 text-on-surface-variant"
+        className="flex flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant bg-surface py-12 gap-3 text-on-surface-variant"
       >
-        <span className="material-symbols-outlined text-4xl">bar_chart</span>
-        <p className="text-[13px]">Chưa có dữ liệu phân bổ.</p>
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-container-low">
+          <span className="material-symbols-outlined text-[36px]">bar_chart</span>
+        </div>
+        <p className="text-label-sm">Chưa có dữ liệu phân bổ</p>
       </div>
     );
   }
@@ -121,106 +140,115 @@ export function AlgorithmBalanceChart({
       role="img"
       aria-label={title}
       data-testid="algo-balance-chart"
-      className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm space-y-3"
+      className="rounded-xl bg-surface-container-lowest overflow-hidden space-y-0"
     >
-      <header className="flex items-baseline justify-between gap-2">
-        <h3 className="text-[16px] font-semibold text-on-surface">{title}</h3>
-        <span className="text-[12px] text-on-surface-variant">{subtitle}</span>
-      </header>
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-fixed">
+            <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden="true">balance</span>
+          </div>
+          <div>
+            <h3 className="text-title-sm font-semibold text-on-surface">{title}</h3>
+            <p className="text-label-xs text-on-surface-variant">{subtitle}</p>
+          </div>
+        </div>
+        <span className="text-label-xs text-on-surface-variant bg-surface-container-high px-2 py-1 rounded-full">
+          {rows.length} nhân sự
+        </span>
+      </div>
 
-      <ul className="space-y-2.5" role="list">
-        {rows.map((row, i) => {
-          const barWidth = maxRatio > 0 ? Math.min(100, (row.ratio / maxRatio) * 100) : 0;
-          const capPos = maxRatio > 0 ? (row.cap / maxRatio) * 100 : 0;
-          const color = barColor(row.status);
-          const pct = row.ratio * 100;
-          return (
-            <li
-              key={row.staffId}
-              data-testid="algo-balance-row"
-              className="grid grid-cols-[1fr_48px] items-center gap-3"
-            >
-              <div className="space-y-0.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span
-                    title={row.staffName}
-                    className="truncate text-[13px] font-medium text-on-surface"
-                  >
-                    {row.staffName}
-                  </span>
-                  <span className="shrink-0 text-right text-[12px] font-semibold tabular-nums text-on-surface">
-                    {row.total}
-                    <span className="text-outline"> / {row.cap}</span>
-                  </span>
-                </div>
-                {/* SVG bar */}
-                <div className="relative h-4 bg-surface-variant rounded-full overflow-hidden">
-                  {/* Cap marker */}
-                  <span
-                    aria-hidden
-                    className="absolute top-0 bottom-0 w-px bg-outline-variant z-10"
-                    style={{ left: `${Math.min(100, capPos)}%` }}
-                  />
-                  <svg
-                    width="100%"
-                    height={16}
-                    viewBox="0 0 100 16"
-                    preserveAspectRatio="xMinYMid meet"
-                    role="presentation"
-                    aria-hidden
-                    data-testid="algo-bar"
-                  >
-                    <rect
-                      x={0}
-                      y={2}
-                      width={Math.min(100, barWidth)}
-                      height={12}
-                      rx={4}
-                      fill={color}
-                    />
-                    <title>{`${row.staffName}: ${row.total} ca / giới hạn ${row.cap} (${pct.toFixed(0)}%)`}</title>
-                  </svg>
-                </div>
-              </div>
+      {/* Content */}
+      <div className="p-4 space-y-3">
+        <ul className="space-y-2" role="list">
+          {rows.map((row) => {
+            const barWidth = maxRatio > 0 ? Math.min(100, (row.ratio / maxRatio) * 100) : 0;
+            const capPos = maxRatio > 0 ? (row.cap / maxRatio) * 100 : 0;
+            const color = barColor(row.status);
+            const pct = row.ratio * 100;
 
-              {/* Badge */}
-              <span
-                aria-label={`${row.status === 'overloaded' ? 'Quá tải' : row.status === 'caution' ? 'Vượt nhẹ' : 'Cân bằng'}`}
-                data-testid="algo-balance-badge"
-                className={`shrink-0 inline-flex items-center justify-center w-10 h-6 rounded-full text-[10px] font-bold ${
-                  row.status === 'overloaded'
-                    ? 'bg-error-container text-on-error-container'
-                    : row.status === 'caution'
-                    ? 'bg-tertiary-fixed text-on-tertiary-container'
-                    : 'bg-secondary-container text-on-secondary-container'
-                }`}
+            return (
+              <li
+                key={row.staffId}
+                data-testid="algo-balance-row"
+                className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors"
               >
-                {row.status === 'overloaded'
-                    ? <span className="material-symbols-outlined text-[14px]" aria-hidden="true">warning</span>
-                    : row.status === 'caution'
-                    ? <span className="material-symbols-outlined text-[14px]" aria-hidden="true">horizontal_rule</span>
-                    : <span className="material-symbols-outlined text-[14px]" aria-hidden="true">check</span>}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+                {/* Staff name + ratio */}
+                <div className="w-40 shrink-0">
+                  <p className="text-label-sm font-medium text-on-surface truncate" title={row.staffName}>
+                    {row.staffName}
+                  </p>
+                  <p className="text-label-xs text-on-surface-variant">{row.total} / {row.cap} ca</p>
+                </div>
 
-      <footer className="flex flex-wrap items-center gap-3 pt-2 text-[12px] text-on-surface-variant border-t border-outline-variant">
-        <span className="flex items-center gap-1">
-          <span aria-hidden="true" className="inline-block h-2 w-4 rounded-sm bg-[var(--color-chart-tt,#10b981)]" />
-          Cân bằng
-        </span>
-        <span className="flex items-center gap-1">
-          <span aria-hidden="true" className="inline-block h-2 w-4 rounded-sm bg-[var(--color-chart-cg,#8b5cf6)]" />
-          Vượt nhẹ
-        </span>
-        <span className="flex items-center gap-1">
-          <span aria-hidden="true" className="inline-block h-2 w-4 rounded-sm bg-[var(--color-chart-24,#ef4444)]" />
-          Quá tải
-        </span>
-        <span className="ml-auto">Cột dọc = ngưỡng cho phép mỗi nhân sự</span>
-      </footer>
+                {/* Progress bar */}
+                <div className="flex-1 space-y-1">
+                  <div className="relative h-5 bg-surface-variant rounded-full overflow-hidden">
+                    {/* Cap marker */}
+                    <span
+                      aria-hidden
+                      className="absolute top-0 bottom-0 w-px bg-outline z-10"
+                      style={{ left: `${Math.min(100, capPos)}%` }}
+                    />
+                    <svg
+                      width="100%"
+                      height={20}
+                      viewBox="0 0 100 20"
+                      preserveAspectRatio="xMinYMid meet"
+                      role="presentation"
+                      aria-hidden
+                      data-testid="algo-bar"
+                      className="block"
+                    >
+                      <rect
+                        x={0}
+                        y={2}
+                        width={Math.min(100, barWidth)}
+                        height={16}
+                        rx={4}
+                        fill={color}
+                      />
+                      <title>{`${row.staffName}: ${row.total} ca / giới hạn ${row.cap} (${pct.toFixed(0)}%)`}</title>
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Percentage */}
+                <div className="w-14 shrink-0 text-right">
+                  <span className="text-label-sm font-bold tabular-nums text-on-surface">
+                    {pct.toFixed(0)}%
+                  </span>
+                </div>
+
+                {/* Status badge */}
+                <div className="w-24 shrink-0">
+                  <StatusBadge status={row.status} />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Legend */}
+        <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-outline-variant text-label-xs text-on-surface-variant">
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-[var(--color-chart-tt,#10b981)]" aria-hidden="true" />
+            Cân bằng
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-[var(--color-chart-cg,#8b5cf6)]" aria-hidden="true" />
+            Vượt nhẹ
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-[var(--color-chart-24,#ef4444)]" aria-hidden="true" />
+            Quá tải
+          </span>
+          <span className="ml-auto flex items-center gap-1.5">
+            <span className="w-px h-3 bg-outline" aria-hidden="true" />
+            Ngưỡng cho phép
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

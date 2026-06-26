@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useRole } from "@/hooks/useRole";
 import { useToast } from "@/hooks/useToast";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Badge } from "@/components/ui/Badge";
 import type { ApiResponse } from "@/types/api";
 
 /* ─── Types ──────────────────────────────────────────────── */
@@ -148,17 +150,17 @@ function TabBar({ active, onChange }: { active: TabKey; onChange: (t: TabKey) =>
   ];
 
   return (
-    <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant w-fit" role="tablist">
+    <div className="inline-flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant" role="tablist">
       {tabs.map(tab => (
         <button
           key={tab.key}
           role="tab"
           aria-selected={active === tab.key}
           onClick={() => onChange(tab.key)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-label-md font-medium transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-label-md font-medium transition-all cursor-pointer ${
             active === tab.key
-              ? "bg-surface-container-lowest text-on-surface shadow-sm"
-              : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+              ? "bg-surface-container-lowest text-primary shadow-sm"
+              : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50"
           }`}
         >
           <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{tab.icon}</span>
@@ -247,11 +249,16 @@ function RuntimeConfigEditor({ onSaved }: { onSaved?: () => void }) {
 
   if (loading) {
     return (
-      <div className="space-y-4 animate-pulse">
-        <div className="flex gap-3">
-          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 flex-1 bg-surface-container-low rounded-xl" />)}
+      <div className="space-y-4">
+        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-4">
+          <div className="h-6 w-32 bg-surface-container-low rounded animate-pulse mb-4" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map(i => <div key={i} className="h-20 bg-surface-container-low rounded-xl animate-pulse" />)}
+          </div>
         </div>
-        <div className="h-48 bg-surface-container-low rounded-xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-40 bg-surface-container-low rounded-xl animate-pulse" />)}
+        </div>
       </div>
     );
   }
@@ -261,56 +268,75 @@ function RuntimeConfigEditor({ onSaved }: { onSaved?: () => void }) {
   return (
     <div className="space-y-4">
       {/* Presets + Edit toolbar */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
+      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">bookmark</span>
+            <p className="text-title-sm font-semibold text-on-surface">Cấu hình nhanh</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {editing ? (
+              <>
+                <button onClick={handleReset}
+                  className="px-4 py-2 rounded-lg border border-outline-variant text-label-sm font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors cursor-pointer">
+                  Hủy bỏ
+                </button>
+                <button onClick={handleSave} disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-label-sm font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors cursor-pointer">
+                  {saving ? (
+                    <><span className="size-4 animate-spin rounded-full border-2 border-on-primary border-t-transparent" /></>
+                  ) : (
+                    <><span className="material-symbols-outlined text-[16px]" aria-hidden="true">save</span> Lưu thay đổi</>
+                  )}
+                </button>
+              </>
+            ) : (
+              <button onClick={() => setEditing(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-outline-variant text-label-sm font-medium text-on-surface-variant hover:bg-surface-container-low hover:border-primary transition-colors cursor-pointer">
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">edit</span> Chỉnh sửa
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {(Object.entries(ALGORITHM_PRESETS) as [PresetKey, typeof ALGORITHM_PRESETS[PresetKey]][]).map(([key, preset]) => {
             const isActive = activePreset === key;
             return (
               <button key={key} type="button" onClick={() => applyPreset(key)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-all cursor-pointer ${
-                  isActive ? `border-primary ${preset.colorBg}` : "border-outline-variant bg-surface-container-lowest hover:border-primary"
+                className={`group relative flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                  isActive 
+                    ? `border-primary ${preset.colorBg} shadow-sm` 
+                    : "border-outline-variant bg-surface-container-low hover:border-primary/50 hover:bg-surface-container-lowest"
                 }`}>
-                <span className={`material-symbols-outlined text-[16px] ${isActive ? preset.color : "text-on-surface-variant"}`} aria-hidden="true">{preset.icon}</span>
-                <div>
-                  <p className={`text-label-sm font-semibold ${isActive ? preset.color : "text-on-surface"}`}>{preset.label}</p>
-                  <p className="text-[10px] text-on-surface-variant leading-tight">{preset.description}</p>
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${isActive ? preset.colorBg : 'bg-surface-container-high'} transition-colors`}>
+                  <span className={`material-symbols-outlined text-[20px] ${isActive ? preset.color : "text-on-surface-variant"}`} aria-hidden="true">{preset.icon}</span>
                 </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-label-md font-semibold ${isActive ? preset.color : "text-on-surface"}`}>{preset.label}</p>
+                  <p className="text-[11px] text-on-surface-variant mt-0.5 leading-relaxed line-clamp-2">{preset.description}</p>
+                </div>
+                {isActive && (
+                  <div className="absolute top-2 right-2">
+                    <span className="material-symbols-outlined text-primary text-[14px]" aria-hidden="true">check_circle</span>
+                  </div>
+                )}
               </button>
             );
           })}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {editing ? (
-            <>
-              <button onClick={handleReset}
-                className="px-3 py-1.5 rounded-lg border border-outline-variant text-label-sm text-on-surface-variant hover:bg-surface-container-low transition-colors cursor-pointer">
-                Hủy
-              </button>
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-label-sm font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors cursor-pointer">
-                {saving ? <><span className="size-3.5 animate-spin rounded-full border border-on-primary border-t-transparent" /> Đang lưu...</> : <><span className="material-symbols-outlined text-[14px]" aria-hidden="true">save</span> Lưu</>}
-              </button>
-            </>
-          ) : (
-            <button onClick={() => setEditing(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant text-label-sm text-on-surface-variant hover:bg-surface-container-low transition-colors cursor-pointer">
-              <span className="material-symbols-outlined text-[14px]" aria-hidden="true">edit</span> Sửa
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Parameter groups */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {PARAM_GROUPS.map(group => (
-          <div key={group.id} className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
-            <div className="px-3 py-2 border-b border-outline-variant bg-surface-container-low flex items-center gap-2">
-              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${group.bg} ${group.color}`}>
-                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{group.icon}</span>
+          <div key={group.id} className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden hover:shadow-sm transition-shadow">
+            <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex items-center gap-2">
+              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${group.bg} ${group.color}`}>
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{group.icon}</span>
               </div>
-              <p className="text-label-sm font-semibold text-on-surface">{group.label}</p>
+              <p className="text-label-md font-semibold text-on-surface">{group.label}</p>
             </div>
-            <div className="p-3 space-y-3">
+            <div className="p-4 space-y-4">
               {group.params.map(param => {
                 const desc = group.descriptions[param as keyof typeof group.descriptions] ?? { label: param, unit: "", desc: "", hint: "" };
                 const cfgKey = param === "greedy_coverage_threshold" ? "greedyCoverageThreshold"
@@ -333,22 +359,23 @@ function RuntimeConfigEditor({ onSaved }: { onSaved?: () => void }) {
 
                 return (
                   <div key={param}>
-                    <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="flex-1 min-w-0">
-                        <code className="font-mono text-[11px] font-semibold text-primary bg-primary-fixed/30 px-1 py-0.5 rounded">{desc.label}</code>
-                        <p className="text-[10px] text-on-surface-variant mt-0.5 line-clamp-2">{desc.desc}</p>
+                        <code className="font-mono text-[11px] font-semibold text-primary bg-primary-fixed/50 px-1.5 py-0.5 rounded">{desc.label}</code>
+                        <p className="text-[11px] text-on-surface-variant mt-1 leading-relaxed">{desc.desc}</p>
+                        <p className="text-[10px] text-outline mt-0.5">{desc.hint}</p>
                       </div>
                       {editing ? (
                         <input type="number" step={step} min={min} max={max}
-                          className="h-8 w-20 rounded-lg border border-outline-variant bg-surface-container-low px-2 text-label-sm font-mono text-on-surface text-right focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                          className="h-9 w-24 rounded-lg border border-outline-variant bg-surface-container-low px-2 text-label-sm font-mono text-on-surface text-right focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
                           value={numVal}
                           onChange={e => setForm(f => f ? { ...f, [cfgKey]: step < 1 ? parseFloat(e.target.value) || 0 : parseInt(e.target.value) || 0 } : f)} />
                       ) : (
-                        <span className="font-mono text-[15px] font-bold text-on-surface shrink-0">{display}</span>
+                        <span className="font-mono text-xl font-bold text-on-surface shrink-0">{display}</span>
                       )}
                     </div>
-                    <div className="w-full bg-surface-variant rounded-full h-1">
-                      <div className={`h-1 rounded-full ${group.color.replace("text-", "bg-")}`} style={{ width: `${pct}%` }} />
+                    <div className="w-full bg-surface-variant rounded-full h-2 overflow-hidden">
+                      <div className={`h-full rounded-full ${group.color.replace("text-", "bg-")} transition-all duration-300`} style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 );
@@ -358,26 +385,26 @@ function RuntimeConfigEditor({ onSaved }: { onSaved?: () => void }) {
         ))}
 
         {/* Auto-compensation toggle */}
-        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
-          <div className="px-3 py-2 border-b border-outline-variant bg-surface-container-low flex items-center gap-2">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-secondary-container text-secondary">
-              <span className="material-symbols-outlined text-[14px]" aria-hidden="true">event_available</span>
+        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden hover:shadow-sm transition-shadow">
+          <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary-container text-secondary">
+              <span className="material-symbols-outlined text-[16px]" aria-hidden="true">event_available</span>
             </div>
-            <p className="text-label-sm font-semibold text-on-surface">Nghỉ bù tự động</p>
+            <p className="text-label-md font-semibold text-on-surface">Nghỉ bù tự động</p>
           </div>
-          <div className="p-3 flex items-center justify-between">
-            <div>
-              <p className="text-label-sm text-on-surface">Tạo ngày nghỉ bù</p>
-              <p className="text-[10px] text-on-surface-variant">Sau ca trực 24/24</p>
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-label-sm text-on-surface font-medium">Tạo ngày nghỉ bù</p>
+              <p className="text-[11px] text-on-surface-variant mt-0.5">Tự động tạo sau ca trực 24/24</p>
             </div>
             {editing ? (
               <button type="button" role="switch" aria-checked={form.autoCompensationEnabled}
                 onClick={() => setForm(f => f ? { ...f, autoCompensationEnabled: !f.autoCompensationEnabled } : f)}
-                className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${form.autoCompensationEnabled ? "bg-secondary" : "bg-surface-container-high"}`}>
+                className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${form.autoCompensationEnabled ? "bg-secondary border-secondary" : "bg-surface-container-high border-outline"}`}>
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${form.autoCompensationEnabled ? "translate-x-6" : "translate-x-1"}`} />
               </button>
             ) : (
-              <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-sm font-semibold ${form.autoCompensationEnabled ? "bg-secondary-container text-secondary" : "bg-surface-container-high text-outline"}`}>
+              <span className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-label-sm font-semibold ${form.autoCompensationEnabled ? "bg-secondary-container text-secondary" : "bg-surface-container-high text-outline"}`}>
                 <span className={`h-2 w-2 rounded-full ${form.autoCompensationEnabled ? "bg-secondary" : "bg-outline"}`} />
                 {form.autoCompensationEnabled ? "Bật" : "Tắt"}
               </span>
@@ -419,10 +446,12 @@ function MetricsHistory() {
 
   if (metrics.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-outline-variant bg-surface-container-lowest p-10 text-center">
-        <span className="material-symbols-outlined text-outline text-[40px]" aria-hidden="true">history</span>
-        <p className="mt-2 text-label-md text-on-surface-variant">Chưa có lần chạy nào</p>
-      </div>
+      <EmptyState
+        icon="history"
+        title="Chưa có lần chạy nào"
+        description="Chạy thuật toán để xem lịch sử tại đây"
+        className="rounded-xl border border-dashed border-outline-variant bg-surface-container-lowest"
+      />
     );
   }
 
@@ -1141,23 +1170,14 @@ export default function AlgorithmConfigPage() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-headline-lg font-bold text-on-surface">Cấu hình thuật toán</h1>
+          <p className="text-label-sm text-on-surface-variant mt-0.5">Thiết lập thông số vận hành cho thuật toán xếp lịch</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant">
-            {([{ key: "config", label: "Cấu hình", icon: "tune" }, { key: "history", label: "Lịch sử", icon: "history" }, { key: "reference", label: "Tham khảo", icon: "info" }] as const).map(t => (
-              <button key={t.key} role="tab" aria-selected={activeTab === t.key}
-                onClick={() => setActiveTab(t.key as TabKey)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label-sm font-medium transition-all cursor-pointer ${
-                  activeTab === t.key ? "bg-surface-container-lowest text-on-surface shadow-sm" : "text-on-surface-variant hover:bg-surface-container-low"}`}>
-                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{t.icon}</span>
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <TabBar active={activeTab} onChange={(t) => setActiveTab(t as TabKey)} />
           <button onClick={handleSyncDescriptions} disabled={syncingDesc}
-            className="flex items-center gap-1.5 rounded-lg border border-outline-variant px-3 py-2 text-label-sm font-medium text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 rounded-lg border border-outline-variant px-3 py-2 text-label-sm font-medium text-on-surface-variant hover:bg-surface-container-low hover:border-primary disabled:opacity-50 transition-colors cursor-pointer"
             title="Cập nhật mô tả các tham số về phiên bản mặc định theo code">
-            {syncingDesc ? <><span className="size-3.5 animate-spin rounded-full border border-outline-variant border-t-transparent" /> Đang đồng bộ...</> : <><span className="material-symbols-outlined text-[14px]" aria-hidden="true">sync</span> Đồng bộ mô tả</>}
+            {syncingDesc ? <><span className="size-3.5 animate-spin rounded-full border border-outline-variant border-t-transparent" /> Đang đồng bộ...</> : <><span className="material-symbols-outlined text-[14px]" aria-hidden="true">sync</span> Đồng bộ</>}
           </button>
           <button onClick={() => setCreateModalOpen(true)}
             className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-label-sm font-semibold text-on-primary hover:bg-primary/90 transition-colors cursor-pointer">
@@ -1169,7 +1189,17 @@ export default function AlgorithmConfigPage() {
       {/* Tab Content */}
       {activeTab === "config" && (
         <div className="space-y-5">
-          <RuntimeConfigEditor onSaved={() => void loadConfigs()} />
+          {/* Runtime Config Editor Card */}
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
+            <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-[18px]" aria-hidden="true">tune</span>
+              <h2 className="text-title-sm font-semibold text-on-surface">Thông số runtime</h2>
+              <span className="text-[11px] text-on-surface-variant ml-auto">Áp dụng cho mọi kỳ lịch</span>
+            </div>
+            <div className="p-4">
+              <RuntimeConfigEditor onSaved={() => void loadConfigs()} />
+            </div>
+          </div>
 
           {/* Custom Configs — Data table */}
           <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
@@ -1203,12 +1233,12 @@ export default function AlgorithmConfigPage() {
                 {[1, 2, 3].map(i => <div key={i} className="h-10 bg-surface-container-low rounded animate-pulse" />)}
               </div>
             ) : filteredConfigs.length === 0 ? (
-              <div className="p-8 text-center">
-                <span className="material-symbols-outlined text-outline text-[32px]" aria-hidden="true">tune</span>
-                <p className="mt-2 text-label-sm text-on-surface-variant">
-                  {configs.length === 0 ? "Chưa có cấu hình tùy chỉnh nào." : "Không tìm thấy cấu hình phù hợp."}
-                </p>
-              </div>
+              <EmptyState
+                icon="tune"
+                title={configs.length === 0 ? "Chưa có cấu hình tùy chỉnh" : "Không tìm thấy cấu hình phù hợp"}
+                description={configs.length === 0 ? "Tạo cấu hình mới để tùy chỉnh thuật toán" : "Thử thay đổi bộ lọc tìm kiếm"}
+                size="compact"
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
@@ -1235,7 +1265,12 @@ export default function AlgorithmConfigPage() {
                           <code className="font-mono text-[11px] font-semibold text-primary bg-primary-fixed/20 px-1.5 py-0.5 rounded">{config.paramKey}</code>
                         </td>
                         <td className="px-3 py-2">
-                          <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${config.valueType === "NUMBER" ? "bg-primary-fixed text-primary" : config.valueType === "BOOLEAN" ? "bg-secondary-container text-secondary" : config.valueType === "JSON" ? "bg-tertiary-container text-tertiary" : "bg-surface-container text-on-surface-variant"}`}>
+                          <span className={`inline-flex px-1.5 py-0.5 rounded text-label-xs font-semibold uppercase ${
+                            config.valueType === "NUMBER" ? "bg-primary-fixed text-primary" :
+                            config.valueType === "BOOLEAN" ? "bg-secondary-container text-secondary" :
+                            config.valueType === "JSON" ? "bg-tertiary-container text-tertiary" :
+                            "bg-surface-container text-on-surface-variant"
+                          }`}>
                             {config.valueType}
                           </span>
                         </td>

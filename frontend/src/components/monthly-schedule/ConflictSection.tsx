@@ -7,7 +7,7 @@ import type { ConflictDetail } from "@/types/api";
 export type ConflictSectionProps = {
   conflicts: ConflictDetail[];
   selectedConflict: ConflictDetail | null;
-  selectedPeriodId: number | null;
+  // selectedPeriodId: number | null;
   onSelect: (conflict: ConflictDetail) => void;
   onClose: () => void;
   onFocusDate: (date: string) => void;
@@ -18,7 +18,7 @@ export type ConflictSectionProps = {
 export const ConflictSection = memo(function ConflictSection({
   conflicts,
   selectedConflict,
-  selectedPeriodId,
+  // selectedPeriodId,
   onSelect,
   onClose,
   onFocusDate,

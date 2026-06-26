@@ -2,6 +2,10 @@
 
 import { memo, useEffect, useState } from "react";
 import { AutoScheduleMatrixGrid } from "./AutoScheduleMatrixGrid";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
+import { KPICard } from "@/components/ui/KPICard";
 import type { AutoScheduleResult, SchedulePeriod, Staff } from "@/types/api";
 
 type AlgorithmType = "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING";
@@ -30,10 +34,10 @@ export type AutoSchedulePanelProps = {
   isManager?: boolean;
 };
 
-const ALGO_COLORS: Record<AlgorithmType, { icon: string; active: string; inactive: string }> = {
-  GREEDY: { icon: "bolt", active: "bg-primary text-on-primary", inactive: "text-primary bg-primary-fixed hover:bg-primary-fixed/70" },
-  ROUND_ROBIN: { icon: "autorenew", active: "bg-secondary text-on-secondary", inactive: "text-secondary bg-secondary-container hover:bg-secondary-container/70" },
-  BACKTRACKING: { icon: "route", active: "bg-tertiary text-on-tertiary", inactive: "text-tertiary bg-tertiary-container hover:bg-tertiary-container/70" },
+const ALGO_CONFIG: Record<AlgorithmType, { icon: string; label: string; color: string; bg: string; hover: string }> = {
+  GREEDY: { icon: "bolt", label: "Greedy", color: "text-primary", bg: "bg-primary", hover: "hover:bg-primary/90" },
+  ROUND_ROBIN: { icon: "autorenew", label: "Round Robin", color: "text-secondary", bg: "bg-secondary", hover: "hover:bg-secondary/90" },
+  BACKTRACKING: { icon: "route", label: "Backtracking", color: "text-tertiary", bg: "bg-tertiary", hover: "hover:bg-tertiary/90" },
 };
 
 export const AutoSchedulePanel = memo(function AutoSchedulePanel({
@@ -75,29 +79,43 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   const balanceScore = previewResult?.balanceScore ?? 0;
   const statusMsgOk = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng") || message?.toLowerCase().includes("đã hủy");
 
+  const algoResultInfo = previewResult ? ALGO_CONFIG[previewResult.algorithmType as AlgorithmType] : null;
+
+  // KPI tone helpers
+  const coverageTone = coverageRate >= 90 ? "success" : coverageRate >= 70 ? "info" : "error";
+  const balanceTone = balanceScore >= 0.75 ? "success" : balanceScore >= 0.5 ? "warning" : "error";
+  const conflictTone = previewResult?.conflictCount === 0 ? "success" : "error";
+
   return (
     <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
       {/* ── Top control bar ─────────────────────────────────── */}
-      <div className="flex flex-col gap-0 border-b border-outline-variant">
+      <div className="border-b border-outline-variant">
 
         {/* Row 1: algorithm pills + action */}
-        <div className="flex flex-wrap items-center gap-2 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
           {/* Algorithm pills */}
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <span className="material-symbols-outlined text-[16px] text-on-surface-variant shrink-0" aria-hidden="true">psychology</span>
-            <div className="flex gap-1.5 flex-wrap">
-              {(Object.keys(ALGO_COLORS) as AlgorithmType[]).map((type) => {
-                const cfg = ALGO_COLORS[type];
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed">
+              <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden="true">psychology</span>
+            </div>
+            <div className="flex gap-1.5">
+              {(Object.keys(ALGO_CONFIG) as AlgorithmType[]).map((type) => {
+                const cfg = ALGO_CONFIG[type];
                 const sel = algorithmType === type;
                 return (
                   <button
                     key={type}
                     type="button"
                     onClick={() => onSetAlgorithmType(type)}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-label-sm font-semibold transition-all cursor-pointer ${sel ? cfg.active : cfg.inactive}`}
+                    disabled={runningAutoSchedule}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      sel 
+                        ? `${cfg.bg} ${cfg.color.replace("text-", "text-on-")}` 
+                        : "border border-outline-variant bg-surface-container-low text-on-surface-variant hover:border-primary hover:bg-surface-container-low"
+                    }`}
                   >
-                    <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{cfg.icon}</span>
-                    {type.replace("_", " ")}
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{cfg.icon}</span>
+                    {cfg.label}
                   </button>
                 );
               })}
@@ -105,69 +123,65 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
           </div>
 
           {/* Right actions */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-2">
             {isDraft && (
-              <label className="flex items-center gap-1.5 text-label-xs text-on-surface-variant cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoGenerateRequirements}
-                  onChange={(e) => onSetAutoGenerateRequirements(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-outline text-primary accent-primary"
-                />
-                Auto-gen
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low hover:border-primary transition-colors cursor-pointer">
+                <div className="relative inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={autoGenerateRequirements}
+                    onChange={(e) => onSetAutoGenerateRequirements(e.target.checked)}
+                    className="peer h-4 w-4 shrink-0 rounded border-outline text-primary cursor-pointer focus:ring-2 focus:ring-primary/30 focus:ring-offset-1 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <span className="text-label-xs font-medium text-on-surface-variant">Tạo yêu cầu tự động</span>
               </label>
             )}
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={onPreview}
               disabled={runningAutoSchedule || !selectedPeriodId || !isDraft}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              loading={runningAutoSchedule}
+              icon={<span className="material-symbols-outlined text-[16px]">play_arrow</span>}
             >
-              {runningAutoSchedule ? (
-                <><div className="size-3.5 animate-spin rounded-full border border-on-primary border-t-transparent" /> Đang chạy…</>
-              ) : (
-                <><span className="material-symbols-outlined text-[14px]" aria-hidden="true">play_arrow</span> {previewResult ? "Làm mới" : "Chạy"}</>
-              )}
-            </button>
+              {previewResult ? "Làm mới" : "Chạy"}
+            </Button>
             {previewResult && (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={onApplyPreview}
                 disabled={applyingPreview}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-on-secondary text-label-sm font-semibold hover:bg-secondary/90 disabled:opacity-50 transition-colors"
+                loading={applyingPreview}
+                icon={<span className="material-symbols-outlined text-[16px]">check</span>}
               >
-                {applyingPreview ? (
-                  <><div className="size-3.5 animate-spin rounded-full border border-on-secondary border-t-transparent" /> Đang áp dụng…</>
-                ) : (
-                  <><span className="material-symbols-outlined text-[14px]" aria-hidden="true">check</span> Áp dụng{editedPreview.length > 0 ? `+${editedPreview.length}` : ""}</>
-                )}
-              </button>
+                Áp dụng{editedPreview.length > 0 ? ` (${editedPreview.length})` : ""}
+              </Button>
             )}
           </div>
         </div>
 
         {/* Row 2: status message + warnings */}
         {(!isDraft || message || runningAutoSchedule) && (
-          <div className="px-3 pb-3 flex flex-wrap items-center gap-2">
+          <div className="px-4 pb-4 flex flex-wrap items-center gap-2">
             {!isDraft && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-tertiary-container text-on-tertiary-container text-label-xs font-semibold border border-tertiary/20">
+              <Badge tone="warning" size="sm">
                 <span className="material-symbols-outlined text-[12px]">info</span>
                 Chỉ kỳ DRAFT mới xếp được
-              </span>
+              </Badge>
             )}
             {runningAutoSchedule && (
-              <span className="inline-flex items-center gap-1 text-label-xs text-primary">
-                <div className="size-3 animate-spin rounded-full border border-primary border-t-transparent" />
+              <Badge tone="info" size="sm" className="animate-pulse">
+                <span className="material-symbols-outlined text-[12px]">sync</span>
                 Đang chạy thuật toán…
-              </span>
+              </Badge>
             )}
             {message && (
-              <span className={`inline-flex items-center gap-1 text-label-xs font-medium ${
-                statusMsgOk ? "text-secondary" : "text-error"
-              }`}>
+              <Badge tone={statusMsgOk ? "success" : "error"} size="sm">
                 <span className="material-symbols-outlined text-[12px]">{statusMsgOk ? "check_circle" : "error"}</span>
                 {message}
-              </span>
+              </Badge>
             )}
           </div>
         )}
@@ -175,144 +189,214 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
       {/* ── Preview results ──────────────────────────────────── */}
       {previewResult ? (
-        <div className="p-3 space-y-3">
-          {/* KPI strip */}
-          <div className="flex flex-wrap gap-2">
-            {/* Algorithm badge */}
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-semibold text-label-xs ${
-              previewResult.algorithmType === "ROUND_ROBIN"
-                ? "bg-secondary-container text-on-secondary-container border-secondary/30"
-                : previewResult.algorithmType === "BACKTRACKING"
-                ? "bg-tertiary-container text-on-tertiary-container border-tertiary/30"
-                : "bg-primary-fixed text-primary border-primary/30"
-            }`}>
-              <span className="material-symbols-outlined text-[12px]" aria-hidden="true">
-                {previewResult.algorithmType === "ROUND_ROBIN" ? "autorenew" : previewResult.algorithmType === "BACKTRACKING" ? "route" : "bolt"}
-              </span>
-              {previewResult.algorithmType.replace("_", " ")}
-            </div>
-            {[
-              { icon: "event_available", label: "Tạo", value: previewResult.totalSchedulesCreated, tone: "text-secondary" },
-              { icon: "radio_button_checked", label: "Phủ", value: `${coverageRate}%`, tone: coverageRate >= 90 ? "text-secondary" : coverageRate >= 70 ? "text-primary" : "text-error" },
-              { icon: "balance", label: "CB", value: `${Math.round(balanceScore * 100)}%`, tone: balanceScore >= 0.75 ? "text-secondary" : "text-primary" },
-              { icon: previewResult.conflictCount > 0 ? "warning" : "check_circle", label: "XĐ", value: previewResult.conflictCount, tone: previewResult.conflictCount > 0 ? "text-error" : "text-secondary" },
-            ].map((kpi) => (
-              <div key={kpi.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low border border-outline-variant">
-                <span className="material-symbols-outlined text-[14px] text-on-surface-variant" aria-hidden="true">{kpi.icon}</span>
-                <span className={`font-bold text-[15px] tabular-nums ${kpi.tone}`}>{kpi.value}</span>
-                <span className="text-label-xs text-on-surface-variant">{kpi.label}</span>
-              </div>
-            ))}
-
-            {/* Quick actions */}
-            {isManager && (
-              <div className="ml-auto flex items-center gap-1">
-                <button type="button" onClick={onSaveTemplate}
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-outline-variant text-label-xs text-on-surface hover:bg-surface-container-low transition-colors cursor-pointer"
-                  title="Lưu mẫu">
-                  <span className="material-symbols-outlined text-[12px]">bookmark_add</span> Lưu mẫu
-                </button>
-                <button type="button" onClick={onApplyTemplate}
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-outline-variant text-label-xs text-on-surface hover:bg-surface-container-low transition-colors cursor-pointer"
-                  title="Áp dụng mẫu">
-                  <span className="material-symbols-outlined text-[12px]">download</span> Mẫu
-                </button>
-                {editedPreview.length > 0 && (
-                  <button type="button" onClick={onResetEdits}
-                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-label-xs text-error hover:bg-error-container transition-colors cursor-pointer">
-                    <span className="material-symbols-outlined text-[12px]">undo</span> Hủy {editedPreview.length}
-                  </button>
-                )}
+        <div className="p-4 space-y-4">
+          {/* KPI Cards Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+            {/* Algorithm Badge Card */}
+            {algoResultInfo && (
+              <div className={`flex items-center gap-3 p-3 rounded-xl border-2 ${algoResultInfo.bg.replace("bg-", "bg-")}/10 border-${algoResultInfo.bg.replace("bg-", "")}/20`}>
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${algoResultInfo.bg} ${algoResultInfo.color.replace("text-", "text-on-")}`}>
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{algoResultInfo.icon}</span>
+                </div>
+                <div>
+                  <p className="text-label-xs text-on-surface-variant">Thuật toán</p>
+                  <p className="text-label-md font-bold text-on-surface">{algoResultInfo.label}</p>
+                </div>
               </div>
             )}
+            
+            <KPICard
+              icon="event_available"
+              label="Ca tạo"
+              value={previewResult.totalSchedulesCreated}
+              tone="success"
+            />
+            <KPICard
+              icon="radio_button_checked"
+              label="Tỷ lệ phủ"
+              value={`${coverageRate}%`}
+              tone={coverageTone}
+            />
+            <KPICard
+              icon="balance"
+              label="Cân bằng"
+              value={`${Math.round(balanceScore * 100)}%`}
+              tone={balanceTone}
+            />
+            <KPICard
+              icon={previewResult.conflictCount > 0 ? "warning" : "check_circle"}
+              label="Xung đột"
+              value={previewResult.conflictCount}
+              tone={conflictTone}
+            />
           </div>
+
+          {/* Quick actions row */}
+          {isManager && (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onSaveTemplate}
+                  icon={<span className="material-symbols-outlined text-[16px]">bookmark_add</span>}
+                >
+                  Lưu mẫu
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onApplyTemplate}
+                  icon={<span className="material-symbols-outlined text-[16px]">download</span>}
+                >
+                  Áp dụng mẫu
+                </Button>
+              </div>
+              {editedPreview.length > 0 && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={onResetEdits}
+                  icon={<span className="material-symbols-outlined text-[16px]">undo</span>}
+                >
+                  Hủy thay đổi ({editedPreview.length})
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* Unassigned alert */}
           {unassignedDays.length > 0 && (
-            <div className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border ${totalMissing > 0 ? "bg-error-container border-error/30" : "bg-secondary-container border-secondary/30"}`}>
-              <div className="flex items-center gap-2">
-                <span className={`material-symbols-outlined text-[16px] ${totalMissing > 0 ? "text-error" : "text-secondary"}`} aria-hidden="true">
-                  {totalMissing > 0 ? "warning" : "check_circle"}
-                </span>
-                <span className={`text-label-sm font-semibold ${totalMissing > 0 ? "text-error" : "text-secondary"}`}>
-                  {totalMissing > 0 ? `${unassignedDays.length} ngày thiếu ${totalMissing} NS` : "Đủ nhân sự"}
-                </span>
+            <div className={`rounded-xl border p-4 ${
+              totalMissing > 0 
+                ? "bg-error-container/20 border-error/30" 
+                : "bg-secondary-container/20 border-secondary/30"
+            }`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                    totalMissing > 0 ? "bg-error-container text-error" : "bg-secondary-container text-secondary"
+                  }`}>
+                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">
+                      {totalMissing > 0 ? "warning" : "check_circle"}
+                    </span>
+                  </div>
+                  <div>
+                    <p className={`text-label-md font-semibold ${totalMissing > 0 ? "text-error" : "text-secondary"}`}>
+                      {totalMissing > 0 ? `${unassignedDays.length} ngày thiếu ${totalMissing} nhân sự` : "Đủ nhân sự"}
+                    </p>
+                    <p className="text-label-xs text-on-surface-variant">
+                      {totalMissing > 0 ? "Một số ca chưa được phân bổ đủ" : "Tất cả ca đã được phân bổ"}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowUnassigned(!showUnassigned)}
+                >
+                  {showUnassigned ? "Ẩn chi tiết" : "Xem chi tiết"}
+                </Button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowUnassigned(!showUnassigned)}
-                className="text-label-xs text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
-              >
-                {showUnassigned ? "Ẩn" : "Chi tiết"}
-              </button>
-            </div>
-          )}
 
-          {/* Unassigned details */}
-          {showUnassigned && unassignedDays.length > 0 && (
-            <div className="border border-outline-variant rounded-lg overflow-hidden">
-              <div className="overflow-x-auto max-h-32">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-surface-container-low border-b border-outline-variant">
-                      <th className="p-2 text-label-xs text-on-surface-variant uppercase">Ngày</th>
-                      <th className="p-2 text-label-xs text-on-surface-variant uppercase">Loại ca</th>
-                      <th className="p-2 text-label-xs text-on-surface-variant uppercase text-right">Thiếu</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-outline-variant/30">
-                    {unassignedDays.map((day: unknown, idx: number) => {
-                      const d = day as { workDate: string; shiftTypeId: string; shiftTypeName: string; missingCount: number; requiredStaffCount: number };
-                      return (
-                        <tr key={idx} className="hover:bg-surface-container-lowest transition-colors">
-                          <td className="p-2 text-label-sm text-on-surface">
-                            {new Date(d.workDate).toLocaleDateString("vi-VN", { weekday: "short", day: "numeric", month: "short" })}
-                          </td>
-                          <td className="p-2 text-label-sm text-on-surface-variant">{d.shiftTypeName}</td>
-                          <td className="p-2 text-label-sm text-error font-semibold text-right">{d.missingCount}/{d.requiredStaffCount}</td>
+              {/* Unassigned details */}
+              {showUnassigned && (
+                <div className="mt-4 border-t border-outline-variant pt-4">
+                  <div className="rounded-lg border border-outline-variant overflow-hidden">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-surface-container-low">
+                          <th className="px-4 py-2.5 text-label-xs font-semibold text-on-surface-variant uppercase">Ngày</th>
+                          <th className="px-4 py-2.5 text-label-xs font-semibold text-on-surface-variant uppercase">Loại ca</th>
+                          <th className="px-4 py-2.5 text-label-xs font-semibold text-on-surface-variant uppercase text-right">Thiếu</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant/50">
+                        {unassignedDays.map((day: unknown, idx: number) => {
+                          const d = day as { workDate: string; shiftTypeId: string; shiftTypeName: string; missingCount: number; requiredStaffCount: number };
+                          return (
+                            <tr key={idx} className="hover:bg-surface-container-low transition-colors">
+                              <td className="px-4 py-2.5 text-label-sm text-on-surface">
+                                {new Date(d.workDate).toLocaleDateString("vi-VN", { weekday: "short", day: "numeric", month: "short" })}
+                              </td>
+                              <td className="px-4 py-2.5 text-label-sm text-on-surface-variant">{d.shiftTypeName}</td>
+                              <td className="px-4 py-2.5 text-label-sm text-error font-semibold text-right">
+                                {d.missingCount}/{d.requiredStaffCount}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Matrix header + view toggle + staff filter */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-label-xs text-on-surface-variant">
-                {new Set(previewResult.schedules.map(s => s.workDate.split("T")[0])).size} ngày · {previewResult.totalSchedulesCreated} ca
-              </span>
+          {/* Matrix controls */}
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-label-sm text-on-surface-variant">
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">calendar_month</span>
+                <span>{new Set(previewResult.schedules.map(s => s.workDate.split("T")[0])).size} ngày · {previewResult.totalSchedulesCreated} ca</span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* View mode toggle */}
               <div className="flex rounded-lg border border-outline-variant bg-surface-container-low p-0.5">
-                {[{ key: "week", icon: "view_week" }, { key: "month", icon: "calendar_view_month" }].map(m => (
+                {[{ key: "week", icon: "view_week", label: "Tuần" }, { key: "month", icon: "calendar_view_month", label: "Tháng" }].map(m => (
                   <button key={m.key} type="button" onClick={() => setViewMode(m.key as "week" | "month")}
-                    className={`p-1.5 rounded-md transition-colors ${viewMode === m.key ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container-high"}`}>
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-xs font-medium transition-all cursor-pointer ${
+                      viewMode === m.key 
+                        ? "bg-primary text-on-primary shadow-sm" 
+                        : "text-on-surface-variant hover:bg-surface-container-high"
+                    }`}
+                    title={`Xem theo ${m.label}`}
+                  >
                     <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{m.icon}</span>
+                    {m.label}
                   </button>
                 ))}
               </div>
+              
+              {/* Staff filter */}
               <div className="relative">
                 <button type="button" onClick={() => setStaffFilterOpen(!staffFilterOpen)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-label-xs font-medium transition-colors cursor-pointer ${
-                    selectedStaffIds.size > 0 ? "border-primary bg-primary-fixed/20 text-primary" : "border-outline-variant text-on-surface-variant hover:border-primary"
-                  }`}>
-                  <span className="material-symbols-outlined text-[12px]" aria-hidden="true">filter_list</span>
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-label-xs font-medium transition-all cursor-pointer ${
+                    selectedStaffIds.size > 0 
+                      ? "border-primary bg-primary-fixed/20 text-primary" 
+                      : "border-outline-variant text-on-surface-variant hover:border-primary hover:bg-surface-container-low"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[14px]" aria-hidden="true">filter_list</span>
                   {selectedStaffIds.size > 0 ? `Lọc (${selectedStaffIds.size})` : "Tất cả NS"}
                 </button>
                 {staffFilterOpen && (
-                  <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-outline-variant bg-surface-container-lowest p-2 shadow-lg">
-                    <div className="max-h-40 overflow-y-auto space-y-0.5">
+                  <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-outline-variant bg-surface-container-lowest p-3 shadow-lg">
+                    <p className="text-label-xs font-semibold text-on-surface-variant mb-2">Lọc theo nhân sự</p>
+                    <div className="max-h-48 overflow-y-auto space-y-1">
                       {activeStaff.map(staff => {
                         const sel = selectedStaffIds.has(staff.id);
+                        const handleToggle = () => {
+                          setSelectedStaffIds(prev => {
+                            const n = new Set(prev);
+                            if (n.has(staff.id)) {
+                              n.delete(staff.id);
+                            } else {
+                              n.add(staff.id);
+                            }
+                            return n;
+                          });
+                        };
                         return (
                           <label key={staff.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-container-low cursor-pointer">
-                            <input type="checkbox" checked={sel}
-                              onChange={() => setSelectedStaffIds(prev => { const n = new Set(prev); n.has(staff.id) ? n.delete(staff.id) : n.add(staff.id); return n; })}
-                              className="h-3.5 w-3.5 rounded border-outline text-primary accent-primary" />
+                            <input 
+                              type="checkbox" 
+                              checked={sel}
+                              onChange={handleToggle}
+                              className="h-4 w-4 shrink-0 rounded border-outline text-primary cursor-pointer focus:ring-2 focus:ring-primary/30" 
+                            />
                             <span className="text-label-xs text-on-surface truncate">{staff.fullName}</span>
                           </label>
                         );
@@ -320,7 +404,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                     </div>
                     {selectedStaffIds.size > 0 && (
                       <button type="button" onClick={() => setSelectedStaffIds(new Set())}
-                        className="mt-2 w-full text-center text-label-xs text-primary hover:underline cursor-pointer">
+                        className="mt-2 w-full rounded-lg border border-outline-variant px-3 py-2 text-label-xs font-medium text-primary hover:bg-surface-container-low transition-colors cursor-pointer">
                         Bỏ lọc
                       </button>
                     )}
@@ -345,31 +429,14 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
         </div>
       ) : (
         /* ── Empty state ──────────────────────────────────── */
-        <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-fixed">
-            <span className="material-symbols-outlined text-[28px] text-primary" aria-hidden="true">auto_mode</span>
-          </div>
-          {!isManager ? (
-            <>
-              <div className="text-center">
-                <p className="font-semibold text-on-surface">Không có quyền xếp lịch</p>
-                <p className="text-label-sm text-on-surface-variant mt-1">Chỉ Quản lý hoặc Admin mới được phép chạy auto-scheduling.</p>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-center">
-                <p className="font-semibold text-on-surface">Sẵn sàng xếp lịch tự động</p>
-                <p className="text-label-sm text-on-surface-variant mt-1">Chọn thuật toán phù hợp và nhấn <strong>Chạy</strong> để phân bổ ca trực.</p>
-              </div>
-              <div className="flex items-center gap-4 text-label-xs text-on-surface-variant">
-                <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[12px] text-secondary">check_circle</span> Phát hiện xung đột</span>
-                <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[12px] text-secondary">check_circle</span> Tạo nghỉ bù</span>
-                <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[12px] text-secondary">check_circle</span> Cân bằng tải</span>
-              </div>
-            </>
-          )}
-        </div>
+        <EmptyState
+          icon="auto_mode"
+          title={isManager ? "Sẵn sàng xếp lịch tự động" : "Không có quyền xếp lịch"}
+          description={isManager 
+            ? "Chọn thuật toán và nhấn Chạy để phân bổ ca trực một cách tối ưu" 
+            : "Chỉ Quản lý hoặc Admin mới được phép chạy auto-scheduling."}
+          className="py-20"
+        />
       )}
     </div>
   );
