@@ -2,6 +2,7 @@ package com.hospital.scheduler.repository;
 
 import com.hospital.scheduler.entity.Staff;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -58,4 +59,19 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
      */
     @Query("SELECT s FROM Staff s LEFT JOIN FETCH s.staffRoles sr LEFT JOIN FETCH sr.role WHERE s.id IN :ids")
     List<Staff> findByIdsWithRoles(@Param("ids") List<Integer> ids);
+
+    /**
+     * Backfill null staff_codes for existing records.
+     * Assigns codes starting from max+1 to avoid duplicates.
+     * Safe to run repeatedly — only updates NULL values.
+     */
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE staff SET staff_code = CONCAT('NV', LPAD(" +
+            "COALESCE((SELECT MAX(CAST(SUBSTRING(staff_code, 3) AS UNSIGNED)) FROM staff WHERE staff_code IS NOT NULL), 0) + " +
+            "(SELECT COUNT(*) FROM staff s2 WHERE s2.id <= staff.id AND s2.staff_code IS NULL)" +
+            ", 3, '0')) " +
+            "WHERE staff_code IS NULL",
+            nativeQuery = true)
+    int backfillStaffCodes();
 }
