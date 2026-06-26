@@ -23,6 +23,7 @@ import { TABLE_HEADERS } from "./schedule-table/ScheduleTablePagination";
 import { ScheduleTableRow } from "./schedule-table/ScheduleTableRow";
 import type { FilterConflict } from "./schedule-table/constants";
 import type { Schedule } from "@/types/api";
+import { SHIFT_COLORS } from "@/lib/shift-colors";
 
 const ROW_HEIGHT = 60; // px per virtualized row
 
@@ -349,39 +350,7 @@ function CellValue({ index, schedule }: { index: number; schedule: Schedule }) {
     );
   }
   if (index === 2) {
-    const TONE = {
-      L01: {
-        bg: "bg-red-50",
-        text: "text-red-700",
-        label: "Trực 24/24",
-        dot: "bg-red-500",
-      },
-      L02: {
-        bg: "bg-blue-50",
-        text: "text-blue-700",
-        label: "Thông tầm",
-        dot: "bg-blue-500",
-      },
-      L03: {
-        bg: "bg-green-50",
-        text: "text-green-700",
-        label: "Dịch vụ",
-        dot: "bg-green-500",
-      },
-      L04: {
-        bg: "bg-purple-50",
-        text: "text-purple-700",
-        label: "Chuyên gia",
-        dot: "bg-purple-500",
-      },
-    };
-    const tone =
-      TONE[schedule.shiftType.id as keyof typeof TONE] ?? {
-        bg: "bg-surface-container-low",
-        text: "text-on-surface",
-        label: schedule.shiftType.name,
-        dot: "bg-outline",
-      };
+    const tone = SHIFT_COLORS[schedule.shiftType.id as keyof typeof SHIFT_COLORS] ?? SHIFT_COLORS.L01;
     return (
       <div className="px-3 py-3.5 flex items-center gap-1.5">
         <span
@@ -397,12 +366,13 @@ function CellValue({ index, schedule }: { index: number; schedule: Schedule }) {
     );
   }
   if (index === 3) {
+    const tone = SHIFT_COLORS[schedule.shiftType.id as keyof typeof SHIFT_COLORS] ?? SHIFT_COLORS.L01;
     return (
       <div className="px-3 py-3.5 flex items-center gap-2 min-w-0">
         <div
-          className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${schedule.shiftType.id === "L01" ? "bg-red-50" : schedule.shiftType.id === "L02" ? "bg-blue-50" : schedule.shiftType.id === "L03" ? "bg-green-50" : "bg-purple-50"}`}
+          className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${tone.bg}`}
         >
-          <span className="text-[11px] font-bold">
+          <span className={`text-[11px] font-bold ${tone.text}`}>
             {schedule.staff.fullName
               .split(" ")
               .slice(-2)
@@ -491,7 +461,7 @@ function ActionCell({
                 onResolveConflict?.(schedule);
               }}
               disabled={!schedule.hasConflict}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-tertiary hover:bg-orange-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-tertiary hover:bg-tertiary-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               title="Giải quyết xung đột"
             >
               <span className="material-symbols-outlined text-[18px]">flash_on</span>
@@ -502,7 +472,7 @@ function ActionCell({
                 e.stopPropagation();
                 onEdit?.(schedule);
               }}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-secondary hover:bg-green-100 transition-colors"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-secondary hover:bg-secondary-container transition-colors"
               title="Chỉnh sửa"
             >
               <span className="material-symbols-outlined text-[18px]">edit</span>
@@ -513,7 +483,7 @@ function ActionCell({
                 e.stopPropagation();
                 onDelete?.(schedule);
               }}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-error hover:bg-red-100 transition-colors"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-error hover:bg-error-container transition-colors"
               title="Xóa"
             >
               <span className="material-symbols-outlined text-[18px]">delete</span>
@@ -526,7 +496,7 @@ function ActionCell({
             e.stopPropagation();
             onViewDetail?.(schedule);
           }}
-          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-primary hover:bg-blue-100 transition-colors"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-primary hover:bg-primary-fixed transition-colors"
           title="Xem chi tiết"
         >
           <span className="material-symbols-outlined text-[18px]">visibility</span>

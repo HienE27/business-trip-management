@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { ROLE_LABELS } from "@/lib/roleLabels";
 import type { Staff, Schedule, SchedulePeriod } from "@/types/api";
+import { SHIFT_COLORS, SHIFT_TYPE_BADGES } from "@/lib/shift-colors";
 
 function getInitials(name: string): string {
   return name
@@ -27,11 +28,11 @@ function formatDate(dateStr: string): string {
   });
 }
 
-const SHIFT_TYPE_CONFIG: Record<string, { badge: string; border: string; icon: string; label: string }> = {
-  L01: { badge: "bg-red-50 text-red-700 border-red-200", border: "border-l-red-500", icon: "emergency", label: "Trực 24/24" },
-  L02: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", border: "border-l-emerald-500", icon: "schedule", label: "Thông tầm" },
-  L03: { badge: "bg-amber-50 text-amber-700 border-amber-200", border: "border-l-amber-500", icon: "medical_services", label: "PK Dịch vụ" },
-  L04: { badge: "bg-purple-50 text-purple-700 border-purple-200", border: "border-l-purple-500", icon: "stethoscope", label: "PK Chuyên gia" },
+const SHIFT_ICON_MAP: Record<string, string> = {
+  L01: "emergency",
+  L02: "schedule",
+  L03: "medical_services",
+  L04: "stethoscope",
 };
 
 export default function StaffProfilePage() {
@@ -357,7 +358,9 @@ export default function StaffProfilePage() {
                         </thead>
                         <tbody className="divide-y divide-outline-variant">
                           {schedules.map((s) => {
-                            const config = SHIFT_TYPE_CONFIG[s.shiftType.id] || SHIFT_TYPE_CONFIG.L01;
+                            const shiftId = s.shiftType.id as "L01" | "L02" | "L03" | "L04";
+                            const badge = SHIFT_TYPE_BADGES[shiftId] || SHIFT_TYPE_BADGES.L01;
+                            const icon = SHIFT_ICON_MAP[shiftId] || SHIFT_ICON_MAP.L01;
                             return (
                               <tr key={s.id} className="hover:bg-surface-container-low transition-colors border-l-4 border-l-transparent hover:border-l-primary">
                                 <td className="px-4 py-3.5">
@@ -367,8 +370,8 @@ export default function StaffProfilePage() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-3.5">
-                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-label-sm font-medium border ${config.badge}`}>
-                                    <span className="material-symbols-outlined text-[14px]">{config.icon}</span>
+                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-label-sm font-medium border ${badge}`}>
+                                    <span className="material-symbols-outlined text-[14px]">{icon}</span>
                                     {s.shiftType.name}
                                   </span>
                                 </td>
@@ -402,21 +405,20 @@ export default function StaffProfilePage() {
 
                   {/* Shift type breakdown */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                      { label: "Trực 24/24", value: stats.L01, color: "bg-red-500", bg: "bg-red-50 border-red-200" },
-                      { label: "Thông tầm", value: stats.L02, color: "bg-emerald-500", bg: "bg-emerald-50 border-emerald-200" },
-                      { label: "PK Dịch vụ", value: stats.L03, color: "bg-amber-500", bg: "bg-amber-50 border-amber-200" },
-                      { label: "PK Chuyên gia", value: stats.L04, color: "bg-purple-500", bg: "bg-purple-50 border-purple-200" },
-                    ].map((item) => (
-                      <div key={item.label} className={`rounded-xl border p-4 ${item.bg}`}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className={`size-3 rounded-full ${item.color}`} />
-                          <p className="text-label-sm font-medium text-on-surface">{item.label}</p>
+                    {(["L01", "L02", "L03", "L04"] as const).map((id) => {
+                      const colors = SHIFT_COLORS[id];
+                      const value = stats[id];
+                      return (
+                        <div key={id} className={`rounded-xl border p-4 ${colors.bg}`}>
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className={`size-3 rounded-full ${colors.dot}`} />
+                            <p className={`text-label-sm font-medium ${colors.text}`}>{colors.label}</p>
+                          </div>
+                          <p className={`text-[32px] font-bold ${colors.text} leading-none`}>{value}</p>
+                          <p className={`text-label-sm mt-1 ${colors.text} opacity-70`}>ca trực</p>
                         </div>
-                        <p className="text-[32px] font-bold text-on-surface leading-none">{item.value}</p>
-                        <p className="text-label-sm text-on-surface-variant mt-1">ca trực</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Workload Progress */}
@@ -541,11 +543,13 @@ export default function StaffProfilePage() {
               {schedules.length > 0 ? (
                 <div className="space-y-3">
                   {schedules.slice(0, 5).map((s, idx) => {
-                    const config = SHIFT_TYPE_CONFIG[s.shiftType.id] || SHIFT_TYPE_CONFIG.L01;
+                    const shiftId = s.shiftType.id as "L01" | "L02" | "L03" | "L04";
+                    const badge = SHIFT_TYPE_BADGES[shiftId] || SHIFT_TYPE_BADGES.L01;
+                    const icon = SHIFT_ICON_MAP[shiftId] || SHIFT_ICON_MAP.L01;
                     return (
                       <div key={s.id} className="flex items-center gap-3">
-                        <div className={`size-8 rounded-lg flex items-center justify-center shrink-0 border ${config.badge}`}>
-                          <span className="material-symbols-outlined text-[14px]">{config.icon}</span>
+                        <div className={`size-8 rounded-lg flex items-center justify-center shrink-0 border ${badge}`}>
+                          <span className="material-symbols-outlined text-[14px]">{icon}</span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-label-sm font-medium text-on-surface truncate">{s.shiftType.name}</p>
