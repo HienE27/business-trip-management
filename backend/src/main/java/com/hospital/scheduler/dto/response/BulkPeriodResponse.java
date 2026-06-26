@@ -25,8 +25,23 @@ public class BulkPeriodResponse {
         private String periodName;
         private boolean success;
         private String message;
+        /** Full conflict details — present when success=false and the failure is due to conflicts. */
+        private List<ConflictDetail> conflicts;
         private SchedulePeriodResponse data;
         private LocalDateTime processedAt;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ConflictDetail {
+        private Integer scheduleId;
+        private String staffName;
+        private String workDate;
+        private String shiftTypeName;
+        private List<String> conflictReasons;
     }
 
     private List<PeriodResult> results;

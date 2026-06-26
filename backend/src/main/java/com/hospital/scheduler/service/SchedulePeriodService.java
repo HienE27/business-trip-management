@@ -292,6 +292,17 @@ public class SchedulePeriodService {
                     .data(published)
                     .processedAt(java.time.LocalDateTime.now())
                     .build();
+        } catch (BadRequestException e) {
+            String msg = e.getMessage();
+            // Try to extract conflict details from the exception message.
+            // Message format: "Kỳ lịch có xung đột, không thể công bố: staffName (date): reason; ..."
+            // We include the full message as-is so the frontend can display it.
+            return BulkPeriodResponse.PeriodResult.builder()
+                    .id(id)
+                    .success(false)
+                    .message(msg != null ? msg : "Có xung đột lịch trực, không thể công bố")
+                    .processedAt(java.time.LocalDateTime.now())
+                    .build();
         } catch (Exception e) {
             return BulkPeriodResponse.PeriodResult.builder()
                     .id(id)

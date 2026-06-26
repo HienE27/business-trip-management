@@ -8,6 +8,50 @@ import type { SchedulePeriod } from "@/types/api";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
+type ConflictEntry = { staffName: string; date: string; reasons: string[] };
+
+function ConflictDetailList({ message }: { message: string }) {
+  // Parse "staffName (date): reason1; reason2; ..." from the message
+  // Message prefix: "Kỳ lịch có xung đột, không thể công bố: "
+  const PREFIX = "Kỳ lịch có xung đột, không thể công bố: ";
+  const raw = message.startsWith(PREFIX) ? message.slice(PREFIX.length) : message;
+
+  // Split by ";" to get individual conflict entries
+  const entries: ConflictEntry[] = [];
+  for (const segment of raw.split(";")) {
+    const trimmed = segment.trim();
+    if (!trimmed) continue;
+    // Pattern: "staffName (YYYY-MM-DD): reason1, reason2, ..."
+    const match = trimmed.match(/^(.+?)\s+\((\d{4}-\d{2}-\d{2})\):\s*(.+)$/);
+    if (match) {
+      entries.push({ staffName: match[1].trim(), date: match[2], reasons: match[3].split(",").map((r) => r.trim()) });
+    } else {
+      entries.push({ staffName: "—", date: "—", reasons: [trimmed] });
+    }
+  }
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="bg-error-container/5 border-t border-error-container/20 px-4 pb-3 pt-2 space-y-1.5">
+      <p className="text-[10px] font-semibold text-error uppercase tracking-wide mb-1">Chi tiết xung đột</p>
+      {entries.map((entry, i) => (
+        <div key={i} className="flex items-start gap-2">
+          <span className="material-symbols-outlined text-[12px] text-error mt-0.5 shrink-0" aria-hidden="true">warning</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] text-on-surface font-medium leading-tight">
+              {entry.staffName} — {entry.date}
+            </p>
+            {entry.reasons.map((reason, j) => (
+              <p key={j} className="text-[11px] text-on-surface-variant leading-tight pl-1">• {reason}</p>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface BulkResult {
   id: number;
   periodName: string;
@@ -219,20 +263,29 @@ export function BulkPublishModal({ open, periods, onClose, onRefresh }: Props) {
                 <p className="text-label-sm text-on-error-container">Thất bại</p>
               </div>
             </div>
-            <div className="border border-outline-variant rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-              {results.results.map((r) => (
-                <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-outline-variant last:border-b-0">
-                  <span className={`material-symbols-outlined text-[18px] ${r.success ? "text-secondary" : "text-error"}`}>
-                    {r.success ? "check_circle" : "error"}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-label-md text-on-surface truncate">{r.periodName}</p>
-                    {!r.success && (
-                      <p className="text-[11px] text-error" title={r.message}>{r.message}</p>
+            <div className="border border-outline-variant rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+              {results.results.map((r) => {
+                const isConflict = !r.success && r.message && r.message.includes("xung đột");
+                return (
+                  <div key={r.id} className="border-b border-outline-variant last:border-b-0">
+                    <div className="flex items-start gap-3 px-4 py-2.5">
+                      <span className={`material-symbols-outlined text-[18px] mt-0.5 shrink-0 ${r.success ? "text-secondary" : "text-error"}`}>
+                        {r.success ? "check_circle" : "error"}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-label-md text-on-surface">{r.periodName}</p>
+                        {!r.success && (
+                          <p className="text-[11px] text-on-surface-variant leading-relaxed">{r.message}</p>
+                        )}
+                      </div>
+                    </div>
+                    {/* Expandable conflict details */}
+                    {isConflict && (
+                      <ConflictDetailList message={r.message} />
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
           <ModalFooter>
