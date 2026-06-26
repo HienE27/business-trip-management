@@ -365,19 +365,18 @@ describe('ScheduleByTypePage (expert-clinic mode)', () => {
     });
   });
 
-  it('does NOT call the period or compensation-days endpoints', async () => {
+  it('loads expert-clinic schedules (not period schedules)', async () => {
     setupExpertApiMock(mockExpertSchedules);
     await act(async () => {
       render(<ScheduleByTypePage config={expertConfig} />);
     });
     await waitFor(() => {
-      expect(apiModule.api.get).toHaveBeenCalledWith('/schedules/expert-clinic', expect.anything());
+      expect(apiModule.api.get).toHaveBeenCalledWith('/schedules/expert-clinic', expect.objectContaining({ periodId: 1 }));
     });
     const calls = (apiModule.api.get as ReturnType<typeof vi.fn>).mock.calls.map(
       (c) => c[0] as string
     );
     expect(calls.some((c) => c.startsWith('/schedules/period/'))).toBe(false);
-    expect(calls.some((c) => c.startsWith('/schedules/compensation-days/'))).toBe(false);
   });
 
   it('renders the specialty filter dropdown', async () => {

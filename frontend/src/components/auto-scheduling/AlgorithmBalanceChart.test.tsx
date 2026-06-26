@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { AlgorithmBalanceChart } from './AlgorithmBalanceChart';
 
 const schedules = [
@@ -63,11 +63,10 @@ describe('AlgorithmBalanceChart', () => {
       shiftTypeId: 'L01', shiftTypeName: 'Trực 24/24',
     }));
     render(<AlgorithmBalanceChart schedules={heavy} staffCaps={{ 99: 6 }} />);
-    const badges = screen.getAllByTestId('algo-balance-badge');
-    // Badge uses Material Symbols warning icon + aria-label for status
-    expect(badges[0].className).toContain('bg-error-container');
-    // aria-label should indicate overloaded
-    expect(badges[0]).toHaveAttribute('aria-label', expect.stringContaining('Quá tải'));
+    const rows = screen.getAllByTestId('algo-balance-row');
+    // Badge inside row has aria-label "Quá tải" and bg-error-container
+    const badge = within(rows[0]).getByLabelText('Quá tải');
+    expect(badge.className).toContain('bg-error-container');
   });
 
   it('has a descriptive aria-label on the root element', () => {
