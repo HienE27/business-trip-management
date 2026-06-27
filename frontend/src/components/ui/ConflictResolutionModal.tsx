@@ -69,7 +69,8 @@ export function ConflictResolutionModal({
     setSubmitting(true);
     setError(null);
     try {
-      const scheduleId = Number(conflict.id);
+      // ConflictDetail uses scheduleId, ConflictItem uses id
+      const scheduleId = (conflict as ConflictDetail).scheduleId ?? Number(conflict.id);
       if (resolution === "remove") {
         await api.deleteSchedule(scheduleId);
       } else if (resolution === "override") {
