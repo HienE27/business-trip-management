@@ -82,15 +82,29 @@ export function useScheduleWorkspace(): [ScheduleWorkspaceState, ScheduleWorkspa
     try {
       data.clearMessage();
       const periodName = data.periods.find((p) => p.id === data.selectedPeriodId)?.periodName ?? "";
+
+      // Pre-build lookups for O(n) instead of O(n²) - performance optimization
+      const scheduleByStaff = new Map<number, typeof data.schedules>();
+      const compDaysByStaff = new Map<number, typeof data.compensationDays>();
+      for (const s of data.schedules) {
+        if (!scheduleByStaff.has(s.staff.id)) scheduleByStaff.set(s.staff.id, []);
+        scheduleByStaff.get(s.staff.id)!.push(s);
+      }
+      for (const cd of data.compensationDays) {
+        if (!compDaysByStaff.has(cd.staffId)) compDaysByStaff.set(cd.staffId, []);
+        compDaysByStaff.get(cd.staffId)!.push(cd);
+      }
+
       await Promise.all(
         data.activeStaff.map((staff) => {
-          const staffSchedules = data.schedules.filter((s) => s.staff.id === staff.id);
-          const staffCompDays = data.compensationDays.filter((cd) => cd.staffId === staff.id);
+          const staffSchedules = scheduleByStaff.get(staff.id) ?? [];
+          const staffCompDays = compDaysByStaff.get(staff.id) ?? [];
+          // Use simple string formatting instead of Date parsing for better performance
           const dutyList = staffSchedules
-            .map((s) => `${new Date(s.workDate).toLocaleDateString("vi-VN")} – ${s.shiftType.name}`)
+            .map((s) => `${s.workDate.split("T")[0].split("-").reverse().join("/")} – ${s.shiftType.name}`)
             .join("; ");
           const compList = staffCompDays
-            .map((cd) => new Date(cd.compensationDate).toLocaleDateString("vi-VN"))
+            .map((cd) => cd.compensationDate.split("T")[0].split("-").reverse().join("/"))
             .join(", ");
           return api.post("/notifications", {
             staffId: staff.id,

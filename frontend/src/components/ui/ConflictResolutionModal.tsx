@@ -142,6 +142,37 @@ export function ConflictResolutionModal({
             </div>
           )}
 
+          {/* Reassign: replacement picker - outside the radio label for better UX */}
+          {resolution === "reassign" && (
+            <div className="mt-3 mb-4 p-3 bg-surface-container-low rounded-lg border border-primary/30">
+              <label className="text-label-sm text-on-surface font-medium block mb-2" htmlFor="replacement-staff">
+                Chọn nhân sự thay thế
+              </label>
+              {loadingReplacements ? (
+                <div className="flex items-center gap-2 text-label-sm text-on-surface-variant">
+                  <div className="size-3.5 animate-spin rounded-full border border-primary border-t-transparent" />
+                  Đang tìm nhân sự thay thế...
+                </div>
+              ) : replacements.length > 0 ? (
+                <select
+                  id="replacement-staff"
+                  className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-md text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                  value={selectedReplacementId ?? ""}
+                  onChange={(e) => setSelectedReplacementId(Number(e.target.value) || null)}
+                >
+                  <option value="">-- Chọn nhân sự thay thế --</option>
+                  {replacements.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.fullName}{r.specialty?.name ? ` (${r.specialty.name})` : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-label-sm text-outline italic">Không có nhân sự khả dụng.</p>
+              )}
+            </div>
+          )}
+
           {/* Resolution Options */}
           <div className="space-y-3">
             <p className="text-label-sm text-on-surface-variant font-semibold">
@@ -174,34 +205,6 @@ export function ConflictResolutionModal({
                 <div className="flex-1">
                   <p className="text-label-md text-on-surface font-medium">{opt.label}</p>
                   <p className="text-label-sm text-on-surface-variant mt-0.5 leading-relaxed">{opt.desc}</p>
-
-                  {/* Reassign: replacement picker */}
-                  {opt.value === "reassign" && resolution === "reassign" && (
-                    <div className="mt-3">
-                      {loadingReplacements ? (
-                        <div className="flex items-center gap-2 text-label-sm text-on-surface-variant">
-                          <div className="size-3.5 animate-spin rounded-full border border-primary border-t-transparent" />
-                          Đang tìm nhân sự thay thế...
-                        </div>
-                      ) : replacements.length > 0 ? (
-                    <select
-                      aria-label="Nhân sự thay thế"
-                      className="w-full mt-1 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-label-md text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
-                      value={selectedReplacementId ?? ""}
-                      onChange={(e) => setSelectedReplacementId(Number(e.target.value) || null)}
-                    >
-                          <option value="">-- Chọn nhân sự thay thế --</option>
-                          {replacements.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.fullName}{r.specialty?.name ? ` (${r.specialty.name})` : ""}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <p className="mt-1 text-label-sm text-outline italic">Không có nhân sự khả dụng.</p>
-                      )}
-                    </div>
-                  )}
                 </div>
               </label>
             ))}

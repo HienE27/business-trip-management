@@ -19,8 +19,9 @@ export function useMonthlyScheduleDerivedData(params: {
   compensationDays: CompensationDay[];
   requirements: ShiftRequirement[];
   focusDate: string | null;
+  pendingLeaveRequests?: number;
 }) {
-  const { selectedTab, schedules, activeStaff, conflictData, compensationDays, requirements, focusDate } = params;
+  const { selectedTab, schedules, activeStaff, conflictData, compensationDays, requirements, focusDate, pendingLeaveRequests = 0 } = params;
   const showAll = selectedTab === "ALL";
 
   const filteredSchedules = useMemo(
@@ -53,7 +54,8 @@ export function useMonthlyScheduleDerivedData(params: {
     const seen = new Set<string>();
     for (const req of filteredRequirements) {
       if (req.assignedStaffCount >= req.requiredStaffCount) continue;
-      const key = req.workDate.split("T")[0];
+      // Use substring instead of split for better performance
+      const key = req.workDate.substring(0, 10);
       if (seen.has(key)) continue;
       seen.add(key);
       gaps.push(key);
@@ -63,8 +65,8 @@ export function useMonthlyScheduleDerivedData(params: {
   }, [filteredRequirements]);
 
   const kpis = useMemo(
-    () => buildOperationalKpis({ schedules: filteredSchedules, requirements: filteredRequirements, conflictList, activeStaff }),
-    [filteredSchedules, filteredRequirements, conflictList, activeStaff],
+    () => buildOperationalKpis({ schedules: filteredSchedules, requirements: filteredRequirements, conflictList, activeStaff, pendingLeaveRequests }),
+    [filteredSchedules, filteredRequirements, conflictList, activeStaff, pendingLeaveRequests],
   );
 
   const workloadSnapshot = useMemo(

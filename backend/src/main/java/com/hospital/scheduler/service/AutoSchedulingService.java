@@ -65,7 +65,8 @@ public class AutoSchedulingService {
     private record PeriodConflictData(
             Map<LocalDate, BatchConflictData> byDate,
             Map<Integer, Map<String, Long>> staffShiftTypeCounts,
-            Set<Integer> allL01StaffIdsInRange
+            Set<Integer> allL01StaffIdsInRange,
+            Map<Integer, Staff> staffMap  // For accessing maxShiftsPerMonth
     ) {}
 
     public AutoScheduleResponse previewSchedule(AutoScheduleRequestDTO request) {
@@ -224,6 +225,15 @@ public class AutoSchedulingService {
         BigDecimal balanceScore = calculateBalanceScore(savedSchedules, staffCount);
 
         long executionTime = System.currentTimeMillis() - startTime;
+
+        // Save metrics so History tab shows this execution
+        try {
+            saveMetrics(period, request.getAlgorithmType(), (int) executionTime, coverageRate, balanceScore, 0, savedSchedules.size());
+            log.info("Metrics saved for period {} with algorithm {}: coverage={}%, balance={}", 
+                    period.getId(), request.getAlgorithmType(), coverageRate, balanceScore);
+        } catch (Exception e) {
+            log.error("Failed to save metrics for period {}: {}", period.getId(), e.getMessage(), e);
+        }
 
         return AutoScheduleResponse.builder()
                 .success(true)
@@ -430,7 +440,7 @@ public class AutoSchedulingService {
         BigDecimal balanceScore = calculateBalanceScore(createdSchedules, staffCount);
 
         if (save) {
-            saveMetrics(period, algorithmType, (int) executionTime, coverageRate, balanceScore, warnings.size());
+            saveMetrics(period, algorithmType, (int) executionTime, coverageRate, balanceScore, warnings.size(), createdSchedules.size());
         }
 
         // Deduplicate by staffId+workDate+shiftTypeId to avoid React key warnings
@@ -483,7 +493,7 @@ public class AutoSchedulingService {
 
         // OPTIMIZATION 1: Load all conflict data for entire period in ONE pass (instead of per-day)
         // OPTIMIZATION 2: Load all shift type counts in ONE query (instead of N×4 queries)
-        PeriodConflictData periodData = loadPeriodConflictData(period, requirements);
+        PeriodConflictData periodData = loadPeriodConflictData(period, requirements, activeStaff);
 
                     // greedy_coverage_threshold: track coverage as we go; process ALL requirements (no early return)
         // The threshold is tracked for logging purposes only - we always fill every requirement
@@ -544,7 +554,7 @@ public class AutoSchedulingService {
 
                 List<Staff> eligibleStaff = filterAndSortEligibleStaffBatch(
                         activeStaff, req, excludedStaffIds, assignedStaffIds, todayConflicts, !save,
-                        fairnessComparator);
+                        fairnessComparator, periodData);
 
                 int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
                 if (log.isDebugEnabled()) {
@@ -1236,8 +1246,18 @@ public class AutoSchedulingService {
             data.put(ConflictDetectionService.SHIFT_TYPE_L02, L02Count);
             data.put(ConflictDetectionService.SHIFT_TYPE_L03, L03Count);
             data.put(ConflictDetectionService.SHIFT_TYPE_L04, L04Count);
-            data.put("workloadPercentage", schedules.isEmpty() ? 0.0 :
-                    Math.round((double) staffSchedules.size() / schedules.size() * 10000.0) / 100.0);
+            double workloadPct;
+            Integer maxShifts = staff.getMaxShiftsPerMonth();
+            if (maxShifts != null && maxShifts > 0) {
+                // Utilization = staff shifts / max shifts per month * 100
+                workloadPct = Math.round((double) staffSchedules.size() / maxShifts * 10000.0) / 100.0;
+            } else if (!schedules.isEmpty()) {
+                // Fallback: share of total schedules
+                workloadPct = Math.round((double) staffSchedules.size() / schedules.size() * 10000.0) / 100.0;
+            } else {
+                workloadPct = 0.0;
+            }
+            data.put("workloadPercentage", workloadPct);
 
             staffWorkloadData.add(data);
         }
@@ -1255,19 +1275,22 @@ public class AutoSchedulingService {
             return Integer.compare(t2, t1);
         });
 
-        double avgWorkload = schedules.isEmpty() ? 0.0 :
-                Math.round((double) schedules.size() / activeStaff.size() * 100.0) / 100.0;
-        // If filtered by shift type, average is relative to participating staff
-        if (shiftTypeId != null && !shiftTypeId.isBlank() && !staffWorkloadData.isEmpty()) {
-            avgWorkload = Math.round((double) schedules.size() / staffWorkloadData.size() * 100.0) / 100.0;
+        // Calculate avg utilization percentage across all staff with maxShiftsPerMonth
+        double avgWorkload = 0.0;
+        if (!activeStaff.isEmpty()) {
+            double totalUtil = staffWorkloadData.stream()
+                    .mapToDouble(m -> ((Number) m.get("workloadPercentage")).doubleValue())
+                    .sum();
+            avgWorkload = Math.round(totalUtil / activeStaff.size() * 100.0) / 100.0;
         }
 
-        long minWorkload = staffWorkloadData.stream()
-                .mapToLong(m -> ((Number) m.get("totalShifts")).longValue())
-                .min().orElse(0);
-        long maxWorkload = staffWorkloadData.stream()
-                .mapToLong(m -> ((Number) m.get("totalShifts")).longValue())
-                .max().orElse(0);
+        // maxWorkload and minWorkload in percentage terms (utilization)
+        long maxWorkload = (long) Math.round(staffWorkloadData.stream()
+                .mapToDouble(m -> ((Number) m.get("workloadPercentage")).doubleValue())
+                .max().orElse(0.0));
+        long minWorkload = (long) Math.round(staffWorkloadData.stream()
+                .mapToDouble(m -> ((Number) m.get("workloadPercentage")).doubleValue())
+                .min().orElse(0.0));
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("periodId", periodId);
@@ -1507,7 +1530,7 @@ public class AutoSchedulingService {
     }
 
     private void saveMetrics(SchedulePeriod period, String algorithmType, int executionTime,
-                             BigDecimal coverageRate, BigDecimal balanceScore, int conflictCount) {
+                             BigDecimal coverageRate, BigDecimal balanceScore, int conflictCount, int totalSchedulesCreated) {
         AlgorithmMetrics metrics = AlgorithmMetrics.builder()
                 .period(period)
                 .algorithmType(algorithmType)
@@ -1515,6 +1538,7 @@ public class AutoSchedulingService {
                 .coverageRate(coverageRate)
                 .balanceScore(balanceScore)
                 .conflictCount(conflictCount)
+                .totalSchedulesCreated(totalSchedulesCreated)
                 .build();
 
         metricsRepository.save(metrics);
@@ -1565,6 +1589,7 @@ public class AutoSchedulingService {
                 .coverageRate(m.getCoverageRate())
                 .balanceScore(m.getBalanceScore())
                 .conflictCount(m.getConflictCount())
+                .totalSchedulesCreated(m.getTotalSchedulesCreated())
                 .periodId(m.getPeriod() != null ? m.getPeriod().getId() : null)
                 .periodName(m.getPeriod() != null ? m.getPeriod().getPeriodName() : null)
                 .createdAt(m.getCreatedAt())
@@ -1788,7 +1813,7 @@ public class AutoSchedulingService {
      * - P × 1 query for compensation per day
      * → down to 4 queries total regardless of period length
      */
-    private PeriodConflictData loadPeriodConflictData(SchedulePeriod period, List<ShiftRequirement> requirements) {
+    private PeriodConflictData loadPeriodConflictData(SchedulePeriod period, List<ShiftRequirement> requirements, List<Staff> activeStaff) {
         LocalDate periodStart = period.getStartDate();
         LocalDate periodEnd = period.getEndDate();
 
@@ -1893,7 +1918,13 @@ public class AutoSchedulingService {
             staffShiftTypeCounts.put(entry.getKey(), counts);
         }
 
-        return new PeriodConflictData(byDate, staffShiftTypeCounts, allL01StaffIds);
+        // 9. Build staff map for maxShiftsPerMonth lookup
+        Map<Integer, Staff> staffMap = new HashMap<>();
+        for (Staff s : activeStaff) {
+            staffMap.put(s.getId(), s);
+        }
+
+        return new PeriodConflictData(byDate, staffShiftTypeCounts, allL01StaffIds, staffMap);
     }
 
     /**
@@ -1933,7 +1964,6 @@ public class AutoSchedulingService {
     /**
      * Batch-aware version of filterAndSortEligibleStaff that uses pre-loaded conflict data
      * instead of making per-staff DB queries for leave/compensation/shift-type conflicts.
-     * Only falls back to the DB when checking max shifts (per-staff quota).
      */
     private List<Staff> filterAndSortEligibleStaffBatch(
             List<Staff> pool,
@@ -1942,11 +1972,16 @@ public class AutoSchedulingService {
             Set<Integer> assignedStaffIds,
             BatchConflictData batchData,
             boolean skipCompensationCheck,
-            Comparator<Staff> sortComparator) {
+            Comparator<Staff> sortComparator,
+            PeriodConflictData periodData) {
 
         ShiftType shiftType = req.getShiftType();
         String shiftTypeId = shiftType.getId();
         boolean isOvernight = Boolean.TRUE.equals(shiftType.getIsOvernight());
+
+        // Calculate period days for max shifts check
+        int periodDays = (int) java.time.temporal.ChronoUnit.DAYS.between(
+                req.getWorkDate(), req.getWorkDate()) + 1; // placeholder, we'll check per-staff
 
         List<Staff> eligible = new ArrayList<>();
         for (Staff staff : pool) {
@@ -1954,9 +1989,21 @@ public class AutoSchedulingService {
             // Skip staff already assigned to another requirement on the same day
             if (assignedStaffIds != null && assignedStaffIds.contains(staff.getId())) continue;
 
-            // Note: max shifts check is intentionally SKIPPED in auto-scheduling per M07 spec:
-            // "Hệ thống tự phân bổ đều số ngày cho 20 nhân sự, không giới hạn cố định"
-            // The greedy algorithm already distributes shifts evenly by preferring staff with fewer assignments
+            // FIX: Enforce maxShiftsPerMonth to prevent overload (e.g. 23/5 shifts = 460%)
+            // Check against in-memory cumulative counts (updated as we assign shifts)
+            Integer maxShifts = staff.getMaxShiftsPerMonth();
+            if (maxShifts != null && maxShifts > 0) {
+                // Use staffShiftTypeCounts from periodData which is updated in-memory as we assign shifts
+                Map<String, Long> currentCounts = periodData.staffShiftTypeCounts().get(staff.getId());
+                long totalCurrent = currentCounts != null
+                        ? currentCounts.getOrDefault("L01", 0L) + currentCounts.getOrDefault("L02", 0L)
+                                + currentCounts.getOrDefault("L03", 0L) + currentCounts.getOrDefault("L04", 0L)
+                        : 0L;
+                if (totalCurrent >= maxShifts) {
+                    // Skip this staff - they are at or above their max
+                    continue;
+                }
+            }
 
             // 2. Check specialty
             if (req.getSpecialty() != null && (staff.getSpecialty() == null

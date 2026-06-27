@@ -1,5 +1,6 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.config.CacheConfig;
 import com.hospital.scheduler.dto.request.SpecialtyRequest;
 import com.hospital.scheduler.dto.response.SpecialtyResponse;
 import com.hospital.scheduler.entity.AuditHistory;
@@ -9,6 +10,8 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.SpecialtyRepository;
 import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +27,7 @@ public class SpecialtyService {
     private final AuditHistoryService auditHistoryService;
     private final AuthContextService authContextService;
 
+    @Cacheable(value = CacheConfig.SPECIALTIES_CACHE)
     @Transactional(readOnly = true)
     public List<SpecialtyResponse> getAllSpecialties() {
         return specialtyRepository.findAll().stream()
@@ -45,6 +49,7 @@ public class SpecialtyService {
         return toResponse(specialty);
     }
 
+    @CacheEvict(value = CacheConfig.SPECIALTIES_CACHE, allEntries = true)
     public SpecialtyResponse createSpecialty(SpecialtyRequest request) {
         if (specialtyRepository.findByName(request.getName()).isPresent()) {
             throw new ConflictException("Chuyên khoa '" + request.getName() + "' đã tồn tại");
@@ -64,6 +69,7 @@ public class SpecialtyService {
         return toResponse(saved);
     }
 
+    @CacheEvict(value = CacheConfig.SPECIALTIES_CACHE, allEntries = true)
     public SpecialtyResponse updateSpecialty(Integer id, SpecialtyRequest request) {
         Specialty specialty = specialtyRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chuyên khoa với ID: " + id));
@@ -90,6 +96,7 @@ public class SpecialtyService {
         return toResponse(saved);
     }
 
+    @CacheEvict(value = CacheConfig.SPECIALTIES_CACHE, allEntries = true)
     public void deleteSpecialty(Integer id) {
         Specialty specialty = specialtyRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chuyên khoa với ID: " + id));

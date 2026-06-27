@@ -162,18 +162,18 @@ public class AlgorithmConfigService {
                 : true;  // Default to true so auto-scheduling works out-of-the-box
         // Always return a config with defaults — even if AUTO_GEN_ENABLED is missing from DB,
         // fall back to defaults so auto-scheduling works out-of-the-box without manual config setup.
-        return java.util.Optional.of(AutoGenConfig.builder()
-                .enabled(enabled)
-                .l01RequiredPerDay(getIntValue(AUTO_GEN_L01_PER_DAY, 1))  // 1 người L01/ngày
-                .l02RequiredPerDay(getIntValue(AUTO_GEN_L02_PER_DAY, 2))
-                .l03RequiredPerDay(getIntValue(AUTO_GEN_L03_PER_DAY, 2))
-                .l04RequiredPerDay(getIntValue(AUTO_GEN_L04_PER_DAY, 2))
-                .minL01PerWeek(getIntValue(AUTO_GEN_L01_PER_WEEK, 1))
-                .minL02PerWeek(getIntValue(AUTO_GEN_L02_PER_WEEK, 3))
-                .minL03PerWeek(getIntValue(AUTO_GEN_L03_PER_WEEK, 2))
-                .minL04PerWeek(getIntValue(AUTO_GEN_L04_PER_WEEK, 1))
-                .holidayMode(getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"))
-                .build());
+        return java.util.Optional.of(new AutoGenConfig(
+                enabled,
+                getIntValue(AUTO_GEN_L01_PER_DAY, 1),
+                getIntValue(AUTO_GEN_L02_PER_DAY, 2),
+                getIntValue(AUTO_GEN_L03_PER_DAY, 2),
+                getIntValue(AUTO_GEN_L04_PER_DAY, 2),
+                getIntValue(AUTO_GEN_L01_PER_WEEK, 1),
+                getIntValue(AUTO_GEN_L02_PER_WEEK, 3),
+                getIntValue(AUTO_GEN_L03_PER_WEEK, 2),
+                getIntValue(AUTO_GEN_L04_PER_WEEK, 1),
+                getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP")
+        ));
     }
 
     /**

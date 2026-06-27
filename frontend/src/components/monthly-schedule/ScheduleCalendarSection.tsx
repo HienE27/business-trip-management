@@ -17,6 +17,8 @@ export type ScheduleCalendarSectionProps = {
   onFilterTypeChange: (filter: string) => void;
   onViewDetail: (schedule: Schedule) => void;
   hideFilters?: boolean;
+  /** Force read-only mode on the calendar (hides FAB and write actions) */
+  isReadOnly?: boolean;
 };
 
 export const ScheduleCalendarSection = memo(function ScheduleCalendarSection({
@@ -31,6 +33,8 @@ export const ScheduleCalendarSection = memo(function ScheduleCalendarSection({
   onAddDate,
   onFilterTypeChange,
   onViewDetail,
+  hideFilters = false,
+  isReadOnly = false,
 }: ScheduleCalendarSectionProps) {
   return (
     <ScheduleCalendarWidget
@@ -43,8 +47,10 @@ export const ScheduleCalendarSection = memo(function ScheduleCalendarSection({
       onFilterTypeChange={onFilterTypeChange}
       compensationDays={compensationDays}
       onRefresh={onRefresh}
-      onAddClick={onAddDate}
+      onAddClick={hideFilters ? undefined : onAddDate}
       onViewDetail={onViewDetail}
+      isReadOnly={isReadOnly}
+      hideFilters={hideFilters}
     />
   );
 });

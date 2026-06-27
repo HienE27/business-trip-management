@@ -75,7 +75,7 @@ export function DashboardHeader(props: {
           aria-controls="app-sidebar"
           aria-label="Mở menu điều hướng"
           onClick={props.onMenuToggle}
-          className="p-3 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden shrink-0"
+          className="p-3 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:hidden shrink-0"
         >
             <span className="material-symbols-outlined text-[20px]">menu</span>
           </button>

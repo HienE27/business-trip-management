@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/useToast";
 import { ROLE_LABELS } from "@/lib/roleLabels";
+import { BackButton } from "@/components/ui/BackButton";
 
 type ThemeMode = "light" | "dark" | "system";
 type DensityMode = "compact" | "comfortable" | "spacious";
@@ -151,6 +152,7 @@ function SettingsContent() {
   return (
     <>
       <div className="flex flex-col gap-4 pb-6">
+        <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-2" />
 
         {/* ── Email Notification Settings ──────────────────────────────── */}
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">

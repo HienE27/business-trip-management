@@ -10,6 +10,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { formatDate } from "@/lib/date";
 import { SHIFT_COLORS, type ShiftColorSet } from "@/lib/shift-colors";
+import { BackButton } from "@/components/ui/BackButton";
 import type { ShiftRequirement, SchedulePeriod, Specialty } from "@/types/api";
 import {
   SHIFT_TYPES,
@@ -171,6 +172,8 @@ export default function RequirementsPage() {
 
   return (
     <>
+      <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-4" />
+
       <div className="p-margin-desktop">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">

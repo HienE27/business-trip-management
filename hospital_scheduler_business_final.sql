@@ -191,7 +191,7 @@ CREATE TABLE shift_requirement (
     period_id INT NOT NULL,
     work_date DATE NOT NULL,
     shift_type_id VARCHAR(10) NOT NULL,
-    specialty_id INT NOT NULL,
+    specialty_id INT NULL,
     required_staff_count INT NOT NULL,
     note TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

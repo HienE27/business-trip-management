@@ -367,7 +367,13 @@ public class ScheduleTemplateService {
 
         List<com.hospital.scheduler.entity.Schedule> sourceSchedules = List.of();
         if (request.getScheduleIds() != null && !request.getScheduleIds().isEmpty()) {
+            // Priority 1: schedules from auto-schedule preview
             sourceSchedules = scheduleRepository.findAllById(request.getScheduleIds());
+        }
+
+        // Fallback: if no scheduleIds, get existing schedules from the period
+        if (sourceSchedules.isEmpty()) {
+            sourceSchedules = scheduleRepository.findByPeriodId(request.getPeriodId());
         }
 
         // Extract pattern data: group by (dayOfWeek, shiftTypeId, specialtyId) → requiredStaffCount
@@ -391,7 +397,7 @@ public class ScheduleTemplateService {
 
         if (patternMap.isEmpty()) {
             throw new BadRequestException(
-                    "Không có lịch nào để tạo mẫu. Hãy chạy auto-schedule và áp dụng trước.");
+                    "Không có lịch nào để tạo mẫu. Vui lòng thêm lịch trực trong kỳ này trước.");
         }
 
         String patternConfigJson = null;
@@ -435,10 +441,15 @@ public class ScheduleTemplateService {
     /**
      * Internal record for pattern extraction.
      */
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties
     private static class PatternEntry {
+        @com.fasterxml.jackson.annotation.JsonProperty
         int dayOfWeek;
+        @com.fasterxml.jackson.annotation.JsonProperty
         String shiftTypeId;
+        @com.fasterxml.jackson.annotation.JsonProperty
         Integer specialtyId;
+        @com.fasterxml.jackson.annotation.JsonProperty
         int requiredStaffCount;
 
         PatternEntry(int dayOfWeek, String shiftTypeId, Integer specialtyId, int requiredStaffCount) {

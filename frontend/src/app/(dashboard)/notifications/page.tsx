@@ -8,6 +8,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { useNotifications } from "@/components/ui/NotificationContext";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { formatRelativeTime } from "@/lib/date";
+import { BackButton } from "@/components/ui/BackButton";
 import type { Notification } from "@/types/api";
 
 // Lazy-load the confirm dialog. Used only when the user clicks
@@ -167,6 +168,8 @@ function NotificationsContent() {
 
   return (
     <>
+      <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-4" />
+
       <div className="flex flex-col gap-4 pb-6">
         {/* Header bar */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">

@@ -111,6 +111,22 @@ export function WorkloadSummary({ periodId, shiftTypeId, groupBySpecialty }: Wor
 
   const maxTotal = Math.max(...rows.map((r) => r.total), 1);
   const avg = data.averageWorkload;
+  const stdDev = useMemo(() => {
+    if (data.staffWorkloadData.length < 2) return 0;
+    const mean = avg;
+    const variance = data.staffWorkloadData.reduce((sum, e) => sum + Math.pow(e.totalShifts - mean, 2), 0) / data.staffWorkloadData.length;
+    return Math.sqrt(variance);
+  }, [data.staffWorkloadData, avg]);
+
+  // Threshold: flag if a staff's load is > 1.5 std deviations above mean, or > 40% above average
+  const IMBALANCE_THRESHOLD_PCT = 40; // 40% above average
+  const flaggedEntries = useMemo(() => {
+    return (data?.staffWorkloadData ?? []).filter((e) => {
+      if (avg === 0) return false;
+      const pctAbove = ((e.totalShifts - avg) / avg) * 100;
+      return pctAbove >= IMBALANCE_THRESHOLD_PCT || (stdDev > 0 && e.totalShifts > avg + 1.5 * stdDev);
+    });
+  }, [data, avg, stdDev]);
 
   return (
     <div className="space-y-3">
@@ -129,6 +145,22 @@ export function WorkloadSummary({ periodId, shiftTypeId, groupBySpecialty }: Wor
           <p className="text-headline-md font-bold text-on-surface">{avg}</p>
         </div>
       </div>
+
+      {/* Imbalance alert */}
+      {flaggedEntries.length > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-error/30 bg-error-container px-4 py-3 shadow-sm">
+          <span className="material-symbols-outlined text-error mt-0.5 shrink-0" aria-hidden="true">warning</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-label-md font-semibold text-error">Phát hiện phân bổ lệch lớn</p>
+            <p className="text-label-sm text-on-error-container mt-0.5">
+              {flaggedEntries.length} nhân sự có số ca vượt quá {IMBALANCE_THRESHOLD_PCT}% so với trung bình (
+              {flaggedEntries.slice(0, 3).map((e) => e.staffName).join(", ")}
+              {flaggedEntries.length > 3 ? ` và ${flaggedEntries.length - 3} người khác` : ""}
+              ).
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Per-staff bars */}
       <div className="space-y-2">

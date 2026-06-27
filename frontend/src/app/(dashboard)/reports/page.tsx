@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BackButton } from "@/components/ui/BackButton";
 
 const REPORT_CARDS = [
   {
@@ -32,6 +33,7 @@ const REPORT_CARDS = [
 export default function ReportsPage() {
   return (
     <div className="space-y-6">
+      <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-2" />
       {/* Page Header */}
       <section className="flex items-start justify-between gap-4 flex-wrap">
         <div>

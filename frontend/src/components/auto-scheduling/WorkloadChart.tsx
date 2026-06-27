@@ -335,11 +335,14 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
       const rawStaff = buildStaffAggregates(previewSchedules);
       const totalShifts = rawStaff.reduce((sum, s) => sum + s.totalShifts, 0);
       const totalStaff = rawStaff.length;
-      const avg = totalStaff > 0
-        ? rawStaff.reduce((sum, s) => sum + (s.totalShifts / (totalShifts / totalStaff || 1) * 100), 0) / totalStaff
-        : 0;
+      // averageWorkload = average number of shifts per staff (shift count, not %)
+      const avg = totalStaff > 0 ? totalShifts / totalStaff : 0;
       const maxW = rawStaff.length > 0 ? Math.max(...rawStaff.map((s) => s.totalShifts)) : 0;
       const minW = rawStaff.length > 0 ? Math.min(...rawStaff.map((s) => s.totalShifts)) : 0;
+      // workloadPercentage is only used by API path; for preview we compute it here
+      for (const s of rawStaff) {
+        s.workloadPercentage = avg > 0 ? (s.totalShifts / avg) * 100 : 0;
+      }
       setChartData({
         periodId,
         periodName: "Bản xem trước",
@@ -362,13 +365,11 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
         const rawStaff = res.staffWorkloadData;
         const totalShifts = rawStaff.reduce((sum, s) => sum + s.totalShifts, 0);
         const totalStaff = rawStaff.length;
-        const avg =
-          totalStaff > 0
-            ? rawStaff.reduce((sum, s) => sum + (s.workloadPercentage / totalStaff), 0)
-            : 0;
+        // averageWorkload = average shifts per staff (shift count), NOT percentage.
+        // The backend's avgWorkload is a utilization % — recalculate from raw counts.
+        const avg = totalStaff > 0 ? totalShifts / totalStaff : 0;
         const maxW = rawStaff.reduce((max, s) => Math.max(max, s.workloadPercentage), 0);
-        const minW =
-          totalStaff > 0 ? Math.min(...rawStaff.map((s) => s.workloadPercentage)) : 0;
+        const minW = totalStaff > 0 ? Math.min(...rawStaff.map((s) => s.workloadPercentage)) : 0;
 
         setChartData({
           periodId,
@@ -428,12 +429,12 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
     <div className="space-y-4">
       {/* KPI summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: "Tổng ca", value: chartData.totalSchedules, icon: "event_available" },
-          { label: "Trung bình", value: chartData.averageWorkload.toFixed(1), icon: "trending_flat" },
-          { label: "Thấp nhất", value: `${chartData.minWorkload.toFixed(1)}%`, icon: "arrow_downward" },
-          { label: "Cao nhất", value: `${chartData.maxWorkload.toFixed(1)}%`, icon: "arrow_upward" },
-        ].map((kpi) => (
+          {[
+            { label: "Tổng ca", value: chartData.totalSchedules, icon: "event_available" },
+            { label: "TB / nhân sự", value: chartData.averageWorkload.toFixed(1), icon: "trending_flat" },
+            { label: "Thấp nhất", value: chartData.minWorkload.toFixed(1), icon: "arrow_downward" },
+            { label: "Cao nhất", value: chartData.maxWorkload.toFixed(1), icon: "arrow_upward" },
+          ].map((kpi) => (
           <div key={kpi.label} className="flex items-center gap-3 bg-surface-container-low rounded-xl p-3 border border-outline-variant">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-container-high">
               <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">{kpi.icon}</span>

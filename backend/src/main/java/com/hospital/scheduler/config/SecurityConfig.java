@@ -55,7 +55,7 @@ public class SecurityConfig {
 
                 // Authorization rules
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints - Swagger, Auth & WebSocket
+                        // Public endpoints - Swagger, Auth, WebSocket, Actuator
                         .requestMatchers(
                                 "/api/v1/auth/**",
                                 "/ws/**",
@@ -65,7 +65,7 @@ public class SecurityConfig {
                                 "/v3/api-docs.yaml",
                                 "/swagger-resources/**",
                                 "/webjars/**",
-                                "/actuator/health"
+                                "/actuator/**"
                         ).permitAll()
 
                         // All other endpoints require authentication

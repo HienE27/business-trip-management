@@ -27,23 +27,31 @@ describe('AlgorithmBalanceChart', () => {
     expect(values[2]).toContain('BS. C');
   });
 
-  it('shows the correct total / cap per row', () => {
+  it('shows the correct total / avg per row', () => {
     render(<AlgorithmBalanceChart schedules={schedules} />);
     const rows = screen.getAllByTestId('algo-balance-row');
-    expect(rows[0].textContent).toMatch(/3\s*ca\s*\/\s*giới hạn\s*5\s*\(\s*60\s*%\s*\)/); // BS.A: 3 total
-    expect(rows[1].textContent).toMatch(/1\s*ca\s*\/\s*giới hạn\s*5\s*\(\s*20\s*%\s*\)/); // BS.B
+    // 5 total shifts / 3 staff = 1.67 avg. BS.A has 3 (180%), BS.B has 1 (60%), BS.C has 1 (60%)
+    expect(rows[0].textContent).toMatch(/3\s*ca\s*\/\s*TB\s*1\.7/); // BS.A: 3 / 1.67
+    expect(rows[1].textContent).toMatch(/1\s*ca\s*\/\s*TB\s*1\.7/); // BS.B
   });
 
-  it('uses custom caps when provided', () => {
-    render(
-      <AlgorithmBalanceChart
-        schedules={schedules}
-        staffCaps={{ 1: 3 }} // BS.A cap = 3
-      />,
-    );
-    // BS.A: 3/3 = 100% → balanced or caution
+  it('classifies overload vs balanced based on average', () => {
+    // 5 shifts for 1 staff vs 3 others with 1 each: avg = 2, ratio = 2.5 → overloaded
+    const heavy = Array.from({ length: 5 }, (_, i) => ({
+      scheduleId: i, staffId: 99, staffName: 'BS. Heavy',
+      workDate: `2026-06-${String(i + 1).padStart(2, '0')}`,
+      shiftTypeId: 'L01', shiftTypeName: 'Trực 24/24',
+    }));
+    const others = Array.from({ length: 3 }, (_, i) => ({
+      scheduleId: 100 + i, staffId: 100 + i, staffName: `BS. Light${i}`,
+      workDate: '2026-06-01',
+      shiftTypeId: 'L01', shiftTypeName: 'Trực 24/24',
+    }));
+    render(<AlgorithmBalanceChart schedules={[...heavy, ...others]} />);
     const rows = screen.getAllByTestId('algo-balance-row');
-    expect(rows[0].textContent).toMatch(/3\s*\/\s*3/);
+    // BS.Heavy has 5 (avg=2, ratio=2.5 ≥ 1.5 → overloaded)
+    const badge = within(rows[0]).getByLabelText('Quá tải');
+    expect(badge).toBeInTheDocument();
   });
 
   it('renders empty state when no schedules', () => {
@@ -54,19 +62,6 @@ describe('AlgorithmBalanceChart', () => {
   it('respects the limit prop', () => {
     render(<AlgorithmBalanceChart schedules={schedules} limit={1} />);
     expect(screen.getAllByTestId('algo-balance-row')).toHaveLength(1);
-  });
-
-  it('marks overloaded staff (>1.5x cap) with a red badge', () => {
-    const heavy = Array.from({ length: 10 }, (_, i) => ({
-      scheduleId: i, staffId: 99, staffName: 'BS. X',
-      workDate: `2026-06-${String(i + 1).padStart(2, '0')}`,
-      shiftTypeId: 'L01', shiftTypeName: 'Trực 24/24',
-    }));
-    render(<AlgorithmBalanceChart schedules={heavy} staffCaps={{ 99: 6 }} />);
-    const rows = screen.getAllByTestId('algo-balance-row');
-    // Badge inside row has aria-label "Quá tải" and bg-error-container
-    const badge = within(rows[0]).getByLabelText('Quá tải');
-    expect(badge.className).toContain('bg-error-container');
   });
 
   it('has a descriptive aria-label on the root element', () => {

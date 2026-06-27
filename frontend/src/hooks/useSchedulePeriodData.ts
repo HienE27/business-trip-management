@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -109,7 +109,10 @@ export function useSchedulePeriodData(
     setMessage(null);
   }, [pathname]);
 
-  const selectedPeriod = periods.find((p) => p.id === selectedPeriodId) ?? null;
+  const selectedPeriod = useMemo(
+    () => periods.find((p) => p.id === selectedPeriodId) ?? null,
+    [periods, selectedPeriodId]
+  );
 
   const loadPeriodData = useCallback(async (periodId: number | null, isRefresh = false) => {
     if (!periodId) {
@@ -122,6 +125,7 @@ export function useSchedulePeriodData(
 
     if (isRefresh) setRefreshing(true);
 
+    // OPTIMIZATION: All data fetches run in PARALLEL - not sequentially
     const fetchOne = async <T,>(fetcher: () => Promise<T>, fallback: T): Promise<T> => {
       try {
         const result = await fetcher();
@@ -131,6 +135,7 @@ export function useSchedulePeriodData(
       }
     };
 
+    // Fetch all data in parallel for maximum performance
     const [scheduleData, conflictResult, compDaysData, reqData] = await Promise.all([
       fetchOne<Schedule[]>(() => api.get<Schedule[]>(`/schedules/period/${periodId}`), []),
       fetchOne<ConflictCheckResponse | null>(
@@ -149,6 +154,7 @@ export function useSchedulePeriodData(
 
     if (!aliveRef.current) return;
 
+    // Batch all state updates into ONE render
     setSchedules(scheduleData);
     setConflictData(conflictResult);
     setCompensationDays(compDaysData);

@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -26,10 +27,12 @@ public class ShiftRequirementController {
     private final ShiftRequirementService requirementService;
 
     @GetMapping
-    @Operation(summary = "Lấy danh sách tất cả yêu cầu nhân sự")
+    @Operation(summary = "Lấy danh sách tất cả yêu cầu nhân sự (có phân trang)")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<ApiResponse<List<ShiftRequirementResponse>>> getAllRequirements() {
-        return ResponseEntity.ok(ApiResponse.success(requirementService.getAllRequirements()));
+    public ResponseEntity<ApiResponse<Page<ShiftRequirementResponse>>> getAllRequirements(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size) {
+        return ResponseEntity.ok(ApiResponse.success(requirementService.getAllRequirements(page, size)));
     }
 
     @GetMapping("/period/{periodId}")

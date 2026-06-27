@@ -7,6 +7,9 @@ import com.hospital.scheduler.repository.AuditHistoryRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,8 +26,9 @@ public class AuditHistoryService {
     private final StaffRepository staffRepository;
     private final ObjectMapper objectMapper;
 
-    public List<AuditHistoryResponse> getAllAuditHistory() {
-        return auditHistoryRepository.findAll().stream()
+    public List<AuditHistoryResponse> getAllAuditHistory(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return auditHistoryRepository.findAllWithChangedBy(pageable).stream()
                 .map(AuditHistoryResponse::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -43,10 +47,22 @@ public class AuditHistoryService {
                 .collect(Collectors.toList());
     }
 
-    public List<AuditHistoryResponse> getAuditHistoryByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
-        return auditHistoryRepository.findByDateRange(startDate, endDate).stream()
-                .map(AuditHistoryResponse::fromEntity)
-                .collect(Collectors.toList());
+    public Page<AuditHistoryResponse> getAuditHistoryByTableAndRecord(String tableName, Object recordId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return auditHistoryRepository.findByTableNameAndRecordId(tableName, recordId, pageable)
+                .map(AuditHistoryResponse::fromEntity);
+    }
+
+    public Page<AuditHistoryResponse> getAuditHistoryByUser(Integer changedById, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return auditHistoryRepository.findByChangedBy(changedById, pageable)
+                .map(AuditHistoryResponse::fromEntity);
+    }
+
+    public Page<AuditHistoryResponse> getAuditHistoryByDateRange(LocalDateTime startDate, LocalDateTime endDate, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return auditHistoryRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(startDate, endDate, pageable)
+                .map(AuditHistoryResponse::fromEntity);
     }
 
     @Transactional

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { ScheduleMatrixGrid } from "@/components/dashboard/ScheduleMatrixGrid";
 import type { Schedule } from "@/types/api";
 
@@ -67,7 +67,7 @@ function deriveWeekFromSchedules(schedules: Schedule[]): { weekStart: Date; week
   return getWeekRangeOffset(new Date(), 0);
 }
 
-export function MatrixGridWrapper({
+export const MatrixGridWrapper = memo(function MatrixGridWrapper({
   schedules,
   staffList,
   year,
@@ -219,4 +219,4 @@ export function MatrixGridWrapper({
       />
     </div>
   );
-}
+});

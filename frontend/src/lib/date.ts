@@ -1,9 +1,23 @@
 const LOCALE = "vi-VN" as const;
 
+// Cache formatters at module level for better performance
+const DATE_FORMATTER = new Intl.DateTimeFormat(LOCALE, { day: "2-digit", month: "2-digit", year: "numeric" });
+const DATE_FORMATTER_SHORT = new Intl.DateTimeFormat(LOCALE, { day: "2-digit", month: "2-digit" });
+const DATE_FORMATTER_MEDIUM = new Intl.DateTimeFormat(LOCALE, { dateStyle: "medium" });
+const DATE_FORMATTER_FULL = new Intl.DateTimeFormat(LOCALE, { dateStyle: "long" });
+const DATE_TIME_FORMATTER = new Intl.DateTimeFormat(LOCALE, {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const TIME_FORMATTER = new Intl.DateTimeFormat(LOCALE, { hour: "2-digit", minute: "2-digit" });
+
 /** Short date: 15/06/2026 */
 export const formatDate = (dateStr: string): string => {
   try {
-    return new Intl.DateTimeFormat(LOCALE, { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(dateStr));
+    return DATE_FORMATTER.format(new Date(dateStr));
   } catch {
     return dateStr;
   }
@@ -12,7 +26,7 @@ export const formatDate = (dateStr: string): string => {
 /** Short date no year: 15/06 */
 export const formatDateShortNoYear = (dateStr: string): string => {
   try {
-    return new Intl.DateTimeFormat(LOCALE, { day: "2-digit", month: "2-digit" }).format(new Date(dateStr));
+    return DATE_FORMATTER_SHORT.format(new Date(dateStr));
   } catch {
     return dateStr;
   }
@@ -21,7 +35,7 @@ export const formatDateShortNoYear = (dateStr: string): string => {
 /** Medium date: 15 tháng 6, 2026 */
 export const formatDateMedium = (dateStr: string): string => {
   try {
-    return new Intl.DateTimeFormat(LOCALE, { dateStyle: "medium" }).format(new Date(dateStr));
+    return DATE_FORMATTER_MEDIUM.format(new Date(dateStr));
   } catch {
     return dateStr;
   }
@@ -30,7 +44,7 @@ export const formatDateMedium = (dateStr: string): string => {
 /** Full date: thứ Hai, 15 tháng 6, 2026 */
 export const formatDateFull = (dateStr: string): string => {
   try {
-    return new Intl.DateTimeFormat(LOCALE, { dateStyle: "long" }).format(new Date(dateStr));
+    return DATE_FORMATTER_FULL.format(new Date(dateStr));
   } catch {
     return dateStr;
   }
@@ -39,13 +53,7 @@ export const formatDateFull = (dateStr: string): string => {
 /** Date + time: 15/06/2026 14:30 */
 export const formatDateTime = (dateStr: string): string => {
   try {
-    return new Intl.DateTimeFormat(LOCALE, {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(dateStr));
+    return DATE_TIME_FORMATTER.format(new Date(dateStr));
   } catch {
     return dateStr;
   }
@@ -54,7 +62,7 @@ export const formatDateTime = (dateStr: string): string => {
 /** Time only: 14:30 */
 export const formatTime = (dateStr: string): string => {
   try {
-    return new Intl.DateTimeFormat(LOCALE, { hour: "2-digit", minute: "2-digit" }).format(new Date(dateStr));
+    return TIME_FORMATTER.format(new Date(dateStr));
   } catch {
     return dateStr;
   }

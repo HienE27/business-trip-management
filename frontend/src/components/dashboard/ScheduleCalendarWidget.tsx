@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, memo, useCallback } from "react";
 import { MatrixGridWrapper } from "@/components/dashboard/MatrixGridWrapper";
 import { FAB } from "@/components/ui/FAB";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
@@ -167,6 +167,8 @@ type ScheduleCalendarWidgetProps = {
   isReadOnly?: boolean;
   canEditOverride?: boolean;
   onViewDetail?: (schedule: Schedule) => void;
+  /** Hide the month/week toggle and other filter controls */
+  hideFilters?: boolean;
 };
 
 export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
@@ -183,6 +185,7 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
   onFilterTypeChange,
   compensationDays,
   onViewDetail,
+  hideFilters = false,
 }: ScheduleCalendarWidgetProps) {
   const [matrixViewMode, setMatrixViewMode] = useState<"month" | "week">("month");
   const [quickOpen, setQuickOpen] = useState(false);
@@ -199,9 +202,16 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
     },
   ] : [];
 
+  // Stable onCellClick callback to prevent MatrixGridWrapper re-renders
+  const stableOnCellClick = useCallback(
+    onAddClick ? (date: Date, staffId: number) => onAddClick(date, staffId) : undefined,
+    [onAddClick]
+  );
+
   return (
     <div className="flex flex-col pt-1">
       {/* Matrix view: Month / Week toggle */}
+      {!hideFilters && (
       <div className="flex items-center justify-end px-4 pt-3 pb-2">
         <div
           role="group"
@@ -234,6 +244,7 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
           </button>
         </div>
       </div>
+      )}
 
       <div className="px-3 pb-3">
         <MatrixGridWrapper
@@ -244,7 +255,7 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
           viewMode={matrixViewMode}
           compensationDays={compensationDays}
           shiftTypeFilter={selectedTab}
-          onCellClick={(date, staffId) => { onAddClick?.(date, staffId); }}
+          onCellClick={stableOnCellClick}
           onRefresh={onRefresh}
           canEdit={canEdit}
         />

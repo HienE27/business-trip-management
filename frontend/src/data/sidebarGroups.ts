@@ -43,7 +43,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     key: "operations",
     label: "Vận hành",
     icon: "settings_b_roll",
-    sections: ["staff", "auto-scheduling", "leave-requests", "shift-swaps", "holidays"],
+    sections: ["staff", "specialties", "auto-scheduling", "leave-requests", "shift-swaps", "holidays"],
   },
   {
     key: "insights",

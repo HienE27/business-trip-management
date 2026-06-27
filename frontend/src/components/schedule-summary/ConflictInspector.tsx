@@ -1,5 +1,4 @@
-"use client";
-
+import { memo } from "react";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -18,7 +17,7 @@ type ConflictInspectorProps = {
   onResolve?: (conflict: ConflictDetail) => void;
 };
 
-export function ConflictInspector({
+export const ConflictInspector = memo(function ConflictInspector({
   conflicts,
   emptyLabel,
   title,
@@ -167,4 +166,4 @@ export function ConflictInspector({
       </Modal>
     </>
   );
-}
+});

@@ -528,7 +528,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
               </div>
             </div>
             {isExpertMode && (
-              <div className="min-w-[200px]">
+              <div className="min-w-[200px] hidden">
                 <label
                   htmlFor={`${config.activeSection}-specialty-filter`}
                   className="mb-1.5 block text-label-sm text-on-surface-variant"
@@ -819,6 +819,60 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           </div>
         ))}
       </section>
+      )}
+
+      {/* Specialty filter tabs - only show when in expert clinic mode and has specialties */}
+      {isExpertMode && specialties.length > 0 && (
+        <div className="overflow-x-auto pb-1 scrollbar-thin">
+          <div className="flex items-center gap-2 min-w-max" role="tablist" aria-label="Lọc theo chuyên khoa">
+            {/* All specialties tab */}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={selectedSpecialtyId === null}
+              onClick={() => setSelectedSpecialtyId(null)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-label-md font-medium transition-all whitespace-nowrap ${
+                selectedSpecialtyId === null
+                  ? "bg-primary text-on-primary shadow-sm"
+                  : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high border border-outline-variant"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">stethoscope</span>
+              Tất cả ({specialties.length})
+            </button>
+
+            {/* Individual specialty tabs */}
+            {specialties.map((specialty) => {
+              const count = schedules.filter((s) => s.staff.specialtyId === specialty.id).length;
+              return (
+                <button
+                  key={specialty.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedSpecialtyId === specialty.id}
+                  onClick={() => setSelectedSpecialtyId(selectedSpecialtyId === specialty.id ? null : specialty.id)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-label-md font-medium transition-all whitespace-nowrap ${
+                    selectedSpecialtyId === specialty.id
+                      ? "bg-shift-expert text-on-shift-expert shadow-sm"
+                      : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high border border-outline-variant"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">medical_services</span>
+                  {specialty.name}
+                  {count > 0 && (
+                    <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
+                      selectedSpecialtyId === specialty.id
+                        ? "bg-on-primary/20 text-on-primary"
+                        : "bg-primary/10 text-primary"
+                    }`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {selectedPanel !== "conflicts" && (

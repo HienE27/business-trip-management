@@ -14,10 +14,8 @@ import java.util.List;
 @Builder
 public class TemplateApplyWithEditsRequest {
 
-    @NotNull(message = "ID mẫu lịch không được để trống")
     private Integer templateId;
 
-    @NotNull(message = "ID kỳ lịch không được để trống")
     private Integer periodId;
 
     private List<TemplateEditItem> edits;

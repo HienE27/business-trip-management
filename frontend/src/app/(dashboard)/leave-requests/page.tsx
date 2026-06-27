@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateRange, formatDateTime } from "@/lib/date";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { BackButton } from "@/components/ui/BackButton";
 
 // Lazy-load the confirm dialog. The dialog is only visible after the
 // user clicks "Hủy yêu cầu" — deferring it shaves a small chunk off
@@ -258,6 +259,8 @@ function LeaveRequestsContent() {
 
   return (
     <>
+      <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-4" />
+
       {/* Conflict warning */}
       {conflictWarning && (
         <div className="rounded-lg border border-error/30 bg-error-container/40 px-4 py-3 text-sm text-error flex items-start gap-2">

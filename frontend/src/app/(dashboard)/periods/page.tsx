@@ -9,6 +9,7 @@ import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { api } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
+import { BackButton } from "@/components/ui/BackButton";
 import type { SchedulePeriod } from "@/types/api";
 import type { PeriodFormValues } from "./PeriodFormModal";
 
@@ -208,6 +209,8 @@ export default function PeriodsPage() {
   return (
     <>
       <div className="p-margin-desktop">
+        <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-4" />
+
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>

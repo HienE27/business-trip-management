@@ -416,6 +416,7 @@ export interface AlgorithmMetrics {
   coverageRate: number;
   balanceScore: number;
   conflictCount: number;
+  totalSchedulesCreated?: number;
   periodId?: number;
   periodName?: string;
   createdAt: string;

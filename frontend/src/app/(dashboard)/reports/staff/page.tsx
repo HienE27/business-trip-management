@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { BackButton } from "@/components/ui/BackButton";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -166,6 +167,8 @@ function ReportsStaffContent() {
 
   return (
     <>
+      <BackButton href="/reports" variant="full" label="Quay lại" className="mb-4" />
+
       {message && (
         <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
           {message}

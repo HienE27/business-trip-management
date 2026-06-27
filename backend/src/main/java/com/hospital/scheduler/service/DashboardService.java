@@ -1,5 +1,6 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.config.CacheConfig;
 import com.hospital.scheduler.dto.response.DashboardResponse;
 import com.hospital.scheduler.dto.response.ScheduleAggregationResponse;
 import com.hospital.scheduler.dto.response.StaffDailyCount;
@@ -9,6 +10,8 @@ import com.hospital.scheduler.entity.ScheduleExchange;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,8 +30,9 @@ public class DashboardService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final ScheduleExchangeRepository exchangeRepository;
 
+    @Cacheable(value = CacheConfig.DASHBOARD_STATS_CACHE, key = "'summary-' + #periodId")
     public DashboardResponse getDashboardSummary(Integer periodId) {
-        // Get schedules filtered by period (or all if no period specified)
+        // OPTIMIZATION: Load schedules ONCE and reuse for all statistics
         List<Schedule> periodSchedules = (periodId != null)
                 ? scheduleRepository.findByPeriodId(periodId)
                 : scheduleRepository.findAll();
@@ -42,7 +46,8 @@ public class DashboardService {
                 .pendingScheduleExchanges((long) exchangeRepository.findByStatus(ScheduleExchange.ExchangeStatus.PENDING).size())
                 .build();
 
-        DashboardResponse.ShiftStatistics shiftStatistics = getShiftStatistics(periodId);
+        // Reuse periodSchedules instead of querying again
+        DashboardResponse.ShiftStatistics shiftStatistics = computeShiftStatistics(periodSchedules);
         DashboardResponse.LeaveRequestStatistics leaveRequestStatistics = getLeaveRequestStatistics();
 
         return DashboardResponse.builder()
@@ -56,20 +61,21 @@ public class DashboardService {
         List<Schedule> schedules = (periodId != null)
                 ? scheduleRepository.findByPeriodId(periodId)
                 : scheduleRepository.findAll();
+        return computeShiftStatistics(schedules);
+    }
 
-        long L01Count = schedules.stream()
-                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L01.equals(s.getShiftType().getId()))
-                .count();
-        long L02Count = schedules.stream()
-                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L02.equals(s.getShiftType().getId()))
-                .count();
-        long L03Count = schedules.stream()
-                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L03.equals(s.getShiftType().getId()))
-                .count();
-        long L04Count = schedules.stream()
-                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L04.equals(s.getShiftType().getId()))
-                .count();
-
+    /**
+     * Compute shift statistics from already-loaded schedules (avoids duplicate DB query).
+     */
+    private DashboardResponse.ShiftStatistics computeShiftStatistics(List<Schedule> schedules) {
+        long L01Count = 0, L02Count = 0, L03Count = 0, L04Count = 0;
+        for (Schedule s : schedules) {
+            String id = s.getShiftType().getId();
+            if ("L01".equals(id)) L01Count++;
+            else if ("L02".equals(id)) L02Count++;
+            else if ("L03".equals(id)) L03Count++;
+            else if ("L04".equals(id)) L04Count++;
+        }
         return DashboardResponse.ShiftStatistics.builder()
                 .L01Count(L01Count)
                 .L02Count(L02Count)

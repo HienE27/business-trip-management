@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/BackButton";
 import type { AuditHistory } from "@/types/api";
 
 type ActionFilter = "" | "CREATE" | "UPDATE" | "DELETE";
@@ -428,10 +429,18 @@ export default function AuditHistoryPage() {
     const flat = grouped.flatMap(([, g]) => g);
     const start = (page - 1) * pageSize;
     const slice = flat.slice(start, start + pageSize);
-    const ids = new Set(slice.map((r) => r.id));
-    return grouped
-      .map(([dk, recs]) => [dk, recs.filter((r) => ids.has(r.id))] as [string, AuditHistory[]])
-      .filter(([, recs]) => recs.length > 0);
+
+    // Build date-indexed map of records on this page, preserving group headers
+    const dateMap = new Map<string, AuditHistory[]>();
+    for (const r of slice) {
+      const dk = r.createdAt.split("T")[0];
+      if (!dateMap.has(dk)) dateMap.set(dk, []);
+      dateMap.get(dk)!.push(r);
+    }
+
+    // Return as sorted entries, keeping ALL dates that have records on this page
+    return Array.from(dateMap.entries())
+      .sort(([a], [b]) => b.localeCompare(a));
   }, [grouped, page, pageSize]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / pageSize)), [filtered.length, pageSize]);
@@ -487,6 +496,7 @@ export default function AuditHistoryPage() {
       {selected && <DetailModal record={selected} onClose={() => setSelected(null)} />}
 
       <div className="flex flex-col gap-3 pb-6">
+        <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-2" />
 
         {/* KPI Cards */}
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">

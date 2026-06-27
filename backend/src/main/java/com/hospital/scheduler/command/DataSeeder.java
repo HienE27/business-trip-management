@@ -140,18 +140,18 @@ public class DataSeeder implements CommandLineRunner {
         }
 
         // Seed auto-gen config with defaults
-        AutoGenConfig defaults = AutoGenConfig.builder()
-                .enabled(false)  // Disabled by default
-                .l01RequiredPerDay(2)
-                .l02RequiredPerDay(2)
-                .l03RequiredPerDay(1)
-                .l04RequiredPerDay(1)
-                .minL01PerWeek(1)
-                .minL02PerWeek(3)
-                .minL03PerWeek(2)
-                .minL04PerWeek(1)
-                .holidayMode("SKIP")
-                .build();
+        AutoGenConfig defaults = new AutoGenConfig(
+                false,  // enabled = false by default
+                2,      // l01RequiredPerDay
+                2,      // l02RequiredPerDay
+                1,      // l03RequiredPerDay
+                1,      // l04RequiredPerDay
+                1,      // minL01PerWeek
+                3,      // minL02PerWeek
+                2,      // minL03PerWeek
+                1,      // minL04PerWeek
+                "SKIP"  // holidayMode
+        );
         algorithmConfigService.saveAutoGenConfig(defaults);
 
         log.info("✅ Seeded algorithm auto-gen config with defaults");

@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { BackButton } from "@/components/ui/BackButton";
 
 const ApplyConfirmationModal = dynamic(
   () => import("./ApplyConfirmationModal").then((m) => m.ApplyConfirmationModal),
@@ -89,6 +90,7 @@ function MetricsHistorySection({ periodId }: { periodId: number | null }) {
         <thead className="bg-surface-container-low border-b border-outline-variant sticky top-0">
           <tr>
             <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Thuật toán</th>
+            <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Tổng ca</th>
             <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Thời gian</th>
             <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Tỷ lệ phủ</th>
             <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Cân bằng</th>
@@ -99,9 +101,10 @@ function MetricsHistorySection({ periodId }: { periodId: number | null }) {
           {metrics.map((m) => (
             <tr key={m.id} className="hover:bg-surface-container-low transition-colors">
               <td className="p-3 text-label-sm text-primary font-semibold">{m.algorithmType}</td>
+              <td className="p-3 text-label-sm text-on-surface font-semibold">{m.totalSchedulesCreated ?? 0}</td>
               <td className="p-3 text-label-sm text-on-surface">{m.executionTimeMs}ms</td>
               <td className="p-3 text-label-sm text-on-surface">{typeof m.coverageRate === 'number' ? `${Math.round(m.coverageRate)}%` : '—'}</td>
-              <td className="p-3 text-label-sm text-on-surface">{typeof m.balanceScore === 'number' ? m.balanceScore.toFixed(2) : '—'}</td>
+              <td className="p-3 text-label-sm text-on-surface">{typeof m.balanceScore === 'number' ? `${m.balanceScore.toFixed(1)}%` : '—'}</td>
               <td className="p-3 text-label-sm">
                 <span className={m.conflictCount > 0 ? "text-error font-semibold" : "text-secondary"}>
                   {m.conflictCount}
@@ -294,6 +297,8 @@ export default function AutoSchedulingPage() {
 
   return (
     <div className="space-y-4">
+      <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-2" />
+
       {loadMessage && (
         <div className="rounded-xl border border-error-container bg-error-container/20 px-4 py-3 text-label-sm text-error flex items-start gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-error-container">

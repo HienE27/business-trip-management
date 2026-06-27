@@ -1,5 +1,6 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.config.CacheConfig;
 import com.hospital.scheduler.dto.request.ShiftTypeRequest;
 import com.hospital.scheduler.dto.response.ShiftTypeResponse;
 import com.hospital.scheduler.entity.AuditHistory;
@@ -9,6 +10,8 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.ShiftTypeRepository;
 import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +27,7 @@ public class ShiftTypeService {
     private final AuditHistoryService auditHistoryService;
     private final AuthContextService authContextService;
 
+    @Cacheable(value = CacheConfig.SHIFT_TYPES_CACHE)
     @Transactional(readOnly = true)
     public List<ShiftTypeResponse> getAllShiftTypes() {
         return shiftTypeRepository.findAll().stream()
@@ -45,6 +49,7 @@ public class ShiftTypeService {
         return toResponse(shiftType);
     }
 
+    @CacheEvict(value = CacheConfig.SHIFT_TYPES_CACHE, allEntries = true)
     public ShiftTypeResponse createShiftType(ShiftTypeRequest request) {
         if (shiftTypeRepository.existsById(request.getId())) {
             throw new ConflictException("Loại ca '" + request.getId() + "' đã tồn tại");
@@ -69,6 +74,7 @@ public class ShiftTypeService {
         return toResponse(saved);
     }
 
+    @CacheEvict(value = CacheConfig.SHIFT_TYPES_CACHE, allEntries = true)
     public ShiftTypeResponse updateShiftType(String id, ShiftTypeRequest request) {
         ShiftType shiftType = shiftTypeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + id));
@@ -102,6 +108,7 @@ public class ShiftTypeService {
         return toResponse(saved);
     }
 
+    @CacheEvict(value = CacheConfig.SHIFT_TYPES_CACHE, allEntries = true)
     public void deleteShiftType(String id) {
         ShiftType shiftType = shiftTypeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + id));

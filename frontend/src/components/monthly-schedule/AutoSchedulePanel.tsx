@@ -87,7 +87,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
   // KPI tone helpers
   const coverageTone = coverageRate >= 90 ? "success" : coverageRate >= 70 ? "info" : "error";
-  const balanceTone = balanceScore >= 0.75 ? "success" : balanceScore >= 0.5 ? "warning" : "error";
+  const balanceTone = balanceScore >= 75 ? "success" : balanceScore >= 50 ? "warning" : "error";
   const conflictTone = previewResult?.conflictCount === 0 ? "success" : "error";
 
   return (
@@ -238,7 +238,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             <KPICard
               icon="balance"
               label="Cân bằng"
-              value={`${Math.round(balanceScore * 100)}%`}
+              value={`${Math.round(Number(balanceScore))}%`}
               tone={balanceTone}
             />
             <KPICard

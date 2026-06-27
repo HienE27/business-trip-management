@@ -269,7 +269,7 @@ export default function DashboardPage() {
                 : "Nháp"}
             </span>
           )}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
             {selectedPeriodId && (
               <>
                 <button
@@ -294,7 +294,7 @@ export default function DashboardPage() {
             )}
             <Link
               href="/monthly-schedule"
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-on-primary text-label-sm font-medium hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-on-primary text-label-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
             >
               <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
               Lập lịch
@@ -307,7 +307,7 @@ export default function DashboardPage() {
       {loading ? (
         <SkeletonDashboardKPIGrid />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-4 gap-4">
           <KPICard
             label="Nhân sự đang hoạt động"
             value={activeStaffCount}
@@ -360,7 +360,7 @@ export default function DashboardPage() {
             <h2 className="text-title-lg text-on-surface font-semibold">
               Lịch kỳ {selectedPeriod.periodName}
             </h2>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               {staffList.length > 0 && (
                 <div className="relative">
                   <select
@@ -385,7 +385,7 @@ export default function DashboardPage() {
               )}
               <Link
                 href="/monthly-schedule"
-                className="inline-flex items-center gap-1 text-label-sm text-primary hover:underline"
+                className="inline-flex items-center gap-1 text-label-sm text-primary hover:underline shrink-0"
               >
                 Mở lịch tháng
                 <span className="material-symbols-outlined text-[16px]">chevron_right</span>
@@ -414,7 +414,7 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <section className="space-y-3">
         <h2 className="text-title-lg text-on-surface font-semibold">Thao tác nhanh</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
           {QUICK_ACTIONS.map((action) => (
             <Link
               key={action.href}

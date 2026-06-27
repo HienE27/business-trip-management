@@ -2,7 +2,6 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
@@ -10,6 +9,7 @@ import { ROLE_LABELS } from "@/lib/roleLabels";
 import { useRole, canViewAuditLog } from "@/hooks/useRole";
 import type { Staff, Specialty, AuditHistory } from "@/types/api";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { BackButton } from "@/components/ui/BackButton";
 
 type StaffFormData = {
   username: string;
@@ -273,26 +273,7 @@ function StaffEditContent() {
 
   return (
     <>
-      {/* Back */}
-      <div className="flex items-center gap-3">
-        {staff ? (
-          <Link
-            href={`/staff/${staffId}`}
-            className="flex items-center gap-1.5 text-label-md text-on-surface-variant hover:text-primary transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-            Quay lại hồ sơ
-          </Link>
-        ) : (
-          <Link
-            href="/staff"
-            className="flex items-center gap-1.5 text-label-md text-on-surface-variant hover:text-primary transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-            Quay lại danh sách
-          </Link>
-        )}
-      </div>
+      <BackButton href="/staff" variant="full" label="Quay lại" className="mb-4" />
 
       {loading ? (
         <div className="flex items-center justify-center py-24">

@@ -35,7 +35,7 @@ export function DashboardShell({
         mobileOpen={mobileOpen}
         onClose={() => setMobileOpen(false)}
       />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden md:ml-64">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden lg:ml-60">
         <DashboardHeader
           title={title}
           description={description}
@@ -47,7 +47,7 @@ export function DashboardShell({
           id="main-content"
           tabIndex={-1}
         >
-          <div className="flex flex-col gap-3 md:gap-4">
+          <div className="flex flex-col gap-3 md:gap-4 max-w-[1440px] mx-auto w-full">
             {children}
           </div>
         </main>

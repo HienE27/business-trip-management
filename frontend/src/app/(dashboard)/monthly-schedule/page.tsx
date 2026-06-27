@@ -141,6 +141,7 @@ export default function MonthlySchedulePage() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
+  const [pendingLeaveRequests, setPendingLeaveRequests] = useState(0);
 
   const selectedPeriod = useMemo(
     () => periods.find((period) => period.id === selectedPeriodId) ?? null,
@@ -172,6 +173,7 @@ export default function MonthlySchedulePage() {
     compensationDays,
     requirements,
     focusDate,
+    pendingLeaveRequests,
   });
 
   const handlePeriodChange = useCallback((periodId: number) => {
@@ -181,6 +183,21 @@ export default function MonthlySchedulePage() {
     setSelectedConflict(null);
     setQueryState({ periodId });
   }, [wsActions, setQueryState]);
+
+  const handleAddDate = useCallback((date: Date) => {
+    if (!selectedPeriod) return;
+    const start = new Date(selectedPeriod.startDate);
+    const end = new Date(selectedPeriod.endDate);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    if (date >= start && date <= end) {
+      setAddModalDate(date);
+    }
+  }, [selectedPeriod]);
+
+  const handleViewDetail = useCallback((schedule: { id: number }) => {
+    openScheduleDetail(schedule.id);
+  }, [openScheduleDetail]);
 
   const handleRefresh = useCallback(() => {
     setLocalMessage(null);
@@ -198,6 +215,13 @@ export default function MonthlySchedulePage() {
       .then(setHolidays)
       .catch(() => setHolidays([]));
   }, [selectedPeriod]);
+
+  // Fetch pending leave requests count
+  useEffect(() => {
+    api.get<{ pending: number }>("/dashboard/leave-requests")
+      .then((res) => setPendingLeaveRequests(res.pending ?? 0))
+      .catch(() => setPendingLeaveRequests(0));
+  }, []);
 
   const handleCheckConflicts = useCallback(async () => {
     setCheckingConflicts(true);
@@ -391,17 +415,8 @@ export default function MonthlySchedulePage() {
           selectedTab={selectedTab}
           compensationDays={compensationDays}
           onRefresh={handleRefresh}
-          onAddDate={(date) => {
-            if (!selectedPeriod) return;
-            const start = new Date(selectedPeriod.startDate);
-            const end = new Date(selectedPeriod.endDate);
-            start.setHours(0, 0, 0, 0);
-            end.setHours(23, 59, 59, 999);
-            if (date >= start && date <= end) {
-              setAddModalDate(date);
-            }
-          }}
-          onViewDetail={(schedule) => openScheduleDetail(schedule.id)}
+          onAddDate={handleAddDate}
+          onViewDetail={handleViewDetail}
           onFilterTypeChange={(filter) => setQueryState({ tab: filter as "L01" | "L02" | "L03" | "L04" | "ALL" })}
         />
       </div>

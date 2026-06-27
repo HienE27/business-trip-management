@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { getRoleLabel } from "@/lib/roleLabels";
 import type { Staff, Schedule } from "@/types/api";
+import { BackButton } from "@/components/ui/BackButton";
 
 function getInitials(name: string) {
   return name
@@ -139,14 +140,8 @@ function StaffDetailContent() {
       )}
 
       {/* Back + Actions */}
+      <BackButton href="/staff" variant="full" className="mb-2" />
       <div className="flex items-center justify-between">
-        <Link
-          href="/staff"
-          className="flex items-center gap-1.5 text-label-md text-on-surface-variant hover:text-primary transition-colors"
-        >
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          Quay lại danh sách
-        </Link>
         <div className="flex items-center gap-3">
           <Link
             href={`/staff/${staffId}/edit`}

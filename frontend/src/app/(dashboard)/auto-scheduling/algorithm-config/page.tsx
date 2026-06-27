@@ -7,7 +7,8 @@ import { useRole } from "@/hooks/useRole";
 import { useToast } from "@/hooks/useToast";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
-import type { ApiResponse } from "@/types/api";
+import { BackButton } from "@/components/ui/BackButton";
+import type { AlgorithmMetrics, ApiResponse } from "@/types/api";
 
 /* ─── Types ──────────────────────────────────────────────── */
 
@@ -426,7 +427,7 @@ function MetricsHistory() {
     setLoading(true);
     try {
       const res = await api.getAllMetrics();
-      setMetrics(((res as unknown as { data: AlgorithmMetrics[] }).data ?? []).slice(0, 10));
+      setMetrics(((res as { data?: unknown[] })?.data ?? []).slice(0, 10) as AlgorithmMetrics[]);
     } catch {
       setMetrics([]);
     } finally {
@@ -461,8 +462,8 @@ function MetricsHistory() {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-surface-container-low border-b border-outline-variant">
-              {["Thuật toán", "Phủ lịch", "Cân bằng", "Xung đột", "Thời gian", "Ngày chạy", "Chi tiết"].map((h, i) => (
-                <th key={h} scope="col" className={`px-3 py-2.5 text-label-xs font-semibold uppercase tracking-wide text-on-surface-variant ${[1, 2, 3, 4].includes(i) ? "text-right" : ""}`}>
+              {["Thuật toán", "Tổng ca", "Phủ lịch", "Cân bằng", "Xung đột", "Thời gian", "Ngày chạy", "Chi tiết"].map((h, i) => (
+                <th key={h} scope="col" className={`px-3 py-2.5 text-label-xs font-semibold uppercase tracking-wide text-on-surface-variant ${[1, 2, 3, 4, 5].includes(i) ? "text-right" : ""}`}>
                   {h}
                 </th>
               ))}
@@ -483,24 +484,29 @@ function MetricsHistory() {
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-right">
+                  <span className="font-label-sm font-semibold text-on-surface">
+                    {m.totalSchedulesCreated ?? 0}
+                  </span>
+                </td>
+                <td className="px-3 py-2.5 text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <div className="w-12 bg-surface-variant rounded-full h-1">
-                      <div className={`h-1 rounded-full ${m.coverageRate >= 0.9 ? "bg-secondary" : m.coverageRate >= 0.7 ? "bg-tertiary" : "bg-error"}`}
-                        style={{ width: `${m.coverageRate * 100}%` }} />
+                      <div className={`h-1 rounded-full ${m.coverageRate >= 90 ? "bg-secondary" : m.coverageRate >= 70 ? "bg-tertiary" : "bg-error"}`}
+                        style={{ width: `${Math.min(100, m.coverageRate)}%` }} />
                     </div>
-                    <span className={`text-label-xs font-semibold w-9 text-right ${m.coverageRate >= 0.9 ? "text-secondary" : m.coverageRate >= 0.7 ? "text-tertiary" : "text-error"}`}>
-                      {Math.round(m.coverageRate * 100)}%
+                    <span className={`text-label-xs font-semibold w-9 text-right ${m.coverageRate >= 90 ? "text-secondary" : m.coverageRate >= 70 ? "text-tertiary" : "text-error"}`}>
+                      {Math.round(m.coverageRate)}%
                     </span>
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <div className="w-12 bg-surface-variant rounded-full h-1">
-                      <div className={`h-1 rounded-full ${m.balanceScore >= 0.75 ? "bg-secondary" : m.balanceScore >= 0.5 ? "bg-tertiary" : "bg-error"}`}
-                        style={{ width: `${m.balanceScore * 100}%` }} />
+                      <div className={`h-1 rounded-full ${m.balanceScore >= 75 ? "bg-secondary" : m.balanceScore >= 50 ? "bg-tertiary" : "bg-error"}`}
+                        style={{ width: `${Math.min(100, m.balanceScore)}%` }} />
                     </div>
-                    <span className={`text-label-xs font-semibold w-9 text-right ${m.balanceScore >= 0.75 ? "text-secondary" : m.balanceScore >= 0.5 ? "text-tertiary" : "text-error"}`}>
-                      {Math.round(m.balanceScore * 100)}%
+                    <span className={`text-label-xs font-semibold w-9 text-right ${m.balanceScore >= 75 ? "text-secondary" : m.balanceScore >= 50 ? "text-tertiary" : "text-error"}`}>
+                      {Math.round(m.balanceScore)}%
                     </span>
                   </div>
                 </td>
@@ -1166,6 +1172,8 @@ export default function AlgorithmConfigPage() {
 
   return (
     <div className="space-y-4">
+      <BackButton href="/auto-scheduling" variant="full" label="Quay lại" className="mb-2" />
+
       {/* Header row: title + tabs + action */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>

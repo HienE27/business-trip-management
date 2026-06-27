@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate, formatDateFull } from "@/lib/date";
+import { BackButton } from "@/components/ui/BackButton";
 import type { Schedule, ScheduleExchangeResponse, Staff, ConflictCheckResponse } from "@/types/api";
 
 type ExchangeStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
@@ -255,6 +256,8 @@ function SwapRequestsContent() {
   return (
     <>
       <div className="space-y-4">
+        <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-2" />
+
         {/* Stats Row - KPI Cards */}
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[

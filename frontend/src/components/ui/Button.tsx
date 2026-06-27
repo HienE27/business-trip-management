@@ -32,7 +32,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:   "bg-primary text-on-primary hover:opacity-90 hover:shadow-md active:scale-[0.98]",
   secondary: "border border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low hover:shadow-sm active:scale-[0.98]",
   danger:    "bg-error text-on-error hover:opacity-90 hover:shadow-md active:scale-[0.98]",
-  ghost:     "bg-transparent text-on-surface hover:bg-surface-container-low active:scale-[0.98]",
+  ghost:     "bg-transparent text-on-surface hover:bg-surface-container-low hover:shadow-sm active:scale-[0.98]",
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {

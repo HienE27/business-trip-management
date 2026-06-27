@@ -8,6 +8,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/hooks/useToast";
 import { Button, ConfirmDialog } from "@/components/ui";
+import { BackButton } from "@/components/ui/BackButton";
 
 type Holiday = {
   id: number;
@@ -171,6 +172,8 @@ function HolidaysContent() {
 
   return (
     <div className="space-y-6">
+      <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-2" />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>

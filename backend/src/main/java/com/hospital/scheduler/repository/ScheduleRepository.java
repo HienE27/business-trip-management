@@ -179,4 +179,11 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
      */
     @Query("SELECT s.period.id, s.workDate, s.shiftType.id, COUNT(s) FROM Schedule s WHERE s.period.id = :periodId GROUP BY s.period.id, s.workDate, s.shiftType.id")
     List<Object[]> countGroupedByPeriodWorkDateShiftType(@Param("periodId") Integer periodId);
+
+    /**
+     * Batch query: count ALL schedules grouped by period, workDate, and shiftType.
+     * For use with paginated shift requirements.
+     */
+    @Query("SELECT s.period.id, s.workDate, s.shiftType.id, COUNT(s) FROM Schedule s GROUP BY s.period.id, s.workDate, s.shiftType.id")
+    List<Object[]> countGroupedByPeriodWorkDateShiftType();
 }

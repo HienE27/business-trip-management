@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { memo, useId } from "react";
 
 type CoverageInspectorProps = {
   coverageGaps: string[];
@@ -10,7 +10,7 @@ type CoverageInspectorProps = {
 
 // Material Symbols uses ligature: rendering depends on the font.
 // Wrap icon in a fixed-width box so the text content never escapes.
-function Icon({ name, className = "" }: { name: string; className?: string }) {
+const Icon = memo(function Icon({ name, className = "" }: { name: string; className?: string }) {
   return (
     <span
       className={`relative inline-flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden text-[18px] leading-none ${className}`}
@@ -21,9 +21,9 @@ function Icon({ name, className = "" }: { name: string; className?: string }) {
       </i>
     </span>
   );
-}
+});
 
-export function CoverageInspector({
+export const CoverageInspector = memo(function CoverageInspector({
   coverageGaps,
   hasCoverageGaps,
   totalCoverageGaps,
@@ -70,4 +70,4 @@ export function CoverageInspector({
       </div>
     </section>
   );
-}
+});

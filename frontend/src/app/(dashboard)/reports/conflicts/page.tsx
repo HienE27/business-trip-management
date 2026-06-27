@@ -5,6 +5,7 @@ import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { BackButton } from "@/components/ui/BackButton";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import type { SchedulePeriod, ConflictCheckResponse, ConflictDetail } from "@/types/api";
 
@@ -72,6 +73,8 @@ function ReportsConflictsContent() {
 
   return (
     <>
+      <BackButton href="/reports" variant="full" label="Quay lại" className="mb-4" />
+
       {/* Period selector */}
       <section className="flex items-center justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
         <div className="flex items-center gap-4">

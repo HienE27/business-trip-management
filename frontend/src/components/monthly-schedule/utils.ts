@@ -118,7 +118,8 @@ export function buildCalendarAnnotations(compensationDays: CompensationDay[], co
   // Group compensation days by date, list all staff on that date
   const compByDate = new Map<string, CompensationDay[]>();
   for (const cd of compensationDays) {
-    const key = cd.compensationDate.split("T")[0];
+    // Use substring instead of split for better performance
+    const key = cd.compensationDate.substring(0, 10);
     if (!compByDate.has(key)) compByDate.set(key, []);
     compByDate.get(key)!.push(cd);
   }
@@ -136,7 +137,8 @@ export function buildCalendarAnnotations(compensationDays: CompensationDay[], co
   // Group conflicts by date
   const conflictByDate = new Map<string, ConflictDetail[]>();
   for (const conflict of conflicts) {
-    const key = conflict.workDate.split("T")[0];
+    // Use substring instead of split for better performance
+    const key = conflict.workDate.substring(0, 10);
     if (!conflictByDate.has(key)) conflictByDate.set(key, []);
     conflictByDate.get(key)!.push(conflict);
   }
@@ -159,7 +161,8 @@ export function buildCoverageMap(
   const includeAll = !filter?.shiftTypeId || filter.shiftTypeId === "ALL";
   for (const req of requirements) {
     if (!includeAll && req.shiftType.id !== filter?.shiftTypeId) continue;
-    const key = req.workDate.split("T")[0];
+    // Use substring instead of split for better performance
+    const key = req.workDate.substring(0, 10);
     const prev = map[key] ?? { required: 0, assigned: 0 };
     map[key] = {
       required: prev.required + req.requiredStaffCount,
@@ -184,7 +187,7 @@ export function buildWorkloadSnapshot(schedules: Schedule[], limit = 5): Workloa
 }
 
 export function buildConflictKeys(conflicts: ConflictDetail[]) {
-  return new Set(conflicts.map((conflict) => `${conflict.workDate.split("T")[0]}-${conflict.shiftTypeId}`));
+  return new Set(conflicts.map((conflict) => `${conflict.workDate.substring(0, 10)}-${conflict.shiftTypeId}`));
 }
 
 export function buildOperationalKpis(params: {
@@ -192,21 +195,33 @@ export function buildOperationalKpis(params: {
   requirements: ShiftRequirement[];
   conflictList: { shiftTypeId: string }[];
   activeStaff: Staff[];
+  pendingLeaveRequests?: number;
 }): OperationalKpi[] {
-  const { schedules, requirements, conflictList, activeStaff } = params;
-  const required = requirements.reduce((sum, req) => sum + req.requiredStaffCount, 0);
-  const assigned = requirements.reduce((sum, req) => sum + req.assignedStaffCount, 0);
-  const coverage = required > 0 ? Math.round((assigned / required) * 100) : schedules.length > 0 ? 100 : 0;
-  const understaffedDays = new Set(
-    requirements
-      .filter((req) => req.assignedStaffCount < req.requiredStaffCount)
-      .map((req) => req.workDate.split("T")[0]),
-  ).size;
+  const { schedules, requirements, conflictList, activeStaff, pendingLeaveRequests = 0 } = params;
+
+  // Single-pass aggregation for better performance
+  let required = 0;
+  let assigned = 0;
+  const understaffedDaysSet = new Set<string>();
   const l01ByStaff = new Map<number, number>();
-  for (const schedule of schedules) {
-    if (schedule.shiftType.id !== "L01") continue;
-    l01ByStaff.set(schedule.staff.id, (l01ByStaff.get(schedule.staff.id) ?? 0) + 1);
+
+  for (const req of requirements) {
+    required += req.requiredStaffCount;
+    assigned += req.assignedStaffCount;
+    if (req.assignedStaffCount < req.requiredStaffCount) {
+      // Use substring instead of split for better performance
+      understaffedDaysSet.add(req.workDate.substring(0, 10));
+    }
   }
+
+  for (const schedule of schedules) {
+    if (schedule.shiftType.id === "L01") {
+      l01ByStaff.set(schedule.staff.id, (l01ByStaff.get(schedule.staff.id) ?? 0) + 1);
+    }
+  }
+
+  const coverage = required > 0 ? Math.round((assigned / required) * 100) : schedules.length > 0 ? 100 : 0;
+  const understaffedDays = understaffedDaysSet.size;
   const fatigueRisk = Array.from(l01ByStaff.values()).filter((count) => count >= 4).length;
   const openConflicts = conflictList.length > 0
     ? conflictList.length
@@ -239,10 +254,10 @@ export function buildOperationalKpis(params: {
     },
     {
       label: "Ảnh hưởng nghỉ phép",
-      value: "N/A",
-      helper: "Workspace hiện chưa nạp dữ liệu nghỉ phép chờ duyệt",
-      tone: "neutral",
-      trend: "Cần tích hợp nguồn leave request",
+      value: pendingLeaveRequests,
+      helper: pendingLeaveRequests > 0 ? "Yêu cầu nghỉ phép đang chờ duyệt" : "Không có yêu cầu nghỉ phép",
+      tone: pendingLeaveRequests > 0 ? "warning" : "success",
+      trend: pendingLeaveRequests > 0 ? "Cần duyệt/điều phối" : "Không ảnh hưởng",
       icon: "event_busy",
     },
     {

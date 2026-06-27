@@ -211,6 +211,28 @@ class ApiClient {
     return this.request<void>(`/staff/${id}`, { method: "DELETE" });
   }
 
+  async importStaff(file: File): Promise<{ imported: number; errors: string[] }> {
+    const token = getStoredToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const response = await fetch(`${API_BASE}/staff/import`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "Unknown error");
+      throw new Error(`Import failed (${response.status}): ${text}`);
+    }
+
+    return response.json();
+  }
+
   // Schedule
   async getSchedulesByPeriod(periodId: number): Promise<ApiResponse<Schedule[]>> {
     return this.request<Schedule[]>(`/schedules/period/${periodId}`);
@@ -777,6 +799,22 @@ class ApiClient {
 
   async getActiveSpecialties(): Promise<ApiResponse<Specialty[]>> {
     return this.request<Specialty[]>("/specialties/active");
+  }
+
+  async getSpecialtyById(id: number): Promise<ApiResponse<Specialty>> {
+    return this.request<Specialty>(`/specialties/${id}`);
+  }
+
+  async createSpecialty(data: { name: string; description?: string }): Promise<ApiResponse<Specialty>> {
+    return this.request<Specialty>("/specialties", { method: "POST", body: JSON.stringify(data) });
+  }
+
+  async updateSpecialty(id: number, data: { name: string; description?: string; isActive?: boolean }): Promise<ApiResponse<Specialty>> {
+    return this.request<Specialty>(`/specialties/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  }
+
+  async deleteSpecialty(id: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/specialties/${id}`, { method: "DELETE" });
   }
 
   // Holidays

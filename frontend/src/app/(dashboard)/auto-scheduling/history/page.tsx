@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
+import { BackButton } from "@/components/ui/BackButton";
 import type { AlgorithmMetrics, ApiResponse, SchedulePeriod } from "@/types/api";
 
 const CompareModal = dynamic(
@@ -94,6 +95,12 @@ function RunRow({ run, periodName, isSelected, onToggle, canSelectTwo }: RunRowP
           {ALGO_LABELS[run.algorithmType] ?? run.algorithmType}
         </span>
       </td>
+      {/* Total Shifts */}
+      <td className="py-2 px-4">
+        <span className="font-label-sm text-label-sm font-semibold text-on-surface">
+          {run.totalSchedulesCreated ?? 0}
+        </span>
+      </td>
       {/* Coverage */}
       <td className="py-2 px-4">
         <CoverageBar value={run.coverageRate} />
@@ -101,7 +108,7 @@ function RunRow({ run, periodName, isSelected, onToggle, canSelectTwo }: RunRowP
       {/* Balance */}
       <td className="py-2 px-4">
         <span className="font-label-sm text-label-sm font-semibold text-on-surface">
-          {run.balanceScore.toFixed ? run.balanceScore.toFixed(2) : run.balanceScore}
+          {(run.balanceScore ?? 0).toFixed(1)}%
         </span>
       </td>
       {/* Conflicts */}
@@ -185,6 +192,8 @@ function AlgorithmHistoryContent() {
 
   return (
     <div className="space-y-5">
+      <BackButton href="/auto-scheduling" variant="full" label="Quay lại" className="mb-2" />
+
       {message && (
         <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
           <div className="flex items-start gap-2">
@@ -284,6 +293,7 @@ function AlgorithmHistoryContent() {
                   <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thời gian</th>
                   <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Kỳ lịch</th>
                   <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thuật toán</th>
+                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Tổng ca</th>
                   <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Độ phủ</th>
                   <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Cân bằng</th>
                   <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Xung đột</th>

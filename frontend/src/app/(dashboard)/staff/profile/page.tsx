@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { ROLE_LABELS } from "@/lib/roleLabels";
 import type { Staff, Schedule, SchedulePeriod } from "@/types/api";
 import { SHIFT_COLORS, SHIFT_TYPE_BADGES } from "@/lib/shift-colors";
+import { BackButton } from "@/components/ui/BackButton";
 
 function getInitials(name: string): string {
   return name
@@ -150,6 +151,8 @@ export default function StaffProfilePage() {
           {message}
         </div>
       )}
+
+      <BackButton href="/dashboard" variant="full" />
 
       {/* Hero Section */}
       <section className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">

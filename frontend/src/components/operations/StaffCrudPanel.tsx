@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { getRoleLabel, ROLE_LABELS } from "@/lib/roleLabels";
 import { useToast } from "@/hooks/useToast";
 import { FormInput, FormSelect, Button, ConfirmDialog } from "@/components/ui";
+import { SpecialtyCrudPanel } from "./SpecialtyCrudPanel";
 import type { Specialty } from "@/types/api";
 
 type SpecialtyInfo = {
@@ -114,6 +115,7 @@ function getStatusDot(record: StaffResponse) {
 export function StaffCrudPanel() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<"staff" | "specialties">("staff");
   const [records, setRecords] = useState<StaffResponse[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [form, setForm] = useState<StaffFormData>(emptyForm);
@@ -202,6 +204,12 @@ export function StaffCrudPanel() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchKeyword, statusFilter, roleFilter, specialtyFilter, positionFilter]);
+
+  // Safety net: ensure form is closed on initial mount
+  // This fixes hydration/SSR edge cases where form might appear open
+  useEffect(() => {
+    setFormOpen(false);
+  }, []);
 
   const summary = useMemo(
     () => [
@@ -305,6 +313,29 @@ export function StaffCrudPanel() {
     a.download = `danh-sach-nhan-su-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  const [importing, setImporting] = useState(false);
+
+  async function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const result = await api.importStaff(file);
+      if (result.errors && result.errors.length > 0) {
+        toast.warning(`Đã nhập ${result.imported} nhân sự, có ${result.errors.length} lỗi.`);
+      } else {
+        toast.success(`Đã nhập thành công ${result.imported} nhân sự.`);
+      }
+      await fetchStaff();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Lỗi nhập file"));
+    } finally {
+      setImporting(false);
+      if (event.target) event.target.value = "";
+    }
   }
 
   function updateField(field: keyof StaffFormData, value: string | number | null) {
@@ -413,21 +444,59 @@ export function StaffCrudPanel() {
     }
   }
 
+  if (activeTab === "specialties") {
+    return <SpecialtyCrudPanel onBack={() => setActiveTab("staff")} />;
+  }
+
   return (
     <div className="space-y-6">
-      {/* Slide-in Drawer */}
+      {/* Tabs */}
+      <nav aria-label="Đường dẫn" className="flex items-center gap-2 text-label-md text-on-surface-variant">
+        <span className="material-symbols-outlined text-[18px]">groups</span>
+        <span className="text-on-surface font-medium">Nhân sự</span>
+      </nav>
+
+      <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant w-fit">
+        <button
+          type="button"
+          onClick={() => setActiveTab("staff")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all ${
+            activeTab === "staff"
+              ? "bg-primary text-on-primary shadow-sm"
+              : "text-on-surface-variant hover:bg-surface-container-high"
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px]">groups</span>
+          Nhân viên
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("specialties")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all ${
+            activeTab === "specialties"
+              ? "bg-primary text-on-primary shadow-sm"
+              : "text-on-surface-variant hover:bg-surface-container-high"
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px]">stethoscope</span>
+          Chuyên khoa
+        </button>
+      </div>
+
+      {/* Slide-in Drawer - only render when open */}
+      {formOpen && (
       <div
         aria-label="Form nhân sự"
         aria-modal="true"
-        className={`fixed inset-0 z-50 flex justify-end ${formOpen ? "pointer-events-auto" : "pointer-events-none"}`}
+        className="fixed inset-0 z-50 flex justify-end pointer-events-auto"
         role="dialog"
       >
         <div
-          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${formOpen ? "opacity-100" : "opacity-0"}`}
+          className="absolute inset-0 bg-black/40 transition-opacity duration-300 opacity-100"
           onClick={closeForm}
         />
         <div
-          className={`relative flex flex-col w-full max-w-[420px] h-full bg-surface-container-lowest shadow-sm transition-transform duration-300 ease-out ${formOpen ? "translate-x-0" : "translate-x-full"}`}
+          className="relative flex flex-col w-full max-w-[420px] h-full bg-surface-container-lowest shadow-sm transition-transform duration-300 ease-out translate-x-0"
         >
           <div className="flex items-center justify-between px-6 py-5 border-b border-outline-variant shrink-0">
             <div className="flex items-center gap-3">
@@ -495,18 +564,54 @@ export function StaffCrudPanel() {
                   disabled={submitting}
                 />
 
-                <FormSelect
-                  label="Vai trò"
-                  value={form.roles[0] ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, roles: e.target.value ? [e.target.value] : [] }))}
-                  options={[
-                    { value: "ADMIN", label: ROLE_LABELS.ADMIN },
-                    { value: "MANAGER", label: ROLE_LABELS.MANAGER },
-                    { value: "STAFF", label: ROLE_LABELS.STAFF },
-                  ]}
-                  placeholder="Chọn vai trò"
-                  disabled={submitting}
-                />
+                <div className="space-y-1.5">
+                  <label className="text-label-sm font-medium text-on-surface">Vai trò</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { value: "ADMIN", label: ROLE_LABELS.ADMIN },
+                      { value: "MANAGER", label: ROLE_LABELS.MANAGER },
+                      { value: "STAFF", label: ROLE_LABELS.STAFF },
+                    ].map((role) => {
+                      const checked = form.roles.includes(role.value);
+                      return (
+                        <label
+                          key={role.value}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-label-md ${
+                            checked
+                              ? "bg-primary/10 border-primary text-primary font-medium"
+                              : "bg-surface-container-low border-outline-variant text-on-surface-variant hover:border-primary/50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={checked}
+                            onChange={(e) => {
+                              setForm((f) => ({
+                                ...f,
+                                roles: e.target.checked
+                                  ? [...f.roles, role.value]
+                                  : f.roles.filter((r) => r !== role.value),
+                              }));
+                            }}
+                          />
+                          <span
+                            className={`material-symbols-outlined text-[16px] transition-colors ${
+                              checked ? "text-primary" : "text-outline"
+                            }`}
+                            aria-hidden="true"
+                          >
+                            {checked ? "check_box" : "check_box_outline_blank"}
+                          </span>
+                          {role.label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {form.roles.length === 0 && (
+                    <p className="text-label-xs text-error">Vui lòng chọn ít nhất một vai trò.</p>
+                  )}
+                </div>
 
                 <FormInput
                   label={editingId !== null ? "Mật khẩu mới (bỏ trống = giữ nguyên)" : "Mật khẩu"}
@@ -613,6 +718,7 @@ export function StaffCrudPanel() {
           </div>
         </div>
       </div>
+      )}
 
       <section className="flex flex-col justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 md:p-5 shadow-sm sm:flex-row sm:items-center">
         <div className="flex items-start gap-3">
@@ -627,6 +733,21 @@ export function StaffCrudPanel() {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <button
+            className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 h-10 text-label-md font-medium text-on-surface shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            onClick={() => document.getElementById("staff-import-input")?.click()}
+            type="button"
+          >
+            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">upload</span>
+            Nhập Excel
+          </button>
+          <input
+            id="staff-import-input"
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={handleImportFile}
+          />
           <button
             className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 h-10 text-label-md font-medium text-on-surface shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             onClick={handleExportExcel}

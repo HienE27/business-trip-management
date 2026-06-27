@@ -30,6 +30,13 @@ export function CompareModal({ runA, runB, periodNameA, periodNameB, onClose }: 
       b: ALGO_LABELS[runB.algorithmType ?? ""] ?? runB.algorithmType ?? "—",
     },
     {
+      label: "Tổng ca tạo được",
+      a: runA.totalSchedulesCreated ?? 0,
+      b: runB.totalSchedulesCreated ?? 0,
+      aGood: (runA.totalSchedulesCreated ?? 0) >= (runB.totalSchedulesCreated ?? 0),
+      bGood: (runB.totalSchedulesCreated ?? 0) >= (runA.totalSchedulesCreated ?? 0),
+    },
+    {
       label: "Độ phủ (Coverage)",
       a: `${(runA.coverageRate ?? 0).toFixed(1)}%`,
       b: `${(runB.coverageRate ?? 0).toFixed(1)}%`,
@@ -38,8 +45,8 @@ export function CompareModal({ runA, runB, periodNameA, periodNameB, onClose }: 
     },
     {
       label: "Điểm cân bằng (Balance)",
-      a: typeof runA.balanceScore === "number" ? runA.balanceScore.toFixed(2) : String(runA.balanceScore ?? 0),
-      b: typeof runB.balanceScore === "number" ? runB.balanceScore.toFixed(2) : String(runB.balanceScore ?? 0),
+      a: `${(runA.balanceScore ?? 0).toFixed(1)}%`,
+      b: `${(runB.balanceScore ?? 0).toFixed(1)}%`,
       aGood: (runA.balanceScore ?? 0) >= (runB.balanceScore ?? 0),
       bGood: (runB.balanceScore ?? 0) >= (runA.balanceScore ?? 0),
     },

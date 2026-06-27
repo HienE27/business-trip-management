@@ -736,13 +736,27 @@ public class ConflictDetectionService {
         List<String> gaps = new ArrayList<>();
         List<ShiftRequirement> requirements = shiftRequirementRepository.findByPeriodId(periodId);
 
+        if (requirements.isEmpty()) {
+            return gaps;
+        }
+
+        // OPTIMIZATION: batch load all counts in ONE query instead of N individual queries
+        Map<String, Long> countMap = new java.util.HashMap<>();
+        for (Object[] row : scheduleRepository.countGroupedByPeriodWorkDateShiftType(periodId)) {
+            Integer pid = (Integer) row[0];
+            LocalDate date = (LocalDate) row[1];
+            String shiftTypeId = (String) row[2];
+            Long cnt = (Long) row[3];
+            countMap.put(pid + "_" + date + "_" + shiftTypeId, cnt);
+        }
+
         for (ShiftRequirement requirement : requirements) {
             LocalDate workDate = requirement.getWorkDate();
             String shiftTypeId = requirement.getShiftType().getId();
             int requiredCount = requirement.getRequiredStaffCount();
 
-            long assignedCount = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
-                    periodId, workDate, shiftTypeId);
+            long assignedCount = countMap.getOrDefault(
+                    periodId + "_" + workDate + "_" + shiftTypeId, 0L);
 
             if (assignedCount < requiredCount) {
                 gaps.add(String.format("Ngày %s, %s: cần %d nhân sự nhưng chỉ có %d",

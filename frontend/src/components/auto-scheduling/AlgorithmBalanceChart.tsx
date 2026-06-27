@@ -12,9 +12,9 @@
  * already-committed data.
  *
  * Colour coding:
- *   - within ~60% of the per-staff cap  → green  (balanced)
- *   - > cap                           → amber   (caution)
- *   - >= 1.5× cap                     → red     (overloaded)
+ *   - ratio ≤ 1.0 (within average)  → green  (balanced)
+ *   - ratio > 1.0 && ≤ 1.5          → amber   (caution)
+ *   - ratio >= 1.5                   → red     (overloaded)
  */
 
 import { useMemo } from 'react';
@@ -22,8 +22,6 @@ import type { AutoScheduleSummary } from '@/types/api';
 
 export interface AlgorithmBalanceChartProps {
   schedules: AutoScheduleSummary[];
-  /** Staff caps keyed by staffId. Falls back to 5 (Staff default maxShiftsPerMonth) if absent. */
-  staffCaps?: Record<number, number>;
   /** Caption used in the heading. */
   title?: string;
   /** Caption used in the footer. */
@@ -39,7 +37,7 @@ interface StaffAggregate {
   L03: number;
   L04: number;
   total: number;
-  cap: number;
+  avg: number;
   ratio: number;
   status: 'balanced' | 'caution' | 'overloaded';
 }
@@ -78,7 +76,6 @@ function StatusBadge({ status }: { status: StaffAggregate['status'] }) {
 
 export function AlgorithmBalanceChart({
   schedules,
-  staffCaps = {},
   title = 'Cân bằng tải',
   subtitle = 'Sắp xếp đề xuất trước khi xác nhận',
   limit = 12,
@@ -93,7 +90,7 @@ export function AlgorithmBalanceChart({
           staffId: s.staffId,
           staffName: s.staffName,
           L01: 0, L02: 0, L03: 0, L04: 0, total: 0,
-          cap: staffCaps[s.staffId] ?? 5,
+          avg: 0,
           ratio: 0,
           status: 'balanced',
         });
@@ -108,15 +105,20 @@ export function AlgorithmBalanceChart({
       agg.total++;
     }
 
+    const staffCount = map.size;
+    const grandTotal = Array.from(map.values()).reduce((sum, a) => sum + a.total, 0);
+    const avg = staffCount > 0 ? grandTotal / staffCount : 0;
+
     for (const agg of map.values()) {
-      agg.ratio = agg.cap > 0 ? agg.total / agg.cap : 0;
+      agg.avg = avg;
+      agg.ratio = avg > 0 ? agg.total / avg : 0;
       agg.status = classify(agg.ratio);
     }
 
     return Array.from(map.values())
       .sort((a, b) => b.ratio - a.ratio)
       .slice(0, limit);
-  }, [schedules, staffCaps, limit]);
+  }, [schedules, limit]);
 
   if (rows.length === 0) {
     return (
@@ -133,6 +135,7 @@ export function AlgorithmBalanceChart({
     );
   }
 
+  // maxRatio normalises the bar widths; the "avg" line is always at 100%
   const maxRatio = Math.max(...rows.map((r) => r.ratio), 1);
 
   return (
@@ -163,7 +166,6 @@ export function AlgorithmBalanceChart({
         <ul className="space-y-2" role="list">
           {rows.map((row) => {
             const barWidth = maxRatio > 0 ? Math.min(100, (row.ratio / maxRatio) * 100) : 0;
-            const capPos = maxRatio > 0 ? (row.cap / maxRatio) * 100 : 0;
             const color = barColor(row.status);
             const pct = row.ratio * 100;
 
@@ -173,22 +175,24 @@ export function AlgorithmBalanceChart({
                 data-testid="algo-balance-row"
                 className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors"
               >
-                {/* Staff name + ratio */}
+                {/* Staff name + count */}
                 <div className="w-40 shrink-0">
                   <p className="text-label-sm font-medium text-on-surface truncate" title={row.staffName}>
                     {row.staffName}
                   </p>
-                  <p className="text-label-xs text-on-surface-variant">{row.total} / {row.cap} ca</p>
+                  <p className="text-label-xs text-on-surface-variant">
+                    {row.total} ca / TB {row.avg.toFixed(1)}
+                  </p>
                 </div>
 
                 {/* Progress bar */}
                 <div className="flex-1 space-y-1">
                   <div className="relative h-5 bg-surface-variant rounded-full overflow-hidden">
-                    {/* Cap marker */}
+                    {/* Average marker — always at 100% (represents avg) */}
                     <span
                       aria-hidden
                       className="absolute top-0 bottom-0 w-px bg-outline z-10"
-                      style={{ left: `${Math.min(100, capPos)}%` }}
+                      style={{ left: `${Math.min(100, (1 / maxRatio) * 100)}%` }}
                     />
                     <svg
                       width="100%"
@@ -208,7 +212,7 @@ export function AlgorithmBalanceChart({
                         rx={4}
                         fill={color}
                       />
-                      <title>{`${row.staffName}: ${row.total} ca / giới hạn ${row.cap} (${pct.toFixed(0)}%)`}</title>
+                      <title>{`${row.staffName}: ${row.total} ca / TB ${row.avg.toFixed(1)} (${pct.toFixed(0)}%)`}</title>
                     </svg>
                   </div>
                 </div>
@@ -245,7 +249,7 @@ export function AlgorithmBalanceChart({
           </span>
           <span className="ml-auto flex items-center gap-1.5">
             <span className="w-px h-3 bg-outline" aria-hidden="true" />
-            Ngưỡng cho phép
+            Đường TB
           </span>
         </div>
       </div>

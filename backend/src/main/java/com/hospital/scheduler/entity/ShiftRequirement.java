@@ -9,7 +9,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "shift_requirement")
+@Table(name = "shift_requirement", indexes = {
+    @Index(name = "idx_shift_req_period_date", columnList = "period_id, work_date"),
+    @Index(name = "idx_shift_req_period_type_date", columnList = "period_id, shift_type_id, work_date")
+})
 @Getter
 @Setter
 @NoArgsConstructor

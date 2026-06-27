@@ -55,7 +55,7 @@ const MatrixRowCell = memo(function MatrixRowCell({ row, staffId, staffName, onC
   if (items.length === 1) {
     return (
       <td className="border-b border-r border-outline-variant p-1 align-top h-16">
-        <ShiftChip item={items[0]} compact onClick={(e) => onItemClick(items[0], e)} />
+        <MemoizedShiftChip item={items[0]} compact onClick={(e) => onItemClick(items[0], e)} />
       </td>
     );
   }
@@ -66,7 +66,7 @@ const MatrixRowCell = memo(function MatrixRowCell({ row, staffId, staffName, onC
     <td className="border-b border-r border-outline-variant p-1 align-top h-16">
       <div className="space-y-0.5">
         {visible.map((item, i) => (
-          <ShiftChip key={i} item={item} compact onClick={(e) => onItemClick(item, e)} />
+          <MemoizedShiftChip key={i} item={item} compact onClick={(e) => onItemClick(item, e)} />
         ))}
         {overflow > 0 && (
           <div className="rounded border border-primary/20 bg-primary/5 px-1 py-0.5 text-[10px] font-semibold text-primary text-center">
@@ -136,6 +136,9 @@ function ShiftChip({
   );
 }
 
+// Memoize ShiftChip to prevent re-renders on every matrix cell
+const MemoizedShiftChip = memo(ShiftChip);
+
 export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
   schedules,
   staffList,
@@ -177,11 +180,12 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
   );
 
   // Pre-compute total shifts per staff (memoized — avoids O(n*m) inside map)
+  // Use string prefix matching instead of Date parsing for better performance
   const staffShiftCounts = useMemo(() => {
     const counts = new Map<number, number>();
+    const targetPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
     for (const s of schedules) {
-      const d = new Date(s.workDate);
-      if (d.getFullYear() === year && d.getMonth() === month) {
+      if (s.workDate.startsWith(targetPrefix)) {
         counts.set(s.staff.id, (counts.get(s.staff.id) ?? 0) + 1);
       }
     }
@@ -203,6 +207,14 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
       }
     },
     [onItemClickOverride]
+  );
+
+  // Stable onCellClick for MatrixRowCell - only changes when onCellClick prop changes
+  const stableOnCellClick = useCallback(
+    onCellClick
+      ? (date: Date, staffId: number) => onCellClick(date, staffId)
+      : undefined,
+    [onCellClick]
   );
 
   if (staffList.length === 0) {
@@ -298,7 +310,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                       row={row}
                       staffId={staff.id}
                       staffName={staff.fullName}
-                      onCellClick={onCellClick}
+                      onCellClick={stableOnCellClick}
                       onItemClick={handleCellClick}
                     />
                   ))}

@@ -2,11 +2,11 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
 import { ROLE_LABELS } from "@/lib/roleLabels";
+import { BackButton } from "@/components/ui/BackButton";
 import type { Specialty } from "@/types/api";
 
 type StaffFormData = {
@@ -108,15 +108,7 @@ function StaffCreateContent() {
 
   return (
     <>
-      <div className="flex items-center gap-3">
-        <Link
-          href="/staff"
-          className="flex items-center gap-1.5 text-label-md text-on-surface-variant hover:text-primary transition-colors"
-        >
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          Quay lại danh sách
-        </Link>
-      </div>
+      <BackButton href="/staff" variant="full" label="Quay lại" className="mb-4" />
 
       {loading ? (
         <div className="flex items-center justify-center py-24">

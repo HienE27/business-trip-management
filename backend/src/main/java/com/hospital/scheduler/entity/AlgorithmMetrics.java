@@ -40,6 +40,10 @@ public class AlgorithmMetrics {
     @Builder.Default
     private Integer conflictCount = 0;
 
+    @Column(name = "total_schedules_created")
+    @Builder.Default
+    private Integer totalSchedulesCreated = 0;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
