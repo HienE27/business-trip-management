@@ -73,7 +73,7 @@ export function ConflictResolutionModal({
       if (resolution === "remove") {
         await api.deleteSchedule(scheduleId);
       } else if (resolution === "override") {
-        await api.put(`/schedules/${scheduleId}/override`, { reason });
+        await api.overrideScheduleConflict(scheduleId, reason);
       } else if (resolution === "reassign") {
         if (!selectedReplacementId) {
           setError("Vui lòng chọn nhân sự thay thế.");

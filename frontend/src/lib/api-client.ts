@@ -277,6 +277,13 @@ class ApiClient {
     return this.request<void>(`/schedules/${id}`, { method: "DELETE" });
   }
 
+  async overrideScheduleConflict(id: number, reason: string): Promise<ApiResponse<Schedule>> {
+    return this.request<Schedule>(`/schedules/${id}/override`, {
+      method: "PUT",
+      body: JSON.stringify({ reason }),
+    });
+  }
+
   async checkConflicts(periodId: number): Promise<ApiResponse<ConflictCheckResponse>> {
     return this.request<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`);
   }

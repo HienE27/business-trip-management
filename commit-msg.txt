@@ -1,5 +1,0 @@
-fix(audit): use correct paginated repository methods
-
-- AuditHistoryService.getAllAuditHistory: return Page instead of List
-- Use findByTableNameAndRecordIdWithChangedBy for audit by table
-- AuditHistoryServiceTest: update to match new method signatures
