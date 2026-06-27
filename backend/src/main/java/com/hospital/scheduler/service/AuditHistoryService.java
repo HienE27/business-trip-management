@@ -26,17 +26,16 @@ public class AuditHistoryService {
     private final StaffRepository staffRepository;
     private final ObjectMapper objectMapper;
 
-    public List<AuditHistoryResponse> getAllAuditHistory(int page, int size) {
+    public Page<AuditHistoryResponse> getAllAuditHistory(int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return auditHistoryRepository.findAllWithChangedBy(pageable).stream()
-                .map(AuditHistoryResponse::fromEntity)
-                .collect(Collectors.toList());
+        return auditHistoryRepository.findAllWithChangedBy(pageable)
+                .map(AuditHistoryResponse::fromEntity);
     }
 
     public List<AuditHistoryResponse> getAuditHistoryByTableAndRecord(String tableName, Object recordId) {
         Integer id = recordId instanceof Integer ? (Integer) recordId
                   : recordId instanceof String ? Integer.parseInt((String) recordId) : null;
-        return auditHistoryRepository.findByTableNameAndRecordId(tableName, id).stream()
+        return auditHistoryRepository.findByTableNameAndRecordIdWithChangedBy(tableName, id).stream()
                 .map(AuditHistoryResponse::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -49,7 +48,9 @@ public class AuditHistoryService {
 
     public Page<AuditHistoryResponse> getAuditHistoryByTableAndRecord(String tableName, Object recordId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return auditHistoryRepository.findByTableNameAndRecordId(tableName, recordId, pageable)
+        Integer id = recordId instanceof Integer ? (Integer) recordId
+                  : recordId instanceof String ? Integer.parseInt((String) recordId) : null;
+        return auditHistoryRepository.findByTableNameAndRecordId(tableName, id, pageable)
                 .map(AuditHistoryResponse::fromEntity);
     }
 

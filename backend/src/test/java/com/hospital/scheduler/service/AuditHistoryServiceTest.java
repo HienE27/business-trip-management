@@ -16,9 +16,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -93,19 +99,22 @@ class AuditHistoryServiceTest {
     }
 
     @Test
-    @DisplayName("getAllAuditHistory -> trả về danh sách")
+    @DisplayName("getAllAuditHistory -> trả về Page")
     void getAll() {
-        when(auditHistoryRepository.findAll()).thenReturn(List.of(testLog));
+        Pageable pageable = PageRequest.of(0, 50);
+        when(auditHistoryRepository.findAllWithChangedBy(pageable))
+                .thenReturn(new PageImpl<>(List.of(testLog), pageable, 1));
 
-        var result = service.getAllAuditHistory();
+        var result = service.getAllAuditHistory(0, 50);
 
-        assertThat(result).hasSize(1);
+        assertThat(result.getTotalElements()).isEqualTo(1);
     }
 
     @Test
     @DisplayName("getAuditHistoryByTableAndRecord với recordId Integer")
     void getByTableAndRecord() {
-        when(auditHistoryRepository.findByTableNameAndRecordId("schedule", 100))
+        Pageable pageable = PageRequest.of(0, 50);
+        when(auditHistoryRepository.findByTableNameAndRecordIdWithChangedBy("schedule", 100))
                 .thenReturn(List.of(testLog));
 
         var result = service.getAuditHistoryByTableAndRecord("schedule", 100);
@@ -116,7 +125,7 @@ class AuditHistoryServiceTest {
     @Test
     @DisplayName("getAuditHistoryByTableAndRecord với recordId String")
     void getByTableAndRecord_stringId() {
-        when(auditHistoryRepository.findByTableNameAndRecordId("schedule", 100))
+        when(auditHistoryRepository.findByTableNameAndRecordIdWithChangedBy("schedule", 100))
                 .thenReturn(List.of(testLog));
 
         var result = service.getAuditHistoryByTableAndRecord("schedule", "100");
@@ -127,11 +136,16 @@ class AuditHistoryServiceTest {
     @Test
     @DisplayName("getAuditHistoryByUser + byDateRange")
     void getByUserAndDate() {
+        Pageable pageable = PageRequest.of(0, 50);
         when(auditHistoryRepository.findByChangedBy(1)).thenReturn(List.of(testLog));
-        when(auditHistoryRepository.findByDateRange(any(), any())).thenReturn(List.of(testLog));
+        when(auditHistoryRepository.findByChangedBy(1, pageable))
+                .thenReturn(new PageImpl<>(List.of(testLog), pageable, 1));
+        when(auditHistoryRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(
+                any(LocalDateTime.class), any(LocalDateTime.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(testLog), pageable, 1));
 
         assertThat(service.getAuditHistoryByUser(1)).hasSize(1);
         assertThat(service.getAuditHistoryByDateRange(
-                java.time.LocalDateTime.now(), java.time.LocalDateTime.now().plusDays(1))).hasSize(1);
+                LocalDateTime.now(), LocalDateTime.now().plusDays(1), 0, 50)).hasSize(1);
     }
 }
