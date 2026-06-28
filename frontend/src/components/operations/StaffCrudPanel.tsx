@@ -444,7 +444,9 @@ export function StaffCrudPanel() {
     }
   }
 
-  if (activeTab === "specialties") {
+  const isSpecialtiesTab = activeTab === "specialties";
+
+  if (isSpecialtiesTab) {
     return <SpecialtyCrudPanel onBack={() => setActiveTab("staff")} />;
   }
 
@@ -473,7 +475,7 @@ export function StaffCrudPanel() {
           type="button"
           onClick={() => setActiveTab("specialties")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all ${
-            activeTab === "specialties"
+            isSpecialtiesTab
               ? "bg-primary text-on-primary shadow-sm"
               : "text-on-surface-variant hover:bg-surface-container-high"
           }`}

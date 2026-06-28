@@ -25,8 +25,12 @@ import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import com.hospital.scheduler.util.DateUtils;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
@@ -38,6 +42,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 public class ScheduleService {
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    private final JdbcTemplate jdbcTemplate;
 
     private final ScheduleRepository scheduleRepository;
     private final SchedulePeriodRepository periodRepository;
@@ -315,6 +324,7 @@ public class ScheduleService {
         return toResponse(updated, compDate);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deleteSchedule(Integer id) {
         Schedule schedule = scheduleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + id));
@@ -333,11 +343,18 @@ public class ScheduleService {
             compensationDayRepository.deleteAll(compDays);
         }
 
+        // Delete ScheduleConflict records first to avoid FK constraint issues
+        List<ScheduleConflict> conflicts = scheduleConflictRepository.findByScheduleId(id);
+        for (ScheduleConflict sc : conflicts) {
+            scheduleConflictRepository.delete(sc);
+        }
+
         auditHistoryService.logAction("schedule", id, AuditHistory.ActionType.DELETE, schedule, null, authContextService.getCurrentStaff().getId());
         notificationService.createNotification(schedule.getStaff().getId(),
                 new NotificationDTO("Xóa lịch trực",
                         "Lịch trực ngày " + schedule.getWorkDate() + " đã bị xóa."));
-        scheduleRepository.delete(schedule);
+        // Use JdbcTemplate for direct SQL delete
+        jdbcTemplate.update("DELETE FROM schedule WHERE id = ?", id);
     }
 
     public List<ScheduleResponse> getSchedulesByPeriodAndDate(Integer periodId, LocalDate date) {

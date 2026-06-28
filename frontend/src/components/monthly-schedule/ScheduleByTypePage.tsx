@@ -843,7 +843,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
             {/* Individual specialty tabs */}
             {specialties.map((specialty) => {
-              const count = schedules.filter((s) => s.staff.specialtyId === specialty.id).length;
+              const count = schedules.filter((s) => s.staff?.specialtyName === specialty.name).length;
               return (
                 <button
                   key={specialty.id}

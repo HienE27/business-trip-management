@@ -213,7 +213,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
   const stableOnCellClick = useCallback(
     onCellClick
       ? (date: Date, staffId: number) => onCellClick(date, staffId)
-      : undefined,
+      : (_date: Date, _staffId: number) => {},
     [onCellClick]
   );
 

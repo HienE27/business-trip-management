@@ -452,6 +452,10 @@ public class ScheduleTemplateService {
         @com.fasterxml.jackson.annotation.JsonProperty
         int requiredStaffCount;
 
+        // Jackson yêu cầu default constructor để deserialize
+        PatternEntry() {
+        }
+
         PatternEntry(int dayOfWeek, String shiftTypeId, Integer specialtyId, int requiredStaffCount) {
             this.dayOfWeek = dayOfWeek;
             this.shiftTypeId = shiftTypeId;
@@ -476,8 +480,13 @@ public class ScheduleTemplateService {
         var period = periodRepository.findById(request.getPeriodId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + request.getPeriodId()));
 
-        if (!"GENERATED".equals(template.getTemplateType())) {
-            throw new BadRequestException("Chỉ hỗ trợ áp dụng mẫu GENERATED với chỉnh sửa.");
+        if (!"GENERATED".equals(template.getTemplateType()) && !"PATTERN".equals(template.getTemplateType())) {
+            throw new BadRequestException("Chỉ hỗ trợ áp dụng mẫu GENERATED hoặc PATTERN.");
+        }
+
+        // PATTERN templates: use applyPatternTemplate directly
+        if ("PATTERN".equals(template.getTemplateType())) {
+            return applyPatternTemplateForWithEdits(request, template, period);
         }
 
         if (period.getStatus() != com.hospital.scheduler.entity.SchedulePeriod.PeriodStatus.DRAFT) {
@@ -600,6 +609,90 @@ public class ScheduleTemplateService {
                     // The spec says apply creates schedules (not just requirements) so the period
                     // has actual assignments, not just demand records.
                     for (int i = 0; i < entry.requiredStaffCount; i++) {
+                        ShiftRequirement req = ShiftRequirement.builder()
+                                .period(period)
+                                .workDate(current)
+                                .shiftType(shiftType)
+                                .specialty(specialty)
+                                .requiredStaffCount(1)
+                                .build();
+                        requirementRepository.save(req);
+                        appliedCount++;
+                    }
+                }
+            }
+            current = current.plusDays(1);
+        }
+
+        return appliedCount;
+    }
+
+    /**
+     * Apply a PATTERN template with edits support.
+     * Edits can change the required staff count for specific pattern entries.
+     */
+    private int applyPatternTemplateForWithEdits(
+            com.hospital.scheduler.dto.request.TemplateApplyWithEditsRequest request,
+            ScheduleTemplate template,
+            com.hospital.scheduler.entity.SchedulePeriod period) {
+
+        if (template.getPatternConfig() == null || template.getPatternConfig().isBlank()) {
+            return 0;
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        List<PatternEntry> entries;
+        try {
+            entries = mapper.readValue(template.getPatternConfig(),
+                    mapper.getTypeFactory().constructCollectionType(List.class, PatternEntry.class));
+        } catch (JsonProcessingException e) {
+            throw new BadRequestException("Không thể đọc cấu hình pattern từ mẫu: " + e.getMessage());
+        }
+
+        // Build edit lookup: patternEntryKey (dayOfWeek_shiftTypeId) -> newCount
+        java.util.Map<String, Integer> editMap = new java.util.HashMap<>();
+        if (request.getEdits() != null) {
+            for (var edit : request.getEdits()) {
+                String key = String.valueOf(edit.getSlotId());
+                if (key.contains("_")) {
+                    editMap.put(key, edit.getAssignedStaffId());
+                }
+            }
+        }
+
+        // OPTIMIZATION: pre-load all ShiftTypes and Specialties
+        java.util.Set<String> shiftTypeIds = entries.stream().map(e -> e.shiftTypeId).collect(java.util.stream.Collectors.toSet());
+        java.util.Set<Integer> specialtyIds = entries.stream().map(e -> e.specialtyId).filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        java.util.Map<String, ShiftType> shiftTypeMap = shiftTypeRepository.findAllById(shiftTypeIds).stream()
+                .collect(java.util.stream.Collectors.toMap(ShiftType::getId, s -> s));
+        java.util.Map<Integer, Specialty> specialtyMap = specialtyIds.isEmpty() ? java.util.Collections.emptyMap()
+                : specialtyRepository.findAllById(specialtyIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(Specialty::getId, s -> s));
+
+        int appliedCount = 0;
+        LocalDate current = period.getStartDate();
+
+        while (!current.isAfter(period.getEndDate())) {
+            int dow = current.getDayOfWeek().getValue();
+            for (int i = 0; i < entries.size(); i++) {
+                PatternEntry entry = entries.get(i);
+                if (entry.dayOfWeek == dow) {
+                    Specialty specialty = entry.specialtyId != null ? specialtyMap.get(entry.specialtyId) : null;
+                    ShiftType shiftType = shiftTypeMap.get(entry.shiftTypeId);
+                    if (shiftType == null) continue;
+
+                    // Get staff count from edit or use default
+                    int requiredCount = entry.requiredStaffCount;
+                    String editKey = dow + "_" + entry.shiftTypeId;
+                    if (editMap.containsKey(editKey)) {
+                        requiredCount = editMap.get(editKey);
+                    }
+
+                    // Skip if count is 0 or negative
+                    if (requiredCount <= 0) continue;
+
+                    // Create requirements based on the count
+                    for (int j = 0; j < requiredCount; j++) {
                         ShiftRequirement req = ShiftRequirement.builder()
                                 .period(period)
                                 .workDate(current)

@@ -2,6 +2,7 @@
 
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import type { AlgorithmMetrics } from "@/types/api";
+import { parseNumber } from "@/lib/number-utils";
 
 interface CompareModalProps {
   runA: AlgorithmMetrics;
@@ -15,6 +16,7 @@ const ALGO_LABELS: Record<string, string> = {
   GREEDY: "Tham lam",
   ROUND_ROBIN: "Luân phiên",
   BACKTRACKING: "Backtracking",
+  GENETIC: "Di truyền",
 };
 
 function formatDateTime(dt?: string) {
@@ -38,17 +40,17 @@ export function CompareModal({ runA, runB, periodNameA, periodNameB, onClose }: 
     },
     {
       label: "Độ phủ (Coverage)",
-      a: `${(runA.coverageRate ?? 0).toFixed(1)}%`,
-      b: `${(runB.coverageRate ?? 0).toFixed(1)}%`,
-      aGood: (runA.coverageRate ?? 0) >= (runB.coverageRate ?? 0),
-      bGood: (runB.coverageRate ?? 0) >= (runA.coverageRate ?? 0),
+      a: `${parseNumber(runA.coverageRate).toFixed(1)}%`,
+      b: `${parseNumber(runB.coverageRate).toFixed(1)}%`,
+      aGood: parseNumber(runA.coverageRate) >= parseNumber(runB.coverageRate),
+      bGood: parseNumber(runB.coverageRate) >= parseNumber(runA.coverageRate),
     },
     {
       label: "Điểm cân bằng (Balance)",
-      a: `${(runA.balanceScore ?? 0).toFixed(1)}%`,
-      b: `${(runB.balanceScore ?? 0).toFixed(1)}%`,
-      aGood: (runA.balanceScore ?? 0) >= (runB.balanceScore ?? 0),
-      bGood: (runB.balanceScore ?? 0) >= (runA.balanceScore ?? 0),
+      a: `${parseNumber(runA.balanceScore).toFixed(1)}%`,
+      b: `${parseNumber(runB.balanceScore).toFixed(1)}%`,
+      aGood: parseNumber(runA.balanceScore) >= parseNumber(runB.balanceScore),
+      bGood: parseNumber(runB.balanceScore) >= parseNumber(runA.balanceScore),
     },
     {
       label: "Xung đột",

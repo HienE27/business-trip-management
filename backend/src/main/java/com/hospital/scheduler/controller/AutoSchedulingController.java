@@ -14,6 +14,7 @@ import com.hospital.scheduler.dto.response.ScheduleTemplateResponse;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.service.AutoSchedulingService;
 import com.hospital.scheduler.service.ScheduleTemplateService;
+import com.hospital.scheduler.service.AlgorithmMetricsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -35,6 +36,7 @@ public class AutoSchedulingController {
     private final AutoSchedulingService autoSchedulingService;
     private final ScheduleTemplateService scheduleTemplateService;
     private final AlgorithmConfigService configService;
+    private final AlgorithmMetricsService metricsService;
 
     @PostMapping("/preview")
     @Operation(summary = "M07-F07: Xem trước lịch trước khi xác nhận")
@@ -212,5 +214,31 @@ public class AutoSchedulingController {
             @RequestBody AlgorithmConfigService.AlgorithmRuntimeConfig config) {
         configService.saveRuntimeConfig(config);
         return ResponseEntity.ok(ApiResponse.success(config, "Cập nhật cấu hình runtime thành công"));
+    }
+
+    // ============================================================
+    // Algorithm Metrics Endpoints
+    // ============================================================
+
+    @GetMapping("/metrics/stats")
+    @Operation(summary = "Lấy thống kê hiệu suất thuật toán")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAlgorithmStats() {
+        Map<String, Object> stats = metricsService.getAlgorithmStatsSummary();
+        return ResponseEntity.ok(ApiResponse.success(stats));
+    }
+
+    @GetMapping("/metrics/best-algorithm")
+    @Operation(summary = "Lấy thuật toán có hiệu suất tốt nhất")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getBestAlgorithm() {
+        String best = metricsService.getBestAlgorithm();
+        double score = metricsService.calculatePerformanceScore(best);
+        Map<String, Object> result = Map.of(
+            "algorithmType", best,
+            "performanceScore", Math.round(score * 100.0) / 100.0,
+            "recommendation", "Thuật toán " + best + " có hiệu suất tốt nhất dựa trên coverage và balance"
+        );
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 }

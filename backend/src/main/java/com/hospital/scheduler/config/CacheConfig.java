@@ -17,6 +17,7 @@ public class CacheConfig {
     public static final String SHIFT_TYPES_CACHE = "shiftTypes";
     public static final String SPECIALTIES_CACHE = "specialties";
     public static final String PERIODS_CACHE = "periods";
+    public static final String REQUIREMENTS_CACHE = "requirements";
 
     @Bean
     public CacheManager cacheManager() {

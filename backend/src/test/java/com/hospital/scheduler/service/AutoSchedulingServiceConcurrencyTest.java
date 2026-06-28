@@ -1,5 +1,6 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.algorithm.GeneticAlgorithmScheduler;
 import com.hospital.scheduler.dto.request.AutoScheduleRequestDTO;
 import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.entity.*;
@@ -52,6 +53,7 @@ class AutoSchedulingServiceConcurrencyTest {
     @Mock private HolidayRepository holidayRepository;
     @Mock private ShiftTypeRepository shiftTypeRepository;
     @Mock private SpecialtyRepository specialtyRepository;
+    @Mock private GeneticAlgorithmScheduler geneticAlgorithmScheduler;
 
     private AutoSchedulingService autoSchedulingService;
 
@@ -61,7 +63,8 @@ class AutoSchedulingServiceConcurrencyTest {
                 scheduleRepository, periodRepository, staffRepository, requirementRepository,
                 compensationDayRepository, leaveRequestRepository, metricsRepository,
                 conflictDetectionService, auditHistoryService, compensationDateCalculator, notificationService,
-                algorithmConfigService, holidayRepository, shiftTypeRepository, specialtyRepository
+                algorithmConfigService, holidayRepository, shiftTypeRepository, specialtyRepository,
+                geneticAlgorithmScheduler
         );
 
         SchedulePeriod testPeriod = SchedulePeriod.builder().id(1).periodName("Tháng 6/2026 - Concurrency")

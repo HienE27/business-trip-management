@@ -19,12 +19,14 @@ const ALGO_LABELS: Record<string, string> = {
   GREEDY: "Tham lam",
   ROUND_ROBIN: "Luân phiên",
   BACKTRACKING: "Backtracking",
+  GENETIC: "Di truyền",
 };
 
 const ALGO_COLORS: Record<string, string> = {
   GREEDY: "bg-primary-fixed text-primary border-primary/30",
   ROUND_ROBIN: "bg-secondary-container text-on-secondary-container border-secondary/30",
   BACKTRACKING: "bg-tertiary-fixed text-on-tertiary border-tertiary/30",
+  GENETIC: "bg-purple-100 text-purple-700 border-purple-300",
 };
 
 function formatDateTime(iso: string) {

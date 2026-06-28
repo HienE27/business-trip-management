@@ -14,6 +14,7 @@ import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.service.CompensationDayService;
 import com.hospital.scheduler.service.ConflictDetectionService;
+import com.hospital.scheduler.service.ScheduleDeleteService;
 import com.hospital.scheduler.service.ScheduleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,6 +36,7 @@ import java.util.List;
 public class ScheduleController {
 
     private final ScheduleService scheduleService;
+    private final ScheduleDeleteService scheduleDeleteService;
     private final ConflictDetectionService conflictDetectionService;
     private final CompensationDayService compensationDayService;
     private final AuthContextService authContextService;
@@ -145,7 +147,7 @@ public class ScheduleController {
     @Operation(summary = "Xóa lịch")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<Void>> deleteSchedule(@PathVariable Integer id) {
-        scheduleService.deleteSchedule(id);
+        scheduleDeleteService.deleteSchedule(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa lịch thành công"));
     }
 

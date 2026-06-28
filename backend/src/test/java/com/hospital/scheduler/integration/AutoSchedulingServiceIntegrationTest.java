@@ -1,5 +1,6 @@
 package com.hospital.scheduler.integration;
 
+import com.hospital.scheduler.algorithm.GeneticAlgorithmScheduler;
 import com.hospital.scheduler.dto.request.AutoScheduleRequestDTO;
 import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.entity.*;
@@ -52,6 +53,7 @@ class AutoSchedulingServiceIntegrationTest {
     @Mock private HolidayRepository holidayRepository;
     @Mock private ShiftTypeRepository shiftTypeRepository;
     @Mock private SpecialtyRepository specialtyRepository;
+    @Mock private GeneticAlgorithmScheduler geneticAlgorithmScheduler;
 
     private AutoSchedulingService autoSchedulingService;
 
@@ -64,7 +66,8 @@ class AutoSchedulingServiceIntegrationTest {
                 scheduleRepository, periodRepository, staffRepository, requirementRepository,
                 compensationDayRepository, leaveRequestRepository, algorithmMetricsRepository,
                 conflictDetectionService, auditHistoryService, compensationDateCalculator, notificationService,
-                algorithmConfigService, holidayRepository, shiftTypeRepository, specialtyRepository
+                algorithmConfigService, holidayRepository, shiftTypeRepository, specialtyRepository,
+                geneticAlgorithmScheduler
         );
 
         testPeriod = SchedulePeriod.builder()

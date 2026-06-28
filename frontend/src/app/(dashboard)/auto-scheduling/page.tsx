@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
@@ -57,6 +58,7 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { RuntimeParamsChips } from "@/components/auto-scheduling/RuntimeParamsChips";
 import type { SchedulePeriod, Staff, AlgorithmMetrics, ReplacementSuggestion, AutoScheduleSummary, ScheduleTemplate, TemplatePreviewItem } from "@/types/api";
+import { parseNumber, formatCoverageRate, formatPercent } from "@/lib/number-utils";
 
 function MetricsHistorySection({ periodId }: { periodId: number | null }) {
   const [metrics, setMetrics] = useState<AlgorithmMetrics[]>([]);
@@ -103,8 +105,8 @@ function MetricsHistorySection({ periodId }: { periodId: number | null }) {
               <td className="p-3 text-label-sm text-primary font-semibold">{m.algorithmType}</td>
               <td className="p-3 text-label-sm text-on-surface font-semibold">{m.totalSchedulesCreated ?? 0}</td>
               <td className="p-3 text-label-sm text-on-surface">{m.executionTimeMs}ms</td>
-              <td className="p-3 text-label-sm text-on-surface">{typeof m.coverageRate === 'number' ? `${Math.round(m.coverageRate)}%` : '—'}</td>
-              <td className="p-3 text-label-sm text-on-surface">{typeof m.balanceScore === 'number' ? `${m.balanceScore.toFixed(1)}%` : '—'}</td>
+              <td className="p-3 text-label-sm text-on-surface">{formatCoverageRate(m.coverageRate)}</td>
+              <td className="p-3 text-label-sm text-on-surface">{formatPercent(m.balanceScore, 1)}</td>
               <td className="p-3 text-label-sm">
                 <span className={m.conflictCount > 0 ? "text-error font-semibold" : "text-secondary"}>
                   {m.conflictCount}
@@ -131,6 +133,9 @@ function PageHeaderSkeleton() {
 export default function AutoSchedulingPage() {
   const role = useRole();
   const isManager = canManage(role);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [activeStaff, setActiveStaff] = useState<Staff[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
@@ -170,20 +175,40 @@ export default function AutoSchedulingPage() {
       const list = periodData ?? [];
       setPeriods(list);
       setActiveStaff(staffData ?? []);
-      const draft = list.find((p) => p.status === "DRAFT") ?? list[0] ?? null;
-      setSelectedPeriodId(draft?.id ?? null);
+
+      // Priority 1: URL param periodId
+      const urlPeriodId = searchParams ? parseInt(searchParams.get("periodId") ?? "", 10) : NaN;
+      if (!isNaN(urlPeriodId) && list.some((p) => p.id === urlPeriodId)) {
+        setSelectedPeriodId(urlPeriodId);
+      } else {
+        // Priority 2: DRAFT period
+        const draft = list.find((p) => p.status === "DRAFT") ?? list[0] ?? null;
+        setSelectedPeriodId(draft?.id ?? null);
+      }
     } catch (err) {
       setLoadMessage("Không thể tải dữ liệu workspace. Vui lòng thử lại.");
       console.warn("[AutoSchedule] loadWorkspace failed:", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => { void loadWorkspace(); }, [loadWorkspace]);
 
   // Reset preview when period changes
   useEffect(() => { clearPreview(); }, [selectedPeriodId, clearPreview]);
+
+  // Sync selected period to URL
+  useEffect(() => {
+    if (selectedPeriodId === null) return;
+    const current = searchParams.get("periodId");
+    const next = String(selectedPeriodId);
+    if (current !== next) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("periodId", next);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+  }, [selectedPeriodId, router, pathname, searchParams]);
 
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId) ?? null;
 
@@ -536,6 +561,7 @@ export default function AutoSchedulingPage() {
         onClose={() => { setApplyTemplateModalOpen(false); setTemplates([]); setTemplatePreview(null); setSelectedTemplateId(null); }}
         onPreview={handlePreviewTemplate}
         onApply={handleApplyTemplateConfirmed}
+        onSelectTemplate={(id) => { setSelectedTemplateId(id); setTemplatePreview(null); }}
         onStaffEdit={handleStaffEdit}
         onClearSelection={() => { setSelectedTemplateId(null); setTemplatePreview(null); }}
       />

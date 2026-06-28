@@ -2,6 +2,7 @@ package com.hospital.scheduler.repository;
 
 import com.hospital.scheduler.entity.Schedule;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -12,6 +13,10 @@ import java.util.Optional;
 
 @Repository
 public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
+
+    @Modifying
+    @Query("DELETE FROM Schedule s WHERE s.id = :id")
+    void deleteByIdQuery(@Param("id") Integer id);
 
     @Query("""
             SELECT s

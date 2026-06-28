@@ -8,7 +8,8 @@ import { useToast } from "@/hooks/useToast";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
 import { BackButton } from "@/components/ui/BackButton";
-import type { AlgorithmMetrics, ApiResponse } from "@/types/api";
+import { parseNumber } from "@/lib/number-utils";
+import type { ApiResponse } from "@/types/api";
 
 /* ─── Types ──────────────────────────────────────────────── */
 
@@ -41,6 +42,7 @@ type AlgorithmMetrics = {
   coverageRate: number;
   balanceScore: number;
   conflictCount: number;
+  totalSchedulesCreated?: number;
   periodId?: number;
   periodName?: string;
   createdAt: string;
@@ -491,22 +493,22 @@ function MetricsHistory() {
                 <td className="px-3 py-2.5 text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <div className="w-12 bg-surface-variant rounded-full h-1">
-                      <div className={`h-1 rounded-full ${m.coverageRate >= 90 ? "bg-secondary" : m.coverageRate >= 70 ? "bg-tertiary" : "bg-error"}`}
-                        style={{ width: `${Math.min(100, m.coverageRate)}%` }} />
+                      <div className={`h-1 rounded-full ${parseNumber(m.coverageRate) >= 90 ? "bg-secondary" : parseNumber(m.coverageRate) >= 70 ? "bg-tertiary" : "bg-error"}`}
+                        style={{ width: `${Math.min(100, parseNumber(m.coverageRate))}%` }} />
                     </div>
-                    <span className={`text-label-xs font-semibold w-9 text-right ${m.coverageRate >= 90 ? "text-secondary" : m.coverageRate >= 70 ? "text-tertiary" : "text-error"}`}>
-                      {Math.round(m.coverageRate)}%
+                    <span className={`text-label-xs font-semibold w-9 text-right ${parseNumber(m.coverageRate) >= 90 ? "text-secondary" : parseNumber(m.coverageRate) >= 70 ? "text-tertiary" : "text-error"}`}>
+                      {Math.round(parseNumber(m.coverageRate))}%
                     </span>
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <div className="w-12 bg-surface-variant rounded-full h-1">
-                      <div className={`h-1 rounded-full ${m.balanceScore >= 75 ? "bg-secondary" : m.balanceScore >= 50 ? "bg-tertiary" : "bg-error"}`}
-                        style={{ width: `${Math.min(100, m.balanceScore)}%` }} />
+                      <div className={`h-1 rounded-full ${parseNumber(m.balanceScore) >= 75 ? "bg-secondary" : parseNumber(m.balanceScore) >= 50 ? "bg-tertiary" : "bg-error"}`}
+                        style={{ width: `${Math.min(100, parseNumber(m.balanceScore))}%` }} />
                     </div>
-                    <span className={`text-label-xs font-semibold w-9 text-right ${m.balanceScore >= 75 ? "text-secondary" : m.balanceScore >= 50 ? "text-tertiary" : "text-error"}`}>
-                      {Math.round(m.balanceScore)}%
+                    <span className={`text-label-xs font-semibold w-9 text-right ${parseNumber(m.balanceScore) >= 75 ? "text-secondary" : parseNumber(m.balanceScore) >= 50 ? "text-tertiary" : "text-error"}`}>
+                      {Math.round(parseNumber(m.balanceScore))}%
                     </span>
                   </div>
                 </td>

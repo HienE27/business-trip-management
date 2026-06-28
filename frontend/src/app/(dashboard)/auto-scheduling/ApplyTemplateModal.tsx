@@ -18,6 +18,7 @@ interface Props {
   onClose: () => void;
   onPreview: (templateId: number) => void;
   onApply: () => void;
+  onSelectTemplate: (templateId: number) => void;
   onStaffEdit: (slotId: string | number, staffId: number) => void;
   onClearSelection: () => void;
 }
@@ -35,6 +36,7 @@ export function ApplyTemplateModal({
   onClose,
   onPreview,
   onApply,
+  onSelectTemplate,
   onStaffEdit,
   onClearSelection,
 }: Props) {
@@ -100,7 +102,7 @@ export function ApplyTemplateModal({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onPreview(t.id)}
+                      onClick={() => onSelectTemplate(t.id)}
                       disabled={previewLoading}
                       className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-label-sm font-medium text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-50"
                     >

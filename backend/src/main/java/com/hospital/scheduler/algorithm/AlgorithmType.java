@@ -17,7 +17,17 @@ public enum AlgorithmType {
      * - C3: THONG_TAM cannot overlap DIRECT_24H or REST
      * - C4: DICH_VU and CHUYEN_GIA cannot overlap same staff
      */
-    CSP_MRV_FC("CSP-MRV-FC", "CSP Scheduler với MRV + Forward Checking - Tối ưu bằng constraint propagation");
+    CSP_MRV_FC("CSP-MRV-FC", "CSP Scheduler với MRV + Forward Checking - Tối ưu bằng constraint propagation"),
+    
+    /**
+     * Genetic Algorithm - Tìm nghiệm tối ưu bằng tiến hóa quần thể.
+     * - Population-based search
+     * - Tournament selection
+     * - Order crossover (OX)
+     * - Constraint-aware fitness evaluation
+     * - Multi-objective: conflicts + balance + coverage
+     */
+    GENETIC("GENETIC", "Thuật toán di truyền - Tìm nghiệm tối ưu bằng tiến hóa quần thể");
 
     private final String code;
     private final String description;

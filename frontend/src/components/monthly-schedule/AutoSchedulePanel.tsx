@@ -7,8 +7,9 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { KPICard } from "@/components/ui/KPICard";
 import type { AutoScheduleResult, SchedulePeriod, Staff } from "@/types/api";
+import { parseNumber, formatCoverageRate, formatPercent } from "@/lib/number-utils";
 
-type AlgorithmType = "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING";
+type AlgorithmType = "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC";
 type EditedPreview = Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
 
 export type AutoSchedulePanelProps = {
@@ -36,10 +37,11 @@ export type AutoSchedulePanelProps = {
   onSetHolidayMode?: (mode: "SKIP" | "PARTIAL" | null) => void;
 };
 
-const ALGO_CONFIG: Record<AlgorithmType, { icon: string; label: string; color: string; bg: string; hover: string }> = {
-  GREEDY: { icon: "bolt", label: "Greedy", color: "text-primary", bg: "bg-primary", hover: "hover:bg-primary/90" },
-  ROUND_ROBIN: { icon: "autorenew", label: "Round Robin", color: "text-secondary", bg: "bg-secondary", hover: "hover:bg-secondary/90" },
-  BACKTRACKING: { icon: "route", label: "Backtracking", color: "text-tertiary", bg: "bg-tertiary", hover: "hover:bg-tertiary/90" },
+const ALGO_CONFIG: Record<AlgorithmType, { icon: string; label: string; color: string; bg: string; hover: string; desc: string }> = {
+  GREEDY: { icon: "bolt", label: "Greedy", color: "text-primary", bg: "bg-primary", hover: "hover:bg-primary/90", desc: "Nhanh, tham lam" },
+  ROUND_ROBIN: { icon: "autorenew", label: "Round Robin", color: "text-secondary", bg: "bg-secondary", hover: "hover:bg-secondary/90", desc: "Cân bằng luân phiên" },
+  BACKTRACKING: { icon: "route", label: "Backtracking", color: "text-tertiary", bg: "bg-tertiary", hover: "hover:bg-tertiary/90", desc: "Tìm kiếm có quay lui" },
+  GENETIC: { icon: "psychology", label: "Di truyền", color: "text-purple-600", bg: "bg-purple-100", hover: "hover:bg-purple-200", desc: "Tiến hóa quần thể" },
 };
 
 export const AutoSchedulePanel = memo(function AutoSchedulePanel({
@@ -71,16 +73,41 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   const [staffFilterOpen, setStaffFilterOpen] = useState(false);
   const [showUnassigned, setShowUnassigned] = useState(false);
   const isDraft = selectedPeriodStatus === "DRAFT";
+  // Progress tracking state (updated via useEffect when running)
+  const [progressStep, setProgressStep] = useState<string>("");
 
   useEffect(() => {
     setViewMode("month");
     setSelectedStaffIds(new Set());
+    setProgressStep("");
   }, [selectedPeriodId]);
+
+  // Simulate progress steps when running
+  useEffect(() => {
+    if (!runningAutoSchedule) {
+      setProgressStep("");
+      return;
+    }
+    const steps = [
+      "Đang tải dữ liệu...",
+      "Đang phân tích yêu cầu...",
+      "Đang chạy thuật toán...",
+      "Đang kiểm tra xung đột...",
+      "Đang tối ưu kết quả...",
+    ];
+    let idx = 0;
+    setProgressStep(steps[0]);
+    const interval = setInterval(() => {
+      idx = (idx + 1) % steps.length;
+      setProgressStep(steps[idx]);
+    }, 800);
+    return () => clearInterval(interval);
+  }, [runningAutoSchedule]);
 
   const unassignedDays = previewResult?.unassignedDays ?? [];
   const totalMissing = unassignedDays.reduce((sum: number, d: unknown) => sum + ((d as { missingCount?: number }).missingCount ?? 0), 0);
-  const coverageRate = previewResult ? Math.round(previewResult.coverageRate) : 0;
-  const balanceScore = previewResult?.balanceScore ?? 0;
+  const coverageRate = previewResult ? Math.round(parseNumber(previewResult.coverageRate)) : 0;
+  const balanceScore = previewResult ? parseNumber(previewResult.balanceScore) : 0;
   const statusMsgOk = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng") || message?.toLowerCase().includes("đã hủy");
 
   const algoResultInfo = previewResult ? ALGO_CONFIG[previewResult.algorithmType as AlgorithmType] : null;
@@ -192,7 +219,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             {runningAutoSchedule && (
               <Badge tone="info" size="sm" className="animate-pulse">
                 <span className="material-symbols-outlined text-[12px]">sync</span>
-                Đang chạy thuật toán…
+                {progressStep || "Đang chạy thuật toán…"}
               </Badge>
             )}
             {message && (
