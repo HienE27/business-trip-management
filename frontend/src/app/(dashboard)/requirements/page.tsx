@@ -43,6 +43,12 @@ export default function RequirementsPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [filterPeriodId, setFilterPeriodId] = useState<number | "">("");
   const [filterShiftType, setFilterShiftType] = useState<string>("");
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize] = useState(50);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   // Form state
   const [formValues, setFormValues] = useState<RequirementFormValues>({
@@ -55,24 +61,46 @@ export default function RequirementsPage() {
   });
   const [formError, setFormError] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (page = 0) => {
     try {
       setLoading(true);
       setError(null);
-      const [reqData, periodData, specialtyData] = await Promise.all([
-        api.get<ShiftRequirement[]>("/shift-requirements"),
+      
+      // Load periods and specialties (static data, no pagination needed)
+      const [periodData, specialtyData] = await Promise.all([
         api.get<SchedulePeriod[]>("/periods"),
         api.get<Specialty[]>("/specialties/active"),
       ]);
-      setRequirements(reqData ?? []);
-      setPeriods(periodData ?? []);
-      setSpecialties(specialtyData ?? []);
+      setPeriods(Array.isArray(periodData) ? periodData : []);
+      setSpecialties(Array.isArray(specialtyData) ? specialtyData : []);
+      
+      // Load requirements with pagination
+      const reqData = await api.getAllRequirements(page, pageSize);
+      
+      // Handle paginated response (Spring Page object)
+      if (reqData && typeof reqData === 'object' && 'content' in reqData) {
+        const pageData = reqData as { content: ShiftRequirement[]; totalElements: number; totalPages: number };
+        setRequirements(pageData.content || []);
+        setTotalItems(pageData.totalElements || 0);
+        setTotalPages(pageData.totalPages || 0);
+        setCurrentPage(page);
+      } else if (Array.isArray(reqData)) {
+        // Handle array response (fallback)
+        setRequirements(reqData);
+        setTotalItems(reqData.length);
+        setTotalPages(1);
+        setCurrentPage(0);
+      } else {
+        setRequirements([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      }
     } catch (err) {
       setError(getErrorMessage(err, "Không thể tải dữ liệu."));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pageSize]);
 
   useEffect(() => { void loadData(); }, [loadData]);
 
@@ -333,6 +361,34 @@ export default function RequirementsPage() {
                   })}
                 </tbody>
               </table>
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-outline-variant bg-surface-container-low">
+                  <div className="text-body-sm text-on-surface-variant">
+                    Hiển thị {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, totalItems)} của {totalItems} yêu cầu
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="px-3 py-1.5 rounded-lg text-body-sm font-label-md text-primary hover:bg-primary-fixed disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      onClick={() => loadData(currentPage - 1)}
+                      disabled={currentPage === 0}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+                    </button>
+                    <span className="text-body-sm font-label-md text-on-surface">
+                      Trang {currentPage + 1} / {totalPages}
+                    </span>
+                    <button
+                      className="px-3 py-1.5 rounded-lg text-body-sm font-label-md text-primary hover:bg-primary-fixed disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      onClick={() => loadData(currentPage + 1)}
+                      disabled={currentPage >= totalPages - 1}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

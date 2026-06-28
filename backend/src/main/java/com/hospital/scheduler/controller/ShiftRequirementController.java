@@ -13,7 +13,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -31,8 +34,16 @@ public class ShiftRequirementController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<Page<ShiftRequirementResponse>>> getAllRequirements(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size) {
-        return ResponseEntity.ok(ApiResponse.success(requirementService.getAllRequirements(page, size)));
+            @RequestParam(defaultValue = "50") int size) {
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100)); // max 100 per page
+        return ResponseEntity.ok(ApiResponse.success(requirementService.getAllRequirements(pageable)));
+    }
+
+    @GetMapping("/all")
+    @Operation(summary = "Lấy tất cả yêu cầu nhân sự (không phân trang)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<List<ShiftRequirementResponse>>> getAllRequirementsNoPaging() {
+        return ResponseEntity.ok(ApiResponse.success(requirementService.getAllRequirements()));
     }
 
     @GetMapping("/period/{periodId}")

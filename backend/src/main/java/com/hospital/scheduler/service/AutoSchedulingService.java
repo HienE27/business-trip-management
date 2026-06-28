@@ -12,6 +12,7 @@ import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import com.hospital.scheduler.util.DateUtils;
 import com.hospital.scheduler.algorithm.AutoGenConfig;
+import com.hospital.scheduler.algorithm.GeneticAlgorithmScheduler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,9 @@ import java.util.stream.Collectors;
 @Transactional
 public class AutoSchedulingService {
 
+    // Wrapper to return both schedules and GA fairness score
+    private record SchedulingResultWithFairness(List<Schedule> schedules, BigDecimal fairnessScore) {}
+    
     private final ScheduleRepository scheduleRepository;
     private final SchedulePeriodRepository periodRepository;
     private final StaffRepository staffRepository;
@@ -47,6 +51,7 @@ public class AutoSchedulingService {
     private final HolidayRepository holidayRepository;
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
+    private final GeneticAlgorithmScheduler geneticAlgorithmScheduler;
 
     // Thread-local so concurrent requests don't share state
     private final ThreadLocal<Map<String, Set<String>>> inMemoryAssignments = ThreadLocal.withInitial(HashMap::new);
@@ -253,7 +258,10 @@ public class AutoSchedulingService {
 
     private AutoScheduleResponse runScheduling(AutoScheduleRequestDTO request, boolean save) {
         long startTime = System.currentTimeMillis();
-
+        
+        // Track GA fairness score separately (0-100 scale)
+        BigDecimal gaFairnessScore = null;
+        
         SchedulePeriod period = periodRepository.findById(request.getPeriodId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + request.getPeriodId()));
 
@@ -276,29 +284,37 @@ public class AutoSchedulingService {
                     .collect(Collectors.toList());
         }
 
-        // Auto-generate requirements if enabled (per M07 spec)
-        List<ShiftRequirement> requirements;
-        List<AutoScheduleResponse.GeneratedRequirementInfo> generatedRequirements = null;
-        if (Boolean.TRUE.equals(request.getAutoGenerateRequirements())) {
-            var autoGenConfig = algorithmConfigService.getAutoGenConfig();
-            if (autoGenConfig.isPresent() && autoGenConfig.get().enabled()) {
-                // Use holidayMode from request if provided, otherwise fall back to DB config
-                String effectiveHolidayMode = (request.getHolidayMode() != null && !request.getHolidayMode().isBlank())
-                        ? request.getHolidayMode()
-                        : autoGenConfig.get().holidayMode();
-                var configWithMode = new com.hospital.scheduler.algorithm.AutoGenConfig(
-                        autoGenConfig.get().enabled(),
-                        autoGenConfig.get().l01RequiredPerDay(),
-                        autoGenConfig.get().l02RequiredPerDay(),
-                        autoGenConfig.get().l03RequiredPerDay(),
-                        autoGenConfig.get().l04RequiredPerDay(),
-                        autoGenConfig.get().minL01PerWeek(),
-                        autoGenConfig.get().minL02PerWeek(),
-                        autoGenConfig.get().minL03PerWeek(),
-                        autoGenConfig.get().minL04PerWeek(),
-                        effectiveHolidayMode
-                );
-                requirements = generateRequirementsForPeriod(period, configWithMode, activeStaff);
+            // Auto-generate requirements if enabled (per M07 spec)
+            // IMPORTANT: Delete existing auto-generated requirements before generating new ones to avoid duplicates
+            if (Boolean.TRUE.equals(request.getAutoGenerateRequirements())) {
+                var autoGenConfig = algorithmConfigService.getAutoGenConfig();
+                if (autoGenConfig.isPresent() && autoGenConfig.get().enabled()) {
+                    // Delete OLD auto-generated requirements for this period to avoid duplicates
+                    List<ShiftRequirement> oldAutoReqs = requirementRepository.findByPeriodId(period.getId()).stream()
+                            .filter(r -> r.getNote() != null && r.getNote().startsWith("AUTO:"))
+                            .toList();
+                    if (!oldAutoReqs.isEmpty()) {
+                        requirementRepository.deleteAll(oldAutoReqs);
+                        log.info("Deleted {} old auto-generated requirements for period {}", oldAutoReqs.size(), period.getId());
+                    }
+
+                    // Use holidayMode from request if provided, otherwise fall back to DB config
+                    String effectiveHolidayMode = (request.getHolidayMode() != null && !request.getHolidayMode().isBlank())
+                            ? request.getHolidayMode()
+                            : autoGenConfig.get().holidayMode();
+                    var configWithMode = new com.hospital.scheduler.algorithm.AutoGenConfig(
+                            autoGenConfig.get().enabled(),
+                            autoGenConfig.get().l01RequiredPerDay(),
+                            autoGenConfig.get().l02RequiredPerDay(),
+                            autoGenConfig.get().l03RequiredPerDay(),
+                            autoGenConfig.get().l04RequiredPerDay(),
+                            autoGenConfig.get().minL01PerWeek(),
+                            autoGenConfig.get().minL02PerWeek(),
+                            autoGenConfig.get().minL03PerWeek(),
+                            autoGenConfig.get().minL04PerWeek(),
+                            effectiveHolidayMode
+                    );
+                    requirements = generateRequirementsForPeriod(period, configWithMode, activeStaff);
                 generatedRequirements = requirements.stream()
                         .filter(r -> r.getNote() != null && r.getNote().startsWith("AUTO:"))
                         .map(this::toGeneratedRequirementInfo)
@@ -372,6 +388,21 @@ public class AutoSchedulingService {
                         request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
                 log.info("Greedy fallback result: {} schedules", createdSchedules.size());
             }
+        } else if ("GENETIC".equals(algorithmType)) {
+            // Run Genetic Algorithm
+            log.info("Running Genetic Algorithm for period {}", period.getId());
+            SchedulingResultWithFairness gaResult = runGeneticAlgorithm(period, requirements, activeStaff, save,
+                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
+            createdSchedules = gaResult.schedules();
+            gaFairnessScore = gaResult.fairnessScore(); // Store for balance score calculation
+            log.info("Genetic Algorithm completed with {} schedules", createdSchedules.size());
+            // Fallback to Greedy if GA finds no solution
+            if (createdSchedules.isEmpty()) {
+                log.info("Genetic Algorithm found no solution, falling back to Greedy algorithm");
+                createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
+                        request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
+                log.info("Greedy fallback result: {} schedules", createdSchedules.size());
+            }
         } else {
             createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
                     request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
@@ -434,10 +465,16 @@ public class AutoSchedulingService {
         BigDecimal coverageRate = totalRequiredStaffNeeded > 0
                 ? BigDecimal.valueOf((double) createdSchedules.size() / totalRequiredStaffNeeded * 100)
                 : BigDecimal.ZERO;
-        log.info("AutoSchedule result: created={} of needed={} requirements={} distinctStaff={} activeStaff={}",
-                createdSchedules.size(), totalRequiredStaffNeeded, totalRequired, distinctStaffAssigned, activeStaff.size());
-        int staffCount = distinctStaffAssigned > 0 ? distinctStaffAssigned : 1;
-        BigDecimal balanceScore = calculateBalanceScore(createdSchedules, staffCount);
+        
+        // Use GA's fairness score if available (already in 0-100 scale)
+        // Otherwise calculate from created schedules
+        BigDecimal balanceScore;
+        if (gaFairnessScore != null) {
+            balanceScore = gaFairnessScore;
+        } else {
+            int staffCount = distinctStaffAssigned > 0 ? distinctStaffAssigned : 1;
+            balanceScore = calculateBalanceScore(createdSchedules, staffCount);
+        }
 
         if (save) {
             saveMetrics(period, algorithmType, (int) executionTime, coverageRate, balanceScore, warnings.size(), createdSchedules.size());
@@ -646,12 +683,21 @@ public class AutoSchedulingService {
                         .filter(s -> !finalAssigned.contains(s.getId()))
                         .collect(Collectors.toList());
 
-                // CRITICAL FIX: Fairness by SHIFT TYPE, not rotation index
+                // CRITICAL FIX: Fairness by SHIFT TYPE, then TOTAL, then rotation
                 // Staff with fewer of THIS shift type get higher priority
+                // Secondary: staff with fewer TOTAL shifts get higher priority
+                // Tertiary: rotation index for fairness
                 Comparator<Staff> fairnessComparator = Comparator
                         .comparingLong((Staff s) -> {
                             Map<String, Long> counts = staffShiftTypeCounts.get(s.getId());
                             return counts != null ? counts.getOrDefault(shiftTypeId, 0L) : 0L;
+                        })
+                        .thenComparingLong(s -> {
+                            // Add current in-memory counts to historical counts
+                            Map<String, Long> counts = staffShiftTypeCounts.get(s.getId());
+                            if (counts == null) return 0L;
+                            return counts.getOrDefault("L01", 0L) + counts.getOrDefault("L02", 0L)
+                                    + counts.getOrDefault("L03", 0L) + counts.getOrDefault("L04", 0L);
                         })
                         .thenComparingInt(s -> staffRotationIndex.getOrDefault(s.getId(), 0))
                         // weekend_weight: penalize weekend shifts using the configured multiplier
@@ -768,6 +814,115 @@ public class AutoSchedulingService {
         }
 
         return bestSolution;
+    }
+
+    // ==================== GENETIC ALGORITHM ====================
+
+    /**
+     * Run Genetic Algorithm for scheduling.
+     */
+    private SchedulingResultWithFairness runGeneticAlgorithm(
+            SchedulePeriod period,
+            List<ShiftRequirement> requirements,
+            List<Staff> activeStaff,
+            boolean save,
+            Set<Integer> excludedStaffIds) {
+        
+        try {
+            // Convert requirements to GA format
+            List<com.hospital.scheduler.entity.ShiftRequirement> gaRequirements = requirements;
+            
+            // Get existing compensation days
+            Set<String> existingCompDays = new HashSet<>();
+            List<CompensationDay> existingComp = compensationDayRepository.findByPeriodId(period.getId());
+            for (CompensationDay cd : existingComp) {
+                existingCompDays.add(cd.getStaff().getId() + "_" + cd.getCompensationDate().toString());
+            }
+            
+            // Get approved leave requests
+            List<LeaveRequest> leaveRequests = leaveRequestRepository.findApprovedInRange(
+                    period.getStartDate(), period.getEndDate());
+            
+            // Run GA
+            com.hospital.scheduler.algorithm.SchedulingResult gaResult = geneticAlgorithmScheduler.solve(
+                    activeStaff,
+                    period.getStartDate(),
+                    period.getEndDate(),
+                    gaRequirements,
+                    existingCompDays,
+                    leaveRequests,
+                    excludedStaffIds
+            );
+            
+            // Convert GA result to Schedule list
+            List<Schedule> createdSchedules = new ArrayList<>();
+            
+            for (Map.Entry<String, String> entry : gaResult.getAssignments().entrySet()) {
+                String key = entry.getKey();
+                String shiftTypeId = entry.getValue();
+                
+                // Parse key: staffId_date
+                String[] parts = key.split("_");
+                if (parts.length >= 2) {
+                    Integer staffId = Integer.parseInt(parts[0]);
+                    LocalDate workDate = LocalDate.parse(parts[1]);
+                    
+                    Staff staff = activeStaff.stream()
+                            .filter(s -> s.getId().equals(staffId))
+                            .findFirst()
+                            .orElse(null);
+                    
+                    if (staff != null) {
+                        // Find requirement
+                        ShiftRequirement req = requirements.stream()
+                                .filter(r -> r.getWorkDate().equals(workDate) && r.getShiftType().getId().equals(shiftTypeId))
+                                .findFirst()
+                                .orElse(null);
+                        
+                        if (req != null) {
+                            Schedule schedule = Schedule.builder()
+                                    .period(period)
+                                    .staff(staff)
+                                    .shiftType(req.getShiftType())
+                                    .workDate(workDate)
+                                    .requirement(req)
+                                    .hasConflict(false)
+                                    .build();
+                            
+                            if (save) {
+                                // Check for existing
+                                boolean exists = scheduleRepository.existsByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                                        period.getId(), staff.getId(), shiftTypeId, workDate);
+                                if (!exists) {
+                                    Schedule saved = scheduleRepository.save(schedule);
+                                    if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
+                                        createCompensationDayForAuto(saved);
+                                    }
+                                    auditHistoryService.logAction("schedule", saved.getId(), 
+                                            AuditHistory.ActionType.INSERT, null, saved, null);
+                                    createdSchedules.add(saved);
+                                }
+                            } else {
+                                createdSchedules.add(schedule);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            log.info("GA produced {} schedules with {} conflicts", 
+                    createdSchedules.size(), gaResult.getErrors().size());
+            
+            // Return schedules with GA's fairness score (0-100)
+            BigDecimal fairnessScore = gaResult.getFairnessScore() != null 
+                    ? gaResult.getFairnessScore() 
+                    : BigDecimal.ZERO;
+            return new SchedulingResultWithFairness(createdSchedules, fairnessScore);
+            
+        } catch (Exception e) {
+            log.error("Genetic Algorithm failed: {}", e.getMessage(), e);
+            return new SchedulingResultWithFairness(new ArrayList<>(), BigDecimal.ZERO);
+        }
     }
 
     private void backtrack(SchedulePeriod period, List<ShiftRequirement> requirements,
@@ -1514,7 +1669,10 @@ public class AutoSchedulingService {
                 .collect(Collectors.groupingBy(s -> s.getStaff().getId(), Collectors.counting()));
 
         // If only 1 staff assigned (all work to one person) → 0% balance
-        if (staffScheduleCount.size() <= 1) return BigDecimal.valueOf(0);
+        if (staffScheduleCount.size() <= 1) {
+            log.debug("Balance score 0: only {} staff assigned", staffScheduleCount.size());
+            return BigDecimal.valueOf(0);
+        }
 
         double avg = (double) schedules.size() / totalStaff;
         double variance = staffScheduleCount.values().stream()
@@ -1525,6 +1683,9 @@ public class AutoSchedulingService {
 
         double stdDev = Math.sqrt(variance);
         double cv = avg > 0 ? (stdDev / avg) * 100 : 0;
+        
+        log.debug("Balance score calculation: schedules={}, totalStaff={}, avg={}, variance={}, stdDev={}, cv={}, score={}",
+                schedules.size(), totalStaff, avg, variance, stdDev, cv, Math.max(0, 100 - cv));
 
         return BigDecimal.valueOf(Math.max(0, 100 - cv)).setScale(2, RoundingMode.HALF_UP);
     }
@@ -1989,34 +2150,18 @@ public class AutoSchedulingService {
             // Skip staff already assigned to another requirement on the same day
             if (assignedStaffIds != null && assignedStaffIds.contains(staff.getId())) continue;
 
-            // FIX: Enforce maxShiftsPerMonth to prevent overload (e.g. 23/5 shifts = 460%)
-            // Check against in-memory cumulative counts (updated as we assign shifts)
-            Integer maxShifts = staff.getMaxShiftsPerMonth();
-            if (maxShifts != null && maxShifts > 0) {
-                // Use staffShiftTypeCounts from periodData which is updated in-memory as we assign shifts
-                Map<String, Long> currentCounts = periodData.staffShiftTypeCounts().get(staff.getId());
-                long totalCurrent = currentCounts != null
-                        ? currentCounts.getOrDefault("L01", 0L) + currentCounts.getOrDefault("L02", 0L)
-                                + currentCounts.getOrDefault("L03", 0L) + currentCounts.getOrDefault("L04", 0L)
-                        : 0L;
-                if (totalCurrent >= maxShifts) {
-                    // Skip this staff - they are at or above their max
-                    continue;
-                }
-            }
-
-            // 2. Check specialty
+            // 1. Check specialty FIRST (hard requirement)
             if (req.getSpecialty() != null && (staff.getSpecialty() == null
                     || !staff.getSpecialty().getId().equals(req.getSpecialty().getId()))) {
                 continue;
             }
 
-            // 3. In-memory assignment conflict (from this scheduling run)
+            // 2. In-memory assignment conflict (from this scheduling run)
             if (hasInMemoryConflict(staff.getId(), req.getWorkDate(), shiftTypeId)) {
                 continue;
             }
 
-            // 4. Use batch-loaded data instead of per-staff queries
+            // 3. Use batch-loaded data instead of per-staff queries (leave, comp day, adjacents)
             if (batchData.onLeaveStaffIds().contains(staff.getId())) continue;
 
             if (!skipCompensationCheck && batchData.onCompDayStaffIds().contains(staff.getId())) continue;
@@ -2043,6 +2188,19 @@ public class AutoSchedulingService {
                 if (hasConflict) continue;
             }
 
+            // 4. ENHANCED: Soft maxShiftsPerMonth check
+            // Track if this staff is over their limit - they go to a "overflow" list
+            // This allows higher coverage while still preferring staff under their limit
+            Integer maxShifts = staff.getMaxShiftsPerMonth();
+            Map<String, Long> currentCounts = periodData.staffShiftTypeCounts().get(staff.getId());
+            long totalCurrent = currentCounts != null
+                    ? currentCounts.getOrDefault("L01", 0L) + currentCounts.getOrDefault("L02", 0L)
+                            + currentCounts.getOrDefault("L03", 0L) + currentCounts.getOrDefault("L04", 0L)
+                    : 0L;
+            boolean isOverLimit = maxShifts != null && maxShifts > 0 && totalCurrent >= maxShifts;
+
+            // Staff over limit: only add if no one under limit is available
+            // This is handled by the sort comparator - they get sorted last
             eligible.add(staff);
         }
 

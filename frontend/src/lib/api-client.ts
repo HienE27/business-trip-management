@@ -122,7 +122,15 @@ class ApiClient {
       url += (url.includes("?") ? "&" : "?") + qs.toString();
     }
     const res = await this.request<T>(url, { method: "GET", ...requestInit });
-    return res.data;
+    // Handle both ApiResponse wrapper and direct array/object responses
+    if (res.data !== undefined && res.data !== null) {
+      return res.data;
+    }
+    // If backend returns array directly (without ApiResponse wrapper)
+    if (Array.isArray(res) || typeof res === 'object') {
+      return res as T;
+    }
+    return res as T;
   }
 
   async post<T>(endpoint: string, body: unknown): Promise<T> {
@@ -755,9 +763,13 @@ class ApiClient {
     });
   }
 
-  // Shift Requirements
-  async getAllRequirements(): Promise<ApiResponse<ShiftRequirement[]>> {
-    return this.request<ShiftRequirement[]>("/shift-requirements");
+  // Shift Requirements (with pagination support)
+  async getAllRequirements(page = 0, size = 50): Promise<ApiResponse<ShiftRequirement[]>> {
+    return this.request<ShiftRequirement[]>(`/shift-requirements?page=${page}&size=${size}`);
+  }
+
+  async getAllRequirementsNoPaging(): Promise<ApiResponse<ShiftRequirement[]>> {
+    return this.request<ShiftRequirement[]>("/shift-requirements/all");
   }
 
   async getRequirementsByPeriod(periodId: number): Promise<ApiResponse<ShiftRequirement[]>> {

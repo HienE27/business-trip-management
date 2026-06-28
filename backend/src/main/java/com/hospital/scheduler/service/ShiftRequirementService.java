@@ -1,5 +1,6 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.config.CacheConfig;
 import com.hospital.scheduler.dto.request.ShiftRequirementDTO;
 import com.hospital.scheduler.dto.response.ShiftRequirementResponse;
 import com.hospital.scheduler.entity.SchedulePeriod;
@@ -22,6 +23,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -40,12 +43,30 @@ public class ShiftRequirementService {
     private final SpecialtyRepository specialtyRepository;
     private final AuditHistoryService auditHistoryService;
 
+    @Cacheable(value = CacheConfig.REQUIREMENTS_CACHE, key = "'all_requirements'")
     public List<ShiftRequirementResponse> getAllRequirements() {
-        return getAllRequirements(0, 100).getContent();
+        List<ShiftRequirement> requirements = requirementRepository.findAll();
+        
+        // OPTIMIZATION: batch load all counts in ONE query
+        Map<String, Long> countMap = new java.util.HashMap<>();
+        for (Object[] row : scheduleRepository.countGroupedByPeriodWorkDateShiftType()) {
+            Integer pid = (Integer) row[0];
+            LocalDate date = (LocalDate) row[1];
+            String shiftTypeId = (String) row[2];
+            Long cnt = (Long) row[3];
+            countMap.put(pid + "_" + date + "_" + shiftTypeId, cnt);
+        }
+
+        return requirements.stream()
+                .map(req -> {
+                    long count = countMap.getOrDefault(
+                            req.getPeriod().getId() + "_" + req.getWorkDate() + "_" + req.getShiftType().getId(), 0L);
+                    return ShiftRequirementResponse.fromEntityWithAssignedCount(req, count);
+                })
+                .collect(Collectors.toList());
     }
 
-    public Page<ShiftRequirementResponse> getAllRequirements(int page, int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "workDate"));
+    public Page<ShiftRequirementResponse> getAllRequirements(Pageable pageable) {
         Page<ShiftRequirement> requirements = requirementRepository.findAll(pageable);
 
         // OPTIMIZATION: batch load all counts in ONE query
@@ -168,7 +189,13 @@ public class ShiftRequirementService {
 
         ShiftRequirement saved = requirementRepository.save(requirement);
         auditHistoryService.logAction("shift_requirement", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+        evictRequirementsCache();
         return ShiftRequirementResponse.fromEntityWithAssignedCount(saved, 0);
+    }
+
+    @CacheEvict(value = CacheConfig.REQUIREMENTS_CACHE, allEntries = true)
+    public void evictRequirementsCache() {
+        // Cache evicted automatically by @CacheEvict
     }
 
     public ShiftRequirementResponse updateRequirement(Integer id, ShiftRequirementDTO dto) {
@@ -197,12 +224,14 @@ public class ShiftRequirementService {
 
         ShiftRequirement saved = requirementRepository.save(existing);
         auditHistoryService.logAction("shift_requirement", saved.getId(), AuditHistory.ActionType.UPDATE, existing, saved, null);
+        evictRequirementsCache();
 
         long count = scheduleRepository.countByPeriodIdAndWorkDateAndShiftTypeId(
                 saved.getPeriod().getId(), saved.getWorkDate(), saved.getShiftType().getId());
         return ShiftRequirementResponse.fromEntityWithAssignedCount(saved, count);
     }
 
+    @CacheEvict(value = CacheConfig.REQUIREMENTS_CACHE, allEntries = true)
     public void deleteRequirement(Integer id) {
         ShiftRequirement existing = requirementRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu nhân sự với ID: " + id));
