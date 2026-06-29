@@ -46,7 +46,8 @@ const TOKEN_STORAGE_KEY = "medschedule.token";
 
 const AuthContext = createContext<AuthState | null>(null);
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api/v1";
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:8080/api/v1";
 
 function toAuthUser(staff: Staff): AuthUser {
   return {

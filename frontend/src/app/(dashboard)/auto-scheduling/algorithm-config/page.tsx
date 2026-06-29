@@ -34,18 +34,6 @@ type RuntimeConfig = {
   backtrackTimeLimitSeconds: number;
 };
 
-type AlgorithmMetrics = {
-  id: number;
-  algorithmType: string;
-  executionTimeMs: number;
-  coverageRate: number;
-  balanceScore: number;
-  conflictCount: number;
-  periodId?: number;
-  periodName?: string;
-  createdAt: string;
-};
-
 type PresetKey = "balanced" | "fast" | "quality" | "conservative";
 
 const ALGORITHM_PRESETS: Record<PresetKey, {
@@ -158,11 +146,10 @@ function TabBar({ active, onChange }: { active: TabKey; onChange: (t: TabKey) =>
           role="tab"
           aria-selected={active === tab.key}
           onClick={() => onChange(tab.key)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-label-md font-medium transition-all cursor-pointer ${
-            active === tab.key
-              ? "bg-surface-container-lowest text-primary shadow-sm"
-              : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50"
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-label-md font-medium transition-all cursor-pointer ${active === tab.key
+            ? "bg-surface-container-lowest text-primary shadow-sm"
+            : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50"
+            }`}
         >
           <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{tab.icon}</span>
           {tab.label}
@@ -304,11 +291,10 @@ function RuntimeConfigEditor({ onSaved }: { onSaved?: () => void }) {
             const isActive = activePreset === key;
             return (
               <button key={key} type="button" onClick={() => applyPreset(key)}
-                className={`group relative flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
-                  isActive 
-                    ? `border-primary ${preset.colorBg} shadow-sm` 
-                    : "border-outline-variant bg-surface-container-low hover:border-primary/50 hover:bg-surface-container-lowest"
-                }`}>
+                className={`group relative flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${isActive
+                  ? `border-primary ${preset.colorBg} shadow-sm`
+                  : "border-outline-variant bg-surface-container-low hover:border-primary/50 hover:bg-surface-container-lowest"
+                  }`}>
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${isActive ? preset.colorBg : 'bg-surface-container-high'} transition-colors`}>
                   <span className={`material-symbols-outlined text-[20px] ${isActive ? preset.color : "text-on-surface-variant"}`} aria-hidden="true">{preset.icon}</span>
                 </div>
@@ -342,10 +328,10 @@ function RuntimeConfigEditor({ onSaved }: { onSaved?: () => void }) {
                 const desc = group.descriptions[param as keyof typeof group.descriptions] ?? { label: param, unit: "", desc: "", hint: "" };
                 const cfgKey = param === "greedy_coverage_threshold" ? "greedyCoverageThreshold"
                   : param === "balance_score_min" ? "balanceScoreMin"
-                  : param === "backtrack_time_limit_seconds" ? "backtrackTimeLimitSeconds"
-                  : param === "weekend_weight" ? "weekendWeight"
-                  : param === "overnight_recovery_hours" ? "overnightRecoveryHours"
-                  : "maxIterations" as keyof RuntimeConfig;
+                    : param === "backtrack_time_limit_seconds" ? "backtrackTimeLimitSeconds"
+                      : param === "weekend_weight" ? "weekendWeight"
+                        : param === "overnight_recovery_hours" ? "overnightRecoveryHours"
+                          : "maxIterations" as keyof RuntimeConfig;
                 const min = param === "greedy_coverage_threshold" || param === "balance_score_min" ? 0.3 : param === "weekend_weight" ? 1 : 10;
                 const max = param === "greedy_coverage_threshold" || param === "balance_score_min" ? 1 : param === "weekend_weight" ? 5 : param === "max_iterations" ? 10000 : 300;
                 const step = param === "greedy_coverage_threshold" || param === "balance_score_min" || param === "weekend_weight" ? 0.05 : 1;
@@ -353,9 +339,9 @@ function RuntimeConfigEditor({ onSaved }: { onSaved?: () => void }) {
                 const display = param === "greedy_coverage_threshold" || param === "balance_score_min"
                   ? `${Math.round(numVal * 100)}%`
                   : param === "weekend_weight" ? numVal.toFixed(1) + "×"
-                  : param === "backtrack_time_limit_seconds" ? `${numVal}s`
-                  : param === "overnight_recovery_hours" ? `${numVal}h`
-                  : numVal.toLocaleString();
+                    : param === "backtrack_time_limit_seconds" ? `${numVal}s`
+                      : param === "overnight_recovery_hours" ? `${numVal}h`
+                        : numVal.toLocaleString();
                 const pct = Math.min(100, Math.max(0, ((numVal - min) / (max - min)) * 100));
 
                 return (
@@ -541,18 +527,30 @@ function MetricsHistory() {
 
 function ReferenceSection() {
   const items = [
-    { key: "max_iterations", icon: "loop", color: "text-primary", bg: "bg-primary-fixed",
-      desc: "Số vòng lặp tối đa Backtracking. Tăng → lời giải tốt hơn nhưng chậm hơn.", range: "100–10,000" },
-    { key: "weekend_weight", icon: "weekend", color: "text-secondary", bg: "bg-secondary-container",
-      desc: "Hệ số nhân penalty T7/CN. >1 ưu tiên tránh cuối tuần. Đặt=1 để tắt.", range: "1.0–5.0" },
-    { key: "greedy_coverage_threshold", icon: "radio_button_checked", color: "text-primary", bg: "bg-primary-fixed",
-      desc: "Greedy dừng sớm khi đạt ngưỡng. Giảm → chạy nhanh. Tăng → phủ kỹ hơn.", range: "50%–100%" },
-    { key: "balance_score_min", icon: "balance", color: "text-secondary", bg: "bg-secondary-container",
-      desc: "Ngưỡng cân bằng tải tối thiểu. Cao →公平 hơn nhưng khó đạt.", range: "30%–100%" },
-    { key: "overnight_recovery_hours", icon: "hotel", color: "text-error", bg: "bg-error-container",
-      desc: "Số giờ nghỉ bắt buộc giữa hai ca trực 24/24.", range: "12–72 giờ" },
-    { key: "backtrack_time_limit_seconds", icon: "timer", color: "text-tertiary", bg: "bg-tertiary-container",
-      desc: "Giới hạn thời gian Backtracking. Hết thời gian → dừng, trả kết quả tốt nhất.", range: "10–300 giây" },
+    {
+      key: "max_iterations", icon: "loop", color: "text-primary", bg: "bg-primary-fixed",
+      desc: "Số vòng lặp tối đa Backtracking. Tăng → lời giải tốt hơn nhưng chậm hơn.", range: "100–10,000"
+    },
+    {
+      key: "weekend_weight", icon: "weekend", color: "text-secondary", bg: "bg-secondary-container",
+      desc: "Hệ số nhân penalty T7/CN. >1 ưu tiên tránh cuối tuần. Đặt=1 để tắt.", range: "1.0–5.0"
+    },
+    {
+      key: "greedy_coverage_threshold", icon: "radio_button_checked", color: "text-primary", bg: "bg-primary-fixed",
+      desc: "Greedy dừng sớm khi đạt ngưỡng. Giảm → chạy nhanh. Tăng → phủ kỹ hơn.", range: "50%–100%"
+    },
+    {
+      key: "balance_score_min", icon: "balance", color: "text-secondary", bg: "bg-secondary-container",
+      desc: "Ngưỡng cân bằng tải tối thiểu. Cao →公平 hơn nhưng khó đạt.", range: "30%–100%"
+    },
+    {
+      key: "overnight_recovery_hours", icon: "hotel", color: "text-error", bg: "bg-error-container",
+      desc: "Số giờ nghỉ bắt buộc giữa hai ca trực 24/24.", range: "12–72 giờ"
+    },
+    {
+      key: "backtrack_time_limit_seconds", icon: "timer", color: "text-tertiary", bg: "bg-tertiary-container",
+      desc: "Giới hạn thời gian Backtracking. Hết thời gian → dừng, trả kết quả tốt nhất.", range: "10–300 giây"
+    },
   ];
 
   const algos = [
@@ -1273,12 +1271,11 @@ export default function AlgorithmConfigPage() {
                           <code className="font-mono text-[11px] font-semibold text-primary bg-primary-fixed/20 px-1.5 py-0.5 rounded">{config.paramKey}</code>
                         </td>
                         <td className="px-3 py-2">
-                          <span className={`inline-flex px-1.5 py-0.5 rounded text-label-xs font-semibold uppercase ${
-                            config.valueType === "NUMBER" ? "bg-primary-fixed text-primary" :
+                          <span className={`inline-flex px-1.5 py-0.5 rounded text-label-xs font-semibold uppercase ${config.valueType === "NUMBER" ? "bg-primary-fixed text-primary" :
                             config.valueType === "BOOLEAN" ? "bg-secondary-container text-secondary" :
-                            config.valueType === "JSON" ? "bg-tertiary-container text-tertiary" :
-                            "bg-surface-container text-on-surface-variant"
-                          }`}>
+                              config.valueType === "JSON" ? "bg-tertiary-container text-tertiary" :
+                                "bg-surface-container text-on-surface-variant"
+                            }`}>
                             {config.valueType}
                           </span>
                         </td>

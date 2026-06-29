@@ -69,17 +69,28 @@ public class ScheduleService {
                 ));
 
         return schedules.stream()
-                .map(s -> toResponse(s, compDateMap.get(s.getId())))
+                .map(s -> toResponse(s, compDateMap, Map.of()))
                 .collect(Collectors.toList());
     }
 
     public List<ScheduleResponse> getSchedulesByStaff(Integer staffId) {
         List<Schedule> schedules = scheduleRepository.findByStaffId(staffId);
         if (schedules.isEmpty()) return List.of();
+
+        // OPTIMIZATION: batch load all compensation days for the staff schedules in ONE query
+        List<Integer> scheduleIds = schedules.stream().map(Schedule::getId).collect(Collectors.toList());
+        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByScheduleIds(scheduleIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        cd -> cd.getSchedule().getId(),
+                        CompensationDay::getCompensationDate,
+                        (a, b) -> a
+                ));
+
         Map<Integer, List<String>> conflictMap = buildConflictReasonsMap(
                 schedules, null);
         return schedules.stream()
-                .map(s -> toResponse(s, null, conflictMap))
+                .map(s -> toResponse(s, compDateMap, conflictMap))
                 .collect(Collectors.toList());
     }
 
@@ -98,7 +109,7 @@ public class ScheduleService {
                 ));
 
         return schedules.stream()
-                .map(s -> toResponse(s, compDateMap.get(s.getId())))
+                .map(s -> toResponse(s, compDateMap, Map.of()))
                 .collect(Collectors.toList());
     }
 
@@ -113,7 +124,7 @@ public class ScheduleService {
                         CompensationDay::getCompensationDate,
                         (a, b) -> a
                 ));
-        return toResponse(schedule, compDateMap.get(id));
+        return toResponse(schedule, compDateMap, Map.of());
     }
 
     public ScheduleResponse createSchedule(ScheduleRequest request) {
@@ -343,9 +354,20 @@ public class ScheduleService {
     public List<ScheduleResponse> getSchedulesByPeriodAndDate(Integer periodId, LocalDate date) {
         List<Schedule> schedules = scheduleRepository.findByPeriodIdAndWorkDate(periodId, date);
         if (schedules.isEmpty()) return List.of();
+
+        // OPTIMIZATION: batch load all compensation days for this date in ONE query
+        List<Integer> scheduleIds = schedules.stream().map(Schedule::getId).collect(Collectors.toList());
+        Map<Integer, LocalDate> compDateMap = compensationDayRepository.findByScheduleIds(scheduleIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        cd -> cd.getSchedule().getId(),
+                        CompensationDay::getCompensationDate,
+                        (a, b) -> a
+                ));
+
         Map<Integer, List<String>> conflictMap = buildConflictReasonsMap(schedules, periodId);
         return schedules.stream()
-                .map(s -> toResponse(s, null, conflictMap))
+                .map(s -> toResponse(s, compDateMap, conflictMap))
                 .collect(Collectors.toList());
     }
 
@@ -855,16 +877,18 @@ public class ScheduleService {
     }
 
     private ScheduleResponse toResponse(Schedule schedule) {
-        return toResponse(schedule, null, Map.of());
+        return toResponse(schedule, (Map<Integer, LocalDate>) null, Map.of());
     }
 
     private ScheduleResponse toResponse(Schedule schedule, LocalDate compDateOverride) {
-        return toResponse(schedule, compDateOverride, Map.of());
+        Map<Integer, LocalDate> compMap = new HashMap<>();
+        compMap.put(schedule.getId(), compDateOverride);
+        return toResponse(schedule, compMap, Map.of());
     }
 
     private ScheduleResponse toResponse(
             Schedule schedule,
-            LocalDate compDateOverride,
+            Map<Integer, LocalDate> compDateMap,
             Map<Integer, List<String>> conflictReasonsMap) {
 
         List<String> staffRoles = schedule.getStaff().getStaffRoles().stream()
@@ -879,12 +903,16 @@ public class ScheduleService {
 
         List<String> conflictReasons = conflictReasonsMap.getOrDefault(schedule.getId(), List.of());
 
-        LocalDate compensationDate = compDateOverride != null ? compDateOverride
-                : compensationDayRepository.findByScheduleId(schedule.getId()).stream()
-                        .map(CompensationDay::getCompensationDate)
-                        .filter(java.util.Objects::nonNull)
-                        .min(Comparator.naturalOrder())
-                        .orElse(null);
+        LocalDate compensationDate = null;
+        if (compDateMap != null && compDateMap.containsKey(schedule.getId())) {
+            compensationDate = compDateMap.get(schedule.getId());
+        } else {
+            compensationDate = compensationDayRepository.findByScheduleId(schedule.getId()).stream()
+                    .map(CompensationDay::getCompensationDate)
+                    .filter(java.util.Objects::nonNull)
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+        }
 
         return ScheduleResponse.builder()
                 .id(schedule.getId())

@@ -26,4 +26,15 @@ public interface ShiftRequirementRepository extends JpaRepository<ShiftRequireme
             @Param("periodId") Integer periodId,
             @Param("workDate") LocalDate workDate,
             @Param("shiftTypeId") String shiftTypeId);
+
+    @Query("SELECT sr FROM ShiftRequirement sr WHERE sr.period.id = :periodId AND sr.workDate = :workDate AND sr.shiftType.id = :shiftTypeId AND (:specialtyId IS NULL AND sr.specialty IS NULL OR sr.specialty.id = :specialtyId)")
+    java.util.Optional<ShiftRequirement> findByPeriodIdAndWorkDateAndShiftTypeIdAndSpecialtyId(
+            @Param("periodId") Integer periodId,
+            @Param("workDate") LocalDate workDate,
+            @Param("shiftTypeId") String shiftTypeId,
+            @Param("specialtyId") Integer specialtyId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM ShiftRequirement sr WHERE sr.period.id = :periodId AND sr.note LIKE :notePrefix")
+    void deleteByPeriodIdAndNoteStartingWith(@Param("periodId") Integer periodId, @Param("notePrefix") String notePrefix);
 }

@@ -473,7 +473,7 @@ export function StaffCrudPanel() {
           type="button"
           onClick={() => setActiveTab("specialties")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all ${
-            activeTab === "specialties"
+            (activeTab as string) === "specialties"
               ? "bg-primary text-on-primary shadow-sm"
               : "text-on-surface-variant hover:bg-surface-container-high"
           }`}

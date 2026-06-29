@@ -197,6 +197,7 @@ public class DataSeeder implements CommandLineRunner {
 
         // ── ADMIN (ADMIN + MANAGER) ─────────────────────────────────────────
         Staff admin = staffRepository.save(Staff.builder()
+                .staffCode("NV001")
                 .username("admin").passwordHash(passwordEncoder.encode("admin123"))
                 .fullName("Nguyễn Văn An").phone("0901000001")
                 .email("admin@hospital.com").specialty(doctorSpecialty)
@@ -205,6 +206,7 @@ public class DataSeeder implements CommandLineRunner {
 
         // ── MANAGER (2 người) ──────────────────────────────────────────────
         Staff mgr1 = staffRepository.save(Staff.builder()
+                .staffCode("NV002")
                 .username("manager1").passwordHash(passwordEncoder.encode("123456"))
                 .fullName("Trần Thị Bình").phone("0901000002")
                 .email("manager1@hospital.com").specialty(doctorSpecialty)
@@ -212,6 +214,7 @@ public class DataSeeder implements CommandLineRunner {
         addRoles(mgr1, managerRole);
 
         Staff mgr2 = staffRepository.save(Staff.builder()
+                .staffCode("NV003")
                 .username("manager2").passwordHash(passwordEncoder.encode("123456"))
                 .fullName("Lê Hoàng Cường").phone("0901000003")
                 .email("manager2@hospital.com").specialty(nurseSpecialty)
@@ -242,8 +245,10 @@ public class DataSeeder implements CommandLineRunner {
                 new StaffSeed("dttthuy",   "123456", "Đặng Trần Thanh Thúy","0901000020","dttthuy@hospital.com",    nurseSpecialty,   5),
         };
 
-        for (StaffSeed s : seeds) {
+        for (int i = 0; i < seeds.length; i++) {
+            StaffSeed s = seeds[i];
             Staff staff = staffRepository.save(Staff.builder()
+                    .staffCode(String.format("NV%03d", i + 4))
                     .username(s.username).passwordHash(passwordEncoder.encode(s.password))
                     .fullName(s.fullName).phone(s.phone)
                     .email(s.email).specialty(s.specialty)
