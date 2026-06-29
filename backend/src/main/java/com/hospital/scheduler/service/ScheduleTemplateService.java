@@ -600,14 +600,21 @@ public class ScheduleTemplateService {
                     // The spec says apply creates schedules (not just requirements) so the period
                     // has actual assignments, not just demand records.
                     for (int i = 0; i < entry.requiredStaffCount; i++) {
-                        ShiftRequirement req = ShiftRequirement.builder()
-                                .period(period)
-                                .workDate(current)
-                                .shiftType(shiftType)
-                                .specialty(specialty)
-                                .requiredStaffCount(1)
-                                .build();
-                        requirementRepository.save(req);
+                        // FIX: Upsert to avoid uk_requirement_unique violation
+                        Integer specId = specialty != null ? specialty.getId() : null;
+                        final LocalDate finalDate = current;
+                        ShiftRequirement req = requirementRepository.findByPeriodIdAndWorkDateAndShiftTypeIdAndSpecialtyId(
+                                period.getId(), finalDate, entry.shiftTypeId, specId)
+                                .orElseGet(() -> {
+                                    ShiftRequirement newReq = ShiftRequirement.builder()
+                                            .period(period)
+                                            .workDate(finalDate)
+                                            .shiftType(shiftType)
+                                            .specialty(specialty)
+                                            .requiredStaffCount(1)
+                                            .build();
+                                    return requirementRepository.save(newReq);
+                                });
                         appliedCount++;
                     }
                 }

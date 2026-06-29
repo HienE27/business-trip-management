@@ -157,6 +157,16 @@ public class ShiftRequirementService {
         Specialty specialty = specialtyRepository.findById(dto.getSpecialtyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chuyên môn với ID: " + dto.getSpecialtyId()));
 
+        // FIX: Check for duplicate before saving to avoid uk_requirement_unique violation
+        requirementRepository.findByPeriodIdAndWorkDateAndShiftTypeIdAndSpecialtyId(
+                period.getId(), dto.getWorkDate(), dto.getShiftTypeId(), dto.getSpecialtyId())
+                .ifPresent(existing -> {
+                    throw new BadRequestException(
+                            "Yêu cầu nhân sự đã tồn tại cho ngày " + dto.getWorkDate() +
+                            ", ca " + dto.getShiftTypeId() +
+                            ", chuyên khoa ID " + dto.getSpecialtyId());
+                });
+
         ShiftRequirement requirement = ShiftRequirement.builder()
                 .period(period)
                 .workDate(dto.getWorkDate())

@@ -1669,6 +1669,10 @@ public class AutoSchedulingService {
     private List<ShiftRequirement> generateRequirementsForPeriod(SchedulePeriod period, AutoGenConfig config, List<Staff> activeStaff) {
         List<ShiftRequirement> generated = new ArrayList<>();
 
+        // FIX: Delete old auto-generated requirements before creating new ones
+        // to avoid Duplicate entry for UNIQUE KEY uk_requirement_unique
+        requirementRepository.deleteByPeriodIdAndNoteStartingWith(period.getId(), "AUTO:%");
+
         // Pre-load holidays
         Set<LocalDate> holidays = holidayRepository.findActiveHolidaysBetween(period.getStartDate(), period.getEndDate())
                 .stream()
