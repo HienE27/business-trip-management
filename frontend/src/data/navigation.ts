@@ -9,6 +9,7 @@ export type AppSectionKey =
   | "service-clinic"
   | "expert-clinic"
   | "staff"
+  | "specialties"
   | "leave-requests"
   | "shift-swaps"
   | "requirements"
