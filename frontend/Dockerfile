@@ -18,6 +18,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Install pnpm globally
+RUN npm install -g pnpm
+
 # Copy node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 

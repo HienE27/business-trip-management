@@ -217,6 +217,7 @@ CREATE TABLE shift_requirement (
 CREATE TABLE leave_request (
     id INT AUTO_INCREMENT PRIMARY KEY,
     staff_id INT NOT NULL,
+    period_id INT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     reason TEXT,
@@ -229,6 +230,8 @@ CREATE TABLE leave_request (
 
     CONSTRAINT fk_leave_staff
         FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
+    CONSTRAINT fk_leave_period
+        FOREIGN KEY (period_id) REFERENCES schedule_period(id) ON DELETE SET NULL,
     CONSTRAINT fk_leave_reviewed_by
         FOREIGN KEY (reviewed_by) REFERENCES staff(id) ON DELETE SET NULL,
     CONSTRAINT chk_leave_date_range
@@ -283,10 +286,10 @@ CREATE TABLE compensation_day (
 
     CONSTRAINT fk_compensation_staff
         FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
-    CONSTRAINT fk_compensation_schedule_consistency
-        FOREIGN KEY (schedule_id, staff_id, period_id, shift_date)
-        REFERENCES schedule(id, staff_id, period_id, work_date)
-        ON DELETE CASCADE,
+    CONSTRAINT fk_compensation_schedule
+        FOREIGN KEY (schedule_id) REFERENCES schedule(id) ON DELETE CASCADE,
+    CONSTRAINT fk_compensation_period
+        FOREIGN KEY (period_id) REFERENCES schedule_period(id) ON DELETE CASCADE,
     CONSTRAINT chk_compensation_not_same_day
         CHECK (compensation_date <> shift_date),
     UNIQUE KEY uk_compensation_schedule (schedule_id),
@@ -319,14 +322,10 @@ CREATE TABLE schedule_exchange (
         FOREIGN KEY (requester_id) REFERENCES staff(id) ON DELETE CASCADE,
     CONSTRAINT fk_exchange_target
         FOREIGN KEY (target_id) REFERENCES staff(id) ON DELETE CASCADE,
-    CONSTRAINT fk_exchange_requester_schedule_consistency
-        FOREIGN KEY (requester_schedule_id, requester_id, period_id)
-        REFERENCES schedule(id, staff_id, period_id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_exchange_target_schedule_consistency
-        FOREIGN KEY (target_schedule_id, target_id, period_id)
-        REFERENCES schedule(id, staff_id, period_id)
-        ON DELETE CASCADE,
+    CONSTRAINT fk_exchange_requester_schedule
+        FOREIGN KEY (requester_schedule_id) REFERENCES schedule(id) ON DELETE CASCADE,
+    CONSTRAINT fk_exchange_target_schedule
+        FOREIGN KEY (target_schedule_id) REFERENCES schedule(id) ON DELETE CASCADE,
     CONSTRAINT fk_exchange_reviewed_by
         FOREIGN KEY (reviewed_by) REFERENCES staff(id) ON DELETE SET NULL,
     CONSTRAINT chk_exchange_different_staff
@@ -341,7 +340,7 @@ CREATE TABLE schedule_exchange (
 -- =====================================================
 CREATE TABLE algorithm_config (
     param_key VARCHAR(50) PRIMARY KEY,
-    param_value VARCHAR(500) NOT NULL,
+    param_value VARCHAR(2000) NOT NULL,
     value_type ENUM('STRING', 'NUMBER', 'BOOLEAN', 'JSON') NOT NULL DEFAULT 'STRING',
     description VARCHAR(255),
     updated_by INT NULL,
@@ -399,7 +398,6 @@ CREATE TABLE schedule_conflict (
     conflict_type ENUM(
         'LEAVE_CONFLICT',
         'MAX_SHIFT_EXCEEDED',
-        'BACK_TO_BACK_SHIFT',
         'SPECIALTY_MISMATCH',
         'REQUIREMENT_NOT_MET',
         'DUPLICATE_ASSIGNMENT',
@@ -474,6 +472,7 @@ CREATE TABLE algorithm_metrics (
     coverage_rate DECIMAL(5,2) NULL,
     balance_score DECIMAL(5,2) NULL,
     conflict_count INT NOT NULL DEFAULT 0,
+    total_schedules_created INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_algorithm_metrics_period
@@ -501,6 +500,13 @@ CREATE TABLE schedule_template (
     specialty_id INT NULL,
     required_staff_count INT NOT NULL DEFAULT 1,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
+    source_period_id INT NULL,
+    algorithm_type VARCHAR(50) NULL,
+    algorithm_config TEXT NULL,
+    template_type VARCHAR(20) NOT NULL DEFAULT 'PATTERN',
+    generated_schedule_ids TEXT NULL,
+    pattern_config TEXT NULL,
+    source_period_name VARCHAR(100) NULL,
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
