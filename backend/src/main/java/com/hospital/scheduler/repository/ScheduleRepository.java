@@ -186,4 +186,18 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
      */
     @Query("SELECT s.period.id, s.workDate, s.shiftType.id, COUNT(s) FROM Schedule s GROUP BY s.period.id, s.workDate, s.shiftType.id")
     List<Object[]> countGroupedByPeriodWorkDateShiftType();
+
+    @Query("""
+            SELECT s
+            FROM Schedule s
+            JOIN FETCH s.staff st
+            LEFT JOIN FETCH st.specialty
+            LEFT JOIN FETCH st.staffRoles sr
+            LEFT JOIN FETCH sr.role
+            JOIN FETCH s.shiftType
+            JOIN FETCH s.period
+            LEFT JOIN FETCH s.requirement
+            WHERE s.workDate IN :workDates
+            """)
+    List<Schedule> findByWorkDatesWithDetails(@Param("workDates") java.util.Collection<LocalDate> workDates);
 }
