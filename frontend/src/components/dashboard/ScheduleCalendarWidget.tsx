@@ -204,7 +204,9 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
 
   // Stable onCellClick callback to prevent MatrixGridWrapper re-renders
   const stableOnCellClick = useCallback(
-    onAddClick ? (date: Date, staffId: number) => onAddClick(date, staffId) : undefined,
+    (date: Date, staffId: number) => {
+      onAddClick?.(date, staffId);
+    },
     [onAddClick]
   );
 
