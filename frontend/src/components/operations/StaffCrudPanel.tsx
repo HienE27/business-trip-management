@@ -97,7 +97,7 @@ function getInitials(name: string) {  return name
 function getStatusLabel(record: StaffResponse) {
   if (record.status === "active") return "Đang làm việc";
   if (record.status === "on_leave") return "Nghỉ phép";
-  return "Đã nghỉ";
+  return "Nghỉ việc";
 }
 
 function getStatusClass(record: StaffResponse) {
@@ -211,17 +211,38 @@ export function StaffCrudPanel() {
     setFormOpen(false);
   }, []);
 
+  const activeCount = records.filter((r) => r.status === "active").length;
+  const onLeaveCount = records.filter((r) => r.status === "on_leave").length;
+
+  function setTab(tab: "staff" | "specialties") {
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`/staff?${params.toString()}`, { scroll: false });
+  }
+
+  function setTabFromUrl() {
+    const tab = searchParams.get("tab");
+    if (tab === "specialties" || tab === "staff") {
+      setActiveTab(tab);
+    }
+  }
+
+  useEffect(() => {
+    setTabFromUrl();
+  }, [searchParams]);
+
   const summary = useMemo(
     () => [
       ["Tổng nhân sự", String(records.length).padStart(2, "0")],
-      ["Đang làm việc", String(records.filter((r) => r.isActive).length).padStart(2, "0")],
-      ["Đã nghỉ", String(records.filter((r) => !r.isActive).length).padStart(2, "0")],
+      ["Đang làm việc", String(activeCount).padStart(2, "0")],
+      ["Nghỉ phép", String(onLeaveCount).padStart(2, "0")],
       [
-        "Chuyên khoa",
-        String(new Set(records.map((r) => r.specialty?.name).filter(Boolean)).size).padStart(2, "0"),
+        "Nghỉ việc",
+        String(records.filter((r) => r.status === "inactive").length).padStart(2, "0"),
       ],
     ],
-    [records]
+    [records, activeCount, onLeaveCount]
   );
 
   const filteredRecords = useMemo(() => {
@@ -242,7 +263,7 @@ export function StaffCrudPanel() {
 
       const matchesStatus =
         !statusFilter ||
-        (statusFilter === "active" && record.status === "active") ||
+        (statusFilter === "ACTIVE" && record.status === "active") ||
         (statusFilter === "ON_LEAVE" && record.status === "on_leave") ||
         (statusFilter === "INACTIVE" && record.status === "inactive");
 
@@ -315,13 +336,10 @@ export function StaffCrudPanel() {
     URL.revokeObjectURL(url);
   }
 
-  const [importing, setImporting] = useState(false);
-
   async function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setImporting(true);
     try {
       const result = await api.importStaff(file);
       if (result.errors && result.errors.length > 0) {
@@ -333,7 +351,6 @@ export function StaffCrudPanel() {
     } catch (err) {
       toast.error(getErrorMessage(err, "Lỗi nhập file"));
     } finally {
-      setImporting(false);
       if (event.target) event.target.value = "";
     }
   }
@@ -344,24 +361,6 @@ export function StaffCrudPanel() {
 
   function openEditPage(id: number) {
     router.push(`/staff/${id}/edit`);
-  }
-
-  function editStaff(record: StaffResponse) {
-    setForm({
-      username: record.username,
-      fullName: record.fullName,
-      password: "",
-      phone: record.phone ?? "",
-      email: record.email ?? "",
-      position: record.position ?? "",
-      specialtyId: record.specialty?.id ?? null,
-      maxShiftsPerMonth: record.maxShiftsPerMonth ?? 5,
-      status: record.status === "active" ? "ACTIVE" : record.status === "on_leave" ? "ON_LEAVE" : "INACTIVE",
-      roles: record.roles ?? [],
-      hireDate: record.hireDate ? record.hireDate.split("T")[0] : "",
-    });
-    setEditingId(record.id);
-    setFormOpen(true);
   }
 
   function closeForm() {
@@ -447,7 +446,51 @@ export function StaffCrudPanel() {
   const isSpecialtiesTab = activeTab === "specialties";
 
   if (isSpecialtiesTab) {
-    return <SpecialtyCrudPanel onBack={() => setActiveTab("staff")} />;
+    return (
+      <div className="space-y-6">
+        <nav aria-label="Đường dẫn" className="flex items-center gap-2 text-label-md text-on-surface-variant">
+          <span className="material-symbols-outlined text-[18px]">stethoscope</span>
+          <span className="text-on-surface font-medium">Chuyên khoa</span>
+        </nav>
+
+        {/* Tab Bar */}
+        <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant w-fit shadow-sm">
+          <button
+            type="button"
+            onClick={() => setTab("staff")}
+            className={`group relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${
+              !isSpecialtiesTab
+                ? "bg-primary text-on-primary shadow-md"
+                : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">groups</span>
+            Nhân viên
+            <span className={`min-w-[20px] h-5 rounded-full px-1.5 flex items-center justify-center text-[11px] font-bold tabular-nums transition-all duration-200 ${
+              !isSpecialtiesTab
+                ? "bg-on-primary/20 text-on-primary"
+                : "bg-surface-container-high text-on-surface-variant group-hover:bg-surface-container-highest"
+            }`}>
+              {records.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("specialties")}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${
+              isSpecialtiesTab
+                ? "bg-primary text-on-primary shadow-md"
+                : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">stethoscope</span>
+            Chuyên khoa
+          </button>
+        </div>
+
+        <SpecialtyCrudPanel onBack={() => setTab("staff")} />
+      </div>
+    );
   }
 
   return (
@@ -458,26 +501,34 @@ export function StaffCrudPanel() {
         <span className="text-on-surface font-medium">Nhân sự</span>
       </nav>
 
-      <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant w-fit">
+      {/* Tab Bar */}
+      <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant w-fit shadow-sm">
         <button
           type="button"
-          onClick={() => setActiveTab("staff")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all ${
+          onClick={() => setTab("staff")}
+          className={`group relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${
             activeTab === "staff"
-              ? "bg-primary text-on-primary shadow-sm"
-              : "text-on-surface-variant hover:bg-surface-container-high"
+              ? "bg-primary text-on-primary shadow-md"
+              : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
           }`}
         >
           <span className="material-symbols-outlined text-[18px]">groups</span>
           Nhân viên
+          <span className={`min-w-[20px] h-5 rounded-full px-1.5 flex items-center justify-center text-[11px] font-bold tabular-nums transition-all duration-200 ${
+            activeTab === "staff"
+              ? "bg-on-primary/20 text-on-primary"
+              : "bg-surface-container-high text-on-surface-variant group-hover:bg-surface-container-highest"
+          }`}>
+            {records.length}
+          </span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("specialties")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all ${
             isSpecialtiesTab
-              ? "bg-primary text-on-primary shadow-sm"
-              : "text-on-surface-variant hover:bg-surface-container-high"
+              ? "bg-primary text-on-primary shadow-md"
+              : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
           }`}
         >
           <span className="material-symbols-outlined text-[18px]">stethoscope</span>
@@ -843,9 +894,9 @@ export function StaffCrudPanel() {
             value={statusFilter}
           >
             <option value="">Trạng thái</option>
-            <option value="active">Đang làm việc</option>
-            <option value="on_leave">Nghỉ phép</option>
-            <option value="inactive">Đã nghỉ</option>
+            <option value="ACTIVE">Đang làm việc</option>
+            <option value="ON_LEAVE">Nghỉ phép</option>
+            <option value="INACTIVE">Dừng hoạt động</option>
           </select>
           <span aria-hidden="true" className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">
             expand_more

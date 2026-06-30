@@ -44,6 +44,7 @@ export interface Staff {
   specialty?: StaffSpecialty;
   maxShiftsPerMonth: number;
   isActive: boolean;
+  status: string;
   createdAt: string;
   updatedAt: string;
   roles: string[];

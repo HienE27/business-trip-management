@@ -15,8 +15,20 @@ import java.util.Optional;
 public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
 
     @Modifying
+    @Query("DELETE FROM Schedule s WHERE s.period.id = :periodId")
+    void deleteAllByPeriodId(@Param("periodId") Integer periodId);
+
+    @Modifying
     @Query("DELETE FROM Schedule s WHERE s.id = :id")
     void deleteByIdQuery(@Param("id") Integer id);
+
+    /**
+     * Clear requirement FK references for schedules linked to specific requirements.
+     * Uses native query for immediate execution to avoid batch processing issues.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "UPDATE schedule SET requirement_id = NULL WHERE requirement_id IN :requirementIds", nativeQuery = true)
+    void clearRequirementReferencesByRequirementIds(@Param("requirementIds") List<Integer> requirementIds);
 
     @Query("""
             SELECT s

@@ -62,18 +62,35 @@ export const QuickAddModal = memo(function QuickAddModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const dateKey = date ? date.toISOString().slice(0, 10) : null;
+  // Helper: convert Date to local YYYY-MM-DD string (avoids UTC offset shift)
+  const toLocalDateStr = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const dateKey = date ? toLocalDateStr(date) : null;
 
   // Safety net: detect out-of-range dates that slipped through
   // the parent guard. This can happen if the period changes while
   // the modal is open or if the calendar navigation allowed an
   // out-of-bounds date click.
+  // Compare local YYYY-MM-DD strings to avoid UTC timezone shifts.
   const dateOutOfRange = Boolean(
     date && (
-      (periodStart && date < new Date(periodStart + "T00:00:00")) ||
-      (periodEnd && date > new Date(periodEnd + "T23:59:59"))
+      (periodStart && toLocalDateStr(date) < periodStart) ||
+      (periodEnd && toLocalDateStr(date) > periodEnd)
     )
   );
+
+  console.log("[QuickAddModal] props check", {
+    date: date?.toString(),
+    dateStr: date ? toLocalDateStr(date) : null,
+    periodStart,
+    periodEnd,
+    dateOutOfRange,
+  });
 
   // Reset form state AND set date-out-of-range error in a single effect.
   // Splitting into two useEffect hooks causes a race: the second effect
@@ -115,7 +132,7 @@ export const QuickAddModal = memo(function QuickAddModal({
     // date. The backend would reject it anyway, and the
     // optimistic insert would have to be rolled back.
     if (compensationDays && staffId) {
-      const dateStr = date.toISOString().slice(0, 10);
+      const dateStr = toLocalDateStr(date);
       const isCompDay = compensationDays.some(
         (cd) => cd.staffId === Number(staffId) && cd.compensationDate === dateStr
       );
@@ -129,7 +146,7 @@ export const QuickAddModal = memo(function QuickAddModal({
     // Client-side guard: refuse to send a request when the
     // picked date is a national or registered holiday.
     if (holidays) {
-      const dateStr = date.toISOString().slice(0, 10);
+      const dateStr = toLocalDateStr(date);
       const holiday = holidays.find((h) => h.holidayDate === dateStr);
       if (holiday) {
         setError(
@@ -142,7 +159,7 @@ export const QuickAddModal = memo(function QuickAddModal({
 
     const staff = staffList.find((s) => s.id === Number(staffId));
     const tempId = nextTempId();
-    const workDateStr = date.toISOString().slice(0, 10);
+    const workDateStr = toLocalDateStr(date);
     const trimmedNotes = notes.trim();
 
     // Build the optimistic schedule. Fields the backend hasn't

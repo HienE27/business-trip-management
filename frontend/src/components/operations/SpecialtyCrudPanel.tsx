@@ -180,19 +180,20 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
         <span className="text-on-surface font-medium">Chuyên khoa</span>
       </nav>
 
-      {/* Slide-in Drawer */}
+      {/* Slide-in Drawer - only render when open */}
+      {formOpen && (
       <div
         aria-label="Form chuyên khoa"
         aria-modal="true"
-        className={`fixed inset-0 z-50 flex justify-end ${formOpen ? "pointer-events-auto" : "pointer-events-none"}`}
+        className="fixed inset-0 z-50 flex justify-end pointer-events-auto"
         role="dialog"
       >
         <div
-          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${formOpen ? "opacity-100" : "opacity-0"}`}
+          className="absolute inset-0 bg-black/40 transition-opacity duration-300 opacity-100"
           onClick={closeForm}
         />
         <div
-          className={`relative flex flex-col w-full max-w-[420px] h-full bg-surface-container-lowest shadow-sm transition-transform duration-300 ease-out ${formOpen ? "translate-x-0" : "translate-x-full"}`}
+          className="relative flex flex-col w-full max-w-[420px] h-full bg-surface-container-lowest shadow-sm transition-transform duration-300 ease-out translate-x-0"
         >
           <div className="flex items-center justify-between px-6 py-5 border-b border-outline-variant shrink-0">
             <div className="flex items-center gap-3">
@@ -265,6 +266,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
           </div>
         </div>
       </div>
+      )}
 
       {/* Header */}
       <section className="flex flex-col justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 md:p-5 shadow-sm sm:flex-row sm:items-center">

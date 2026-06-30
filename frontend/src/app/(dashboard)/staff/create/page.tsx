@@ -2,12 +2,15 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
 import { ROLE_LABELS } from "@/lib/roleLabels";
-import { BackButton } from "@/components/ui/BackButton";
+import { FormInput, FormSelect } from "@/components/ui";
 import type { Specialty } from "@/types/api";
+
+type StaffStatus = "ACTIVE" | "ON_LEAVE" | "INACTIVE";
 
 type StaffFormData = {
   username: string;
@@ -18,7 +21,7 @@ type StaffFormData = {
   position: string;
   specialtyId: number | null;
   maxShiftsPerMonth: number;
-  isActive: boolean;
+  status: StaffStatus;
   roles: string[];
 };
 
@@ -31,7 +34,7 @@ const emptyForm: StaffFormData = {
   position: "",
   specialtyId: null,
   maxShiftsPerMonth: 5,
-  isActive: true,
+  status: "ACTIVE",
   roles: [],
 };
 
@@ -47,6 +50,7 @@ function StaffCreateContent() {
   const [form, setForm] = useState<StaffFormData>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
 
   const fetchData = useCallback(async () => {
     try {
@@ -64,22 +68,39 @@ function StaffCreateContent() {
     void fetchData();
   }, [fetchData]);
 
-  function updateField(field: keyof StaffFormData, value: string | number | boolean | null | string[]) {
+  function updateField(field: keyof StaffFormData, value: string | number | null) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function validate(): boolean {
+    const errors: Record<string, string | undefined> = {};
+    if (!form.username.trim()) {
+      errors.username = "Tên đăng nhập không được để trống.";
+    } else if (form.username.trim().length < 3) {
+      errors.username = "Tên đăng nhập phải có ít nhất 3 ký tự.";
+    }
+    if (!form.fullName.trim()) {
+      errors.fullName = "Họ tên không được để trống.";
+    }
+    if (!form.password.trim()) {
+      errors.password = "Mật khẩu không được để trống.";
+    } else if (form.password.trim().length < 6) {
+      errors.password = "Mật khẩu phải có ít nhất 6 ký tự.";
+    }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      errors.email = "Email không hợp lệ.";
+    }
+    if (form.phone.trim() && !/^[0-9+\-\s]{9,15}$/.test(form.phone.trim().replace(/\s/g, ""))) {
+      errors.phone = "Số điện thoại không hợp lệ.";
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!form.username.trim() || !form.fullName.trim()) {
-      toast.error("Cần nhập tên đăng nhập và họ tên.");
-      return;
-    }
-
-    if (!form.password.trim()) {
-      toast.error("Cần nhập mật khẩu.");
-      return;
-    }
+    if (!validate()) return;
 
     try {
       setSubmitting(true);
@@ -92,7 +113,7 @@ function StaffCreateContent() {
         position: form.position.trim() || null,
         specialtyId: form.specialtyId,
         maxShiftsPerMonth: form.maxShiftsPerMonth,
-        isActive: form.isActive,
+        status: form.status,
         roles: form.roles,
       });
       toast.success("Đã tạo nhân sự thành công.");
@@ -107,191 +128,250 @@ function StaffCreateContent() {
   }
 
   return (
-    <>
-      <BackButton href="/staff" variant="full" label="Quay lại" className="mb-4" />
+    <div className="space-y-6">
+      <nav aria-label="Đường dẫn" className="flex items-center gap-2 text-label-md text-on-surface-variant">
+        <Link href="/staff" className="hover:text-primary transition-colors flex items-center gap-1">
+          <span className="material-symbols-outlined text-[18px]">groups</span>
+          Nhân sự
+        </Link>
+        <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+        <span className="text-on-surface font-medium">Thêm nhân sự</span>
+      </nav>
 
       {loading ? (
         <div className="flex items-center justify-center py-24">
           <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
       ) : (
-        <section className="max-w-2xl mx-auto">
-          <article className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
-            <div className="flex items-center gap-3 px-6 py-4 border-b border-outline-variant bg-surface">
-              <span className="material-symbols-outlined text-[22px] text-primary">person_add</span>
+        <>
+          {/* Page Header */}
+          <section className="flex items-center gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-container">
+              <span className="material-symbols-outlined text-[24px] text-primary">person_add</span>
+            </div>
+            <div>
+              <h1 className="text-headline-md font-semibold text-on-surface">Thêm nhân sự mới</h1>
+              <p className="text-label-md text-on-surface-variant mt-0.5">
+                Nhập thông tin để tạo tài khoản nhân sự mới trong hệ thống.
+              </p>
+            </div>
+          </section>
+
+          <form className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden" id="staff-create-form" onSubmit={handleSubmit} noValidate>
+            <div className="px-6 py-5">
+              {/* Account Info */}
+              <div className="mb-6">
+                <h2 className="text-title-md font-semibold text-on-surface flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-primary text-[20px]">manage_accounts</span>
+                  Thông tin tài khoản
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <FormInput
+                    label="Tên đăng nhập"
+                    name="username"
+                    autoComplete="username"
+                    placeholder="Nhập tên đăng nhập"
+                    value={form.username}
+                    onChange={(e) => {
+                      updateField("username", e.target.value);
+                      if (fieldErrors.username) setFieldErrors((f) => ({ ...f, username: undefined }));
+                    }}
+                    error={fieldErrors.username}
+                    required
+                    disabled={submitting}
+                    icon="account_circle"
+                  />
+
+                  <FormInput
+                    label="Mật khẩu"
+                    name="password"
+                    autoComplete="new-password"
+                    placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)"
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => {
+                      updateField("password", e.target.value);
+                      if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: undefined }));
+                    }}
+                    error={fieldErrors.password}
+                    required
+                    disabled={submitting}
+                    icon="lock"
+                  />
+                </div>
+              </div>
+
+              {/* Personal Info */}
+              <div className="mb-6">
+                <h2 className="text-title-md font-semibold text-on-surface flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-primary text-[20px]">badge</span>
+                  Thông tin cá nhân
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <FormInput
+                    label="Họ tên"
+                    name="fullName"
+                    autoComplete="name"
+                    placeholder="VD: Nguyễn Văn A"
+                    value={form.fullName}
+                    onChange={(e) => {
+                      updateField("fullName", e.target.value);
+                      if (fieldErrors.fullName) setFieldErrors((f) => ({ ...f, fullName: undefined }));
+                    }}
+                    error={fieldErrors.fullName}
+                    required
+                    disabled={submitting}
+                    icon="badge"
+                  />
+
+                  <FormInput
+                    label="Chức vụ"
+                    name="position"
+                    placeholder="VD: Bác sĩ, Điều dưỡng"
+                    value={form.position}
+                    onChange={(e) => updateField("position", e.target.value)}
+                    disabled={submitting}
+                    icon="work"
+                  />
+
+                  <FormInput
+                    label="Email"
+                    name="email"
+                    autoComplete="email"
+                    type="email"
+                    placeholder="VD: abc@hospital.vn"
+                    value={form.email}
+                    onChange={(e) => {
+                      updateField("email", e.target.value);
+                      if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined }));
+                    }}
+                    error={fieldErrors.email}
+                    disabled={submitting}
+                    icon="mail"
+                  />
+
+                  <FormInput
+                    label="Số điện thoại"
+                    name="phone"
+                    autoComplete="tel"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="VD: 0901234567"
+                    value={form.phone}
+                    onChange={(e) => {
+                      updateField("phone", e.target.value);
+                      if (fieldErrors.phone) setFieldErrors((f) => ({ ...f, phone: undefined }));
+                    }}
+                    error={fieldErrors.phone}
+                    disabled={submitting}
+                    icon="phone"
+                  />
+                </div>
+              </div>
+
+              {/* Work Info */}
               <div>
-                <h2 className="text-[18px] font-semibold text-on-surface">Thông tin nhân sự</h2>
-                <p className="text-[12px] text-on-surface-variant">
-                  Nhập thông tin để tạo tài khoản nhân sự mới trong hệ thống.
-                </p>
+                <h2 className="text-title-md font-semibold text-on-surface flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-primary text-[20px]">work_outline</span>
+                  Phân công &amp; trạng thái
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <FormSelect
+                    label="Chuyên khoa"
+                    value={String(form.specialtyId ?? "")}
+                    onChange={(e) => updateField("specialtyId", e.target.value ? parseInt(e.target.value) : null)}
+                    options={specialties.map((s) => ({ value: String(s.id), label: s.name }))}
+                    placeholder="Chưa phân khoa"
+                    disabled={submitting}
+                  />
+
+                  <FormInput
+                    label="Số ca tối đa / tháng"
+                    name="maxShiftsPerMonth"
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={String(form.maxShiftsPerMonth)}
+                    onChange={(e) => updateField("maxShiftsPerMonth", parseInt(e.target.value) || 5)}
+                    disabled={submitting}
+                    icon="event"
+                  />
+
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-body-sm font-semibold text-on-surface">Vai trò</label>
+                    <div className="flex flex-wrap gap-2">
+                      {([
+                        { value: "ADMIN", label: ROLE_LABELS.ADMIN },
+                        { value: "MANAGER", label: ROLE_LABELS.MANAGER },
+                        { value: "STAFF", label: ROLE_LABELS.STAFF },
+                      ] as const).map((role) => {
+                        const checked = form.roles.includes(role.value);
+                        return (
+                          <label
+                            key={role.value}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-label-md ${
+                              checked
+                                ? "bg-primary/10 border-primary text-primary font-medium"
+                                : "bg-surface-container-low border-outline-variant text-on-surface-variant hover:border-primary/50"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={checked}
+                              onChange={(e) => {
+                                setForm((f) => ({
+                                  ...f,
+                                  roles: e.target.checked
+                                    ? [...f.roles, role.value]
+                                    : f.roles.filter((r) => r !== role.value),
+                                }));
+                              }}
+                              disabled={submitting}
+                            />
+                            <span
+                              className={`material-symbols-outlined text-[16px] transition-colors ${
+                                checked ? "text-primary" : "text-outline"
+                              }`}
+                              aria-hidden="true"
+                            >
+                              {checked ? "check_box" : "check_box_outline_blank"}
+                            </span>
+                            {role.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {form.roles.length === 0 && (
+                      <p className="text-label-xs text-error flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
+                        Vui lòng chọn ít nhất một vai trò.
+                      </p>
+                    )}
+                  </div>
+
+                  <FormSelect
+                    label="Trạng thái"
+                    value={form.status}
+                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as StaffStatus }))}
+                    options={[
+                      { value: "ACTIVE", label: "Đang làm việc" },
+                      { value: "ON_LEAVE", label: "Nghỉ phép" },
+                      { value: "INACTIVE", label: "Nghỉ việc" },
+                    ]}
+                    disabled={submitting}
+                  />
+                </div>
               </div>
             </div>
 
-            <form className="p-6 space-y-6" id="staff-create-form" onSubmit={handleSubmit}>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="flex flex-col gap-1.5 col-span-2">
-                  <span className="text-[13px] font-semibold text-on-surface">Tên đăng nhập <span className="text-error">*</span></span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                    name="username"
-                    onChange={(e) => updateField("username", e.target.value)}
-                    required
-                    value={form.username}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[13px] font-semibold text-on-surface">Mật khẩu <span className="text-error">*</span></span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                    name="password"
-                    onChange={(e) => updateField("password", e.target.value)}
-                    placeholder="Nhập mật khẩu"
-                    type="password"
-                    value={form.password}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[13px] font-semibold text-on-surface">Chức vụ</span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                    name="position"
-                    onChange={(e) => updateField("position", e.target.value)}
-                    placeholder="VD: Bác sĩ, Điều dưỡng"
-                    type="text"
-                    value={form.position}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5 col-span-2">
-                  <span className="text-[13px] font-semibold text-on-surface">Họ tên <span className="text-error">*</span></span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                    name="fullName"
-                    onChange={(e) => updateField("fullName", e.target.value)}
-                    required
-                    value={form.fullName}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[13px] font-semibold text-on-surface">Email</span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                    name="email"
-                    onChange={(e) => updateField("email", e.target.value)}
-                    type="email"
-                    value={form.email}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[13px] font-semibold text-on-surface">Số điện thoại</span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                    name="phone"
-                    onChange={(e) => updateField("phone", e.target.value)}
-                    type="tel"
-                    value={form.phone}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5 col-span-2">
-                  <span className="text-[13px] font-semibold text-on-surface">Số ca tối đa / tháng</span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                    max={31}
-                    min={1}
-                    name="maxShiftsPerMonth"
-                    onChange={(e) => updateField("maxShiftsPerMonth", parseInt(e.target.value) || 5)}
-                    type="number"
-                    value={form.maxShiftsPerMonth}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1.5 col-span-2">
-                  <span className="text-[13px] font-semibold text-on-surface">Chuyên khoa</span>
-                  <div className="relative">
-                    <label htmlFor="create-staff-specialty" className="sr-only">Chuyên khoa</label>
-                    <select
-                      id="create-staff-specialty"
-                      className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-low px-3 pr-10 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 cursor-pointer"
-                      name="specialty"
-                      onChange={(e) => updateField("specialtyId", e.target.value ? parseInt(e.target.value) : null)}
-                      value={form.specialtyId ?? ""}
-                    >
-                      <option value="">Chưa phân khoa</option>
-                      {specialties.map((spec) => (
-                        <option key={spec.id} value={spec.id}>{spec.name}</option>
-                      ))}
-                    </select>
-                    <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
-                  </div>
-                </label>
-
-                <label className="flex flex-col gap-1.5 col-span-2">
-                  <span className="text-[13px] font-semibold text-on-surface">Vai trò</span>
-                  <div className="relative">
-                    <label htmlFor="create-staff-role" className="sr-only">Vai trò</label>
-                    <select
-                      id="create-staff-role"
-                      className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-low px-3 pr-10 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 cursor-pointer"
-                      name="role"
-                      onChange={(e) =>
-                        updateField(
-                          "roles",
-                          e.target.value ? [e.target.value] : []
-                        )
-                      }
-                      value={form.roles[0] ?? ""}
-                    >
-                    <option value="">Chưa phân quyền</option>
-                    <option value="ADMIN">{ROLE_LABELS.ADMIN}</option>
-                    <option value="MANAGER">{ROLE_LABELS.MANAGER}</option>
-                    <option value="STAFF">{ROLE_LABELS.STAFF}</option>
-                    </select>
-                    <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
-                  </div>
-                </label>
-
-                <label className="flex flex-col gap-1.5 col-span-2">
-                  <span className="text-[13px] font-semibold text-on-surface">Trạng thái hoạt động</span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      aria-checked={form.isActive}
-                      aria-label="Trạng thái hoạt động"
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 cursor-pointer ${form.isActive ? "bg-secondary" : "bg-surface-variant"}`}
-                      role="switch"
-                      type="button"
-                      onClick={() => updateField("isActive", !form.isActive)}
-                      onKeyDown={(e) => {
-                        if (e.key === " " || e.key === "Enter") {
-                          e.preventDefault();
-                          updateField("isActive", !form.isActive);
-                        }
-                      }}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-container-lowest)] shadow transition-transform ${form.isActive ? "translate-x-6" : "translate-x-1"}`}
-                      />
-                    </button>
-                    <span className="text-[13px] font-medium text-on-surface">
-                      {form.isActive ? "Đang hoạt động" : "Đã dừng hoạt động"}
-                    </span>
-                  </div>
-                </label>
-              </div>
-            </form>
-
             <div className="flex items-center gap-3 px-6 py-4 border-t border-outline-variant bg-surface">
-              <button
-                className="flex-1 rounded-lg border border-outline-variant px-4 py-2.5 text-[14px] font-semibold text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                onClick={() => router.push("/staff")}
-                type="button"
+              <Link
+                href="/staff"
+                className="flex-1 rounded-lg border border-outline-variant px-4 py-2.5 text-[14px] font-semibold text-on-surface transition-colors hover:bg-surface-container-low text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               >
                 Hủy bỏ
-              </button>
+              </Link>
               <button
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[14px] font-semibold text-on-primary shadow-sm transition-colors hover:brightness-110 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 disabled={submitting}
@@ -305,15 +385,15 @@ function StaffCreateContent() {
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-[18px]">save</span>
+                    <span className="material-symbols-outlined text-[18px]" aria-hidden="true">save</span>
                     Tạo nhân sự
                   </>
                 )}
               </button>
             </div>
-          </article>
-        </section>
+          </form>
+        </>
       )}
-    </>
+    </div>
   );
 }

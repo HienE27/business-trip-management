@@ -9,7 +9,6 @@ export type AppSectionKey =
   | "service-clinic"
   | "expert-clinic"
   | "staff"
-  | "specialties"
   | "leave-requests"
   | "shift-swaps"
   | "requirements"
@@ -93,13 +92,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     description: "Quản lý hồ sơ nhân sự, trạng thái hoạt động, chuyên môn và dữ liệu phục vụ lập lịch.",
   },
   {
-    key: "specialties",
-    label: "Chuyên khoa",
-    href: "/staff",
-    icon: "stethoscope",
-    description: "Quản lý danh sách chuyên khoa trong bệnh viện. Các chuyên khoa được dùng để phân loại nhân sự và lịch trực.",
-  },
-  {
     key: "leave-requests",
     label: "Nghỉ phép",
     href: "/leave-requests",
@@ -163,7 +155,6 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/staff": "staff",
   "/staff/create": "staff",
   "/staff/profile": "staff",
-  "/staff/specialties": "specialties",
   "/duty-24": "duty-24",
   "/all-day": "all-day",
   "/service-clinic": "service-clinic",

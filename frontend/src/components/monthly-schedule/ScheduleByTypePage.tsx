@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WorkflowStepper } from "@/components/monthly-schedule/WorkflowStepper";
-import { ScheduleCalendarSection } from "@/components/monthly-schedule/ScheduleCalendarSection";
+import { ScheduleMatrixView } from "@/components/dashboard/ScheduleMatrixView";
 import { QuickAddModal } from "@/components/monthly-schedule/QuickAddModal";
 import { ShiftDetailModal } from "@/components/monthly-schedule/ShiftDetailModal";
 import { BulkScheduleModal } from "@/components/monthly-schedule/BulkScheduleModal";
@@ -114,6 +114,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [bulkSelectedDates, setBulkSelectedDates] = useState<string[]>([]);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
+
+  // Quick single-date picker (reuses BulkDatePickerModal)
+  const [quickPickerOpen, setQuickPickerOpen] = useState(false);
 
   const loadBaseData = useCallback(async (options?: { keepCurrentPeriod?: boolean }) => {
     try {
@@ -234,6 +237,10 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   // Reload schedules only (used after publish, bulk operations)
   const reloadSchedules = useCallback(async () => {
     if (!selectedPeriodId) return;
+    console.log("[ScheduleByTypePage] reloadSchedules called, periodId:", selectedPeriodId);
+    // Reset dryRunData to avoid showing stale coverage stats after auto-scheduling
+    setDryRunData(null);
+    setConflictData(null);
     try {
       setLoading(true);
       const [scheduleData, compData] = await Promise.all([
@@ -245,8 +252,14 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           : api.get<Schedule[]>(`/schedules/period/${selectedPeriodId}`),
         api.get<CompensationDay[]>(`/schedules/compensation-days/${selectedPeriodId}`),
       ]);
-      setSchedules(scheduleData ?? []);
+      // Extract schedules from paginated response if needed (API returns Page object)
+      const schedulesArray = (scheduleData && typeof scheduleData === 'object' && 'content' in scheduleData)
+        ? (scheduleData as { content: Schedule[] }).content
+        : Array.isArray(scheduleData) ? scheduleData : [];
+      console.log("[ScheduleByTypePage] reloadSchedules got", schedulesArray.length, "schedules, setting state");
+      setSchedules(schedulesArray);
       setCompensationDays(compData ?? []);
+      console.log("[ScheduleByTypePage] State updated, schedules.length should be", schedulesArray.length);
     } catch {
       setMessage(config.fetchErrorMessage);
     } finally {
@@ -296,9 +309,17 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
   // Bulk schedule handlers
   const handleBulkDatesSelected = useCallback((dates: string[]) => {
-    setBulkSelectedDates(dates);
-    setBulkPickerOpen(false);
-    setBulkModalOpen(true);
+    if (dates.length === 1) {
+      // Single date → open QuickAddModal with that date
+      setBulkPickerOpen(false);
+      const [y, m, d] = dates[0]!.split("-").map(Number);
+      setAddModalDate(new Date(y!, m! - 1, d!));
+    } else {
+      // Multiple dates → open bulk modal
+      setBulkSelectedDates(dates);
+      setBulkPickerOpen(false);
+      setBulkModalOpen(true);
+    }
   }, []);
 
   const handleBulkSuccess = useCallback(() => {
@@ -387,10 +408,14 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           api.get<Holiday[]>("/holidays/active"),
         ]);
         if (!cancelled) {
+          // Extract schedules from paginated response if needed (API returns Page object)
+          const schedulesArray = (scheduleData && typeof scheduleData === 'object' && 'content' in scheduleData)
+            ? (scheduleData as { content: Schedule[] }).content
+            : Array.isArray(scheduleData) ? scheduleData : [];
           if (!isExpertMode) {
-            setSchedules((scheduleData ?? []).filter((s) => s.shiftType.id === config.shiftTypeId));
+            setSchedules(schedulesArray.filter((s) => s.shiftType.id === config.shiftTypeId));
           } else {
-            setSchedules(scheduleData ?? []);
+            setSchedules(schedulesArray);
           }
           setCompensationDays(compData ?? []);
           setHolidays(holidayData ?? []);
@@ -416,12 +441,20 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     }
   }, [urlPeriodId]); // Intentionally NOT including selectedPeriodId to avoid infinite loop
 
-  const handleRefresh = useCallback(() => {
-    // Force re-render by temporarily clearing and restoring periodId
-    const currentId = selectedPeriodId;
-    setSelectedPeriodId(null);
-    setTimeout(() => setSelectedPeriodId(currentId), 50);
-  }, [selectedPeriodId]);
+  const handleRefresh = useCallback((_id?: number) => {
+    // Force re-fetch schedules from server
+    void reloadSchedules();
+  }, [reloadSchedules]);
+
+  // Wrapper for onSave callback (expects Schedule, ignores it)
+  const handleSaveCallback = useCallback(() => {
+    handleRefresh();
+  }, [handleRefresh]);
+
+  // Wrapper for onDelete callback (expects number, ignores it)
+  const handleDeleteCallback = useCallback(() => {
+    handleRefresh();
+  }, [handleRefresh]);
 
   // Reset workflow state when period changes
   useEffect(() => {
@@ -430,6 +463,34 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     setNotified(false);
     setBulkModalOpen(false);
     setBulkSelectedDates([]);
+  }, [selectedPeriodId]);
+
+  // Listen for schedules-changed events (dispatched by auto-scheduling, template application, etc.)
+  useEffect(() => {
+    const handleSchedulesChanged = () => {
+      console.log("[ScheduleByTypePage] schedules-changed event received, reloading schedules");
+      void reloadSchedules();
+    };
+    window.addEventListener("schedules-changed", handleSchedulesChanged);
+    return () => {
+      window.removeEventListener("schedules-changed", handleSchedulesChanged);
+    };
+  }, [reloadSchedules]);
+
+  // Load conflict data from the DB — this is the authoritative source for KPI display.
+  // Without this, the "Xung đột" KPI falls back to counting schedules[].hasConflict,
+  // which is stale for algorithm-created schedules until the next full conflict check.
+  useEffect(() => {
+    if (!selectedPeriodId) return;
+    api
+      .get<ConflictCheckResponse>(`/schedules/conflicts/check/${selectedPeriodId}`)
+      .then((data) => {
+        console.log("[ScheduleByTypePage] loaded conflictData:", data);
+        setConflictData(data);
+      })
+      .catch((err) => {
+        console.error("[ScheduleByTypePage] failed to load conflict data:", err);
+      });
   }, [selectedPeriodId]);
 
   const selectedSchedule = useMemo(
@@ -576,11 +637,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
               <button
                 type="button"
                 onClick={() => {
-                  const today = new Date();
-                  if (selectedPeriod && (today < new Date(selectedPeriod.startDate) || today > new Date(selectedPeriod.endDate))) {
-                    return;
-                  }
-                  setAddModalDate(today);
+                  if (!selectedPeriod) return;
+                  // Open date picker so user can pick a date within the period
+                  setQuickPickerOpen(true);
                 }}
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-label-md font-semibold text-on-primary hover:bg-primary/90 transition-colors"
               >
@@ -805,7 +864,14 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           },
           {
             label: "Xung đột",
-            value: schedules.filter((s) => s.hasConflict === true).length,
+            // Prefer the count from checkPeriodConflicts (DB-tracked) over the per-entity
+            // hasConflict flag, because algorithm-saved schedules set hasConflict=false until
+            // the next reconcile pass. The checkPeriodConflicts endpoint is the same source
+            // the ConflictSection uses, so the KPI and the conflict list stay in lockstep.
+            value:
+              conflictData?.totalConflicts
+                ?? dryRunData?.conflictCount
+                ?? schedules.filter((s) => s.hasConflict === true).length,
             icon: "warning",
             accent: "bg-error-container text-on-error-container",
           },
@@ -935,26 +1001,34 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       ) : loading ? (
         <Skeleton className="h-96 rounded-xl" />
       ) : (
-        <ScheduleCalendarSection
+        <ScheduleMatrixView
           schedules={schedules}
-          activeStaff={activeStaff}
-          selectedPeriodId={selectedPeriodId}
+          staffList={activeStaff}
+          periodId={selectedPeriodId}
+          periodStart={selectedPeriod?.startDate}
+          periodEnd={selectedPeriod?.endDate}
           initialYear={initialCalendar.year}
           initialMonth={initialCalendar.month}
           selectedTab={isExpertMode ? selectedTab : (config.shiftTypeId satisfies ScheduleTab)}
           compensationDays={compensationDays}
           onRefresh={handleRefresh}
-          onAddDate={(date) => {
+          onAddClick={(date) => {
             if (!selectedPeriod) return;
-            const start = new Date(selectedPeriod.startDate);
-            const end = new Date(selectedPeriod.endDate);
-            start.setHours(0, 0, 0, 0);
-            end.setHours(23, 59, 59, 999);
-            if (date >= start && date <= end) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
+            const dateStr = `${year}-${month}-${day}`;
+            if (
+              dateStr >= selectedPeriod.startDate &&
+              dateStr <= selectedPeriod.endDate
+            ) {
               setAddModalDate(date);
             }
           }}
           onViewDetail={(schedule) => setDetailScheduleId(schedule.id)}
+          onEdit={(schedule) => setDetailScheduleId(schedule.id)}
+          onDelete={(schedule) => setDetailScheduleId(schedule.id)}
+          onResolve={(conflict) => setSelectedConflict(conflict)}
           onFilterTypeChange={
             isExpertMode
               ? (filter: string) => setSelectedTab(filter as ScheduleTab)
@@ -987,8 +1061,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         loading={false}
         canEdit={isManager}
         onClose={() => setDetailScheduleId(null)}
-        onSave={handleRefresh}
-        onDelete={handleRefresh}
+        onSave={handleSaveCallback}
+        onDelete={handleDeleteCallback}
+        onRefresh={reloadSchedules}
       />
 
       {/* Bulk date picker modal */}
@@ -996,6 +1071,18 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         <BulkDatePickerModal
           open={bulkPickerOpen}
           onClose={() => setBulkPickerOpen(false)}
+          onDatesSelected={handleBulkDatesSelected}
+          periodId={selectedPeriod.id}
+          periodStart={selectedPeriod.startDate}
+          periodEnd={selectedPeriod.endDate}
+        />
+      )}
+
+      {/* Quick single-date picker (same component, different state) */}
+      {selectedPeriod && (
+        <BulkDatePickerModal
+          open={quickPickerOpen}
+          onClose={() => setQuickPickerOpen(false)}
           onDatesSelected={handleBulkDatesSelected}
           periodId={selectedPeriod.id}
           periodStart={selectedPeriod.startDate}

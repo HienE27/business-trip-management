@@ -87,6 +87,34 @@ export function useSchedulePeriodData(
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  // Listen for schedules-changed events (dispatched by applyTemplateWithEdits, delete, etc.)
+  // This ensures the schedule list is refreshed when any page modifies schedules.
+  const loadPeriodDataRef = useRef<typeof loadPeriodData | null>(null);
+  useEffect(() => {
+    loadPeriodDataRef.current = loadPeriodData;
+  });
+  useEffect(() => {
+    const handleSchedulesChanged = () => {
+      // Invalidate cache for schedule-related endpoints before refresh
+      invalidateEndpoint("/schedules");
+      invalidateEndpoint(`/schedules/period/${selectedPeriodId}`);
+      invalidateEndpoint(`/schedules/conflicts/check/${selectedPeriodId}`);
+      invalidateEndpoint(`/schedules/compensation-days/${selectedPeriodId}`);
+      // Trigger a refresh by calling loadPeriodData via ref
+      if (selectedPeriodId && loadPeriodDataRef.current) {
+        void loadPeriodDataRef.current(selectedPeriodId, true);
+      }
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("schedules-changed", handleSchedulesChanged);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("schedules-changed", handleSchedulesChanged);
+      }
+    };
+  }, [selectedPeriodId]);
+
   // Auto-dismiss transient messages after 5s so they don't linger on screen
   // or survive a remount and confuse the user on re-entry.
   useAutoDismiss(message, () => setMessage(null));
@@ -136,7 +164,9 @@ export function useSchedulePeriodData(
     };
 
     // Fetch all data in parallel for maximum performance
-    const [scheduleData, conflictResult, compDaysData, reqData] = await Promise.all([
+    // Note: schedule and requirement APIs return paginated responses with Page object structure
+    // We need to extract the content array from the response
+    const [scheduleResult, conflictResult, compDaysData, reqData] = await Promise.all([
       fetchOne<Schedule[]>(() => api.get<Schedule[]>(`/schedules/period/${periodId}`), []),
       fetchOne<ConflictCheckResponse | null>(
         () => api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`),
@@ -154,11 +184,25 @@ export function useSchedulePeriodData(
 
     if (!aliveRef.current) return;
 
+    // Extract schedules from paginated response if needed
+    const scheduleData = Array.isArray(scheduleResult)
+      ? scheduleResult
+      : (scheduleResult && typeof scheduleResult === 'object' && 'content' in scheduleResult)
+        ? (scheduleResult as { content?: Schedule[] }).content ?? []
+        : [];
+
+    // Extract requirements from paginated response if needed
+    const reqResultData = Array.isArray(reqData)
+      ? reqData
+      : (reqData && typeof reqData === 'object' && 'content' in reqData)
+        ? (reqData as { content?: ShiftRequirement[] }).content ?? []
+        : [];
+
     // Batch all state updates into ONE render
     setSchedules(scheduleData);
     setConflictData(conflictResult);
     setCompensationDays(compDaysData);
-    setRequirements(reqData);
+    setRequirements(reqResultData);
     if (isRefresh) setRefreshing(false);
   }, []);
 
@@ -219,23 +263,53 @@ export function useSchedulePeriodData(
   );
 
   const refresh = useCallback(async () => {
-    const periodId = selectedPeriodId; // capture at call time to avoid stale closure
+    // Capture periodId at call time to avoid stale closure issues
+    const periodId = selectedPeriodId;
     setRefreshing(true);
     setMessage(null);
     try {
-      const [periodData] = await Promise.all([
+      // Fetch periods + schedule data in parallel for performance
+      const [periodData, scheduleResult, conflictResult, compDaysData, reqData] = await Promise.all([
         api.get<SchedulePeriod[]>("/periods").catch(() => null),
+        periodId ? api.get<Schedule[]>(`/schedules/period/${periodId}`).catch(() => null) : Promise.resolve(null),
+        periodId ? api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`).catch(() => null) : Promise.resolve(null),
+        periodId ? api.get<CompensationDay[]>(`/schedules/compensation-days/${periodId}`).catch(() => []) : Promise.resolve([]),
+        periodId ? api.get<ShiftRequirement[]>(`/shift-requirements/period/${periodId}`).catch(() => []) : Promise.resolve([]),
       ]);
+
       if (!aliveRef.current) return;
+
+      // Update periods if fetched successfully
       if (periodData) setPeriods(periodData);
-      await loadPeriodData(periodId, false);
+
+      // Only update schedule data if periodId exists
+      if (periodId) {
+        // Extract schedules from paginated response if needed
+        const scheduleData = Array.isArray(scheduleResult)
+          ? scheduleResult
+          : (scheduleResult && typeof scheduleResult === 'object' && 'content' in scheduleResult)
+            ? (scheduleResult as { content?: Schedule[] }).content ?? []
+            : [];
+
+        // Extract requirements from paginated response if needed
+        const reqResultData = Array.isArray(reqData)
+          ? reqData
+          : (reqData && typeof reqData === 'object' && 'content' in reqData)
+            ? (reqData as { content?: ShiftRequirement[] }).content ?? []
+            : [];
+
+        setSchedules(scheduleData);
+        setConflictData(conflictResult);
+        setCompensationDays(compDaysData ?? []);
+        setRequirements(reqResultData);
+      }
     } catch (error) {
       if (!aliveRef.current) return;
       setMessage(getErrorMessage(error, "Không thể làm mới dữ liệu."));
     } finally {
       if (aliveRef.current) setRefreshing(false);
     }
-  }, [loadPeriodData]); // selectedPeriodId intentionally excluded — captured via closure above
+  }, []);
 
   // Optional conflict polling cho dashboard realtime
   useEffect(() => {

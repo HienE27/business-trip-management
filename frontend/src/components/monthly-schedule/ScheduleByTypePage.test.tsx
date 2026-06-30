@@ -37,8 +37,8 @@ vi.mock('@/components/ui', () => ({
   ThemeToggle: vi.fn(),
 }));
 
-vi.mock('@/components/monthly-schedule/ScheduleCalendarSection', () => ({
-  ScheduleCalendarSection: ({ schedules }: { schedules: unknown[] }) => (
+vi.mock('@/components/dashboard/ScheduleMatrixView', () => ({
+  ScheduleMatrixView: ({ schedules }: { schedules: unknown[] }) => (
     <div data-testid="calendar" data-count={schedules.length} />
   ),
 }));

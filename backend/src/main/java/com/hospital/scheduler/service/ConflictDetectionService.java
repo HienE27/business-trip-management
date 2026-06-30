@@ -392,6 +392,8 @@ public class ConflictDetectionService {
                         .shiftTypeId(shiftTypeId)
                         .shiftTypeName(schedule.getShiftType().getName())
                         .conflictReasons(conflicts)
+                        .periodId(periodId)
+                        .originalStaffId(staff.getId())
                         .build();
                 conflictDetails.add(conflictDetail);
 
@@ -651,7 +653,11 @@ public class ConflictDetectionService {
 
         Set<Integer> onCompDayStaffIds = new java.util.HashSet<>();
         if (!skipCompensationDay) {
-            for (CompensationDay cd : compensationDayRepository.findByDate(workDate)) {
+            // FIX: Query compensation days for workDate ± 1 to catch boundary cases.
+            // Example: L01 on Friday (prev period) → comp on Tuesday (new period).
+            LocalDate compStart = workDate.minusDays(1);
+            LocalDate compEnd = workDate.plusDays(1);
+            for (CompensationDay cd : compensationDayRepository.findInRange(compStart, compEnd)) {
                 onCompDayStaffIds.add(cd.getStaff().getId());
             }
         }
@@ -661,30 +667,22 @@ public class ConflictDetectionService {
             schedulesByStaff.computeIfAbsent(s.getStaff().getId(), k -> new java.util.ArrayList<>()).add(s);
         }
 
+        // FIX: Use findL01SchedulesInRange instead of findByStaffIdAndDateRange(null,...)
+        // Also extend to workDate ± 2 to catch compensation-day chain: L01(N-2)→comp(N-1)→L01(N)
         Set<Integer> hasAdjacentL01 = new java.util.HashSet<>();
-        for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, prevDay, prevDay)) {
-            if (SHIFT_TYPE_L01.equals(s.getShiftType().getId())) hasAdjacentL01.add(s.getStaff().getId());
-        }
-        for (Schedule s : scheduleRepository.findByStaffIdAndDateRange(null, nextDay, nextDay)) {
-            if (SHIFT_TYPE_L01.equals(s.getShiftType().getId())) hasAdjacentL01.add(s.getStaff().getId());
+        LocalDate adjStart = workDate.minusDays(2);
+        LocalDate adjEnd = workDate.plusDays(1);
+        for (Schedule s : scheduleRepository.findL01SchedulesInRange(adjStart, adjEnd)) {
+            hasAdjacentL01.add(s.getStaff().getId());
         }
 
         ShiftType shiftType = shiftTypeRepository.findById(shiftTypeId).orElse(null);
         boolean newIsOvernight = shiftType != null && Boolean.TRUE.equals(shiftType.getIsOvernight());
 
-        // OPTIMIZATION: Pre-load all shift counts in ONE query (instead of N×1 per staff)
-        Map<Integer, Long> staffL01Counts = new java.util.HashMap<>();
-        if (SHIFT_TYPE_L01.equals(shiftTypeId)) {
-            List<Object[]> counts = scheduleRepository.countAllByPeriodIdGroupByStaffAndShiftType(periodId);
-            for (Object[] row : counts) {
-                Integer sid = (Integer) row[0];
-                String tid = (String) row[1];
-                Long cnt = (Long) row[2];
-                if (SHIFT_TYPE_L01.equals(tid)) {
-                    staffL01Counts.put(sid, cnt);
-                }
-            }
-        }
+        // NOTE: maxShiftsPerMonth is handled as a SOFT constraint by the sort comparator.
+        // Hard-filtering on max shifts would incorrectly block scheduling when no under-limit
+        // staff are available, contradicting M07-F01 "không giới hạn cố định".
+        // See filterAndSortEligibleStaffBatch for the soft sort implementation.
 
         List<Staff> replacements = new ArrayList<>();
         List<Staff> allActive = staffRepository.findByIsActiveTrue();
@@ -700,12 +698,11 @@ public class ConflictDetectionService {
             // Adjacent restriction only applies to L01
             if (SHIFT_TYPE_L01.equals(shiftTypeId) && hasAdjacentL01.contains(staff.getId())) continue;
 
-            // Check max shifts limit for L01 (24/24 duty shifts) — use pre-loaded counts
-            if (SHIFT_TYPE_L01.equals(shiftTypeId)) {
-                long currentCount = staffL01Counts.getOrDefault(staff.getId(), 0L);
-                int maxShifts = staff.getMaxShiftsPerMonth() != null ? staff.getMaxShiftsPerMonth() : 5;
-                if (currentCount >= maxShifts) continue;
-            }
+            // NOTE: maxShiftsPerMonth is handled as a SOFT constraint in the algorithm's
+            // sort comparator (filterAndSortEligibleStaffBatch). Hard-filtering here would
+            // incorrectly exclude staff when no one under limit is available, contradicting
+            // M07-F01 "không giới hạn cố định". The sort comparator places over-limit staff
+            // last so they are only assigned when necessary.
 
             // Same-day shift-type conflict: L01↔L02 or L03↔L04
             List<Schedule> daySchedules = schedulesByStaff.get(staff.getId());
@@ -859,9 +856,9 @@ public class ConflictDetectionService {
         for (String shiftTypeId : shiftTypeIds) {
             int totalRequired = shiftTypeRequiredCount.get(shiftTypeId);
             int totalAssigned = shiftTypeAssignedCount.get(shiftTypeId);
-            BigDecimal coverageRate = totalRequired > 0
-                    ? BigDecimal.valueOf((double) totalAssigned / totalRequired * 100).setScale(2, RoundingMode.HALF_UP)
-                    : BigDecimal.valueOf(100);
+            // Cap coverage at 100% to avoid >100% when algorithm assigns more than required
+            double coverageRatio = totalRequired > 0 ? (double) totalAssigned / totalRequired : 0;
+            BigDecimal coverageRate = BigDecimal.valueOf(Math.min(coverageRatio, 1.0) * 100).setScale(2, RoundingMode.HALF_UP);
 
             ShiftType shiftType = shiftTypeRepository.findById(shiftTypeId).orElse(null);
             String shiftTypeName = shiftType != null ? shiftType.getName() : shiftTypeId;
@@ -880,9 +877,9 @@ public class ConflictDetectionService {
         int totalDays = dailyCoverageMap.size();
         int totalRequired = shiftTypeRequiredCount.values().stream().mapToInt(Integer::intValue).sum();
         int totalAssigned = shiftTypeAssignedCount.values().stream().mapToInt(Integer::intValue).sum();
-        BigDecimal overallCoverageRate = totalRequired > 0
-                ? BigDecimal.valueOf((double) totalAssigned / totalRequired * 100).setScale(2, RoundingMode.HALF_UP)
-                : BigDecimal.valueOf(100);
+        // Cap coverage at 100% to avoid >100% when algorithm assigns more than required
+        double coverageRatio = totalRequired > 0 ? (double) totalAssigned / totalRequired : 0;
+        BigDecimal overallCoverageRate = BigDecimal.valueOf(Math.min(coverageRatio, 1.0) * 100).setScale(2, RoundingMode.HALF_UP);
 
         return CoverageReportDTO.builder()
                 .periodId(periodId)

@@ -28,6 +28,7 @@ import com.hospital.scheduler.util.DateUtils;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -38,6 +39,7 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -355,6 +357,26 @@ public class ScheduleService {
                         "Lịch trực ngày " + schedule.getWorkDate() + " đã bị xóa."));
         // Use JdbcTemplate for direct SQL delete
         jdbcTemplate.update("DELETE FROM schedule WHERE id = ?", id);
+    }
+
+    /**
+     * Delete all schedules and compensation days for a given period.
+     * Used by admin to clean up stale data.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void deleteAllByPeriodId(Integer periodId) {
+        log.info("Deleting all schedules for period {}", periodId);
+        
+        // Delete compensation days first
+        compensationDayRepository.deleteAllByPeriodId(periodId);
+        
+        // Delete schedule conflicts
+        jdbcTemplate.update("DELETE FROM schedule_conflict WHERE schedule_id IN (SELECT id FROM schedule WHERE period_id = ?)", periodId);
+        
+        // Delete schedules
+        jdbcTemplate.update("DELETE FROM schedule WHERE period_id = ?", periodId);
+        
+        log.info("Deleted all schedules for period {}", periodId);
     }
 
     public List<ScheduleResponse> getSchedulesByPeriodAndDate(Integer periodId, LocalDate date) {

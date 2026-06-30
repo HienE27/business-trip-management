@@ -124,6 +124,14 @@ class ApiClient {
     const res = await this.request<T>(url, { method: "GET", ...requestInit });
     // Handle both ApiResponse wrapper and direct array/object responses
     if (res.data !== undefined && res.data !== null) {
+      // Check if it's a Page object (Spring Data Page structure with content array)
+      if (Array.isArray(res.data)) {
+        return res.data;
+      }
+      // Handle Page object - extract content array
+      if (typeof res.data === 'object' && res.data !== null && 'content' in res.data) {
+        return (res.data as { content: T[] }).content;
+      }
       return res.data;
     }
     // If backend returns array directly (without ApiResponse wrapper)

@@ -35,6 +35,7 @@ public class StaffRequest {
     private Integer maxShiftsPerMonth = 5;
     private java.util.List<String> roles;
     private String status;
+    private Boolean isActive;
 
     private Integer id;
     private String specialtyName;

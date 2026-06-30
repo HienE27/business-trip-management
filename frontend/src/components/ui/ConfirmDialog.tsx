@@ -58,14 +58,22 @@ export function ConfirmDialog({
       size="sm"
     >
 
-      <div className="flex items-center justify-end gap-2 pt-5">
-        <Button ref={cancelRef} variant="secondary" onClick={onClose} disabled={loading}>
+      <div className="flex items-center justify-end gap-3 pt-5">
+        <Button
+          variant="secondary"
+          size="lg"
+          onClick={onClose}
+          disabled={loading}
+          className="min-w-[100px]"
+        >
           {cancelLabel}
         </Button>
         <Button
-          variant={variant === "danger" ? "danger" : "primary"}
+          variant="danger"
+          size="lg"
           onClick={onConfirm}
           loading={loading}
+          className="min-w-[100px] px-6"
         >
           {confirmLabel}
         </Button>

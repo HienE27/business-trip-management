@@ -7,7 +7,6 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { getRoleLabel } from "@/lib/roleLabels";
 import type { Staff, Schedule } from "@/types/api";
-import { BackButton } from "@/components/ui/BackButton";
 
 function getInitials(name: string) {
   return name
@@ -20,9 +19,25 @@ function getInitials(name: string) {
 
 // getRoleLabel imported from @/lib/roleLabels
 
-function getStatusLabel(isActive: boolean) {
-  return isActive ? "Đang làm việc" : "Đã nghỉ";
-}
+type StatusKey = "ACTIVE" | "ON_LEAVE" | "INACTIVE";
+
+const STATUS_LABEL: Record<StatusKey, string> = {
+  ACTIVE: "Đang làm việc",
+  ON_LEAVE: "Nghỉ phép",
+  INACTIVE: "Nghỉ việc",
+};
+
+const STATUS_CLASS: Record<StatusKey, string> = {
+  ACTIVE: "bg-secondary-container text-secondary",
+  ON_LEAVE: "bg-tertiary-fixed text-on-tertiary-fixed-variant",
+  INACTIVE: "bg-surface-container-high text-outline",
+};
+
+const STATUS_DOT: Record<StatusKey, string> = {
+  ACTIVE: "bg-secondary",
+  ON_LEAVE: "bg-tertiary",
+  INACTIVE: "bg-outline",
+};
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("vi-VN");
@@ -139,8 +154,16 @@ function StaffDetailContent() {
         </div>
       )}
 
-      {/* Back + Actions */}
-      <BackButton href="/staff" variant="full" className="mb-2" />
+      {/* Back + Header */}
+      <nav aria-label="Đường dẫn" className="flex items-center gap-2 text-label-md text-on-surface-variant mb-3">
+        <Link href="/staff" className="hover:text-primary transition-colors flex items-center gap-1">
+          <span className="material-symbols-outlined text-[18px]">groups</span>
+          Nhân sự
+        </Link>
+        <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+        <span className="text-on-surface font-medium">{staff.fullName}</span>
+      </nav>
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link
@@ -161,13 +184,9 @@ function StaffDetailContent() {
           </div>
           <h2 className="mt-3 text-headline-md font-semibold text-on-surface">{staff.fullName}</h2>
           <p className="mt-0.5 text-[12px] text-on-surface-variant">{getRoleLabel(staff.roles)}</p>
-          <span className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-            staff.isActive
-              ? "bg-secondary-container text-secondary"
-              : "bg-surface-container-high text-outline"
-          }`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${staff.isActive ? "bg-secondary" : "bg-outline"}`} />
-            {getStatusLabel(staff.isActive)}
+          <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${STATUS_CLASS[staff.status as StatusKey] ?? STATUS_CLASS.INACTIVE}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[staff.status as StatusKey] ?? STATUS_DOT.INACTIVE}`} />
+            {STATUS_LABEL[staff.status as StatusKey] ?? "Nghỉ việc"}
           </span>
 
           <div className="mt-4 w-full space-y-2 text-left">

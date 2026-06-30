@@ -24,4 +24,8 @@ public interface ScheduleExchangeRepository extends JpaRepository<ScheduleExchan
 
     @Query("SELECT e FROM ScheduleExchange e WHERE e.requester.id = :userId OR e.target.id = :userId ORDER BY e.createdAt DESC")
     List<ScheduleExchange> findAllByUserId(@Param("userId") Integer userId);
+
+    List<ScheduleExchange> findByRequesterScheduleId(Integer scheduleId);
+    List<ScheduleExchange> findByTargetScheduleId(Integer scheduleId);
+    List<ScheduleExchange> findByRequesterScheduleIdOrTargetScheduleId(Integer requesterScheduleId, Integer targetScheduleId);
 }

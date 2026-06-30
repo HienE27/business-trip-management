@@ -1,0 +1,25 @@
+feat: add Genetic Algorithm + schedule delete service + algorithm metrics
+
+Backend:
+- AlgorithmType: add GENETIC algorithm option
+- GeneticAlgorithmScheduler: new population-based scheduler with crossover/mutation
+- GeneticAlgorithmConfig: configuration for GA parameters
+- ScheduleChromosome: chromosome representation for GA
+- SchedulingFitnessFunction: multi-objective fitness evaluation
+- AlgorithmMetricsService: algorithm performance stats endpoints
+- ScheduleDeleteService: dedicated delete service with FK constraint handling
+- ScheduleService: fix delete with ScheduleConflict FK cascade
+- ScheduleRepository: add deleteByIdQuery method
+- ScheduleTemplateService: fix Jackson constructor + PATTERN template support
+- CacheConfig: add REQUIREMENTS_CACHE
+- AutoSchedulingController: add /metrics/stats and /metrics/best-algorithm endpoints
+- ScheduleController: use ScheduleDeleteService for schedule deletion
+- Tests: update for GeneticAlgorithmScheduler dependency
+
+Frontend:
+- AutoSchedulePanel: add GENETIC algorithm option + progress tracking UI
+- useAutoSchedule: add GENETIC type
+- ApplyTemplateModal: pattern template support
+- AlgorithmConfig page: algorithm configuration UI
+- ConflictPanel, StaffCrudPanel, DashboardShell: UI improvements
+- number-utils: BigDecimal parsing utilities for Java BigDecimal responses

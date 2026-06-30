@@ -100,6 +100,10 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         setEditedPreview([]);
         setRemovedShifts(new Set());
         setRemovedShiftTypes(new Set());
+        // Dispatch schedules-changed to notify other components (e.g., monthly-schedule page)
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("schedules-changed"));
+        }
         onSuccess();
       } catch (error) {
         setMessage(getErrorMessage(error, "Không thể áp dụng phương án."));

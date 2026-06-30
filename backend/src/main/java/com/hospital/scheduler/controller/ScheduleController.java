@@ -151,6 +151,14 @@ public class ScheduleController {
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa lịch thành công"));
     }
 
+    @DeleteMapping("/period/{periodId}")
+    @Operation(summary = "Xóa tất cả lịch trong một kỳ lịch")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deleteSchedulesByPeriod(@PathVariable Integer periodId) {
+        scheduleService.deleteAllByPeriodId(periodId);
+        return ResponseEntity.ok(ApiResponse.success(null, "Đã xóa tất cả lịch của kỳ " + periodId));
+    }
+
     @PutMapping("/{id}/override")
     @Operation(summary = "Override xung đột - giữ lịch bất chấp cảnh báo")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")

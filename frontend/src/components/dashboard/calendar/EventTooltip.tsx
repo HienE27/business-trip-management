@@ -96,14 +96,25 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
     if (!el) return;
     const vp = window.innerWidth;
     const vh = window.innerHeight;
-    const rect = el.getBoundingClientRect();
     const TIP_W = 280;
-    const TIP_H = Math.min(rect.height, 380);
+    const TIP_H = 300; // Estimated height to avoid layout shift
 
-    let left = data.x + 8;
-    let top = data.y + 8;
-    if (rect.right > vp - 8) left = Math.max(16, vp - TIP_W - 16);
-    if (rect.bottom > vh - 8) top = Math.max(16, vh - TIP_H - 16);
+    // Calculate position based on click point, adjusted for viewport boundaries
+    let left = data.x + 12;
+    let top = data.y + 12;
+
+    // Flip to left side if too close to right edge
+    if (left + TIP_W > vp - 16) {
+      left = data.x - TIP_W - 12;
+    }
+    // Flip above if too close to bottom
+    if (top + TIP_H > vh - 16) {
+      top = data.y - TIP_H - 12;
+    }
+    // Ensure minimum boundaries
+    left = Math.max(16, left);
+    top = Math.max(16, top);
+
     el.style.left = `${left}px`;
     el.style.top = `${top}px`;
   }, [data.x, data.y]);
@@ -272,7 +283,11 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
           <div className="flex gap-2 pt-2 border-t border-outline-variant">
             <button
               type="button"
-              onClick={() => { onViewDetail(s); onClose(); }}
+              onClick={() => {
+                onViewDetail(s);
+                // Delay close so modal can open before tooltip disappears
+                requestAnimationFrame(() => onClose());
+              }}
               className="flex-1 px-3 py-1.5 rounded-lg text-label-sm font-medium bg-surface-container-low text-on-surface hover:bg-surface-container-high transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <span className="flex items-center justify-center gap-1.5">
@@ -295,7 +310,10 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
             {canEdit && s.hasConflict && (
               <button
                 type="button"
-                onClick={() => { onResolve(s); onClose(); }}
+                onClick={() => {
+                  onResolve(s);
+                  requestAnimationFrame(() => onClose());
+                }}
                 className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-error text-on-error hover:bg-error/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error"
               >
                 Xử lý
@@ -304,7 +322,10 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
             {canEdit && (
               <button
                 type="button"
-                onClick={() => { onDelete(s); onClose(); }}
+                onClick={() => {
+                  onDelete(s);
+                  requestAnimationFrame(() => onClose());
+                }}
                 className="px-3 py-1.5 rounded-lg text-label-sm font-medium border border-outline-variant text-on-surface hover:bg-surface-container-low transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 Xóa

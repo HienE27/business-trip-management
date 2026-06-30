@@ -77,17 +77,30 @@ export default function RequirementsPage() {
       // Load requirements with pagination
       const reqData = await api.getAllRequirements(page, pageSize);
       
-      // Handle paginated response (Spring Page object)
-      if (reqData && typeof reqData === 'object' && 'content' in reqData) {
-        const pageData = reqData as { content: ShiftRequirement[]; totalElements: number; totalPages: number };
-        setRequirements(pageData.content || []);
-        setTotalItems(pageData.totalElements || 0);
-        setTotalPages(pageData.totalPages || 0);
-        setCurrentPage(page);
+      // Handle paginated response (Spring Page object inside ApiResponse wrapper)
+      if (reqData && typeof reqData === 'object' && 'success' in reqData) {
+        const apiResponse = reqData as { success: boolean; data?: unknown };
+        if (apiResponse.data && typeof apiResponse.data === 'object' && 'content' in apiResponse.data) {
+          const pageData = apiResponse.data as { content: ShiftRequirement[]; totalElements: number; totalPages: number };
+          setRequirements(pageData.content || []);
+          setTotalItems(pageData.totalElements || 0);
+          setTotalPages(pageData.totalPages || 0);
+          setCurrentPage(page);
+        } else if (Array.isArray(apiResponse.data)) {
+          setRequirements(apiResponse.data);
+          setTotalItems(apiResponse.data.length);
+          setTotalPages(1);
+          setCurrentPage(0);
+        } else {
+          setRequirements([]);
+          setTotalItems(0);
+          setTotalPages(0);
+        }
       } else if (Array.isArray(reqData)) {
-        // Handle array response (fallback)
-        setRequirements(reqData);
-        setTotalItems(reqData.length);
+        // Handle direct array response (shouldn't happen with current API, but safe fallback)
+        const arr = reqData as ShiftRequirement[];
+        setRequirements(arr);
+        setTotalItems(arr.length);
         setTotalPages(1);
         setCurrentPage(0);
       } else {

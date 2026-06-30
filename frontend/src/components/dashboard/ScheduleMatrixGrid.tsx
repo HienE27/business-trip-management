@@ -4,7 +4,21 @@ import { memo, useCallback, useMemo, useState } from "react";
 import { TONE, SHIFT_FULL_LABEL, type CalendarItem } from "./calendar/constants";
 import { buildScheduleMatrix, type MatrixRow } from "./calendar/buildScheduleMatrix";
 import { EventTooltip, type TooltipData } from "./calendar/EventTooltip";
-import type { Schedule, CompensationDay } from "@/types/api";
+import type { CompensationDay, ConflictDetail, Schedule } from "@/types/api";
+
+// Helper to create ConflictDetail from Schedule
+function scheduleToConflictDetail(s: Schedule, conflictReasons: string[] = []): ConflictDetail {
+  return {
+    scheduleId: s.id,
+    staffName: s.staff?.fullName ?? "",
+    workDate: s.workDate,
+    shiftTypeId: s.shiftType?.id ?? "",
+    shiftTypeName: s.shiftType?.name ?? "",
+    conflictReasons,
+    periodId: s.periodId,
+    originalStaffId: s.staff?.id,
+  };
+}
 
 type MatrixRowCellProps = {
   row: MatrixRow;
@@ -94,6 +108,12 @@ export type ScheduleMatrixGridProps = {
   weekEnd?: Date;
   /** Called when user clicks a shift chip to open detail/edit */
   onViewDetail?: (schedule: Schedule) => void;
+  /** Called when user wants to edit a schedule (opens edit form) */
+  onEdit?: (schedule: Schedule) => void;
+  /** Called when user wants to delete a schedule */
+  onDelete?: (schedule: Schedule) => void;
+  /** Called when user wants to resolve a conflict */
+  onResolve?: (conflict: ConflictDetail) => void;
   /** Called when user clicks an empty cell to assign */
   onCellClick?: (date: Date, staffId: number) => void;
   /** Override shift chip click → tooltip flow; called with the underlying Schedule */
@@ -150,6 +170,9 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
   weekStart,
   weekEnd,
   onViewDetail,
+  onEdit,
+  onDelete,
+  onResolve,
   onCellClick,
   onItemClickOverride,
   onRefresh,
@@ -335,9 +358,13 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
       {tooltip && (
         <EventTooltip
           data={tooltip}
-          onEdit={onViewDetail ?? (() => {})}
-          onDelete={onViewDetail ?? (() => {})}
-          onResolve={() => {}}
+          onEdit={onEdit ?? onViewDetail ?? (() => {})}
+          onDelete={onDelete ?? onViewDetail ?? (() => {})}
+          onResolve={(s) => {
+            if (onResolve) {
+              onResolve(scheduleToConflictDetail(s, s.hasConflict ? ["Nhân sự có xung đột lịch trực"] : []));
+            }
+          }}
           onViewDetail={(s) => { onViewDetail?.(s); setTooltip(null); }}
           onRefresh={onRefresh}
           onClose={() => setTooltip(null)}

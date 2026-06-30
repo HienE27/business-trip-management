@@ -20,6 +20,26 @@ function getInitials(name: string): string {
     .join("");
 }
 
+type StatusKey = "ACTIVE" | "ON_LEAVE" | "INACTIVE";
+
+const STATUS_LABEL: Record<StatusKey, string> = {
+  ACTIVE: "Đang làm việc",
+  ON_LEAVE: "Nghỉ phép",
+  INACTIVE: "Nghỉ việc",
+};
+
+const STATUS_CLASS: Record<StatusKey, string> = {
+  ACTIVE: "bg-secondary-container text-secondary",
+  ON_LEAVE: "bg-tertiary-fixed text-on-tertiary-fixed-variant",
+  INACTIVE: "bg-surface-container-high text-outline",
+};
+
+const STATUS_DOT: Record<StatusKey, string> = {
+  ACTIVE: "bg-secondary",
+  ON_LEAVE: "bg-tertiary",
+  INACTIVE: "bg-outline",
+};
+
 function formatDate(dateStr: string): string {
   if (!dateStr) return "—";
   return new Date(dateStr).toLocaleDateString("vi-VN", {
@@ -184,13 +204,10 @@ export default function StaffProfilePage() {
                   </span>
                 ))}
                 <span
-                  className={`px-2.5 py-1 rounded-full text-label-sm font-medium ${
-                    staff.isActive
-                      ? "bg-secondary-container text-secondary"
-                      : "bg-surface-container-high text-outline"
-                  }`}
+                  className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${STATUS_CLASS[staff.status as StatusKey] ?? STATUS_CLASS.INACTIVE}`}
                 >
-                  {staff.isActive ? "Đang làm việc" : "Đã nghỉ"}
+                  <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[staff.status as StatusKey] ?? STATUS_DOT.INACTIVE}`} />
+                  {STATUS_LABEL[staff.status as StatusKey] ?? "Nghỉ việc"}
                 </span>
               </div>
             </div>
@@ -519,14 +536,14 @@ export default function StaffProfilePage() {
               {[
                 { label: "Vai trò", value: staff.roles.map((r) => ROLE_LABELS[r] ?? r).join(", "), icon: "shield" },
                 { label: "Chuyên khoa", value: staff.specialty?.name || "—", icon: "local_hospital" },
-                { label: "Trạng thái", value: staff.isActive ? "Hoạt động" : "Không hoạt động", icon: "verified_user", active: staff.isActive },
+                { label: "Trạng thái", value: STATUS_LABEL[staff.status as StatusKey] ?? "Nghỉ việc", icon: "verified_user" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-label-sm text-on-surface-variant">
                     <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
                     {item.label}
                   </div>
-                  <span className={`text-label-sm font-medium ${item.active !== undefined ? (item.active ? "text-secondary" : "text-outline") : "text-on-surface"}`}>
+                  <span className={`text-label-sm font-medium text-on-surface`}>
                     {item.value}
                   </span>
                 </div>

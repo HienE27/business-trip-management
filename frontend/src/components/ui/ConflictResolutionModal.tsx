@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -34,30 +34,50 @@ export function ConflictResolutionModal({
   const [selectedReplacementId, setSelectedReplacementId] = useState<number | null>(null);
   const [loadingReplacements, setLoadingReplacements] = useState(false);
 
-  async function loadReplacements() {
-    if (!conflict?.periodId || !conflict?.workDate || !conflict?.shiftTypeId) return;
+  const loadReplacements = useCallback(async () => {
+    // Support both ConflictDetail (workDate) and ConflictItem (date)
+    const workDate = conflict?.workDate ?? conflict?.date;
+    const shiftTypeId = conflict?.shiftTypeId ?? conflict?.shiftType;
+
+    if (!conflict?.periodId || !workDate || !shiftTypeId) {
+      console.log("[ConflictResolution] Skipping loadReplacements - missing conflict data:", { conflict, workDate, shiftTypeId });
+      return;
+    }
     setLoadingReplacements(true);
+    setError(null);
     try {
       const data = await api.findReplacements(
         conflict.periodId,
-        conflict.workDate,
-        conflict.shiftTypeId,
+        workDate,
+        shiftTypeId,
         conflict.originalStaffId ?? 0,
         5,
       );
+      console.log("[ConflictResolution] Replacements loaded:", data?.length ?? 0, data);
       setReplacements(data ?? []);
-    } catch {
+    } catch (err) {
+      console.error("[ConflictResolution] Failed to load replacements:", err);
       setReplacements([]);
+      setError("Không thể tải danh sách nhân sự thay thế.");
     } finally {
       setLoadingReplacements(false);
     }
-  }
+  }, [conflict]);
+
+  // Load replacements when modal opens and resolution is "reassign"
+  useEffect(() => {
+    if (open && resolution === "reassign") {
+      void loadReplacements();
+    }
+  }, [open, resolution, loadReplacements]);
 
   const handleResolutionChange = (value: string) => {
     setResolution(value);
     if (value === "reassign") {
       setSelectedReplacementId(null);
-      void loadReplacements();
+      if (replacements.length === 0 && !loadingReplacements) {
+        void loadReplacements();
+      }
     } else {
       setReplacements([]);
       setSelectedReplacementId(null);
@@ -73,7 +93,6 @@ export function ConflictResolutionModal({
       const scheduleId = (conflict as ConflictDetail).scheduleId ?? Number(conflict.id);
       if (resolution === "remove") {
         await api.deleteSchedule(scheduleId);
-      } else if (resolution === "override") {
       } else if (resolution === "override") {
         await api.overrideScheduleConflict(scheduleId, reason);
       } else if (resolution === "reassign") {

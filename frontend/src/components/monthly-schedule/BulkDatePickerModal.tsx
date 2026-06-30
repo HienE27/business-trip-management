@@ -35,13 +35,21 @@ export const BulkDatePickerModal = memo(function BulkDatePickerModal({
   periodStart,
   periodEnd,
 }: BulkDatePickerModalProps) {
-  const startDate = useMemo(() => new Date(periodStart + "T00:00:00"), [periodStart]);
-  const endDate = useMemo(() => new Date(periodEnd + "T00:00:00"), [periodEnd]);
+  // Parse YYYY-MM-DD as local calendar dates to avoid UTC timezone shifts
+  // (e.g. "2026-07-31T00:00:00" parsed as UTC becomes Jul 30 in ICT).
+  const startDate = useMemo(() => {
+    const [y, m, d] = periodStart.split("-").map(Number);
+    return new Date(y!, m! - 1, d!);
+  }, [periodStart]);
+
+  const endDate = useMemo(() => {
+    const [y, m, d] = periodEnd.split("-").map(Number);
+    return new Date(y!, m! - 1, d!);
+  }, [periodEnd]);
 
   const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
   }, []);
 
   const allDays = useMemo(() => {

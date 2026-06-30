@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ScheduleCalendarWidget } from "@/components/dashboard/ScheduleCalendarWidget";
+import { ScheduleMatrixView } from "@/components/dashboard/ScheduleMatrixView";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonDashboardKPIGrid } from "@/components/ui/Skeleton";
 import { KPICard } from "@/components/ui/KPICard";
@@ -393,12 +393,14 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="rounded-lg border border-outline-variant bg-surface-container-lowest overflow-hidden shadow-sm">
-            <ScheduleCalendarWidget
+            <ScheduleMatrixView
               schedules={schedules}
               staffList={staffList}
               initialYear={initialCalendarYear}
               initialMonth={initialCalendarMonth}
               periodId={selectedPeriod.id}
+              periodStart={selectedPeriod.startDate}
+              periodEnd={selectedPeriod.endDate}
               compensationDays={compensationDays}
               isReadOnly={true}
               selectedTab={selectedTab}

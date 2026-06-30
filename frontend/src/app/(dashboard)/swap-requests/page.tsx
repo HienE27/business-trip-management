@@ -87,16 +87,29 @@ function SwapRequestsContent() {
       if (!managerView) {
         const schedules = await api.get<Schedule[]>(`/schedules/staff/${meRes.id}`);
         if (ignoreRef.current) return;
-        setMySchedules(schedules ?? []);
+        // Handle paginated response
+        const schedulesArray = Array.isArray(schedules)
+          ? schedules
+          : (schedules && typeof schedules === 'object' && 'content' in schedules)
+            ? (schedules as { content: Schedule[] }).content ?? []
+            : [];
+        setMySchedules(schedulesArray);
 
-        const periodIds = Array.from(new Set((schedules ?? []).map((s) => s.periodId)));
+        const periodIds = Array.from(new Set(schedulesArray.map((s) => s.periodId)));
         const relatedSchedules = await Promise.all(
           periodIds.map((periodId) => api.get<Schedule[]>(`/schedules/period/${periodId}`)),
         );
         if (ignoreRef.current) return;
         setAllSchedules(
           relatedSchedules
-            .flatMap((items) => items ?? [])
+            .flatMap((items) => {
+              if (!items) return [];
+              if (Array.isArray(items)) return items;
+              if (typeof items === 'object' && 'content' in items) {
+                return (items as { content: Schedule[] }).content ?? [];
+              }
+              return [];
+            })
             .filter((schedule) => schedule.staff.id !== meRes.id),
         );
       } else {

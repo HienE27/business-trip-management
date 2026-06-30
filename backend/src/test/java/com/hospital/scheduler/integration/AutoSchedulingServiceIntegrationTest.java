@@ -11,6 +11,7 @@ import com.hospital.scheduler.service.ConflictDetectionService;
 import com.hospital.scheduler.service.AuditHistoryService;
 import com.hospital.scheduler.service.NotificationService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,7 @@ class AutoSchedulingServiceIntegrationTest {
     @Mock private ShiftTypeRepository shiftTypeRepository;
     @Mock private SpecialtyRepository specialtyRepository;
     @Mock private GeneticAlgorithmScheduler geneticAlgorithmScheduler;
+    @Mock private EntityManager entityManager;
 
     private AutoSchedulingService autoSchedulingService;
 
@@ -67,7 +69,7 @@ class AutoSchedulingServiceIntegrationTest {
                 compensationDayRepository, leaveRequestRepository, algorithmMetricsRepository,
                 conflictDetectionService, auditHistoryService, compensationDateCalculator, notificationService,
                 algorithmConfigService, holidayRepository, shiftTypeRepository, specialtyRepository,
-                geneticAlgorithmScheduler
+                geneticAlgorithmScheduler, entityManager
         );
 
         testPeriod = SchedulePeriod.builder()
@@ -86,6 +88,11 @@ class AutoSchedulingServiceIntegrationTest {
         when(scheduleRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
         when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staff1));
         when(conflictDetectionService.detectAllConflicts(anyInt(), any(), anyString(), any())).thenReturn(Collections.emptyList());
+        lenient().when(conflictDetectionService.checkPeriodConflicts(anyInt()))
+                .thenReturn(com.hospital.scheduler.dto.response.ConflictCheckResponse.builder()
+                        .periodId(1).hasConflicts(false).totalConflicts(0)
+                        .conflicts(Collections.emptyList()).coverageGaps(Collections.emptyList())
+                        .hasCoverageGaps(false).totalCoverageGaps(0).build());
         lenient().when(compensationDateCalculator.calculate(any(LocalDate.class))).thenReturn(LocalDate.of(2026, 6, 8));
 
         // Batch-loading mocks for conflict data optimization

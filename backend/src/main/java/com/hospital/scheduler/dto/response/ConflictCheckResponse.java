@@ -32,5 +32,9 @@ public class ConflictCheckResponse {
         private String shiftTypeId;
         private String shiftTypeName;
         private List<String> conflictReasons;
+        /** Period ID — required for replacement suggestion API */
+        private Integer periodId;
+        /** Original staff ID — used to exclude current assignee from replacement candidates */
+        private Integer originalStaffId;
     }
 }

@@ -225,7 +225,28 @@ public class StaffService {
                 default -> StaffStatus.ACTIVE;
             };
             staff.setStatus(newStatus);
-            staff.setIsActive(!"INACTIVE".equalsIgnoreCase(request.getStatus()));
+            staff.setIsActive(newStatus != StaffStatus.INACTIVE);
+        }
+
+        // Sync `isActive` from request when the client sent it explicitly.
+        // Without this, a payload like {isActive: true, ...} (which the staff
+        // edit page sends) is silently dropped and the staff stays marked
+        // as "Nghỉ việc" on the list view even after the toggle was flipped on.
+        if (request.getIsActive() != null) {
+            staff.setIsActive(request.getIsActive());
+            // Keep `status` in lock-step with `is_active` so the two columns
+            // never drift out of sync. ON_LEAVE is preserved when the user
+            // toggles isActive=false (we're just suspending) and restored to
+            // ACTIVE when the user toggles isActive=true (unless they were
+            // explicitly on leave — in which case we keep ON_LEAVE so the
+            // leave flag is never silently lost).
+            if (request.getIsActive()) {
+                if (staff.getStatus() == StaffStatus.INACTIVE) {
+                    staff.setStatus(StaffStatus.ACTIVE);
+                }
+            } else if (staff.getStatus() != StaffStatus.ON_LEAVE) {
+                staff.setStatus(StaffStatus.INACTIVE);
+            }
         }
 
         // Update roles
@@ -469,7 +490,9 @@ public class StaffService {
             if (!status.isEmpty()) {
                 if (status.equalsIgnoreCase("Đang làm việc") || status.equalsIgnoreCase("ACTIVE")) {
                     normalizedStatus = StaffStatus.ACTIVE;
-                } else if (status.equalsIgnoreCase("Nghỉ phép") || status.equalsIgnoreCase("ON_LEAVE") || status.equalsIgnoreCase("Đã nghỉ") || status.equalsIgnoreCase("INACTIVE")) {
+                } else if (status.equalsIgnoreCase("Nghỉ phép") || status.equalsIgnoreCase("ON_LEAVE")) {
+                    normalizedStatus = StaffStatus.ON_LEAVE;
+                } else if (status.equalsIgnoreCase("Nghỉ việc") || status.equalsIgnoreCase("Đã nghỉ") || status.equalsIgnoreCase("INACTIVE")) {
                     normalizedStatus = StaffStatus.INACTIVE;
                 } else {
                     errorMessages.add("Dòng " + lineNum + " - Cột Trạng thái: Trạng thái '" + status + "' không hợp lệ");

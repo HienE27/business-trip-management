@@ -62,20 +62,23 @@ function ReportsMonthlyContent() {
       setMessage(null);
       const [statsRes, scheduleData] = await Promise.allSettled([
         api.get<ShiftStatistics>("/dashboard/shifts", { periodId }),
-        api.get<unknown[]>(`/schedules/period/${periodId}`),
+        api.get<unknown>(`/schedules/period/${periodId}`),
       ]);
       if (statsRes.status === "fulfilled") setStats(statsRes.value ?? null);
       if (scheduleData.status === "fulfilled") {
-        setScheduleCount(Array.isArray(scheduleData.value) ? scheduleData.value.length : 0);
-      }
-      // Staff count from active endpoint filtered by period is approximated via schedule unique staff
-      const uniqueStaff = new Set<string>();
-      if (scheduleData.status === "fulfilled" && Array.isArray(scheduleData.value)) {
-        for (const s of scheduleData.value as Record<string, unknown>[]) {
+        // Extract schedules from paginated response if needed
+        const scheduleValue = scheduleData.value;
+        const schedulesArray = (scheduleValue && typeof scheduleValue === 'object' && 'content' in scheduleValue)
+          ? (scheduleValue as { content: unknown[] }).content ?? []
+          : Array.isArray(scheduleValue) ? scheduleValue : [];
+        setScheduleCount(schedulesArray.length);
+        // Staff count from active endpoint filtered by period is approximated via schedule unique staff
+        const uniqueStaff = new Set<string>();
+        for (const s of schedulesArray as Record<string, unknown>[]) {
           if (s["staffId"] != null) uniqueStaff.add(String(s["staffId"]));
         }
+        setStaffCount(uniqueStaff.size);
       }
-      setStaffCount(uniqueStaff.size);
     } catch (err) {
       setMessage(getErrorMessage(err, "Lỗi tải báo cáo kỳ lịch."));
     } finally {

@@ -220,9 +220,16 @@ export function buildOperationalKpis(params: {
     }
   }
 
-  const coverage = required > 0 ? Math.round((assigned / required) * 100) : schedules.length > 0 ? 100 : 0;
+  const coverage = required > 0 ? Math.min(Math.round((assigned / required) * 100), 100) : schedules.length > 0 ? 100 : 0;
   const understaffedDays = understaffedDaysSet.size;
-  const fatigueRisk = Array.from(l01ByStaff.values()).filter((count) => count >= 4).length;
+  // Fatigue risk: staff whose L01 count meets or exceeds their personal maxShiftsPerMonth threshold.
+  // Falls back to the legacy hard-coded threshold of 4 when the threshold is missing or non-positive.
+  const staffById = new Map(activeStaff.map((s) => [s.id, s]));
+  const fatigueRisk = Array.from(l01ByStaff.entries()).filter(([staffId, count]) => {
+    const staff = staffById.get(staffId);
+    const threshold = staff?.maxShiftsPerMonth && staff.maxShiftsPerMonth > 0 ? staff.maxShiftsPerMonth : 4;
+    return count >= threshold;
+  }).length;
   const openConflicts = conflictList.length > 0
     ? conflictList.length
     : schedules.filter((schedule) => schedule.hasConflict).length;
@@ -247,7 +254,7 @@ export function buildOperationalKpis(params: {
     {
       label: "Nguy cơ quá tải",
       value: fatigueRisk,
-      helper: activeStaff.length > 0 ? "Nhân sự có từ 4 ca L01 trong kỳ" : "Chưa có dữ liệu nhân sự",
+      helper: activeStaff.length > 0 ? "Nhân sự đạt ngưỡng L01 tối đa cá nhân" : "Chưa có dữ liệu nhân sự",
       tone: fatigueRisk > 0 ? "danger" : "success",
       trend: fatigueRisk > 0 ? "Nguy cơ quá tải" : "Trong ngưỡng",
       icon: "battery_alert",

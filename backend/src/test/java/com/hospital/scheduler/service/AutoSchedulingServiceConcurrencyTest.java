@@ -7,6 +7,7 @@ import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,7 @@ class AutoSchedulingServiceConcurrencyTest {
     @Mock private ShiftTypeRepository shiftTypeRepository;
     @Mock private SpecialtyRepository specialtyRepository;
     @Mock private GeneticAlgorithmScheduler geneticAlgorithmScheduler;
+    @Mock private EntityManager entityManager;
 
     private AutoSchedulingService autoSchedulingService;
 
@@ -64,7 +66,7 @@ class AutoSchedulingServiceConcurrencyTest {
                 compensationDayRepository, leaveRequestRepository, metricsRepository,
                 conflictDetectionService, auditHistoryService, compensationDateCalculator, notificationService,
                 algorithmConfigService, holidayRepository, shiftTypeRepository, specialtyRepository,
-                geneticAlgorithmScheduler
+                geneticAlgorithmScheduler, entityManager
         );
 
         SchedulePeriod testPeriod = SchedulePeriod.builder().id(1).periodName("Tháng 6/2026 - Concurrency")

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { ScheduleMatrixGrid } from "@/components/dashboard/ScheduleMatrixGrid";
-import type { Schedule } from "@/types/api";
+import type { ConflictDetail, Schedule } from "@/types/api";
 
 export type MatrixViewMode = "month" | "week";
 
@@ -24,6 +24,9 @@ export type MatrixGridWrapperProps = {
   /** When true: only show rows that have conflicts */
   showConflictOnly?: boolean;
   onViewDetail?: (schedule: Schedule) => void;
+  onEdit?: (schedule: Schedule) => void;
+  onDelete?: (schedule: Schedule) => void;
+  onResolve?: (conflict: ConflictDetail) => void;
   onCellClick?: (date: Date, staffId: number) => void;
   onRefresh?: () => void;
   canEdit?: boolean;
@@ -78,6 +81,9 @@ export const MatrixGridWrapper = memo(function MatrixGridWrapper({
   conflictDates,
   showConflictOnly: initialShowConflictOnly,
   onViewDetail,
+  onEdit,
+  onDelete,
+  onResolve,
   onCellClick,
   onRefresh,
   canEdit,
@@ -213,6 +219,9 @@ export const MatrixGridWrapper = memo(function MatrixGridWrapper({
         shiftTypeFilter={shiftTypeFilter}
         conflictDates={showConflictOnly ? conflictDates : undefined}
         onViewDetail={onViewDetail}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onResolve={onResolve}
         onCellClick={onCellClick}
         onRefresh={onRefresh}
         canEdit={canEdit}

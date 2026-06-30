@@ -12,8 +12,8 @@ const QuickAddModal = dynamic(
   () => import("@/components/monthly-schedule/QuickAddModal").then((m) => m.QuickAddModal),
   { loading: () => null },
 );
-const ScheduleCalendarSection = dynamic(
-  () => import("@/components/monthly-schedule/ScheduleCalendarSection").then((m) => m.ScheduleCalendarSection),
+const ScheduleMatrixView = dynamic(
+  () => import("@/components/dashboard/ScheduleMatrixView").then((m) => m.ScheduleMatrixView),
   { loading: () => <Skeleton className="h-64 rounded-xl" /> },
 );
 const ScheduleHeader = dynamic(
@@ -406,16 +406,16 @@ export default function MonthlySchedulePage() {
 
       {/* Row 2: Calendar — full width, then info panels below */}
       <div className="border border-outline-variant overflow-hidden rounded-xl">
-        <ScheduleCalendarSection
+        <ScheduleMatrixView
           schedules={filteredSchedules}
-          activeStaff={activeStaff}
-          selectedPeriodId={selectedPeriodId}
+          staffList={activeStaff}
+          periodId={selectedPeriodId}
           initialYear={initialCalendar.year}
           initialMonth={initialCalendar.month}
           selectedTab={selectedTab}
           compensationDays={compensationDays}
           onRefresh={handleRefresh}
-          onAddDate={handleAddDate}
+          onAddClick={handleAddDate}
           onViewDetail={handleViewDetail}
           onFilterTypeChange={(filter) => setQueryState({ tab: filter as "L01" | "L02" | "L03" | "L04" | "ALL" })}
         />
@@ -467,6 +467,8 @@ export default function MonthlySchedulePage() {
         canEdit={canManage(role)}
         onClose={closeDetail}
         onSave={() => { void wsActions.refreshWorkspace(); closeDetail(); }}
+        onDelete={() => { void wsActions.refreshWorkspace(); closeDetail(); }}
+        onRefresh={() => { void wsActions.refreshWorkspace(); }}
       />
 
       <ConflictResolutionModal

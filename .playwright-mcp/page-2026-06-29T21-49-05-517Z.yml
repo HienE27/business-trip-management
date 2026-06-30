@@ -1,0 +1,208 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Chuyển đến nội dung chính" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Điều hướng chính" [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e17]: medical_services
+        - generic [ref=e18]:
+          - generic [ref=e19]:
+            - heading "Quản lý Lịch" [level=1] [ref=e20]
+            - 'generic "Môi trường: development" [ref=e21]': DEV
+          - paragraph [ref=e22]: Hệ thống điều phối
+      - generic [ref=e24]:
+        - generic: search
+        - textbox "Tìm chức năng trong sidebar" [ref=e25]:
+          - /placeholder: Tìm chức năng…
+      - navigation [ref=e27]:
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - button "Tổng quan 2" [expanded] [ref=e30]:
+              - generic [ref=e31]: space_dashboard
+              - generic [ref=e32]: Tổng quan
+              - generic [ref=e33]: "2"
+              - generic [ref=e34]: expand_more
+            - list [ref=e35]:
+              - listitem [ref=e36]:
+                - link "Tổng quan" [ref=e37] [cursor=pointer]:
+                  - /url: /dashboard
+                  - generic [ref=e38]: dashboard
+                  - generic [ref=e39]: Tổng quan
+              - listitem [ref=e40]:
+                - link "Lập lịch tháng" [ref=e41] [cursor=pointer]:
+                  - /url: /monthly-schedule
+                  - generic [ref=e42]: calendar_month
+                  - generic [ref=e43]: Lập lịch tháng
+          - generic [ref=e44]:
+            - button "Lập lịch 6" [expanded] [ref=e45]:
+              - generic [ref=e46]: edit_calendar
+              - generic [ref=e47]: Lập lịch
+              - generic [ref=e48]: "6"
+              - generic [ref=e49]: expand_more
+            - list [ref=e50]:
+              - listitem [ref=e51]:
+                - link "Kỳ lịch công tác" [ref=e52] [cursor=pointer]:
+                  - /url: /periods
+                  - generic [ref=e53]: event_note
+                  - generic [ref=e54]: Kỳ lịch công tác
+              - listitem [ref=e55]:
+                - link "Lịch trực 24/24" [ref=e56] [cursor=pointer]:
+                  - /url: /duty-24
+                  - generic [ref=e57]: emergency
+                  - generic [ref=e58]: Lịch trực 24/24
+              - listitem [ref=e59]:
+                - link "Lịch thông tầm" [ref=e60] [cursor=pointer]:
+                  - /url: /all-day
+                  - generic [ref=e61]: schedule
+                  - generic [ref=e62]: Lịch thông tầm
+              - listitem [ref=e63]:
+                - link "Lịch PK dịch vụ" [ref=e64] [cursor=pointer]:
+                  - /url: /service-clinic
+                  - generic [ref=e65]: medical_services
+                  - generic [ref=e66]: Lịch PK dịch vụ
+              - listitem [ref=e67]:
+                - link "Lịch PK chuyên gia" [ref=e68] [cursor=pointer]:
+                  - /url: /expert-clinic
+                  - generic [ref=e69]: stethoscope
+                  - generic [ref=e70]: Lịch PK chuyên gia
+              - listitem [ref=e71]:
+                - link "Yêu cầu nhân sự" [ref=e72] [cursor=pointer]:
+                  - /url: /requirements
+                  - generic [ref=e73]: assignment
+                  - generic [ref=e74]: Yêu cầu nhân sự
+          - generic [ref=e75]:
+            - button "Vận hành 6" [expanded] [ref=e76]:
+              - generic [ref=e77]: settings_b_roll
+              - generic [ref=e78]: Vận hành
+              - generic [ref=e79]: "6"
+              - generic [ref=e80]: expand_more
+            - list [ref=e81]:
+              - listitem [ref=e82]:
+                - link "Tự động xếp lịch" [ref=e83] [cursor=pointer]:
+                  - /url: /auto-scheduling
+                  - generic [ref=e84]: auto_mode
+                  - generic [ref=e85]: Tự động xếp lịch
+              - listitem [ref=e86]:
+                - link "Nhân sự" [ref=e87] [cursor=pointer]:
+                  - /url: /staff
+                  - generic [ref=e88]: groups
+                  - generic [ref=e89]: Nhân sự
+              - listitem [ref=e90]:
+                - link "Chuyên khoa" [ref=e91] [cursor=pointer]:
+                  - /url: /staff
+                  - generic [ref=e92]: stethoscope
+                  - generic [ref=e93]: Chuyên khoa
+              - listitem [ref=e94]:
+                - link "Nghỉ phép" [ref=e95] [cursor=pointer]:
+                  - /url: /leave-requests
+                  - generic [ref=e96]: event_busy
+                  - generic [ref=e97]: Nghỉ phép
+              - listitem [ref=e98]:
+                - link "Đổi trực" [ref=e99] [cursor=pointer]:
+                  - /url: /swap-requests
+                  - generic [ref=e100]: swap_horiz
+                  - generic [ref=e101]: Đổi trực
+              - listitem [ref=e102]:
+                - link "Ngày lễ" [ref=e103] [cursor=pointer]:
+                  - /url: /holidays
+                  - generic [ref=e104]: celebration
+                  - generic [ref=e105]: Ngày lễ
+          - generic [ref=e106]:
+            - button "Theo dõi 3" [expanded] [ref=e107]:
+              - generic [ref=e108]: monitoring
+              - generic [ref=e109]: Theo dõi
+              - generic [ref=e110]: "3"
+              - generic [ref=e111]: expand_more
+            - list [ref=e112]:
+              - listitem [ref=e113]:
+                - link "Báo cáo" [ref=e114] [cursor=pointer]:
+                  - /url: /reports
+                  - generic [ref=e115]: assessment
+                  - generic [ref=e116]: Báo cáo
+              - listitem [ref=e117]:
+                - link "Thông báo" [ref=e118] [cursor=pointer]:
+                  - /url: /notifications
+                  - generic [ref=e119]: notifications
+                  - generic [ref=e120]: Thông báo
+              - listitem [ref=e121]:
+                - link "Nhật ký" [ref=e122] [cursor=pointer]:
+                  - /url: /audit-history
+                  - generic [ref=e123]: history
+                  - generic [ref=e124]: Nhật ký
+    - generic [ref=e125]:
+      - banner [ref=e126]:
+        - generic [ref=e128]:
+          - generic [ref=e129]: search
+          - searchbox "Tìm kiếm toàn cục" [ref=e130]
+        - generic [ref=e131]:
+          - button "Thông báo" [ref=e133]:
+            - generic [ref=e134]: notifications
+          - link "Cài đặt" [ref=e135] [cursor=pointer]:
+            - /url: /settings
+            - generic [ref=e136]: settings
+          - generic [ref=e137]:
+            - 'button "Tài khoản: admin" [ref=e138]':
+              - generic [ref=e139]: A
+              - generic [ref=e140]:
+                - generic [ref=e141]: admin
+                - generic [ref=e142]: Trưởng phòng
+              - generic [ref=e143]: expand_more
+            - menu:
+              - generic:
+                - paragraph: admin
+                - paragraph: Trưởng phòng
+              - generic:
+                - menuitem "Hồ sơ cá nhân":
+                  - generic: person
+                  - text: Hồ sơ cá nhân
+                - menuitem "Cài đặt":
+                  - generic: settings
+                  - text: Cài đặt
+              - generic:
+                - menuitem "Đăng xuất":
+                  - generic: logout
+                  - text: Đăng xuất
+      - main [ref=e144]:
+        - generic [ref=e145]:
+          - generic "Đang tải chỉ số KPI" [ref=e146]
+          - generic "Đang tải lịch biểu" [ref=e163]:
+            - generic [ref=e164]: Đang tải lịch biểu
+          - generic "Đang tải dữ liệu bảng" [ref=e355]:
+            - generic [ref=e356]: Đang tải dữ liệu bảng
+            - table [ref=e357]:
+              - rowgroup [ref=e358]:
+                - row [ref=e359]:
+                  - columnheader [ref=e360]
+                  - columnheader [ref=e362]
+                  - columnheader [ref=e364]
+                  - columnheader [ref=e366]
+              - rowgroup [ref=e368]:
+                - row [ref=e369]:
+                  - cell [ref=e370]
+                  - cell [ref=e372]
+                  - cell [ref=e374]
+                  - cell [ref=e376]
+                - row [ref=e378]:
+                  - cell [ref=e379]
+                  - cell [ref=e381]
+                  - cell [ref=e383]
+                  - cell [ref=e385]
+                - row [ref=e387]:
+                  - cell [ref=e388]
+                  - cell [ref=e390]
+                  - cell [ref=e392]
+                  - cell [ref=e394]
+                - row [ref=e396]:
+                  - cell [ref=e397]
+                  - cell [ref=e399]
+                  - cell [ref=e401]
+                  - cell [ref=e403]
+                - row [ref=e405]:
+                  - cell [ref=e406]
+                  - cell [ref=e408]
+                  - cell [ref=e410]
+                  - cell [ref=e412]
+  - generic "Thông báo"

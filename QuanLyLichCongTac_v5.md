@@ -293,3 +293,27 @@ Module tự động phân công lịch cho toàn bộ nhân sự theo thuật to
 | Thông tin về Thuật Toán | Ghi chú & Đề xuất |
 | :--- | :--- |
 | **Gợi ý thuật toán cho sinh viên** | - Round Robin: Luân phiên xoay vòng theo thứ tự danh sách nhân sự. Dễ nhất, đảm bảo phân bổ đều.<br>- Greedy: Mỗi ngày chọn nhân sự có ít ngày công nhất và không vi phạm ràng buộc. Phù hợp nhóm trung bình.<br>- Backtracking: Thử từng phương án, quay lui nếu vi phạm ràng buộc. Chính xác hơn, phù hợp nhóm khá.<br>- Lưu ý: Logic kiểm tra ràng buộc phải được tách thành hàm/service riêng để dùng chung cho cả thủ công và tự động |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

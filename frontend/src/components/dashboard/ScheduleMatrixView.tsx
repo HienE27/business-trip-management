@@ -8,7 +8,7 @@ import { Button, FormSelect, FormInput, FormTextarea } from "@/components/ui";
 import { useRole, canEditSchedule } from "@/hooks/useRole";
 import { useToast } from "@/components/ui/ToastProvider";
 import { api } from "@/lib/api";
-import type { CompensationDay, Schedule } from "@/types/api";
+import type { CompensationDay, ConflictDetail, Schedule } from "@/types/api";
 
 type QuickScheduleModalProps = {
   open: boolean;
@@ -18,9 +18,21 @@ type QuickScheduleModalProps = {
   staffList?: { id: number; fullName: string }[];
   defaultShiftTypeId?: string;
   compensationDays?: CompensationDay[];
+  periodStart?: string;
+  periodEnd?: string;
 };
 
-export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffList = [], defaultShiftTypeId = "L01", compensationDays }: QuickScheduleModalProps) {
+export function QuickScheduleModal({
+  open,
+  onClose,
+  onSuccess,
+  periodId,
+  staffList = [],
+  defaultShiftTypeId = "L01",
+  compensationDays,
+  periodStart,
+  periodEnd,
+}: QuickScheduleModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -29,6 +41,14 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
   const [workDate, setWorkDate] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const toast = useToast();
+
+  // Check if selected date is outside the period range
+  const dateOutOfRange = Boolean(
+    workDate && (
+      (periodStart && workDate < periodStart) ||
+      (periodEnd && workDate > periodEnd)
+    )
+  );
 
   useEffect(() => {
     if (!message) return;
@@ -47,6 +67,12 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!periodId || !selectedStaffId || !workDate) return;
+
+    if (dateOutOfRange) {
+      setMessage("Ngày làm việc phải nằm trong kỳ lịch.");
+      return;
+    }
+
     if (compensationDays && selectedStaffId) {
       const isCompDay = compensationDays.some(
         (cd) => cd.staffId === Number(selectedStaffId) && cd.compensationDate.startsWith(workDate)
@@ -75,9 +101,9 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
         onSuccess?.();
         onClose();
       }, 1200);
-    } catch {
+    } catch (err) {
       setSubmitting(false);
-      toast.error("Không thể tạo ca trực. Vui lòng thử lại.");
+      setMessage(err instanceof Error ? err.message : "Không thể tạo ca trực. Vui lòng thử lại.");
     }
   };
 
@@ -125,6 +151,11 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
             onChange={(e) => setWorkDate(e.target.value)}
             required
           />
+          {dateOutOfRange && (
+            <div className="rounded-lg border border-error/20 bg-error-container px-3 py-2 text-label-sm text-error">
+              Ngày làm việc phải nằm trong kỳ lịch.
+            </div>
+          )}
           <FormTextarea
             label="Ghi chú"
             id="q-notes"
@@ -141,7 +172,7 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
               type="submit"
               variant="primary"
               loading={submitting}
-              disabled={!selectedStaffId || !workDate}
+              disabled={!selectedStaffId || !workDate || dateOutOfRange}
               icon={<span className="material-symbols-outlined" aria-hidden="true">add</span>}
             >
               Tạo lịch
@@ -153,12 +184,14 @@ export function QuickScheduleModal({ open, onClose, onSuccess, periodId, staffLi
   );
 }
 
-type ScheduleCalendarWidgetProps = {
+type ScheduleMatrixViewProps = {
   schedules?: Schedule[];
   staffList?: { id: number; fullName: string }[];
   initialYear?: number;
   initialMonth?: number;
   periodId?: number | null;
+  periodStart?: string;
+  periodEnd?: string;
   onRefresh?: () => void;
   onAddClick?: (date: Date, staffId?: number) => void;
   selectedTab?: string;
@@ -167,16 +200,21 @@ type ScheduleCalendarWidgetProps = {
   isReadOnly?: boolean;
   canEditOverride?: boolean;
   onViewDetail?: (schedule: Schedule) => void;
+  onEdit?: (schedule: Schedule) => void;
+  onDelete?: (schedule: Schedule) => void;
+  onResolve?: (conflict: ConflictDetail) => void;
   /** Hide the month/week toggle and other filter controls */
   hideFilters?: boolean;
 };
 
-export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
+export const ScheduleMatrixView = memo(function ScheduleMatrixView({
   schedules,
   staffList = [],
   initialYear,
   initialMonth,
   periodId,
+  periodStart,
+  periodEnd,
   isReadOnly = false,
   canEditOverride = false,
   onRefresh,
@@ -185,8 +223,11 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
   onFilterTypeChange,
   compensationDays,
   onViewDetail,
+  onEdit,
+  onDelete,
+  onResolve,
   hideFilters = false,
-}: ScheduleCalendarWidgetProps) {
+}: ScheduleMatrixViewProps) {
   const [matrixViewMode, setMatrixViewMode] = useState<"month" | "week">("month");
   const [quickOpen, setQuickOpen] = useState(false);
   const role = useRole();
@@ -210,8 +251,6 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
 
   return (
     <div className="flex flex-col pt-1">
-      {/* Matrix view: Month / Week toggle */}
-      {!hideFilters && (
       <div className="flex items-center justify-end px-4 pt-3 pb-2">
         <div
           role="group"
@@ -244,7 +283,6 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
           </button>
         </div>
       </div>
-      )}
 
       <div className="px-3 pb-3">
         <MatrixGridWrapper
@@ -255,6 +293,10 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
           viewMode={matrixViewMode}
           compensationDays={compensationDays}
           shiftTypeFilter={selectedTab}
+          onViewDetail={onViewDetail}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onResolve={onResolve}
           onCellClick={stableOnCellClick}
           onRefresh={onRefresh}
           canEdit={canEdit}
@@ -273,6 +315,8 @@ export const ScheduleCalendarWidget = memo(function ScheduleCalendarWidget({
           staffList={staffList}
           defaultShiftTypeId="L01"
           compensationDays={compensationDays}
+          periodStart={periodStart}
+          periodEnd={periodEnd}
         />
       )}
     </div>

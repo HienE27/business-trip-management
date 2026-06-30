@@ -42,4 +42,8 @@ public interface CompensationDayRepository extends JpaRepository<CompensationDay
 
     @Query("SELECT cd FROM CompensationDay cd JOIN FETCH cd.staff JOIN FETCH cd.schedule WHERE cd.schedule.id IN :scheduleIds")
     List<CompensationDay> findByScheduleIds(@Param("scheduleIds") List<Integer> scheduleIds);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM CompensationDay cd WHERE cd.period.id = :periodId")
+    void deleteAllByPeriodId(@Param("periodId") Integer periodId);
 }

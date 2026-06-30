@@ -106,7 +106,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
   const unassignedDays = previewResult?.unassignedDays ?? [];
   const totalMissing = unassignedDays.reduce((sum: number, d: unknown) => sum + ((d as { missingCount?: number }).missingCount ?? 0), 0);
-  const coverageRate = previewResult ? Math.round(parseNumber(previewResult.coverageRate)) : 0;
+  const coverageRate = previewResult ? Math.min(Math.round(parseNumber(previewResult.coverageRate)), 100) : 0;
   const balanceScore = previewResult ? parseNumber(previewResult.balanceScore) : 0;
   const statusMsgOk = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng") || message?.toLowerCase().includes("đã hủy");
 
