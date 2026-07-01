@@ -40,4 +40,6 @@ public interface AuditHistoryRepository extends JpaRepository<AuditHistory, Inte
             Pageable pageable);
 
     Page<AuditHistory> findByChangedBy(Integer changedById, Pageable pageable);
+
+    List<AuditHistory> findAllByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 }

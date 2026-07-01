@@ -96,4 +96,32 @@ public class AuditHistoryService {
             return "\"[" + type + "]: " + e.getMessage().replace("\"", "'") + "\"";
         }
     }
+
+    @Transactional
+    public void deleteById(Integer id) {
+        if (!auditHistoryRepository.existsById(id)) {
+            throw new IllegalArgumentException("Không tìm thấy bản ghi nhật ký với id: " + id);
+        }
+        auditHistoryRepository.deleteById(id);
+    }
+
+    @Transactional
+    public int deleteByIds(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) return 0;
+        List<AuditHistory> existing = auditHistoryRepository.findAllById(ids);
+        if (existing.isEmpty()) return 0;
+        auditHistoryRepository.deleteAll(existing);
+        return existing.size();
+    }
+
+    @Transactional
+    public int deleteByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("Ngày bắt đầu và ngày kết thúc không được để trống");
+        }
+        List<AuditHistory> records = auditHistoryRepository.findAllByCreatedAtBetween(startDate, endDate);
+        if (records.isEmpty()) return 0;
+        auditHistoryRepository.deleteAll(records);
+        return records.size();
+    }
 }

@@ -13,6 +13,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/audit-history")
@@ -63,5 +64,33 @@ public class AuditHistoryController {
             @RequestParam(defaultValue = "50") int size) {
         return ResponseEntity.ok(ApiResponse.success(
                 auditHistoryService.getAuditHistoryByDateRange(startDate, endDate, page, size)));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Xóa một bản ghi nhật ký")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Integer id) {
+        auditHistoryService.deleteById(id);
+        return ResponseEntity.ok(ApiResponse.success(null, "Đã xóa bản ghi nhật ký."));
+    }
+
+    @DeleteMapping
+    @Operation(summary = "Xóa nhiều bản ghi nhật ký")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Integer>> deleteMultiple(@RequestBody List<Integer> ids) {
+        int count = auditHistoryService.deleteByIds(ids);
+        return ResponseEntity.ok(ApiResponse.success(count, "Đã xóa " + count + " bản ghi."));
+    }
+
+    @DeleteMapping("/date-range")
+    @Operation(summary = "Xóa nhật ký theo khoảng thời gian")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Integer>> deleteByDateRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate endDate) {
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay().minusNanos(1);
+        int count = auditHistoryService.deleteByDateRange(start, end);
+        return ResponseEntity.ok(ApiResponse.success(count, "Đã xóa " + count + " bản ghi nhật ký trong khoảng thời gian."));
     }
 }
