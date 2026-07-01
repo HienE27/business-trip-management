@@ -132,7 +132,7 @@ class ApiClient {
       }
       // Handle Page object - extract content array
       if (typeof res.data === 'object' && res.data !== null && 'content' in res.data) {
-        return (res.data as { content: T[] }).content;
+        return (res.data as { content: T[] }).content as T;
       }
       return res.data;
     }

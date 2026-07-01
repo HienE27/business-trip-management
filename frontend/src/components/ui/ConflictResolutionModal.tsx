@@ -36,8 +36,8 @@ export function ConflictResolutionModal({
 
   const loadReplacements = useCallback(async () => {
     // Support both ConflictDetail (workDate) and ConflictItem (date)
-    const workDate = conflict?.workDate ?? conflict?.date;
-    const shiftTypeId = conflict?.shiftTypeId ?? conflict?.shiftType;
+    const workDate = conflict?.workDate ?? (conflict as ConflictItem).date;
+    const shiftTypeId = conflict?.shiftTypeId ?? (conflict as ConflictItem).shiftType;
 
     if (!conflict?.periodId || !workDate || !shiftTypeId) {
       console.log("[ConflictResolution] Skipping loadReplacements - missing conflict data:", { conflict, workDate, shiftTypeId });

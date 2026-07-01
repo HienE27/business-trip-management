@@ -304,7 +304,7 @@ function DetailModal({ record, onClose }: { record: AuditHistory; onClose: () =>
           <span className="text-on-surface-variant">
             Người thực hiện:{" "}
             <strong className="font-semibold text-on-surface">
-              {record.userName ?? (record.userId > 0 ? `#${record.userId}` : <span className="text-outline italic">—</span>)}
+              {record.userName ?? (record.userId != null && record.userId > 0 ? `#${record.userId}` : <span className="text-outline italic">—</span>)}
             </strong>
           </span>
           {record.ipAddress && (
@@ -717,7 +717,7 @@ export default function AuditHistoryPage() {
 
           <button
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-outline-variant bg-surface hover:bg-surface-container-low transition-colors"
-            onClick={() => fetchData(true)} type="button"
+            onClick={() => fetchData(page, pageSize, true)} type="button"
             aria-label={refreshing ? "Đang làm mới" : "Làm mới"}
           >
             <span className={`material-symbols-outlined text-[16px] text-on-surface-variant ${refreshing ? "animate-spin" : ""}`}>sync</span>

@@ -43,6 +43,7 @@ const fakeStaff: Staff = {
   phone: "0901",
   maxShiftsPerMonth: 15,
   isActive: true,
+  status: "ACTIVE",
   specialty: undefined,
   roles: ["STAFF"],
   createdAt: "2026-01-01",

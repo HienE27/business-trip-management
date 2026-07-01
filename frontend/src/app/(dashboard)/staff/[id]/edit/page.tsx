@@ -124,7 +124,7 @@ function AuditList({ staffId }: { staffId: number }) {
     <div className="divide-y divide-outline-variant">
       {records.map((r) => {
         const st = getActionStyle(r.action);
-        const userDisplay = r.userName ?? (r.userId > 0 ? `#${r.userId}` : null);
+        const userDisplay = r.userName ?? (r.userId != null && r.userId > 0 ? `#${r.userId}` : null);
         return (
           <div
             key={r.id}
