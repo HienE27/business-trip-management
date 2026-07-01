@@ -87,55 +87,11 @@ export function useSchedulePeriodData(
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Listen for schedules-changed events (dispatched by applyTemplateWithEdits, delete, etc.)
-  // This ensures the schedule list is refreshed when any page modifies schedules.
-  const loadPeriodDataRef = useRef<typeof loadPeriodData | null>(null);
-  useEffect(() => {
-    loadPeriodDataRef.current = loadPeriodData;
-  });
-  useEffect(() => {
-    const handleSchedulesChanged = () => {
-      // Invalidate cache for schedule-related endpoints before refresh
-      invalidateEndpoint("/schedules");
-      invalidateEndpoint(`/schedules/period/${selectedPeriodId}`);
-      invalidateEndpoint(`/schedules/conflicts/check/${selectedPeriodId}`);
-      invalidateEndpoint(`/schedules/compensation-days/${selectedPeriodId}`);
-      // Trigger a refresh by calling loadPeriodData via ref
-      if (selectedPeriodId && loadPeriodDataRef.current) {
-        void loadPeriodDataRef.current(selectedPeriodId, true);
-      }
-    };
-    if (typeof window !== "undefined") {
-      window.addEventListener("schedules-changed", handleSchedulesChanged);
-    }
-    return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("schedules-changed", handleSchedulesChanged);
-      }
-    };
-  }, [selectedPeriodId]);
-
-  // Auto-dismiss transient messages after 5s so they don't linger on screen
-  // or survive a remount and confuse the user on re-entry.
-  useAutoDismiss(message, () => setMessage(null));
-
-  // Guard khi component unmount trong lúc đang fetch
+  // Guard for aborting async work when component unmounts
   const aliveRef = useRef(true);
-  useEffect(() => {
-    aliveRef.current = true;
-    return () => {
-      aliveRef.current = false;
-    };
-  }, []);
 
-  // Clear any stale banner when the user navigates to or away from this
-  // page. Without this, a success/error message set during a prior visit
-  // (or on a different page that shares the same hook) would still be
-  // visible when the user returns.
-  const pathname = usePathname();
-  useEffect(() => {
-    setMessage(null);
-  }, [pathname]);
+  // Keep loadPeriodData stable via ref to avoid stale closures
+  const loadPeriodDataRef = useRef<typeof loadPeriodData | null>(null);
 
   const selectedPeriod = useMemo(
     () => periods.find((p) => p.id === selectedPeriodId) ?? null,
@@ -205,6 +161,49 @@ export function useSchedulePeriodData(
     setRequirements(reqResultData);
     if (isRefresh) setRefreshing(false);
   }, []);
+
+  // Keep ref in sync with loadPeriodData callback
+  useEffect(() => {
+    loadPeriodDataRef.current = loadPeriodData;
+  }, [loadPeriodData]);
+
+  // Auto-dismiss transient messages after 5s
+  useAutoDismiss(message, () => setMessage(null));
+
+  // Reset aliveRef and message on mount/unmount
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+
+  // Clear stale banner on pathname change
+  const pathname = usePathname();
+  useEffect(() => {
+    setMessage(null);
+  }, [pathname]);
+
+  // Listen for schedules-changed events to auto-refresh
+  useEffect(() => {
+    const handleSchedulesChanged = () => {
+      invalidateEndpoint("/schedules");
+      invalidateEndpoint(`/schedules/period/${selectedPeriodId}`);
+      invalidateEndpoint(`/schedules/conflicts/check/${selectedPeriodId}`);
+      invalidateEndpoint(`/schedules/compensation-days/${selectedPeriodId}`);
+      if (selectedPeriodId && loadPeriodDataRef.current) {
+        void loadPeriodDataRef.current(selectedPeriodId, true);
+      }
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("schedules-changed", handleSchedulesChanged);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("schedules-changed", handleSchedulesChanged);
+      }
+    };
+  }, [selectedPeriodId, invalidateEndpoint]);
 
   // Bootstrap: load periods + staff + auto-select active period
   useEffect(() => {

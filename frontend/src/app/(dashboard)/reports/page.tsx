@@ -13,6 +13,14 @@ const REPORT_CARDS = [
     accent: "border-l-primary",
   },
   {
+    title: "Thống kê nhân sự",
+    description: "Phân bổ ca trực theo nhân sự, số ca mỗi loại (L01-L04), tổng giờ và tỷ lệ tải công việc.",
+    icon: "assessment",
+    href: "/reports/statistics",
+    cta: "Xem thống kê",
+    accent: "border-l-primary",
+  },
+  {
     title: "Khối lượng nhân sự",
     description: "Xem nhanh tải phân công theo nhân sự, so sánh với giới hạn ca/tháng.",
     icon: "groups",

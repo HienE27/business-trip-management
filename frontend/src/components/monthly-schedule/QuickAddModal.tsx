@@ -6,7 +6,7 @@ import { FormSelect, FormTextarea, Button } from "@/components/ui";
 import { StaffSearchCombobox } from "@/components/ui/StaffSearchCombobox";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { CompensationDay, Holiday, Schedule, Staff } from "@/types/api";
+import type { CompensationDay, Holiday, LeaveRequest, Schedule, Staff } from "@/types/api";
 import type { ScheduleTab } from "./types";
 import { TAB_OPTIONS } from "./constants";
 
@@ -19,6 +19,8 @@ export type QuickAddModalProps = {
   /** National holidays — selected date will show an advisory warning. */
   holidays?: Holiday[];
   compensationDays?: CompensationDay[];
+  /** Approved leave requests — used to mark staff unavailable in the staff selector. */
+  leaveRequests?: LeaveRequest[];
   /** ISO date string (YYYY-MM-DD) lower bound of the active period. */
   periodStart?: string;
   /** ISO date string (YYYY-MM-DD) upper bound of the active period. */
@@ -48,6 +50,7 @@ export const QuickAddModal = memo(function QuickAddModal({
   schedules = [],
   holidays,
   compensationDays,
+  leaveRequests = [],
   onOptimisticAdd,
   onCommit,
   onRollback,
@@ -152,6 +155,23 @@ export const QuickAddModal = memo(function QuickAddModal({
         setError(
           `Ngày ${date.toLocaleDateString("vi-VN")} là ngày lễ: ${holiday.name}. Không thể xếp lịch vào ngày nghỉ lễ.`
         );
+        setSubmitting(false);
+        return;
+      }
+    }
+
+    // Client-side guard: refuse to send a request when the
+    // picked staff member is on approved leave for this date.
+    if (leaveRequests.length > 0 && staffId) {
+      const dateStr = toLocalDateStr(date);
+      const onLeave = leaveRequests.some(
+        (lr) =>
+          lr.staffId === Number(staffId) &&
+          dateStr >= lr.startDate &&
+          dateStr <= lr.endDate
+      );
+      if (onLeave) {
+        setError("Nhân sự có ngày nghỉ phép được duyệt trong ngày này. Không thể xếp lịch.");
         setSubmitting(false);
         return;
       }
@@ -287,6 +307,7 @@ export const QuickAddModal = memo(function QuickAddModal({
             compensationDays={compensationDays}
             existingScheduleStaffIds={existingScheduleStaffIds}
             existingConflictStaffIds={existingConflictStaffIds}
+            leaveRequests={leaveRequests}
             disabled={submitting}
           />
 

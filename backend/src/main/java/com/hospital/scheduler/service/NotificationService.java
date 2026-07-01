@@ -30,6 +30,7 @@ public class NotificationService {
     private final StaffRepository staffRepository;
     private final AuditHistoryService auditHistoryService;
     private final AuthContextService authContextService;
+    private final NotificationBroadcastService notificationBroadcastService;
 
     public List<NotificationResponse> getNotificationsByStaff(Integer staffId) {
         return notificationRepository.findByStaffIdOrderByCreatedAtDesc(staffId).stream()
@@ -89,6 +90,11 @@ public class NotificationService {
         Integer currentId = null;
         try { currentId = authContextService.getCurrentStaff().getId(); } catch (Exception ignored) {}
         auditHistoryService.logAction("notification", notificationId, AuditHistory.ActionType.UPDATE, prev, saved, currentId);
+        
+        // Broadcast via WebSocket
+        Integer staffId = saved.getStaff().getId();
+        notificationBroadcastService.broadcastNotificationRead(notificationId, staffId);
+        
         return NotificationResponse.fromEntity(saved);
     }
 
@@ -98,6 +104,9 @@ public class NotificationService {
         try { currentId = authContextService.getCurrentStaff().getId(); } catch (Exception ignored) {}
         auditHistoryService.logAction("notification", null, AuditHistory.ActionType.UPDATE,
                 null, Map.of("markAllRead", true, "staffId", staffId, "count", count), currentId);
+        
+        // Broadcast via WebSocket
+        notificationBroadcastService.broadcastBulkRead(staffId);
     }
 
     public NotificationResponse createNotification(Integer staffId, NotificationDTO dto) {
@@ -113,6 +122,10 @@ public class NotificationService {
 
         Notification saved = notificationRepository.save(notification);
         auditHistoryService.logAction("notification", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+        
+        // Broadcast via WebSocket for real-time push
+        notificationBroadcastService.broadcastNewNotification(saved, staffId);
+        
         return NotificationResponse.fromEntity(saved);
     }
 
@@ -126,16 +139,33 @@ public class NotificationService {
                         .isRead(false)
                         .build())
                 .collect(Collectors.toList());
-        notificationRepository.saveAll(notifications);
+        
+        List<Notification> savedNotifications = notificationRepository.saveAll(notifications);
+        
         auditHistoryService.logAction("notification", null, AuditHistory.ActionType.INSERT,
                 null, Map.of("broadcast", true, "title", title, "message", message, "recipientCount", allStaff.size()), null);
+        
+        // Broadcast each notification via WebSocket
+        for (Notification notification : savedNotifications) {
+            notificationBroadcastService.broadcastNewNotification(notification, notification.getStaff().getId());
+        }
     }
 
     public void deleteNotification(Integer notificationId) {
         if (!notificationRepository.existsById(notificationId)) {
             throw new ResourceNotFoundException("Không tìm thấy thông báo với ID: " + notificationId);
         }
+        
+        // Get staff ID before deleting for broadcast
+        Notification notification = notificationRepository.findById(notificationId).orElse(null);
+        Integer staffId = notification != null ? notification.getStaff().getId() : null;
+        
         notificationRepository.deleteById(notificationId);
         auditHistoryService.logAction("notification", notificationId, AuditHistory.ActionType.DELETE, null, null, null);
+        
+        // Broadcast via WebSocket
+        if (staffId != null) {
+            notificationBroadcastService.broadcastNotificationDeleted(notificationId, staffId);
+        }
     }
 }

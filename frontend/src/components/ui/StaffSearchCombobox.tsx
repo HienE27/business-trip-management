@@ -1,13 +1,14 @@
 "use client";
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import type { Staff } from "@/types/api";
+import type { LeaveRequest, Staff } from "@/types/api";
 
 type GroupedStaff = {
   available: Staff[];
   unavailableCompDay: Staff[];
   unavailableExisting: Staff[];
   unavailableConflict: Staff[];
+  unavailableOnLeave: Staff[];
 };
 
 function groupStaff(
@@ -16,15 +17,18 @@ function groupStaff(
   existingScheduleStaffIds: Set<number>,
   compensationDates: Set<string>,
   existingConflictStaffIds: Set<number>,
+  onLeaveStaffIds: Set<number>,
 ): GroupedStaff {
   const available: Staff[] = [];
   const unavailableCompDay: Staff[] = [];
   const unavailableExisting: Staff[] = [];
   const unavailableConflict: Staff[] = [];
+  const unavailableOnLeave: Staff[] = [];
 
   for (const s of list) {
-    const key = `${s.id}|${workDate}`;
-    if (compensationDates.has(key)) {
+    if (onLeaveStaffIds.has(s.id)) {
+      unavailableOnLeave.push(s);
+    } else if (compensationDates.has(`${s.id}|${workDate}`)) {
       unavailableCompDay.push(s);
     } else if (existingScheduleStaffIds.has(s.id)) {
       unavailableExisting.push(s);
@@ -35,7 +39,7 @@ function groupStaff(
     }
   }
 
-  return { available, unavailableCompDay, unavailableExisting, unavailableConflict };
+  return { available, unavailableCompDay, unavailableExisting, unavailableConflict, unavailableOnLeave };
 }
 
 export type StaffSearchComboboxProps = {
@@ -47,6 +51,8 @@ export type StaffSearchComboboxProps = {
   existingScheduleStaffIds?: number[];
   /** Staff IDs that have a conflicting schedule of the opposite type (e.g., L02 when selecting L01). */
   existingConflictStaffIds?: number[];
+  /** Approved leave requests — staff on approved leave for workDate are grouped separately. */
+  leaveRequests?: LeaveRequest[];
   placeholder?: string;
   disabled?: boolean;
   error?: string;
@@ -62,6 +68,7 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
   compensationDays = [],
   existingScheduleStaffIds = [],
   existingConflictStaffIds = [],
+  leaveRequests = [],
   placeholder = "Tìm kiếm hoặc chọn nhân sự…",
   disabled,
   error,
@@ -91,7 +98,17 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
   const conflictSet = new Set(existingConflictStaffIds);
   const compDates = new Set(compensationDays.map((c) => `${c.staffId}|${c.compensationDate}`));
 
-  const grouped = groupStaff(staffList, workDate, existingSet, compDates, conflictSet);
+  // Derive staff IDs that are on approved leave for the given workDate
+  const onLeaveStaffIds = new Set<number>();
+  if (workDate) {
+    for (const lr of leaveRequests) {
+      if (lr.staffId != null && workDate >= lr.startDate && workDate <= lr.endDate) {
+        onLeaveStaffIds.add(lr.staffId);
+      }
+    }
+  }
+
+  const grouped = groupStaff(staffList, workDate, existingSet, compDates, conflictSet, onLeaveStaffIds);
 
   const filtered = query.trim()
     ? {
@@ -117,11 +134,20 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
             s.fullName.toLowerCase().includes(query.toLowerCase()) ||
             s.username.toLowerCase().includes(query.toLowerCase()),
         ),
+        unavailableOnLeave: grouped.unavailableOnLeave.filter(
+          (s) =>
+            s.fullName.toLowerCase().includes(query.toLowerCase()) ||
+            s.username.toLowerCase().includes(query.toLowerCase()),
+        ),
       }
     : grouped;
 
   const totalAvailable = filtered.available.length;
-  const totalUnavailable = filtered.unavailableCompDay.length + filtered.unavailableExisting.length + filtered.unavailableConflict.length;
+  const totalUnavailable =
+    filtered.unavailableCompDay.length +
+    filtered.unavailableExisting.length +
+    filtered.unavailableConflict.length +
+    filtered.unavailableOnLeave.length;
   const hasResults = totalAvailable + totalUnavailable > 0;
 
   const openDropdown = useCallback(() => {
@@ -432,6 +458,26 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
                           isUnavailable
                           unavailableIcon="event_available"
                           unavailableText="Đã xếp"
+                          onSelect={() => handleSelect(staff, true)}
+                          onHover={() => {}}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {filtered.unavailableOnLeave.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-2 pb-1 text-label-sm text-tertiary uppercase tracking-wide font-semibold">
+                        Nghỉ phép
+                      </p>
+                      {filtered.unavailableOnLeave.map((staff) => (
+                        <StaffOption
+                          key={staff.id}
+                          staff={staff}
+                          isActive={false}
+                          isSelected={value === staff.id}
+                          isUnavailable
+                          unavailableIcon="event_busy"
+                          unavailableText="Nghỉ phép"
                           onSelect={() => handleSelect(staff, true)}
                           onHover={() => {}}
                         />

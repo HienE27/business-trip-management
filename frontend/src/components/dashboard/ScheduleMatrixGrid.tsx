@@ -234,9 +234,9 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
 
   // Stable onCellClick for MatrixRowCell - only changes when onCellClick prop changes
   const stableOnCellClick = useCallback(
-    onCellClick
-      ? (date: Date, staffId: number) => onCellClick(date, staffId)
-      : (_date: Date, _staffId: number) => {},
+    (date: Date, staffId: number) => {
+      if (onCellClick) onCellClick(date, staffId);
+    },
     [onCellClick]
   );
 

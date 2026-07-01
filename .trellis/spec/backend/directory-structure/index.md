@@ -22,11 +22,13 @@ com.hospital.scheduler
 │   ├── SchedulePeriodController.java
 │   ├── LeaveRequestController.java
 │   ├── ScheduleExchangeController.java
+│   ├── StatisticsController.java        # /api/v1/statistics/**
 │   └── ...                              # 1 controller / resource
 ├── service/                             # @Service — business logic
 │   ├── ScheduleService.java
 │   ├── ConflictDetectionService.java    # L01↔L02, L03↔L04, compensation
-│   ├── CompensationDateCalculator.java  # actually lives in util/
+│   ├── NotificationBroadcastService.java # WebSocket STOMP broadcast
+│   ├── StatisticsService.java            # Staff shift statistics
 │   └── ...
 ├── repository/                          # Spring Data JPA interfaces
 │   ├── ScheduleRepository.java
@@ -52,6 +54,7 @@ com.hospital.scheduler
 │   └── response/                        # *Response DTO (output)
 │       ├── StaffResponse.java
 │       ├── ScheduleResponse.java
+│       ├── StaffShiftStatistics.java     # Staff shift statistics report
 │       └── ...
 ├── exception/                           # Custom exceptions
 │   ├── ResourceNotFoundException.java

@@ -325,6 +325,7 @@ const { data, loading } = useApi<PaginatedResponse<Staff>>(
 | POST | `/schedule-exchanges/{id}/approve` | Duyệt đổi ca |
 | POST | `/auto-scheduling/run` | Chạy auto scheduling |
 | GET | `/auto-scheduling/preview?periodId={id}` | Preview kết quả |
+| GET | `/statistics/staff?periodId={id}&shiftTypeId={type}` | Báo cáo thống kê ca trực theo nhân sự |
 
 ---
 

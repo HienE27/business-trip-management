@@ -26,12 +26,14 @@ import type {
   ScheduleTemplate,
   TemplatePreviewItem,
   AuditHistory,
+  AuditHistoryPage,
   ConflictCheckResponse,
   ShiftType,
   LeaveRequestStatistics,
   ReplacementSuggestion,
   BulkScheduleResponse,
   PublishDryRunResponse,
+  StaffShiftStatistics,
 } from "@/types/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
@@ -966,21 +968,43 @@ class ApiClient {
   }
 
   // Audit History
-  async getAllAuditHistory(): Promise<ApiResponse<AuditHistory[]>> {
-    return this.request<AuditHistory[]>("/audit-history");
+  async getAuditHistory(page = 0, size = 50): Promise<AuditHistoryPage> {
+    // Backend returns ApiResponse<Page<AuditHistoryResponse>> with Spring Data Page structure:
+    // { success: true, data: { content: [], totalElements, totalPages, number, size, first, last, empty }, timestamp }
+    // The `request` method already returns the parsed ApiResponse wrapper, so res.data is the Page object.
+    const res = await this.request<{ content: AuditHistory[]; totalElements: number; totalPages: number; number: number; size: number; first: boolean; last: boolean; empty: boolean }>(
+      `/audit-history?page=${page}&size=${size}`
+    );
+    return res.data as unknown as AuditHistoryPage;
   }
 
-  async getAuditHistoryByTableAndRecord(tableName: string, recordId: number): Promise<ApiResponse<AuditHistory[]>> {
-    return this.request<AuditHistory[]>(`/audit-history/table/${tableName}/record/${recordId}`);
+  async deleteAuditHistory(id: number): Promise<void> {
+    await this.request<void>(`/audit-history/${id}`, { method: "DELETE" });
   }
 
-  async getAuditHistoryByUser(userId: number): Promise<ApiResponse<AuditHistory[]>> {
-    return this.request<AuditHistory[]>(`/audit-history/user/${userId}`);
+  async deleteMultipleAuditHistory(ids: number[]): Promise<number> {
+    const res = await this.request<{ data: number }>(`/audit-history`, {
+      method: "DELETE",
+      body: JSON.stringify(ids),
+    });
+    const response = res as unknown as { data: number };
+    return response.data ?? ids.length;
   }
 
-  async getAuditHistoryByDateRange(startDate: string, endDate: string): Promise<ApiResponse<AuditHistory[]>> {
-    const params = new URLSearchParams({ startDate, endDate });
-    return this.request<AuditHistory[]>(`/audit-history/date-range?${params.toString()}`);
+  async deleteAuditHistoryByDateRange(startDate: string, endDate: string): Promise<number> {
+    const res = await this.request<{ data: number }>(
+      `/audit-history/date-range?startDate=${startDate}&endDate=${endDate}`,
+      { method: "DELETE" }
+    );
+    const response = res as unknown as { data: number };
+    return response.data ?? 0;
+  }
+
+  // Statistics (M02-F05, M04-F05, M05-F05)
+  async getStaffStatistics(periodId: number, shiftTypeId?: string): Promise<StaffShiftStatistics[]> {
+    const params = new URLSearchParams({ periodId: String(periodId) });
+    if (shiftTypeId) params.set("shiftTypeId", shiftTypeId);
+    return this.get<StaffShiftStatistics[]>(`/statistics/staff?${params.toString()}`);
   }
 }
 

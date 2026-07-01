@@ -10,6 +10,7 @@ import {
   ConflictStreamBridge,
   ConflictToastBridge,
 } from "@/components/realtime/ConflictStreamBridge";
+import { NotificationStreamBridge } from "@/components/realtime/NotificationStreamBridge";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import "./globals.css";
 
@@ -64,6 +65,7 @@ export default function RootLayout({
                 <ToastProvider>
                   <ConflictStreamBridge />
                   <ConflictToastBridge />
+                  <NotificationStreamBridge />
                   <ErrorBoundary>
                     {children}
                   </ErrorBoundary>

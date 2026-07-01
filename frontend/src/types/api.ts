@@ -150,6 +150,7 @@ export interface SchedulePeriod {
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   generatedBy?: { id: number; fullName: string };
   generatedAt?: string;
+  publishedBy?: string;
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -512,15 +513,28 @@ export interface ScheduleTemplateRequest {
 // ============================================================
 export interface AuditHistory {
   id: number;
-  userId: number;
+  userId?: number;
   userName?: string;
   action: string;
+  actionType?: "INSERT" | "UPDATE" | "DELETE" | "CREATE" | "UPDATE" | "DELETE";
   tableName: string;
   recordId: number;
   oldData?: string;
   newData?: string;
   ipAddress?: string;
+  userAgent?: string;
   createdAt: string;
+}
+
+export interface AuditHistoryPage {
+  content: AuditHistory[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+  empty: boolean;
 }
 
 // ============================================================
@@ -642,4 +656,21 @@ export interface RolePermissionMatrix {
   roles: RoleMatrixRole[];
   permissions: RoleMatrixPermission[];
   matrix: RoleMatrixEntry[];
+}
+
+// ============================================================
+// Staff Shift Statistics Types (M02-F05, M04-F05, M05-F05)
+// ============================================================
+export interface StaffShiftStatistics {
+  staffId: number;
+  staffName: string;
+  staffCode: string;
+  specialtyName: string | null;
+  totalShifts: number;
+  L01Count: number;
+  L02Count: number;
+  L03Count: number;
+  L04Count: number;
+  totalHours: number;
+  workloadPercentage: number;
 }

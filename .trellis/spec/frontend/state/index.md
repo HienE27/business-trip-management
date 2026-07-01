@@ -349,6 +349,101 @@ const [state, actions] = useScheduleWorkspace();
 
 ---
 
+## Real-time WebSocket (STOMP)
+
+Project dùng **STOMP over WebSocket** cho notification push, theo pattern `ConflictBroadcastService` → `ConflictStreamBridge` → `useConflictStream`.
+
+### Thư viện
+
+```bash
+pnpm add stompjs
+```
+
+### Cấu trúc thư mục
+
+```
+frontend/src/
+├── lib/realtime/
+│   ├── conflictClient.ts      # STOMP client cho conflict push
+│   └── notificationClient.ts # STOMP client cho notification push
+├── hooks/
+│   ├── useConflictStream.ts
+│   └── useNotificationStream.ts
+└── components/realtime/
+    ├── ConflictStreamBridge.tsx
+    └── NotificationStreamBridge.tsx
+```
+
+### Quy tắc
+
+1. **`*Client.ts`** — kết nối STOMP, subscribe topic, disconnect. Dùng `Client` từ `stompjs`.
+2. **`use*Stream.ts`** — React hook, nhận `onEvent` callback, quản lý lifecycle (subscribe/unsubscribe).
+3. **`*Bridge.tsx`** — `"use client"` component, gọi hook + hiển thị toast / cập nhật state. Đặt trong `app/layout.tsx` để active toàn app.
+4. **Ref callback pattern** — truyền `onEvent` vào hook qua `useRef` ( không để `onEvent` trong dependency array vì là function):
+
+```typescript
+// useNotificationStream.ts
+const onEventRef = useRef(onEvent);
+useEffect(() => {
+  onEventRef.current = onEvent;
+});
+useEffect(() => {
+  const client = notificationClient.connect((event) => {
+    onEventRef.current?.(event); // dùng ref, không dùng state
+  });
+  return () => client.disconnect?.();
+}, []); // KHÔNG thêm onEvent vào deps
+```
+
+5. **Không update ref trong render** — `onEventRef.current = onEvent` phải trong `useEffect`, không phải trực tiếp trong component body.
+
+### Ví dụ đầy đủ
+
+```typescript
+// hooks/useNotificationStream.ts
+"use client";
+import { useEffect, useRef } from "react";
+import { notificationClient } from "@/lib/realtime/notificationClient";
+
+export function useNotificationStream(onEvent: (event: NotificationEvent) => void) {
+  const onEventRef = useRef(onEvent);
+  useEffect(() => { onEventRef.current = onEvent; });
+
+  useEffect(() => {
+    const client = notificationClient.connect((event) => {
+      onEventRef.current?.(event);
+    });
+    return () => { client.disconnect?.(); };
+  }, []);
+}
+
+// components/realtime/NotificationStreamBridge.tsx
+"use client";
+import { useNotificationStream } from "@/hooks/useNotificationStream";
+import { useToast } from "@/components/ui/ToastProvider";
+
+export function NotificationStreamBridge() {
+  const { info } = useToast();
+  useNotificationStream((event) => {
+    if (event.type === "NEW_NOTIFICATION") {
+      info(`🔔 ${event.title}: ${event.message}`);
+    }
+  });
+  return null;
+}
+```
+
+### Anti-patterns
+
+| ❌ KHÔNG | ✅ DÙNG |
+|---|---|
+| STOMP trong Server Component | `"use client"` + hook pattern |
+| Function trong `useEffect` deps array | `useRef` + `useEffect` sync pattern |
+| Update ref trong render body | `useEffect(() => { ref.current = fn; })` |
+| Subscribe không cleanup | `return () => client.disconnect()` |
+
+---
+
 ## URL state (Phase B pattern)
 
 State filter (`tab`, `staffId`, `date`, `periodId`, ...) **NÊN** lưu trên URL query thay vì `useState` local. Lý do:

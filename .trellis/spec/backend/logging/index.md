@@ -30,6 +30,7 @@ public class ScheduleService {
 | `ERROR` | Lỗi không thể recover, ảnh hưởng user | Database down, JWT signature invalid |
 | `WARN` | Lỗi có thể recover nhưng bất thường | Retry thành công, validation fail nhiều lần |
 | `INFO` | Sự kiện nghiệp vụ quan trọng | Schedule created, user login, period published |
+| `INFO` | WebSocket broadcast | `Broadcasting NEW_NOTIFICATION to /topic/notifications/{staffId}` |
 | `DEBUG` | Chi tiết cho debug | Query parameters, intermediate state |
 | `TRACE` | Rất chi tiết (KHÔNG dùng trong production) | Method enter/exit với full args |
 
@@ -76,6 +77,7 @@ INFO  Schedule created schedule_id=42 staff_id=5 period_id=3 type=L01 by_user=ad
 INFO  Schedule updated schedule_id=42 by_user=manager
 INFO  Leave request approved leave_id=15 staff_id=5 by_user=manager
 INFO  Schedule exchange approved exchange_id=7 by_user=admin
+INFO  Broadcasting NEW_NOTIFICATION notification_id=99 recipient=5 channel=STOMP
 ```
 
 ---
@@ -145,3 +147,4 @@ logging.file.max-history=30
 - [ ] Không có `System.out.println`?
 - [ ] Không log password / token?
 - [ ] Có audit log cho mọi write operation?
+- [ ] Có log khi WebSocket notification broadcast?

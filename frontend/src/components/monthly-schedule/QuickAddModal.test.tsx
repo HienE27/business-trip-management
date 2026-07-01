@@ -21,6 +21,7 @@ const staff = [
     staffCode: 'NV001',
     maxShiftsPerMonth: 5,
     isActive: true,
+    status: 'ACTIVE',
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     roles: ['STAFF'],
@@ -32,6 +33,7 @@ const staff = [
     staffCode: 'NV002',
     maxShiftsPerMonth: 6,
     isActive: true,
+    status: 'ACTIVE',
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     roles: ['STAFF'],
@@ -43,6 +45,7 @@ const baseProps = {
   periodId: 5,
   defaultShiftTypeId: 'L01' as const,
   staffList: staff,
+  leaveRequests: [],
   onSuccess: vi.fn(),
   onClose: vi.fn(),
 };

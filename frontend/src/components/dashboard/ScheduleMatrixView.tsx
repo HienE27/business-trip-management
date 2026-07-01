@@ -245,7 +245,9 @@ export const ScheduleMatrixView = memo(function ScheduleMatrixView({
 
   // Stable onCellClick callback to prevent MatrixGridWrapper re-renders
   const stableOnCellClick = useCallback(
-    onAddClick ? (date: Date, staffId: number) => onAddClick(date, staffId) : (_date: Date, _staffId: number) => {},
+    (date: Date, staffId: number) => {
+      if (onAddClick) onAddClick(date, staffId);
+    },
     [onAddClick]
   );
 

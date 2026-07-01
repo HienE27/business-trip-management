@@ -31,8 +31,12 @@ export function useConflictStream({ enabled }: { enabled: boolean }): void {
   // Keep the latest dispatcher in a ref so the WS callback can
   // stay bound to the same client instance across renders.
   const applyEventRef = useRef(applyEvent);
-  applyEventRef.current = applyEvent;
   const clientRef = useRef<ConflictClient | null>(null);
+
+  // Keep the ref current without triggering re-renders during render
+  useEffect(() => {
+    applyEventRef.current = applyEvent;
+  }, [applyEvent]);
 
   useEffect(() => {
     if (!enabled) return;

@@ -90,6 +90,25 @@ export function WorkloadSummary({ periodId, shiftTypeId, groupBySpecialty }: Wor
       }));
   }, [data, groupBySpecialty]);
 
+  const maxTotal = useMemo(() => Math.max(...rows.map((r) => r.total), 1), [rows]);
+  const avg = data?.averageWorkload ?? 0;
+  const stdDev = useMemo(() => {
+    if (!data || data.staffWorkloadData.length < 2) return 0;
+    const mean = avg;
+    const variance = data.staffWorkloadData.reduce((sum, e) => sum + Math.pow(e.totalShifts - mean, 2), 0) / data.staffWorkloadData.length;
+    return Math.sqrt(variance);
+  }, [data, avg]);
+
+  const IMBALANCE_THRESHOLD_PCT = 40;
+  const flaggedEntries = useMemo(() => {
+    if (!data) return [];
+    return data.staffWorkloadData.filter((e) => {
+      if (avg === 0) return false;
+      const pctAbove = ((e.totalShifts - avg) / avg) * 100;
+      return pctAbove >= IMBALANCE_THRESHOLD_PCT || (stdDev > 0 && e.totalShifts > avg + 1.5 * stdDev);
+    });
+  }, [data, avg, stdDev]);
+
   if (loading) {
     return (
       <div className="space-y-2">
@@ -108,25 +127,6 @@ export function WorkloadSummary({ periodId, shiftTypeId, groupBySpecialty }: Wor
       </div>
     );
   }
-
-  const maxTotal = Math.max(...rows.map((r) => r.total), 1);
-  const avg = data.averageWorkload;
-  const stdDev = useMemo(() => {
-    if (data.staffWorkloadData.length < 2) return 0;
-    const mean = avg;
-    const variance = data.staffWorkloadData.reduce((sum, e) => sum + Math.pow(e.totalShifts - mean, 2), 0) / data.staffWorkloadData.length;
-    return Math.sqrt(variance);
-  }, [data.staffWorkloadData, avg]);
-
-  // Threshold: flag if a staff's load is > 1.5 std deviations above mean, or > 40% above average
-  const IMBALANCE_THRESHOLD_PCT = 40; // 40% above average
-  const flaggedEntries = useMemo(() => {
-    return (data?.staffWorkloadData ?? []).filter((e) => {
-      if (avg === 0) return false;
-      const pctAbove = ((e.totalShifts - avg) / avg) * 100;
-      return pctAbove >= IMBALANCE_THRESHOLD_PCT || (stdDev > 0 && e.totalShifts > avg + 1.5 * stdDev);
-    });
-  }, [data, avg, stdDev]);
 
   return (
     <div className="space-y-3">

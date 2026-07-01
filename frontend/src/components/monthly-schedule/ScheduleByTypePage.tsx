@@ -21,6 +21,7 @@ import type {
   ConflictCheckResponse,
   ConflictDetail,
   Holiday,
+  LeaveRequest,
   PublishDryRunResponse,
   Schedule,
   SchedulePeriod,
@@ -88,6 +89,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [compensationDays, setCompensationDays] = useState<CompensationDay[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [activeStaff, setActiveStaff] = useState<Staff[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState<number | null>(null);
@@ -121,15 +123,22 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const loadBaseData = useCallback(async (options?: { keepCurrentPeriod?: boolean }) => {
     try {
       setLoading(true);
-      const requests: [Promise<SchedulePeriod[]>, Promise<Staff[]>, Promise<Specialty[]> | null] = [
+      const requests: [
+        Promise<SchedulePeriod[]>,
+        Promise<Staff[]>,
+        Promise<LeaveRequest[]>,
+        Promise<Specialty[]> | null,
+      ] = [
         api.get<SchedulePeriod[]>("/periods"),
         api.get<Staff[]>("/staff/active"),
+        api.get<LeaveRequest[]>("/leave-requests/status/approved"),
         isExpertMode ? api.get<Specialty[]>("/specialties/active") : null,
       ];
-      const [periodData, staffData, specialtyData] = await Promise.all(requests);
+      const [periodData, staffData, leaveData, specialtyData] = await Promise.all(requests);
       const pList = periodData ?? [];
       setPeriods(pList);
       setActiveStaff(staffData ?? []);
+      setLeaveRequests(leaveData ?? []);
       setSpecialties(specialtyData ?? []);
 
       // Only auto-select period on first load if no period is selected yet
@@ -350,9 +359,10 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
     const loadBase = async () => {
       try {
-        const [periodData, staffData, specialtyData] = await Promise.all([
+        const [periodData, staffData, leaveData, specialtyData] = await Promise.all([
           api.get<SchedulePeriod[]>("/periods"),
           api.get<Staff[]>("/staff/active"),
+          api.get<LeaveRequest[]>("/leave-requests/status/approved"),
           isExpertMode ? api.get<Specialty[]>("/specialties/active") : Promise.resolve(null),
         ]);
 
@@ -360,6 +370,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
         setPeriods(periodData ?? []);
         setActiveStaff(staffData ?? []);
+        setLeaveRequests(leaveData ?? []);
         setSpecialties(specialtyData ?? []);
 
         // Auto-select DRAFT period if nothing selected
@@ -589,7 +600,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
               </div>
             </div>
             {isExpertMode && (
-              <div className="min-w-[200px] hidden">
+              <div className="min-w-[200px] shrink-0 border-l border-outline-variant pl-4">
                 <label
                   htmlFor={`${config.activeSection}-specialty-filter`}
                   className="mb-1.5 block text-label-sm text-on-surface-variant"
@@ -599,7 +610,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
                 <div className="relative">
                   <select
                     id={`${config.activeSection}-specialty-filter`}
-                    className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+                    className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20 cursor-pointer"
                     value={selectedSpecialtyId ?? ""}
                     onChange={(e) =>
                       setSelectedSpecialtyId(e.target.value ? Number(e.target.value) : null)
@@ -1045,6 +1056,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           staffList={activeStaff}
           schedules={schedules}
           compensationDays={compensationDays}
+          leaveRequests={leaveRequests}
           onOptimisticAdd={handleOptimisticAdd}
           onCommit={handleCommit}
           onRollback={handleRollback}
