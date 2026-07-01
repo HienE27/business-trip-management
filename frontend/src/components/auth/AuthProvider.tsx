@@ -102,6 +102,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Refresh user data from server, but don't block UI
+      // user already sees the app with localStorage data
       try {
         const currentStaff = await api.get<Staff>("/staff/me");
         if (!active) return;
@@ -110,8 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(nextUser);
       } catch {
         if (!active) return;
-        persistAuthUser(null);
-        setUser(null);
+        // Keep localStorage user on API failure — don't log them out
       } finally {
         if (active) {
           setIsLoading(false);
