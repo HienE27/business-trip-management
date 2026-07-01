@@ -23,8 +23,6 @@ export type AutoSchedulePanelProps = {
   selectedPeriod: SchedulePeriod | null;
   selectedPeriodId: number | null;
   selectedPeriodStatus?: string;
-  autoGenerateRequirements: boolean;
-  onSetAutoGenerateRequirements: (value: boolean) => void;
   onPreview: () => void;
   onApplyPreview: () => void;
   onResetEdits: () => void;
@@ -33,8 +31,6 @@ export type AutoSchedulePanelProps = {
   onSaveTemplate?: () => void;
   onApplyTemplate?: () => void;
   isManager?: boolean;
-  holidayMode?: "SKIP" | "PARTIAL" | null;
-  onSetHolidayMode?: (mode: "SKIP" | "PARTIAL" | null) => void;
 };
 
 const ALGO_CONFIG: Record<AlgorithmType, { icon: string; label: string; color: string; bg: string; hover: string; desc: string }> = {
@@ -55,8 +51,6 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   selectedPeriod,
   selectedPeriodId,
   selectedPeriodStatus,
-  autoGenerateRequirements,
-  onSetAutoGenerateRequirements,
   onPreview,
   onApplyPreview,
   onResetEdits,
@@ -65,8 +59,6 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   onSaveTemplate,
   onApplyTemplate,
   isManager = true,
-  holidayMode,
-  onSetHolidayMode,
 }: AutoSchedulePanelProps) {
   const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<number>>(new Set());
@@ -155,33 +147,6 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
-            {isDraft && (
-              <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low hover:border-primary transition-colors cursor-pointer">
-                <div className="relative inline-flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={autoGenerateRequirements}
-                    onChange={(e) => onSetAutoGenerateRequirements(e.target.checked)}
-                    className="peer h-4 w-4 shrink-0 rounded border-outline text-primary cursor-pointer focus:ring-2 focus:ring-primary/30 focus:ring-offset-1 disabled:cursor-not-allowed"
-                  />
-                </div>
-                <span className="text-label-xs font-medium text-on-surface-variant">Tạo yêu cầu tự động</span>
-              </label>
-            )}
-            {isDraft && (
-              <div className="flex items-center gap-1">
-                <span className="text-label-xs text-on-surface-variant">Ngày lễ:</span>
-                <select
-                  value={holidayMode ?? ""}
-                  onChange={(e) => onSetHolidayMode?.(e.target.value as "SKIP" | "PARTIAL" || null)}
-                  className="h-8 pl-2 pr-6 rounded-lg border border-outline-variant bg-surface-container-low text-label-xs text-on-surface appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                >
-                  <option value="">Mặc định (DB)</option>
-                  <option value="SKIP">Bỏ qua ngày lễ</option>
-                  <option value="PARTIAL">Giảm 50% dịch vụ</option>
-                </select>
-              </div>
-            )}
             <Button
               variant="primary"
               size="sm"

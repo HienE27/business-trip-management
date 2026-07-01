@@ -148,9 +148,8 @@ export default function AutoSchedulingPage() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
   const [autoState, autoActions] = useAutoSchedule();
-  const { previewResult, editedPreview, removedShiftTypes, applying, running, message, algorithmType, holidayMode } = autoState;
-  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editShiftType, resetEdits, clearPreview, setMessage, setAlgorithmType, setHolidayMode } = autoActions;
-  const [autoGenReq, setAutoGenReq] = useState(true);
+  const { previewResult, editedPreview, removedShiftTypes, applying, running, message, algorithmType } = autoState;
+  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editShiftType, resetEdits, clearPreview, setMessage, setAlgorithmType } = autoActions;
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
@@ -214,7 +213,7 @@ export default function AutoSchedulingPage() {
 
   const handleRunPreview = () => {
     if (!selectedPeriodId) return;
-    void runPreview(selectedPeriodId, excludedStaffIds, autoGenReq);
+    void runPreview(selectedPeriodId, excludedStaffIds);
   };
 
   const handleApplyPreview = async () => {
@@ -436,13 +435,9 @@ export default function AutoSchedulingPage() {
           onResetEdits={handleResetEdits}
           onEditPreviewItem={(item) => setPreviewEditItem(item)}
           onSetAlgorithmType={setAlgorithmType}
-          autoGenerateRequirements={autoGenReq}
-          onSetAutoGenerateRequirements={setAutoGenReq}
           isManager={isManager}
           onSaveTemplate={() => setSaveModalOpen(true)}
           onApplyTemplate={openApplyTemplateModal}
-          holidayMode={holidayMode}
-          onSetHolidayMode={setHolidayMode}
         />
       )}
 

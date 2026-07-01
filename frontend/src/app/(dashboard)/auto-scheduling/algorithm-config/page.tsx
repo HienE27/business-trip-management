@@ -159,6 +159,95 @@ const PARAM_GROUPS = [
   },
 ];
 
+/* ─── Shift-type limit config ─────────────────────────────── */
+
+const SHIFT_TYPE_GROUPS = [
+  {
+    id: "l01", label: "L01 — Trực 24/24", icon: "emergency",
+    color: "text-red-600", colorBg: "bg-red-50",
+    borderColor: "border-red-400",
+    params: ["l01MinPerDay", "l01MaxPerDay", "l01MinPerWeek", "l01MaxPerWeek"] as const,
+  },
+  {
+    id: "l02", label: "L02 — Thông tầm", icon: "schedule",
+    color: "text-blue-600", colorBg: "bg-blue-50",
+    borderColor: "border-blue-400",
+    params: ["l02MinPerDay", "l02MaxPerDay", "l02MinPerWeek", "l02MaxPerWeek"] as const,
+  },
+  {
+    id: "l03", label: "L03 — PK Dịch vụ", icon: "medical_services",
+    color: "text-green-600", colorBg: "bg-green-50",
+    borderColor: "border-green-400",
+    params: ["l03MinPerDay", "l03MaxPerDay", "l03MinPerWeek", "l03MaxPerWeek"] as const,
+  },
+  {
+    id: "l04", label: "L04 — PK Chuyên gia", icon: "stethoscope",
+    color: "text-purple-600", colorBg: "bg-purple-50",
+    borderColor: "border-purple-400",
+    params: ["l04MinPerDay", "l04MaxPerDay", "l04MinPerWeek", "l04MaxPerWeek"] as const,
+  },
+] as const;
+
+const LABEL_MAP: Record<string, { short: string; unit: string; desc: string; hint: string }> = {
+  l01MinPerDay: { short: "min/ngày", unit: " người", desc: "Số nhân sự tối thiểu L01 mỗi ngày.", hint: "0–10 · Mặc định: 1" },
+  l01MaxPerDay: { short: "max/ngày", unit: " người", desc: "Số nhân sự tối đa L01 mỗi ngày. 0 = không giới hạn.", hint: "0–10 · Mặc định: 0" },
+  l01MinPerWeek: { short: "min/tuần", unit: " ca", desc: "Số ca L01 tối thiểu mỗi nhân sự/tuần.", hint: "0–20 · Mặc định: 1" },
+  l01MaxPerWeek: { short: "max/tuần", unit: " ca", desc: "Số ca L01 tối đa mỗi nhân sự/tuần. 0 = không giới hạn.", hint: "0–20 · Mặc định: 0" },
+  l02MinPerDay: { short: "min/ngày", unit: " người", desc: "Số nhân sự tối thiểu L02 mỗi ngày.", hint: "0–10 · Mặc định: 1" },
+  l02MaxPerDay: { short: "max/ngày", unit: " người", desc: "Số nhân sự tối đa L02 mỗi ngày. 0 = không giới hạn.", hint: "0–10 · Mặc định: 0" },
+  l02MinPerWeek: { short: "min/tuần", unit: " ca", desc: "Số ca L02 tối thiểu mỗi nhân sự/tuần.", hint: "0–20 · Mặc định: 2" },
+  l02MaxPerWeek: { short: "max/tuần", unit: " ca", desc: "Số ca L02 tối đa mỗi nhân sự/tuần. 0 = không giới hạn.", hint: "0–20 · Mặc định: 0" },
+  l03MinPerDay: { short: "min/ngày", unit: " người", desc: "Số nhân sự tối thiểu L03 mỗi ngày.", hint: "0–10 · Mặc định: 1" },
+  l03MaxPerDay: { short: "max/ngày", unit: " người", desc: "Số nhân sự tối đa L03 mỗi ngày. 0 = không giới hạn.", hint: "0–10 · Mặc định: 0" },
+  l03MinPerWeek: { short: "min/tuần", unit: " ca", desc: "Số ca L03 tối thiểu mỗi nhân sự/tuần.", hint: "0–20 · Mặc định: 1" },
+  l03MaxPerWeek: { short: "max/tuần", unit: " ca", desc: "Số ca L03 tối đa mỗi nhân sự/tuần. 0 = không giới hạn.", hint: "0–20 · Mặc định: 0" },
+  l04MinPerDay: { short: "min/ngày", unit: " người", desc: "Số nhân sự tối thiểu L04 mỗi ngày.", hint: "0–10 · Mặc định: 1" },
+  l04MaxPerDay: { short: "max/ngày", unit: " người", desc: "Số nhân sự tối đa L04 mỗi ngày. 0 = không giới hạn.", hint: "0–10 · Mặc định: 0" },
+  l04MinPerWeek: { short: "min/tuần", unit: " ca", desc: "Số ca L04 tối thiểu mỗi nhân sự/tuần.", hint: "0–20 · Mặc định: 1" },
+  l04MaxPerWeek: { short: "max/tuần", unit: " ca", desc: "Số ca L04 tối đa mỗi nhân sự/tuần. 0 = không giới hạn.", hint: "0–20 · Mặc định: 0" },
+};
+
+function ShiftTypeGroupCard({ group, form, editing, onChange }: {
+  group: typeof SHIFT_TYPE_GROUPS[number];
+  form: Record<string, number | boolean>;
+  editing: boolean;
+  onChange: (key: string, value: number) => void;
+}) {
+  return (
+    <div className={`bg-surface-container-lowest rounded-xl border ${group.borderColor} overflow-hidden`}>
+      <div className={`px-4 py-2.5 border-b ${group.borderColor}/30 bg-surface-container-low flex items-center gap-2`}>
+        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${group.colorBg} ${group.color}`}>
+          <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{group.icon}</span>
+        </div>
+        <p className="text-label-sm font-semibold text-on-surface">{group.label}</p>
+      </div>
+      <div className="p-3 grid grid-cols-2 gap-x-4 gap-y-2">
+        {group.params.map(param => {
+          const label = LABEL_MAP[param] ?? { short: param, unit: "", desc: "", hint: "" };
+          const numVal = typeof form[param] === "number" ? form[param] as number : 0;
+          const display = numVal === 0 ? "Tắt" : numVal.toString();
+          return (
+            <div key={param} className="flex items-center justify-between gap-2 py-1">
+              <div className="min-w-0">
+                <code className="font-mono text-[10px] font-semibold text-primary bg-primary-fixed/50 px-1 py-0.5 rounded whitespace-nowrap">{label.short}</code>
+                <p className="text-[9px] text-on-surface-variant mt-0.5 leading-tight">{label.desc}</p>
+              </div>
+              {editing ? (
+                <input type="number" min={0} max={99} step={1}
+                  className="h-7 w-14 rounded-lg border border-outline-variant bg-surface-container-low px-1.5 text-center text-[11px] font-mono text-on-surface focus:border-primary focus:outline-none transition-colors"
+                  value={numVal}
+                  onChange={e => onChange(param, parseInt(e.target.value) || 0)} />
+              ) : (
+                <span className="font-mono text-sm font-bold text-on-surface shrink-0">{display}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Tab System ─────────────────────────────────────────── */
 
 type TabKey = "config" | "history" | "reference";
@@ -439,6 +528,19 @@ function RuntimeConfigEditor({ onSaved }: { onSaved?: () => void }) {
               </span>
             )}
           </div>
+        </div>
+
+        {/* Shift-type limit cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {SHIFT_TYPE_GROUPS.map(group => (
+            <ShiftTypeGroupCard
+              key={group.id}
+              group={group}
+              form={form}
+              editing={editing}
+              onChange={(key, val) => setForm(f => f ? { ...f, [key]: val } : f)}
+            />
+          ))}
         </div>
       </div>
     </div>

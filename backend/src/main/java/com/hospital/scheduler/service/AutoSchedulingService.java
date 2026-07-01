@@ -385,14 +385,22 @@ public class AutoSchedulingService {
                         : autoGenConfig.get().holidayMode();
                 var configWithMode = new com.hospital.scheduler.algorithm.AutoGenConfig(
                         autoGenConfig.get().enabled(),
-                        autoGenConfig.get().l01RequiredPerDay(),
-                        autoGenConfig.get().l02RequiredPerDay(),
-                        autoGenConfig.get().l03RequiredPerDay(),
-                        autoGenConfig.get().l04RequiredPerDay(),
-                        autoGenConfig.get().minL01PerWeek(),
-                        autoGenConfig.get().minL02PerWeek(),
-                        autoGenConfig.get().minL03PerWeek(),
-                        autoGenConfig.get().minL04PerWeek(),
+                        autoGenConfig.get().l01MinPerDay(),
+                        autoGenConfig.get().l02MinPerDay(),
+                        autoGenConfig.get().l03MinPerDay(),
+                        autoGenConfig.get().l04MinPerDay(),
+                        autoGenConfig.get().l01MaxPerDay(),
+                        autoGenConfig.get().l02MaxPerDay(),
+                        autoGenConfig.get().l03MaxPerDay(),
+                        autoGenConfig.get().l04MaxPerDay(),
+                        autoGenConfig.get().l01MinPerWeek(),
+                        autoGenConfig.get().l02MinPerWeek(),
+                        autoGenConfig.get().l03MinPerWeek(),
+                        autoGenConfig.get().l04MinPerWeek(),
+                        autoGenConfig.get().l01MaxPerWeek(),
+                        autoGenConfig.get().l02MaxPerWeek(),
+                        autoGenConfig.get().l03MaxPerWeek(),
+                        autoGenConfig.get().l04MaxPerWeek(),
                         effectiveHolidayMode
                 );
                 requirements = generateRequirementsForPeriod(period, configWithMode, activeStaff);
@@ -2242,40 +2250,40 @@ public class AutoSchedulingService {
             boolean isHoliday = holidays.contains(date);
             DayOfWeek dow = date.getDayOfWeek();
 
-            // L01: 2 người/ngày (skip nếu holiday)
+            // L01: min per day (skip nếu holiday)
             if (!isHoliday || !"SKIP".equals(config.holidayMode())) {
                 ShiftRequirement reqL01 = ShiftRequirement.builder()
                         .period(period)
                         .shiftType(l01)
                         .workDate(date)
                         .specialty(null)
-                        .requiredStaffCount(config.l01RequiredPerDay())
+                        .requiredStaffCount(config.l01MinPerDay())
                         .note("AUTO:L01:" + date)
                         .build();
                 generated.add(reqL01);
             }
 
-            // L02: 2 người/ngày (skip nếu holiday)
+            // L02: min per day (skip nếu holiday)
             if (!isHoliday || !"SKIP".equals(config.holidayMode())) {
                 ShiftRequirement reqL02 = ShiftRequirement.builder()
                         .period(period)
                         .shiftType(l02)
                         .workDate(date)
                         .specialty(null)
-                        .requiredStaffCount(config.l02RequiredPerDay())
+                        .requiredStaffCount(config.l02MinPerDay())
                         .note("AUTO:L02:" + date)
                         .build();
                 generated.add(reqL02);
             }
 
-            // L03: 2 người/ngày (50% nếu holiday mode = PARTIAL)
+            // L03: min per day (PARTIAL nếu holiday)
             if (config.holidayMode().equals("PARTIAL")) {
                 ShiftRequirement reqL03 = ShiftRequirement.builder()
                         .period(period)
                         .shiftType(l03)
                         .workDate(date)
                         .specialty(null)
-                        .requiredStaffCount(isHoliday ? 1 : config.l03RequiredPerDay())
+                        .requiredStaffCount(isHoliday ? 1 : config.l03MinPerDay())
                         .note("AUTO:L03:" + date)
                         .build();
                 generated.add(reqL03);
@@ -2285,15 +2293,13 @@ public class AutoSchedulingService {
                         .shiftType(l03)
                         .workDate(date)
                         .specialty(null)
-                        .requiredStaffCount(config.l03RequiredPerDay())
+                        .requiredStaffCount(config.l03MinPerDay())
                         .note("AUTO:L03:" + date)
                         .build();
                 generated.add(reqL03);
             }
 
-            // L04: 1 requirement per specialty per day (skip if holiday)
-            // Per M05-F04 spec: L04 must be filtered by specialty (chuyên khoa).
-            // Generate 1 requirement per active specialty, each requiring l04RequiredPerDay staff.
+            // L04: min per day per specialty (skip if holiday)
             if (!isHoliday || !"SKIP".equals(config.holidayMode())) {
                 List<Specialty> activeSpecialties = specialtyRepository.findByIsActiveTrue();
                 for (Specialty specialty : activeSpecialties) {
@@ -2302,7 +2308,7 @@ public class AutoSchedulingService {
                             .shiftType(l04)
                             .workDate(date)
                             .specialty(specialty)
-                            .requiredStaffCount(config.l04RequiredPerDay())
+                            .requiredStaffCount(config.l04MinPerDay())
                             .note("AUTO:L04:" + date + ":" + specialty.getName())
                             .build();
                     generated.add(reqL04);

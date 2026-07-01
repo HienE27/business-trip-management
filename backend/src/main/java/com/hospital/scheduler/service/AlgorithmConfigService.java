@@ -31,14 +31,22 @@ public class AlgorithmConfigService {
 
     // Auto-generate config param keys
     public static final String AUTO_GEN_ENABLED = "auto_gen_enabled";
-    public static final String AUTO_GEN_L01_PER_DAY = "auto_gen_l01_per_day";
-    public static final String AUTO_GEN_L02_PER_DAY = "auto_gen_l02_per_day";
-    public static final String AUTO_GEN_L03_PER_DAY = "auto_gen_l03_per_day";
-    public static final String AUTO_GEN_L04_PER_DAY = "auto_gen_l04_per_day";
-    public static final String AUTO_GEN_L01_PER_WEEK = "auto_gen_l01_per_week";
-    public static final String AUTO_GEN_L02_PER_WEEK = "auto_gen_l02_per_week";
-    public static final String AUTO_GEN_L03_PER_WEEK = "auto_gen_l03_per_week";
-    public static final String AUTO_GEN_L04_PER_WEEK = "auto_gen_l04_per_week";
+    public static final String AUTO_GEN_L01_MIN_PER_DAY = "auto_gen_l01_min_per_day";
+    public static final String AUTO_GEN_L02_MIN_PER_DAY = "auto_gen_l02_min_per_day";
+    public static final String AUTO_GEN_L03_MIN_PER_DAY = "auto_gen_l03_min_per_day";
+    public static final String AUTO_GEN_L04_MIN_PER_DAY = "auto_gen_l04_min_per_day";
+    public static final String AUTO_GEN_L01_MAX_PER_DAY = "auto_gen_l01_max_per_day";
+    public static final String AUTO_GEN_L02_MAX_PER_DAY = "auto_gen_l02_max_per_day";
+    public static final String AUTO_GEN_L03_MAX_PER_DAY = "auto_gen_l03_max_per_day";
+    public static final String AUTO_GEN_L04_MAX_PER_DAY = "auto_gen_l04_max_per_day";
+    public static final String AUTO_GEN_L01_MIN_PER_WEEK = "auto_gen_l01_min_per_week";
+    public static final String AUTO_GEN_L02_MIN_PER_WEEK = "auto_gen_l02_min_per_week";
+    public static final String AUTO_GEN_L03_MIN_PER_WEEK = "auto_gen_l03_min_per_week";
+    public static final String AUTO_GEN_L04_MIN_PER_WEEK = "auto_gen_l04_min_per_week";
+    public static final String AUTO_GEN_L01_MAX_PER_WEEK = "auto_gen_l01_max_per_week";
+    public static final String AUTO_GEN_L02_MAX_PER_WEEK = "auto_gen_l02_max_per_week";
+    public static final String AUTO_GEN_L03_MAX_PER_WEEK = "auto_gen_l03_max_per_week";
+    public static final String AUTO_GEN_L04_MAX_PER_WEEK = "auto_gen_l04_max_per_week";
     public static final String AUTO_GEN_HOLIDAY_MODE = "auto_gen_holiday_mode";
 
     // Algorithm runtime config param keys
@@ -168,14 +176,22 @@ public class AlgorithmConfigService {
         // fall back to defaults so auto-scheduling works out-of-the-box without manual config setup.
         return java.util.Optional.of(new AutoGenConfig(
                 enabled,
-                getIntValue(AUTO_GEN_L01_PER_DAY, 1),
-                getIntValue(AUTO_GEN_L02_PER_DAY, 2),
-                getIntValue(AUTO_GEN_L03_PER_DAY, 2),
-                getIntValue(AUTO_GEN_L04_PER_DAY, 2),
-                getIntValue(AUTO_GEN_L01_PER_WEEK, 1),
-                getIntValue(AUTO_GEN_L02_PER_WEEK, 3),
-                getIntValue(AUTO_GEN_L03_PER_WEEK, 2),
-                getIntValue(AUTO_GEN_L04_PER_WEEK, 1),
+                getIntValue(AUTO_GEN_L01_MIN_PER_DAY, 1),
+                getIntValue(AUTO_GEN_L02_MIN_PER_DAY, 1),
+                getIntValue(AUTO_GEN_L03_MIN_PER_DAY, 1),
+                getIntValue(AUTO_GEN_L04_MIN_PER_DAY, 1),
+                getIntValue(AUTO_GEN_L01_MAX_PER_DAY, 0),
+                getIntValue(AUTO_GEN_L02_MAX_PER_DAY, 0),
+                getIntValue(AUTO_GEN_L03_MAX_PER_DAY, 0),
+                getIntValue(AUTO_GEN_L04_MAX_PER_DAY, 0),
+                getIntValue(AUTO_GEN_L01_MIN_PER_WEEK, 1),
+                getIntValue(AUTO_GEN_L02_MIN_PER_WEEK, 2),
+                getIntValue(AUTO_GEN_L03_MIN_PER_WEEK, 1),
+                getIntValue(AUTO_GEN_L04_MIN_PER_WEEK, 1),
+                getIntValue(AUTO_GEN_L01_MAX_PER_WEEK, 0),
+                getIntValue(AUTO_GEN_L02_MAX_PER_WEEK, 0),
+                getIntValue(AUTO_GEN_L03_MAX_PER_WEEK, 0),
+                getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0),
                 getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP")
         ));
     }
@@ -186,25 +202,25 @@ public class AlgorithmConfigService {
     @Transactional
     public void saveAutoGenConfig(AutoGenConfig config) {
         upsert(AUTO_GEN_ENABLED, String.valueOf(config.enabled()), AlgorithmConfig.ValueType.BOOLEAN,
-                "Tự động tạo yêu cầu nhân sự khi mở kỳ lịch mới. Bật ON để hệ thống tự đề xuất lịch cho từng người.");
-        upsert(AUTO_GEN_L01_PER_DAY, String.valueOf(config.l01RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối thiểu cần xếp cho ca L01 (Lịch trực 24/24) mỗi ngày. Tăng nếu tỷ lệ phủ L01 chưa đạt.");
-        upsert(AUTO_GEN_L02_PER_DAY, String.valueOf(config.l02RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối thiểu cần xếp cho ca L02 (Lịch thông tầm) mỗi ngày. Điều chỉnh theo nhu cầu khám thường.");
-        upsert(AUTO_GEN_L03_PER_DAY, String.valueOf(config.l03RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối thiểu cần xếp cho ca L03 (Phòng khám dịch vụ) mỗi ngày.");
-        upsert(AUTO_GEN_L04_PER_DAY, String.valueOf(config.l04RequiredPerDay()), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối thiểu cần xếp cho ca L04 (Phòng khám chuyên gia) mỗi ngày.");
-        upsert(AUTO_GEN_L01_PER_WEEK, String.valueOf(config.minL01PerWeek()), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L01 tối thiểu mỗi người trong 1 tuần. Giúp đảm bảo công bằng phân bổ trực đêm cho nhân sự.");
-        upsert(AUTO_GEN_L02_PER_WEEK, String.valueOf(config.minL02PerWeek()), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L02 tối thiểu mỗi người trong 1 tuần. Đảm bảo mỗi người có đủ ca ngày theo quy định.");
-        upsert(AUTO_GEN_L03_PER_WEEK, String.valueOf(config.minL03PerWeek()), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L03 tối thiểu mỗi người trong 1 tuần.");
-        upsert(AUTO_GEN_L04_PER_WEEK, String.valueOf(config.minL04PerWeek()), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L04 tối thiểu mỗi người trong 1 tuần.");
+                "Tự động tạo yêu cầu nhân sự khi mở kỳ lịch mới.");
+        upsert(AUTO_GEN_L01_MIN_PER_DAY, String.valueOf(config.l01MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối thiểu L01 mỗi ngày.");
+        upsert(AUTO_GEN_L02_MIN_PER_DAY, String.valueOf(config.l02MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối thiểu L02 mỗi ngày.");
+        upsert(AUTO_GEN_L03_MIN_PER_DAY, String.valueOf(config.l03MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối thiểu L03 mỗi ngày.");
+        upsert(AUTO_GEN_L04_MIN_PER_DAY, String.valueOf(config.l04MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối thiểu L04 mỗi ngày.");
+        upsert(AUTO_GEN_L01_MAX_PER_DAY, String.valueOf(config.l01MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối đa L01 mỗi ngày. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L02_MAX_PER_DAY, String.valueOf(config.l02MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối đa L02 mỗi ngày. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L03_MAX_PER_DAY, String.valueOf(config.l03MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối đa L03 mỗi ngày. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L04_MAX_PER_DAY, String.valueOf(config.l04MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối đa L04 mỗi ngày. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L01_MIN_PER_WEEK, String.valueOf(config.l01MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L01 tối thiểu mỗi người mỗi tuần.");
+        upsert(AUTO_GEN_L02_MIN_PER_WEEK, String.valueOf(config.l02MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L02 tối thiểu mỗi người mỗi tuần.");
+        upsert(AUTO_GEN_L03_MIN_PER_WEEK, String.valueOf(config.l03MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L03 tối thiểu mỗi người mỗi tuần.");
+        upsert(AUTO_GEN_L04_MIN_PER_WEEK, String.valueOf(config.l04MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L04 tối thiểu mỗi người mỗi tuần.");
+        upsert(AUTO_GEN_L01_MAX_PER_WEEK, String.valueOf(config.l01MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L01 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L02_MAX_PER_WEEK, String.valueOf(config.l02MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L02 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L03_MAX_PER_WEEK, String.valueOf(config.l03MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L03 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L04_MAX_PER_WEEK, String.valueOf(config.l04MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L04 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
         upsert(AUTO_GEN_HOLIDAY_MODE, config.holidayMode(), AlgorithmConfig.ValueType.STRING,
-                "Xử lý khi gặp ngày lễ: SKIP = bỏ qua ngày lễ (không xếp lịch), PARTIAL = vẫn xếp lịch nhưng giảm cường độ.");
+                "Xử lý ngày lễ: SKIP = bỏ qua, PARTIAL = giảm cường độ.");
     }
 
     /**
