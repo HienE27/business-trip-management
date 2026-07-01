@@ -132,7 +132,7 @@ public class LeaveRequestService {
         leaveRequest.setReviewNote(reviewNote);
 
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
-        auditHistoryService.logAction("leave_request", leaveRequestId, AuditHistory.ActionType.UPDATE, prev, saved, reviewerId);
+        auditHistoryService.logAction("leave_request", leaveRequestId, AuditHistory.ActionType.APPROVE, prev, saved, reviewerId);
 
         // Notify the staff about approval
         notificationService.createNotification(leaveRequest.getStaff().getId(),
@@ -206,7 +206,7 @@ public class LeaveRequestService {
         leaveRequest.setReviewNote(reviewNote);
 
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
-        auditHistoryService.logAction("leave_request", leaveRequestId, AuditHistory.ActionType.UPDATE, prev, saved, reviewerId);
+        auditHistoryService.logAction("leave_request", leaveRequestId, AuditHistory.ActionType.REJECT, prev, saved, reviewerId);
 
         // Notify the staff about rejection
         String rejectMsg = "Yêu cầu nghỉ phép của bạn từ " + leaveRequest.getStartDate() + " đến " + leaveRequest.getEndDate() + " đã bị từ chối bởi " + reviewer.getFullName()

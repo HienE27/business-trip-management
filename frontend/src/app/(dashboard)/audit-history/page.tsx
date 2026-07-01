@@ -5,7 +5,10 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/BackButton";
-import type { AuditHistory } from "@/types/api";
+import { useToast } from "@/hooks/useToast";
+import { getErrorMessage } from "@/lib/errors";
+import { ConfirmDialog } from "@/components/ui";
+import type { AuditHistory, AuditHistoryPage } from "@/types/api";
 
 type ActionFilter = "" | "CREATE" | "UPDATE" | "DELETE";
 type DateRange = "today" | "yesterday" | "7d" | "30d" | "custom";
@@ -78,6 +81,14 @@ function getDateRange(range: DateRange): { from?: string; to?: string } {
     default: return {};
   }
 }
+
+function subDateStr(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const todayStr = new Date().toISOString().split("T")[0];
 
 function isToday(dateKey: string) {
   return dateKey === new Date().toISOString().split("T")[0];
@@ -366,7 +377,7 @@ function DetailModal({ record, onClose }: { record: AuditHistory; onClose: () =>
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AuditHistoryPage() {
-  const [records, setRecords] = useState<AuditHistory[]>([]);
+  const [pageData, setPageData] = useState<AuditHistoryPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
@@ -375,33 +386,52 @@ export default function AuditHistoryPage() {
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [selected, setSelected] = useState<AuditHistory | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toast = useToast();
 
-  const fetchData = useCallback(async (refresh = false) => {
+  // selected items for bulk delete
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [deleteDialogType, setDeleteDialogType] = useState<"single" | "bulk" | "date-range" | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deleteTargetName, setDeleteTargetName] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteDateFrom, setDeleteDateFrom] = useState("");
+  const [deleteDateTo, setDeleteDateTo] = useState("");
+
+  const fetchData = useCallback(async (pageNum: number, size: number, refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     try {
-      const res = await api.get<AuditHistory[]>("/audit-history");
-      if (res) setRecords(res);
-    } catch { /* silent */ }
-    finally { setLoading(false); setRefreshing(false); }
-  }, []);
+      const data = await api.getAuditHistory(pageNum, size);
+      setPageData(data ?? null);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Không thể tải nhật ký."));
+      setPageData(null);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [toast]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData(page, pageSize);
+  }, [page, pageSize, fetchData]);
 
   const df = useMemo(() =>
     dateRange === "custom" ? { from: dateFrom, to: dateTo } : getDateRange(dateRange),
   [dateRange, dateFrom, dateTo]);
 
+  const records = pageData?.content ?? [];
   const filtered = useMemo(() => {
     const kw = search.trim().toLowerCase();
     return records.filter((r) => {
       if (kw) {
         const match = (r.userName ?? "").toLowerCase().includes(kw)
-          || String(r.userId).includes(kw)
+          || String(r.userId ?? "").includes(kw)
           || r.tableName.toLowerCase().includes(kw)
           || r.action.toLowerCase().includes(kw)
           || String(r.recordId).includes(kw);
@@ -427,7 +457,7 @@ export default function AuditHistoryPage() {
 
   const pagedGroups = useMemo(() => {
     const flat = grouped.flatMap(([, g]) => g);
-    const start = (page - 1) * pageSize;
+    const start = page * pageSize;
     const slice = flat.slice(start, start + pageSize);
 
     // Build date-indexed map of records on this page, preserving group headers
@@ -443,7 +473,7 @@ export default function AuditHistoryPage() {
       .sort(([a], [b]) => b.localeCompare(a));
   }, [grouped, page, pageSize]);
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / pageSize)), [filtered.length, pageSize]);
+  const totalPages = useMemo(() => pageData ? Math.max(1, pageData.totalPages) : 1, [pageData?.totalPages]);
 
   const summary = useMemo(() => ({
     total:  filtered.length,
@@ -457,13 +487,13 @@ export default function AuditHistoryPage() {
 
   function clearFilters() {
     setSearch(""); setModule(""); setAction(""); setDateRange("30d");
-    setDateFrom(""); setDateTo(""); setPage(1);
+    setDateFrom(""); setDateTo(""); setPage(0);
   }
 
   function onSearch(val: string) {
     setSearch(val);
     if (searchRef.current) clearTimeout(searchRef.current);
-    searchRef.current = setTimeout(() => setPage(1), 300);
+    searchRef.current = setTimeout(() => setPage(0), 300);
   }
 
   function toggleGroup(dateKey: string) {
@@ -481,7 +511,62 @@ export default function AuditHistoryPage() {
     URL.revokeObjectURL(u);
   }
 
-  useEffect(() => { setPage(1); }, [search, module, action, dateRange, dateFrom, dateTo]);
+  function requestDelete(id: number, name: string) {
+    setDeleteTargetId(id);
+    setDeleteTargetName(name);
+    setDeleteDialogType("single");
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteDialogType || deleting) return;
+    setDeleting(true);
+    try {
+      if (deleteDialogType === "single" && deleteTargetId !== null) {
+        await api.deleteAuditHistory(deleteTargetId);
+        toast.success(`Đã xóa bản ghi "${deleteTargetName}".`);
+        setDeleteDialogType(null);
+        setDeleteTargetId(null);
+        await fetchData(page, pageSize);
+      } else if (deleteDialogType === "bulk") {
+        const ids = Array.from(selectedIds);
+        const count = await api.deleteMultipleAuditHistory(ids);
+        toast.success(`Đã xóa ${count} bản ghi.`);
+        setDeleteDialogType(null);
+        setSelectedIds(new Set());
+        await fetchData(page, pageSize);
+      } else if (deleteDialogType === "date-range") {
+        const count = await api.deleteAuditHistoryByDateRange(deleteDateFrom, deleteDateTo);
+        toast.success(`Đã xóa ${count} bản ghi nhật ký.`);
+        setDeleteDialogType(null);
+        setDeleteDateFrom("");
+        setDeleteDateTo("");
+        await fetchData(page, pageSize);
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Lỗi xóa nhật ký."));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    const allIds = (pageData?.content ?? []).map((r) => r.id);
+    setSelectedIds(new Set(allIds));
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  useEffect(() => { setPage(0); }, [search, module, action, dateRange, dateFrom, dateTo]);
 
   const DATE_OPTS: Array<{ v: DateRange; l: string }> = [
     { v: "today",     l: "Hôm nay" },
@@ -493,7 +578,56 @@ export default function AuditHistoryPage() {
 
   return (
     <>
+      <ConfirmDialog
+        open={deleteDialogType === "bulk" || deleteDialogType === "single"}
+        onClose={() => setDeleteDialogType(null)}
+        onConfirm={handleConfirmDelete}
+        title={
+          deleteDialogType === "bulk"
+            ? `Xóa ${selectedIds.size} bản ghi?`
+            : "Xóa bản ghi nhật ký?"
+        }
+        description={
+          deleteDialogType === "bulk"
+            ? `Bạn có chắc muốn xóa ${selectedIds.size} bản ghi nhật ký? Hành động này không thể hoàn tác.`
+            : `Xóa bản ghi nhật ký "${deleteTargetName}"? Hành động này không thể hoàn tác.`
+        }
+        confirmLabel="Xóa"
+        cancelLabel="Hủy"
+        variant="danger"
+        loading={deleting}
+      />
+
       {selected && <DetailModal record={selected} onClose={() => setSelected(null)} />}
+
+      {/* Custom date range picker modal */}
+      {deleteDialogType === "date-range" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) { setDeleteDialogType(null); setDeleteDateFrom(""); setDeleteDateTo(""); } }}>
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-2xl w-full max-w-sm mx-4 animate-scale-in">
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-outline-variant">
+              <h2 className="text-title-lg font-semibold text-on-surface">Tùy chỉnh ngày xóa</h2>
+              <button className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-low transition-colors" onClick={() => { setDeleteDialogType(null); setDeleteDateFrom(""); setDeleteDateTo(""); }} aria-label="Đóng"><span className="material-symbols-outlined text-[20px] text-on-surface-variant">close</span></button>
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-3">
+              <p className="text-body-sm text-on-surface-variant">Chọn ngày bắt đầu và kết thúc.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] font-semibold text-on-surface-variant" htmlFor="del-from">Từ ngày</label>
+                  <input id="del-from" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={deleteDateFrom} onChange={(e) => setDeleteDateFrom(e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] font-semibold text-on-surface-variant" htmlFor="del-to">Đến ngày</label>
+                  <input id="del-to" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={deleteDateTo} onChange={(e) => setDeleteDateTo(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button className="flex-1 h-10 rounded-lg border border-outline-variant bg-surface text-body-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors" onClick={() => { setDeleteDialogType(null); setDeleteDateFrom(""); setDeleteDateTo(""); }}>Hủy</button>
+                <button className="flex-1 h-10 rounded-lg bg-error text-on-error text-body-sm font-semibold hover:bg-error/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" onClick={async () => { if (!deleteDateFrom || !deleteDateTo || deleteDateFrom > deleteDateTo || deleting) return; setDeleting(true); try { const count = await api.deleteAuditHistoryByDateRange(deleteDateFrom, deleteDateTo); toast.success(`Đã xóa ${count} bản ghi.`); setDeleteDialogType(null); setDeleteDateFrom(""); setDeleteDateTo(""); await fetchData(page, pageSize); } catch (err) { toast.error(getErrorMessage(err, "Lỗi xóa.")); } finally { setDeleting(false); } }} disabled={!deleteDateFrom || !deleteDateTo || deleteDateFrom > deleteDateTo || deleting}>{deleting ? "Đang xóa…" : "Xóa"}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3 pb-6">
         <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-2" />
@@ -597,6 +731,29 @@ export default function AuditHistoryPage() {
             Xuất
           </button>
 
+          {selectedIds.size > 0 && (
+            <>
+              <div className="w-px h-5 bg-outline-variant shrink-0" />
+              <span className="text-[12px] text-primary font-semibold shrink-0">
+                {selectedIds.size} đã chọn
+              </span>
+              <button
+                className="flex h-9 items-center gap-1.5 rounded-lg border border-error/30 bg-error-container px-3 text-[12px] font-medium text-error hover:bg-error/10 transition-colors shrink-0"
+                onClick={() => setDeleteDialogType("bulk")} type="button"
+              >
+                <span className="material-symbols-outlined text-[14px]">delete</span>
+                Xóa ({selectedIds.size})
+              </button>
+              <button
+                className="flex h-9 items-center gap-1 rounded-lg px-2.5 text-[12px] font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors shrink-0"
+                onClick={clearSelection} type="button"
+              >
+                <span className="material-symbols-outlined text-[13px]">clear</span>
+                Bỏ chọn
+              </button>
+            </>
+          )}
+
           {hasFilters && (
             <button
               className="flex h-9 items-center gap-1 rounded-lg px-2.5 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors shrink-0"
@@ -605,6 +762,70 @@ export default function AuditHistoryPage() {
               <span className="material-symbols-outlined text-[13px]">clear</span>
               Xóa
             </button>
+          )}
+
+          {selectedIds.size === 0 && (
+            <>
+              <div className="w-px h-5 bg-outline-variant shrink-0" />
+              <div className="relative shrink-0">
+                <button
+                  className="flex h-9 items-center gap-1.5 rounded-lg border border-error/30 bg-error-container px-3 text-[12px] font-medium text-error hover:bg-error/10 transition-colors"
+                  onClick={() => setDeleteOpen((v) => !v)}
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[14px]">delete_sweep</span>
+                  Xóa
+                  <span className="material-symbols-outlined text-[12px] ml-0.5">expand_more</span>
+                </button>
+
+                {deleteOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setDeleteOpen(false)} />
+                    <div
+                      className="absolute top-full mt-1 z-50 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl w-64 animate-scale-in overflow-hidden"
+                      style={{ right: 0 }}
+                    >
+                      <div className="px-3 py-2 border-b border-outline-variant">
+                        <p className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wide">Xóa nhật ký</p>
+                      </div>
+                      <div className="p-1.5 flex flex-col gap-0.5">
+                        {([
+                          { v: "today", l: "Hôm nay", icon: "today" },
+                          { v: "7d", l: "7 ngày qua", icon: "view_week" },
+                          { v: "30d", l: "30 ngày qua", icon: "calendar_month" },
+                          { v: "custom", l: "Tùy chỉnh…", icon: "edit_calendar" },
+                        ] as const).map((p) => (
+                          <button
+                            key={p.v}
+                            className="flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-[13px] font-medium text-on-surface hover:bg-surface-container-low transition-colors text-left"
+                            onClick={() => {
+                              if (p.v === "custom") {
+                                setDeleteOpen(false);
+                                setDeleteDialogType("date-range");
+                                return;
+                              }
+                              const ranges: Record<string, { from: string; to: string }> = {
+                                today: { from: todayStr, to: todayStr },
+                                "7d": { from: subDateStr(6), to: todayStr },
+                                "30d": { from: subDateStr(29), to: todayStr },
+                              };
+                              const { from, to } = ranges[p.v];
+                              setDeleteDateFrom(from);
+                              setDeleteDateTo(to);
+                              setDeleteDialogType("date-range");
+                              setDeleteOpen(false);
+                            }}
+                          >
+                            <span className="material-symbols-outlined text-[18px] text-on-surface-variant">{p.icon}</span>
+                            {p.l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
           )}
         </section>
 
@@ -619,7 +840,7 @@ export default function AuditHistoryPage() {
             id="audit-module-filter"
             className="appearance-none rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer pr-7 shrink-0 min-w-[140px]"
             value={module}
-            onChange={(e) => { setModule(e.target.value); setPage(1); }}
+            onChange={(e) => { setModule(e.target.value); setPage(0); }}
           >
             <option value="">Tất cả module</option>
             {modules.map((m) => <option key={m} value={m}>{m}</option>)}
@@ -650,14 +871,14 @@ export default function AuditHistoryPage() {
               <input
                 id="audit-date-from"
                 className="rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }}
               />
               <span className="text-[12px] text-outline">—</span>
               <label htmlFor="audit-date-to" className="sr-only">Đến ngày</label>
               <input
                 id="audit-date-to"
                 className="rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }}
               />
             </div>
           )}
@@ -667,10 +888,23 @@ export default function AuditHistoryPage() {
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
 
           {/* Column header */}
-          <div className="hidden md:grid grid-cols-[36px_1fr_auto] gap-3 px-4 py-2.5 bg-surface-container-low border-b border-outline-variant shrink-0">
+          <div className="hidden md:grid gap-3 px-4 py-2.5 bg-surface-container-low border-b border-outline-variant shrink-0"
+            style={{ gridTemplateColumns: "36px 36px 1fr auto auto" }}>
+            {/* Checkbox select all */}
+            <div className="flex items-center justify-center">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-outline-variant accent-primary cursor-pointer"
+                checked={selectedIds.size > 0 && selectedIds.size === (pageData?.content ?? []).length}
+                onChange={() => selectedIds.size > 0 ? clearSelection() : selectAll()}
+                aria-label="Chọn tất cả"
+              />
+            </div>
             <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wide text-center">HĐ</span>
             <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wide">Chi tiết sự kiện</span>
             <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wide text-right">Giờ</span>
+            {/* Bulk delete */}
+            <div className="w-20" />
           </div>
 
           {loading ? (
@@ -772,18 +1006,29 @@ export default function AuditHistoryPage() {
                       const isSelected = selected?.id === r.id;
 
                       // Smart user display
-                      const userDisplay = r.userName ?? (r.userId > 0 ? `#${r.userId}` : null);
+                      const userDisplay = r.userName ?? (r.userId != null && r.userId > 0 ? `#${r.userId}` : null);
 
                       return (
                         <div
                           key={r.id}
-                          className={`flex items-start gap-3 px-4 py-3 transition-colors border-b border-outline-variant/10 last:border-b-0 cursor-pointer ${
+                          className={`flex items-start gap-3 px-4 py-3 transition-colors border-b border-outline-variant/10 last:border-b-0 cursor-pointer group ${
                             isSelected
                               ? "bg-primary-fixed border-l-2 border-l-primary"
                               : "hover:bg-surface-container-low"
                           }`}
                           onClick={() => setSelected(r)}
                         >
+                          {/* Checkbox — only visible on md+ */}
+                          <div className="hidden md:flex items-center justify-center w-9 shrink-0 pt-1">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-outline-variant accent-primary cursor-pointer"
+                              checked={selectedIds.has(r.id)}
+                              onChange={(e) => { e.stopPropagation(); toggleSelect(r.id); }}
+                              aria-label={`Chọn bản ghi ${r.id}`}
+                            />
+                          </div>
+
                           {/* Icon */}
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
                             <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${st.iconBg}`}>
@@ -791,9 +1036,8 @@ export default function AuditHistoryPage() {
                             </div>
                           </div>
 
-                          {/* Content — 2 lines */}
+                          {/* Content */}
                           <div className="flex flex-col min-w-0 flex-1 gap-1">
-                            {/* Line 1: Action + Table + ID + diff badge */}
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className={`text-[12px] font-bold shrink-0 ${st.chipColor}`}>{st.label}</span>
                               <span className="text-[13px] font-medium text-on-surface shrink-0">{r.tableName}</span>
@@ -805,8 +1049,6 @@ export default function AuditHistoryPage() {
                                 </span>
                               )}
                             </div>
-
-                            {/* Line 2: User + IP + meta */}
                             <div className="flex items-center gap-2 flex-wrap">
                               {userDisplay ? (
                                 <>
@@ -826,10 +1068,23 @@ export default function AuditHistoryPage() {
                             </div>
                           </div>
 
-                          {/* Time — right aligned */}
+                          {/* Time */}
                           <span className="text-[12px] text-on-surface-variant tabular-nums shrink-0 pt-0.5">
                             {fmtTime(r.createdAt)}
                           </span>
+
+                          {/* Delete button — visible on hover on md+ */}
+                          <div className="hidden md:flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              aria-label={`Xóa bản ghi ${r.id}`}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-outline hover:text-error hover:bg-error-container transition-colors"
+                              onClick={(e) => { e.stopPropagation(); requestDelete(r.id, `${r.tableName} #${r.recordId}`); }}
+                              title="Xóa"
+                              type="button"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">delete</span>
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -848,7 +1103,7 @@ export default function AuditHistoryPage() {
               <select
                 className="appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-2 h-8 text-[12px] text-on-surface cursor-pointer pr-6 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                 value={pageSize}
-                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
               >
                 <option value={25}>25</option>
                 <option value={50}>50</option>
@@ -858,44 +1113,44 @@ export default function AuditHistoryPage() {
             </div>
 
             <div className="flex items-center gap-1">
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page <= 1} onClick={() => setPage(1)} type="button" aria-label="Trang đầu">
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page <= 0} onClick={() => setPage(0)} type="button" aria-label="Trang đầu">
                 <span className="material-symbols-outlined text-[14px] text-on-surface-variant">keyboard_double_arrow_left</span>
               </button>
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} type="button" aria-label="Trang trước">
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))} type="button" aria-label="Trang trước">
                 <span className="material-symbols-outlined text-[14px] text-on-surface-variant">chevron_left</span>
               </button>
 
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 let p: number;
                 if (totalPages <= 5) p = i + 1;
-                else if (page <= 3) p = i + 1;
-                else if (page >= totalPages - 2) p = totalPages - 4 + i;
-                else p = page - 2 + i;
+                else if (page <= 2) p = i + 1;
+                else if (page >= totalPages - 3) p = totalPages - 4 + i;
+                else p = page - 1 + i;
                 return (
                   <button
                     key={p}
                     className={`flex h-8 min-w-[32px] items-center justify-center rounded-lg px-2 text-[12px] font-medium transition-colors ${
-                      p === page
+                      p === page + 1
                         ? "bg-primary text-on-primary shadow-sm"
                         : "border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low text-on-surface"
                     }`}
-                    onClick={() => setPage(p)} type="button"
+                    onClick={() => setPage(p - 1)} type="button"
                   >
                     {p}
                   </button>
                 );
               })}
 
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} type="button" aria-label="Trang sau">
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} type="button" aria-label="Trang sau">
                 <span className="material-symbols-outlined text-[14px] text-on-surface-variant">chevron_right</span>
               </button>
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page >= totalPages} onClick={() => setPage(totalPages)} type="button" aria-label="Trang cuối">
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page >= totalPages - 1} onClick={() => setPage(Math.max(0, totalPages - 1))} type="button" aria-label="Trang cuối">
                 <span className="material-symbols-outlined text-[14px] text-on-surface-variant">keyboard_double_arrow_right</span>
               </button>
             </div>
 
             <p className="text-[12px] text-on-surface-variant">
-              Trang <strong className="font-semibold text-on-surface">{page}</strong> / {totalPages}
+              Trang <strong className="font-semibold text-on-surface">{page + 1}</strong> / {totalPages}
             </p>
           </div>
         )}

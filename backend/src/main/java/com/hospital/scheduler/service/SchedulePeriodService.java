@@ -146,7 +146,7 @@ public class SchedulePeriodService {
         SchedulePeriod saved = periodRepository.save(period);
 
         // Audit: log the publish action with full context
-        auditHistoryService.logAction("schedule_period", saved.getId(), AuditHistory.ActionType.UPDATE,
+        auditHistoryService.logAction("schedule_period", saved.getId(), AuditHistory.ActionType.PUBLISH,
                 period, Map.of("action", "PUBLISH", "publishedBy", publishedBy != null ? publishedBy.getUsername() : "system"),
                 publishedById);
 

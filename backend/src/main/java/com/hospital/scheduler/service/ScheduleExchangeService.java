@@ -315,7 +315,7 @@ public class ScheduleExchangeService {
         exchange.setReviewNote(reviewNote);
 
         ScheduleExchange saved = exchangeRepository.save(exchange);
-        auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.UPDATE,
+        auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.APPROVE,
                 "PENDING", saved, reviewerId);
 
         // Notify both staff about the approved exchange
@@ -353,7 +353,7 @@ public class ScheduleExchangeService {
         exchange.setReviewNote(reviewNote);
 
         ScheduleExchange saved = exchangeRepository.save(exchange);
-        auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.UPDATE,
+        auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.REJECT,
                 "PENDING", saved, reviewerId);
 
         // Notify both staff about the rejected exchange
@@ -397,7 +397,7 @@ public class ScheduleExchangeService {
         exchange.setStatus(ScheduleExchange.ExchangeStatus.CANCELLED);
 
         ScheduleExchange saved = exchangeRepository.save(exchange);
-        auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.UPDATE,
+        auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.CANCEL,
                 "PENDING", saved, currentStaff.getId());
 
         // Notify both staff about the cancellation
