@@ -43,6 +43,7 @@ public class AutoSchedulingService {
     private final ShiftRequirementRepository requirementRepository;
     private final CompensationDayRepository compensationDayRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final ScheduleExchangeRepository scheduleExchangeRepository;
     private final AlgorithmMetricsRepository metricsRepository;
     private final ConflictDetectionService conflictDetectionService;
     private final AuditHistoryService auditHistoryService;
@@ -59,6 +60,8 @@ public class AutoSchedulingService {
     private final ThreadLocal<Map<String, Set<String>>> inMemoryAssignments = ThreadLocal.withInitial(HashMap::new);
     private final ThreadLocal<Set<String>> inMemoryCompensationShiftDates = ThreadLocal.withInitial(HashSet::new);
     private final ThreadLocal<Set<String>> allCompensationShiftDates = ThreadLocal.withInitial(HashSet::new);
+    // Swap request priority: Set of staff IDs who should be PREFERRED (those whose swap partner was assigned)
+    private final ThreadLocal<Set<Integer>> swapPriorityStaffIds = ThreadLocal.withInitial(HashSet::new);
 
     // Pre-loaded period-level conflict data (rebuilt each scheduling run)
     private record BatchConflictData(
@@ -80,12 +83,14 @@ public class AutoSchedulingService {
         inMemoryAssignments.set(new HashMap<>());
         inMemoryCompensationShiftDates.set(new HashSet<>());
         allCompensationShiftDates.set(new HashSet<>());
+        swapPriorityStaffIds.set(new HashSet<>());
         try {
             return runScheduling(request, false);
         } finally {
             inMemoryAssignments.remove();
             inMemoryCompensationShiftDates.remove();
             allCompensationShiftDates.remove();
+            swapPriorityStaffIds.remove();
         }
     }
 
@@ -93,12 +98,14 @@ public class AutoSchedulingService {
         inMemoryAssignments.set(new HashMap<>());
         inMemoryCompensationShiftDates.set(new HashSet<>());
         allCompensationShiftDates.set(new HashSet<>());
+        swapPriorityStaffIds.set(new HashSet<>());
         try {
             return runScheduling(request, true);
         } finally {
             inMemoryAssignments.remove();
             inMemoryCompensationShiftDates.remove();
             allCompensationShiftDates.remove();
+            swapPriorityStaffIds.remove();
         }
     }
 
@@ -321,10 +328,30 @@ public class AutoSchedulingService {
 
         // Load runtime config from DB (or use defaults if not set)
         AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig = algorithmConfigService.getRuntimeConfig();
-        log.info("Using runtime config: maxIterations={}, weekendWeight={}, overnightRecoveryHours={}, greedyThreshold={}, balanceMin={}",
+        log.info("Using runtime config: maxIterations={}, weekendWeight={}, overnightRecoveryHours={}, greedyThreshold={}, balanceMin={}, maxShiftsPerStaff={}",
                 runtimeConfig.getMaxIterations(), runtimeConfig.getWeekendWeight(),
                 runtimeConfig.getOvernightRecoveryHours(), runtimeConfig.getGreedyCoverageThreshold(),
-                runtimeConfig.getBalanceScoreMin());
+                runtimeConfig.getBalanceScoreMin(), runtimeConfig.getMaxShiftsPerStaff());
+
+        // Load approved swap requests for priority assignment
+        // Staff in PENDING/APPROVED swap requests get priority for their preferred schedules
+        List<ScheduleExchange> pendingSwaps = scheduleExchangeRepository
+                .findByPeriodIdAndStatus(period.getId(),
+                        com.hospital.scheduler.entity.ScheduleExchange.ExchangeStatus.PENDING);
+        if (pendingSwaps == null) pendingSwaps = Collections.emptyList();
+        log.info("Loaded {} pending swap requests for period {}", pendingSwaps.size(), period.getId());
+
+        // If a swap request exists for a schedule, prioritize the swap partner (target)
+        // When target's schedule is assigned, the requester should be considered for their preferred shift
+        Set<Integer> swapPrioritySet = swapPriorityStaffIds.get();
+        swapPrioritySet.clear();
+        for (ScheduleExchange swap : pendingSwaps) {
+            // The target (người đổi cùng) should get priority over their preferred schedule
+            // The requester (người yêu cầu) should be freed up (by getting the target's schedule)
+            if (swap.getTarget() != null) {
+                swapPrioritySet.add(swap.getTarget().getId());
+            }
+        }
 
         List<Staff> activeStaff = staffRepository.findByIsActiveTrue();
         if (request.getExcludedStaffIds() != null && !request.getExcludedStaffIds().isEmpty()) {
@@ -684,11 +711,14 @@ public class AutoSchedulingService {
                 final boolean isWeekend = currentDate.getDayOfWeek() == DayOfWeek.SATURDAY
                         || currentDate.getDayOfWeek() == DayOfWeek.SUNDAY;
 
-                // Fairness comparator: prefer staff with fewer of THIS shift type
-                // Secondary: fewer total shifts for overall balance
-                // weekend_weight: penalize weekend assignments (higher count = less preferred on weekends)
+                // Fairness comparator: swap priority > fewer of THIS shift type > fewer total shifts > fewer weekends
                 Comparator<Staff> fairnessComparator = Comparator
-                        .comparingLong((Staff s) -> {
+                        .comparingDouble((Staff s) -> {
+                            // SWAP PRIORITY: staff in swap requests get higher priority (lower score = preferred)
+                            // Swap targets should be prioritized for their preferred shifts
+                            return swapPriorityStaffIds.get().contains(s.getId()) ? 0.0 : 1.0;
+                        })
+                        .thenComparingLong((Staff s) -> {
                             Map<String, Long> counts = periodData.staffShiftTypeCounts().get(s.getId());
                             return counts != null ? counts.getOrDefault(shiftTypeId, 0L) : 0L;
                         })
@@ -699,10 +729,8 @@ public class AutoSchedulingService {
                                     + counts.getOrDefault("L03", 0L) + counts.getOrDefault("L04", 0L);
                         })
                         // weekend_weight: penalize weekend shifts using the configured multiplier
-                        // Higher weight = fewer weekend assignments preferred (staff with more weekend shifts gets lower priority)
                         .thenComparingDouble(s -> {
                             if (!isWeekend) return 0.0;
-                            // Use shift type count as base; higher count = less preferred on weekends
                             Map<String, Long> counts = periodData.staffShiftTypeCounts().get(s.getId());
                             long totalShifts = counts != null
                                     ? counts.getOrDefault("L01", 0L) + counts.getOrDefault("L02", 0L)
@@ -713,9 +741,18 @@ public class AutoSchedulingService {
 
                 List<Staff> eligibleStaff = filterAndSortEligibleStaffBatch(
                         activeStaff, req, excludedStaffIds, assignedStaffIds, todayConflicts, !save,
-                        fairnessComparator, periodData, adjacentL01FromPrev, todayCompDayStaffIds);
+                        fairnessComparator, periodData, adjacentL01FromPrev, todayCompDayStaffIds,
+                        runtimeConfig.getMaxShiftsPerStaff() > 0 ? runtimeConfig.getMaxShiftsPerStaff() : Integer.MAX_VALUE);
 
-                int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
+                // maxStaffPerShift: cap assignments at the limit, but still try to meet requiredStaffCount
+                int effectiveMax = runtimeConfig.getMaxStaffPerShift() > 0
+                        ? Math.min(runtimeConfig.getMaxStaffPerShift(), req.getRequiredStaffCount())
+                        : req.getRequiredStaffCount();
+                int toAssign = Math.min(effectiveMax, eligibleStaff.size());
+                if (log.isInfoEnabled() && eligibleStaff.size() < req.getRequiredStaffCount()) {
+                    log.warn("UNDERSTAFFED: date={} req={} eligible={} required={} assigned={}",
+                        workDate, shiftTypeId, eligibleStaff.size(), req.getRequiredStaffCount(), toAssign);
+                }
                 if (log.isInfoEnabled() && ConflictDetectionService.SHIFT_TYPE_L01.equals(req.getShiftType().getId()) && eligibleStaff.size() < req.getRequiredStaffCount()) {
                     log.warn("Greedy L01 UNDERSTAFFED: date={} required={} eligible={} (adjPrev={} may be blocking too many)",
                         workDate, req.getRequiredStaffCount(), eligibleStaff.size(), adjacentL01FromPrev.size());
@@ -842,12 +879,13 @@ public class AutoSchedulingService {
                 final boolean isWeekend = currentDate.getDayOfWeek() == DayOfWeek.SATURDAY
                         || currentDate.getDayOfWeek() == DayOfWeek.SUNDAY;
 
-                // CRITICAL FIX: Fairness by SHIFT TYPE, then TOTAL, then rotation
-                // Staff with fewer of THIS shift type get higher priority
-                // Secondary: staff with fewer TOTAL shifts get higher priority
-                // Tertiary: rotation index for fairness
+                // CRITICAL FIX: Fairness by SWAP PRIORITY > SHIFT TYPE > TOTAL > rotation
                 Comparator<Staff> fairnessComparator = Comparator
-                        .comparingLong((Staff s) -> {
+                        .comparingDouble((Staff s) -> {
+                            // SWAP PRIORITY: staff in swap requests get higher priority
+                            return swapPriorityStaffIds.get().contains(s.getId()) ? 0.0 : 1.0;
+                        })
+                        .thenComparingLong((Staff s) -> {
                             Map<String, Long> counts = periodData.staffShiftTypeCounts().get(s.getId());
                             return counts != null ? counts.getOrDefault(shiftTypeId, 0L) : 0L;
                         })
@@ -872,7 +910,8 @@ public class AutoSchedulingService {
                 // FIX: Use batch filter (same as Greedy) — always check compensation (skipCompensationCheck=false)
                 List<Staff> eligibleStaff = filterAndSortEligibleStaffBatch(
                         activeStaff, req, excludedStaffIds, assignedStaffIds, todayConflicts, false,
-                        fairnessComparator, periodData, adjacentL01FromPrev, todayCompDayStaffIds);
+                        fairnessComparator, periodData, adjacentL01FromPrev, todayCompDayStaffIds,
+                        runtimeConfig.getMaxShiftsPerStaff() > 0 ? runtimeConfig.getMaxShiftsPerStaff() : Integer.MAX_VALUE);
 
                 int toAssign = Math.min(req.getRequiredStaffCount(), eligibleStaff.size());
                 int assignedCount = 0;
@@ -2499,20 +2538,16 @@ public class AutoSchedulingService {
             Comparator<Staff> sortComparator,
             PeriodConflictData periodData,
             Set<Integer> additionalAdjacentL01,
-            Set<Integer> additionalCompDayStaffIds) {
+            Set<Integer> additionalCompDayStaffIds,
+            int maxShiftsPerStaffLimit) {
 
         ShiftType shiftType = req.getShiftType();
         String shiftTypeId = shiftType.getId();
         boolean isOvernight = Boolean.TRUE.equals(shiftType.getIsOvernight());
 
-        // Calculate period days for max shifts check
-        int periodDays = (int) java.time.temporal.ChronoUnit.DAYS.between(
-                req.getWorkDate(), req.getWorkDate()) + 1; // placeholder, we'll check per-staff
-
         List<Staff> eligible = new ArrayList<>();
         for (Staff staff : pool) {
             if (excludedStaffIds != null && excludedStaffIds.contains(staff.getId())) continue;
-            // Skip staff already assigned to another requirement on the same day
             if (assignedStaffIds != null && assignedStaffIds.contains(staff.getId())) continue;
 
             // 1. Check specialty FIRST (hard requirement)
@@ -2530,13 +2565,11 @@ public class AutoSchedulingService {
             if (batchData.onLeaveStaffIds().contains(staff.getId())) continue;
 
             if (!skipCompensationCheck) {
-                // Check both DB compensation days AND newly created compensation days from this run
                 if (batchData.onCompDayStaffIds().contains(staff.getId())) continue;
                 if (additionalCompDayStaffIds != null && additionalCompDayStaffIds.contains(staff.getId())) continue;
             }
 
-            // Adjacent day restriction only applies to L01 (trực 24/24 cannot work two consecutive days)
-            // Combine DB adjacent L01 with batch-assigned L01 from this greedy run
+            // Adjacent day restriction only applies to L01
             if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
                 Set<Integer> allAdjacentL01 = new HashSet<>();
                 if (batchData.adjacentL01StaffIds() != null) allAdjacentL01.addAll(batchData.adjacentL01StaffIds());
@@ -2562,19 +2595,16 @@ public class AutoSchedulingService {
                 if (hasConflict) continue;
             }
 
-            // 4. ENHANCED: Soft maxShiftsPerMonth check
-            // Track if this staff is over their limit - they go to a "overflow" list
-            // This allows higher coverage while still preferring staff under their limit
-            Integer maxShifts = staff.getMaxShiftsPerMonth();
-            Map<String, Long> currentCounts = periodData.staffShiftTypeCounts().get(staff.getId());
-            long totalCurrent = currentCounts != null
-                    ? currentCounts.getOrDefault("L01", 0L) + currentCounts.getOrDefault("L02", 0L)
-                            + currentCounts.getOrDefault("L03", 0L) + currentCounts.getOrDefault("L04", 0L)
-                    : 0L;
-            boolean isOverLimit = maxShifts != null && maxShifts > 0 && totalCurrent >= maxShifts;
+            // 4. Hard maxShiftsPerStaff limit: skip if already at or above limit
+            if (maxShiftsPerStaffLimit > 0) {
+                Map<String, Long> currentCounts = periodData.staffShiftTypeCounts().get(staff.getId());
+                long totalCurrent = currentCounts != null
+                        ? currentCounts.getOrDefault("L01", 0L) + currentCounts.getOrDefault("L02", 0L)
+                                + currentCounts.getOrDefault("L03", 0L) + currentCounts.getOrDefault("L04", 0L)
+                        : 0L;
+                if (totalCurrent >= maxShiftsPerStaffLimit) continue;
+            }
 
-            // Staff over limit: only add if no one under limit is available
-            // This is handled by the sort comparator - they get sorted last
             eligible.add(staff);
         }
 

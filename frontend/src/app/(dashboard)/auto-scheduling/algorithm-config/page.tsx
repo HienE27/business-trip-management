@@ -33,6 +33,10 @@ type RuntimeConfig = {
   balanceScoreMin: number;
   autoCompensationEnabled: boolean;
   backtrackTimeLimitSeconds: number;
+  minStaffPerShift: number;
+  maxStaffPerShift: number;
+  minShiftsPerStaff: number;
+  maxShiftsPerStaff: number;
 };
 
 type AlgorithmMetrics = {
@@ -64,7 +68,7 @@ const ALGORITHM_PRESETS: Record<PresetKey, {
     icon: "balance",
     color: "text-secondary",
     colorBg: "bg-secondary-container",
-    config: { maxIterations: 2000, weekendWeight: 2.5, greedyCoverageThreshold: 0.90, balanceScoreMin: 0.75, autoCompensationEnabled: true, overnightRecoveryHours: 24, backtrackTimeLimitSeconds: 120 },
+    config: { maxIterations: 2000, weekendWeight: 2.5, greedyCoverageThreshold: 0.90, balanceScoreMin: 0.75, autoCompensationEnabled: true, overnightRecoveryHours: 24, backtrackTimeLimitSeconds: 120, minStaffPerShift: 1, maxStaffPerShift: 0, minShiftsPerStaff: 0, maxShiftsPerStaff: 0 },
   },
   fast: {
     label: "Nhanh",
@@ -72,7 +76,7 @@ const ALGORITHM_PRESETS: Record<PresetKey, {
     icon: "bolt",
     color: "text-tertiary",
     colorBg: "bg-tertiary-container",
-    config: { maxIterations: 500, weekendWeight: 1.5, greedyCoverageThreshold: 0.75, balanceScoreMin: 0.60, autoCompensationEnabled: true, overnightRecoveryHours: 24, backtrackTimeLimitSeconds: 30 },
+    config: { maxIterations: 500, weekendWeight: 1.5, greedyCoverageThreshold: 0.75, balanceScoreMin: 0.60, autoCompensationEnabled: true, overnightRecoveryHours: 24, backtrackTimeLimitSeconds: 30, minStaffPerShift: 1, maxStaffPerShift: 0, minShiftsPerStaff: 0, maxShiftsPerStaff: 0 },
   },
   quality: {
     label: "Chất lượng cao",
@@ -80,7 +84,7 @@ const ALGORITHM_PRESETS: Record<PresetKey, {
     icon: "verified",
     color: "text-primary",
     colorBg: "bg-primary-fixed",
-    config: { maxIterations: 5000, weekendWeight: 3.0, greedyCoverageThreshold: 0.95, balanceScoreMin: 0.85, autoCompensationEnabled: true, overnightRecoveryHours: 24, backtrackTimeLimitSeconds: 300 },
+    config: { maxIterations: 5000, weekendWeight: 3.0, greedyCoverageThreshold: 0.95, balanceScoreMin: 0.85, autoCompensationEnabled: true, overnightRecoveryHours: 24, backtrackTimeLimitSeconds: 300, minStaffPerShift: 1, maxStaffPerShift: 0, minShiftsPerStaff: 0, maxShiftsPerStaff: 0 },
   },
   conservative: {
     label: "Thận trọng",
@@ -88,11 +92,25 @@ const ALGORITHM_PRESETS: Record<PresetKey, {
     icon: "shield",
     color: "text-outline",
     colorBg: "bg-surface-container-high",
-    config: { maxIterations: 1000, weekendWeight: 1.0, greedyCoverageThreshold: 0.60, balanceScoreMin: 0.50, autoCompensationEnabled: true, overnightRecoveryHours: 24, backtrackTimeLimitSeconds: 60 },
+    config: { maxIterations: 1000, weekendWeight: 1.0, greedyCoverageThreshold: 0.60, balanceScoreMin: 0.50, autoCompensationEnabled: true, overnightRecoveryHours: 24, backtrackTimeLimitSeconds: 60, minStaffPerShift: 1, maxStaffPerShift: 0, minShiftsPerStaff: 0, maxShiftsPerStaff: 0 },
   },
 };
 
 const PARAM_GROUPS = [
+  {
+    id: "shifts",
+    label: "Số ca/nhân sự",
+    icon: "groups",
+    color: "text-primary",
+    bg: "bg-primary-fixed",
+    params: ["min_staff_per_shift", "max_staff_per_shift", "min_shifts_per_staff", "max_shifts_per_staff"] as const,
+    descriptions: {
+      min_staff_per_shift: { label: "min_staff", unit: " người", desc: "Số nhân sự tối thiểu mỗi ca. Đặt 0 để bỏ qua.", hint: "0–10 · Mặc định: 1" },
+      max_staff_per_shift: { label: "max_staff", unit: " người", desc: "Số nhân sự tối đa mỗi ca. 0 = không giới hạn.", hint: "0–20 · Mặc định: 0 (không giới hạn)" },
+      min_shifts_per_staff: { label: "min_shifts", unit: " ca", desc: "Số ca trực tối thiểu mỗi nhân sự trong kỳ. 0 = không áp dụng.", hint: "0–50 · Mặc định: 0" },
+      max_shifts_per_staff: { label: "max_shifts", unit: " ca", desc: "Số ca trực tối đa mỗi nhân sự trong kỳ. 0 = không giới hạn.", hint: "0–100 · Mặc định: 0 (dùng maxShiftsPerMonth)" },
+    },
+  },
   {
     id: "thresholds",
     label: "Ngưỡng",
@@ -209,7 +227,9 @@ function RuntimeConfigEditor({ onSaved }: { onSaved?: () => void }) {
         cfg.weekendWeight === p.weekendWeight &&
         cfg.greedyCoverageThreshold === p.greedyCoverageThreshold &&
         cfg.balanceScoreMin === p.balanceScoreMin &&
-        cfg.backtrackTimeLimitSeconds === p.backtrackTimeLimitSeconds
+        cfg.backtrackTimeLimitSeconds === p.backtrackTimeLimitSeconds &&
+        cfg.minStaffPerShift === p.minStaffPerShift &&
+        cfg.maxStaffPerShift === p.maxStaffPerShift
       ) return key;
     }
     return null;
@@ -347,9 +367,13 @@ function RuntimeConfigEditor({ onSaved }: { onSaved?: () => void }) {
                   : param === "backtrack_time_limit_seconds" ? "backtrackTimeLimitSeconds"
                   : param === "weekend_weight" ? "weekendWeight"
                   : param === "overnight_recovery_hours" ? "overnightRecoveryHours"
+                  : param === "min_staff_per_shift" ? "minStaffPerShift"
+                  : param === "max_staff_per_shift" ? "maxStaffPerShift"
+                  : param === "min_shifts_per_staff" ? "minShiftsPerStaff"
+                  : param === "max_shifts_per_staff" ? "maxShiftsPerStaff"
                   : "maxIterations" as keyof RuntimeConfig;
-                const min = param === "greedy_coverage_threshold" || param === "balance_score_min" ? 0.3 : param === "weekend_weight" ? 1 : 10;
-                const max = param === "greedy_coverage_threshold" || param === "balance_score_min" ? 1 : param === "weekend_weight" ? 5 : param === "max_iterations" ? 10000 : 300;
+                const min = param === "greedy_coverage_threshold" || param === "balance_score_min" ? 0.3 : param === "weekend_weight" ? 1 : 0;
+                const max = param === "greedy_coverage_threshold" || param === "balance_score_min" ? 1 : param === "weekend_weight" ? 5 : param === "max_iterations" || param === "min_staff_per_shift" ? 10 : param === "max_staff_per_shift" || param === "max_shifts_per_staff" ? 100 : param === "min_shifts_per_staff" ? 50 : 300;
                 const step = param === "greedy_coverage_threshold" || param === "balance_score_min" || param === "weekend_weight" ? 0.05 : 1;
                 const numVal = typeof form[cfgKey] === "number" ? form[cfgKey] as number : 0;
                 const display = param === "greedy_coverage_threshold" || param === "balance_score_min"
@@ -357,6 +381,8 @@ function RuntimeConfigEditor({ onSaved }: { onSaved?: () => void }) {
                   : param === "weekend_weight" ? numVal.toFixed(1) + "×"
                   : param === "backtrack_time_limit_seconds" ? `${numVal}s`
                   : param === "overnight_recovery_hours" ? `${numVal}h`
+                  : param === "min_staff_per_shift" || param === "max_staff_per_shift" || param === "min_shifts_per_staff" || param === "max_shifts_per_staff"
+                  ? numVal === 0 ? "Tắt" : numVal.toLocaleString()
                   : numVal.toLocaleString();
                 const pct = Math.min(100, Math.max(0, ((numVal - min) / (max - min)) * 100));
 

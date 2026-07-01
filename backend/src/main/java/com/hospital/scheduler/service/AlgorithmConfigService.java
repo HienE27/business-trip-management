@@ -49,6 +49,10 @@ public class AlgorithmConfigService {
     public static final String BALANCE_SCORE_MIN = "balance_score_min";
     public static final String AUTO_COMPENSATION_ENABLED = "auto_compensation_enabled";
     public static final String BACKTRACK_TIME_LIMIT_SECONDS = "backtrack_time_limit_seconds";
+    public static final String MIN_STAFF_PER_SHIFT = "min_staff_per_shift";
+    public static final String MAX_STAFF_PER_SHIFT = "max_staff_per_shift";
+    public static final String MIN_SHIFTS_PER_STAFF = "min_shifts_per_staff";
+    public static final String MAX_SHIFTS_PER_STAFF = "max_shifts_per_staff";
 
     public List<AlgorithmConfigDTO> getAllConfigs() {
         // OPTIMIZATION: use JOIN FETCH to avoid N+1 on updatedBy lazy loading
@@ -305,6 +309,10 @@ public class AlgorithmConfigService {
                 .balanceScoreMin(getBigDecimalValue(BALANCE_SCORE_MIN, 0.70))
                 .autoCompensationEnabled(getBooleanValue(AUTO_COMPENSATION_ENABLED, true))
                 .backtrackTimeLimitSeconds(getIntValue(BACKTRACK_TIME_LIMIT_SECONDS, 60))
+                .minStaffPerShift(getIntValue(MIN_STAFF_PER_SHIFT, 1))
+                .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0))
+                .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0))
+                .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 0))
                 .build();
     }
 
@@ -327,6 +335,14 @@ public class AlgorithmConfigService {
                 "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
         upsert(BACKTRACK_TIME_LIMIT_SECONDS, String.valueOf(config.getBacktrackTimeLimitSeconds()), AlgorithmConfig.ValueType.NUMBER,
                 "Thời gian tối đa cho phép thuật toán backtracking chạy (giây). Hết thời gian → dừng và trả kết quả tốt nhất đã tìm được.");
+        upsert(MIN_STAFF_PER_SHIFT, String.valueOf(config.getMinStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối thiểu mỗi ca. Đặt 0 để bỏ qua giới hạn này. Nếu không đủ nhân sự đạt ngưỡng, thuật toán sẽ cảnh báo nhưng vẫn xếp.");
+        upsert(MAX_STAFF_PER_SHIFT, String.valueOf(config.getMaxStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối đa mỗi ca. Đặt 0 để không giới hạn. Giới hạn này chỉ áp dụng khi yêu cầu ca có requiredStaffCount > maxStaffPerShift.");
+        upsert(MIN_SHIFTS_PER_STAFF, String.valueOf(config.getMinShiftsPerStaff()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca trực tối thiểu mỗi nhân sự trong kỳ. Đặt 0 để bỏ qua. Giúp đảm bảo mỗi người đều có ít nhất N ca trong kỳ.");
+        upsert(MAX_SHIFTS_PER_STAFF, String.valueOf(config.getMaxShiftsPerStaff()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca trực tối đa mỗi nhân sự trong kỳ. Đặt 0 để dùng maxShiftsPerMonth của nhân sự. Giới hạn này ngược lại với min — ngăn không ai bị quá tải.");
     }
 
     private boolean getBooleanValue(String paramKey, boolean defaultValue) {
@@ -351,7 +367,7 @@ public class AlgorithmConfigService {
      * Runtime configuration record for algorithm execution.
      */
     @lombok.Data
-    @lombok.Builder
+    @lombok.Builder(access = lombok.AccessLevel.PRIVATE)
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     public static class AlgorithmRuntimeConfig {
@@ -362,5 +378,9 @@ public class AlgorithmConfigService {
         private java.math.BigDecimal balanceScoreMin;
         private boolean autoCompensationEnabled;
         private int backtrackTimeLimitSeconds;
+        private int minStaffPerShift;
+        private int maxStaffPerShift;
+        private int minShiftsPerStaff;
+        private int maxShiftsPerStaff;
     }
 }
