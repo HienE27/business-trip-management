@@ -528,12 +528,14 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         icon: "local_hospital",
         accent: "bg-primary/10 text-primary",
       }
-    : {
+    : compensationDays.length > 0
+    ? {
         label: "Ngày nghỉ bù",
         value: compensationDays.length,
         icon: "bedtime",
         accent: "bg-surface-container-high text-on-surface",
-      };
+      }
+    : null;
 
   const isDraft = selectedPeriod?.status === "DRAFT";
 
@@ -859,7 +861,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
       {selectedPanel !== "conflicts" && (
       <section className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        {[
+        {([
           {
             label: totalKpiLabel,
             value: schedules.length,
@@ -886,7 +888,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
             icon: "warning",
             accent: "bg-error-container text-on-error-container",
           },
-        ].map((kpi) => (
+        ].filter(Boolean) as Array<{label: string; value: number; icon: string; accent: string}>).map((kpi) => (
           <div
             key={kpi.label}
             className={`rounded-xl border border-outline-variant p-4 ${kpi.accent}`}

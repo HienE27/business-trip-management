@@ -491,7 +491,22 @@ function SwapRequestsContent() {
             ) : filtered.length === 0 ? (
               <EmptyState
                 icon="swap_horiz"
-                title="Chưa có yêu cầu đổi trực nào"
+                title={
+                  statusFilter === "PENDING"
+                    ? "Không có yêu cầu chờ duyệt"
+                    : statusFilter === "APPROVED"
+                    ? "Không có yêu cầu đã duyệt"
+                    : statusFilter === "REJECTED"
+                    ? "Không có yêu cầu bị từ chối"
+                    : "Chưa có yêu cầu đổi trực"
+                }
+                description={
+                  statusFilter === "" && stats.total === 0
+                    ? "Không có yêu cầu nào. Nhân sự có thể gửi yêu cầu đổi trực cùng loại (L01↔L01, L02↔L02...) trong kỳ đã công bố."
+                    : statusFilter !== ""
+                    ? `Không có yêu cầu nào với trạng thái này. Thử chọn trạng thái khác hoặc nhấn "Làm mới".`
+                    : undefined
+                }
               />
             ) : (
               <table className="w-full border-collapse text-left" aria-label="Page Table">

@@ -38,10 +38,14 @@ function StatisticsReportContent() {
       ]);
       setPeriods(periodsData ?? []);
       setShiftTypes(shiftTypesData ?? []);
-      const active = (periodsData ?? []).find(
-        (p) => p.status === "PUBLISHED" || p.status === "DRAFT"
-      );
-      if (active) setSelectedPeriod(active);
+      // Prefer PUBLISHED, fall back to DRAFT
+      const published = (periodsData ?? []).find((p) => p.status === "PUBLISHED");
+      if (published) {
+        setSelectedPeriod(published);
+      } else {
+        const draft = (periodsData ?? []).find((p) => p.status === "DRAFT");
+        if (draft) setSelectedPeriod(draft);
+      }
     } catch (err) {
       setMessage(getErrorMessage(err, "Lỗi tải danh sách kỳ lịch."));
     } finally {
