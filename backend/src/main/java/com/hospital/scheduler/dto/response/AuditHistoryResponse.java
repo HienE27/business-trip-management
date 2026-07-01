@@ -49,6 +49,12 @@ public class AuditHistoryResponse {
                     case INSERT -> "CREATE";
                     case UPDATE -> "UPDATE";
                     case DELETE -> "DELETE";
+                    case PUBLISH -> "PUBLISH";
+                    case APPROVE -> "APPROVE";
+                    case REJECT -> "REJECT";
+                    case CANCEL -> "CANCEL";
+                    case BULK_DELETE -> "BULK_DELETE";
+                    case BULK_UPDATE -> "BULK_UPDATE";
                 })
                 .oldData(entity.getOldData())
                 .newData(entity.getNewData())
