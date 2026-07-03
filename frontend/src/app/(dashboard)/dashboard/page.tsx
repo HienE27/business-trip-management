@@ -85,7 +85,6 @@ export default function DashboardPage() {
     activeStaff,
     conflictData,
     compensationDays,
-    requirements,
     loading,
     message,
     setSelectedPeriodId,
@@ -162,7 +161,7 @@ export default function DashboardPage() {
     [compensationDays, conflictData]
   );
 
-  const computedCoverages = useMemo(() => buildCoverageMap(requirements), [requirements]);
+  const computedCoverages = useMemo(() => buildCoverageMap(schedules), [schedules]);
 
   const initialCalendarYear = useMemo(() => {
     if (selectedPeriod?.startDate) return new Date(selectedPeriod.startDate).getFullYear();
@@ -180,7 +179,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-[1440px] mx-auto space-y-6">
       {/* Alert badges */}
       {message && (
         <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
