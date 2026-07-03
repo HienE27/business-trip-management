@@ -1,6 +1,7 @@
 package com.hospital.scheduler.algorithm;
 
-import com.hospital.scheduler.entity.*;
+import com.hospital.scheduler.entity.LeaveRequest;
+import com.hospital.scheduler.entity.Staff;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -14,6 +15,9 @@ import java.util.Set;
  * ISSUE 3 FIX: Thêm incremental solving support
  * - solve(): Full solve từ đầu (batch mode)
  * - reSolve(): Partial re-solve với delta changes (interactive mode)
+ *
+ * NOTE: ShiftRequirement entity has been replaced with ShiftRequirementInfo POJO.
+ * Requirements are now derived from AutoGenConfig (not from database records).
  */
 public interface SchedulingAlgorithm {
 
@@ -27,7 +31,7 @@ public interface SchedulingAlgorithm {
      * @param staffList Danh sách nhân sự hoạt động
      * @param startDate Ngày bắt đầu kỳ lịch
      * @param endDate Ngày kết thúc kỳ lịch
-     * @param requirements Danh sách yêu cầu ca trực
+     * @param requirements Danh sách yêu cầu ca trực (derived from AutoGenConfig)
      * @param existingCompensationDays Ngày nghỉ bù đã có từ các kỳ trước
      * @param leaveRequests Danh sách đơn nghỉ phép đã duyệt
      * @param excludedStaffIds Nhân sự bị loại trừ
@@ -37,7 +41,7 @@ public interface SchedulingAlgorithm {
         List<Staff> staffList,
         LocalDate startDate,
         LocalDate endDate,
-        List<ShiftRequirement> requirements,
+        List<ShiftRequirementInfo> requirements,
         Set<String> existingCompensationDays,
         List<LeaveRequest> leaveRequests,
         Set<Integer> excludedStaffIds
@@ -56,7 +60,7 @@ public interface SchedulingAlgorithm {
      * @param previousResult Lịch trước đó (để reuse partial work)
      * @param deltaChanges Thay đổi cần áp dụng
      * @param staffList Danh sách nhân sự
-     * @param requirements Danh sách yêu cầu ca trực (updated)
+     * @param requirements Danh sách yêu cầu ca trực (derived from AutoGenConfig)
      * @param leaveRequests Danh sách đơn nghỉ phép (updated)
      * @return Kết quả xếp lịch mới với changes được áp dụng
      */
@@ -64,7 +68,7 @@ public interface SchedulingAlgorithm {
         SchedulingResult previousResult,
         ScheduleChange deltaChanges,
         List<Staff> staffList,
-        List<ShiftRequirement> requirements,
+        List<ShiftRequirementInfo> requirements,
         List<LeaveRequest> leaveRequests
     );
 

@@ -1,6 +1,5 @@
 package com.hospital.scheduler.algorithm;
 
-import com.hospital.scheduler.entity.ShiftRequirement;
 import com.hospital.scheduler.entity.Staff;
 import lombok.Getter;
 
@@ -22,7 +21,7 @@ import java.util.*;
 public class ScheduleChromosome {
     
     private final int[] genes;  // Staff assignment for each requirement slot
-    private final List<ShiftRequirement> requirements;
+    private final List<ShiftRequirementInfo> requirements;
     private final List<Staff> staffPool;
     
     private double fitness;
@@ -30,7 +29,7 @@ public class ScheduleChromosome {
     private double balanceScore;
     private double coverageRate;
     
-    public ScheduleChromosome(List<ShiftRequirement> requirements, List<Staff> staffPool) {
+    public ScheduleChromosome(List<ShiftRequirementInfo> requirements, List<Staff> staffPool) {
         this.requirements = requirements;
         this.staffPool = staffPool;
         this.genes = new int[requirements.size()];
@@ -42,17 +41,20 @@ public class ScheduleChromosome {
     
     /**
      * Create a random chromosome with random staff assignments.
+     * NOTE: -1 (unassigned) should be avoided during initialization.
+     * It will be assigned by mutation/greedy repair when a slot is impossible to fill.
      */
     public static ScheduleChromosome createRandom(
-            List<ShiftRequirement> requirements, 
+            List<ShiftRequirementInfo> requirements, 
             List<Staff> staffPool,
             Random random) {
         
         ScheduleChromosome chromosome = new ScheduleChromosome(requirements, staffPool);
         
         for (int i = 0; i < chromosome.genes.length; i++) {
-            // -1 means unassigned
-            chromosome.genes[i] = random.nextInt(staffPool.size() + 1) - 1;
+            // Always assign a valid staff during initialization to maximize coverage
+            // -1 should only be assigned by repair/greedy when a slot is impossible
+            chromosome.genes[i] = random.nextInt(staffPool.size());
         }
         
         return chromosome;
@@ -106,15 +108,16 @@ public class ScheduleChromosome {
      */
     public int getRequiredCount() {
         return requirements.stream()
-                .mapToInt(ShiftRequirement::getRequiredStaffCount)
+                .mapToInt(ShiftRequirementInfo::requiredCount)
                 .sum();
     }
     
     /**
-     * Get number of unassigned slots.
+     * Get number of unassigned slots (requirement slots without staff assignment).
+     * Note: This counts slots (-1 values), not the total staff required.
      */
     public int getUnassignedCount() {
-        return getRequiredCount() - getAssignmentCount();
+        return requirements.size() - getAssignmentCount();
     }
     
     /**

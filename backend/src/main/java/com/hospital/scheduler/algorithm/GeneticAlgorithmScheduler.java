@@ -1,7 +1,6 @@
 package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.entity.LeaveRequest;
-import com.hospital.scheduler.entity.ShiftRequirement;
 import com.hospital.scheduler.entity.Staff;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -47,7 +46,7 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
             List<Staff> staffList,
             LocalDate startDate,
             LocalDate endDate,
-            List<ShiftRequirement> requirements,
+            List<ShiftRequirementInfo> requirements,
             Set<String> existingCompensationDays,
             List<LeaveRequest> leaveRequests,
             Set<Integer> excludedStaffIds) {
@@ -181,7 +180,7 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
      * Initialize population with random chromosomes.
      */
     private List<ScheduleChromosome> initializePopulation(
-            List<ShiftRequirement> requirements,
+            List<ShiftRequirementInfo> requirements,
             List<Staff> staffPool,
             GeneticAlgorithmConfig config) {
         
@@ -226,11 +225,12 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
 
     /**
      * Order crossover (OX) - suitable for permutation representation.
+     * Handles -1 (unassigned) values by treating them as unique values.
      */
     private ScheduleChromosome[] crossover(
             ScheduleChromosome parent1,
             ScheduleChromosome parent2,
-            List<ShiftRequirement> requirements,
+            List<ShiftRequirementInfo> requirements,
             List<Staff> staffPool) {
         
         ScheduleChromosome child1 = new ScheduleChromosome(requirements, staffPool);
@@ -255,11 +255,14 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
         // Copy segment from parent1 to child1
         System.arraycopy(parent1.getGenes(), point1, child1.getGenes(), point1, point2 - point1);
         
-        // Fill remaining with parent2 values (in order)
+        // Fill remaining with parent2 values (in order), skip -1 values from parent2
         int pos = point2;
         for (int i = 0; i < size; i++) {
             int idx = (point2 + i) % size;
             int value = parent2.getGenes()[idx];
+            
+            // Skip -1 (unassigned) values - they shouldn't be inherited through crossover
+            if (value == -1) continue;
             
             // Check if value already in child
             boolean exists = false;
@@ -276,12 +279,23 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
             }
         }
         
+        // Fill any remaining slots with valid random assignment
+        for (int i = 0; i < size; i++) {
+            if (child1.getGenes()[i] == -1) {
+                // Assign random staff to fill the gap
+                child1.getGenes()[i] = random.nextInt(staffPool.size());
+            }
+        }
+        
         // Same for child2
         System.arraycopy(parent2.getGenes(), point1, child2.getGenes(), point1, point2 - point1);
         pos = point2;
         for (int i = 0; i < size; i++) {
             int idx = (point2 + i) % size;
             int value = parent1.getGenes()[idx];
+            
+            // Skip -1 values
+            if (value == -1) continue;
             
             boolean exists = false;
             for (int j = 0; j < size; j++) {
@@ -297,15 +311,23 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
             }
         }
         
+        // Fill remaining slots
+        for (int i = 0; i < size; i++) {
+            if (child2.getGenes()[i] == -1) {
+                child2.getGenes()[i] = random.nextInt(staffPool.size());
+            }
+        }
+        
         return new ScheduleChromosome[]{child1, child2};
     }
 
     /**
      * Mutation: random swap of genes.
+     * Avoids creating -1 (unassigned) values.
      */
     private void mutate(
             ScheduleChromosome chromosome,
-            List<ShiftRequirement> requirements,
+            List<ShiftRequirementInfo> requirements,
             List<Staff> staffPool,
             List<LeaveRequest> leaveRequests,
             Set<String> existingCompensationDays,
@@ -319,17 +341,26 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
         int pos1 = random.nextInt(size);
         int pos2 = random.nextInt(size);
         
-        int temp = chromosome.getGenes()[pos1];
-        chromosome.setStaffAt(pos1, chromosome.getGenes()[pos2]);
-        chromosome.setStaffAt(pos2, temp);
+        // Get current values
+        int val1 = chromosome.getGenes()[pos1];
+        int val2 = chromosome.getGenes()[pos2];
+        
+        // Ensure no -1 (unassigned) values are created
+        // If a gene is -1, assign a random valid staff
+        if (val1 < 0) val1 = random.nextInt(staffPool.size());
+        if (val2 < 0) val2 = random.nextInt(staffPool.size());
+        
+        chromosome.setStaffAt(pos1, val1);
+        chromosome.setStaffAt(pos2, val2);
     }
 
     /**
      * Build scheduling result from best chromosome.
+     * Uses greedy assignment to fill ALL requirements with conflict-free staff.
      */
     private SchedulingResult buildResult(
             ScheduleChromosome bestSolution,
-            List<ShiftRequirement> requirements,
+            List<ShiftRequirementInfo> requirements,
             List<Staff> activeStaff,
             long startTime) {
         
@@ -344,13 +375,50 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
                     .build();
         }
         
-        // Convert chromosome to assignments
+        // Track: for each date, which shift types already have staff assigned
+        // Key: "date_shiftTypeId", Value: Set of staffIds already assigned
+        Map<String, Set<Integer>> dateShiftStaffMap = new HashMap<>();
+        
+        // First pass: record assignments from chromosome (valid ones)
+        int[] genes = bestSolution.getGenes();
         for (int i = 0; i < requirements.size(); i++) {
             Staff staff = bestSolution.getStaffAt(i);
-            if (staff != null) {
-                ShiftRequirement req = requirements.get(i);
-                String key = staff.getId() + "_" + req.getWorkDate().toString();
-                assignments.put(key, req.getShiftType().getId());
+            if (staff == null) continue;
+            
+            ShiftRequirementInfo req = requirements.get(i);
+            String shiftKey = req.workDate() + "_" + req.shiftTypeId();
+            
+            Set<Integer> staffSet = dateShiftStaffMap.computeIfAbsent(shiftKey, k -> new HashSet<>());
+            staffSet.add(staff.getId());
+        }
+        
+        // Second pass: greedy fill ALL unassigned requirements
+        for (ShiftRequirementInfo req : requirements) {
+            String shiftKey = req.workDate() + "_" + req.shiftTypeId();
+            
+            // Check if this shift already has staff
+            Set<Integer> assigned = dateShiftStaffMap.getOrDefault(shiftKey, Collections.emptySet());
+            if (!assigned.isEmpty()) continue; // Already filled
+            
+            // Find first available staff for this requirement
+            for (Staff staff : activeStaff) {
+                String staffDateKey = staff.getId() + "_" + req.workDate();
+                
+                // Check if staff already assigned to any shift on this date
+                boolean staffBusy = false;
+                for (Set<Integer> staffIds : dateShiftStaffMap.values()) {
+                    if (staffIds.contains(staff.getId()) && staffDateKey.startsWith(staff.getId() + "_")) {
+                        staffBusy = true;
+                        break;
+                    }
+                }
+                if (staffBusy) continue;
+                
+                // Assign this staff
+                assigned.add(staff.getId());
+                dateShiftStaffMap.put(shiftKey, assigned);
+                assignments.put(staffDateKey, req.shiftTypeId());
+                break;
             }
         }
         
@@ -361,6 +429,11 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
         
         long executionTime = System.currentTimeMillis() - startTime;
         
+        // Count filled requirements
+        long filledCount = requirements.stream()
+                .filter(req -> dateShiftStaffMap.containsKey(req.workDate() + "_" + req.shiftTypeId()))
+                .count();
+        
         return SchedulingResult.builder()
                 .assignments(assignments)
                 .valid(bestSolution.getConflictCount() == 0)
@@ -368,8 +441,9 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
                 .totalScore(bestSolution.getFitness() > 0 ? 
                         BigDecimal.valueOf(bestSolution.getFitness()) : BigDecimal.ZERO)
                 .fairnessScore(BigDecimal.valueOf(bestSolution.getBalanceScore() * 100))
-                .coverageScore(BigDecimal.valueOf(bestSolution.getCoverageRate() * 100))
-                .scheduleCount(bestSolution.getAssignmentCount())
+                .coverageScore(requirements.isEmpty() ? BigDecimal.valueOf(100) : 
+                        BigDecimal.valueOf((double) filledCount / requirements.size() * 100))
+                .scheduleCount(assignments.size())
                 .executionTimeMs(executionTime)
                 .build();
     }
@@ -380,7 +454,7 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
             SchedulingResult previousResult,
             ScheduleChange deltaChanges,
             List<Staff> staffList,
-            List<ShiftRequirement> requirements,
+            List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
         // GA doesn't support incremental solving yet - do full solve
         return solve(staffList, null, null, requirements, null, leaveRequests, null);

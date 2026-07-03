@@ -234,30 +234,54 @@ public class AlgorithmConfigService {
         upsert(AUTO_GEN_ENABLED, getStringValue(AUTO_GEN_ENABLED, "true"), AlgorithmConfig.ValueType.BOOLEAN,
                 "Tự động tạo yêu cầu nhân sự khi mở kỳ lịch mới. Bật ON để hệ thống tự đề xuất lịch cho từng người.");
         map.put(AUTO_GEN_ENABLED, "OK");
-        upsert(AUTO_GEN_L01_PER_DAY, getStringValue(AUTO_GEN_L01_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+        upsert(AUTO_GEN_L01_MIN_PER_DAY, getStringValue(AUTO_GEN_L01_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối thiểu cần xếp cho ca L01 (Lịch trực 24/24) mỗi ngày. Tăng nếu tỷ lệ phủ L01 chưa đạt.");
-        map.put(AUTO_GEN_L01_PER_DAY, "OK");
-        upsert(AUTO_GEN_L02_PER_DAY, getStringValue(AUTO_GEN_L02_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+        map.put(AUTO_GEN_L01_MIN_PER_DAY, "OK");
+        upsert(AUTO_GEN_L02_MIN_PER_DAY, getStringValue(AUTO_GEN_L02_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối thiểu cần xếp cho ca L02 (Lịch thông tầm) mỗi ngày. Điều chỉnh theo nhu cầu khám thường.");
-        map.put(AUTO_GEN_L02_PER_DAY, "OK");
-        upsert(AUTO_GEN_L03_PER_DAY, getStringValue(AUTO_GEN_L03_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+        map.put(AUTO_GEN_L02_MIN_PER_DAY, "OK");
+        upsert(AUTO_GEN_L03_MIN_PER_DAY, getStringValue(AUTO_GEN_L03_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối thiểu cần xếp cho ca L03 (Phòng khám dịch vụ) mỗi ngày.");
-        map.put(AUTO_GEN_L03_PER_DAY, "OK");
-        upsert(AUTO_GEN_L04_PER_DAY, getStringValue(AUTO_GEN_L04_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+        map.put(AUTO_GEN_L03_MIN_PER_DAY, "OK");
+        upsert(AUTO_GEN_L04_MIN_PER_DAY, getStringValue(AUTO_GEN_L04_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối thiểu cần xếp cho ca L04 (Phòng khám chuyên gia) mỗi ngày.");
-        map.put(AUTO_GEN_L04_PER_DAY, "OK");
-        upsert(AUTO_GEN_L01_PER_WEEK, getStringValue(AUTO_GEN_L01_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
+        map.put(AUTO_GEN_L04_MIN_PER_DAY, "OK");
+        upsert(AUTO_GEN_L01_MIN_PER_WEEK, getStringValue(AUTO_GEN_L01_MIN_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca L01 tối thiểu mỗi người trong 1 tuần. Giúp đảm bảo công bằng phân bổ trực đêm cho nhân sự.");
-        map.put(AUTO_GEN_L01_PER_WEEK, "OK");
-        upsert(AUTO_GEN_L02_PER_WEEK, getStringValue(AUTO_GEN_L02_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
+        map.put(AUTO_GEN_L01_MIN_PER_WEEK, "OK");
+        upsert(AUTO_GEN_L02_MIN_PER_WEEK, getStringValue(AUTO_GEN_L02_MIN_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca L02 tối thiểu mỗi người trong 1 tuần. Đảm bảo mỗi người có đủ ca ngày theo quy định.");
-        map.put(AUTO_GEN_L02_PER_WEEK, "OK");
-        upsert(AUTO_GEN_L03_PER_WEEK, getStringValue(AUTO_GEN_L03_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
+        map.put(AUTO_GEN_L02_MIN_PER_WEEK, "OK");
+        upsert(AUTO_GEN_L03_MIN_PER_WEEK, getStringValue(AUTO_GEN_L03_MIN_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca L03 tối thiểu mỗi người trong 1 tuần.");
-        map.put(AUTO_GEN_L03_PER_WEEK, "OK");
-        upsert(AUTO_GEN_L04_PER_WEEK, getStringValue(AUTO_GEN_L04_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
+        map.put(AUTO_GEN_L03_MIN_PER_WEEK, "OK");
+        upsert(AUTO_GEN_L04_MIN_PER_WEEK, getStringValue(AUTO_GEN_L04_MIN_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca L04 tối thiểu mỗi người trong 1 tuần.");
-        map.put(AUTO_GEN_L04_PER_WEEK, "OK");
+        map.put(AUTO_GEN_L04_MIN_PER_WEEK, "OK");
+        upsert(AUTO_GEN_L01_MAX_PER_DAY, getStringValue(AUTO_GEN_L01_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối đa L01 mỗi ngày. 0 = không giới hạn.");
+        map.put(AUTO_GEN_L01_MAX_PER_DAY, "OK");
+        upsert(AUTO_GEN_L02_MAX_PER_DAY, getStringValue(AUTO_GEN_L02_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối đa L02 mỗi ngày. 0 = không giới hạn.");
+        map.put(AUTO_GEN_L02_MAX_PER_DAY, "OK");
+        upsert(AUTO_GEN_L03_MAX_PER_DAY, getStringValue(AUTO_GEN_L03_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối đa L03 mỗi ngày. 0 = không giới hạn.");
+        map.put(AUTO_GEN_L03_MAX_PER_DAY, "OK");
+        upsert(AUTO_GEN_L04_MAX_PER_DAY, getStringValue(AUTO_GEN_L04_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối đa L04 mỗi ngày. 0 = không giới hạn.");
+        map.put(AUTO_GEN_L04_MAX_PER_DAY, "OK");
+        upsert(AUTO_GEN_L01_MAX_PER_WEEK, getStringValue(AUTO_GEN_L01_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L01 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
+        map.put(AUTO_GEN_L01_MAX_PER_WEEK, "OK");
+        upsert(AUTO_GEN_L02_MAX_PER_WEEK, getStringValue(AUTO_GEN_L02_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L02 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
+        map.put(AUTO_GEN_L02_MAX_PER_WEEK, "OK");
+        upsert(AUTO_GEN_L03_MAX_PER_WEEK, getStringValue(AUTO_GEN_L03_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L03 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
+        map.put(AUTO_GEN_L03_MAX_PER_WEEK, "OK");
+        upsert(AUTO_GEN_L04_MAX_PER_WEEK, getStringValue(AUTO_GEN_L04_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L04 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
+        map.put(AUTO_GEN_L04_MAX_PER_WEEK, "OK");
         upsert(AUTO_GEN_HOLIDAY_MODE, getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"), AlgorithmConfig.ValueType.STRING,
                 "Xử lý khi gặp ngày lễ: SKIP = bỏ qua ngày lễ (không xếp lịch), PARTIAL = vẫn xếp lịch nhưng giảm cường độ.");
         map.put(AUTO_GEN_HOLIDAY_MODE, "OK");
@@ -282,6 +306,18 @@ public class AlgorithmConfigService {
         upsert(BACKTRACK_TIME_LIMIT_SECONDS, getStringValue(BACKTRACK_TIME_LIMIT_SECONDS, "60"), AlgorithmConfig.ValueType.NUMBER,
                 "Thời gian tối đa cho phép thuật toán backtracking chạy (giây). Hết thời gian → dừng và trả kết quả tốt nhất đã tìm được.");
         map.put(BACKTRACK_TIME_LIMIT_SECONDS, "OK");
+        upsert(MIN_STAFF_PER_SHIFT, getStringValue(MIN_STAFF_PER_SHIFT, "1"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối thiểu cho mỗi ca trực. Tăng nếu cần nhiều người trực cùng lúc.");
+        map.put(MIN_STAFF_PER_SHIFT, "OK");
+        upsert(MAX_STAFF_PER_SHIFT, getStringValue(MAX_STAFF_PER_SHIFT, "5"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối đa cho mỗi ca trực. Giới hạn tránh quá tải một ca.");
+        map.put(MAX_STAFF_PER_SHIFT, "OK");
+        upsert(MIN_SHIFTS_PER_STAFF, getStringValue(MIN_SHIFTS_PER_STAFF, "0"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca tối thiểu mỗi nhân sự trong kỳ lịch. Đặt 0 để không giới hạn.");
+        map.put(MIN_SHIFTS_PER_STAFF, "OK");
+        upsert(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "20"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca tối đa mỗi nhân sự trong kỳ lịch. Bảo vệ nhân sự khỏi bị quá tải.");
+        map.put(MAX_SHIFTS_PER_STAFF, "OK");
         return map;
     }
 

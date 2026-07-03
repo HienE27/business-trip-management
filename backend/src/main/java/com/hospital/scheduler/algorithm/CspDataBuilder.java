@@ -1,7 +1,6 @@
 package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.entity.LeaveRequest;
-import com.hospital.scheduler.entity.ShiftRequirement;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +34,7 @@ class CspDataBuilder {
     ProblemData build(
             List<Staff> staffList,
             List<LocalDate> dates,
-            List<ShiftRequirement> requirements,
+            List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
 
         int numDays = dates.size();
@@ -90,14 +89,14 @@ class CspDataBuilder {
 
     // ==================== private helpers ====================
 
-    private int[][] countSlots(List<LocalDate> dates, int numDays, List<ShiftRequirement> requirements) {
+    private int[][] countSlots(List<LocalDate> dates, int numDays, List<ShiftRequirementInfo> requirements) {
         int numShifts = SHIFT_ORDER.length;
         int[][] slotCount = new int[numDays][numShifts];
-        for (ShiftRequirement req : requirements) {
-            int dayIdx = (int) ChronoUnit.DAYS.between(dates.get(0), req.getWorkDate());
-            int shiftIdx = getShiftIdx(req.getShiftType().getId());
+        for (ShiftRequirementInfo req : requirements) {
+            int dayIdx = (int) ChronoUnit.DAYS.between(dates.get(0), req.workDate());
+            int shiftIdx = getShiftIdx(req.shiftTypeId());
             if (dayIdx >= 0 && dayIdx < numDays && shiftIdx >= 0) {
-                slotCount[dayIdx][shiftIdx] += req.getRequiredStaffCount();
+                slotCount[dayIdx][shiftIdx] += req.requiredCount();
             }
         }
         return slotCount;

@@ -1,7 +1,6 @@
 package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.entity.LeaveRequest;
-import com.hospital.scheduler.entity.ShiftRequirement;
 import com.hospital.scheduler.entity.Staff;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -61,7 +60,7 @@ public class CSPScheduler implements SchedulingAlgorithm {
             List<Staff> staffList,
             LocalDate startDate,
             LocalDate endDate,
-            List<ShiftRequirement> requirements,
+            List<ShiftRequirementInfo> requirements,
             Set<String> existingCompensationDays,
             List<LeaveRequest> leaveRequests,
             Set<Integer> excludedStaffIds) {
@@ -104,7 +103,7 @@ public class CSPScheduler implements SchedulingAlgorithm {
             SchedulingResult previousResult,
             ScheduleChange deltaChanges,
             List<Staff> staffList,
-            List<ShiftRequirement> requirements,
+            List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
         return incrementalResolver.reSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests);
     }

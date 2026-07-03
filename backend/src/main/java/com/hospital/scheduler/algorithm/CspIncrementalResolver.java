@@ -1,7 +1,6 @@
 package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.entity.LeaveRequest;
-import com.hospital.scheduler.entity.ShiftRequirement;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
@@ -10,13 +9,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static com.hospital.scheduler.algorithm.CspConstants.DIRECT_24H;
 
@@ -41,7 +34,7 @@ class CspIncrementalResolver {
             SchedulingResult previousResult,
             ScheduleChange deltaChanges,
             List<Staff> staffList,
-            List<ShiftRequirement> requirements,
+            List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
 
         long startTime = System.currentTimeMillis();
@@ -68,7 +61,7 @@ class CspIncrementalResolver {
             SchedulingResult previousResult,
             ScheduleChange deltaChanges,
             List<Staff> staffList,
-            List<ShiftRequirement> requirements,
+            List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
 
         long startTime = System.currentTimeMillis();
@@ -87,9 +80,9 @@ class CspIncrementalResolver {
         }
         if (startDate == null || endDate == null) {
             if (requirements != null && !requirements.isEmpty()) {
-                startDate = requirements.stream().map(ShiftRequirement::getWorkDate)
+                startDate = requirements.stream().map(ShiftRequirementInfo::workDate)
                         .min(LocalDate::compareTo).orElse(LocalDate.now());
-                endDate = requirements.stream().map(ShiftRequirement::getWorkDate)
+                endDate = requirements.stream().map(ShiftRequirementInfo::workDate)
                         .max(LocalDate::compareTo).orElse(LocalDate.now().plusMonths(1));
             } else {
                 startDate = LocalDate.now();
@@ -109,7 +102,7 @@ class CspIncrementalResolver {
     // ==================== State helpers ====================
 
     private IncrementalState buildIncrementalState(
-            SchedulingResult previousResult, List<Staff> staffList, List<ShiftRequirement> requirements) {
+            SchedulingResult previousResult, List<Staff> staffList, List<ShiftRequirementInfo> requirements) {
 
         IncrementalState state = new IncrementalState();
         state.staffIndexMap = new HashMap<>();
@@ -124,8 +117,8 @@ class CspIncrementalResolver {
 
         if (requirements != null) {
             int varIdx = 0;
-            for (ShiftRequirement req : requirements) {
-                String varKey = req.getWorkDate() + "|" + req.getShiftType().getId();
+            for (ShiftRequirementInfo req : requirements) {
+                String varKey = req.workDate() + "|" + req.shiftTypeId();
                 if (!state.varIndexMap.containsKey(varKey)) {
                     state.varIndexMap.put(varKey, varIdx++);
                 }

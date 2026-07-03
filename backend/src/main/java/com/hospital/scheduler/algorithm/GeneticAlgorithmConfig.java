@@ -22,7 +22,7 @@ public record GeneticAlgorithmConfig(
         0.1,    // mutationRate
         0.1,    // eliteRate
         5,      // tournamentSize
-        30000,  // timeLimitMs
+        60000,  // timeLimitMs - increased to 60 seconds
         100.0,  // conflictWeight
         10.0,   // balanceWeight
         50.0    // coverageWeight
