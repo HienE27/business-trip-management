@@ -39,10 +39,6 @@ const WorkloadChart = dynamic(
   () => import("@/components/auto-scheduling/WorkloadChart").then((m) => m.WorkloadChart),
   { loading: () => <Skeleton className="h-64 rounded-xl" /> },
 );
-const AlgorithmBalanceChart = dynamic(
-  () => import("@/components/auto-scheduling/AlgorithmBalanceChart").then((m) => m.AlgorithmBalanceChart),
-  { loading: () => <Skeleton className="h-64 rounded-xl" /> },
-);
 const AutoSchedulePanel = dynamic(
   () => import("@/components/monthly-schedule/AutoSchedulePanel").then((m) => m.AutoSchedulePanel),
   { loading: () => <Skeleton className="h-96 rounded-xl" /> },
@@ -57,68 +53,8 @@ import { useRole, canManage } from "@/hooks/useRole";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { RuntimeParamsChips } from "@/components/auto-scheduling/RuntimeParamsChips";
-import type { SchedulePeriod, Staff, AlgorithmMetrics, ReplacementSuggestion, AutoScheduleSummary, ScheduleTemplate, TemplatePreviewItem } from "@/types/api";
-import { parseNumber, formatCoverageRate, formatPercent } from "@/lib/number-utils";
-
-function MetricsHistorySection({ periodId }: { periodId: number | null }) {
-  const [metrics, setMetrics] = useState<AlgorithmMetrics[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!periodId) return;
-    let ignore = false;
-    setLoading(true);
-    api.getMetricsByPeriod(periodId)
-      .then((data) => { if (!ignore && data) setMetrics(data as AlgorithmMetrics[]); })
-      .catch(() => { if (!ignore) setMetrics([]); })
-      .finally(() => { if (!ignore) setLoading(false); });
-    return () => { ignore = true; };
-  }, [periodId]);
-
-  if (loading) return <Skeleton className="h-20 rounded-xl" />;
-  if (!metrics.length) {
-    return (
-      <div className="py-8 text-center">
-        <p className="text-label-sm text-on-surface-variant">
-          Chưa có lịch sử chạy thuật toán cho kỳ này.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="overflow-x-auto max-h-48">
-      <table className="w-full text-left border-collapse" aria-label="Lịch sử thuật toán">
-        <thead className="bg-surface-container-low border-b border-outline-variant sticky top-0">
-          <tr>
-            <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Thuật toán</th>
-            <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Tổng ca</th>
-            <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Thời gian</th>
-            <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Tỷ lệ phủ</th>
-            <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Cân bằng</th>
-            <th scope="col" className="p-3 text-label-xs text-on-surface-variant uppercase">Xung đột</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-outline-variant/30">
-          {metrics.map((m) => (
-            <tr key={m.id} className="hover:bg-surface-container-low transition-colors">
-              <td className="p-3 text-label-sm text-primary font-semibold">{m.algorithmType}</td>
-              <td className="p-3 text-label-sm text-on-surface font-semibold">{m.totalSchedulesCreated ?? 0}</td>
-              <td className="p-3 text-label-sm text-on-surface">{m.executionTimeMs}ms</td>
-              <td className="p-3 text-label-sm text-on-surface">{formatCoverageRate(m.coverageRate)}</td>
-              <td className="p-3 text-label-sm text-on-surface">{formatPercent(m.balanceScore, 1)}</td>
-              <td className="p-3 text-label-sm">
-                <span className={m.conflictCount > 0 ? "text-error font-semibold" : "text-secondary"}>
-                  {m.conflictCount}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
+import type { SchedulePeriod, Staff, ReplacementSuggestion, AutoScheduleSummary, ScheduleTemplate, TemplatePreviewItem } from "@/types/api";
 
 function PageHeaderSkeleton() {
   return (
@@ -163,6 +99,7 @@ export default function AutoSchedulingPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingStaffIds, setEditingStaffIds] = useState<Map<string | number, number>>(new Map());
   const [previewEditItem, setPreviewEditItem] = useState<import("@/types/api").AutoScheduleSummary | null>(null);
+  const [autoGenerateRequirements, setAutoGenerateRequirements] = useState(false);
 
   const loadWorkspace = useCallback(async () => {
     try {
@@ -213,7 +150,7 @@ export default function AutoSchedulingPage() {
 
   const handleRunPreview = () => {
     if (!selectedPeriodId) return;
-    void runPreview(selectedPeriodId, excludedStaffIds);
+    void runPreview(selectedPeriodId, excludedStaffIds, autoGenerateRequirements);
   };
 
   const handleApplyPreview = async () => {
@@ -350,59 +287,81 @@ export default function AutoSchedulingPage() {
 
       {/* Header controls card */}
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 p-4">
-          {/* Left: Period selector */}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Period selector */}
-            <div className="relative">
-              <label htmlFor="auto-period-select" className="sr-only">Kỳ xếp lịch</label>
-              <select
-                id="auto-period-select"
-                className="h-11 rounded-lg border-2 border-outline-variant bg-surface-container-low px-4 pr-10 text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-                value={selectedPeriodId ?? ""}
-                onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
-              >
-                {periods.map((p) => (
-                  <option key={p.id} value={p.id}>{p.periodName}</option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]" aria-hidden="true">expand_more</span>
+        <div className="flex flex-col gap-4 p-4">
+          {/* Row 1: Period selector + Action buttons */}
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            {/* Left: Period selector */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Period selector */}
+              <div className="relative">
+                <label htmlFor="auto-period-select" className="sr-only">Kỳ xếp lịch</label>
+                <select
+                  id="auto-period-select"
+                  className="h-8 rounded-lg border border-outline-variant bg-surface-container-low px-3 pr-9 text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                  value={selectedPeriodId ?? ""}
+                  onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
+                >
+                  {periods.map((p) => (
+                    <option key={p.id} value={p.id}>{p.periodName}</option>
+                  ))}
+                </select>
+                <span className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]" aria-hidden="true">expand_more</span>
+              </div>
+              {selectedPeriod && (
+                <>
+                  <Badge tone={selectedPeriod.status === "DRAFT" ? "info" : "success"} dot size="sm">
+                    {selectedPeriod.status === "DRAFT" ? "Nháp" : "Đã công bố"}
+                  </Badge>
+                  <span className="text-[11px] text-on-surface-variant flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface-container-low border border-outline-variant/50">
+                    <span className="material-symbols-outlined text-[14px]">groups</span>
+                    <span className="font-semibold tabular-nums">{activeStaff.length}</span> nhân sự
+                  </span>
+                  {selectedPeriod.startDate && selectedPeriod.endDate && (
+                    <span className="text-[11px] text-on-surface-variant hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface-container-low border border-outline-variant/50">
+                      <span className="material-symbols-outlined text-[14px]">date_range</span>
+                      {new Date(selectedPeriod.startDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })}
+                      {" → "}
+                      {new Date(selectedPeriod.endDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                    </span>
+                  )}
+                </>
+              )}
             </div>
-            {selectedPeriod && (
-              <Badge tone={selectedPeriod.status === "DRAFT" ? "info" : "success"} dot size="sm">
-                {selectedPeriod.status === "DRAFT" ? "Nháp" : "Đã công bố"}
-              </Badge>
-            )}
-            <RuntimeParamsChips compact />
+
+            {/* Right: Action links */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/auto-scheduling/algorithm-config">
+                <Button variant="secondary" size="sm" icon={<span className="material-symbols-outlined text-[16px]">tune</span>} className="whitespace-nowrap">
+                  Cấu hình
+                </Button>
+              </Link>
+              <Link href="/auto-scheduling/history">
+                <Button variant="secondary" size="sm" icon={<span className="material-symbols-outlined text-[16px]">history</span>} className="whitespace-nowrap">
+                  Lịch sử
+                </Button>
+              </Link>
+              <Link href="/monthly-schedule">
+                <Button variant="secondary" size="sm" icon={<span className="material-symbols-outlined text-[16px]">calendar_month</span>} className="whitespace-nowrap">
+                  Lịch trực
+                </Button>
+              </Link>
+              {isManager && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<span className="material-symbols-outlined text-[16px]">bolt</span>}
+                  onClick={() => setBulkModalOpen(true)}
+                  className="whitespace-nowrap"
+                >
+                  Công bố hàng loạt
+                </Button>
+              )}
+            </div>
           </div>
 
-          {/* Right: Action links */}
-          <div className="flex items-center gap-2">
-            <Link href="/auto-scheduling/algorithm-config">
-              <Button variant="secondary" size="sm" icon={<span className="material-symbols-outlined text-[16px]">tune</span>}>
-                Cấu hình
-              </Button>
-            </Link>
-            <Link href="/auto-scheduling/history">
-              <Button variant="secondary" size="sm" icon={<span className="material-symbols-outlined text-[16px]">history</span>}>
-                Lịch sử
-              </Button>
-            </Link>
-            <Link href="/monthly-schedule">
-              <Button variant="secondary" size="sm" icon={<span className="material-symbols-outlined text-[16px]">calendar_month</span>}>
-                Lịch trực
-              </Button>
-            </Link>
-            {isManager && (
-              <Button
-                variant="primary"
-                size="sm"
-                icon={<span className="material-symbols-outlined text-[16px]">bolt</span>}
-                onClick={() => setBulkModalOpen(true)}
-              >
-                Công bố hàng loạt
-              </Button>
-            )}
+          {/* Row 2: Runtime params — full width strip below */}
+          <div className="pt-3 border-t border-outline-variant/60">
+            <RuntimeParamsChips compact />
           </div>
         </div>
       </div>
@@ -438,69 +397,55 @@ export default function AutoSchedulingPage() {
           isManager={isManager}
           onSaveTemplate={() => setSaveModalOpen(true)}
           onApplyTemplate={openApplyTemplateModal}
+          autoGenerateRequirements={autoGenerateRequirements}
+          onAutoGenerateRequirementsChange={setAutoGenerateRequirements}
         />
       )}
 
-      {/* Staff exclusions */}
-      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-fixed">
-            <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden="true">block</span>
+      {/* Staff exclusions — collapsible */}
+      <CollapsibleCard
+        title="Ngoại lệ nhân sự"
+        subtitle="Loại trừ nhân sự khỏi lịch tự động"
+        icon="block"
+        summary={
+          <div className="flex items-center gap-2">
+            <Badge tone="success" size="sm">
+              <span className="material-symbols-outlined text-[12px]">group</span>
+              {activeStaff.length - excludedStaffIds.length} tham gia
+            </Badge>
+            {excludedStaffIds.length > 0 && (
+              <Badge tone="error" size="sm">
+                <span className="material-symbols-outlined text-[12px]">group_remove</span>
+                {excludedStaffIds.length} loại trừ
+              </Badge>
+            )}
           </div>
-          <div>
-            <p className="text-title-sm font-semibold text-on-surface">Ngoại lệ nhân sự</p>
-            <p className="text-label-xs text-on-surface-variant">Loại trừ nhân sự khỏi lịch tự động</p>
-          </div>
-        </div>
+        }
+      >
         <StaffExclusionTable
           staff={activeStaff}
           excludedIds={excludedStaffIds}
           onExclusionsChange={setExcludedStaffIds}
           loading={loading}
         />
-      </div>
+      </CollapsibleCard>
 
       {/* Charts + History — only when preview exists */}
       {previewResult && (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-              <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-fixed">
-                  <span className="material-symbols-outlined text-[16px] text-primary" aria-hidden="true">balance</span>
-                </div>
-                <p className="text-title-sm font-semibold text-on-surface">Biểu đồ cân bằng</p>
-              </div>
-              <div className="p-4">
-                <AlgorithmBalanceChart schedules={previewResult.schedules} />
-              </div>
+        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+          <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary-container">
+              <span className="material-symbols-outlined text-[16px] text-on-secondary-container" aria-hidden="true">group</span>
             </div>
-
-            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-              <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary-container">
-                  <span className="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">group</span>
-                </div>
-                <p className="text-title-sm font-semibold text-on-surface">Khối lượng theo nhân sự</p>
-              </div>
-              <div className="p-4">
-                <WorkloadChart periodId={selectedPeriodId!} previewSchedules={previewResult?.schedules} />
-              </div>
+            <div className="min-w-0">
+              <p className="text-title-sm font-semibold text-on-surface">Khối lượng theo nhân sự</p>
+              <p className="text-label-xs text-on-surface-variant">Theo ca · theo loại · cân bằng</p>
             </div>
           </div>
-
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-tertiary-container">
-                <span className="material-symbols-outlined text-[16px] text-tertiary" aria-hidden="true">history</span>
-              </div>
-              <p className="text-title-sm font-semibold text-on-surface">Lịch sử thuật toán</p>
-            </div>
-            <div className="p-4">
-              <MetricsHistorySection periodId={selectedPeriodId} />
-            </div>
+          <div className="p-4">
+            <WorkloadChart periodId={selectedPeriodId!} previewSchedules={previewResult?.schedules} />
           </div>
-        </>
+        </div>
       )}
 
       <ApplyConfirmationModal

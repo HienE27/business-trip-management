@@ -12,10 +12,15 @@ import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import com.hospital.scheduler.util.DateUtils;
 import com.hospital.scheduler.algorithm.AutoGenConfig;
+import com.hospital.scheduler.algorithm.CSPScheduler;
 import com.hospital.scheduler.algorithm.GeneticAlgorithmScheduler;
+import com.hospital.scheduler.algorithm.SchedulingResult;
+import com.hospital.scheduler.algorithm.ShiftRequirementInfo;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
@@ -54,6 +59,7 @@ public class AutoSchedulingService {
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
     private final GeneticAlgorithmScheduler geneticAlgorithmScheduler;
+    private final CSPScheduler cspScheduler;
     private final EntityManager entityManager;
     private final ScheduleConflictRepository scheduleConflictRepository;
     private final PreviewConflictCheckService previewConflictCheckService;
@@ -375,14 +381,38 @@ public class AutoSchedulingService {
                     .collect(Collectors.toList());
         }
 
-        // Generate requirements on-the-fly from algorithm config
+        // Determine if we should auto-generate requirements or use existing DB records
+        boolean doAutoGen = Boolean.TRUE.equals(request.getAutoGenerateRequirements());
         var autoGenConfig = algorithmConfigService.getAutoGenConfig();
-        if (autoGenConfig.isEmpty() || !autoGenConfig.get().enabled()) {
-            throw new BadRequestException("Cấu hình thuật toán chưa được bật. Vui lòng bật auto-gen config.");
+
+        if (doAutoGen) {
+            // Explicit request: must have enabled config
+            if (autoGenConfig.isEmpty() || !autoGenConfig.get().enabled()) {
+                throw new BadRequestException(
+                        "Cấu hình auto-gen chưa được bật. Vui lòng bật auto_generate_requirements trong cấu hình thuật toán.");
+            }
+            var config = autoGenConfig.get();
+            requirements = generateRequirementsFromConfig(period, config, activeStaff);
+            log.info("Auto-generating {} requirements for period {} from config", requirements.size(), period.getId());
+        } else {
+            // Use existing requirements from DB
+            requirements = new ArrayList<>(requirementRepository.findByPeriodId(period.getId()));
+            log.info("Using {} existing requirements from DB for period {}", requirements.size(), period.getId());
         }
-        var config = autoGenConfig.get();
-        requirements = generateRequirementsFromConfig(period, config, activeStaff);
-        log.info("Generated {} requirements for period {} from config", requirements.size(), period.getId());
+
+        // Persist every newly-generated requirement up-front so subsequent Schedule
+        // inserts can reference it through the FK without Hibernate throwing
+        // TransientPropertyValueException. Previously this was an implicit bug
+        // masked by the auto-gen path skipping the entityManager.clear().
+        if (doAutoGen) {
+            requirements = persistRequirementsIfTransient(requirements);
+
+            // Populate generatedRequirements for the response (requirements were auto-generated above)
+            generatedRequirements = requirements.stream()
+                    .filter(r -> r.getNote() != null && r.getNote().startsWith("AUTO:"))
+                    .map(this::toGeneratedRequirementInfo)
+                    .collect(Collectors.toList());
+        }
 
         // Pre-load existing compensation days from the same period so greedy doesn't assign L01 on a day
         // that is already someone's compensation day (confirmed day off — cannot assign L01)
@@ -439,9 +469,12 @@ public class AutoSchedulingService {
                     request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
             log.info("Backtracking completed with {} schedules (iterations: {}, timeLimit: {}s)",
                     createdSchedules.size(), maxIterations, runtimeConfig.getBacktrackTimeLimitSeconds());
-            // Fallback to Greedy if Backtracking finds no solution (production data may be over-constrained)
+            // Fallback to Greedy if Backtracking finds no solution (production data may be over-constrained).
+            // IMPORTANT: forward the original `save` flag so persistence still happens
+            // when the caller asked us to persist (previously used `save=false` which
+            // caused data loss in apply mode).
             if (createdSchedules.isEmpty()) {
-                log.info("Backtracking found no solution, falling back to Greedy algorithm");
+                log.info("Backtracking found no solution, falling back to Greedy algorithm (save={})", save);
                 createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
                         request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
                 log.info("Greedy fallback result: {} schedules", createdSchedules.size());
@@ -457,6 +490,24 @@ public class AutoSchedulingService {
             // Fallback to Greedy if GA finds no solution
             if (createdSchedules.isEmpty()) {
                 log.info("Genetic Algorithm found no solution, falling back to Greedy algorithm");
+                createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
+                        request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
+                log.info("Greedy fallback result: {} schedules", createdSchedules.size());
+            }
+        } else if ("CSP_MRV_FC".equals(algorithmType) || "CSP".equals(algorithmType)) {
+            // Run CSP-MRV-FC (Constraint Satisfaction with MRV + Forward Checking).
+            // The CSP scheduler is the recommended default per spec: it propagates
+            // arc-consistency (AC-3) before search and uses learned nogoods, so it
+            // can produce a feasible solution for over-constrained periods where
+            // Greedy / Round-Robin fail.
+            log.info("Running CSP-MRV-FC for period {}", period.getId());
+            SchedulingResultWithFairness cspResult = runCsp(period, requirements, activeStaff, save,
+                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
+            createdSchedules = cspResult.schedules();
+            gaFairnessScore = cspResult.fairnessScore();
+            log.info("CSP-MRV-FC completed with {} schedules", createdSchedules.size());
+            if (createdSchedules.isEmpty()) {
+                log.warn("CSP-MRV-FC returned 0 schedules for period {} — falling back to Greedy. Check CspSearchEngine logs for INCONSISTENT result.", period.getId());
                 createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
                         request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
                 log.info("Greedy fallback result: {} schedules", createdSchedules.size());
@@ -1255,19 +1306,296 @@ public class AutoSchedulingService {
                 }
             }
             
-            log.info("GA produced {} schedules with {} conflicts", 
+            log.info("GA produced {} schedules with {} conflicts",
                     createdSchedules.size(), gaResult.getErrors().size());
-            
+
             // Return schedules with GA's fairness score (0-100)
-            BigDecimal fairnessScore = gaResult.getFairnessScore() != null 
-                    ? gaResult.getFairnessScore() 
+            BigDecimal fairnessScore = gaResult.getFairnessScore() != null
+                    ? gaResult.getFairnessScore()
                     : BigDecimal.ZERO;
             return new SchedulingResultWithFairness(createdSchedules, fairnessScore);
-            
+
         } catch (Exception e) {
             log.error("Genetic Algorithm failed: {}", e.getMessage(), e);
             return new SchedulingResultWithFairness(new ArrayList<>(), BigDecimal.ZERO);
         }
+    }
+
+    /**
+     * Run CSP-MRV-FC (Constraint Satisfaction with MRV + Forward Checking).
+     *
+     * <p>Pipeline:
+     * <ol>
+     *   <li>Build {@code ProblemData} via {@link com.hospital.scheduler.algorithm.CspDataBuilder}
+     *       which also runs initial AC-3 arc-consistency.</li>
+     *   <li>{@link com.hospital.scheduler.algorithm.CspSearchEngine} performs
+     *       backtracking search with MRV variable ordering, forward-checking
+     *       propagation, and nogood learning from conflicts.</li>
+     *   <li>{@link com.hospital.scheduler.algorithm.CspResultBuilder} shapes the
+     *       raw assignment into the domain {@link SchedulingResult}.</li>
+     * </ol>
+     *
+     * <p>The result's {@code assignments} map uses key format
+     * {@code "staffId|workDate"} (pipe-separated) and value = shift type id
+     * (e.g. {@code L01}, {@code L02}, …). We translate that into JPA
+     * {@link Schedule} entities, mirroring the L01 compensation-day derivation
+     * done by {@code runGeneticAlgorithm}.
+     */
+    private SchedulingResultWithFairness runCsp(
+            SchedulePeriod period,
+            List<ShiftRequirement> requirements,
+            List<Staff> activeStaff,
+            boolean save,
+            Set<Integer> excludedStaffIds) {
+
+        try {
+            // Translate DB requirements -> algorithm DTO
+            List<ShiftRequirementInfo> cspRequirements = requirements.stream()
+                    .map(req -> new ShiftRequirementInfo(
+                            req.getShiftType().getId(),
+                            req.getWorkDate(),
+                            req.getRequiredStaffCount()))
+                    .toList();
+
+            // Existing compensation days (across the period, to avoid
+            // creating overlapping days when we map back to Schedule).
+            Set<String> existingCompDays = new HashSet<>();
+            for (CompensationDay cd : compensationDayRepository.findByPeriodId(period.getId())) {
+                existingCompDays.add(cd.getStaff().getId() + "|" + cd.getCompensationDate().toString());
+            }
+
+            // Approved leave requests in the window — CSP encodes them as
+            // hard domain-pruning constraints in CspDataBuilder.
+            List<LeaveRequest> leaveRequests = leaveRequestRepository.findApprovedInRange(
+                    period.getStartDate(), period.getEndDate());
+
+            // Run CSP
+            SchedulingResult cspResult = cspScheduler.solve(
+                    activeStaff,
+                    period.getStartDate(),
+                    period.getEndDate(),
+                    cspRequirements,
+                    existingCompDays,
+                    leaveRequests,
+                    excludedStaffIds);
+
+            if (cspResult == null || !cspResult.isValid()) {
+                log.warn("CSP-MRV-FC returned no feasible solution for period {}: {}",
+                        period.getId(), cspResult == null ? "null result" : cspResult.getErrors());
+                return new SchedulingResultWithFairness(new ArrayList<>(), BigDecimal.ZERO);
+            }
+
+            // Convert domain assignments -> Schedule entities
+            List<Schedule> createdSchedules = new ArrayList<>();
+            Set<String> allCompensationDays = new HashSet<>(existingCompDays);
+
+            // First pass: collect every L01 assignment's auto-comp day so the
+            // second pass can skip them (mirrors the L01 post-processing in
+            // runGeneticAlgorithm).
+            Map<String, LocalDate> l01CompByKey = new HashMap<>();
+            for (Map.Entry<String, String> entry : cspResult.getAssignments().entrySet()) {
+                if (!ConflictDetectionService.SHIFT_TYPE_L01.equals(entry.getValue())) continue;
+                String[] parts = entry.getKey().split("\\|");
+                if (parts.length != 2) continue;
+                Integer staffId = Integer.parseInt(parts[0]);
+                LocalDate workDate = LocalDate.parse(parts[1]);
+                LocalDate compDate = compensationDateCalculator.calculate(workDate);
+                if (compDate != null) {
+                    allCompensationDays.add(staffId + "|" + compDate);
+                    l01CompByKey.put(entry.getKey(), compDate);
+                }
+            }
+
+            // Second pass: persist
+            // Requirements are pre-persisted in runScheduling() so the FK on
+            // schedule.requirement_id resolves to a managed entity.
+            for (Map.Entry<String, String> entry : cspResult.getAssignments().entrySet()) {
+                String[] parts = entry.getKey().split("\\|");
+                if (parts.length != 2) continue;
+                Integer staffId = Integer.parseInt(parts[0]);
+                LocalDate workDate = LocalDate.parse(parts[1]);
+                String shiftTypeId = entry.getValue();
+
+                if (allCompensationDays.contains(staffId + "|" + workDate)) {
+                    log.debug("Skipping CSP assignment {} - staff is on a compensation day", entry.getKey());
+                    continue;
+                }
+
+                Staff staff = activeStaff.stream()
+                        .filter(s -> s.getId().equals(staffId))
+                        .findFirst().orElse(null);
+                if (staff == null) continue;
+
+                ShiftRequirement req = requirements.stream()
+                        .filter(r -> r.getWorkDate().equals(workDate)
+                                && r.getShiftType().getId().equals(shiftTypeId))
+                        .findFirst().orElse(null);
+                if (req == null) continue;
+
+                Schedule schedule = Schedule.builder()
+                        .period(period)
+                        .staff(staff)
+                        .shiftType(req.getShiftType())
+                        .workDate(workDate)
+                        .requirement(req)
+                        .hasConflict(false)
+                        .build();
+
+                if (save) {
+                    boolean exists = scheduleRepository.existsByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                            period.getId(), staff.getId(), shiftTypeId, workDate);
+                    if (!exists) {
+                        Schedule saved = scheduleRepository.save(schedule);
+                        if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
+                            createCompensationDayForAuto(saved);
+                        }
+                        auditHistoryService.logAction("schedule", saved.getId(),
+                                AuditHistory.ActionType.INSERT, null, saved, null);
+                        createdSchedules.add(saved);
+                    }
+                } else {
+                    createdSchedules.add(schedule);
+                }
+            }
+
+            // Post-process: drop any persisted schedule that lands on a comp day
+            // from this very run (defensive — second pass already skipped most,
+            // but L01 cross-day pairs in same run may still slip through).
+            // Only valid when we actually persisted: with save=false the entity
+            // manager was not touched and the requirement entities stay attached,
+            // but the flush/clear cycle below would detach them mid-loop and
+            // every following iteration would rebuild a transient Schedule from
+            // a detached ShiftRequirement → TransientPropertyValueException.
+            if (save && !createdSchedules.isEmpty()) {
+                entityManager.flush();
+                entityManager.clear();
+                List<Schedule> compDayViolations = createdSchedules.stream()
+                        .filter(s -> allCompensationDays.contains(
+                                s.getStaff().getId() + "|" + s.getWorkDate().toString()))
+                        .toList();
+                if (!compDayViolations.isEmpty()) {
+                    log.warn("CSP produced {} comp-day violations, removing them", compDayViolations.size());
+                    for (Schedule violation : compDayViolations) {
+                        scheduleRepository.delete(violation);
+                        createdSchedules.remove(violation);
+                    }
+                    entityManager.flush();
+                }
+            }
+
+            BigDecimal fairnessScore = cspResult.getFairnessScore() != null
+                    ? cspResult.getFairnessScore()
+                    : BigDecimal.ZERO;
+            log.info("CSP-MRV-FC produced {} schedules with fairness={} ({}ms)",
+                    createdSchedules.size(), fairnessScore, cspResult.getExecutionTimeMs());
+            return new SchedulingResultWithFairness(createdSchedules, fairnessScore);
+
+        } catch (Exception e) {
+            // Explicit, loud error so we never silently fall through to Greedy
+            // and hide a real bug in the CSP pipeline.
+            log.error("CSP-MRV-FC failed for period {}: {}", period.getId(), e.getMessage(), e);
+            return new SchedulingResultWithFairness(new ArrayList<>(), BigDecimal.ZERO);
+        }
+    }
+
+    /**
+     * Persist any requirements in the list that haven't been saved yet. The auto-gen
+     * path produces fresh {@link ShiftRequirement} entities (no id, detached), and
+     * referencing those from a new {@link Schedule} triggers Hibernate's
+     * {@code TransientPropertyValueException}. This helper saves them once and
+     * returns the resulting managed list so all downstream lookups keep working.
+     *
+     * <p>When a requirement already exists in the DB (e.g. generated twice in the
+     * same run after a previous failed save), we substitute the existing row so
+     * the FK never points at a duplicate.
+     */
+    private List<ShiftRequirement> persistRequirementsIfTransient(List<ShiftRequirement> requirements) {
+        if (requirements == null || requirements.isEmpty()) return requirements;
+
+        // Treat anything without an id as transient — only those need persisting.
+        List<ShiftRequirement> toSave = new ArrayList<>();
+        for (ShiftRequirement req : requirements) {
+            if (req != null && req.getId() == null) {
+                toSave.add(req);
+            }
+        }
+        if (toSave.isEmpty()) return requirements;
+
+        // Look up existing rows by the same 4-tuple as the unique key
+        // (period_id, work_date, shift_type_id, specialty_id). The previous
+        // (work_date, shift_type_id)-only lookup collided with itself for L04,
+        // which has one requirement per specialty per day — different
+        // specialty_ids overwrote each other in the HashMap and the helper
+        // re-inserted a row that already existed, breaking
+        // uk_shift_req_unique. Specialty_id is nullable, so use a sentinel
+        // ("null") for the key.
+        Map<String, ShiftRequirement> existing = new HashMap<>();
+        for (ShiftRequirement req : requirementRepository.findByPeriodId(
+                toSave.get(0).getPeriod().getId())) {
+            String key = req.getWorkDate() + "|" + req.getShiftType().getId() + "|"
+                    + (req.getSpecialty() != null ? req.getSpecialty().getId() : "null");
+            // First write wins — later duplicates with the same 4-tuple
+            // cannot exist anyway because the DB enforces uk_shift_req_unique.
+            existing.putIfAbsent(key, req);
+        }
+
+        List<ShiftRequirement> merged = new ArrayList<>(requirements.size());
+        for (ShiftRequirement req : requirements) {
+            if (req == null) {
+                merged.add(null);
+                continue;
+            }
+            if (req.getId() != null) {
+                merged.add(req);
+                continue;
+            }
+            String key = req.getWorkDate() + "|" + req.getShiftType().getId() + "|"
+                    + (req.getSpecialty() != null ? req.getSpecialty().getId() : "null");
+            ShiftRequirement already = existing.get(key);
+            if (already != null) {
+                merged.add(already);
+            } else {
+                merged.add(req);
+            }
+        }
+
+        List<ShiftRequirement> toInsert = merged.stream()
+                .filter(r -> r != null && r.getId() == null)
+                .toList();
+        if (!toInsert.isEmpty()) {
+            log.info("Persisting {} new ShiftRequirement rows before assignment save", toInsert.size());
+            // Defensive: drop duplicates within toInsert itself so saveAll
+            // never tries to insert two rows with the same 4-tuple. This
+            // guards against the in-memory dedupe in
+            // generateRequirementsForPeriod missing an edge case (e.g. NULL
+            // specialty on a row that already exists).
+            Map<String, ShiftRequirement> dedup = new LinkedHashMap<>();
+            for (ShiftRequirement r : toInsert) {
+                String key = r.getWorkDate() + "|" + r.getShiftType().getId() + "|"
+                        + (r.getSpecialty() != null ? r.getSpecialty().getId() : "null");
+                dedup.putIfAbsent(key, r);
+            }
+            List<ShiftRequirement> uniqueToInsert = new ArrayList<>(dedup.values());
+            List<ShiftRequirement> saved = requirementRepository.saveAll(uniqueToInsert);
+            // Splice saved entities back into the merged list at the right positions
+            for (int i = 0; i < merged.size(); i++) {
+                ShiftRequirement cur = merged.get(i);
+                if (cur != null && cur.getId() == null) {
+                    // find saved
+                    for (ShiftRequirement s : saved) {
+                        if (s.getWorkDate().equals(cur.getWorkDate())
+                                && s.getShiftType().getId().equals(cur.getShiftType().getId())
+                                && Objects.equals(
+                                        s.getSpecialty() != null ? s.getSpecialty().getId() : null,
+                                        cur.getSpecialty() != null ? cur.getSpecialty().getId() : null)) {
+                            merged.set(i, s);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return merged;
     }
 
     private void backtrack(SchedulePeriod period, List<ShiftRequirement> requirements,
@@ -2298,6 +2626,17 @@ public class AutoSchedulingService {
         return metricsRepository.findAll().stream()
                 .map(this::metricsToDTO)
                 .toList();
+    }
+
+    /**
+     * Server-paginated variant of getAllMetrics / getMetricsByPeriod,
+     * used by the auto-scheduling history page's &lt;Pagination&gt; widget.
+     */
+    public Page<AlgorithmMetricsDTO> getMetricsPage(Integer periodId, Pageable pageable) {
+        Page<AlgorithmMetrics> page = (periodId == null)
+                ? metricsRepository.findAll(pageable)
+                : metricsRepository.findByPeriodId(periodId, pageable);
+        return page.map(this::metricsToDTO);
     }
 
     private List<Map<String, Object>> buildUnassignedDays(List<ShiftRequirement> requirements, List<Schedule> schedules) {

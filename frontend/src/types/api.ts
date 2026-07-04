@@ -8,6 +8,23 @@ export interface ApiResponse<T> {
   timestamp: string;
 }
 
+/**
+ * Spring Data Page envelope exposed at /paginated endpoints.
+ * Mirrors the JSON shape returned by Spring's `Page<T>` serializer — every
+ * field maps 1:1 to the underlying type so the shared {@code <Pagination>}
+ * component can read totalElements / totalPages / number / size directly.
+ */
+export interface Page<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+  empty: boolean;
+}
+
 // ============================================================
 // Auth Types
 // ============================================================
@@ -54,6 +71,8 @@ export interface StaffSearchParams {
   keyword?: string;
   specialtyId?: number;
   status?: string;
+  role?: string;
+  position?: string;
 }
 
 // ============================================================
@@ -117,19 +136,6 @@ export interface ScheduleRequest {
   shiftTypeId: string;
   requirementId?: number;
   notes?: string;
-}
-
-export interface ShiftRequirement {
-  id: number;
-  periodId: number;
-  workDate: string;
-  shiftType: { id: string; name: string };
-  specialty: { id: number; name: string };
-  requiredStaffCount: number;
-  assignedStaffCount: number;
-  note?: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface DayCoverage {
@@ -323,9 +329,10 @@ export interface AutoScheduleRequest {
   algorithmType?: string;
   maxIterations?: number;
   autoAssign?: boolean;
-  autoGenerateRequirements?: boolean;
   excludedStaffIds?: number[];
   holidayMode?: "SKIP" | "PARTIAL";
+  /** When true, auto-generates shift requirements from config before scheduling */
+  autoGenerateRequirements?: boolean;
 }
 
 export interface AutoScheduleSummary {
@@ -367,6 +374,18 @@ export interface AutoScheduleResult {
     assignedStaffCount: number;
     missingCount: number;
   }>;
+  /** Chi tiết phân bổ theo từng loại lịch (L01/L02/L03/L04) */
+  byShiftType?: Record<string, ShiftTypeBreakdown>;
+}
+
+export interface ShiftTypeBreakdown {
+  shiftTypeId: string;
+  shiftTypeName: string;
+  totalAssigned: number;
+  totalRequired: number;
+  coverageRate: number;
+  unassignedDates: string[];
+  distinctStaffAssigned: number;
 }
 
 export interface UnassignedDayItem {
@@ -535,6 +554,13 @@ export interface AuditHistoryPage {
   first: boolean;
   last: boolean;
   empty: boolean;
+}
+
+export interface AuditHistorySummary {
+  total: number;
+  create: number;
+  update: number;
+  delete: number;
 }
 
 // ============================================================

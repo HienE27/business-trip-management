@@ -25,9 +25,6 @@ public class AutoScheduleRequestDTO {
     private Boolean autoAssign = true;
 
     @Builder.Default
-    private Boolean autoGenerateRequirements = false;
-
-    @Builder.Default
     private List<Integer> excludedStaffIds = List.of();
 
     /**
@@ -37,4 +34,12 @@ public class AutoScheduleRequestDTO {
      * When null, uses the value from algorithm_config DB.
      */
     private String holidayMode;
+
+    /**
+     * When true, the algorithm auto-generates ShiftRequirement records
+     * for every day in the period before assigning staff.
+     * Requires auto_gen_enabled=true in algorithm_config.
+     */
+    @Builder.Default
+    private Boolean autoGenerateRequirements = false;
 }

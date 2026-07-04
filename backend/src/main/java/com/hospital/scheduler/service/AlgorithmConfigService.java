@@ -8,12 +8,16 @@ import com.hospital.scheduler.dto.request.SaveAlgorithmTemplateRequest;
 import com.hospital.scheduler.dto.response.AlgorithmConfigDTO;
 import com.hospital.scheduler.dto.response.AlgorithmConfigResponse;
 import com.hospital.scheduler.entity.AlgorithmConfig;
+import com.hospital.scheduler.entity.AlgorithmConfigAudit;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
+import com.hospital.scheduler.repository.AlgorithmConfigAuditRepository;
 import com.hospital.scheduler.repository.AlgorithmConfigRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +31,7 @@ import java.util.LinkedHashMap;
 public class AlgorithmConfigService {
 
     private final AlgorithmConfigRepository configRepository;
+    private final AlgorithmConfigAuditRepository auditRepository;
     private final ObjectMapper objectMapper;
 
     // Auto-generate config param keys
@@ -69,6 +74,24 @@ public class AlgorithmConfigService {
                 .toList();
     }
 
+    /**
+     * Paginated variant of {@link #getAllConfigs()}. Uses {@link org.springframework.data.jpa.repository.JpaSpecificationExecutor}
+     * pattern via {@link com.hospital.scheduler.repository.AlgorithmConfigRepository} — for now
+     * we rely on the built-in {@code findAll(Pageable)} plus a separate fetch-by-id step
+     * to populate the {@code updatedBy} relationship without N+1 lazy loads.
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<AlgorithmConfigDTO> getConfigsPage(
+            org.springframework.data.domain.Pageable pageable) {
+        return configRepository.findAll(
+                org.springframework.data.domain.PageRequest.of(
+                        pageable.getPageNumber(),
+                        pageable.getPageSize(),
+                        org.springframework.data.domain.Sort.by(
+                                org.springframework.data.domain.Sort.Direction.ASC, "paramKey")))
+                .map(this::toDTO);
+    }
+
     public AlgorithmConfigDTO getConfigByParamKey(String paramKey) {
         AlgorithmConfig config = configRepository.findByParamKey(paramKey)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -88,6 +111,8 @@ public class AlgorithmConfigService {
                 .valueType(request.getValueType())
                 .description(request.getDescription())
                 .build());
+        recordAudit(request.getParamKey(), null, request.getParamValue(),
+                AlgorithmConfigAudit.Action.CREATE);
         return toDTO(saved);
     }
 
@@ -96,6 +121,7 @@ public class AlgorithmConfigService {
         AlgorithmConfig config = configRepository.findByParamKey(paramKey)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy cấu hình với paramKey: " + paramKey));
+        String oldValue = config.getParamValue();
         if (request.getParamValue() != null) {
             config.setParamValue(request.getParamValue());
         }
@@ -105,7 +131,12 @@ public class AlgorithmConfigService {
         if (request.getDescription() != null) {
             config.setDescription(request.getDescription());
         }
-        return toDTO(configRepository.save(config));
+        AlgorithmConfig saved = configRepository.save(config);
+        if (request.getParamValue() != null && !java.util.Objects.equals(oldValue, request.getParamValue())) {
+            recordAudit(paramKey, oldValue, request.getParamValue(),
+                    AlgorithmConfigAudit.Action.UPDATE);
+        }
+        return toDTO(saved);
     }
 
     @Transactional
@@ -114,7 +145,40 @@ public class AlgorithmConfigService {
             throw new ResourceNotFoundException(
                     "Không tìm thấy cấu hình với paramKey: " + paramKey);
         }
+        String oldValue = configRepository.findByParamKey(paramKey)
+                .map(AlgorithmConfig::getParamValue).orElse(null);
         configRepository.deleteById(paramKey);
+        recordAudit(paramKey, oldValue, null, AlgorithmConfigAudit.Action.DELETE);
+    }
+
+    /**
+     * Ghi audit entry. Không throw nếu user lookup fail để tránh chặn flow chính.
+     */
+    private void recordAudit(String paramKey, String oldValue, String newValue,
+                             AlgorithmConfigAudit.Action action) {
+        try {
+            String username = currentUsername();
+            auditRepository.save(AlgorithmConfigAudit.builder()
+                    .paramKey(paramKey)
+                    .oldValue(oldValue)
+                    .newValue(newValue == null ? "" : newValue)
+                    .action(action)
+                    .changedByUsername(username)
+                    .build());
+        } catch (Exception e) {
+            // best-effort, never fail main op
+            org.slf4j.LoggerFactory.getLogger(AlgorithmConfigService.class)
+                    .warn("Failed to record audit for {}: {}", paramKey, e.getMessage());
+        }
+    }
+
+    private String currentUsername() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            return auth != null ? auth.getName() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -192,7 +256,8 @@ public class AlgorithmConfigService {
                 getIntValue(AUTO_GEN_L02_MAX_PER_WEEK, 0),
                 getIntValue(AUTO_GEN_L03_MAX_PER_WEEK, 0),
                 getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0),
-                getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP")
+                getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"),
+                getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES")
         ));
     }
 
@@ -221,6 +286,11 @@ public class AlgorithmConfigService {
         upsert(AUTO_GEN_L04_MAX_PER_WEEK, String.valueOf(config.l04MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L04 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
         upsert(AUTO_GEN_HOLIDAY_MODE, config.holidayMode(), AlgorithmConfig.ValueType.STRING,
                 "Xử lý ngày lễ: SKIP = bỏ qua, PARTIAL = giảm cường độ.");
+        String removedCsv = config.removedShiftTypes() == null
+                ? ""
+                : String.join(",", config.removedShiftTypes());
+        upsert("AUTO_GEN_REMOVED_SHIFT_TYPES", removedCsv, AlgorithmConfig.ValueType.STRING,
+                "Danh sách mã loại lịch (L01..L04) bị bỏ qua khi tự động tạo yêu cầu. Phân tách bằng dấu phẩy. Rỗng = không bỏ.");
     }
 
     /**
@@ -346,6 +416,17 @@ public class AlgorithmConfigService {
         return configRepository.findByParamKey(paramKey)
                 .map(AlgorithmConfig::getParamValue)
                 .orElse(defaultValue);
+    }
+
+    private java.util.List<String> getStringListValue(String paramKey) {
+        return configRepository.findByParamKey(paramKey)
+                .map(AlgorithmConfig::getParamValue)
+                .filter(s -> !s.isBlank())
+                .map(s -> java.util.Arrays.stream(s.split(","))
+                        .map(String::trim)
+                        .filter(t -> !t.isEmpty())
+                        .toList())
+                .orElse(java.util.List.of());
     }
 
     /**

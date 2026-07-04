@@ -2,14 +2,18 @@
 
 import { memo, useEffect, useState } from "react";
 import { AutoScheduleMatrixGrid } from "./AutoScheduleMatrixGrid";
+import { ShiftTypeBreakdownCard } from "./ShiftTypeBreakdownCard";
+import { TemplateActionsSplitButton } from "./TemplateActionsSplitButton";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { KPICard } from "@/components/ui/KPICard";
+import { FormCheckbox } from "@/components/ui";
 import type { AutoScheduleResult, SchedulePeriod, Staff } from "@/types/api";
 import { parseNumber, formatCoverageRate, formatPercent } from "@/lib/number-utils";
+import { useAlgorithmProgress } from "@/hooks/useAlgorithmProgress";
 
-type AlgorithmType = "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC";
+type AlgorithmType = "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC";
 type EditedPreview = Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
 
 export type AutoSchedulePanelProps = {
@@ -31,13 +35,24 @@ export type AutoSchedulePanelProps = {
   onSaveTemplate?: () => void;
   onApplyTemplate?: () => void;
   isManager?: boolean;
+  autoGenerateRequirements?: boolean;
+  onAutoGenerateRequirementsChange?: (value: boolean) => void;
 };
 
-const ALGO_CONFIG: Record<AlgorithmType, { icon: string; label: string; color: string; bg: string; hover: string; desc: string }> = {
-  GREEDY: { icon: "bolt", label: "Greedy", color: "text-primary", bg: "bg-primary", hover: "hover:bg-primary/90", desc: "Nhanh, tham lam" },
-  ROUND_ROBIN: { icon: "autorenew", label: "Round Robin", color: "text-secondary", bg: "bg-secondary", hover: "hover:bg-secondary/90", desc: "Cân bằng luân phiên" },
-  BACKTRACKING: { icon: "route", label: "Backtracking", color: "text-tertiary", bg: "bg-tertiary", hover: "hover:bg-tertiary/90", desc: "Tìm kiếm có quay lui" },
-  GENETIC: { icon: "psychology", label: "Di truyền", color: "text-purple-600", bg: "bg-purple-100", hover: "hover:bg-purple-200", desc: "Tiến hóa quần thể" },
+/**
+ * Thông tin hiển thị cho mỗi thuật toán. Tất cả dùng chung 1 bảng màu
+ * primary (xanh đậm) — 5 thuật toán trông đồng nhất, chỉ khác icon + label.
+ */
+const ALGO_CONFIG: Record<AlgorithmType, {
+  icon: string;
+  label: string;
+  desc: string;
+}> = {
+  GREEDY:      { icon: "bolt",         label: "Greedy",       desc: "Nhanh, tham lam" },
+  ROUND_ROBIN: { icon: "autorenew",    label: "Round Robin",  desc: "Cân bằng luân phiên" },
+  BACKTRACKING:{ icon: "route",        label: "Backtracking", desc: "Tìm kiếm có quay lui" },
+  GENETIC:     { icon: "psychology",   label: "Di truyền",    desc: "Tiến hóa quần thể" },
+  CSP_MRV_FC:  { icon: "account_tree", label: "CSP-MRV-FC",   desc: "CSP + MRV + Forward Checking" },
 };
 
 export const AutoSchedulePanel = memo(function AutoSchedulePanel({
@@ -59,42 +74,25 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   onSaveTemplate,
   onApplyTemplate,
   isManager = true,
+  autoGenerateRequirements = false,
+  onAutoGenerateRequirementsChange,
 }: AutoSchedulePanelProps) {
   const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<number>>(new Set());
   const [staffFilterOpen, setStaffFilterOpen] = useState(false);
+  const [staffSearch, setStaffSearch] = useState("");
   const [showUnassigned, setShowUnassigned] = useState(false);
   const isDraft = selectedPeriodStatus === "DRAFT";
-  // Progress tracking state (updated via useEffect when running)
-  const [progressStep, setProgressStep] = useState<string>("");
+  // 8A.1: Real-time progress now via useAlgorithmProgress hook (no fake simulate)
 
   useEffect(() => {
     setViewMode("month");
     setSelectedStaffIds(new Set());
-    setProgressStep("");
+    setStaffSearch("");
   }, [selectedPeriodId]);
 
-  // Simulate progress steps when running
-  useEffect(() => {
-    if (!runningAutoSchedule) {
-      setProgressStep("");
-      return;
-    }
-    const steps = [
-      "Đang tải dữ liệu...",
-      "Đang phân tích yêu cầu...",
-      "Đang chạy thuật toán...",
-      "Đang kiểm tra xung đột...",
-      "Đang tối ưu kết quả...",
-    ];
-    let idx = 0;
-    setProgressStep(steps[0]);
-    const interval = setInterval(() => {
-      idx = (idx + 1) % steps.length;
-      setProgressStep(steps[idx]);
-    }, 800);
-    return () => clearInterval(interval);
-  }, [runningAutoSchedule]);
+  // 8A.1: Real-time progress từ backend (thay simulate)
+  const progress = useAlgorithmProgress(selectedPeriodId, runningAutoSchedule);
 
   const unassignedDays = previewResult?.unassignedDays ?? [];
   const totalMissing = unassignedDays.reduce((sum: number, d: unknown) => sum + ((d as { missingCount?: number }).missingCount ?? 0), 0);
@@ -131,10 +129,12 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                     type="button"
                     onClick={() => onSetAlgorithmType(type)}
                     disabled={runningAutoSchedule}
-                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                      sel 
-                        ? `${cfg.bg} ${cfg.color.replace("text-", "text-on-")}` 
-                        : "border border-outline-variant bg-surface-container-low text-on-surface-variant hover:border-primary hover:bg-surface-container-low"
+                    title={cfg.desc}
+                    aria-pressed={sel}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      sel
+                        ? "bg-primary text-on-primary border-primary"
+                        : "bg-primary-fixed text-primary border-primary/30 hover:brightness-95"
                     }`}
                   >
                     <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{cfg.icon}</span>
@@ -147,6 +147,13 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
+            <FormCheckbox
+              label="Tự động tạo yêu cầu ca trực"
+              description="Hệ thống sẽ tự động tạo yêu cầu cho tất cả các ngày trong kỳ lịch"
+              checked={autoGenerateRequirements}
+              onChange={(e) => onAutoGenerateRequirementsChange?.(e.target.checked)}
+              disabled={runningAutoSchedule}
+            />
             <Button
               variant="primary"
               size="sm"
@@ -184,7 +191,10 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             {runningAutoSchedule && (
               <Badge tone="info" size="sm" className="animate-pulse">
                 <span className="material-symbols-outlined text-[12px]">sync</span>
-                {progressStep || "Đang chạy thuật toán…"}
+                {progress.step || progress.message || "Đang chạy thuật toán…"}
+                {progress.percent > 0 && (
+                  <span className="ml-1 font-mono tabular-nums">({progress.percent}%)</span>
+                )}
               </Badge>
             )}
             {message && (
@@ -200,21 +210,25 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
       {/* ── Preview results ──────────────────────────────────── */}
       {previewResult ? (
         <div className="p-4 space-y-4">
-          {/* KPI Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-            {/* Algorithm Badge Card */}
+          {/* Row 1: Algorithm badge + 4 KPI metrics (5 equal columns on desktop) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {/* Algorithm Badge Card — đồng nhất màu primary cho mọi thuật toán */}
             {algoResultInfo && (
-              <div className={`flex items-center gap-3 p-3 rounded-xl border-2 ${algoResultInfo.bg.replace("bg-", "bg-")}/10 border-${algoResultInfo.bg.replace("bg-", "")}/20`}>
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${algoResultInfo.bg} ${algoResultInfo.color.replace("text-", "text-on-")}`}>
+              <div
+                role="status"
+                aria-label={`Thuật toán đã chạy: ${algoResultInfo.label}`}
+                className="flex items-center gap-3 p-4 rounded-lg border border-primary/30 bg-primary-fixed shadow-sm min-w-0 overflow-hidden"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-on-primary">
                   <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{algoResultInfo.icon}</span>
                 </div>
-                <div>
-                  <p className="text-label-xs text-on-surface-variant">Thuật toán</p>
-                  <p className="text-label-md font-bold text-on-surface">{algoResultInfo.label}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-label-xs text-on-surface-variant leading-tight">Thuật toán</p>
+                  <p className="text-label-md font-bold text-primary truncate">{algoResultInfo.label}</p>
                 </div>
               </div>
             )}
-            
+
             <KPICard
               icon="event_available"
               label="Ca tạo"
@@ -241,26 +255,33 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             />
           </div>
 
+          {/* Row 2: Shift Type Breakdown Cards (own row, separate grid) */}
+          {previewResult.byShiftType && Object.keys(previewResult.byShiftType).length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {Object.entries(previewResult.byShiftType).map(([typeId, breakdown]) => (
+                <ShiftTypeBreakdownCard
+                  key={typeId}
+                  typeId={typeId}
+                  breakdown={breakdown as {
+                    shiftTypeName?: string;
+                    totalAssigned?: number;
+                    totalRequired?: number;
+                    coverageRate?: number;
+                    distinctStaffAssigned?: number;
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
           {/* Quick actions row */}
           {isManager && (
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onSaveTemplate}
-                  icon={<span className="material-symbols-outlined text-[16px]">bookmark_add</span>}
-                >
-                  Lưu mẫu
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onApplyTemplate}
-                  icon={<span className="material-symbols-outlined text-[16px]">download</span>}
-                >
-                  Áp dụng mẫu
-                </Button>
+                <TemplateActionsSplitButton
+                  onApplyTemplate={() => onApplyTemplate?.()}
+                  onSaveTemplate={onSaveTemplate}
+                />
               </div>
               {editedPreview.length > 0 && (
                 <Button
@@ -275,28 +296,40 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             </div>
           )}
 
-          {/* Unassigned alert */}
-          {unassignedDays.length > 0 && (
-            <div className={`rounded-xl border p-4 ${
-              totalMissing > 0 
-                ? "bg-error-container/20 border-error/30" 
-                : "bg-secondary-container/20 border-secondary/30"
-            }`}>
+          {/* Unassigned alert - 8A.5: 3 levels based on missing severity */}
+          {unassignedDays.length > 0 && (() => {
+            const ratio = totalMissing / Math.max(1, unassignedDays.length);
+            const tone = totalMissing === 0 ? "ok" : ratio <= 2 ? "warning" : "critical";
+            const toneStyles = {
+              ok: "bg-secondary-container/20 border-secondary/30",
+              warning: "bg-tertiary-container/20 border-tertiary/30",
+              critical: "bg-error-container/20 border-error/30",
+            };
+            const iconStyles = {
+              ok: "bg-secondary-container text-secondary",
+              warning: "bg-tertiary-container text-tertiary",
+              critical: "bg-error-container text-error",
+            };
+            const textStyles = {
+              ok: "text-secondary",
+              warning: "text-tertiary",
+              critical: "text-error",
+            };
+            const iconName = tone === "ok" ? "check_circle" : tone === "warning" ? "warning" : "error";
+            const severityLabel = tone === "ok" ? "Đủ nhân sự" : tone === "warning" ? "Thiếu nhẹ" : "Thiếu nghiêm trọng";
+            return (
+            <div className={`rounded-xl border p-4 ${toneStyles[tone]}`}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-                    totalMissing > 0 ? "bg-error-container text-error" : "bg-secondary-container text-secondary"
-                  }`}>
-                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">
-                      {totalMissing > 0 ? "warning" : "check_circle"}
-                    </span>
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${iconStyles[tone]}`}>
+                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{iconName}</span>
                   </div>
                   <div>
-                    <p className={`text-label-md font-semibold ${totalMissing > 0 ? "text-error" : "text-secondary"}`}>
-                      {totalMissing > 0 ? `${unassignedDays.length} ngày thiếu ${totalMissing} nhân sự` : "Đủ nhân sự"}
+                    <p className={`text-label-md font-semibold ${textStyles[tone]}`}>
+                      {totalMissing > 0 ? `${unassignedDays.length} ngày thiếu ${totalMissing} nhân sự · ${severityLabel}` : "Đủ nhân sự"}
                     </p>
                     <p className="text-label-xs text-on-surface-variant">
-                      {totalMissing > 0 ? "Một số ca chưa được phân bổ đủ" : "Tất cả ca đã được phân bổ"}
+                      {totalMissing > 0 ? `Trung bình ${ratio.toFixed(1)} NS/ngày bị thiếu` : "Tất cả ca đã được phân bổ"}
                     </p>
                   </div>
                 </div>
@@ -342,7 +375,8 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Matrix controls */}
           <div className="flex items-center justify-between gap-3 pt-2">
@@ -383,10 +417,26 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                   {selectedStaffIds.size > 0 ? `Lọc (${selectedStaffIds.size})` : "Tất cả NS"}
                 </button>
                 {staffFilterOpen && (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-outline-variant bg-surface-container-lowest p-3 shadow-lg">
-                    <p className="text-label-xs font-semibold text-on-surface-variant mb-2">Lọc theo nhân sự</p>
+                  <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-outline-variant bg-surface-container-lowest p-3 shadow-lg">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-label-xs font-semibold text-on-surface-variant">Lọc theo nhân sự</p>
+                      <span className="text-[11px] text-on-surface-variant">
+                        {selectedStaffIds.size > 0
+                          ? `${selectedStaffIds.size}/${activeStaff.length}`
+                          : `${activeStaff.length} NS`}
+                      </span>
+                    </div>
+                    <div className="relative mb-2">
+                      <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[14px] pointer-events-none" aria-hidden="true">search</span>
+                      <input
+                        className="w-full h-8 pl-8 pr-3 rounded-lg border border-outline-variant bg-surface-container-low text-label-xs text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                        placeholder="Tìm nhân sự..."
+                        value={staffSearch}
+                        onChange={e => setStaffSearch(e.target.value)}
+                      />
+                    </div>
                     <div className="max-h-48 overflow-y-auto space-y-1">
-                      {activeStaff.map(staff => {
+                      {activeStaff.filter(s => s.fullName.toLowerCase().includes(staffSearch.toLowerCase())).map(staff => {
                         const sel = selectedStaffIds.has(staff.id);
                         const handleToggle = () => {
                           setSelectedStaffIds(prev => {
@@ -399,18 +449,28 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                             return n;
                           });
                         };
+                        // 8A.4: Tính số ca của staff này trong preview
+                        const staffShiftCount = previewResult?.schedules.filter(s => s.staffId === staff.id).length ?? 0;
                         return (
                           <label key={staff.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-container-low cursor-pointer">
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               checked={sel}
                               onChange={handleToggle}
-                              className="h-4 w-4 shrink-0 rounded border-outline text-primary cursor-pointer focus:ring-2 focus:ring-primary/30" 
+                              className="h-4 w-4 shrink-0 rounded border-outline text-primary cursor-pointer focus:ring-2 focus:ring-primary/30"
                             />
-                            <span className="text-label-xs text-on-surface truncate">{staff.fullName}</span>
+                            <span className="text-label-xs text-on-surface truncate flex-1">{staff.fullName}</span>
+                            {previewResult && (
+                              <span className="text-[10px] font-mono font-semibold text-primary bg-primary-fixed/30 px-1.5 py-0.5 rounded tabular-nums shrink-0">
+                                {staffShiftCount}
+                              </span>
+                            )}
                           </label>
                         );
                       })}
+                      {activeStaff.filter(s => s.fullName.toLowerCase().includes(staffSearch.toLowerCase())).length === 0 && (
+                        <p className="text-[11px] text-on-surface-variant text-center py-2">Không tìm thấy nhân sự</p>
+                      )}
                     </div>
                     {selectedStaffIds.size > 0 && (
                       <button type="button" onClick={() => setSelectedStaffIds(new Set())}
@@ -424,9 +484,8 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             </div>
           </div>
 
-          {/* Schedule matrix */}
+          {/* Schedule matrix - không dùng key={viewMode} để preserve edit state khi đổi week/month */}
           <AutoScheduleMatrixGrid
-            key={viewMode}
             schedules={previewResult.schedules}
             activeStaff={activeStaff}
             year={selectedPeriod ? new Date(selectedPeriod.startDate).getFullYear() : new Date().getFullYear()}

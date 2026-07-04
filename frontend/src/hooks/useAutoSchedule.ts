@@ -13,8 +13,7 @@ export type AutoScheduleState = {
   applying: boolean;
   running: boolean;
   message: string | null;
-  algorithmType: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC";
-  autoGenerateRequirements: boolean;
+  algorithmType: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC";
   holidayMode: "SKIP" | "PARTIAL" | null;
 };
 
@@ -40,8 +39,7 @@ export type AutoScheduleActions = {
   clearPreview: () => void;
   clearMessage: () => void;
   setMessage: (msg: string) => void;
-  setAlgorithmType: (type: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC") => void;
-  setAutoGenerateRequirements: (value: boolean) => void;
+  setAlgorithmType: (type: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC") => void;
   setHolidayMode: (mode: "SKIP" | "PARTIAL" | null) => void;
 };
 
@@ -53,8 +51,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [applying, setApplying] = useState(false);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC">("GREEDY");
-  const [autoGenerateRequirements, setAutoGenerateRequirements] = useState(true);
+  const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC">("GREEDY");
   const [holidayMode, setHolidayMode] = useState<"SKIP" | "PARTIAL" | null>(null);
 
   const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[], autoGenerateReq?: boolean) => {
@@ -67,8 +64,8 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         algorithmType,
         maxIterations: 1000,
         excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
-        autoGenerateRequirements: autoGenerateReq ?? true,
         holidayMode: holidayMode ?? undefined,
+        autoGenerateRequirements: autoGenerateReq,
       });
       setPreviewResult(result.data);
       setEditedPreview([]);
@@ -249,16 +246,12 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   }, []);
 
   const clearMessage = useCallback(() => setMessage(null), []);
-  const setAlgoType = useCallback((type: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC") => {
+  const setAlgoType = useCallback((type: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC") => {
     setAlgorithmType(type);
   }, [setAlgorithmType]);
 
-  const setAutoGen = useCallback((value: boolean) => {
-    setAutoGenerateRequirements(value);
-  }, [setAutoGenerateRequirements]);
-
   return [
-    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType, autoGenerateRequirements, holidayMode },
-    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType, setAutoGenerateRequirements: setAutoGen, setHolidayMode: setHolidayMode },
+    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType, holidayMode },
+    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType, setHolidayMode: setHolidayMode },
   ];
 }

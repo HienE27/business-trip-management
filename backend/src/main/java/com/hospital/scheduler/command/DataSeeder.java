@@ -30,7 +30,6 @@ public class DataSeeder implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
     private final SchedulePeriodRepository periodRepository;
     private final ScheduleRepository scheduleRepository;
-    private final ShiftRequirementRepository shiftRequirementRepository;
     private final CompensationDayRepository compensationDayRepository;
     private final ScheduleTemplateRepository scheduleTemplateRepository;
     private final com.hospital.scheduler.repository.LeaveRequestRepository leaveRequestRepository;
@@ -162,7 +161,8 @@ public class DataSeeder implements CommandLineRunner {
                 0,      // l02MaxPerWeek
                 0,      // l03MaxPerWeek
                 0,      // l04MaxPerWeek
-                "SKIP"  // holidayMode
+                "SKIP",  // holidayMode
+                List.of()  // removedShiftTypes (none by default)
         );
         algorithmConfigService.saveAutoGenConfig(defaults);
 
@@ -302,21 +302,6 @@ public class DataSeeder implements CommandLineRunner {
                     .build();
             SchedulePeriod savedPeriod = periodRepository.save(period);
 
-            // Shift requirements June
-            for (int day = 1; day <= 30; day++) {
-                LocalDate date = LocalDate.of(2026, 6, day);
-                if (date.getDayOfWeek() != java.time.DayOfWeek.SUNDAY) {
-                    shiftRequirementRepository.save(ShiftRequirement.builder()
-                            .period(savedPeriod).workDate(date).shiftType(l01).specialty(doctor).requiredStaffCount(2).build());
-                    shiftRequirementRepository.save(ShiftRequirement.builder()
-                            .period(savedPeriod).workDate(date).shiftType(l02).specialty(doctor).requiredStaffCount(2).build());
-                    shiftRequirementRepository.save(ShiftRequirement.builder()
-                            .period(savedPeriod).workDate(date).shiftType(l03).specialty(nurse).requiredStaffCount(1).build());
-                    shiftRequirementRepository.save(ShiftRequirement.builder()
-                            .period(savedPeriod).workDate(date).shiftType(l04).specialty(doctor).requiredStaffCount(1).build());
-                }
-            }
-
             List<Staff> allStaff = staffRepository.findByIsActiveTrue();
             List<Staff> doctors = allStaff.stream()
                     .filter(s -> s.getSpecialty() != null && s.getSpecialty().getName().equals("Bác sĩ"))
@@ -385,20 +370,6 @@ public class DataSeeder implements CommandLineRunner {
                     .build();
             SchedulePeriod savedDraftPeriod = periodRepository.save(draftPeriod);
 
-            // Requirements: full July (all 31 days)
-            for (int day = 1; day <= 31; day++) {
-                LocalDate date = LocalDate.of(2026, 7, day);
-                if (date.getDayOfWeek() != java.time.DayOfWeek.SUNDAY) {
-                    shiftRequirementRepository.save(ShiftRequirement.builder()
-                            .period(savedDraftPeriod).workDate(date).shiftType(l01).specialty(doctor).requiredStaffCount(2).build());
-                    shiftRequirementRepository.save(ShiftRequirement.builder()
-                            .period(savedDraftPeriod).workDate(date).shiftType(l02).specialty(doctor).requiredStaffCount(2).build());
-                    shiftRequirementRepository.save(ShiftRequirement.builder()
-                            .period(savedDraftPeriod).workDate(date).shiftType(l03).specialty(nurse).requiredStaffCount(1).build());
-                    shiftRequirementRepository.save(ShiftRequirement.builder()
-                            .period(savedDraftPeriod).workDate(date).shiftType(l04).specialty(doctor).requiredStaffCount(1).build());
-                }
-            }
             log.info("✅ Seeded draft period July 2026 with full requirements");
         }
     }
