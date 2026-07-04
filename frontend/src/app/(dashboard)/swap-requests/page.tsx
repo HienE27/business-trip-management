@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Button, IconButton } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -375,14 +376,16 @@ function SwapRequestsContent() {
                   />
                 </div>
 
-                <button
-                  className="h-10 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 text-label-md font-medium text-on-primary transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                <Button
+                  variant="primary"
+                  size="md"
+                  fullWidth
                   disabled={submitting || !form.requesterScheduleId || !form.targetScheduleId}
+                  loading={submitting}
                   onClick={handleCreateRequest}
-                  type="button"
                 >
-                  {submitting ? "Đang gửi yêu cầu..." : "Gửi yêu cầu đổi trực"}
-                </button>
+                  Gửi yêu cầu đổi trực
+                </Button>
               </div>
             </div>
 
@@ -431,14 +434,14 @@ function SwapRequestsContent() {
               </select>
             </div>
           </div>
-          <button
-            className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-2 text-label-md font-medium text-on-surface shadow-sm transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+          <Button
+            variant="secondary"
+            size="md"
             onClick={() => void fetchExchanges()}
-            type="button"
+            icon={<span className="material-symbols-outlined text-[18px]" aria-hidden="true">refresh</span>}
           >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
             Làm mới
-          </button>
+          </Button>
         </section>
 
         {message && (
@@ -532,20 +535,20 @@ function SwapRequestsContent() {
                           <span className="text-label-md text-on-surface">{req.target.fullName}</span>
                         </td>
                         <td className="px-4 py-2">
-                          <div className={`flex items-center gap-1.5 border-l-4 ${getBorderColor(req.requesterSchedule.shiftType.id)} pl-1.5`}>
+                          <div className={`flex items-center gap-1.5 border-l-4 ${getBorderColor(req.requesterSchedule?.shiftType?.id ?? "")} pl-1.5`}>
                             <div className="flex flex-col">
                               <span className={`text-label-md text-on-surface ${req.status === "APPROVED" ? "line-through" : ""}`}>
-                                {formatDate(req.requesterSchedule.workDate)}
+                                {req.requesterSchedule ? formatDate(req.requesterSchedule.workDate) : "N/A"}
                               </span>
-                              <span className="text-label-sm text-on-surface-variant">{req.requesterSchedule.shiftType.name}</span>
+                              <span className="text-label-sm text-on-surface-variant">{req.requesterSchedule?.shiftType?.name ?? "—"}</span>
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-2">
-                          <div className={`flex items-center gap-1.5 border-l-4 ${getBorderColor(req.targetSchedule.shiftType.id)} pl-1.5`}>
+                          <div className={`flex items-center gap-1.5 border-l-4 ${getBorderColor(req.targetSchedule?.shiftType?.id ?? "")} pl-1.5`}>
                             <div className="flex flex-col">
-                              <span className="text-label-md text-on-surface">{formatDate(req.targetSchedule.workDate)}</span>
-                              <span className="text-label-sm text-on-surface-variant">{req.targetSchedule.shiftType.name}</span>
+                              <span className="text-label-md text-on-surface">{req.targetSchedule ? formatDate(req.targetSchedule.workDate) : "N/A"}</span>
+                              <span className="text-label-sm text-on-surface-variant">{req.targetSchedule?.shiftType?.name ?? "—"}</span>
                             </div>
                           </div>
                         </td>
@@ -553,6 +556,15 @@ function SwapRequestsContent() {
                           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-label-sm font-semibold ${getStatusBadge(req.status)}`}>
                             {getStatusLabel(req.status)}
                           </span>
+                          {(!req.requesterSchedule || !req.targetSchedule) && (
+                            <span
+                              className="ml-1 mt-1 inline-flex items-center gap-1 rounded-full bg-error-container px-2 py-0.5 text-label-sm font-medium text-on-error-container"
+                              title="Yêu cầu này tham chiếu tới lịch trực đã bị xóa khỏi hệ thống"
+                            >
+                              <span className="material-symbols-outlined text-[14px]" aria-hidden="true">warning</span>
+                              Lịch trực đã xóa
+                            </span>
+                          )}
                           {req.reason && (
                             <p className="mt-1 max-w-[180px] truncate text-label-sm text-on-surface-variant" title={req.reason}>
                               Lý do: {req.reason}
@@ -572,41 +584,41 @@ function SwapRequestsContent() {
                         <td className="px-4 py-2 text-right">
                           {canManage ? (
                             <div className="flex justify-end">
-                              <button
-                                className="flex h-7 w-7 items-center justify-center rounded bg-secondary-container/20 text-secondary transition-colors hover:bg-secondary-container disabled:opacity-50"
+                              <IconButton
+                                label="Xem chi tiết & duyệt"
+                                variant="ghost"
+                                size="sm"
                                 disabled={processing !== null}
                                 onClick={() => { setSelectedExchange(req); setReviewNote(req.reviewNote ?? ""); }}
-                                title="Xem chi tiết & duyệt"
-                                type="button"
-                                aria-label="Xem chi tiết & duyệt"
+                                className="text-secondary"
                               >
                                 <span className="material-symbols-outlined text-[16px]" aria-hidden="true">visibility</span>
-                              </button>
+                              </IconButton>
                             </div>
                           ) : (
                             <span className="flex justify-end items-center gap-1">
                               {req.status === "PENDING" && !managerMode && (
-                                <button
-                                  className="flex h-7 w-7 items-center justify-center rounded border border-error/30 text-error transition-colors hover:bg-error-container disabled:opacity-50"
+                                <IconButton
+                                  label="Hủy yêu cầu"
+                                  variant="ghost"
+                                  size="sm"
                                   disabled={processing !== null}
                                   onClick={() => handleCancel(req.id)}
-                                  title="Hủy yêu cầu"
-                                  type="button"
-                                  aria-label="Hủy yêu cầu"
+                                  className="text-error border border-error/30 hover:bg-error-container"
                                 >
                                   <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
-                                </button>
+                                </IconButton>
                               )}
                               {req.status !== "PENDING" && (
-                                <button
-                                  className="flex h-7 w-7 items-center justify-center rounded text-outline transition-colors hover:bg-surface-container hover:text-primary"
+                                <IconButton
+                                  label="Xem chi tiết"
+                                  variant="ghost"
+                                  size="sm"
                                   onClick={() => { setSelectedExchange(req); setReviewNote(req.reviewNote ?? ""); }}
-                                  title="Xem chi tiết"
-                                  type="button"
-                                  aria-label="Xem chi tiết"
+                                  className="text-outline hover:text-primary"
                                 >
                                   <span className="material-symbols-outlined text-[16px]" aria-hidden="true">visibility</span>
-                                </button>
+                                </IconButton>
                               )}
                             </span>
                           )}
@@ -652,14 +664,15 @@ function SwapRequestsContent() {
                   <p className="text-label-md text-on-surface-variant">#{selectedExchange.id}</p>
                 </div>
               </div>
-              <button
-                className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+              <IconButton
+                label="Đóng"
+                variant="ghost"
+                size="sm"
                 onClick={() => setSelectedExchange(null)}
-                title="Đóng"
-                type="button"
+                className="text-on-surface-variant"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
+                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+              </IconButton>
             </div>
 
             <div className="px-6 py-5 space-y-4">
@@ -733,41 +746,39 @@ function SwapRequestsContent() {
             </div>
 
             <div className="flex items-center gap-3 px-6 py-4 border-t border-outline-variant">
-              <button
-                className="flex-1 rounded-lg border border-outline-variant px-4 py-2.5 text-label-md font-semibold text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+              <Button
+                variant="secondary"
+                size="md"
+                fullWidth
                 onClick={() => { setSelectedExchange(null); setConflictWarning(null); }}
-                type="button"
               >
                 Đóng
-              </button>
+              </Button>
               {managerMode && selectedExchange.status === "PENDING" && (
                 <>
-                  <button
-                    className="flex items-center gap-2 rounded-lg border border-outline-variant bg-error-container px-4 py-2.5 text-label-md font-semibold text-error transition-colors hover:bg-error-container/80 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/20"
+                  <Button
+                    variant="danger"
+                    size="md"
+                    fullWidth
                     disabled={processing !== null}
+                    loading={processing !== null}
                     onClick={() => handleReject(selectedExchange.id)}
-                    type="button"
+                    icon={processing === null ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span> : undefined}
                   >
-                    {processing !== null ? (
-                      <div className="size-4 animate-spin rounded-full border-2 border-error border-t-transparent" />
-                    ) : (
-                      <span className="material-symbols-outlined text-[18px]">close</span>
-                    )}
                     Từ chối
-                  </button>
-                  <button
-                    className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-label-md font-semibold text-on-secondary transition-colors hover:brightness-110 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/20"
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    fullWidth
                     disabled={processing !== null}
+                    loading={processing !== null}
                     onClick={() => handleApprove(selectedExchange.id, selectedExchange.periodId)}
-                    type="button"
+                    icon={processing === null ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">check</span> : undefined}
+                    className="!bg-secondary !text-on-secondary hover:!opacity-90"
                   >
-                    {processing !== null ? (
-                      <div className="size-4 animate-spin rounded-full border-2 border-on-secondary border-t-transparent" />
-                    ) : (
-                      <span className="material-symbols-outlined text-[18px]">check</span>
-                    )}
                     Duyệt
-                  </button>
+                  </Button>
                 </>
               )}
             </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 import { ScheduleMatrixView } from "@/components/dashboard/ScheduleMatrixView";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonDashboardKPIGrid } from "@/components/ui/Skeleton";
@@ -179,7 +180,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="max-w-[1440px] mx-auto space-y-6">
+    <div className="max-w-[1440px] mx-auto space-y-6 w-full min-w-0 overflow-hidden">
       {/* Alert badges */}
       {message && (
         <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
@@ -271,24 +272,25 @@ export default function DashboardPage() {
           <div className="ml-auto flex items-center gap-2 flex-wrap">
             {selectedPeriodId && (
               <>
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => void handleExportPdf()}
                   disabled={exporting}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low border border-outline-variant text-label-sm font-medium text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                  icon={<span className="material-symbols-outlined text-[16px]" aria-hidden="true">picture_as_pdf</span>}
                 >
-                  <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
                   PDF
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => void handleExport()}
                   disabled={exporting}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low border border-outline-variant text-label-sm font-medium text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                  loading={exporting}
+                  icon={!exporting ? <span className="material-symbols-outlined text-[16px]" aria-hidden="true">download</span> : undefined}
                 >
-                  <span className="material-symbols-outlined text-[16px]">
-                    {exporting ? "hourglass_empty" : "download"}
-                  </span>
                   Excel
-                </button>
+                </Button>
               </>
             )}
             <Link
@@ -306,7 +308,7 @@ export default function DashboardPage() {
       {loading ? (
         <SkeletonDashboardKPIGrid />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-4 gap-4 min-w-0">
           <KPICard
             label="Nhân sự đang hoạt động"
             value={activeStaffCount}
@@ -415,7 +417,7 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <section className="space-y-3">
         <h2 className="text-title-lg text-on-surface font-semibold">Thao tác nhanh</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 min-w-0">
           {QUICK_ACTIONS.map((action) => (
             <Link
               key={action.href}

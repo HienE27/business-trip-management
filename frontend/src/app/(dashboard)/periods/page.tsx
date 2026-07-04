@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Button } from "@/components/ui";
+import { Button, IconButton } from "@/components/ui";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { api } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/errors";
@@ -26,6 +26,10 @@ const ConfirmDialog = dynamic(
   () => import("@/components/ui/ConfirmDialog").then((m) => m.ConfirmDialog),
   { ssr: false },
 );
+const TypedConfirmDialog = dynamic(
+  () => import("@/components/ui/TypedConfirmDialog").then((m) => m.TypedConfirmDialog),
+  { ssr: false },
+);
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   DRAFT: { label: "Bản nháp", color: "text-on-surface", bg: "bg-surface-container text-on-surface", dot: "bg-outline" },
@@ -45,6 +49,7 @@ export default function PeriodsPage() {
   const [archivingId, setArchivingId] = useState<number | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deleteTargetName, setDeleteTargetName] = useState<string>("");
   const [deleteAction, setDeleteAction] = useState<"archive" | "delete">("archive");
 
   // Form state
@@ -162,7 +167,9 @@ export default function PeriodsPage() {
   };
 
   const confirmDeleteOrArchive = (id: number, action: "archive" | "delete") => {
+    const target = periods.find((p) => p.id === id);
     setDeleteTargetId(id);
+    setDeleteTargetName(target?.periodName ?? "");
     setDeleteAction(action);
     setConfirmOpen(true);
   };
@@ -340,51 +347,60 @@ export default function PeriodsPage() {
                           <div className="flex items-center gap-1">
                             {p.status === "DRAFT" && (
                               <>
-                                <button
-                                  className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container transition-colors text-primary"
-                                  title="Chỉnh sửa"
+                                <IconButton
+                                  label="Chỉnh sửa"
+                                  variant="ghost"
+                                  size="sm"
                                   onClick={() => openEditModal(p)}
+                                  className="text-primary"
                                 >
-                                  <span className="material-symbols-outlined text-[20px]">edit</span>
-                                </button>
-                                <button
-                                  className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container transition-colors text-secondary"
-                                  title="Công bố"
+                                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">edit</span>
+                                </IconButton>
+                                <IconButton
+                                  label="Công bố"
+                                  variant="ghost"
+                                  size="sm"
                                   onClick={() => handlePublish(p.id)}
                                   disabled={publishingId === p.id}
+                                  loading={publishingId === p.id}
+                                  className="text-secondary"
                                 >
-                                  {publishingId === p.id ? (
-                                    <span className="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>
-                                  ) : (
-                                    <span className="material-symbols-outlined text-[20px]">publish</span>
-                                  )}
-                                </button>
-                                <button
-                                  className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container transition-colors text-outline"
-                                  title="Lưu trữ"
+                                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">publish</span>
+                                </IconButton>
+                                <IconButton
+                                  label="Lưu trữ"
+                                  variant="ghost"
+                                  size="sm"
                                   onClick={() => confirmDeleteOrArchive(p.id, "archive")}
                                   disabled={archivingId === p.id}
+                                  loading={archivingId === p.id}
+                                  className="text-outline"
                                 >
-                                  <span className="material-symbols-outlined text-[20px]">archive</span>
-                                </button>
-                                <button
-                                  className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container transition-colors text-error"
-                                  title="Xóa"
+                                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">archive</span>
+                                </IconButton>
+                                <IconButton
+                                  label="Xóa"
+                                  variant="ghost"
+                                  size="sm"
                                   onClick={() => confirmDeleteOrArchive(p.id, "delete")}
+                                  className="text-error"
                                 >
-                                  <span className="material-symbols-outlined text-[20px]">delete</span>
-                                </button>
+                                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">delete</span>
+                                </IconButton>
                               </>
                             )}
                             {p.status === "PUBLISHED" && (
-                              <button
-                                className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container transition-colors text-outline"
-                                title="Lưu trữ"
+                              <IconButton
+                                label="Lưu trữ"
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => confirmDeleteOrArchive(p.id, "archive")}
                                 disabled={archivingId === p.id}
+                                loading={archivingId === p.id}
+                                className="text-outline"
                               >
-                                <span className="material-symbols-outlined text-[20px]">archive</span>
-                              </button>
+                                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">archive</span>
+                              </IconButton>
                             )}
                             {p.status === "ARCHIVED" && (
                               <span className="text-outline text-label-sm px-2">Không có thao tác</span>
@@ -412,20 +428,32 @@ export default function PeriodsPage() {
           onCancel={() => setShowModal(false)}
         />
 
-        {/* Archive Confirm */}
-        <ConfirmDialog
-          open={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
-          onConfirm={handleConfirm}
-          title={deleteAction === "archive" ? "Xác nhận lưu trữ?" : "Xác nhận xóa?"}
-          description={
-            deleteAction === "archive"
-              ? "Kỳ lịch sẽ được lưu trữ. Bạn vẫn có thể xem lịch nhưng không thể chỉnh sửa."
-              : "Hành động này không thể hoàn tác."
-          }
-          confirmLabel={deleteAction === "archive" ? "Lưu trữ" : "Xóa"}
-          variant={deleteAction === "archive" ? "primary" : "danger"}
-        />
+        {deleteAction === "delete" ? (
+          <TypedConfirmDialog
+            open={confirmOpen}
+            onClose={() => setConfirmOpen(false)}
+            onConfirm={handleConfirm}
+            title="Xác nhận xóa kỳ lịch?"
+            description={
+              deleteTargetName
+                ? `Kỳ lịch "${deleteTargetName}" và toàn bộ lịch trực, ngày nghỉ bù, yêu cầu liên quan sẽ bị xóa vĩnh viễn.`
+                : "Kỳ lịch và toàn bộ dữ liệu liên quan sẽ bị xóa vĩnh viễn."
+            }
+            confirmPhrase={deleteTargetName || "DELETE"}
+            confirmLabel="Xóa kỳ lịch"
+          />
+        ) : (
+          /* Archive Confirm */
+          <ConfirmDialog
+            open={confirmOpen}
+            onClose={() => setConfirmOpen(false)}
+            onConfirm={handleConfirm}
+            title="Xác nhận lưu trữ?"
+            description="Kỳ lịch sẽ được lưu trữ. Bạn vẫn có thể xem lịch nhưng không thể chỉnh sửa."
+            confirmLabel="Lưu trữ"
+            variant="primary"
+          />
+        )}
     </>
   );
 }

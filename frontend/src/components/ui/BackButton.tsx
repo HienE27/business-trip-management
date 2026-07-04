@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { IconButton } from "@/components/ui";
 
 interface BackButtonProps {
   href?: string;
@@ -21,12 +22,27 @@ export function BackButton({ href, label = "Quay lại", variant = "icon", class
     return (
       <Link
         href={href}
+        aria-label={variant === "full" ? label : undefined}
         className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-label-md font-medium
-          text-on-surface-variant hover:text-primary hover:bg-primary-fixed/30 transition-colors cursor-pointer ${className}`}
+          text-on-surface-variant hover:text-primary hover:bg-primary-fixed/30 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${className}`}
       >
-        <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+        <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span>
         {variant === "full" && <span>{label}</span>}
       </Link>
+    );
+  }
+
+  if (variant === "icon") {
+    return (
+      <IconButton
+        label={label}
+        variant="ghost"
+        size="sm"
+        onClick={() => router.back()}
+        className={`text-on-surface-variant hover:text-primary hover:bg-primary-fixed/30 ${className}`}
+      >
+        <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span>
+      </IconButton>
     );
   }
 
@@ -34,11 +50,12 @@ export function BackButton({ href, label = "Quay lại", variant = "icon", class
     <button
       type="button"
       onClick={() => router.back()}
+      aria-label={label}
       className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-label-md font-medium
-        text-on-surface-variant hover:text-primary hover:bg-primary-fixed/30 transition-colors cursor-pointer ${className}`}
+        text-on-surface-variant hover:text-primary hover:bg-primary-fixed/30 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${className}`}
     >
-      <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-      {variant === "full" && <span>{label}</span>}
+      <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span>
+      <span>{label}</span>
     </button>
   );
 }

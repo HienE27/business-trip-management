@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import type { SchedulePeriod } from "@/types/api";
 
@@ -71,13 +72,13 @@ export function SaveTemplateModal({
         </div>
       </div>
       <ModalFooter>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="md"
           onClick={onClose}
-          className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
         >
           Hủy
-        </button>
+        </Button>
         <button
           type="button"
           onClick={onSave}

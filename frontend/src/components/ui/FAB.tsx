@@ -38,7 +38,7 @@ export function FAB({ actions = [] }: FABProps) {
                 action.onClick();
                 setOpen(false);
               }}
-              className="flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 shadow-lg hover:bg-surface-container-low transition-colors text-label-md text-on-surface cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="inline-flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 shadow-lg hover:bg-surface-container-low transition-colors text-label-md text-on-surface cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <span className="text-label-md text-on-surface">{action.label}</span>
               <span className="material-symbols-outlined text-[20px] text-primary">{action.icon}</span>
@@ -47,12 +47,13 @@ export function FAB({ actions = [] }: FABProps) {
         </div>
       )}
 
-      {/* Main FAB */}
+      {/* Main FAB — kept as raw button because IconButton doesn't support the rotated "+→×" icon affordance + round shape */}
       <button
         type="button"
         aria-label={open ? "Đóng menu" : "Mở menu hành động"}
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary animate-slide-up"
+        className="w-14 h-14 rounded-full flex items-center justify-center bg-primary text-on-primary shadow-lg hover:opacity-90 hover:shadow-xl transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary animate-slide-up"
       >
         <span className="material-symbols-outlined text-[24px] transition-transform duration-200" style={open ? { transform: "rotate(45deg)" } : {}}>add</span>
       </button>

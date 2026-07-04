@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatDate } from "@/lib/date";
@@ -138,13 +139,13 @@ export function SuggestionsModal({ open, onClose, suggestionsData, loading }: Pr
         </div>
       )}
       <ModalFooter>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="md"
           onClick={onClose}
-          className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors cursor-pointer"
         >
           Đóng
-        </button>
+        </Button>
       </ModalFooter>
     </Modal>
   );

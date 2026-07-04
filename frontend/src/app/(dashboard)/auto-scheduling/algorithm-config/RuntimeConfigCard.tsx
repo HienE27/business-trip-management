@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Button } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
@@ -96,28 +97,32 @@ export function RuntimeConfigCard({ onConfigSaved }: RuntimeConfigCardProps) {
         <div className="flex items-center gap-2">
           {editing ? (
             <>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleReset}
-                className="px-3 py-1.5 rounded-lg border border-outline-variant text-label-sm text-on-surface-variant hover:bg-surface-container-low transition-colors"
               >
                 Hủy
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-1.5 rounded-lg bg-primary text-label-sm font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                loading={saving}
               >
-                {saving ? "Đang lưu..." : "Lưu thay đổi"}
-              </button>
+                Lưu thay đổi
+              </Button>
             </>
           ) : (
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant text-label-sm text-on-surface-variant hover:bg-surface-container-low transition-colors"
+              icon={<span className="material-symbols-outlined text-[16px]" aria-hidden="true">edit</span>}
             >
-              <span className="material-symbols-outlined text-[16px]">edit</span>
               Chỉnh sửa
-            </button>
+            </Button>
           )}
         </div>
       </div>

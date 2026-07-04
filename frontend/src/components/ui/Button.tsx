@@ -100,17 +100,22 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  loading?: boolean;
   label: string;
 };
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { variant = "ghost", size = "md", label, children, className = "", ...rest },
+  { variant = "ghost", size = "md", label, loading = false, children, className = "", ...rest },
   ref
 ) {
+  const isDisabled = rest.disabled || loading;
   return (
     <button
       {...rest}
       ref={ref}
+      disabled={isDisabled}
+      aria-disabled={isDisabled}
+      aria-busy={loading}
       aria-label={label}
       title={label}
       className={[
@@ -123,7 +128,11 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
         className,
       ].join(" ")}
     >
-      {children}
+      {loading ? (
+        <span className="btn-spinner" role="status" aria-label={label} />
+      ) : (
+        children
+      )}
     </button>
   );
 });

@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
+import { Button, IconButton } from "@/components/ui";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -315,21 +316,22 @@ function LeaveRequestsContent() {
               </select>
               <span aria-hidden="true" className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_more</span>
             </div>
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="md"
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 rounded-lg bg-primary px-4 h-10 text-label-md font-medium text-on-primary shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+              icon={<span className="material-symbols-outlined text-[18px]" aria-hidden="true">add</span>}
             >
-              <span className="material-symbols-outlined text-[18px]">add</span>
               Tạo yêu cầu nghỉ phép
-            </button>
-            <button
-              className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 h-10 text-label-md text-on-surface shadow-sm transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
               onClick={() => void fetchRequests()}
+              icon={<span className="material-symbols-outlined text-[18px]" aria-hidden="true">refresh</span>}
             >
-              <span className="material-symbols-outlined text-[18px]">refresh</span>
               Làm mới
-            </button>
+            </Button>
           </div>
         }
       >
@@ -396,30 +398,33 @@ function LeaveRequestsContent() {
                     <span className="font-medium">{formatDateRange(request.startDate, request.endDate)}</span>
                   </div>
                   <div className="flex gap-1.5 pt-1">
-                    <button
-                      className="flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-2.5 py-1.5 text-[12px] text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      fullWidth
                       onClick={() => handleOpenDetail(request)}
-                      type="button"
                     >
                       Chi tiết
-                    </button>
+                    </Button>
                     {request.status === "PENDING" && isManager && (
-                      <button
-                        className="flex-1 rounded-lg bg-primary px-2.5 py-1.5 text-[12px] text-on-primary transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        fullWidth
                         onClick={() => handleOpenDetail(request)}
-                        type="button"
                       >
                         Duyệt / Từ chối
-                      </button>
+                      </Button>
                     )}
                     {request.status === "PENDING" && !isManager && request.staff?.id === user?.userId && (
-                      <button
-                        className="flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-2.5 py-1.5 text-[12px] text-error transition-colors hover:bg-error-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/20"
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        fullWidth
                         onClick={() => { setDeleteTargetId(request.id); setConfirmOpen(true); }}
-                        type="button"
                       >
                         Hủy
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -457,14 +462,15 @@ function LeaveRequestsContent() {
                   </p>
                 </div>
               </div>
-              <button
-                className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+              <IconButton
+                label="Đóng"
+                variant="ghost"
+                size="sm"
                 onClick={() => setDetailRequest(null)}
-                title="Đóng"
-                type="button"
+                className="text-on-surface-variant"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
+                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+              </IconButton>
             </div>
 
             <div className="px-6 py-5 space-y-4">
@@ -515,41 +521,39 @@ function LeaveRequestsContent() {
             </div>
 
             <div className="flex items-center gap-3 px-6 py-4 border-t border-outline-variant">
-              <button
-                className="flex-1 rounded-lg border border-outline-variant px-4 py-2.5 text-label-md font-semibold text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+              <Button
+                variant="secondary"
+                size="md"
+                fullWidth
                 onClick={() => setDetailRequest(null)}
-                type="button"
               >
                 Đóng
-              </button>
+              </Button>
               {isManager && detailRequest.status === "PENDING" && (
                 <>
-                  <button
-                    className="flex items-center gap-2 rounded-lg border border-outline-variant bg-error-container px-4 py-2.5 text-label-md font-semibold text-error transition-colors hover:bg-error-container/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/20 disabled:opacity-50"
+                  <Button
+                    variant="danger"
+                    size="md"
+                    fullWidth
                     disabled={processing}
+                    loading={processing}
                     onClick={handleReject}
-                    type="button"
+                    icon={!processing ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span> : undefined}
                   >
-                    {processing ? (
-                      <div className="size-4 animate-spin rounded-full border-2 border-error border-t-transparent" />
-                    ) : (
-                      <span className="material-symbols-outlined text-[18px]">close</span>
-                    )}
                     Từ chối
-                  </button>
-                  <button
-                    className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-label-md font-semibold text-on-secondary transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/20 disabled:opacity-50"
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    fullWidth
                     disabled={processing}
+                    loading={processing}
                     onClick={handleApprove}
-                    type="button"
+                    icon={!processing ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">check</span> : undefined}
+                    className="!bg-secondary !text-on-secondary hover:!opacity-90"
                   >
-                    {processing ? (
-                      <div className="size-4 animate-spin rounded-full border-2 border-on-secondary border-t-transparent" />
-                    ) : (
-                      <span className="material-symbols-outlined text-[18px]">check</span>
-                    )}
                     Duyệt
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
@@ -577,14 +581,15 @@ function LeaveRequestsContent() {
                   <p className="text-[12px] text-on-surface-variant">Gửi yêu cầu nghỉ phép cho quản lý xét duyệt.</p>
                 </div>
               </div>
-              <button
-                className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+              <IconButton
+                label="Đóng"
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowCreateModal(false)}
-                title="Đóng"
-                type="button"
+                className="text-on-surface-variant"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
+                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+              </IconButton>
             </div>
 
             {/* Form */}
@@ -631,31 +636,25 @@ function LeaveRequestsContent() {
 
             {/* Footer */}
             <div className="flex items-center gap-3 px-6 py-4 border-t border-outline-variant">
-              <button
-                className="flex-1 rounded-lg border border-outline-variant px-4 py-2.5 text-label-md font-semibold text-on-surface transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+              <Button
+                variant="secondary"
+                size="md"
+                fullWidth
                 onClick={() => setShowCreateModal(false)}
-                type="button"
               >
                 Hủy
-              </button>
-              <button
-                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-label-md font-medium text-on-primary transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                fullWidth
                 disabled={creating || !createStartDate || !createEndDate}
+                loading={creating}
                 onClick={() => void handleCreateLeaveRequest()}
-                type="button"
+                icon={!creating ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">send</span> : undefined}
               >
-                {creating ? (
-                  <>
-                    <div className="size-4 animate-spin rounded-full border-2 border-on-primary border-t-transparent" />
-                    Đang gửi...
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[18px]">send</span>
-                    Gửi yêu cầu
-                  </>
-                )}
-              </button>
+                Gửi yêu cầu
+              </Button>
             </div>
           </div>
         </div>

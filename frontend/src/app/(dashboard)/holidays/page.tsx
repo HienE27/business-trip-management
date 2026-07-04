@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/hooks/useToast";
-import { Button, ConfirmDialog } from "@/components/ui";
+import { Button, ConfirmDialog, IconButton } from "@/components/ui";
 import { BackButton } from "@/components/ui/BackButton";
 
 type Holiday = {
@@ -282,20 +282,24 @@ function HolidaysContent() {
                     {isAdmin && (
                       <td className="px-5 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button
+                          <IconButton
+                            label="Chỉnh sửa"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => openEdit(h)}
-                            className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
-                            title="Chỉnh sửa"
+                            className="text-on-surface-variant hover:text-primary"
                           >
                             <span className="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>
-                          </button>
-                          <button
+                          </IconButton>
+                          <IconButton
+                            label="Xóa"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => setDeleteId(h.id)}
-                            className="p-1.5 rounded-lg hover:bg-error-container text-on-surface-variant hover:text-error transition-colors"
-                            title="Xóa"
+                            className="text-on-surface-variant hover:text-error"
                           >
                             <span className="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
-                          </button>
+                          </IconButton>
                         </div>
                       </td>
                     )}
@@ -315,12 +319,15 @@ function HolidaysContent() {
               <h2 className="text-title-lg font-semibold text-on-surface">
                 {editingId ? "Chỉnh sửa ngày lễ" : "Thêm ngày lễ mới"}
               </h2>
-              <button
+              <IconButton
+                label="Đóng"
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowModal(false)}
-                className="p-1 rounded-lg hover:bg-surface-container-high text-on-surface-variant transition-colors"
+                className="text-on-surface-variant"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
+                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+              </IconButton>
             </div>
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
               <div>

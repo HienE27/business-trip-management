@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import type { AlgorithmMetrics } from "@/types/api";
 import { parseNumber } from "@/lib/number-utils";
@@ -119,13 +120,13 @@ export function CompareModal({ runA, runB, periodNameA, periodNameB, onClose }: 
         </p>
       </div>
       <ModalFooter>
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="md"
           onClick={onClose}
-          className="px-4 py-2 rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:opacity-90 transition-opacity"
         >
           Đóng
-        </button>
+        </Button>
       </ModalFooter>
     </Modal>
   );

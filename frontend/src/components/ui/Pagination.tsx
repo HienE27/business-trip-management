@@ -1,3 +1,5 @@
+import { Button, IconButton } from "@/components/ui";
+
 type PaginationProps = {
   currentPage: number;
   totalPages: number;
@@ -50,14 +52,16 @@ export function Pagination({
       {/* Right: page controls */}
       <div className="flex items-center gap-1">
         {/* Prev */}
-        <button
-          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-surface-container-high disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        <IconButton
+          label="Trang trước"
+          variant="ghost"
+          size="sm"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
-          aria-label="Trang trước"
+          className="text-on-surface"
         >
-          <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-        </button>
+          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">chevron_left</span>
+        </IconButton>
 
         {/* Page numbers */}
         {pages.map((p, i) =>
@@ -66,31 +70,31 @@ export function Pagination({
               …
             </span>
           ) : (
-            <button
+            <Button
               key={p}
+              variant={p === currentPage ? "primary" : "ghost"}
+              size="sm"
               onClick={() => onPageChange(p as number)}
-              className={`w-8 h-8 rounded-lg text-label-sm font-medium flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                p === currentPage
-                  ? "bg-primary text-on-primary shadow-sm"
-                  : "text-on-surface hover:bg-surface-container-high"
-              }`}
               aria-label={`Trang ${p}`}
               aria-current={p === currentPage ? "page" : undefined}
+              className={p === currentPage ? "" : "text-on-surface"}
             >
               {p}
-            </button>
+            </Button>
           )
         )}
 
         {/* Next */}
-        <button
-          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-surface-container-high disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        <IconButton
+          label="Trang sau"
+          variant="ghost"
+          size="sm"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage >= totalPages}
-          aria-label="Trang sau"
+          className="text-on-surface"
         >
-          <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-        </button>
+          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">chevron_right</span>
+        </IconButton>
       </div>
     </div>
   );

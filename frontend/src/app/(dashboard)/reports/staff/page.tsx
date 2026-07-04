@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui";
 import { BackButton } from "@/components/ui/BackButton";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { api } from "@/lib/api";
@@ -338,13 +339,13 @@ function ReportsStaffContent() {
               }
               action={
                 search ? (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-2 text-label-md font-medium text-on-surface shadow-sm transition-colors hover:bg-surface-container-low"
+                  <Button
+                    variant="secondary"
+                    size="md"
                     onClick={() => setSearch("")}
                   >
                     Đặt lại tìm kiếm
-                  </button>
+                  </Button>
                 ) : undefined
               }
             />

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/useToast";
 import { ROLE_LABELS } from "@/lib/roleLabels";
+import { Button } from "@/components/ui";
 import { BackButton } from "@/components/ui/BackButton";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -221,17 +222,16 @@ function SettingsContent() {
               )}
 
               <div className="flex justify-end pt-2">
-                <button
+                <Button
+                  variant="primary"
+                  size="md"
                   onClick={() => void handleSaveEmail()}
                   disabled={savingEmail}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-label-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+                  loading={savingEmail}
+                  icon={!savingEmail ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">save</span> : undefined}
                 >
-                  {savingEmail ? (
-                    <><div className="size-4 animate-spin rounded-full border-2 border-[var(--color-on-primary)] border-t-transparent" /><span>Đang lưu...</span></>
-                  ) : (
-                    <><span className="material-symbols-outlined text-[18px]">save</span><span>Lưu cấu hình</span></>
-                  )}
-                </button>
+                  Lưu cấu hình
+                </Button>
               </div>
             </div>
           )}
@@ -453,17 +453,16 @@ function SettingsContent() {
               )}
 
               <div className="flex justify-end">
-                <button
+                <Button
                   type="submit"
+                  variant="primary"
+                  size="md"
                   disabled={savingPassword}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-label-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+                  loading={savingPassword}
+                  icon={!savingPassword ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">lock_reset</span> : undefined}
                 >
-                  {savingPassword ? (
-                    <><div className="size-4 animate-spin rounded-full border-2 border-[var(--color-on-primary)] border-t-transparent" /><span>Đang đổi...</span></>
-                  ) : (
-                    <><span className="material-symbols-outlined text-[18px]">lock_reset</span><span>Đổi mật khẩu</span></>
-                  )}
-                </button>
+                  Đổi mật khẩu
+                </Button>
               </div>
             </form>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { Button } from "@/components/ui";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatDate } from "@/lib/date";
@@ -139,26 +140,30 @@ export function BulkPublishModal({ open, periods, onClose, onRefresh }: Props) {
             <div className="flex gap-2">
               <button
                 type="button"
+                role="tab"
+                aria-selected={operation === "publish"}
                 onClick={() => { setOperation("publish"); setSelectedIds(new Set()); }}
-                className={`flex-1 py-2 rounded-lg text-label-md font-medium transition-colors border ${
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-label-md font-medium transition-colors border ${
                   operation === "publish"
                     ? "border-primary bg-primary-fixed/20 text-primary"
                     : "border-outline-variant text-on-surface-variant hover:border-primary/40"
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px] align-middle mr-1">publish</span>
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">publish</span>
                 Công bố hàng loạt
               </button>
               <button
                 type="button"
+                role="tab"
+                aria-selected={operation === "archive"}
                 onClick={() => { setOperation("archive"); setSelectedIds(new Set()); }}
-                className={`flex-1 py-2 rounded-lg text-label-md font-medium transition-colors border ${
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-label-md font-medium transition-colors border ${
                   operation === "archive"
                     ? "border-secondary bg-secondary-container/20 text-on-secondary-container"
                     : "border-outline-variant text-on-surface-variant hover:border-secondary/40"
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px] align-middle mr-1">archive</span>
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">archive</span>
                 Lưu trữ hàng loạt
               </button>
             </div>
@@ -223,31 +228,24 @@ export function BulkPublishModal({ open, periods, onClose, onRefresh }: Props) {
             </div>
           </div>
           <ModalFooter>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="md"
               onClick={handleClose}
-              className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
             >
               Đóng
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant={operation === "publish" ? "primary" : "secondary"}
+              size="md"
               disabled={selectedIds.size === 0 || submitting}
+              loading={submitting}
               onClick={handleSubmit}
-              className={`inline-flex items-center gap-2 px-5 py-2 rounded-lg text-label-md font-semibold transition-colors disabled:opacity-50 ${
-                operation === "publish"
-                  ? "bg-primary text-on-primary hover:bg-primary/90"
-                  : "bg-secondary text-on-secondary hover:bg-secondary/90"
-              }`}
+              icon={!submitting ? <span className="material-symbols-outlined text-[16px]" aria-hidden="true">check</span> : undefined}
+              className={operation === "archive" ? "!bg-secondary !text-on-secondary hover:!opacity-90" : ""}
             >
-              {submitting ? (
-                <><div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /><span>Đang xử lý...</span></>
-              ) : (
-                <><span className="material-symbols-outlined text-[16px]">check</span>
-                  {operation === "publish" ? `Công bố ${selectedIds.size} kỳ lịch` : `Lưu trữ ${selectedIds.size} kỳ lịch`}
-                </>
-              )}
-            </button>
+              {operation === "publish" ? `Công bố ${selectedIds.size} kỳ lịch` : `Lưu trữ ${selectedIds.size} kỳ lịch`}
+            </Button>
           </ModalFooter>
         </>
       ) : (
@@ -289,13 +287,13 @@ export function BulkPublishModal({ open, periods, onClose, onRefresh }: Props) {
             </div>
           </div>
           <ModalFooter>
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="md"
               onClick={handleClose}
-              className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-primary/90 transition-colors"
             >
               Đóng
-            </button>
+            </Button>
           </ModalFooter>
         </>
       )}

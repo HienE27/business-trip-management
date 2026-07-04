@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button, IconButton } from "@/components/ui";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
@@ -8,7 +9,7 @@ import { BackButton } from "@/components/ui/BackButton";
 import { useToast } from "@/hooks/useToast";
 import { getErrorMessage } from "@/lib/errors";
 import { ConfirmDialog } from "@/components/ui";
-import type { AuditHistory, AuditHistoryPage } from "@/types/api";
+import type { AuditHistory, AuditHistoryPage, AuditHistorySummary } from "@/types/api";
 
 type ActionFilter = "" | "CREATE" | "UPDATE" | "DELETE";
 type DateRange = "today" | "yesterday" | "7d" | "30d" | "custom";
@@ -71,13 +72,39 @@ function fmtDateShort(dateKey: string) {
 }
 
 function getDateRange(range: DateRange): { from?: string; to?: string } {
-  const today = new Date();
-  const to = today.toISOString().split("T")[0];
+  // Use local date (not UTC) so it matches the backend's Asia/Ho_Chi_Minh timezone
+  // that audit_history.created_at is stored in.
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const to = `${yyyy}-${mm}-${dd}`;
   switch (range) {
     case "today":    return { from: to, to };
-    case "yesterday": { const y = new Date(today); y.setDate(y.getDate() - 1); return { from: y.toISOString().split("T")[0], to: y.toISOString().split("T")[0] }; }
-    case "7d":  { const s = new Date(today); s.setDate(s.getDate() - 7);  return { from: s.toISOString().split("T")[0], to }; }
-    case "30d": { const s = new Date(today); s.setDate(s.getDate() - 30); return { from: s.toISOString().split("T")[0], to }; }
+    case "yesterday": {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      const yy = y.getFullYear();
+      const ym = String(y.getMonth() + 1).padStart(2, "0");
+      const yd = String(y.getDate()).padStart(2, "0");
+      return { from: `${yy}-${ym}-${yd}`, to: `${yy}-${ym}-${yd}` };
+    }
+    case "7d":  {
+      const s = new Date(now);
+      s.setDate(s.getDate() - 7);
+      const sy = s.getFullYear();
+      const sm = String(s.getMonth() + 1).padStart(2, "0");
+      const sd = String(s.getDate()).padStart(2, "0");
+      return { from: `${sy}-${sm}-${sd}`, to };
+    }
+    case "30d": {
+      const s = new Date(now);
+      s.setDate(s.getDate() - 30);
+      const sy = s.getFullYear();
+      const sm = String(s.getMonth() + 1).padStart(2, "0");
+      const sd = String(s.getDate()).padStart(2, "0");
+      return { from: `${sy}-${sm}-${sd}`, to };
+    }
     default: return {};
   }
 }
@@ -85,18 +112,37 @@ function getDateRange(range: DateRange): { from?: string; to?: string } {
 function subDateStr(days: number) {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
-const todayStr = new Date().toISOString().split("T")[0];
+const todayStr = (() => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+})();
 
 function isToday(dateKey: string) {
-  return dateKey === new Date().toISOString().split("T")[0];
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const todayLocal = `${yyyy}-${mm}-${dd}`;
+  return dateKey === todayLocal;
 }
 
 function isYesterday(dateKey: string) {
-  const y = new Date(); y.setDate(y.getDate() - 1);
-  return dateKey === y.toISOString().split("T")[0];
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yesterdayLocal = `${yyyy}-${mm}-${dd}`;
+  return dateKey === yesterdayLocal;
 }
 
 // ─── JSON utils ───────────────────────────────────────────────────────────────
@@ -291,12 +337,15 @@ function DetailModal({ record, onClose }: { record: AuditHistory; onClose: () =>
             </p>
           </div>
           <div className="flex-1" />
-          <button
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-surface-container-low transition-colors"
-            onClick={onClose} type="button"
+          <IconButton
+            label="Đóng"
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="shrink-0 text-on-surface-variant"
           >
-            <span className="material-symbols-outlined text-[16px] text-on-surface-variant">close</span>
-          </button>
+            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
+          </IconButton>
         </div>
 
         {/* Meta row */}
@@ -321,14 +370,18 @@ function DetailModal({ record, onClose }: { record: AuditHistory; onClose: () =>
             return (
               <button
                 key={t.id}
-                className={`px-3 py-1.5 text-[12px] font-medium rounded-t-lg border border-transparent transition-all ${
+                className={`px-3 py-1.5 text-[12px] font-medium rounded-t-lg border transition-all ${
                   tab === t.id
-                    ? "bg-surface-container-lowest border-outline-variant text-on-surface"
+                    ? "bg-surface-container-lowest border-outline-variant border-b-transparent text-on-surface"
                     : disabled
-                    ? "text-outline/30 cursor-not-allowed"
-                    : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+                    ? "border-transparent text-outline/30 cursor-not-allowed"
+                    : "border-transparent text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
                 }`}
-                onClick={() => !disabled && setDetailTab(t.id)} type="button"
+                onClick={() => !disabled && setDetailTab(t.id)}
+                disabled={disabled}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
               >
                 {t.label}
               </button>
@@ -380,6 +433,9 @@ export default function AuditHistoryPage() {
   const [pageData, setPageData] = useState<AuditHistoryPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // KPI summary is fetched separately from /audit-history/summary so it reflects
+  // the entire DB (or the active date range), not just the current page slice.
+  const [summaryData, setSummaryData] = useState<AuditHistorySummary | null>(null);
   const [search, setSearch] = useState("");
   const [module, setModule] = useState("");
   const [action, setAction] = useState<ActionFilter>("");
@@ -395,13 +451,16 @@ export default function AuditHistoryPage() {
 
   // selected items for bulk delete
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [deleteDialogType, setDeleteDialogType] = useState<"single" | "bulk" | "date-range" | null>(null);
+  const [deleteDialogType, setDeleteDialogType] = useState<"single" | "bulk" | "date-range" | "all" | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [deleteTargetName, setDeleteTargetName] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteDateFrom, setDeleteDateFrom] = useState("");
   const [deleteDateTo, setDeleteDateTo] = useState("");
+  // Typed-confirm state for "Xóa tất cả" — user must type this exact string to unlock the button.
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = useState("");
+  const DELETE_ALL_CONFIRM_PHRASE = "XÓA TẤT CẢ";
 
   const fetchData = useCallback(async (pageNum: number, size: number, refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -417,13 +476,70 @@ export default function AuditHistoryPage() {
     }
   }, [toast]);
 
+  // Computed date-range — declared BEFORE fetchSummary so the callback can
+  // depend on df.from / df.to without tripping React's "used before defined"
+  // hook order check.
+  const df = useMemo(() =>
+    dateRange === "custom" ? { from: dateFrom, to: dateTo } : getDateRange(dateRange),
+    [dateRange, dateFrom, dateTo]);
+
+  // KPI summary is independent of pagination. The summary must mirror every
+  // filter on the page (date range + module + action + search) so the tiles
+  // stay accurate as the user narrows the result set.
+  //
+  // Search input is debounced via a ref-held timer so each keystroke does not
+  // fire a separate request — only the value after ~300ms of idle is fetched.
+  const summarySearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [summarySearch, setSummarySearch] = useState("");
+
+  // Push the current `search` text into `summarySearch` with a debounce so
+  // typing "Nguyễn" only fires one summary request, not seven.
+  useEffect(() => {
+    if (summarySearchRef.current) clearTimeout(summarySearchRef.current);
+    summarySearchRef.current = setTimeout(() => setSummarySearch(search), 300);
+    return () => {
+      if (summarySearchRef.current) clearTimeout(summarySearchRef.current);
+    };
+  }, [search]);
+
+  const fetchSummary = useCallback(async () => {
+    try {
+      const params: {
+        startDate?: string;
+        endDate?: string;
+        module?: string;
+        action?: string;
+        search?: string;
+      } = {};
+
+      if (df.from && df.to) {
+        // Backend treats endDate as exclusive — pass the day after so the
+        // inclusive end date still shows up in the totals.
+        const [y, m, d] = df.to.split("-").map(Number);
+        const endDate = new Date(y!, (m ?? 1) - 1, (d ?? 1) + 1);
+        const endIso = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+        params.startDate = `${df.from}T00:00:00`;
+        params.endDate = `${endIso}T00:00:00`;
+      }
+      if (module.trim()) params.module = module.trim();
+      if (action)        params.action = action;
+      if (summarySearch.trim()) params.search = summarySearch.trim();
+
+      const data = await api.getAuditHistorySummaryFiltered(params);
+      setSummaryData(data);
+    } catch (err) {
+      // Don't toast — KPI is non-critical. Just zero out so the UI doesn't lie.
+      setSummaryData(null);
+    }
+  }, [df.from, df.to, module, action, summarySearch]);
+
   useEffect(() => {
     fetchData(page, pageSize);
   }, [page, pageSize, fetchData]);
 
-  const df = useMemo(() =>
-    dateRange === "custom" ? { from: dateFrom, to: dateTo } : getDateRange(dateRange),
-  [dateRange, dateFrom, dateTo]);
+useEffect(() => {
+    fetchSummary();
+  }, [fetchSummary]);
 
   const records = pageData?.content ?? [];
   const filtered = useMemo(() => {
@@ -455,32 +571,31 @@ export default function AuditHistoryPage() {
     return Object.entries(g).sort(([a], [b]) => b.localeCompare(a));
   }, [filtered]);
 
+  // Build a per-page date-grouped view from the *current* page only.
+  // `records` is already paginated by the backend (page * size).
+  // No need to slice again — backend returns exactly `size` items for this page.
   const pagedGroups = useMemo(() => {
-    const flat = grouped.flatMap(([, g]) => g);
-    const start = page * pageSize;
-    const slice = flat.slice(start, start + pageSize);
-
-    // Build date-indexed map of records on this page, preserving group headers
     const dateMap = new Map<string, AuditHistory[]>();
-    for (const r of slice) {
+    for (const r of filtered) {
       const dk = r.createdAt.split("T")[0];
       if (!dateMap.has(dk)) dateMap.set(dk, []);
       dateMap.get(dk)!.push(r);
     }
-
-    // Return as sorted entries, keeping ALL dates that have records on this page
     return Array.from(dateMap.entries())
       .sort(([a], [b]) => b.localeCompare(a));
-  }, [grouped, page, pageSize]);
+  }, [filtered]);
 
   const totalPages = useMemo(() => pageData ? Math.max(1, pageData.totalPages) : 1, [pageData?.totalPages]);
 
+  // Summary reflects the entire DB (or active date range), not the current page slice.
+  // Values come from the dedicated /audit-history/summary endpoint so that the
+  // CREATE / UPDATE / DELETE totals stay accurate across all 44 pages.
   const summary = useMemo(() => ({
-    total:  filtered.length,
-    create: filtered.filter((r) => r.action === "CREATE").length,
-    update: filtered.filter((r) => r.action === "UPDATE").length,
-    delete: filtered.filter((r) => r.action === "DELETE").length,
-  }), [filtered]);
+    total:  summaryData?.total ?? 0,
+    create: summaryData?.create ?? 0,
+    update: summaryData?.update ?? 0,
+    delete: summaryData?.delete ?? 0,
+  }), [summaryData]);
 
   const modules = useMemo(() => Array.from(new Set(records.map((r) => r.tableName))), [records]);
   const hasFilters = !!(search || module || action || dateRange !== "30d");
@@ -541,6 +656,14 @@ export default function AuditHistoryPage() {
         setDeleteDateFrom("");
         setDeleteDateTo("");
         await fetchData(page, pageSize);
+      } else if (deleteDialogType === "all") {
+        const count = await api.deleteAllAuditHistory();
+        toast.success(`Đã xóa toàn bộ ${count} bản ghi nhật ký.`);
+        setDeleteDialogType(null);
+        setDeleteAllConfirmText("");
+        setSelectedIds(new Set());
+        await fetchData(page, pageSize);
+        await fetchSummary();
       }
     } catch (err) {
       toast.error(getErrorMessage(err, "Lỗi xóa nhật ký."));
@@ -606,7 +729,15 @@ export default function AuditHistoryPage() {
           <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-2xl w-full max-w-sm mx-4 animate-scale-in">
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-outline-variant">
               <h2 className="text-title-lg font-semibold text-on-surface">Tùy chỉnh ngày xóa</h2>
-              <button className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-low transition-colors" onClick={() => { setDeleteDialogType(null); setDeleteDateFrom(""); setDeleteDateTo(""); }} aria-label="Đóng"><span className="material-symbols-outlined text-[20px] text-on-surface-variant">close</span></button>
+              <IconButton
+              label="Đóng"
+              variant="ghost"
+              size="sm"
+              onClick={() => { setDeleteDialogType(null); setDeleteDateFrom(""); setDeleteDateTo(""); }}
+              className="ml-auto text-on-surface-variant"
+            >
+              <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+            </IconButton>
             </div>
             <div className="px-5 py-4 flex flex-col gap-3">
               <p className="text-body-sm text-on-surface-variant">Chọn ngày bắt đầu và kết thúc.</p>
@@ -621,8 +752,139 @@ export default function AuditHistoryPage() {
                 </div>
               </div>
               <div className="flex gap-2 pt-1">
-                <button className="flex-1 h-10 rounded-lg border border-outline-variant bg-surface text-body-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors" onClick={() => { setDeleteDialogType(null); setDeleteDateFrom(""); setDeleteDateTo(""); }}>Hủy</button>
-                <button className="flex-1 h-10 rounded-lg bg-error text-on-error text-body-sm font-semibold hover:bg-error/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" onClick={async () => { if (!deleteDateFrom || !deleteDateTo || deleteDateFrom > deleteDateTo || deleting) return; setDeleting(true); try { const count = await api.deleteAuditHistoryByDateRange(deleteDateFrom, deleteDateTo); toast.success(`Đã xóa ${count} bản ghi.`); setDeleteDialogType(null); setDeleteDateFrom(""); setDeleteDateTo(""); await fetchData(page, pageSize); } catch (err) { toast.error(getErrorMessage(err, "Lỗi xóa.")); } finally { setDeleting(false); } }} disabled={!deleteDateFrom || !deleteDateTo || deleteDateFrom > deleteDateTo || deleting}>{deleting ? "Đang xóa…" : "Xóa"}</button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  fullWidth
+                  onClick={() => { setDeleteDialogType(null); setDeleteDateFrom(""); setDeleteDateTo(""); }}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  variant="danger"
+                  size="md"
+                  fullWidth
+                  disabled={!deleteDateFrom || !deleteDateTo || deleteDateFrom > deleteDateTo || deleting}
+                  loading={deleting}
+                  onClick={async () => {
+                    if (!deleteDateFrom || !deleteDateTo || deleteDateFrom > deleteDateTo || deleting) return;
+                    setDeleting(true);
+                    try {
+                      const count = await api.deleteAuditHistoryByDateRange(deleteDateFrom, deleteDateTo);
+                      toast.success(`Đã xóa ${count} bản ghi.`);
+                      setDeleteDialogType(null);
+                      setDeleteDateFrom("");
+                      setDeleteDateTo("");
+                      await fetchData(page, pageSize);
+                    } catch (err) {
+                      toast.error(getErrorMessage(err, "Lỗi xóa."));
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }}
+                >
+                  Xóa
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── "Xóa tất cả" — typed-confirm modal ───────────────────────────────────────
+          User must type the exact phrase to unlock the destructive action.
+          Prevents accidental clicks and fat-finger confirmations. */}
+      {deleteDialogType === "all" && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          role="dialog" aria-modal="true" aria-labelledby="delete-all-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !deleting) {
+              setDeleteDialogType(null);
+              setDeleteAllConfirmText("");
+            }
+          }}
+        >
+          <div className="bg-surface-container-lowest border border-error/40 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in">
+            <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-outline-variant">
+              <div className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+              </div>
+              <div className="flex-1">
+                <h2 id="delete-all-title" className="text-title-lg font-semibold text-on-surface">Xóa toàn bộ nhật ký?</h2>
+                <p className="text-body-sm text-on-surface-variant mt-1">
+                  Hành động này sẽ xóa vĩnh viễn{" "}
+                  <strong className="font-semibold text-error tabular-nums">
+                    {summary.total.toLocaleString("vi")}
+                  </strong>{" "}
+                  bản ghi trong toàn bộ bảng audit_history. Không thể hoàn tác.
+                </p>
+              </div>
+              <IconButton
+                label="Đóng"
+                variant="ghost"
+                size="sm"
+                disabled={deleting}
+                onClick={() => { if (!deleting) { setDeleteDialogType(null); setDeleteAllConfirmText(""); } }}
+                className="shrink-0 text-on-surface-variant"
+              >
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
+              </IconButton>
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-3">
+              <div className="bg-error-container border border-error/20 rounded-lg p-3 flex items-start gap-2">
+                <span className="material-symbols-outlined text-error text-[18px] mt-0.5">info</span>
+                <p className="text-[13px] text-on-error-container leading-snug">
+                  Để xác nhận, hãy gõ chính xác cụm từ{" "}
+                  <code className="px-1.5 py-0.5 rounded bg-error/15 text-error font-mono font-bold text-[12px]">
+                    {DELETE_ALL_CONFIRM_PHRASE}
+                  </code>{" "}
+                  vào ô bên dưới.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="delete-all-confirm" className="text-[12px] font-semibold text-on-surface-variant">
+                  Xác nhận xóa
+                </label>
+                <input
+                  id="delete-all-confirm"
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={deleteAllConfirmText}
+                  onChange={(e) => setDeleteAllConfirmText(e.target.value)}
+                  placeholder={DELETE_ALL_CONFIRM_PHRASE}
+                  className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-error/30 focus:border-error transition-all font-mono"
+                  disabled={deleting}
+                />
+                {deleteAllConfirmText && deleteAllConfirmText !== DELETE_ALL_CONFIRM_PHRASE && (
+                  <p className="text-[11px] text-error" role="alert">
+                    Cụm từ chưa khớp. Hãy gõ đúng: {DELETE_ALL_CONFIRM_PHRASE}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button
+                  variant="secondary"
+                  size="md"
+                  fullWidth
+                  disabled={deleting}
+                  onClick={() => { setDeleteDialogType(null); setDeleteAllConfirmText(""); }}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  variant="danger"
+                  size="md"
+                  fullWidth
+                  disabled={deleting || deleteAllConfirmText !== DELETE_ALL_CONFIRM_PHRASE || summary.total === 0}
+                  loading={deleting}
+                  onClick={() => { if (deleteAllConfirmText === DELETE_ALL_CONFIRM_PHRASE) handleConfirmDelete(); }}
+                >
+                  {deleting ? "Đang xóa…" : `Xóa vĩnh viễn ${summary.total.toLocaleString("vi")} bản ghi`}
+                </Button>
               </div>
             </div>
           </div>
@@ -675,9 +937,15 @@ export default function AuditHistoryPage() {
               onChange={(e) => onSearch(e.target.value)}
             />
             {search && (
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-surface-container-low" onClick={() => onSearch("")} type="button" aria-label="Xóa tìm kiếm">
-                <span className="material-symbols-outlined text-[12px] text-outline">close</span>
-              </button>
+              <IconButton
+                  label="Xóa tìm kiếm"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-outline"
+                >
+                  <span className="material-symbols-outlined text-[12px]" aria-hidden="true">close</span>
+                </IconButton>
             )}
           </div>
 
@@ -715,21 +983,25 @@ export default function AuditHistoryPage() {
 
           <div className="w-px h-5 bg-outline-variant shrink-0" />
 
-          <button
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-outline-variant bg-surface hover:bg-surface-container-low transition-colors"
-            onClick={() => fetchData(page, pageSize, true)} type="button"
-            aria-label={refreshing ? "Đang làm mới" : "Làm mới"}
+          <IconButton
+            label={refreshing ? "Đang làm mới" : "Làm mới"}
+            variant="secondary"
+            size="sm"
+            disabled={refreshing}
+            onClick={() => fetchData(page, pageSize, true)}
+            className="shrink-0 text-on-surface-variant"
           >
-            <span className={`material-symbols-outlined text-[16px] text-on-surface-variant ${refreshing ? "animate-spin" : ""}`}>sync</span>
-          </button>
+            <span className={`material-symbols-outlined text-[16px] ${refreshing ? "animate-spin" : ""}`} aria-hidden="true">sync</span>
+          </IconButton>
 
-          <button
-            className="flex h-9 items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 text-[12px] font-medium text-on-surface hover:bg-surface-container-low transition-colors shrink-0"
-            onClick={exportJSON} type="button"
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={exportJSON}
+            icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">download</span>}
           >
-            <span className="material-symbols-outlined text-[14px]">download</span>
             Xuất
-          </button>
+          </Button>
 
           {selectedIds.size > 0 && (
             <>
@@ -737,46 +1009,52 @@ export default function AuditHistoryPage() {
               <span className="text-[12px] text-primary font-semibold shrink-0">
                 {selectedIds.size} đã chọn
               </span>
-              <button
-                className="flex h-9 items-center gap-1.5 rounded-lg border border-error/30 bg-error-container px-3 text-[12px] font-medium text-error hover:bg-error/10 transition-colors shrink-0"
-                onClick={() => setDeleteDialogType("bulk")} type="button"
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setDeleteDialogType("bulk")}
+                icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete</span>}
               >
-                <span className="material-symbols-outlined text-[14px]">delete</span>
                 Xóa ({selectedIds.size})
-              </button>
-              <button
-                className="flex h-9 items-center gap-1 rounded-lg px-2.5 text-[12px] font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors shrink-0"
-                onClick={clearSelection} type="button"
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearSelection}
+                icon={<span className="material-symbols-outlined text-[13px]" aria-hidden="true">clear</span>}
+                className="text-on-surface-variant"
               >
-                <span className="material-symbols-outlined text-[13px]">clear</span>
                 Bỏ chọn
-              </button>
+              </Button>
             </>
           )}
 
           {hasFilters && (
-            <button
-              className="flex h-9 items-center gap-1 rounded-lg px-2.5 text-[12px] font-medium text-primary hover:bg-primary-fixed transition-colors shrink-0"
-              onClick={clearFilters} type="button"
-            >
-              <span className="material-symbols-outlined text-[13px]">clear</span>
-              Xóa
-            </button>
+            <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                icon={<span className="material-symbols-outlined text-[13px]" aria-hidden="true">clear</span>}
+                className="text-primary hover:bg-primary-fixed"
+              >
+                Xóa
+              </Button>
           )}
 
           {selectedIds.size === 0 && (
             <>
               <div className="w-px h-5 bg-outline-variant shrink-0" />
               <div className="relative shrink-0">
-                <button
-                  className="flex h-9 items-center gap-1.5 rounded-lg border border-error/30 bg-error-container px-3 text-[12px] font-medium text-error hover:bg-error/10 transition-colors"
+                <Button
+                  variant="danger"
+                  size="sm"
                   onClick={() => setDeleteOpen((v) => !v)}
-                  type="button"
+                  icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete_sweep</span>}
+                  iconPosition="left"
                 >
-                  <span className="material-symbols-outlined text-[14px]">delete_sweep</span>
                   Xóa
-                  <span className="material-symbols-outlined text-[12px] ml-0.5">expand_more</span>
-                </button>
+                  <span className="material-symbols-outlined text-[12px] ml-0.5" aria-hidden="true">expand_more</span>
+                </Button>
 
                 {deleteOpen && (
                   <>
@@ -797,6 +1075,8 @@ export default function AuditHistoryPage() {
                         ] as const).map((p) => (
                           <button
                             key={p.v}
+                            type="button"
+                            role="menuitem"
                             className="flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-[13px] font-medium text-on-surface hover:bg-surface-container-low transition-colors text-left"
                             onClick={() => {
                               if (p.v === "custom") {
@@ -816,10 +1096,30 @@ export default function AuditHistoryPage() {
                               setDeleteOpen(false);
                             }}
                           >
-                            <span className="material-symbols-outlined text-[18px] text-on-surface-variant">{p.icon}</span>
+                            <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">{p.icon}</span>
                             {p.l}
                           </button>
                         ))}
+
+                        {/* Separator + dangerous "Xóa tất cả" action — typed-confirm required */}
+                        <div className="my-1 h-px bg-outline-variant" role="separator" />
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-[13px] font-semibold text-error hover:bg-error-container/40 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed"
+                          disabled={summary.total === 0}
+                          onClick={() => {
+                            setDeleteOpen(false);
+                            setDeleteAllConfirmText("");
+                            setDeleteDialogType("all");
+                          }}
+                        >
+                          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">delete_forever</span>
+                          Xóa tất cả
+                          <span className="ml-auto text-[11px] font-medium text-on-surface-variant tabular-nums">
+                            {summary.total.toLocaleString("vi")}
+                          </span>
+                        </button>
                       </div>
                     </div>
                   </>
@@ -1075,15 +1375,15 @@ export default function AuditHistoryPage() {
 
                           {/* Delete button — visible on hover on md+ */}
                           <div className="hidden md:flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              aria-label={`Xóa bản ghi ${r.id}`}
-                              className="flex h-7 w-7 items-center justify-center rounded-lg text-outline hover:text-error hover:bg-error-container transition-colors"
+                            <IconButton
+                              label={`Xóa bản ghi ${r.id}`}
+                              variant="ghost"
+                              size="sm"
                               onClick={(e) => { e.stopPropagation(); requestDelete(r.id, `${r.tableName} #${r.recordId}`); }}
-                              title="Xóa"
-                              type="button"
+                              className="text-outline hover:text-error hover:bg-error-container"
                             >
-                              <span className="material-symbols-outlined text-[14px]">delete</span>
-                            </button>
+                              <span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete</span>
+                            </IconButton>
                           </div>
                         </div>
                       );
@@ -1113,12 +1413,26 @@ export default function AuditHistoryPage() {
             </div>
 
             <div className="flex items-center gap-1">
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page <= 0} onClick={() => setPage(0)} type="button" aria-label="Trang đầu">
-                <span className="material-symbols-outlined text-[14px] text-on-surface-variant">keyboard_double_arrow_left</span>
-              </button>
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))} type="button" aria-label="Trang trước">
-                <span className="material-symbols-outlined text-[14px] text-on-surface-variant">chevron_left</span>
-              </button>
+              <IconButton
+                label="Trang đầu"
+                variant="ghost"
+                size="sm"
+                disabled={page <= 0}
+                onClick={() => setPage(0)}
+                className="border border-outline-variant text-on-surface-variant"
+              >
+                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">keyboard_double_arrow_left</span>
+              </IconButton>
+              <IconButton
+                label="Trang trước"
+                variant="ghost"
+                size="sm"
+                disabled={page <= 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                className="border border-outline-variant text-on-surface-variant"
+              >
+                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">chevron_left</span>
+              </IconButton>
 
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 let p: number;
@@ -1126,27 +1440,39 @@ export default function AuditHistoryPage() {
                 else if (page <= 2) p = i + 1;
                 else if (page >= totalPages - 3) p = totalPages - 4 + i;
                 else p = page - 1 + i;
+                const isActive = p === page + 1;
                 return (
-                  <button
+                  <Button
                     key={p}
-                    className={`flex h-8 min-w-[32px] items-center justify-center rounded-lg px-2 text-[12px] font-medium transition-colors ${
-                      p === page + 1
-                        ? "bg-primary text-on-primary shadow-sm"
-                        : "border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low text-on-surface"
-                    }`}
-                    onClick={() => setPage(p - 1)} type="button"
+                    variant={isActive ? "primary" : "secondary"}
+                    size="sm"
+                    onClick={() => setPage(p - 1)}
                   >
                     {p}
-                  </button>
+                  </Button>
                 );
               })}
 
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} type="button" aria-label="Trang sau">
-                <span className="material-symbols-outlined text-[14px] text-on-surface-variant">chevron_right</span>
-              </button>
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled={page >= totalPages - 1} onClick={() => setPage(Math.max(0, totalPages - 1))} type="button" aria-label="Trang cuối">
-                <span className="material-symbols-outlined text-[14px] text-on-surface-variant">keyboard_double_arrow_right</span>
-              </button>
+              <IconButton
+                label="Trang sau"
+                variant="ghost"
+                size="sm"
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage(page + 1)}
+                className="border border-outline-variant text-on-surface-variant"
+              >
+                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">chevron_right</span>
+              </IconButton>
+              <IconButton
+                label="Trang cuối"
+                variant="ghost"
+                size="sm"
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage(Math.max(0, totalPages - 1))}
+                className="border border-outline-variant text-on-surface-variant"
+              >
+                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">keyboard_double_arrow_right</span>
+              </IconButton>
             </div>
 
             <p className="text-[12px] text-on-surface-variant">

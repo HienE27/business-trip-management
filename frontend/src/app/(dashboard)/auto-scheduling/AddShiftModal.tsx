@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import type { AutoScheduleSummary, SchedulePeriod, ShiftType, Staff } from "@/types/api";
 
@@ -115,21 +116,21 @@ export function AddShiftModal({
         </div>
       </div>
       <ModalFooter>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="md"
           onClick={handleClose}
-          className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
         >
           Hủy
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="primary"
+          size="md"
           onClick={handleSubmit}
           disabled={!isValid}
-          className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
         >
           Thêm ca trực
-        </button>
+        </Button>
       </ModalFooter>
     </Modal>
   );
