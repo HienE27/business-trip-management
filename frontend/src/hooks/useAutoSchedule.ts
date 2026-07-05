@@ -91,13 +91,17 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
       edited: Array<{ workDate: string; shiftTypeId: string; staffId: number }>,
       onSuccess: () => void
     ) => {
-      if (!periodId || !previewResult) return;
+      if (!periodId) {
+        console.log("[applyPreview] No periodId, returning early");
+        return;
+      }
       try {
         setApplying(true);
         setMessage(null);
         const schedules = edited.length > 0
           ? edited
-          : previewResult.schedules.map((s) => ({ workDate: s.workDate, shiftTypeId: s.shiftTypeId, staffId: s.staffId }));
+          : previewResult?.schedules.map((s) => ({ workDate: s.workDate, shiftTypeId: s.shiftTypeId, staffId: s.staffId })) ?? [];
+        console.log("[applyPreview] Calling API with", schedules.length, "schedules");
         await api.applyPreview({ periodId, algorithmType, schedules });
         setMessage("Đã áp dụng phương án phân công.");
         setPreviewResult(null);
@@ -110,6 +114,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         }
         onSuccess();
       } catch (error) {
+        console.error("[applyPreview] Error:", error);
         setMessage(getErrorMessage(error, "Không thể áp dụng phương án."));
       } finally {
         setApplying(false);

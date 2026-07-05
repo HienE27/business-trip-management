@@ -1,6 +1,6 @@
 "use client";
 
-import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Modal } from "@/components/ui/Modal";
 import type { AutoScheduleSummary, SchedulePeriod } from "@/types/api";
 
 interface Props {
@@ -44,7 +44,7 @@ export function ApplyConfirmationModal({
           )}
         </div>
       )}
-      <ModalFooter>
+      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-outline-variant bg-surface-container-low mt-4 -mx-4 sm:-mx-6 mb-[-16px]">
         <button
           type="button"
           onClick={onClose}
@@ -61,7 +61,7 @@ export function ApplyConfirmationModal({
           <span className="material-symbols-outlined text-[16px]">check</span>
           {applying ? "Đang áp dụng..." : "Xác nhận áp dụng"}
         </button>
-      </ModalFooter>
+      </div>
     </Modal>
   );
 }
