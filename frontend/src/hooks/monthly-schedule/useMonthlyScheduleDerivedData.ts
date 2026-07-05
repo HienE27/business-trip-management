@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { ConflictCheckResponse, CompensationDay, Schedule, ShiftRequirement, Staff } from "@/types/api";
+import type { ConflictCheckResponse, CompensationDay, Schedule, Staff } from "@/types/api";
 import type { ScheduleTab } from "@/components/monthly-schedule/types";
 import {
   buildCalendarAnnotations,
@@ -17,11 +17,10 @@ export function useMonthlyScheduleDerivedData(params: {
   activeStaff: Staff[];
   conflictData: ConflictCheckResponse | null;
   compensationDays: CompensationDay[];
-  requirements: ShiftRequirement[];
   focusDate: string | null;
   pendingLeaveRequests?: number;
 }) {
-  const { selectedTab, schedules, activeStaff, conflictData, compensationDays, requirements, focusDate, pendingLeaveRequests = 0 } = params;
+  const { selectedTab, schedules, activeStaff, conflictData, compensationDays, focusDate, pendingLeaveRequests = 0 } = params;
   const showAll = selectedTab === "ALL";
 
   const filteredSchedules = useMemo(
@@ -40,33 +39,26 @@ export function useMonthlyScheduleDerivedData(params: {
   );
 
   const computedCoverages = useMemo(
-    () => buildCoverageMap(requirements, { shiftTypeId: selectedTab }),
-    [requirements, selectedTab],
-  );
-
-  const filteredRequirements = useMemo(
-    () => (showAll ? requirements : requirements.filter((req) => req.shiftType.id === selectedTab)),
-    [requirements, selectedTab, showAll],
+    () => buildCoverageMap(schedules, { shiftTypeId: selectedTab }),
+    [schedules, selectedTab],
   );
 
   const coverageGapsByTab = useMemo(() => {
     const gaps: string[] = [];
     const seen = new Set<string>();
-    for (const req of filteredRequirements) {
-      if (req.assignedStaffCount >= req.requiredStaffCount) continue;
-      // Use substring instead of split for better performance
-      const key = req.workDate.substring(0, 10);
+    for (const schedule of filteredSchedules) {
+      const key = schedule.workDate.substring(0, 10);
       if (seen.has(key)) continue;
       seen.add(key);
       gaps.push(key);
     }
     gaps.sort();
     return gaps;
-  }, [filteredRequirements]);
+  }, [filteredSchedules]);
 
   const kpis = useMemo(
-    () => buildOperationalKpis({ schedules: filteredSchedules, requirements: filteredRequirements, conflictList, activeStaff, pendingLeaveRequests }),
-    [filteredSchedules, filteredRequirements, conflictList, activeStaff, pendingLeaveRequests],
+    () => buildOperationalKpis({ schedules: filteredSchedules, conflictList, activeStaff, pendingLeaveRequests }),
+    [filteredSchedules, conflictList, activeStaff, pendingLeaveRequests],
   );
 
   const workloadSnapshot = useMemo(

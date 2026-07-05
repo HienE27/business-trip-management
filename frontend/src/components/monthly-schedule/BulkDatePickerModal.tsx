@@ -23,8 +23,13 @@ const DAY_LABELS: Record<number, string> = {
   6: "T7",
 };
 
+// Format a Date as YYYY-MM-DD using LOCAL time (matches the user's timezone).
+// toISOString() returns UTC which can shift by 1 day for users in non-UTC zones.
 function toIso(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 

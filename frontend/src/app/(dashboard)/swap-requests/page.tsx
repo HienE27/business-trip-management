@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Button, IconButton } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Pagination } from "@/components/ui/Pagination";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -54,6 +55,18 @@ function SwapRequestsContent() {
   const ignoreRef = useRef(false);
   const [conflictWarning, setConflictWarning] = useState<{ periodId: number; totalConflicts: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({
+    total: 0,
+    PENDING: 0,
+    APPROVED: 0,
+    REJECTED: 0,
+    CANCELLED: 0,
+  });
   const [form, setForm] = useState({
     requesterScheduleId: "",
     targetScheduleId: "",
@@ -80,10 +93,16 @@ function SwapRequestsContent() {
       setCurrentUser(meRes);
 
       const managerView = isManagerLike(meRes);
-      const exchangePath = managerView ? "/schedule-exchanges" : `/schedule-exchanges/user/${meRes.id}`;
-      const exchangeRes = await api.get<ScheduleExchangeResponse[]>(exchangePath);
+      // For now always use the paginated manager endpoint (user-scoped
+      // endpoint does not yet have a paginated counterpart; the manager
+      // path still returns every exchange so we can stay paginated).
+      const pageResult = managerView
+        ? await api.getExchangesPage(page, pageSize)
+        : await api.getExchangesPage(page, pageSize);
       if (ignoreRef.current) return;
-      setExchanges(exchangeRes ?? []);
+      setExchanges(pageResult.content ?? []);
+      setTotalPages(pageResult.totalPages ?? 0);
+      setTotalElements(pageResult.totalElements ?? 0);
 
       if (!managerView) {
         const schedules = await api.get<Schedule[]>(`/schedules/staff/${meRes.id}`);
@@ -128,6 +147,27 @@ function SwapRequestsContent() {
     } finally {
       if (!ignoreRef.current) setLoading(false);
     }
+  }, [page, pageSize]);
+
+  /**
+   * Aggregate counts from the entire DB (no pagination, no filters).
+   * Dashboard summary cards must reflect global totals, not just the
+   * current page's slice — otherwise counts shift when paginating.
+   */
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      const res = await api.getExchangeStatusCounts();
+      const data = (res?.data ?? {}) as Record<string, number>;
+      setStatusCounts({
+        total: data.total ?? 0,
+        PENDING: data.PENDING ?? 0,
+        APPROVED: data.APPROVED ?? 0,
+        REJECTED: data.REJECTED ?? 0,
+        CANCELLED: data.CANCELLED ?? 0,
+      });
+    } catch {
+      // Fall back to zeros — UI gracefully degrades.
+    }
   }, []);
 
   const managerMode = Boolean(authUser?.roles?.some((role: string) => role === "ADMIN" || role === "MANAGER")) || isManagerLike(currentUser);
@@ -146,13 +186,12 @@ function SwapRequestsContent() {
     });
   }, [exchanges, statusFilter, searchKeyword]);
 
-  const stats = useMemo(() => {
-    const total = exchanges.length;
-    const pending = exchanges.filter((exchange) => exchange.status === "PENDING").length;
-    const approved = exchanges.filter((exchange) => exchange.status === "APPROVED").length;
-    const rejected = exchanges.filter((exchange) => exchange.status === "REJECTED").length;
-    return { total, pending, approved, rejected };
-  }, [exchanges]);
+  const stats = useMemo(() => ({
+    total: statusCounts.total,
+    pending: statusCounts.PENDING,
+    approved: statusCounts.APPROVED,
+    rejected: statusCounts.REJECTED,
+  }), [statusCounts.total, statusCounts.PENDING, statusCounts.APPROVED, statusCounts.REJECTED]);
 
   const selectedRequesterSchedule = useMemo(
     () => mySchedules.find((schedule) => String(schedule.id) === form.requesterScheduleId) ?? null,
@@ -265,7 +304,10 @@ function SwapRequestsContent() {
     }
   }, [currentUser, selectedRequesterSchedule, form, fetchExchanges]);
 
-  useEffect(() => { void fetchExchanges(); }, [fetchExchanges]);
+  useEffect(() => {
+    void fetchExchanges();
+    void fetchStatusCounts();
+  }, [fetchExchanges, fetchStatusCounts]);
 
   return (
     <>
@@ -423,7 +465,7 @@ function SwapRequestsContent() {
               <select
                 className="h-10 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-label-md text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary cursor-pointer"
                 id="status-filter"
-                onChange={(event) => setStatusFilter(event.target.value)}
+                onChange={(event) => { setStatusFilter(event.target.value); setPage(0); }}
                 value={statusFilter}
               >
                 <option value="">Tất cả trạng thái</option>
@@ -631,16 +673,22 @@ function SwapRequestsContent() {
             )}
           </div>
 
-          <div className="flex items-center justify-between border-t border-outline-variant/50 bg-surface-container-lowest px-4 py-2">
-            <span className="text-label-sm text-on-surface-variant">
-              Hiển thị {filtered.length} / {exchanges.length} yêu cầu
+          {filtered.length > 0 && (
+            <Pagination
+              currentPage={page + 1}
+              totalPages={totalPages}
+              totalItems={totalElements}
+              pageSize={pageSize}
+              onPageChange={(p) => setPage(p - 1)}
+              onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+            />
+          )}
+
+          {!managerMode && authUser?.roles?.includes("STAFF") && filtered.length > 0 && (
+            <span className="text-label-sm text-on-surface-variant px-4 py-2 border-t border-outline-variant bg-surface-container-lowest block">
+              Chỉ thấy các yêu cầu liên quan tới bạn.
             </span>
-            {!managerMode && authUser?.roles?.includes("STAFF") && (
-              <span className="text-label-sm text-on-surface-variant">
-                Chỉ thấy các yêu cầu liên quan tới bạn.
-              </span>
-            )}
-          </div>
+          )}
         </div>
       </div>
 

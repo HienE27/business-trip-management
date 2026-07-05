@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExportControls } from "@/components/reports/ExportControls";
-import { useToast } from "@/components/ui";
+import { useToast, Pagination } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui";
 import { BackButton } from "@/components/ui/BackButton";
@@ -10,6 +10,7 @@ import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { Staff, SchedulePeriod, StaffWorkloadStatistics } from "@/types/api";
+import type { Page } from "@/types/api";
 import {
   computeSummary,
   pickCap,
@@ -49,6 +50,10 @@ function ReportsStaffContent() {
   const [message, setMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [view, setView] = useState<WorkloadView>("ALL");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
   const fetchPeriods = useCallback(async () => {
     try {
@@ -75,16 +80,24 @@ function ReportsStaffContent() {
       setMessage(null);
       const [staffRes, workloadRes] = await Promise.allSettled([
         api.get<Staff[]>("/staff/active"),
-        api.get<StaffWorkloadStatistics[]>(`/dashboard/workload/period/${selectedPeriodId}`),
+        api.getPage<StaffWorkloadStatistics>(
+          `/dashboard/workload/period/${selectedPeriodId}/page`,
+          { page, size: pageSize, sort: "scheduleCount,desc" },
+        ),
       ]);
       if (staffRes.status === "fulfilled") setStaffList(staffRes.value ?? []);
-      if (workloadRes.status === "fulfilled") setWorkloads(workloadRes.value ?? []);
+      if (workloadRes.status === "fulfilled") {
+        const result = workloadRes.value;
+        setWorkloads(result.content ?? []);
+        setTotalPages(result.totalPages ?? 0);
+        setTotalElements(result.totalElements ?? 0);
+      }
     } catch (err) {
       setMessage(getErrorMessage(err, "Lỗi tải dữ liệu nhân sự."));
     } finally {
       setLoading(false);
     }
-  }, [selectedPeriodId]);
+  }, [selectedPeriodId, page, pageSize]);
 
   useEffect(() => {
     void fetchPeriods();
@@ -266,7 +279,7 @@ function ReportsStaffContent() {
               className="w-full rounded-lg border border-transparent bg-surface py-2.5 pl-10 pr-4 text-[14px] text-on-surface transition-all placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-1 focus:ring-primary"
               placeholder="Tìm theo tên, mã NV hoặc khoa..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             />
           </div>
           {/* View-mode tabs */}
@@ -441,11 +454,14 @@ function ReportsStaffContent() {
           )}
         </div>
         {!loading && enriched.length > 0 && (
-          <div className="border-t border-outline-variant px-5 py-3">
-            <p className="text-[12px] text-on-surface-variant">
-              Hiển thị {enriched.length} nhân sự
-            </p>
-          </div>
+          <Pagination
+            currentPage={page + 1}
+            totalPages={totalPages}
+            totalItems={totalElements}
+            pageSize={pageSize}
+            onPageChange={(p) => setPage(p - 1)}
+            onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+          />
         )}
       </section>
     </>

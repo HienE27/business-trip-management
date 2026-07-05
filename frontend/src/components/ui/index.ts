@@ -34,6 +34,8 @@ export { FormTextarea } from "./FormTextarea";
 export { FormCheckbox } from "./FormCheckbox";
 export { Button, IconButton } from "./Button";
 export { ConfirmDialog } from "./ConfirmDialog";
+export { TypedConfirmDialog } from "./TypedConfirmDialog";
+export { Pagination } from "./Pagination";
 export { ToastProvider, useToast } from "./ToastProvider";
 export { ThemeToggle } from "./ThemeToggle";
 export { StaffSearchCombobox } from "./StaffSearchCombobox";

@@ -1,0 +1,22 @@
+/* Safelist file for Tailwind v4 — forces class generation */
+/* Used as a global declaration source so Tailwind v4 JIT picks these up */
+/* even when they only appear via string interpolation at runtime. */
+/* See ./globals.css @source inline section. */
+
+/* Visual reference helpers — do not render */
+.vis-bg-amber-50 { @apply bg-amber-50; }
+.vis-bg-indigo-50 { @apply bg-indigo-50; }
+.vis-bg-blue-50 { @apply bg-blue-50; }
+.vis-bg-teal-50 { @apply bg-teal-50; }
+.vis-bg-amber-100 { @apply bg-amber-100; }
+.vis-bg-indigo-100 { @apply bg-indigo-100; }
+.vis-bg-blue-100 { @apply bg-blue-100; }
+.vis-bg-teal-100 { @apply bg-teal-100; }
+.vis-text-amber-700 { @apply text-amber-700; }
+.vis-text-indigo-600 { @apply text-indigo-600; }
+.vis-text-blue-600 { @apply text-blue-600; }
+.vis-text-teal-600 { @apply text-teal-600; }
+.vis-border-l-amber-500 { @apply border-l-amber-500; }
+.vis-border-l-indigo-500 { @apply border-l-indigo-500; }
+.vis-border-l-blue-500 { @apply border-l-blue-500; }
+.vis-border-l-teal-500 { @apply border-l-teal-500; }

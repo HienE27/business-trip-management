@@ -11,7 +11,6 @@ import type {
   ConflictCheckResponse,
   Schedule,
   SchedulePeriod,
-  ShiftRequirement,
   Specialty,
   Staff,
 } from "@/types/api";
@@ -25,8 +24,7 @@ import type {
  *
  * Cung cấp:
  * - `periods`, `selectedPeriodId`, `setSelectedPeriodId`
- * - `schedules`, `activeStaff`, `conflictData`, `compensationDays`,
- *   `requirements`, `specialties`
+ * - `schedules`, `activeStaff`, `conflictData`, `compensationDays`, `specialties`
  * - `loading`, `refreshing`, `message`
  * - `refresh()`, `clearMessage()`
  *
@@ -49,7 +47,6 @@ export type UseSchedulePeriodDataState = {
   activeStaff: Staff[];
   conflictData: ConflictCheckResponse | null;
   compensationDays: CompensationDay[];
-  requirements: ShiftRequirement[];
   specialties: Specialty[];
   loading: boolean;
   refreshing: boolean;
@@ -81,16 +78,12 @@ export function useSchedulePeriodData(
   const [activeStaff, setActiveStaff] = useState<Staff[]>([]);
   const [conflictData, setConflictData] = useState<ConflictCheckResponse | null>(null);
   const [compensationDays, setCompensationDays] = useState<CompensationDay[]>([]);
-  const [requirements, setRequirements] = useState<ShiftRequirement[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Guard for aborting async work when component unmounts
   const aliveRef = useRef(true);
-
-  // Keep loadPeriodData stable via ref to avoid stale closures
   const loadPeriodDataRef = useRef<typeof loadPeriodData | null>(null);
 
   const selectedPeriod = useMemo(
@@ -103,13 +96,11 @@ export function useSchedulePeriodData(
       setSchedules([]);
       setConflictData(null);
       setCompensationDays([]);
-      setRequirements([]);
       return;
     }
 
     if (isRefresh) setRefreshing(true);
 
-    // OPTIMIZATION: All data fetches run in PARALLEL - not sequentially
     const fetchOne = async <T,>(fetcher: () => Promise<T>, fallback: T): Promise<T> => {
       try {
         const result = await fetcher();
@@ -119,10 +110,7 @@ export function useSchedulePeriodData(
       }
     };
 
-    // Fetch all data in parallel for maximum performance
-    // Note: schedule and requirement APIs return paginated responses with Page object structure
-    // We need to extract the content array from the response
-    const [scheduleResult, conflictResult, compDaysData, reqData] = await Promise.all([
+    const [scheduleResult, conflictResult, compDaysData] = await Promise.all([
       fetchOne<Schedule[]>(() => api.get<Schedule[]>(`/schedules/period/${periodId}`), []),
       fetchOne<ConflictCheckResponse | null>(
         () => api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`),
@@ -132,45 +120,28 @@ export function useSchedulePeriodData(
         () => api.get<CompensationDay[]>(`/schedules/compensation-days/${periodId}`),
         []
       ),
-      fetchOne<ShiftRequirement[]>(
-        () => api.get<ShiftRequirement[]>(`/shift-requirements/period/${periodId}`),
-        []
-      ),
     ]);
 
     if (!aliveRef.current) return;
 
-    // Extract schedules from paginated response if needed
     const scheduleData = Array.isArray(scheduleResult)
       ? scheduleResult
       : (scheduleResult && typeof scheduleResult === 'object' && 'content' in scheduleResult)
         ? (scheduleResult as { content?: Schedule[] }).content ?? []
         : [];
 
-    // Extract requirements from paginated response if needed
-    const reqResultData = Array.isArray(reqData)
-      ? reqData
-      : (reqData && typeof reqData === 'object' && 'content' in reqData)
-        ? (reqData as { content?: ShiftRequirement[] }).content ?? []
-        : [];
-
-    // Batch all state updates into ONE render
     setSchedules(scheduleData);
     setConflictData(conflictResult);
     setCompensationDays(compDaysData);
-    setRequirements(reqResultData);
     if (isRefresh) setRefreshing(false);
   }, []);
 
-  // Keep ref in sync with loadPeriodData callback
   useEffect(() => {
     loadPeriodDataRef.current = loadPeriodData;
   }, [loadPeriodData]);
 
-  // Auto-dismiss transient messages after 5s
   useAutoDismiss(message, () => setMessage(null));
 
-  // Reset aliveRef and message on mount/unmount
   useEffect(() => {
     aliveRef.current = true;
     return () => {
@@ -178,13 +149,11 @@ export function useSchedulePeriodData(
     };
   }, []);
 
-  // Clear stale banner on pathname change
   const pathname = usePathname();
   useEffect(() => {
     setMessage(null);
   }, [pathname]);
 
-  // Listen for schedules-changed events to auto-refresh
   useEffect(() => {
     const handleSchedulesChanged = () => {
       invalidateEndpoint("/schedules");
@@ -205,7 +174,6 @@ export function useSchedulePeriodData(
     };
   }, [selectedPeriodId, invalidateEndpoint]);
 
-  // Bootstrap: load periods + staff + auto-select active period
   useEffect(() => {
     let active = true;
 
@@ -213,8 +181,6 @@ export function useSchedulePeriodData(
       setLoading(true);
       setMessage(null);
       try {
-        // Use queryCache to deduplicate: if another component is already
-        // fetching these, this call returns the same Promise.
         const [periodData, staffData, specialtyData] = await Promise.all([
           queryCache("/periods", () => api.get<SchedulePeriod[]>("/periods")),
           queryCache("/staff/active", () => api.get<Staff[]>("/staff/active")),
@@ -225,15 +191,14 @@ export function useSchedulePeriodData(
 
         if (!active) return;
 
-        const nextPeriods = periodData ?? [];
-        setPeriods(nextPeriods);
+        setPeriods(periodData ?? []);
         setActiveStaff(staffData ?? []);
         setSpecialties(specialtyData ?? []);
 
         if (autoSelectPeriod) {
           const preferred =
-            nextPeriods.find((p) => p.status === "DRAFT" || p.status === "PUBLISHED") ??
-            nextPeriods[0] ??
+            periodData?.find((p) => p.status === "DRAFT" || p.status === "PUBLISHED") ??
+            periodData?.[0] ??
             null;
           const nextPeriodId = preferred?.id ?? null;
           setSelectedPeriodIdState(nextPeriodId);
@@ -262,45 +227,31 @@ export function useSchedulePeriodData(
   );
 
   const refresh = useCallback(async () => {
-    // Capture periodId at call time to avoid stale closure issues
     const periodId = selectedPeriodId;
     setRefreshing(true);
     setMessage(null);
     try {
-      // Fetch periods + schedule data in parallel for performance
-      const [periodData, scheduleResult, conflictResult, compDaysData, reqData] = await Promise.all([
+      const [periodData, scheduleResult, conflictResult, compDaysData] = await Promise.all([
         api.get<SchedulePeriod[]>("/periods").catch(() => null),
         periodId ? api.get<Schedule[]>(`/schedules/period/${periodId}`).catch(() => null) : Promise.resolve(null),
         periodId ? api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`).catch(() => null) : Promise.resolve(null),
         periodId ? api.get<CompensationDay[]>(`/schedules/compensation-days/${periodId}`).catch(() => []) : Promise.resolve([]),
-        periodId ? api.get<ShiftRequirement[]>(`/shift-requirements/period/${periodId}`).catch(() => []) : Promise.resolve([]),
       ]);
 
       if (!aliveRef.current) return;
 
-      // Update periods if fetched successfully
       if (periodData) setPeriods(periodData);
 
-      // Only update schedule data if periodId exists
       if (periodId) {
-        // Extract schedules from paginated response if needed
         const scheduleData = Array.isArray(scheduleResult)
           ? scheduleResult
           : (scheduleResult && typeof scheduleResult === 'object' && 'content' in scheduleResult)
             ? (scheduleResult as { content?: Schedule[] }).content ?? []
             : [];
 
-        // Extract requirements from paginated response if needed
-        const reqResultData = Array.isArray(reqData)
-          ? reqData
-          : (reqData && typeof reqData === 'object' && 'content' in reqData)
-            ? (reqData as { content?: ShiftRequirement[] }).content ?? []
-            : [];
-
         setSchedules(scheduleData);
         setConflictData(conflictResult);
         setCompensationDays(compDaysData ?? []);
-        setRequirements(reqResultData);
       }
     } catch (error) {
       if (!aliveRef.current) return;
@@ -308,9 +259,8 @@ export function useSchedulePeriodData(
     } finally {
       if (aliveRef.current) setRefreshing(false);
     }
-  }, []);
+  }, [selectedPeriodId]);
 
-  // Optional conflict polling cho dashboard realtime
   useEffect(() => {
     if (!conflictPollMs || conflictPollMs <= 0 || !selectedPeriodId) return;
     const ignoreRef = { current: false };
@@ -342,7 +292,6 @@ export function useSchedulePeriodData(
     activeStaff,
     conflictData,
     compensationDays,
-    requirements,
     specialties,
     loading,
     refreshing,

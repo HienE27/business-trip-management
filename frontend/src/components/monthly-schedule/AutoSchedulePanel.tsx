@@ -300,6 +300,18 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
           {unassignedDays.length > 0 && (() => {
             const ratio = totalMissing / Math.max(1, unassignedDays.length);
             const tone = totalMissing === 0 ? "ok" : ratio <= 2 ? "warning" : "critical";
+            // Compute bottleneck shift types to give user actionable insight
+            const byType = previewResult?.byShiftType ?? {};
+            const bottlenecks = (Object.values(byType) as Array<{
+              shiftTypeId: string;
+              shiftTypeName: string;
+              totalAssigned: number;
+              totalRequired: number;
+              coverageRate: number;
+              distinctStaffAssigned: number;
+            }>)
+              .filter((t) => t.coverageRate < 95)
+              .sort((a, b) => a.coverageRate - b.coverageRate);
             const toneStyles = {
               ok: "bg-secondary-container/20 border-secondary/30",
               warning: "bg-tertiary-container/20 border-tertiary/30",
@@ -341,6 +353,39 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                   {showUnassigned ? "Ẩn chi tiết" : "Xem chi tiết"}
                 </Button>
               </div>
+
+              {/* Bottleneck explanation - hiển thị lý do coverage thấp */}
+              {bottlenecks.length > 0 && (
+                <div className="mt-3 rounded-lg border border-outline-variant/40 bg-surface-container-lowest/50 p-3 text-label-xs text-on-surface-variant space-y-1">
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-[14px] mt-0.5">lightbulb</span>
+                    <div className="flex-1">
+                      <p className="font-semibold text-on-surface">Nguyên nhân thiếu nhân sự:</p>
+                      <ul className="mt-1 space-y-0.5">
+                        {bottlenecks.map((b) => {
+                          const gap = b.totalRequired - b.totalAssigned;
+                          return (
+                            <li key={b.shiftTypeId}>
+                              • <strong className="text-on-surface">{b.shiftTypeName}</strong>: cần {b.totalRequired} ca nhưng chỉ gán được {b.totalAssigned} ca
+                              {" "}({b.coverageRate.toFixed(1)}%)
+                              {" — thiếu "}{gap} ca
+                              {b.distinctStaffAssigned > 0 && (
+                                <span className="text-on-surface-variant"> · {b.distinctStaffAssigned} nhân sự khả dụng</span>
+                              )}
+                              {b.shiftTypeId === "L04" && (
+                                <span className="text-on-surface-variant"> · L04 phụ thuộc chuyên khoa, mỗi chuyên khoa chỉ gán được nhân sự đúng chuyên khoa</span>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <p className="mt-1.5 text-on-surface-variant italic">
+                        💡 Gợi ý: thêm nhân sự vào pool (chuyên khoa phù hợp cho L04) hoặc điều chỉnh số NS tối thiểu/ngày trong cấu hình thuật toán.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Unassigned details */}
               {showUnassigned && (

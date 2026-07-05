@@ -54,6 +54,14 @@ export function StaffExclusionTable({
     }
   };
 
+  const bulkExcludeVisible = (exclude: boolean) => {
+    const visibleIds = new Set(filteredStaff.map((s) => s.id));
+    const next = exclude
+      ? Array.from(new Set([...excludedIds, ...visibleIds]))
+      : excludedIds.filter((id) => !visibleIds.has(id));
+    onExclusionsChange(next);
+  };
+
   const filteredStaff = useMemo(() => {
     return staff.filter((s) => {
       if (filterRole !== "ALL") {
@@ -73,6 +81,7 @@ export function StaffExclusionTable({
 
   const excludedCount = excludedIds.length;
   const includedCount = staff.length - excludedCount;
+  const visibleExcludedCount = filteredStaff.filter((s) => excludedIds.includes(s.id)).length;
 
   if (loading) {
     return (
@@ -119,10 +128,11 @@ export function StaffExclusionTable({
           <button
             type="button"
             onClick={() => setShowOnlyExcluded(!showOnlyExcluded)}
-            className={`flex items-center gap-2 h-10 px-4 rounded-lg border text-label-sm font-medium transition-all cursor-pointer ${
+            aria-pressed={showOnlyExcluded}
+            className={`flex items-center gap-2 h-10 px-4 rounded-lg border text-label-sm font-medium transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${
               showOnlyExcluded
                 ? "border-error bg-error-container text-error"
-                : "border-outline-variant bg-surface-container-low text-on-surface-variant hover:border-primary"
+                : "border-outline-variant bg-surface-container-low text-on-surface-variant hover:border-primary hover:bg-surface-container-lowest"
             }`}
           >
             <span className="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt_off</span>
@@ -131,7 +141,7 @@ export function StaffExclusionTable({
         </div>
       </div>
 
-      {/* Summary badges */}
+      {/* Summary + bulk actions */}
       <div className="flex items-center gap-3 flex-wrap">
         <Badge tone="success" size="sm">
           <span className="material-symbols-outlined text-[12px]">group</span>
@@ -141,11 +151,35 @@ export function StaffExclusionTable({
           <span className="material-symbols-outlined text-[12px]">group_remove</span>
           {excludedCount} loại trừ
         </Badge>
+
+        <span className="hidden sm:block h-5 w-px bg-outline-variant" aria-hidden="true" />
+
+        {filteredStaff.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => bulkExcludeVisible(true)}
+              className="text-label-sm font-medium text-on-surface-variant hover:text-error transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded px-1.5 py-0.5"
+            >
+              Loại trừ tất cả ({filteredStaff.length})
+            </button>
+            {visibleExcludedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => bulkExcludeVisible(false)}
+                className="text-label-sm font-medium text-on-surface-variant hover:text-secondary transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded px-1.5 py-0.5"
+              >
+                Bỏ loại trừ hiện đang chọn ({visibleExcludedCount})
+              </button>
+            )}
+          </>
+        )}
+
         {excludedCount > 0 && (
           <button
-            className="text-label-sm text-primary hover:underline cursor-pointer"
-            onClick={() => onExclusionsChange([])}
             type="button"
+            onClick={() => onExclusionsChange([])}
+            className="text-label-sm font-medium text-primary hover:underline cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded px-1.5 py-0.5"
           >
             Bỏ loại trừ tất cả
           </button>
@@ -166,9 +200,6 @@ export function StaffExclusionTable({
             <table className="w-full text-left" aria-label="Danh sách nhân sự tham gia xếp lịch">
               <thead>
                 <tr className="bg-surface-container-low border-b border-outline-variant">
-                  <th scope="col" className="p-4 w-12 text-center">
-                    <span className="sr-only">Chọn</span>
-                  </th>
                   <th scope="col" className="p-4 text-label-xs font-semibold uppercase tracking-wide text-on-surface-variant">
                     Nhân sự
                   </th>
@@ -176,28 +207,18 @@ export function StaffExclusionTable({
                     Vai trò
                   </th>
                   <th scope="col" className="p-4 text-label-xs font-semibold uppercase tracking-wide text-on-surface-variant text-center">
-                    Trạng thái
+                    Tham gia
                   </th>
-                  <th scope="col" className="p-4 text-label-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-                    Số ca/tháng
-                  </th>
-                  <th scope="col" className="p-4 w-24" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/30">
                 {filteredStaff.map((s) => {
                   const isExcluded = excludedIds.includes(s.id);
                   return (
-                    <tr key={s.id} className={`hover:bg-surface-container-low transition-colors ${isExcluded ? "bg-error-container/5" : ""}`}>
-                      <td className="p-4 text-center">
-                        <input
-                          aria-label={`Chọn nhân sự ${s.fullName} tham gia xếp lịch`}
-                          className="h-5 w-5 rounded border-outline-variant text-primary cursor-pointer focus:ring-2 focus:ring-primary/30"
-                          type="checkbox"
-                          checked={!isExcluded}
-                          onChange={(e) => toggleExclusion(s.id, !e.target.checked)}
-                        />
-                      </td>
+                    <tr
+                      key={s.id}
+                      className={`hover:bg-surface-container-low transition-colors ${isExcluded ? "bg-error-container/5" : ""}`}
+                    >
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${getAvatarColor(s.id)}`}>
@@ -221,21 +242,10 @@ export function StaffExclusionTable({
                       </td>
                       <td className="p-4 text-center">
                         <Toggle
-                          checked={isExcluded}
-                          onChange={(v) => toggleExclusion(s.id, v)}
+                          checked={!isExcluded}
+                          onChange={(include) => toggleExclusion(s.id, !include)}
                           label={isExcluded ? "Đã loại khỏi xếp lịch" : "Tham gia xếp lịch"}
                         />
-                      </td>
-                      <td className="p-4 text-label-sm text-on-surface-variant">
-                        {s.maxShiftsPerMonth > 0 ? `${s.maxShiftsPerMonth} ca` : "—"}
-                      </td>
-                      <td className="p-4">
-                        {isExcluded && (
-                          <Badge tone="error" size="sm">
-                            <span className="material-symbols-outlined text-[10px]">block</span>
-                            Loại trừ
-                          </Badge>
-                        )}
                       </td>
                     </tr>
                   );
@@ -243,10 +253,13 @@ export function StaffExclusionTable({
               </tbody>
             </table>
           </div>
-          <div className="px-4 py-3 border-t border-outline-variant bg-surface-container-low">
+          <div className="px-4 py-3 border-t border-outline-variant bg-surface-container-low flex items-center justify-between gap-3 flex-wrap">
             <p className="text-label-sm text-on-surface-variant">
               Hiển thị <strong>{filteredStaff.length}</strong> / {staff.length} nhân sự
               {search && ` · Tìm thấy "${search}"`}
+            </p>
+            <p className="text-label-xs text-on-surface-variant">
+              Bật/tắt toggle để thêm/bớt khỏi xếp lịch tự động
             </p>
           </div>
         </div>

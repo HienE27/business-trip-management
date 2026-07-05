@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { FormSelect } from "@/components/ui/FormSelect";
 import { WorkflowStepper } from "@/components/monthly-schedule/WorkflowStepper";
 import { ScheduleMatrixView } from "@/components/dashboard/ScheduleMatrixView";
 import { QuickAddModal } from "@/components/monthly-schedule/QuickAddModal";
@@ -568,71 +569,35 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       <div className="flex flex-col xl:flex-row gap-3">
         <div className="flex-1 min-w-0">
           <section className="flex flex-wrap items-end gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
-            <div className="min-w-[200px]">
-              <label
-                htmlFor={`${config.activeSection}-period-select`}
-                className="mb-1.5 block text-label-sm text-on-surface-variant"
-              >
-                Kỳ lịch
-              </label>
-              <div className="relative">
-                <select
-                  id={`${config.activeSection}-period-select`}
-                  className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
-                  value={selectedPeriodId ?? ""}
-                  onChange={(e) => {
-                    const next = Number(e.target.value);
-                    setSelectedPeriodId(next);
-                    if (isExpertMode) setSelectedSpecialtyId(null);
-                  }}
-                >
-                  <option value="">Chọn kỳ lịch</option>
-                  {periods.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.periodName} ({p.status})
-                    </option>
-                  ))}
-                </select>
-                <span
-                  aria-hidden="true"
-                  className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]"
-                >
-                  expand_more
-                </span>
-              </div>
-            </div>
+            <FormSelect
+              id={`${config.activeSection}-period-select`}
+              label="Kỳ lịch"
+              value={selectedPeriodId != null ? String(selectedPeriodId) : ""}
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                setSelectedPeriodId(next);
+                if (isExpertMode) setSelectedSpecialtyId(null);
+              }}
+              options={[
+                { value: "", label: "Chọn kỳ lịch" },
+                ...periods.map((p) => ({ value: String(p.id), label: `${p.periodName} (${p.status})` })),
+              ]}
+              className="!bg-surface-container-lowest min-w-[200px]"
+            />
             {isExpertMode && (
-              <div className="min-w-[200px] shrink-0 border-l border-outline-variant pl-4">
-                <label
-                  htmlFor={`${config.activeSection}-specialty-filter`}
-                  className="mb-1.5 block text-label-sm text-on-surface-variant"
-                >
-                  Chuyên khoa
-                </label>
-                <div className="relative">
-                  <select
-                    id={`${config.activeSection}-specialty-filter`}
-                    className="h-10 w-full appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 pr-10 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20 cursor-pointer"
-                    value={selectedSpecialtyId ?? ""}
-                    onChange={(e) =>
-                      setSelectedSpecialtyId(e.target.value ? Number(e.target.value) : null)
-                    }
-                  >
-                    <option value="">Tất cả chuyên khoa</option>
-                    {specialties.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                  <span
-                    aria-hidden="true"
-                    className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]"
-                  >
-                    expand_more
-                  </span>
-                </div>
-              </div>
+              <FormSelect
+                id={`${config.activeSection}-specialty-filter`}
+                label="Chuyên khoa"
+                value={selectedSpecialtyId != null ? String(selectedSpecialtyId) : ""}
+                onChange={(e) =>
+                  setSelectedSpecialtyId(e.target.value ? Number(e.target.value) : null)
+                }
+                options={[
+                  { value: "", label: "Tất cả chuyên khoa" },
+                  ...specialties.map((s) => ({ value: String(s.id), label: s.name })),
+                ]}
+                className="!bg-surface-container-lowest min-w-[200px] shrink-0 border-l border-outline-variant pl-4"
+              />
             )}
             {isManager && isDraft && (
               <button

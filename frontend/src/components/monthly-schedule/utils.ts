@@ -1,4 +1,4 @@
-import type { ConflictCheckResponse, ConflictDetail, CompensationDay, Schedule, SchedulePeriod, ShiftRequirement, Staff } from "@/types/api";
+import type { ConflictCheckResponse, ConflictDetail, CompensationDay, Schedule, SchedulePeriod, Staff } from "@/types/api";
 import { getRoleBadge, getRoleLabel } from "@/lib/roleLabels";
 import { formatDate } from "@/lib/date";
 import { SHIFT_COLORS, SHIFT_TYPE_LABELS, WEEKDAYS } from "./constants";
@@ -44,8 +44,9 @@ function getWeekday(dateStr: string): string {
   return WEEKDAYS[d.getDay()] ?? "";
 }
 
-function getInitials(name: string): string {
-  return name
+function getInitials(name: string | null | undefined): string {
+  if (!name) return "";
+  return String(name)
     .split(" ")
     .filter(Boolean)
     .slice(0, 2)
@@ -62,7 +63,7 @@ export function buildShiftDetailViewModel(schedule: Schedule) {
   const shiftTypeName = schedule.shiftType.name ?? getShiftTypeLabel(shiftTypeId);
   const shiftColor = SHIFT_COLORS[shiftTypeId]?.bg ?? "bg-surface-container-low";
   const weekday = getWeekday(schedule.workDate);
-  const dateFormatted = schedule.workDate ? schedule.workDate.split("-").reverse().join("/") : "";
+  const dateFormatted = schedule.workDate ? String(schedule.workDate).split("-").reverse().join("/") : "";
   const shiftTime = schedule.shiftType.startTime && schedule.shiftType.endTime
     ? `${schedule.shiftType.startTime} - ${schedule.shiftType.endTime}`
     : "";
@@ -72,7 +73,7 @@ export function buildShiftDetailViewModel(schedule: Schedule) {
     ARCHIVED: "draft",
   };
   const status = schedule.period?.status ? (statusMap[schedule.period.status] ?? "pending") : "pending";
-  const compDateFormatted = schedule.compensationDate ? schedule.compensationDate.split("-").reverse().join("/") : null;
+  const compDateFormatted = schedule.compensationDate ? String(schedule.compensationDate).split("-").reverse().join("/") : null;
   const staffInitials = getInitials(schedule.staff.fullName);
   const avatarColor = getAvatarColor(schedule.staff.id);
 
@@ -89,7 +90,7 @@ export function buildShiftDetailViewModel(schedule: Schedule) {
     compensationDate: compDateFormatted,
     periodName: schedule.period?.periodName,
     periodRange: schedule.period
-      ? `${schedule.period.startDate.split("-").reverse().join("/")} - ${schedule.period.endDate.split("-").reverse().join("/")}`
+      ? `${String(schedule.period.startDate).split("-").reverse().join("/")} - ${String(schedule.period.endDate).split("-").reverse().join("/")}`
       : undefined,
     specialtyName: schedule.staff.specialtyName ?? null,
     roles: schedule.staff.roles ?? [],
@@ -115,10 +116,8 @@ export function buildShiftDetailViewModel(schedule: Schedule) {
 }
 
 export function buildCalendarAnnotations(compensationDays: CompensationDay[], conflicts: ConflictDetail[]): CalendarAnnotation[] {
-  // Group compensation days by date, list all staff on that date
   const compByDate = new Map<string, CompensationDay[]>();
   for (const cd of compensationDays) {
-    // Use substring instead of split for better performance
     const key = cd.compensationDate.substring(0, 10);
     if (!compByDate.has(key)) compByDate.set(key, []);
     compByDate.get(key)!.push(cd);
@@ -134,10 +133,8 @@ export function buildCalendarAnnotations(compensationDays: CompensationDay[], co
     return { date, label, tone: "compLeave" as const, description, isCompensation: true, locked: true };
   });
 
-  // Group conflicts by date
   const conflictByDate = new Map<string, ConflictDetail[]>();
   for (const conflict of conflicts) {
-    // Use substring instead of split for better performance
     const key = conflict.workDate.substring(0, 10);
     if (!conflictByDate.has(key)) conflictByDate.set(key, []);
     conflictByDate.get(key)!.push(conflict);
@@ -154,20 +151,17 @@ export function buildCalendarAnnotations(compensationDays: CompensationDay[], co
 }
 
 export function buildCoverageMap(
-  requirements: ShiftRequirement[],
+  schedules: Schedule[],
   filter?: { shiftTypeId?: ScheduleTab }
 ) {
-  const map: Record<string, { required: number; assigned: number }> = {};
+  const map: Record<string, { assigned: number }> = {};
   const includeAll = !filter?.shiftTypeId || filter.shiftTypeId === "ALL";
-  for (const req of requirements) {
-    if (!includeAll && req.shiftType.id !== filter?.shiftTypeId) continue;
-    // Use substring instead of split for better performance
-    const key = req.workDate.substring(0, 10);
-    const prev = map[key] ?? { required: 0, assigned: 0 };
-    map[key] = {
-      required: prev.required + req.requiredStaffCount,
-      assigned: prev.assigned + req.assignedStaffCount,
-    };
+  for (const schedule of schedules) {
+    if (!schedule.shiftType || !schedule.workDate) continue;
+    if (!includeAll && schedule.shiftType.id !== filter?.shiftTypeId) continue;
+    const key = String(schedule.workDate).substring(0, 10);
+    const prev = map[key] ?? { assigned: 0 };
+    map[key] = { assigned: prev.assigned + 1 };
   }
   return map;
 }
@@ -192,27 +186,14 @@ export function buildConflictKeys(conflicts: ConflictDetail[]) {
 
 export function buildOperationalKpis(params: {
   schedules: Schedule[];
-  requirements: ShiftRequirement[];
   conflictList: { shiftTypeId: string }[];
   activeStaff: Staff[];
   pendingLeaveRequests?: number;
 }): OperationalKpi[] {
-  const { schedules, requirements, conflictList, activeStaff, pendingLeaveRequests = 0 } = params;
+  const { schedules, conflictList, activeStaff, pendingLeaveRequests = 0 } = params;
 
-  // Single-pass aggregation for better performance
-  let required = 0;
-  let assigned = 0;
-  const understaffedDaysSet = new Set<string>();
   const l01ByStaff = new Map<number, number>();
-
-  for (const req of requirements) {
-    required += req.requiredStaffCount;
-    assigned += req.assignedStaffCount;
-    if (req.assignedStaffCount < req.requiredStaffCount) {
-      // Use substring instead of split for better performance
-      understaffedDaysSet.add(req.workDate.substring(0, 10));
-    }
-  }
+  const totalShifts = schedules.length;
 
   for (const schedule of schedules) {
     if (schedule.shiftType.id === "L01") {
@@ -220,10 +201,6 @@ export function buildOperationalKpis(params: {
     }
   }
 
-  const coverage = required > 0 ? Math.min(Math.round((assigned / required) * 100), 100) : schedules.length > 0 ? 100 : 0;
-  const understaffedDays = understaffedDaysSet.size;
-  // Fatigue risk: staff whose L01 count meets or exceeds their personal maxShiftsPerMonth threshold.
-  // Falls back to the legacy hard-coded threshold of 4 when the threshold is missing or non-positive.
   const staffById = new Map(activeStaff.map((s) => [s.id, s]));
   const fatigueRisk = Array.from(l01ByStaff.entries()).filter(([staffId, count]) => {
     const staff = staffById.get(staffId);
@@ -236,20 +213,12 @@ export function buildOperationalKpis(params: {
 
   return [
     {
-      label: "Tỷ lệ phủ",
-      value: `${coverage}%`,
-      helper: required > 0 ? `${assigned}/${required} nhu cầu đã phủ` : "Chưa có yêu cầu nhân sự",
-      tone: coverage >= 95 ? "success" : coverage >= 80 ? "warning" : "danger",
-      trend: coverage >= 95 ? "Đạt ngưỡng vận hành" : "Cần rà soát coverage",
-      icon: "donut_large",
-    },
-    {
-      label: "Ngày thiếu nhân sự",
-      value: understaffedDays,
-      helper: understaffedDays > 0 ? "Ngày thiếu nhân sự so với yêu cầu" : "Không có ngày thiếu nhân sự",
-      tone: understaffedDays > 0 ? "warning" : "success",
-      trend: understaffedDays > 0 ? "Cần bổ sung" : "Ổn định",
-      icon: "group_remove",
+      label: "Tổng ca trực",
+      value: totalShifts,
+      helper: schedules.length > 0 ? `${schedules.length} ca đã xếp` : "Chưa có lịch",
+      tone: totalShifts > 0 ? "success" : "warning",
+      trend: totalShifts > 0 ? "Đã xếp lịch" : "Chưa xếp lịch",
+      icon: "calendar_month",
     },
     {
       label: "Nguy cơ quá tải",

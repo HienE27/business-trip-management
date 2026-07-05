@@ -1,19 +1,38 @@
 "use client";
 
+/**
+ * WorkloadChart — visualization cho staff workload, 3 view modes:
+ *
+ *  - `bar`     — Tổng ca trực / nhân sự (theo ca)
+ *  - `stacked` — Phân bổ ca theo từng loại lịch (L01-L04)
+ *  - `balance` — Cân bằng tải theo ratio vs trung bình (chỉ khi có
+ *                previewSchedules — tính từ thuật toán auto-scheduling)
+ *
+ * Nguồn dữ liệu:
+ *  1. **Preview** — từ `previewSchedules` (in-memory, no API)
+ *  2. **Saved** — fetch từ `/api/v1/auto-schedule/workload-chart/{periodId}`
+ *
+ * Dùng `--color-chart-*` CSS tokens (sửa ở globals.css để đổi palette).
+ * Accessible: keyboard nav cho toggle, aria-label trên chart, focus tooltip.
+ */
+
 import { useCallback, useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/ToastProvider";
+import {
+  aggregateByStaff,
+  BALANCE_THRESHOLDS,
+  SHIFT_LABELS,
+  topN,
+  type ShiftTypeId,
+  type StaffAggregate,
+  type StaffBalanceStatus,
+} from "@/lib/schedule-aggregates";
 import { api } from "@/lib/api";
 import type { AutoScheduleSummary } from "@/types/api";
 
-/* ── WorkloadChart ──
- *
- * Dual-mode (bar / stacked) workload visualization for staff scheduling.
- * Uses CSS custom properties for colors — update globals.css to change palette.
- * Accessible: keyboard navigation for toggle, aria-label on charts.
- */
-
+/* ── Internal types ── */
 interface WorkloadStaffData {
   staffId: number;
   staffName: string;
@@ -27,11 +46,7 @@ interface WorkloadStaffData {
 }
 
 interface WorkloadChartData {
-  periodId: number;
-  periodName: string;
-  startDate: string;
-  endDate: string;
-  totalSchedules: number;
+  totalShifts: number;
   totalStaff: number;
   averageWorkload: number;
   minWorkload: number;
@@ -39,22 +54,32 @@ interface WorkloadChartData {
   staffWorkloadData: WorkloadStaffData[];
 }
 
-const CHART_COLORS = {
-  L01: "var(--color-chart-24)",
-  L02: "var(--color-chart-tt)",
-  L03: "var(--color-chart-dv)",
-  L04: "var(--color-chart-cg)",
-} as const;
+type ViewMode = "bar" | "stacked" | "balance";
 
-const SHIFT_LABELS = {
-  L01: "Trực 24/24",
-  L02: "Thông tầm",
-  L03: "PK Dịch vụ",
-  L04: "PK Chuyên gia",
-} as const;
+const CHART_COLOR_CLASS: Record<ShiftTypeId, string> = {
+  L01: "bg-chart-24",
+  L02: "bg-chart-tt",
+  L03: "bg-chart-dv",
+  L04: "bg-chart-cg",
+};
 
-/* ── Tooltip overlay ── */
-function Tooltip({
+const STATUS_DOT_CLASS: Record<StaffBalanceStatus, string> = {
+  balanced: "bg-chart-tt",
+  caution: "bg-chart-cg",
+  overloaded: "bg-chart-24",
+};
+
+const STATUS_BADGE: Record<
+  StaffBalanceStatus,
+  { icon: string; text: string; bg: string; color: string }
+> = {
+  overloaded: { icon: "warning", text: "Quá tải", bg: "bg-error-container", color: "text-on-error-container" },
+  caution:    { icon: "horizontal_rule", text: "Vượt nhẹ", bg: "bg-tertiary-fixed", color: "text-on-tertiary-fixed-variant" },
+  balanced:   { icon: "check_circle", text: "Cân bằng", bg: "bg-secondary-container", color: "text-on-secondary-container" },
+};
+
+/* ── Accessible tooltip (hover + focus) ── */
+function AccessibleTooltip({
   visible,
   x,
   y,
@@ -68,10 +93,11 @@ function Tooltip({
   if (!visible) return null;
   return (
     <div
+      role="tooltip"
       className="fixed z-50 pointer-events-none"
       style={{ left: x + 12, top: y - 8, transform: "translateY(-100%)" }}
     >
-      <div className="bg-on-surface text-surface rounded-lg px-3 py-2 shadow-xl whitespace-nowrap border border-outline-variant/30">
+      <div className="bg-on-surface text-surface rounded-lg px-3 py-2 shadow-xl whitespace-nowrap border border-outline-variant/30 text-label-sm">
         {content}
       </div>
     </div>
@@ -82,13 +108,9 @@ function Tooltip({
 function Legend() {
   return (
     <div className="flex items-center gap-4 flex-wrap" aria-label="Chú thích màu biểu đồ">
-      {(Object.entries(CHART_COLORS) as [keyof typeof CHART_COLORS, string][]).map(([key, fill]) => (
+      {(Object.entries(CHART_COLOR_CLASS) as [ShiftTypeId, string][]).map(([key, fill]) => (
         <div key={key} className="flex items-center gap-1.5">
-          <span
-            className="w-3 h-3 rounded-sm inline-block shrink-0"
-            style={{ backgroundColor: fill }}
-            aria-hidden="true"
-          />
+          <span className={`w-3 h-3 rounded-sm inline-block shrink-0 ${fill}`} aria-hidden="true" />
           <span className="text-label-sm text-on-surface-variant">{SHIFT_LABELS[key]}</span>
         </div>
       ))}
@@ -96,265 +118,440 @@ function Legend() {
   );
 }
 
-/* ── Horizontal Bar Chart (per-staff total) ── */
+/* ── Hover/leave tooltip helper ── */
+type TooltipState = {
+  visible: boolean;
+  x: number;
+  y: number;
+  content: React.ReactNode;
+};
+const EMPTY_TOOLTIP: TooltipState = { visible: false, x: 0, y: 0, content: null };
+
+function pointFromEvent(e: React.MouseEvent | React.FocusEvent): { x: number; y: number } {
+  if ("clientX" in e) return { x: e.clientX, y: e.clientY };
+  return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * HORIZONTAL BAR — Tổng ca / nhân sự
+ * ════════════════════════════════════════════════════════════════ */
 function HorizontalBarChart({ data }: { data: WorkloadChartData }) {
-  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: null as React.ReactNode });
+  const [tooltip, setTooltip] = useState<TooltipState>(EMPTY_TOOLTIP);
   const maxShift = Math.max(...data.staffWorkloadData.map((s) => s.totalShifts), 1);
   const avgShift = data.averageWorkload;
 
-  const labelWidth = 160;
-  const barAreaWidth = 280;
-  const valueWidth = 40;
+  const buildContent = (staff: WorkloadStaffData) => (
+    <span>
+      <strong>{staff.staffName}</strong>
+      <br />
+      {staff.totalShifts} ca — {staff.totalShifts > avgShift ? "cao hơn TB" : "dưới TB"}
+    </span>
+  );
 
   return (
     <>
-      <div className="overflow-x-auto" role="img" aria-label="Biểu đồ tải công việc theo nhân sự">
-        <div style={{ minWidth: labelWidth + barAreaWidth + valueWidth + 40 }}>
-          {/* Scale markers */}
-          <div className="flex items-center gap-3 mb-2" aria-hidden="true">
-            <div style={{ width: labelWidth }} />
-            <div className="flex-1 flex gap-0.5">
-              {[0.25, 0.5, 0.75, 1].map((pct) => (
+      <div role="img" aria-label="Biểu đồ tải công việc theo nhân sự" className="space-y-2">
+        {data.staffWorkloadData.map((staff) => {
+          const pct = (staff.totalShifts / maxShift) * 100;
+          const isOverAvg = avgShift > 0 && staff.totalShifts > avgShift * 1.3;
+          return (
+            <div
+              key={staff.staffId}
+              tabIndex={0}
+              role="button"
+              onMouseEnter={(e) => setTooltip({ visible: true, ...pointFromEvent(e), content: buildContent(staff) })}
+              onMouseMove={(e) => setTooltip((t) => (t.visible ? { ...t, x: e.clientX, y: e.clientY } : t))}
+              onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
+              onFocus={(e) => setTooltip({ visible: true, ...pointFromEvent(e), content: buildContent(staff) })}
+              onBlur={() => setTooltip((t) => ({ ...t, visible: false }))}
+              aria-label={`${staff.staffName}: ${staff.totalShifts} ca, ${staff.totalShifts > avgShift ? "cao hơn" : "dưới"} trung bình`}
+              className="grid grid-cols-[minmax(0,1fr)_56px] sm:grid-cols-[160px_minmax(0,1fr)_64px] items-center gap-3 rounded-lg p-1 hover:bg-surface-container-low/50 focus-within:bg-surface-container-low/50 transition-colors"
+            >
+              <span
+                title={staff.staffName}
+                className="text-label-sm font-medium text-on-surface truncate hidden sm:block"
+              >
+                {staff.staffName}
+              </span>
+              <span className="text-label-sm font-medium text-on-surface truncate sm:hidden col-span-2">
+                {staff.staffName}
+              </span>
+
+              <div className="relative flex-1 rounded-full h-8 bg-surface-container-low overflow-hidden col-span-2 sm:col-span-1">
                 <div
-                  key={pct}
-                  className="text-label-xs text-outline text-right"
-                  style={{ width: (barAreaWidth * pct) / 4 - 4 }}
-                >
-                  {Math.round(maxShift * pct)}
-                </div>
-              ))}
+                  className={`h-full rounded-full transition-all duration-500 ease-out ${isOverAvg ? "bg-chart-24" : "bg-primary"}`}
+                  style={{ width: `${Math.max(pct, 3)}%` }}
+                />
+                {avgShift > 0 && (
+                  <div
+                    className="absolute top-0 bottom-0 w-0.5 bg-tertiary opacity-70"
+                    style={{ left: `${(avgShift / maxShift) * 100}%` }}
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+
+              <span
+                className={`text-right text-label-sm font-bold tabular-nums ${isOverAvg ? "text-error" : "text-on-surface"}`}
+                data-testid="balance-value"
+              >
+                {staff.totalShifts}
+              </span>
             </div>
-            <div style={{ width: valueWidth }} />
-          </div>
-
-          {/* Rows */}
-          <div className="space-y-2">
-            {data.staffWorkloadData.map((staff) => {
-              const pct = (staff.totalShifts / maxShift) * 100;
-              const isOverAvg = avgShift > 0 && staff.totalShifts > avgShift * 1.3;
-              return (
-                <div key={staff.staffId} className="flex items-center gap-3">
-                  <div
-                    className="shrink-0 font-label-sm text-label-sm text-on-surface truncate"
-                    style={{ width: labelWidth }}
-                    title={staff.staffName}
-                  >
-                    {staff.staffName}
-                  </div>
-
-                  <div
-                    className="relative flex-1 rounded-full h-8 bg-surface-container-low overflow-hidden cursor-default"
-                    onMouseEnter={(e) =>
-                      setTooltip({
-                        visible: true,
-                        x: e.clientX,
-                        y: e.clientY,
-                        content: (
-                          <span>
-                            <strong>{staff.staffName}</strong>
-                            <br />
-                            {staff.totalShifts} ca — {staff.totalShifts > avgShift ? "cao hơn TB" : "dưới TB"}
-                          </span>
-                        ),
-                      })
-                    }
-                    onMouseMove={(e) =>
-                      setTooltip((t) =>
-                        t.visible
-                          ? { ...t, x: e.clientX, y: e.clientY }
-                          : t
-                      )
-                    }
-                    onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
-                  >
-                    <div
-                      className="h-full rounded-full transition-all duration-500 ease-out"
-                      style={{
-                        width: `${Math.max(pct, 3)}%`,
-                        backgroundColor: isOverAvg ? "var(--color-error)" : "var(--color-primary)",
-                      }}
-                    />
-
-                    {/* Average line */}
-                    {avgShift > 0 && (
-                      <div
-                        className="absolute top-0 bottom-0 w-0.5 bg-tertiary opacity-70"
-                        style={{ left: `${(avgShift / maxShift) * 100}%` }}
-                        title={`Trung bình: ${avgShift.toFixed(1)}`}
-                      />
-                    )}
-                  </div>
-
-                  <div
-                    className="font-label-sm text-label-sm text-right shrink-0 tabular-nums"
-                    style={{ width: valueWidth }}
-                  >
-                    <span className={isOverAvg ? "text-error font-bold" : "text-on-surface"}>
-                      {staff.totalShifts}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          );
+        })}
       </div>
 
-      <Tooltip {...tooltip} />
+      <AccessibleTooltip visible={tooltip.visible} x={tooltip.x} y={tooltip.y} content={tooltip.content} />
     </>
   );
 }
 
-/* ── Stacked Bar Chart (breakdown by shift type) ── */
+/* ════════════════════════════════════════════════════════════════
+ * STACKED BAR — Breakdown theo loại lịch
+ * ════════════════════════════════════════════════════════════════ */
 function StackedBarChart({ data }: { data: WorkloadChartData }) {
-  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: null as React.ReactNode });
+  const [tooltip, setTooltip] = useState<TooltipState>(EMPTY_TOOLTIP);
   const maxShift = Math.max(...data.staffWorkloadData.map((s) => s.totalShifts), 1);
 
   return (
     <>
-      <div className="overflow-x-auto" role="img" aria-label="Biểu đồ phân bổ ca theo loại lịch">
-        <div style={{ minWidth: 480 }}>
-          <div className="space-y-2">
-            {data.staffWorkloadData.map((staff) => {
-              const parts = (
-                [
-                  { key: "L01", count: staff.L01, color: CHART_COLORS.L01 },
-                  { key: "L02", count: staff.L02, color: CHART_COLORS.L02 },
-                  { key: "L03", count: staff.L03, color: CHART_COLORS.L03 },
-                  { key: "L04", count: staff.L04, color: CHART_COLORS.L04 },
-                ] as { key: keyof typeof CHART_COLORS; count: number; color: string }[]
-              ).filter((p) => p.count > 0);
+      <div role="img" aria-label="Biểu đồ phân bổ ca theo loại lịch" className="space-y-2">
+        {data.staffWorkloadData.map((staff) => {
+          const parts: { key: ShiftTypeId; count: number }[] = (
+            [
+              { key: "L01" as const, count: staff.L01 },
+              { key: "L02" as const, count: staff.L02 },
+              { key: "L03" as const, count: staff.L03 },
+              { key: "L04" as const, count: staff.L04 },
+            ] as const
+          ).filter((p) => p.count > 0);
 
-              return (
-                <div key={staff.staffId} className="flex items-center gap-3">
-                  <div
-                    className="shrink-0 font-label-sm text-label-sm text-on-surface truncate w-40"
-                    title={staff.staffName}
-                  >
-                    {staff.staffName}
-                  </div>
+          if (parts.length === 0) return null;
 
+          const content = (
+            <span>
+              <strong>{staff.staffName}</strong>
+              <br />
+              {parts.map((p) => (
+                <span key={p.key}>
+                  {SHIFT_LABELS[p.key]}: {p.count}
+                  <br />
+                </span>
+              ))}
+            </span>
+          );
+
+          return (
+            <div
+              key={staff.staffId}
+              tabIndex={0}
+              role="button"
+              onMouseEnter={(e) => setTooltip({ visible: true, ...pointFromEvent(e), content })}
+              onMouseMove={(e) => setTooltip((t) => (t.visible ? { ...t, x: e.clientX, y: e.clientY } : t))}
+              onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
+              onFocus={(e) => setTooltip({ visible: true, ...pointFromEvent(e), content })}
+              onBlur={() => setTooltip((t) => ({ ...t, visible: false }))}
+              aria-label={`${staff.staffName}: ${parts.map((p) => `${SHIFT_LABELS[p.key]} ${p.count}`).join(", ")}`}
+              className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-[160px_minmax(0,1fr)] items-center gap-3 rounded-lg p-1 hover:bg-surface-container-low/50 focus-within:bg-surface-container-low/50 transition-colors"
+            >
+              <span title={staff.staffName} className="text-label-sm font-medium text-on-surface truncate">
+                {staff.staffName}
+              </span>
+              <div className="flex rounded-full h-8 bg-surface-container-low overflow-hidden col-span-2 sm:col-span-1">
+                {parts.map((part) => (
                   <div
-                    className="flex-1 flex rounded-full h-8 bg-surface-container-low overflow-hidden"
-                    onMouseEnter={(e) =>
-                      setTooltip({
-                        visible: true,
-                        x: e.clientX,
-                        y: e.clientY,
-                        content: (
-                          <span>
-                            <strong>{staff.staffName}</strong>
-                            <br />
-                            {staff.L01 > 0 && <>{SHIFT_LABELS.L01}: {staff.L01}<br /></>}
-                            {staff.L02 > 0 && <>{SHIFT_LABELS.L02}: {staff.L02}<br /></>}
-                            {staff.L03 > 0 && <>{SHIFT_LABELS.L03}: {staff.L03}<br /></>}
-                            {staff.L04 > 0 && <>{SHIFT_LABELS.L04}: {staff.L04}</>}
-                          </span>
-                        ),
-                      })
-                    }
-                    onMouseMove={(e) =>
-                      setTooltip((t) =>
-                        t.visible ? { ...t, x: e.clientX, y: e.clientY } : t
-                      )
-                    }
-                    onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
+                    key={part.key}
+                    className={`h-full flex items-center justify-center overflow-hidden ${CHART_COLOR_CLASS[part.key]}`}
+                    style={{
+                      width: `${(part.count / maxShift) * 100}%`,
+                      minWidth: part.count > 0 ? 8 : 0,
+                    }}
                   >
-                    {parts.map((part) => (
-                      <div
-                        key={part.key}
-                        className="h-full flex items-center justify-center overflow-hidden"
-                        style={{
-                          width: `${(part.count / maxShift) * 100}%`,
-                          backgroundColor: part.color,
-                          minWidth: part.count > 0 ? 4 : 0,
-                        }}
-                      >
-                        {part.count > 0 && (
-                          <span className="text-label-sm font-bold text-[var(--color-on-primary)] opacity-90 whitespace-nowrap px-1 tabular-nums">
-                            {part.count}
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                    {part.count > 0 && (
+                      <span className="text-label-sm font-bold text-white opacity-95 whitespace-nowrap px-1 tabular-nums">
+                        {part.count}
+                      </span>
+                    )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      <Tooltip {...tooltip} />
+      <AccessibleTooltip visible={tooltip.visible} x={tooltip.x} y={tooltip.y} content={tooltip.content} />
     </>
   );
 }
 
-/* ── Staff aggregate builder ── */
-function buildStaffAggregates(schedules: AutoScheduleSummary[]): WorkloadStaffData[] {
-  const map = new Map<number, WorkloadStaffData>();
-  for (const s of schedules) {
-    if (!map.has(s.staffId)) {
-      map.set(s.staffId, {
-        staffId: s.staffId,
-        staffName: s.staffName,
-        specialty: null,
-        totalShifts: 0,
-        L01: 0, L02: 0, L03: 0, L04: 0,
-        workloadPercentage: 0,
-      });
-    }
-    const agg = map.get(s.staffId)!;
-    switch (s.shiftTypeId) {
-      case "L01": agg.L01++; break;
-      case "L02": agg.L02++; break;
-      case "L03": agg.L03++; break;
-      case "L04": agg.L04++; break;
-    }
-    agg.totalShifts++;
-  }
-  return Array.from(map.values());
+/* ════════════════════════════════════════════════════════════════
+ * BALANCE VIEW — Cân bằng tải theo ratio (chỉ preview)
+ *
+ * §M07-F09 của spec: "Biểu đồ số ngày trực / số ngày làm của từng
+ * nhân sự trong tháng để quản lý xem xét mức độ phân bổ."
+ * ════════════════════════════════════════════════════════════════ */
+
+function BalanceStatusBadge({ status }: { status: StaffBalanceStatus }) {
+  const cfg = STATUS_BADGE[status];
+  return (
+    <span
+      aria-label={cfg.text}
+      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${cfg.bg} ${cfg.color}`}
+    >
+      <span className="material-symbols-outlined text-[12px]" aria-hidden="true">{cfg.icon}</span>
+      <span className="hidden sm:inline">{cfg.text}</span>
+    </span>
+  );
+}
+
+function BalanceBreakdown({ row }: { row: StaffAggregate }) {
+  const shifts: { id: ShiftTypeId; count: number }[] = (
+    [
+      { id: "L01" as const, count: row.L01 },
+      { id: "L02" as const, count: row.L02 },
+      { id: "L03" as const, count: row.L03 },
+      { id: "L04" as const, count: row.L04 },
+    ] as const
+  ).filter((s) => s.count > 0);
+
+  if (shifts.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1 mt-1" aria-label="Phân bổ theo loại lịch">
+      {shifts.map((s) => (
+        <span
+          key={s.id}
+          className="inline-flex items-center gap-0.5 text-[10px] font-medium text-on-surface-variant tabular-nums"
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${CHART_COLOR_CLASS[s.id]}`} aria-hidden />
+          <span>{s.id}</span>
+          <span className="font-bold text-on-surface">{s.count}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function BalanceView({ rows, hidden }: { rows: StaffAggregate[]; hidden: number }) {
+  const maxRatio = Math.max(...rows.map((r) => r.ratio), 1);
+
+  return (
+    <div role="img" aria-label="Biểu đồ cân bằng tải theo từng nhân sự" className="space-y-2">
+      <ul className="space-y-2" role="list">
+        {rows.map((row, index) => {
+          const barWidth = maxRatio > 0 ? Math.min(100, (row.ratio / maxRatio) * 100) : 0;
+          const avgMarker = maxRatio > 0 ? Math.min(100, (1 / maxRatio) * 100) : 0;
+          const pct = row.ratio * 100;
+
+          return (
+            <li
+              key={row.staffId}
+              data-testid="balance-row"
+              className="grid grid-cols-[minmax(0,1fr)_2fr_56px_28px] sm:grid-cols-[120px_minmax(0,1fr)_56px_96px] items-center gap-2 sm:gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-label-sm font-semibold text-on-surface truncate" title={row.staffName}>
+                    {row.staffName}
+                  </p>
+                  <span className="hidden md:inline-flex h-4 min-w-4 items-center justify-center rounded bg-surface-container-high text-[9px] font-bold text-on-surface-variant px-1 tabular-nums">
+                    #{index + 1}
+                  </span>
+                </div>
+                <p className="text-[11px] text-on-surface-variant tabular-nums">
+                  {row.total} ca / TB {row.avg.toFixed(1)}
+                </p>
+                <BalanceBreakdown row={row} />
+              </div>
+
+              <div className="relative h-6 bg-surface-variant rounded-full overflow-hidden">
+                <span
+                  aria-hidden
+                  className="absolute top-0 bottom-0 w-0.5 bg-outline z-10"
+                  style={{ left: `${avgMarker}%` }}
+                />
+                <svg
+                  width="100%"
+                  height="100%"
+                  viewBox="0 0 100 24"
+                  preserveAspectRatio="none"
+                  role="presentation"
+                  aria-hidden
+                  data-testid="balance-bar"
+                  className="absolute inset-0 block"
+                >
+                  <rect
+                    x={0}
+                    y={4}
+                    width={barWidth}
+                    height={16}
+                    rx={4}
+                    fill={`var(--color-chart-${STATUS_DOT_CLASS[row.status].replace("bg-chart-", "")})`}
+                    className="origin-left transition-[width] duration-700 ease-out"
+                  />
+                  <title>{`${row.staffName}: ${row.total} ca / TB ${row.avg.toFixed(1)} (${pct.toFixed(0)}%)`}</title>
+                </svg>
+              </div>
+
+              <div className="text-right">
+                <span
+                  className={`text-label-sm font-bold tabular-nums ${
+                    row.status === "overloaded"
+                      ? "text-error"
+                      : row.status === "caution"
+                        ? "text-tertiary"
+                        : "text-on-surface"
+                  }`}
+                  aria-label={`${pct.toFixed(0)} phần trăm so với trung bình`}
+                >
+                  {pct.toFixed(0)}%
+                </span>
+              </div>
+
+              <div className="flex justify-end">
+                <BalanceStatusBadge status={row.status} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {hidden > 0 && (
+        <p className="text-[11px] text-center text-on-surface-variant">
+          +{hidden} nhân sự chưa hiển thị
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-3 border-t border-outline-variant text-label-xs text-on-surface-variant">
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-chart-tt" aria-hidden="true" />
+          ≤ {(BALANCE_THRESHOLDS.CAUTION_RATIO * 100).toFixed(0)}% — Cân bằng
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-chart-cg" aria-hidden="true" />
+          {(BALANCE_THRESHOLDS.CAUTION_RATIO * 100).toFixed(0)}–{(BALANCE_THRESHOLDS.OVERLOADED_RATIO * 100).toFixed(0)}% — Vượt nhẹ
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-chart-24" aria-hidden="true" />
+          ≥ {(BALANCE_THRESHOLDS.OVERLOADED_RATIO * 100).toFixed(0)}% — Quá tải
+        </span>
+        <span className="ml-auto flex items-center gap-1.5">
+          <span className="w-0.5 h-3.5 bg-outline inline-block" aria-hidden="true" />
+          Đường dọc = TB
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* ── KPI summary ── */
+function KpiSummary({ data }: { data: WorkloadChartData }) {
+  const kpis = [
+    { label: "Tổng ca", value: data.totalShifts.toString(), icon: "event_available" },
+    { label: "TB / nhân sự", value: data.averageWorkload.toFixed(1), icon: "trending_flat" },
+    { label: "Thấp nhất", value: data.minWorkload.toString(), icon: "arrow_downward" },
+    { label: "Cao nhất", value: data.maxWorkload.toString(), icon: "arrow_upward" },
+  ];
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {kpis.map((kpi) => (
+        <div
+          key={kpi.label}
+          className="flex items-center gap-3 bg-surface-container-low rounded-xl p-3 border border-outline-variant"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-container-high">
+            <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">
+              {kpi.icon}
+            </span>
+          </div>
+          <div>
+            <p className="text-label-xs text-on-surface-variant">{kpi.label}</p>
+            <p className="font-bold text-[20px] text-on-surface tabular-nums">{kpi.value}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Build chart data ── */
+function buildFromPreview(schedules: AutoScheduleSummary[]): WorkloadChartData {
+  const aggregates = aggregateByStaff(schedules);
+  const totalShifts = aggregates.reduce((sum, s) => sum + s.total, 0);
+  const totalStaff = aggregates.length;
+  const avg = totalStaff > 0 ? totalShifts / totalStaff : 0;
+  const maxWorkload = totalStaff > 0 ? Math.max(...aggregates.map((s) => s.total)) : 0;
+  const minWorkload = totalStaff > 0 ? Math.min(...aggregates.map((s) => s.total)) : 0;
+
+  return {
+    totalShifts,
+    totalStaff,
+    averageWorkload: avg,
+    minWorkload,
+    maxWorkload,
+    staffWorkloadData: aggregates.map((s) => ({
+      staffId: s.staffId,
+      staffName: s.staffName,
+      specialty: null,
+      totalShifts: s.total,
+      L01: s.L01,
+      L02: s.L02,
+      L03: s.L03,
+      L04: s.L04,
+      workloadPercentage: avg > 0 ? (s.total / avg) * 100 : 0,
+    })),
+  };
+}
+
+function buildFromApi(res: Awaited<ReturnType<typeof api.getWorkloadChartData>>): WorkloadChartData {
+  const rawStaff = res.staffWorkloadData;
+  const totalShifts = rawStaff.reduce((sum, s) => sum + s.totalShifts, 0);
+  const totalStaff = rawStaff.length;
+  const avg = totalStaff > 0 ? totalShifts / totalStaff : 0;
+  const maxWorkload = totalStaff > 0 ? Math.max(...rawStaff.map((s) => s.totalShifts)) : 0;
+  const minWorkload = totalStaff > 0 ? Math.min(...rawStaff.map((s) => s.totalShifts)) : 0;
+
+  return {
+    totalShifts,
+    totalStaff,
+    averageWorkload: avg,
+    minWorkload,
+    maxWorkload,
+    staffWorkloadData: rawStaff.map((s) => ({
+      staffId: s.staffId,
+      staffName: s.staffName,
+      specialty: s.specialty ?? null,
+      totalShifts: s.totalShifts,
+      L01: s.L01 ?? 0,
+      L02: s.L02 ?? 0,
+      L03: s.L03 ?? 0,
+      L04: s.L04 ?? 0,
+      workloadPercentage: s.workloadPercentage,
+    })),
+  };
 }
 
 /* ── Main Export ── */
-interface WorkloadChartProps {
+export interface WorkloadChartProps {
   periodId: number;
-  /** When provided, WorkloadChart shows this preview data instead of fetching saved DB data. */
+  /** Khi cung cấp, dùng in-memory preview thay vì gọi API */
   previewSchedules?: AutoScheduleSummary[];
+  /** Giới hạn số dòng cho balance view. Mặc định hiện tất cả nhân sự. */
+  balanceLimit?: number;
 }
 
-export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps) {
+export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: WorkloadChartProps) {
   const [chartData, setChartData] = useState<WorkloadChartData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<"bar" | "stacked">("bar");
+  const [viewMode, setViewMode] = useState<ViewMode>("bar");
   const toast = useToast();
 
+  const hasPreview = !!previewSchedules && previewSchedules.length > 0;
+
   const load = useCallback(async () => {
-    if (previewSchedules && previewSchedules.length > 0) {
-      // Compute chart data from preview schedules (in-memory — no API call)
-      const rawStaff = buildStaffAggregates(previewSchedules);
-      const totalShifts = rawStaff.reduce((sum, s) => sum + s.totalShifts, 0);
-      const totalStaff = rawStaff.length;
-      // averageWorkload = average number of shifts per staff (shift count, not %)
-      const avg = totalStaff > 0 ? totalShifts / totalStaff : 0;
-      const maxW = rawStaff.length > 0 ? Math.max(...rawStaff.map((s) => s.totalShifts)) : 0;
-      const minW = rawStaff.length > 0 ? Math.min(...rawStaff.map((s) => s.totalShifts)) : 0;
-      // workloadPercentage is only used by API path; for preview we compute it here
-      for (const s of rawStaff) {
-        s.workloadPercentage = avg > 0 ? (s.totalShifts / avg) * 100 : 0;
-      }
-      setChartData({
-        periodId,
-        periodName: "Bản xem trước",
-        startDate: "",
-        endDate: "",
-        totalSchedules: totalShifts,
-        totalStaff,
-        averageWorkload: avg,
-        minWorkload: minW,
-        maxWorkload: maxW,
-        staffWorkloadData: rawStaff,
-      });
+    if (hasPreview) {
+      setChartData(buildFromPreview(previewSchedules!));
       return;
     }
     if (!periodId) return;
@@ -362,48 +559,23 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
     try {
       const res = await api.getWorkloadChartData(periodId);
       if (res) {
-        const rawStaff = res.staffWorkloadData;
-        const totalShifts = rawStaff.reduce((sum, s) => sum + s.totalShifts, 0);
-        const totalStaff = rawStaff.length;
-        // averageWorkload = average shifts per staff (shift count), NOT percentage.
-        // The backend's avgWorkload is a utilization % — recalculate from raw counts.
-        const avg = totalStaff > 0 ? totalShifts / totalStaff : 0;
-        const maxW = rawStaff.reduce((max, s) => Math.max(max, s.workloadPercentage), 0);
-        const minW = totalStaff > 0 ? Math.min(...rawStaff.map((s) => s.workloadPercentage)) : 0;
-
-        setChartData({
-          periodId,
-          periodName: "",
-          startDate: "",
-          endDate: "",
-          totalSchedules: totalShifts,
-          totalStaff,
-          averageWorkload: avg,
-          minWorkload: minW,
-          maxWorkload: maxW,
-          staffWorkloadData: rawStaff.map((s) => ({
-            staffId: s.staffId,
-            staffName: s.staffName,
-            specialty: s.specialty,
-            totalShifts: s.totalShifts,
-            L01: s.L01 ?? 0,
-            L02: s.L02 ?? 0,
-            L03: s.L03 ?? 0,
-            L04: s.L04 ?? 0,
-            workloadPercentage: s.workloadPercentage,
-          })),
-        });
+        setChartData(buildFromApi(res));
       }
     } catch {
       toast.error("Không thể tải dữ liệu tải công việc. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
-  }, [periodId, previewSchedules, toast]);
+  }, [periodId, hasPreview, previewSchedules, toast]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Auto-switch về "bar" nếu user đang ở "balance" mà preview bị gỡ
+  useEffect(() => {
+    if (!hasPreview && viewMode === "balance") setViewMode("bar");
+  }, [hasPreview, viewMode]);
 
   if (loading) {
     return (
@@ -425,27 +597,16 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
     );
   }
 
+  const viewModes: Array<[ViewMode, string, string, boolean]> = [
+    ["bar", "Theo ca", "horizontal_distribute", true],
+    ["stacked", "Theo loại", "stacked_bar_chart", true],
+    ["balance", "Cân bằng", "balance", hasPreview],
+  ];
+
   return (
     <div className="space-y-4">
       {/* KPI summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "Tổng ca", value: chartData.totalSchedules, icon: "event_available" },
-            { label: "TB / nhân sự", value: chartData.averageWorkload.toFixed(1), icon: "trending_flat" },
-            { label: "Thấp nhất", value: chartData.minWorkload.toFixed(1), icon: "arrow_downward" },
-            { label: "Cao nhất", value: chartData.maxWorkload.toFixed(1), icon: "arrow_upward" },
-          ].map((kpi) => (
-          <div key={kpi.label} className="flex items-center gap-3 bg-surface-container-low rounded-xl p-3 border border-outline-variant">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-container-high">
-              <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">{kpi.icon}</span>
-            </div>
-            <div>
-              <p className="font-label-xs text-on-surface-variant">{kpi.label}</p>
-              <p className="font-bold text-[20px] text-on-surface tabular-nums">{kpi.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      <KpiSummary data={chartData} />
 
       {/* Controls */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -455,21 +616,25 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
           aria-label="Chế độ hiển thị biểu đồ"
           className="flex gap-1 p-0.5 bg-surface-container-low rounded-lg"
         >
-          {(
-            [
-              ["bar", "Theo ca", "horizontal_distribute"],
-              ["stacked", "Theo loại", "stacked_bar_chart"],
-            ] as const
-          ).map(([mode, label, icon]) => (
+          {viewModes.map(([mode, label, icon, enabled]) => (
             <button
               key={mode}
               type="button"
-              onClick={() => setViewMode(mode)}
+              onClick={() => enabled && setViewMode(mode)}
+              disabled={!enabled}
               aria-pressed={viewMode === mode}
+              aria-disabled={!enabled}
+              title={
+                enabled
+                  ? undefined
+                  : "Chạy thuật toán để xem phân tích cân bằng tải"
+              }
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-sm transition-all ${
                 viewMode === mode
                   ? "bg-primary text-on-primary font-semibold shadow-sm"
-                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+                  : enabled
+                    ? "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+                    : "text-outline opacity-50 cursor-not-allowed"
               }`}
             >
               <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{icon}</span>
@@ -480,21 +645,27 @@ export function WorkloadChart({ periodId, previewSchedules }: WorkloadChartProps
       </div>
 
       {/* Chart */}
-      {viewMode === "bar" ? (
-        <HorizontalBarChart data={chartData} />
-      ) : (
-        <StackedBarChart data={chartData} />
+      {viewMode === "bar" && <HorizontalBarChart data={chartData} />}
+      {viewMode === "stacked" && <StackedBarChart data={chartData} />}
+      {viewMode === "balance" && hasPreview && (
+        <BalanceView
+          {...topN(aggregateByStaff(previewSchedules!), balanceLimit ?? Infinity)}
+        />
       )}
 
-      {/* Chart notes */}
-      <div className="flex items-center gap-4 pt-2 border-t border-outline-variant" aria-label="Chú thích biểu đồ">
+      {/* Footer notes */}
+      <div className="flex items-center gap-4 pt-2 border-t border-outline-variant flex-wrap" aria-label="Chú thích biểu đồ">
         <div className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-sm bg-primary" aria-hidden="true" />
-          <span className="text-label-xs text-outline">Cao hơn TB ≥ 30%</span>
+          <span className="text-label-xs text-on-surface-variant">Trong ngưỡng TB</span>
         </div>
         <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-chart-24" aria-hidden="true" />
+          <span className="text-label-xs text-on-surface-variant">Cao hơn TB ≥ 30%</span>
+        </div>
+        <div className="flex items-center gap-1.5 ml-auto">
           <span className="w-0.5 h-4 bg-tertiary inline-block" aria-hidden="true" />
-          <span className="text-label-xs text-outline">Vạch dọc = trung bình</span>
+          <span className="text-label-xs text-on-surface-variant">Vạch dọc = trung bình</span>
         </div>
       </div>
     </div>

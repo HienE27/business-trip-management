@@ -1,0 +1,103 @@
+// Smart validation rules cho algorithm config parameters
+// Mỗi rule trả về warning string nếu value có vấn đề, hoặc null nếu OK
+
+export type ValidationResult = {
+  level: "warning" | "error";
+  message: string;
+};
+
+export type ValidationRule = (value: number | boolean | string) => ValidationResult | null;
+
+// Mapping từ paramKey (snake_case) → validation rule
+export const PARAM_VALIDATIONS: Record<string, ValidationRule> = {
+  max_iterations: (v) => {
+    const num = Number(v);
+    if (num < 500) {
+      return { level: "warning", message: "Số vòng lặp thấp (< 500) có thể cho kết quả chưa tối ưu. Khuyến nghị ≥ 1000." };
+    }
+    if (num > 5000) {
+      return { level: "warning", message: "Số vòng lặp cao (> 5000) sẽ chạy chậm. Đảm bảo time limit đủ lớn." };
+    }
+    return null;
+  },
+  weekend_weight: (v) => {
+    const num = Number(v);
+    if (num < 1.0) {
+      return { level: "warning", message: "Sẽ tắt ưu tiên cuối tuần. Đặt ≥ 1.0 để bật." };
+    }
+    if (num > 4.5) {
+      return { level: "warning", message: "Trọng số quá cao (> 4.5) có thể khiến NS ít được xếp cuối tuần quá mức." };
+    }
+    return null;
+  },
+  greedy_coverage_threshold: (v) => {
+    const num = Number(v);
+    if (num < 0.5) {
+      return { level: "error", message: "Coverage < 50% → thuật toán có thể bỏ sót nhiều ca. Khuyến nghị ≥ 0.7." };
+    }
+    if (num < 0.7) {
+      return { level: "warning", message: "Coverage thấp, nhiều ca sẽ bị thiếu. Khuyến nghị ≥ 0.85." };
+    }
+    return null;
+  },
+  balance_score_min: (v) => {
+    const num = Number(v);
+    if (num > 0.85) {
+      return { level: "warning", message: "Ngưỡng cân bằng cao (> 85%) khó đạt. Có thể thuật toán fail hoặc chạy rất lâu." };
+    }
+    if (num < 0.5) {
+      return { level: "warning", message: "Cân bằng thấp, NS có thể chênh lệch nhiều ca." };
+    }
+    return null;
+  },
+  overnight_recovery_hours: (v) => {
+    const num = Number(v);
+    if (num < 12) {
+      return { level: "error", message: "Nghỉ giữa ca trực < 12 giờ có thể vi phạm quy định an toàn lao động." };
+    }
+    if (num < 24) {
+      return { level: "warning", message: "Nghỉ < 24 giờ giữa các ca trực 24/24. Khuyến nghị = 24." };
+    }
+    if (num > 48) {
+      return { level: "warning", message: "Nghỉ > 48 giờ có thể giảm hiệu suất xếp lịch." };
+    }
+    return null;
+  },
+  backtrack_time_limit_seconds: (v) => {
+    const num = Number(v);
+    if (num < 30) {
+      return { level: "warning", message: "Time limit < 30s → Backtrack có thể dừng trước khi tìm được lời giải tốt." };
+    }
+    return null;
+  },
+  max_shifts_per_staff: (v) => {
+    const num = Number(v);
+    if (num > 25) {
+      return { level: "warning", message: "Mỗi NS có thể bị xếp > 25 ca/kỳ → nguy cơ quá tải. Khuyến nghị ≤ 22." };
+    }
+    if (num > 0 && num < 8) {
+      return { level: "warning", message: "Tối đa < 8 ca/kỳ → có thể không đáp ứng requirement cao." };
+    }
+    return null;
+  },
+  min_shifts_per_staff: (v) => {
+    const num = Number(v);
+    if (num > 15) {
+      return { level: "warning", message: "Min ca > 15 có thể ép NS nhận nhiều ca hơn mong muốn." };
+    }
+    return null;
+  },
+  max_staff_per_shift: (v) => {
+    const num = Number(v);
+    if (num > 0 && num < 1) {
+      return { level: "error", message: "Max NS/ca < 1 → không thể xếp lịch." };
+    }
+    return null;
+  },
+};
+
+export function getParamValidation(paramKey: string, value: number | boolean | string): ValidationResult | null {
+  const rule = PARAM_VALIDATIONS[paramKey];
+  if (!rule) return null;
+  return rule(value);
+}

@@ -33,10 +33,10 @@ export function KPICard({
 
   return (
     <div
-      className={`flex flex-col justify-between rounded-lg border border-outline-variant bg-surface-container-lowest p-4 shadow-sm hover:bg-surface-container-low transition-colors duration-200 ${className}`}
+      className={`flex flex-col justify-between rounded-lg border border-outline-variant bg-surface-container-lowest p-4 shadow-sm hover:bg-surface-container-low transition-colors duration-200 min-w-0 overflow-hidden ${className}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-label-sm text-on-surface-variant leading-tight">
+      <div className="flex items-start justify-between gap-2 min-w-0">
+        <span className="text-label-sm text-on-surface-variant leading-tight break-words min-w-0 flex-1">
           {label}
         </span>
         <span
@@ -46,12 +46,12 @@ export function KPICard({
           {icon}
         </span>
       </div>
-      <div className="mt-3 flex items-baseline gap-2">
-        <span className={`font-bold text-[28px] leading-none tabular-nums ${config.valueColor}`}>
+      <div className="mt-3 flex items-baseline gap-2 min-w-0">
+        <span className={`font-bold text-[28px] leading-none tabular-nums truncate ${config.valueColor}`}>
           {value}
         </span>
         {helper && (
-          <span className="text-label-xs text-on-surface-variant">{helper}</span>
+          <span className="text-label-xs text-on-surface-variant truncate min-w-0">{helper}</span>
         )}
       </div>
     </div>

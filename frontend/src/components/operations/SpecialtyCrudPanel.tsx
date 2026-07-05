@@ -1,11 +1,13 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { FormInput, FormTextarea, Button, ConfirmDialog } from "@/components/ui";
+import { FormInput, FormTextarea, Button, ConfirmDialog, Pagination } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
-import type { Specialty } from "@/types/api";
+import type { ApiResponse, Page, Specialty } from "@/types/api";
+
+const DEFAULT_PAGE_SIZE = 10;
 
 type SpecialtyCrudPanelProps = {
   onBack?: () => void;
@@ -42,23 +44,45 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({ total: 0, ACTIVE: 0, INACTIVE: 0 });
 
   const fetchSpecialties = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.get<Specialty[]>("/specialties");
-      setRecords(data ?? []);
+      const pageResult = await api.getPage<Specialty>("/specialties/page", { page, size: pageSize });
+      setRecords(pageResult.content ?? []);
+      setTotalPages(pageResult.totalPages ?? 0);
+      setTotalElements(pageResult.totalElements ?? 0);
     } catch {
       toast.error("Không thể tải danh sách chuyên khoa. Vui lòng kiểm tra kết nối backend.");
       setRecords([]);
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, page, pageSize]);
+
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      const res = await api.get<ApiResponse<Record<string, number>>>("/specialties/status-counts");
+      const data = (res?.data ?? {}) as Record<string, number>;
+      setStatusCounts({
+        total: data.total ?? 0,
+        ACTIVE: data.ACTIVE ?? 0,
+        INACTIVE: data.INACTIVE ?? 0,
+      });
+    } catch {
+      // Fall back to zeros — UI gracefully degrades.
+    }
+  }, []);
 
   useEffect(() => {
     fetchSpecialties();
-  }, [fetchSpecialties]);
+    fetchStatusCounts();
+  }, [fetchSpecialties, fetchStatusCounts]);
 
   // Safety net: ensure form is closed on initial mount
   useEffect(() => {
@@ -161,8 +185,8 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
     }
   }
 
-  const activeCount = records.filter((r) => r.isActive).length;
-  const inactiveCount = records.filter((r) => !r.isActive).length;
+  const activeCount = statusCounts.ACTIVE;
+  const inactiveCount = statusCounts.INACTIVE;
 
   return (
     <div className="space-y-6">
@@ -301,7 +325,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
           </div>
           <div className="min-w-0">
             <p className="text-label-sm text-on-surface-variant">Tổng chuyên khoa</p>
-            <p className="mt-0.5 text-headline-lg font-bold leading-none text-on-surface">{records.length}</p>
+            <p className="mt-0.5 text-headline-lg font-bold leading-none text-on-surface">{statusCounts.total}</p>
           </div>
         </div>
         <div className="group relative flex items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm transition-all duration-200 hover:bg-surface-container-low">
@@ -335,7 +359,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
             autoComplete="off"
             className="w-full rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-9 pr-3 text-body-sm text-on-surface transition-all placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
             name="specialtySearch"
-            onChange={(e) => setSearchKeyword(e.target.value)}
+            onChange={(e) => { setSearchKeyword(e.target.value); setPage(0); }}
             placeholder="Tìm kiếm chuyên khoa..."
             value={searchKeyword}
           />
@@ -346,7 +370,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
             <button
               key={status}
               type="button"
-              onClick={() => setStatusFilter(status)}
+              onClick={() => { setStatusFilter(status); setPage(0); }}
               className={`px-4 py-2 rounded-md text-label-md font-medium transition-all ${
                 statusFilter === status
                   ? "bg-primary text-on-primary shadow-sm"
@@ -446,6 +470,16 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
             </table>
           )}
         </div>
+        {!loading && records.length > 0 && (
+          <Pagination
+            currentPage={page + 1}
+            totalPages={totalPages}
+            totalItems={totalElements}
+            pageSize={pageSize}
+            onPageChange={(p) => setPage(p - 1)}
+            onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+          />
+        )}
       </section>
 
       <ConfirmDialog

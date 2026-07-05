@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Pagination } from "@/components/ui/Pagination";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -39,6 +40,9 @@ function getYearOptions() {
   return [current - 1, current, current + 1, current + 2];
 }
 
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
 function HolidaysContent() {
   const { user } = useAuth();
   const isAdmin = user?.roles?.some((r) => r === "ADMIN") ?? false;
@@ -55,6 +59,11 @@ function HolidaysContent() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+
   const [form, setForm] = useState<HolidayForm>({
     name: "",
     holidayDate: "",
@@ -64,14 +73,19 @@ function HolidaysContent() {
 
   const fetchHolidays = useCallback(async () => {
     try {
-      const res = await api.get<Holiday[]>("/holidays");
-      setHolidays(res);
+      const res = await api.getHolidaysPage(page, pageSize);
+      // The shared Holiday type treats isNationalHoliday as optional; the
+      // backend always returns a boolean so we cast to the stricter local
+      // view used by this page.
+      setHolidays((res.content ?? []) as Holiday[]);
+      setTotalPages(res.totalPages ?? 0);
+      setTotalElements(res.totalElements ?? 0);
     } catch (err) {
       toast.error(getErrorMessage(err, "Không thể tải danh sách ngày lễ"));
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [page, pageSize, toast]);
 
   useEffect(() => {
     fetchHolidays();
@@ -146,6 +160,11 @@ function HolidaysContent() {
     }
   };
 
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setPage(0);
+  };
+
   const formatDateDisplay = (dateStr: string) => {
     try {
       const d = new Date(dateStr + "T00:00:00");
@@ -200,7 +219,10 @@ function HolidaysContent() {
           <label className="text-label-sm text-on-surface-variant">Năm:</label>
           <select
             value={yearFilter}
-            onChange={(e) => setYearFilter(e.target.value)}
+            onChange={(e) => {
+              setYearFilter(e.target.value);
+              setPage(0);
+            }}
             className="h-9 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none cursor-pointer"
           >
             <option value="all">Tất cả năm</option>
@@ -213,7 +235,10 @@ function HolidaysContent() {
           <label className="text-label-sm text-on-surface-variant">Loại:</label>
           <select
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
+            onChange={(e) => {
+              setTypeFilter(e.target.value);
+              setPage(0);
+            }}
             className="h-9 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none cursor-pointer"
           >
             <option value="">Tất cả</option>
@@ -222,7 +247,7 @@ function HolidaysContent() {
           </select>
         </div>
         <p className="text-label-sm text-on-surface-variant ml-auto">
-          {filtered.length} ngày lễ
+          {totalElements} ngày lễ
         </p>
       </div>
 
@@ -308,6 +333,14 @@ function HolidaysContent() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={page + 1}
+            totalPages={totalPages}
+            totalItems={totalElements}
+            pageSize={pageSize}
+            onPageChange={(p) => setPage(p - 1)}
+            onPageSizeChange={handlePageSizeChange}
+          />
         </div>
       )}
 

@@ -1,6 +1,19 @@
 @import "tailwindcss";
 
 /* ══════════════════════════════════════════════════════════════
+   Safelist for dynamic Tailwind classes
+   ─────────────────────────────────────────────────────────────
+   Tailwind v4 chỉ generate các class xuất hiện trong source.
+   Các class build dynamic qua string interpolation (ví dụ:
+   `${ICON_BOX_SM} ${category.bg} ${category.color}`) sẽ bị
+   Purge/Treeshake bỏ → tất cả icon box rơi về cùng style.
+   Liệt kê explicit để Tailwind v4 generate đầy đủ.
+   ══════════════════════════════════════════════════════════════ */
+@source inline("bg-amber-50 bg-amber-100 bg-indigo-50 bg-indigo-100 bg-blue-50 bg-blue-100 bg-teal-50 bg-teal-100 bg-green-50 bg-red-50 bg-orange-50 bg-purple-50 bg-pink-50 bg-yellow-50 bg-cyan-50");
+@source inline("text-amber-700 text-amber-800 text-indigo-600 text-indigo-700 text-blue-600 text-blue-700 text-teal-600 text-teal-700 text-green-700 text-red-600 text-red-700 text-orange-600 text-purple-600 text-pink-600 text-yellow-700 text-cyan-700");
+@source inline("border-l-amber-500 border-l-indigo-500 border-l-blue-500 border-l-teal-500 border-l-green-500 border-l-red-500 border-l-orange-500 border-l-purple-500 border-l-pink-500 border-l-yellow-500 border-l-cyan-500 border-l-primary border-l-secondary border-l-tertiary border-l-error border-l-warning");
+
+/* ══════════════════════════════════════════════════════════════
    Design Token Architecture
    ─────────────────────────────────────────────────────────────
    Core surface tokens are defined as CSS variables referencing

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Pagination } from "@/components/ui/Pagination";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
@@ -20,6 +21,7 @@ const ALGO_LABELS: Record<string, string> = {
   ROUND_ROBIN: "Luân phiên",
   BACKTRACKING: "Backtracking",
   GENETIC: "Di truyền",
+  CSP_MRV_FC: "CSP-MRV-FC",
 };
 
 const ALGO_COLORS: Record<string, string> = {
@@ -27,6 +29,7 @@ const ALGO_COLORS: Record<string, string> = {
   ROUND_ROBIN: "bg-secondary-container text-on-secondary-container border-secondary/30",
   BACKTRACKING: "bg-tertiary-fixed text-on-tertiary border-tertiary/30",
   GENETIC: "bg-purple-100 text-purple-700 border-purple-300",
+  CSP_MRV_FC: "bg-amber-100 text-amber-800 border-amber-300",
 };
 
 function formatDateTime(iso: string) {
@@ -150,25 +153,38 @@ function AlgorithmHistoryContent() {
   const [compareA, setCompareA] = useState<AlgorithmMetrics | null>(null);
   const [compareB, setCompareB] = useState<AlgorithmMetrics | null>(null);
   const [openCompare, setOpenCompare] = useState(false);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
-  const load = useCallback(async () => {
+  const loadPeriods = useCallback(async () => {
     try {
-      const [runsRes, periodsRes] = await Promise.all([
-        selectedPeriodId
-          ? api.getMetricsByPeriod(selectedPeriodId)
-          : api.getAllMetrics(),
-        api.getAllPeriods(),
-      ]);
-      if (runsRes) setAllRuns(selectedPeriodId ? runsRes as AlgorithmMetrics[] : (runsRes as ApiResponse<AlgorithmMetrics[]>).data ?? []);
+      const periodsRes = await api.getAllPeriods();
       if (periodsRes?.data) setPeriods(periodsRes.data);
     } catch {
-      setMessage("Không thể tải lịch sử thuật toán.");
+      // Best-effort: history still works without period names
+    }
+  }, []);
+
+  const loadRuns = useCallback(async () => {
+    try {
+      setLoading(true);
+      const result = selectedPeriodId
+        ? await api.getMetricsPage(page, pageSize, selectedPeriodId)
+        : await api.getMetricsPage(page, pageSize);
+      setAllRuns(result.content ?? []);
+      setTotalPages(result.totalPages ?? 0);
+      setTotalElements(result.totalElements ?? 0);
+    } catch (err) {
+      setMessage(getErrorMessage(err, "Không thể tải lịch sử thuật toán."));
     } finally {
       setLoading(false);
     }
-  }, [selectedPeriodId]);
+  }, [page, pageSize, selectedPeriodId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void loadPeriods(); }, [loadPeriods]);
+  useEffect(() => { void loadRuns(); }, [loadRuns]);
 
   useAutoDismiss(message, () => setMessage(null));
 
@@ -223,7 +239,7 @@ function AlgorithmHistoryContent() {
               id="history-period-select"
               className="h-10 pl-3 pr-8 bg-surface-container-low border border-transparent focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-1 focus:ring-primary/20 cursor-pointer rounded-lg font-label-md text-label-md text-on-surface appearance-none"
               value={selectedPeriodId ?? ""}
-              onChange={(e) => setSelectedPeriodId(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => { setSelectedPeriodId(e.target.value ? Number(e.target.value) : null); setPage(0); }}
             >
               <option value="">Tất cả các kỳ</option>
               {periods.map((p) => (
@@ -238,7 +254,7 @@ function AlgorithmHistoryContent() {
           </div>
 
           <div className="text-label-sm text-on-surface-variant">
-            {allRuns.length} lần chạy
+            {totalElements} lần chạy
           </div>
         </div>
 
@@ -316,6 +332,16 @@ function AlgorithmHistoryContent() {
               </tbody>
             </table>
           </div>
+        )}
+        {!loading && totalElements > 0 && (
+          <Pagination
+            currentPage={page + 1}
+            totalPages={totalPages}
+            totalItems={totalElements}
+            pageSize={pageSize}
+            onPageChange={(p) => setPage(p - 1)}
+            onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+          />
         )}
       </SectionCard>
 

@@ -28,6 +28,9 @@ function StatisticsReportContent() {
   const [fetching, setFetching] = useState(false);
   const [shiftTypeFilter, setShiftTypeFilter] = useState<string>("");
   const [message, setMessage] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(20);
+
+  const STEPS = [20, 50, 100, 200];
 
   const fetchPeriods = useCallback(async () => {
     try {
@@ -73,6 +76,7 @@ function StatisticsReportContent() {
 
   useEffect(() => {
     if (selectedPeriod) {
+      setVisibleCount(20);
       void fetchStats(selectedPeriod.id, shiftTypeFilter || undefined);
     }
   }, [selectedPeriod, shiftTypeFilter, fetchStats]);
@@ -238,7 +242,7 @@ function StatisticsReportContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant">
-              {stats.map((s) => {
+              {stats.slice(0, visibleCount).map((s) => {
                 const shiftTypeInfo = shiftTypeFilter ? SHIFT_TYPE_COLORS[shiftTypeFilter] : null;
                 return (
                   <tr
@@ -294,6 +298,44 @@ function StatisticsReportContent() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination controls (show more pattern) */}
+      {!loading && !fetching && stats.length > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3">
+          <p className="text-[12px] text-on-surface-variant">
+            Hiển thị <span className="font-semibold text-on-surface">{Math.min(visibleCount, stats.length)}</span> / {stats.length} nhân sự
+          </p>
+          <div className="flex items-center gap-2">
+            {visibleCount < stats.length && (
+              <button
+                type="button"
+                onClick={() => setVisibleCount(c => Math.min(c + 50, stats.length))}
+                className="h-8 px-3 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm font-medium text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+              >
+                Xem thêm 50
+              </button>
+            )}
+            {visibleCount < stats.length && (
+              <button
+                type="button"
+                onClick={() => setVisibleCount(stats.length)}
+                className="h-8 px-3 rounded-lg bg-primary text-on-primary text-label-sm font-medium hover:bg-primary/90 transition-colors cursor-pointer"
+              >
+                Hiện tất cả
+              </button>
+            )}
+            {visibleCount > STEPS[0] && (
+              <button
+                type="button"
+                onClick={() => setVisibleCount(STEPS[0])}
+                className="h-8 px-3 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm font-medium text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
+              >
+                Thu gọn
+              </button>
+            )}
+          </div>
         </div>
       )}
 

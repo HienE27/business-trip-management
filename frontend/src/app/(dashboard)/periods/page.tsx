@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button, IconButton } from "@/components/ui";
+import { Pagination } from "@/components/ui/Pagination";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { api } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/errors";
@@ -63,19 +64,25 @@ export default function PeriodsPage() {
   // Filter state
   const [statusFilter, setStatusFilter] = useState<"ALL" | "DRAFT" | "PUBLISHED" | "ARCHIVED">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
   const loadPeriods = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getAllPeriods();
-      setPeriods(data?.data ?? []);
+      const result = await api.getPeriodsPage(page, pageSize);
+      setPeriods(result.content ?? []);
+      setTotalPages(result.totalPages ?? 0);
+      setTotalElements(result.totalElements ?? 0);
     } catch (err) {
       setError(getErrorMessage(err, "Không thể tải danh sách kỳ lịch."));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, pageSize]);
 
   useEffect(() => {
     void loadPeriods();
@@ -239,7 +246,7 @@ export default function PeriodsPage() {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
                 placeholder="Tìm theo tên kỳ lịch…"
                 aria-label="Tìm kiếm kỳ lịch"
                 className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none font-body-sm text-body-sm text-on-surface transition-all"
@@ -248,7 +255,7 @@ export default function PeriodsPage() {
             <div className="relative">
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                onChange={(e) => { setStatusFilter(e.target.value as typeof statusFilter); setPage(0); }}
                 aria-label="Lọc theo trạng thái"
                 className="appearance-none pl-3 pr-9 py-2.5 bg-surface-container-lowest rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none font-body-sm text-body-sm text-on-surface cursor-pointer"
               >
@@ -412,6 +419,16 @@ export default function PeriodsPage() {
                   </tbody>
                 </table>
               </div>
+            )}
+            {!loading && filteredPeriods.length > 0 && (
+              <Pagination
+                currentPage={page + 1}
+                totalPages={totalPages}
+                totalItems={totalElements}
+                pageSize={pageSize}
+                onPageChange={(p) => setPage(p - 1)}
+                onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+              />
             )}
           </div>
         </div>

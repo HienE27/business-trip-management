@@ -7,6 +7,7 @@ import { Button, IconButton } from "@/components/ui";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Pagination } from "@/components/ui/Pagination";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateRange, formatDateTime } from "@/lib/date";
@@ -55,6 +56,18 @@ function LeaveRequestsContent() {
   const ignoreRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({
+    total: 0,
+    PENDING: 0,
+    APPROVED: 0,
+    REJECTED: 0,
+    CANCELLED: 0,
+  });
+
   // Keep toast ref in sync — avoids stale closure while keeping deps clean
   const toastRef = useRef(toast);
   useEffect(() => { toastRef.current = toast; });
@@ -99,13 +112,11 @@ function LeaveRequestsContent() {
 
     try {
       setLoading(true);
-      const data = await api.get<LeaveRequest[]>(
-        "/leave-requests",
-        undefined,
-        { signal: controller.signal }
-      );
-      if (ignoreRef.current || controller.signal.aborted) return;
-      setRequests(data ?? []);
+      const pageResult = await api.getLeaveRequestsPage(page, pageSize);
+      if (controller.signal.aborted) return;
+      setRequests(pageResult.content ?? []);
+      setTotalPages(pageResult.totalPages ?? 0);
+      setTotalElements(pageResult.totalElements ?? 0);
     } catch (err) {
       if (ignoreRef.current || controller.signal.aborted) return;
       safeToast("error", getErrorMessage(err, "Không thể tải danh sách yêu cầu nghỉ phép."));
@@ -113,17 +124,34 @@ function LeaveRequestsContent() {
     } finally {
       if (!ignoreRef.current && !controller.signal.aborted) setLoading(false);
     }
+  }, [page, pageSize]);
+
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      const res = await api.getLeaveRequestStatusCounts();
+      const data = (res?.data ?? {}) as Record<string, number>;
+      setStatusCounts({
+        total: data.total ?? 0,
+        PENDING: data.PENDING ?? 0,
+        APPROVED: data.APPROVED ?? 0,
+        REJECTED: data.REJECTED ?? 0,
+        CANCELLED: data.CANCELLED ?? 0,
+      });
+    } catch {
+      // Fall back to zeros — UI gracefully degrades to "0" cards.
+    }
   }, []);
 
   useEffect(() => {
     ignoreRef.current = false;
     abortControllerRef.current?.abort();
     void fetchRequests();
+    void fetchStatusCounts();
     return () => {
       ignoreRef.current = true;
       abortControllerRef.current?.abort();
     };
-  }, [fetchRequests]);
+  }, [fetchRequests, fetchStatusCounts]);
 
   const filteredRequests = useMemo(() => {
     const visible = requests.filter((r) => {
@@ -141,11 +169,11 @@ function LeaveRequestsContent() {
   }, [requests, statusFilter, searchKeyword, isManager, user]);
 
   const stats = useMemo(() => ({
-    total: requests.length,
-    pending: requests.filter((r) => r.status === "PENDING").length,
-    approved: requests.filter((r) => r.status === "APPROVED").length,
-    rejected: requests.filter((r) => r.status === "REJECTED").length,
-  }), [requests]);
+    total: statusCounts.total,
+    pending: statusCounts.PENDING,
+    approved: statusCounts.APPROVED,
+    rejected: statusCounts.REJECTED,
+  }), [statusCounts.total, statusCounts.PENDING, statusCounts.APPROVED, statusCounts.REJECTED]);
 
   const handleApprove = useCallback(async () => {
     if (!detailRequest || !user?.userId) return;
@@ -306,7 +334,7 @@ function LeaveRequestsContent() {
                 id="leave-status-filter"
                 className="h-10 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-label-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 cursor-pointer appearance-none pr-8"
                 value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value as FilterStatus)}
+                onChange={(event) => { setStatusFilter(event.target.value as FilterStatus); setPage(0); }}
               >
                 <option value="ALL">Tất cả trạng thái</option>
                 <option value="PENDING">Chờ duyệt</option>
@@ -431,6 +459,17 @@ function LeaveRequestsContent() {
               </article>
             ))}
           </div>
+        )}
+
+        {!loading && filteredRequests.length > 0 && (
+          <Pagination
+            currentPage={page + 1}
+            totalPages={totalPages}
+            totalItems={totalElements}
+            pageSize={pageSize}
+            onPageChange={(p) => setPage(p - 1)}
+            onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+          />
         )}
       </SectionCard>
 

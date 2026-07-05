@@ -4,6 +4,7 @@ import { memo } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { FormSelect } from "@/components/ui/FormSelect";
 import type { SchedulePeriod } from "@/types/api";
 import { formatDateRange } from "./utils";
 import { TAB_OPTIONS, SHIFT_TYPE_LABELS } from "./constants";
@@ -63,16 +64,17 @@ export const ScheduleHeader = memo(function ScheduleHeader({
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
           {/* Left: Period selector + status */}
           <div className="flex flex-wrap items-center gap-3">
-            <select
-              className="h-9 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-label-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 appearance-none cursor-pointer"
-              value={selectedPeriodId ?? ""}
-              onChange={(event) => onPeriodChange(Number(event.target.value))}
+            <FormSelect
               aria-label="Chọn kỳ lịch"
-            >
-              {periods.map((period) => (
-                <option key={period.id} value={period.id}>{period.periodName}</option>
-              ))}
-            </select>
+              value={selectedPeriodId != null ? String(selectedPeriodId) : ""}
+              onChange={(event) => onPeriodChange(Number(event.target.value))}
+              hideLabel
+              className="!h-9 !text-label-sm min-w-[160px]"
+              options={periods.map((period) => ({
+                value: String(period.id),
+                label: period.periodName,
+              }))}
+            />
             {statusInfo && (
               <Badge tone={statusInfo.tone} dot showDot size="sm">
                 {statusInfo.label}
@@ -81,17 +83,20 @@ export const ScheduleHeader = memo(function ScheduleHeader({
             <span className="text-label-xs text-on-surface-variant hidden sm:inline">
               {formatDateRange(selectedPeriod)}
             </span>
-            <select
-              className="h-9 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-label-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 appearance-none cursor-pointer"
+            <FormSelect
+              aria-label="Chọn loại lịch"
               value={selectedTab}
               onChange={(event) => onTabChange(event.target.value as ScheduleTab)}
-              aria-label="Chọn loại lịch"
-            >
-              <option value="ALL">Tất cả loại</option>
-              {TAB_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>{SHIFT_TYPE_LABELS[option.id] ?? option.label}</option>
-              ))}
-            </select>
+              hideLabel
+              className="!h-9 !text-label-sm min-w-[140px]"
+              options={[
+                { value: "ALL", label: "Tất cả loại" },
+                ...TAB_OPTIONS.map((option) => ({
+                  value: option.id,
+                  label: SHIFT_TYPE_LABELS[option.id] ?? option.label,
+                })),
+              ]}
+            />
           </div>
 
           {/* Right: Action buttons */}

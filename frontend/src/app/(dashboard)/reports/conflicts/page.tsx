@@ -21,6 +21,10 @@ function ReportsConflictsContent() {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Tracks per-group "show more" so the conflicts page scales when a period
+  // contains hundreds of conflicts. Keyed by the conflict-reason string.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const ITEMS_PER_GROUP = 10;
 
   const fetchPeriods = useCallback(async () => {
     try {
@@ -55,7 +59,10 @@ function ReportsConflictsContent() {
   }, []);
 
   useEffect(() => {
-    if (selectedPeriod) void checkConflicts(selectedPeriod.id);
+    if (selectedPeriod) {
+      setExpandedGroups(new Set());
+      void checkConflicts(selectedPeriod.id);
+    }
   }, [selectedPeriod, checkConflicts]);
 
   useAutoDismiss(message, () => setMessage(null));
@@ -186,7 +193,11 @@ function ReportsConflictsContent() {
               <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
                 <h3 className="text-[16px] font-semibold text-on-surface mb-4">Xung đột theo nguyên nhân</h3>
                 <div className="space-y-4">
-                  {Object.entries(conflictsByType).map(([type, items]) => (
+                  {Object.entries(conflictsByType).map(([type, items]) => {
+                    const isExpanded = expandedGroups.has(type);
+                    const visibleItems = isExpanded ? items : items.slice(0, ITEMS_PER_GROUP);
+                    const hiddenCount = items.length - visibleItems.length;
+                    return (
                     <div key={type} className="rounded-lg border border-l-4 border-l-error bg-surface p-4">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="text-[14px] font-semibold text-on-surface">{type}</h4>
@@ -195,7 +206,7 @@ function ReportsConflictsContent() {
                         </span>
                       </div>
                       <div className="space-y-2">
-                        {items.map((c) => (
+                        {visibleItems.map((c) => (
                           <div key={c.scheduleId} className="flex items-center justify-between rounded-lg bg-surface-container-lowest px-3 py-2">
                             <div>
                               <p className="text-[13px] font-medium text-on-surface">{c.staffName}</p>
@@ -215,8 +226,23 @@ function ReportsConflictsContent() {
                           </div>
                         ))}
                       </div>
+                      {hiddenCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedGroups(prev => {
+                            const next = new Set(prev);
+                            next.add(type);
+                            return next;
+                          })}
+                          className="mt-3 w-full flex items-center justify-center gap-1.5 text-[12px] font-medium text-primary hover:bg-primary/5 rounded-md py-2 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">expand_more</span>
+                          Hiện thêm {hiddenCount} xung đột
+                        </button>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
 

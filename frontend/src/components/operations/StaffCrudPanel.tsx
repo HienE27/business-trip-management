@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { getRoleLabel, ROLE_LABELS } from "@/lib/roleLabels";
 import { useToast } from "@/hooks/useToast";
 import { FormInput, FormSelect, Button, ConfirmDialog } from "@/components/ui";
+import { Pagination } from "@/components/ui/Pagination";
 import { SpecialtyCrudPanel } from "./SpecialtyCrudPanel";
 import type { Specialty } from "@/types/api";
 
@@ -95,14 +96,16 @@ function getInitials(name: string) {  return name
 }
 
 function getStatusLabel(record: StaffResponse) {
-  if (record.status === "active") return "Đang làm việc";
-  if (record.status === "on_leave") return "Nghỉ phép";
+  const s = record.status?.toUpperCase();
+  if (s === "ACTIVE") return "Đang làm việc";
+  if (s === "ON_LEAVE") return "Nghỉ phép";
   return "Nghỉ việc";
 }
 
 function getStatusClass(record: StaffResponse) {
-  if (record.status === "active") return "bg-secondary-container text-on-secondary-container border border-secondary/20";
-  if (record.status === "on_leave") return "bg-tertiary-fixed text-on-tertiary-fixed-variant border border-tertiary/20";
+  const s = record.status?.toUpperCase();
+  if (s === "ACTIVE") return "bg-secondary-container text-on-secondary-container border border-secondary/20";
+  if (s === "ON_LEAVE") return "bg-tertiary-fixed text-on-tertiary-fixed-variant border border-tertiary/20";
   return "bg-surface-container-highest text-outline border border-outline-variant";
 }
 
@@ -129,10 +132,18 @@ export function StaffCrudPanel() {
   const [roleFilter, setRoleFilter] = useState("");
   const [specialtyFilter, setSpecialtyFilter] = useState<number | "">("");
   const [positionFilter, setPositionFilter] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [statusCounts, setStatusCounts] = useState<{
+    total: number;
+    ACTIVE: number;
+    ON_LEAVE: number;
+    INACTIVE: number;
+  }>({ total: 0, ACTIVE: 0, ON_LEAVE: 0, INACTIVE: 0 });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
-  const PAGE_SIZE = 10;
 
   // Sync global search ?q= URL param to local search state
   useEffect(() => {
@@ -151,46 +162,57 @@ export function StaffCrudPanel() {
     }
   }, []);
 
+  /**
+   * Aggregate counts from the entire DB (no pagination, no filters).
+   * Dashboard summary cards must reflect global totals, not just the
+   * current page's slice — otherwise counts shift when the user paginates.
+   */
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      const res = await api.getStaffStatusCounts();
+      const data = (res?.data ?? {}) as Record<string, number>;
+      setStatusCounts({
+        total: data.total ?? 0,
+        ACTIVE: data.ACTIVE ?? 0,
+        ON_LEAVE: data.ON_LEAVE ?? 0,
+        INACTIVE: data.INACTIVE ?? 0,
+      });
+    } catch {
+      // Fall back to empty counts — UI will show 00 cards but the table still works.
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatusCounts();
+  }, [fetchStatusCounts]);
+
   const fetchStaff = useCallback(async () => {
     try {
       setLoading(true);
-      const hasFilters = Boolean(searchKeyword.trim() || statusFilter || roleFilter || specialtyFilter || positionFilter);
-      const params = new URLSearchParams();
-      if (searchKeyword.trim()) {
-        params.set("keyword", searchKeyword.trim());
-      }
-      if (statusFilter) {
-        params.set("status", statusFilter.toUpperCase());
-      }
-      if (roleFilter) {
-        params.set("role", roleFilter);
-      }
-      if (specialtyFilter) {
-        params.set("specialtyId", String(specialtyFilter));
-      }
-      if (positionFilter.trim()) {
-        params.set("position", positionFilter.trim());
-      }
-
-      const data = await api.get<StaffApiResponse[]>(hasFilters ? `/staff/search?${params.toString()}` : "/staff");
-      const normalizedData = (data ?? []).map(normalizeStaffRecord);
-
-      const seen = new Set<number>();
-      const dedup = (list: StaffResponse[]): StaffResponse[] =>
-        list.filter((r) => {
-          if (seen.has(r.id)) return false;
-          seen.add(r.id);
-          return true;
-        });
-
-      setRecords(dedup(normalizedData));
+      const result = await api.searchStaffsPage({
+        keyword: searchKeyword.trim() || undefined,
+        status: statusFilter || undefined,
+        role: roleFilter || undefined,
+        specialtyId: (specialtyFilter || undefined) as number | undefined,
+        position: positionFilter.trim() || undefined,
+        page: currentPage,
+        size: pageSize,
+      });
+      // searchStaffsPage returns the stricter exported `Staff` type. The
+      // local `StaffApiResponse` view also requires hireDate — both shapes
+      // align at runtime, so cast through unknown to bridge them.
+      const rawContent = (result.content ?? []) as unknown as StaffApiResponse[];
+      const normalizedData = rawContent.map(normalizeStaffRecord);
+      setRecords(normalizedData);
+      setTotalPages(result.totalPages ?? 0);
+      setTotalElements(result.totalElements ?? 0);
     } catch {
       toast.error("Không thể tải danh sách nhân sự. Vui lòng kiểm tra kết nối backend.");
       setRecords([]);
     } finally {
       setLoading(false);
     }
-  }, [roleFilter, searchKeyword, specialtyFilter, statusFilter]);
+  }, [searchKeyword, statusFilter, roleFilter, specialtyFilter, positionFilter, currentPage, pageSize, toast]);
 
   useEffect(() => {
     fetchSpecialties();
@@ -202,7 +224,7 @@ export function StaffCrudPanel() {
   }, [fetchStaff]);
 
   useEffect(() => {
-    setCurrentPage(1);
+    setCurrentPage(0);
   }, [searchKeyword, statusFilter, roleFilter, specialtyFilter, positionFilter]);
 
   // Safety net: ensure form is closed on initial mount
@@ -211,8 +233,8 @@ export function StaffCrudPanel() {
     setFormOpen(false);
   }, []);
 
-  const activeCount = records.filter((r) => r.status === "active").length;
-  const onLeaveCount = records.filter((r) => r.status === "on_leave").length;
+  // Dashboard summary cards read from server-aggregated counts (statusCounts),
+// so the numbers stay correct regardless of which page is currently displayed.
 
   function setTab(tab: "staff" | "specialties") {
     setActiveTab(tab);
@@ -234,15 +256,12 @@ export function StaffCrudPanel() {
 
   const summary = useMemo(
     () => [
-      ["Tổng nhân sự", String(records.length).padStart(2, "0")],
-      ["Đang làm việc", String(activeCount).padStart(2, "0")],
-      ["Nghỉ phép", String(onLeaveCount).padStart(2, "0")],
-      [
-        "Nghỉ việc",
-        String(records.filter((r) => r.status === "inactive").length).padStart(2, "0"),
-      ],
+      ["Tổng nhân sự", String(statusCounts.total).padStart(2, "0")],
+      ["Đang làm việc", String(statusCounts.ACTIVE).padStart(2, "0")],
+      ["Nghỉ phép", String(statusCounts.ON_LEAVE).padStart(2, "0")],
+      ["Nghỉ việc", String(statusCounts.INACTIVE).padStart(2, "0")],
     ],
-    [records, activeCount, onLeaveCount]
+    [statusCounts.total, statusCounts.ACTIVE, statusCounts.ON_LEAVE, statusCounts.INACTIVE]
   );
 
   const filteredRecords = useMemo(() => {
@@ -274,39 +293,11 @@ export function StaffCrudPanel() {
     });
   }, [records, searchKeyword, statusFilter, roleFilter]);
 
-  const pagedRecords = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredRecords.slice(start, start + PAGE_SIZE);
-  }, [filteredRecords, currentPage]);
+  const pagedRecords = filteredRecords;
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE)),
-    [filteredRecords.length]
-  );
-
-  const pageNumbers = useMemo(() => {
-    const pages: (number | "...")[] = [];
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      pages.push(1);
-      if (currentPage > 3) pages.push("...");
-      for (
-        let i = Math.max(2, currentPage - 1);
-        i <= Math.min(totalPages - 1, currentPage + 1);
-        i++
-      ) {
-        pages.push(i);
-      }
-      if (currentPage < totalPages - 2) pages.push("...");
-      pages.push(totalPages);
-    }
-    return pages;
-  }, [totalPages, currentPage]);
-
-  function handlePageClick(page: number | "...") {
-    if (page === "...") return;
-    setCurrentPage(page);
+  function handlePageSizeChange(size: number) {
+    setPageSize(size);
+    setCurrentPage(0);
   }
 
   function handleExportExcel() {
@@ -1006,62 +997,18 @@ export function StaffCrudPanel() {
               </tbody>
             </table>
           )}
+          {!loading && filteredRecords.length > 0 && (
+            <Pagination
+              currentPage={currentPage + 1}
+              totalPages={totalPages}
+              totalItems={totalElements}
+              pageSize={pageSize}
+              onPageChange={(p) => setCurrentPage(p - 1)}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-outline-variant bg-surface-container-low px-4 py-3">
-          <p className="text-body-sm text-on-surface-variant">
-            Hiển thị{" "}
-            <span className="font-medium text-on-surface">
-              {(currentPage - 1) * PAGE_SIZE + 1}
-            </span>{" "}
-            đến{" "}
-            <span className="font-medium text-on-surface">
-              {Math.min(currentPage * PAGE_SIZE, filteredRecords.length)}
-            </span>{" "}
-            trong số{" "}
-            <span className="font-medium text-on-surface">{filteredRecords.length}</span> nhân viên
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              aria-label="Trang truoc"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              type="button"
-            >
-              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">chevron_left</span>
-            </button>
-            {pageNumbers.map((page, idx) =>
-              page === "..." ? (
-                <span className="px-1 text-on-surface-variant font-label-md" key={`ellipsis-${idx}`}>
-                  ...
-                </span>
-              ) : (
-                <button
-                  key={page}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg font-label-md transition-colors ${
-                    currentPage === page
-                      ? "bg-primary text-on-primary shadow-sm"
-                      : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
-                  }`}
-                  onClick={() => handlePageClick(page)}
-                  type="button"
-                >
-                  {page}
-                </button>
-              )
-            )}
-            <button
-              aria-label="Trang sau"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              type="button"
-            >
-              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">chevron_right</span>
-            </button>
-          </div>
-        </div>
       </section>
 
       <ConfirmDialog

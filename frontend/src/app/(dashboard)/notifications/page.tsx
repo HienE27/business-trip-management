@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Pagination } from "@/components/ui/Pagination";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useNotifications } from "@/components/ui/NotificationContext";
@@ -64,14 +65,18 @@ function NotificationsContent() {
   const [activeTab, setActiveTab] = useState<NotifTab>("all");
   const [message, setMessage] = useState("");
   const [markingAll, setMarkingAll] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) {
       setNotifications([]);
+      setUnreadCount(0);
       await refreshCount(0);
       setLoading(false);
       return;
@@ -80,26 +85,36 @@ function NotificationsContent() {
     try {
       setLoading(true);
       setMessage("");
-      const res = await api.get<Notification[]>(`/notifications/staff/${userId}`);
-      setNotifications(res ?? []);
-      await refreshCount((res ?? []).filter((n) => !n.isRead).length);
+      const [result, unreadRes] = await Promise.all([
+        api.getNotificationsPage(page, pageSize),
+        api.countMyUnreadNotifications(),
+      ]);
+      setNotifications(result.content ?? []);
+      setTotalPages(result.totalPages ?? 0);
+      setTotalElements(result.totalElements ?? 0);
+      const serverUnread = unreadRes?.data?.count ?? 0;
+      setUnreadCount(serverUnread);
+      await refreshCount(serverUnread);
     } catch (err) {
       setNotifications([]);
+      setUnreadCount(0);
       await refreshCount(0);
       setMessage(getErrorMessage(err, "Không thể tải thông báo."));
     } finally {
       setLoading(false);
     }
-  }, [refreshCount, userId]);
+  }, [refreshCount, userId, page, pageSize]);
 
   useEffect(() => {
     void fetchNotifications();
   }, [fetchNotifications]);
 
   useEffect(() => {
-    setPage(1);
+    setPage(0);
   }, [activeTab]);
 
+  // Server already paginates; client-side filter further narrows the visible
+  // set on the current page (so filters still work without a server contract).
   const filtered = notifications.filter((n) => {
     if (activeTab === "all") return true;
     if (activeTab === "unread") return !n.isRead;
@@ -110,10 +125,9 @@ function NotificationsContent() {
     return true;
   });
 
-  const pagedNotifs = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+// unreadCount comes from server aggregate so it stays accurate across all pages.
+  // (Was previously derived from `notifications` slice, which only counted unread
+  // items on the current page.)
 
   async function handleMarkAsRead(id: number) {
     try {
@@ -121,7 +135,9 @@ function NotificationsContent() {
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
       );
-      await refreshCount(Math.max(0, unreadCount - 1));
+      const next = Math.max(0, unreadCount - 1);
+      setUnreadCount(next);
+      await refreshCount(next);
     } catch (err) {
       setMessage(getErrorMessage(err, "Lỗi đánh dấu đã đọc."));
     }
@@ -133,6 +149,7 @@ function NotificationsContent() {
       setMarkingAll(true);
       await api.put(`/notifications/staff/${userId}/read-all`, {});
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
       await refreshCount(0);
       setMessage("Đã đánh dấu tất cả là đã đọc.");
       setTimeout(() => setMessage(""), 3000);
@@ -156,7 +173,9 @@ function NotificationsContent() {
       await api.delete(`/notifications/${id}`);
       setNotifications((prev) => prev.filter((n) => n.id !== id));
       if (wasUnread) {
-        await refreshCount(Math.max(0, unreadCount - 1));
+        const next = Math.max(0, unreadCount - 1);
+        setUnreadCount(next);
+        await refreshCount(next);
       }
     } catch (err) {
       setMessage(getErrorMessage(err, "Lỗi xóa thông báo."));
@@ -269,7 +288,7 @@ function NotificationsContent() {
             />
         ) : (
           <div className="flex flex-col gap-2" aria-busy={loading} aria-live="polite">
-            {pagedNotifs.map((notif) => {
+            {filtered.map((notif) => {
               const { icon, wrapClass } = getNotificationIcon(notif.title);
               const badge = getBadge(notif.title);
               return (
@@ -341,31 +360,15 @@ function NotificationsContent() {
               );
             })}
 
-            {/* Pagination */}
-            {filtered.length > pageSize && (
-              <div className="flex items-center justify-center gap-2 pt-4">
-                <button
-                  className="flex items-center gap-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-[12px] font-medium text-on-surface transition-colors hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  type="button"
-                >
-                  <span className="material-symbols-outlined text-[14px]">chevron_left</span>
-                  Trước
-                </button>
-                <span className="text-[12px] text-on-surface-variant">
-                  Trang {page} / {totalPages}
-                </span>
-                <button
-                  className="flex items-center gap-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-[12px] font-medium text-on-surface transition-colors hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  type="button"
-                >
-                  Sau
-                  <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-                </button>
-              </div>
+            {filtered.length > 0 && (
+              <Pagination
+                currentPage={page + 1}
+                totalPages={totalPages}
+                totalItems={totalElements}
+                pageSize={pageSize}
+                onPageChange={(p) => setPage(p - 1)}
+                onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+              />
             )}
           </div>
         )}
