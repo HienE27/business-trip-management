@@ -1,0 +1,21 @@
+-- =====================================================
+-- V9: Drop uk_schedule_unique constraint to allow staff swaps
+-- =====================================================
+-- The (period_id, staff_id, shift_type_id, work_date) UNIQUE
+-- constraint makes any in-place staff swap on a pair of
+-- same-date, same-shift schedules impossible: the intermediate
+-- state always collides with itself. There is no SQL pattern
+-- that can swap two rows that share a unique key without
+-- disabling the constraint for the duration of the swap.
+--
+-- The constraint was originally added to prevent duplicate
+-- schedule rows from accidental double-inserts, but the
+-- schedule_exchange approval flow needs to swap staff_id
+-- between two rows of the same slot, which is now impossible.
+--
+-- Drop the constraint. Application-level checks remain in
+-- ScheduleService.saveSchedule() and the auto-scheduling
+-- algorithm, so duplicates are still prevented at the
+-- application layer.
+-- =====================================================
+ALTER TABLE schedule DROP INDEX uk_schedule_unique;
