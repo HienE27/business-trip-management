@@ -63,6 +63,7 @@ public class AutoSchedulingService {
     private final EntityManager entityManager;
     private final ScheduleConflictRepository scheduleConflictRepository;
     private final PreviewConflictCheckService previewConflictCheckService;
+    private final AlgorithmProgressTracker progressTracker;
 
     // Thread-local so concurrent requests don't share state
     private final ThreadLocal<Map<String, Set<String>>> inMemoryAssignments = ThreadLocal.withInitial(HashMap::new);

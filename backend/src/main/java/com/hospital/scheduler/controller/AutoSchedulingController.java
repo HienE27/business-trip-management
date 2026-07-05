@@ -11,7 +11,11 @@ import com.hospital.scheduler.dto.response.AlgorithmConfigResponse;
 import com.hospital.scheduler.dto.response.AlgorithmMetricsDTO;
 import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.dto.response.ScheduleTemplateResponse;
+import com.hospital.scheduler.dto.response.AlgorithmConfigAuditDTO;
+import com.hospital.scheduler.entity.AlgorithmConfigAudit;
+import com.hospital.scheduler.repository.AlgorithmConfigAuditRepository;
 import com.hospital.scheduler.service.AlgorithmConfigService;
+import com.hospital.scheduler.service.AlgorithmProgressTracker;
 import com.hospital.scheduler.service.AutoSchedulingService;
 import com.hospital.scheduler.service.ScheduleTemplateService;
 import com.hospital.scheduler.service.AlgorithmMetricsService;
@@ -19,10 +23,15 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Map;
@@ -37,14 +46,40 @@ public class AutoSchedulingController {
     private final ScheduleTemplateService scheduleTemplateService;
     private final AlgorithmConfigService configService;
     private final AlgorithmMetricsService metricsService;
+    private final AlgorithmProgressTracker progressTracker;
+    private final AlgorithmConfigAuditRepository auditRepository;
+    private final ObjectMapper objectMapper;
+
+    private String serializeToJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            log.warn("Failed to serialize to JSON: {}", e.getMessage());
+            return null;
+        }
+    }
 
     @PostMapping("/preview")
     @Operation(summary = "M07-F07: Xem trước lịch trước khi xác nhận")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<AutoScheduleResponse>> previewSchedule(
             @Valid @RequestBody AutoScheduleRequestDTO request) {
-        AutoScheduleResponse result = autoSchedulingService.previewSchedule(request);
-        return ResponseEntity.ok(ApiResponse.success(result, "Xem trước lịch"));
+        // Start progress tracking
+        progressTracker.start(request.getPeriodId());
+        try {
+            AutoScheduleResponse result = autoSchedulingService.previewSchedule(request);
+            log.info("Preview completed for period {}: {} schedules, coverage={}, conflicts={}",
+                    request.getPeriodId(), result.getTotalSchedulesCreated(),
+                    result.getCoverageRate(), result.getConflictCount());
+            // Store result in progress tracker for polling
+            progressTracker.completeWithResult(request.getPeriodId(),
+                    "Xem trước lịch thành công", serializeToJson(result));
+            return ResponseEntity.ok(ApiResponse.success(result, "Xem trước lịch"));
+        } catch (Exception e) {
+            log.error("Preview failed for period {}: {}", request.getPeriodId(), e.getMessage(), e);
+            progressTracker.fail(request.getPeriodId(), e.getMessage());
+            throw e;
+        }
     }
 
     @PostMapping
@@ -53,8 +88,39 @@ public class AutoSchedulingController {
     public ResponseEntity<ApiResponse<AutoScheduleResponse>> autoSchedule(
             @Valid @RequestBody AutoScheduleRequestDTO request) {
         AutoScheduleResponse result = autoSchedulingService.autoSchedule(request);
+        // Ensure compensation days are created for all L01 schedules
+        autoSchedulingService.createCompensationDaysForL01InPeriod(result.getPeriodId());
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.success(result, "Xếp lịch tự động hoàn tất"));
+    }
+
+    @GetMapping("/progress/{periodId}")
+    @Operation(summary = "Lấy tiến độ chạy thuật toán theo period (polling endpoint)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getProgress(@PathVariable Integer periodId) {
+        AlgorithmProgressTracker.Progress p = progressTracker.get(periodId);
+        if (p == null) {
+            // No active/incomplete progress → return null status so client stops polling
+            Map<String, Object> payload = Map.of(
+                "status", "IDLE",
+                "periodId", periodId,
+                "message", "Không có tiến độ đang chạy"
+            );
+            return ResponseEntity.ok(ApiResponse.success(payload));
+        }
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("status", p.getStatus().name());
+        payload.put("periodId", p.getPeriodId());
+        payload.put("step", p.getStep() == null ? "" : p.getStep());
+        payload.put("percent", p.getPercent());
+        payload.put("message", p.getMessage() == null ? "" : p.getMessage());
+        payload.put("startedAt", p.getStartedAt().toString());
+        payload.put("updatedAt", p.getUpdatedAt().toString());
+        // Include cached result if available
+        if (p.getResultJson() != null) {
+            payload.put("resultJson", p.getResultJson());
+        }
+        return ResponseEntity.ok(ApiResponse.success(payload));
     }
 
     @PostMapping("/apply-preview")
@@ -141,6 +207,24 @@ public class AutoSchedulingController {
         return ResponseEntity.ok(ApiResponse.success(autoSchedulingService.getAllMetrics()));
     }
 
+    /**
+     * Server-paginated metrics endpoint.
+     * Sorted DESC by createdAt so newest runs surface first.
+     */
+    @GetMapping("/metrics/page")
+    @Operation(summary = "Lấy danh sách lịch sử chạy thuật toán có phân trang")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Page<AlgorithmMetricsDTO>>> getMetricsPage(
+            @RequestParam(required = false) Integer periodId,
+            Pageable pageable) {
+        Page<AlgorithmMetricsDTO> page = autoSchedulingService.getMetricsPage(periodId,
+                PageRequest.of(
+                        pageable.getPageNumber(),
+                        pageable.getPageSize(),
+                        Sort.by(Sort.Direction.DESC, "createdAt")));
+        return ResponseEntity.ok(ApiResponse.success(page));
+    }
+
     // ============================================================
     // AlgorithmConfig CRUD Endpoints
     // ============================================================
@@ -150,6 +234,14 @@ public class AutoSchedulingController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<AlgorithmConfigDTO>>> getAllConfigs() {
         return ResponseEntity.ok(ApiResponse.success(configService.getAllConfigs()));
+    }
+
+    @GetMapping("/config/page")
+    @Operation(summary = "Lấy danh sách cấu hình thuật toán có phân trang")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<AlgorithmConfigDTO>>> getConfigsPage(
+            org.springframework.data.domain.Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(configService.getConfigsPage(pageable)));
     }
 
     @GetMapping("/config/{paramKey}")
@@ -216,6 +308,22 @@ public class AutoSchedulingController {
         return ResponseEntity.ok(ApiResponse.success(config, "Cập nhật cấu hình runtime thành công"));
     }
 
+    @GetMapping("/auto-gen-config")
+    @Operation(summary = "Lấy cấu hình tạo yêu cầu tự động (L01–L04 limits)")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<com.hospital.scheduler.algorithm.AutoGenConfig>> getAutoGenConfig() {
+        return ResponseEntity.ok(ApiResponse.success(configService.getAutoGenConfig().orElse(null)));
+    }
+
+    @PutMapping("/auto-gen-config")
+    @Operation(summary = "Cập nhật cấu hình tạo yêu cầu tự động")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<com.hospital.scheduler.algorithm.AutoGenConfig>> saveAutoGenConfig(
+            @RequestBody com.hospital.scheduler.algorithm.AutoGenConfig config) {
+        configService.saveAutoGenConfig(config);
+        return ResponseEntity.ok(ApiResponse.success(config, "Cập nhật cấu hình tự động thành công"));
+    }
+
     // ============================================================
     // Algorithm Metrics Endpoints
     // ============================================================
@@ -239,6 +347,19 @@ public class AutoSchedulingController {
             "performanceScore", Math.round(score * 100.0) / 100.0,
             "recommendation", "Thuật toán " + best + " có hiệu suất tốt nhất dựa trên coverage và balance"
         );
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @GetMapping("/config/audit")
+    @Operation(summary = "Feature E: Lấy lịch sử thay đổi AlgorithmConfig")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<AlgorithmConfigAuditDTO>>> getConfigAudit(
+            @RequestParam(required = false) String paramKey,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        var pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        var result = auditRepository.search(paramKey, pageable)
+                .map(AlgorithmConfigAuditDTO::from);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 }
