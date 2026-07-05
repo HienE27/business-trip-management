@@ -19,7 +19,6 @@ import type {
   AutoScheduleRequest,
   AutoScheduleResult,
   AlgorithmMetrics,
-  ShiftRequirement,
   Specialty,
   Notification,
   Holiday,
@@ -27,6 +26,7 @@ import type {
   TemplatePreviewItem,
   AuditHistory,
   AuditHistoryPage,
+  AuditHistorySummary,
   ConflictCheckResponse,
   ShiftType,
   LeaveRequestStatistics,
@@ -34,6 +34,7 @@ import type {
   BulkScheduleResponse,
   PublishDryRunResponse,
   StaffShiftStatistics,
+  Page,
 } from "@/types/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
@@ -90,11 +91,19 @@ class ApiClient {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers,
-      credentials: "include",
-    });
+    // Support AbortController timeout if specified
+    const timeout = options.timeout ?? 60000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+        credentials: "include",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         if (response.status === 401 && typeof window !== "undefined") {
@@ -108,9 +117,16 @@ class ApiClient {
         }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || `HTTP ${response.status}`);
-    }
+      }
 
-    return response.json().catch(() => ({ success: true, data: null, message: "Thành công" }));
+      return response.json().catch(() => ({ success: true, data: null, message: "Thành công" }));
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(`Yêu cầu hết thời gian chờ (${Math.round(timeout / 1000)}s). Thuật toán có thể đang chạy quá lâu.`);
+      }
+      throw error;
+    }
   }
 
   // Generic HTTP methods
@@ -119,6 +135,7 @@ class ApiClient {
     if (params) {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === null || v === "") continue;
         qs.set(k, String(v));
       }
       url += (url.includes("?") ? "&" : "?") + qs.toString();
@@ -156,6 +173,7 @@ class ApiClient {
     if (params) {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === null || v === "") continue;
         qs.set(k, String(v));
       }
       url += `?${qs.toString()}`;
@@ -170,6 +188,40 @@ class ApiClient {
   async delete<T>(endpoint: string): Promise<T> {
     const res = await this.request<T>(endpoint, { method: "DELETE" });
     return res.data;
+  }
+
+  /**
+   * Returns a Spring {@link Page} envelope with full pagination metadata
+   * (totalElements, totalPages, number, size, first, last, empty, content).
+   *
+   * Use this on /paginated endpoints. The generic {@link ApiClient#get} drops
+   * the metadata by extracting `.content` (so callers don't get page count),
+   * which is the opposite of what `<Pagination>` needs.
+   */
+  async getPage<T>(
+    endpoint: string,
+    params?: Record<string, string | number | boolean>,
+    requestInit?: Omit<RequestInit, "method" | "body">,
+  ): Promise<Page<T>> {
+    let url = endpoint;
+    if (params) {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === null || v === "") continue;
+        qs.set(k, String(v));
+      }
+      url += (url.includes("?") ? "&" : "?") + qs.toString();
+    }
+    const res = await this.request<Page<T>>(url, { method: "GET", ...requestInit });
+    if (res?.data && typeof res.data === "object" && "content" in res.data) {
+      return res.data as Page<T>;
+    }
+    // Backward-compat: backend returning a bare `Page<T>` without the
+    // ApiResponse wrapper (shouldn't happen with current controllers, but be safe).
+    if (res && typeof res === "object" && "content" in (res as object)) {
+      return res as unknown as Page<T>;
+    }
+    return { content: [], totalElements: 0, totalPages: 0, number: 0, size: 0, first: true, last: true, empty: true };
   }
 
   // Auth
@@ -195,12 +247,30 @@ class ApiClient {
     return this.request<Staff[]>("/staff/active");
   }
 
+  /**
+   * Aggregate counts grouped by StaffStatus (entire DB, no pagination).
+   * Returns `{ total, ACTIVE, ON_LEAVE, INACTIVE }` for dashboard summary cards.
+   */
+  async getStaffStatusCounts(): Promise<ApiResponse<Record<string, number>>> {
+    return this.request<Record<string, number>>("/staff/status-counts");
+  }
+
   async searchStaff(params: StaffSearchParams): Promise<ApiResponse<Staff[]>> {
     const query = new URLSearchParams();
     if (params.keyword) query.set("keyword", params.keyword);
     if (params.specialtyId) query.set("specialtyId", String(params.specialtyId));
     if (params.status) query.set("status", params.status);
     return this.request<Staff[]>(`/staff/search?${query.toString()}`);
+  }
+
+  /**
+   * Server-paginated staff search — drives &lt;Pagination&gt; in StaffCrudPanel.
+   * Mirrors {@link searchStaff} on the same filters but on `/staff/search/paginated`.
+   */
+  async searchStaffsPage(
+    params: StaffSearchParams & { page: number; size: number },
+  ): Promise<Page<Staff>> {
+    return this.getPage<Staff>("/staff/search-page", { ...params });
   }
 
   async getStaffById(id: number): Promise<ApiResponse<Staff>> {
@@ -341,6 +411,11 @@ class ApiClient {
     return this.request<SchedulePeriod[]>("/periods");
   }
 
+  /** Server-paginated variant — newest startDate first. */
+  async getPeriodsPage(page: number, size: number): Promise<Page<SchedulePeriod>> {
+    return this.getPage<SchedulePeriod>("/periods/page", { page, size });
+  }
+
   async getPeriodsByStatus(status: string): Promise<ApiResponse<SchedulePeriod[]>> {
     return this.request<SchedulePeriod[]>(`/periods/status/${status}`);
   }
@@ -476,6 +551,23 @@ class ApiClient {
     return this.request<LeaveRequest[]>("/leave-requests");
   }
 
+  /**
+   * Server-paginated variant — drives the shared &lt;Pagination&gt; widget.
+   * @param page 0-indexed page number (Spring convention)
+   * @param size items per page
+   */
+  async getLeaveRequestsPage(page: number, size: number): Promise<Page<LeaveRequest>> {
+    return this.getPage<LeaveRequest>("/leave-requests/page", { page, size });
+  }
+
+  /**
+   * Aggregate counts grouped by LeaveStatus (entire DB, no pagination).
+   * Returns `{ total, PENDING, APPROVED, REJECTED, CANCELLED }` for dashboard summary cards.
+   */
+  async getLeaveRequestStatusCounts(): Promise<ApiResponse<Record<string, number>>> {
+    return this.request<Record<string, number>>("/leave-requests/status-counts");
+  }
+
   async getPendingLeaveRequests(): Promise<ApiResponse<LeaveRequest[]>> {
     return this.request<LeaveRequest[]>("/leave-requests/pending");
   }
@@ -520,6 +612,19 @@ class ApiClient {
     return this.request<ScheduleExchangeResponse[]>("/schedule-exchanges");
   }
 
+  /** Server-paginated variant — newest first. */
+  async getExchangesPage(page: number, size: number): Promise<Page<ScheduleExchangeResponse>> {
+    return this.getPage<ScheduleExchangeResponse>("/schedule-exchanges/page", { page, size });
+  }
+
+  /**
+   * Aggregate counts grouped by ExchangeStatus (entire DB, no pagination).
+   * Returns `{ total, PENDING, APPROVED, REJECTED, CANCELLED }` for dashboard cards.
+   */
+  async getExchangeStatusCounts(): Promise<ApiResponse<Record<string, number>>> {
+    return this.request<Record<string, number>>("/schedule-exchanges/status-counts");
+  }
+
   async getPendingExchanges(): Promise<ApiResponse<ScheduleExchangeResponse[]>> {
     return this.request<ScheduleExchangeResponse[]>("/schedule-exchanges/pending");
   }
@@ -560,10 +665,11 @@ class ApiClient {
   }
 
   // Auto Schedule
-  async previewAutoSchedule(data: AutoScheduleRequest): Promise<ApiResponse<AutoScheduleResult>> {
+  async previewAutoSchedule(data: AutoScheduleRequest, options?: { timeout?: number }): Promise<ApiResponse<AutoScheduleResult>> {
     return this.request<AutoScheduleResult>("/auto-schedule/preview", {
       method: "POST",
       body: JSON.stringify(data),
+      timeout: options?.timeout ?? 60000, // Default 60s, configurable for long-running algorithms
     });
   }
 
@@ -635,12 +741,36 @@ class ApiClient {
     return this.get<AlgorithmMetrics[]>(`/auto-schedule/metrics/period/${periodId}`);
   }
 
+  /** Server-paginated variant of {@link getAllMetrics}. */
+  async getMetricsPage(
+    page: number,
+    size: number,
+    periodId?: number,
+  ): Promise<Page<AlgorithmMetrics>> {
+    return this.getPage<AlgorithmMetrics>(
+      "/auto-schedule/metrics/page",
+      periodId ? { page, size, periodId } : { page, size },
+    );
+  }
+
   async suggestReplacements(scheduleId: number): Promise<ReplacementSuggestion> {
     return this.get<ReplacementSuggestion>(`/auto-schedule/suggest-replacements/${scheduleId}`);
   }
 
   async getAllMetrics(): Promise<ApiResponse<AlgorithmMetrics[]>> {
     return this.request<AlgorithmMetrics[]>("/auto-schedule/metrics");
+  }
+
+  async getAlgorithmProgress(periodId: number): Promise<{
+    status: "IDLE" | "RUNNING" | "COMPLETED" | "FAILED";
+    periodId: number;
+    step?: string;
+    percent?: number;
+    message?: string;
+    startedAt?: string;
+    updatedAt?: string;
+  }> {
+    return this.get(`/auto-schedule/progress/${periodId}`);
   }
 
   // AlgorithmConfig
@@ -673,6 +803,28 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify(data),
     });
+  }
+
+  async getAlgorithmConfigAudit(paramKey?: string, page = 0, size = 50): Promise<{
+    content: Array<{
+      id: number;
+      paramKey: string;
+      oldValue: string | null;
+      newValue: string;
+      action: string;
+      changedByUsername: string | null;
+      createdAt: string;
+    }>;
+    totalElements: number;
+    totalPages: number;
+    number: number;
+    size: number;
+  }> {
+    const params = new URLSearchParams();
+    if (paramKey) params.set("paramKey", paramKey);
+    params.set("page", String(page));
+    params.set("size", String(size));
+    return this.get(`/auto-schedule/config/audit?${params.toString()}`);
   }
 
   async createAlgorithmConfig(data: { paramKey: string; paramValue: string; valueType: string; description?: string }): Promise<ApiResponse<{
@@ -773,39 +925,55 @@ class ApiClient {
     });
   }
 
-  // Shift Requirements (with pagination support)
-  async getAllRequirements(page = 0, size = 50): Promise<ApiResponse<ShiftRequirement[]>> {
-    return this.request<ShiftRequirement[]>(`/shift-requirements?page=${page}&size=${size}`);
+  async getAutoGenConfig(): Promise<ApiResponse<{
+    enabled: boolean;
+    l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
+    l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
+    l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
+    l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
+    holidayMode: string;
+    removedShiftTypes: string[];
+  }>> {
+    return this.request<{
+      enabled: boolean;
+      l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
+      l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
+      l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
+      l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
+      holidayMode: string;
+      removedShiftTypes: string[];
+    }>("/auto-schedule/auto-gen-config");
   }
 
-  async getAllRequirementsNoPaging(): Promise<ApiResponse<ShiftRequirement[]>> {
-    return this.request<ShiftRequirement[]>("/shift-requirements/all");
-  }
-
-  async getRequirementsByPeriod(periodId: number): Promise<ApiResponse<ShiftRequirement[]>> {
-    return this.request<ShiftRequirement[]>(`/shift-requirements/period/${periodId}`);
-  }
-
-  async getRequirementsByPeriodAndDate(periodId: number, date: string): Promise<ApiResponse<ShiftRequirement[]>> {
-    return this.request<ShiftRequirement[]>(`/shift-requirements/period/${periodId}/date/${date}`);
-  }
-
-  async createRequirement(data: Partial<ShiftRequirement>): Promise<ApiResponse<ShiftRequirement>> {
-    return this.request<ShiftRequirement>("/shift-requirements", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async updateRequirement(id: number, data: Partial<ShiftRequirement>): Promise<ApiResponse<ShiftRequirement>> {
-    return this.request<ShiftRequirement>(`/shift-requirements/${id}`, {
+  async updateAutoGenConfig(data: {
+    enabled: boolean;
+    l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
+    l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
+    l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
+    l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
+    holidayMode: string;
+    removedShiftTypes: string[];
+  }): Promise<ApiResponse<{
+    enabled: boolean;
+    l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
+    l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
+    l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
+    l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
+    holidayMode: string;
+    removedShiftTypes: string[];
+  }>> {
+    return this.request<{
+      enabled: boolean;
+      l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
+      l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
+      l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
+      l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
+      holidayMode: string;
+      removedShiftTypes: string[];
+    }>("/auto-schedule/auto-gen-config", {
       method: "PUT",
       body: JSON.stringify(data),
     });
-  }
-
-  async deleteRequirement(id: number): Promise<ApiResponse<void>> {
-    return this.request<void>(`/shift-requirements/${id}`, { method: "DELETE" });
   }
 
   // Shift Types
@@ -851,6 +1019,11 @@ class ApiClient {
     return this.request<Holiday[]>("/holidays");
   }
 
+  /** Server-paginated variant — newest holidayDate first. */
+  async getHolidaysPage(page: number, size: number): Promise<Page<Holiday>> {
+    return this.getPage<Holiday>("/holidays/page", { page, size });
+  }
+
   async getActiveHolidays(): Promise<ApiResponse<Holiday[]>> {
     return this.request<Holiday[]>("/holidays/active");
   }
@@ -880,12 +1053,27 @@ class ApiClient {
     return this.request<Notification[]>(`/notifications/staff/${staffId}`);
   }
 
+  /** Server-paginated variant for the current caller. */
+  async getNotificationsPage(page: number, size: number): Promise<Page<Notification>> {
+    return this.getPage<Notification>("/notifications/me/page", { page, size });
+  }
+
   async getUnreadNotifications(staffId: number): Promise<ApiResponse<Notification[]>> {
     return this.request<Notification[]>(`/notifications/staff/${staffId}/unread`);
   }
 
   async countUnreadNotifications(staffId: number): Promise<ApiResponse<{ count: number }>> {
     return this.request<{ count: number }>(`/notifications/staff/${staffId}/unread/count`);
+  }
+
+  /**
+   * Unread count for the currently authenticated staff. Resolves the staff id
+   * server-side from the security context, so the frontend doesn't need to
+   * know its own staff id. This avoids the page-slice counting bug where the
+   * visible "chưa đọc" count was computed from the current paginated slice.
+   */
+  async countMyUnreadNotifications(): Promise<ApiResponse<{ count: number }>> {
+    return this.request<{ count: number }>("/notifications/me/unread/count");
   }
 
   async markNotificationAsRead(id: number): Promise<ApiResponse<Notification>> {
@@ -978,6 +1166,40 @@ class ApiClient {
     return res.data as unknown as AuditHistoryPage;
   }
 
+  /**
+   * Fetch the global KPI summary (total / CREATE / UPDATE / DELETE counts).
+   * Counts every row in audit_history so the cards reflect the DB,
+   * not just the slice returned for the current page.
+   */
+  async getAuditHistorySummary(): Promise<AuditHistorySummary> {
+    const res = await this.request<AuditHistorySummary>(`/audit-history/summary`);
+    return res.data as unknown as AuditHistorySummary;
+  }
+
+  /**
+   * Filtered KPI summary that mirrors every filter on the audit list page.
+   * All params are optional — pass null/empty to skip a filter.
+   */
+  async getAuditHistorySummaryFiltered(params: {
+    startDate?: string;
+    endDate?: string;
+    module?: string;
+    action?: string;
+    search?: string;
+  }): Promise<AuditHistorySummary> {
+    const search = new URLSearchParams();
+    if (params.startDate) search.set("startDate", params.startDate);
+    if (params.endDate)   search.set("endDate", params.endDate);
+    if (params.module)    search.set("module", params.module);
+    if (params.action)    search.set("action", params.action);
+    if (params.search)    search.set("search", params.search);
+    const qs = search.toString();
+    const res = await this.request<AuditHistorySummary>(
+      `/audit-history/summary/filter${qs ? `?${qs}` : ""}`
+    );
+    return res.data as unknown as AuditHistorySummary;
+  }
+
   async deleteAuditHistory(id: number): Promise<void> {
     await this.request<void>(`/audit-history/${id}`, { method: "DELETE" });
   }
@@ -996,6 +1218,18 @@ class ApiClient {
       `/audit-history/date-range?startDate=${startDate}&endDate=${endDate}`,
       { method: "DELETE" }
     );
+    const response = res as unknown as { data: number };
+    return response.data ?? 0;
+  }
+
+  /**
+   * Wipe the entire audit_history table. Requires ADMIN role + typed
+   * confirmation on the UI side. Returns the number of rows deleted.
+   */
+  async deleteAllAuditHistory(): Promise<number> {
+    const res = await this.request<{ data: number }>(`/audit-history/all`, {
+      method: "DELETE",
+    });
     const response = res as unknown as { data: number };
     return response.data ?? 0;
   }

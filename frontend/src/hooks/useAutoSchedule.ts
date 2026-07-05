@@ -59,6 +59,8 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
     try {
       setRunning(true);
       setMessage(null);
+      console.log("[AutoSchedule] Starting preview for period", periodId, "algorithm", algorithmType);
+      // Increase timeout for long-running algorithms (Backtracking can take 5+ minutes)
       const result = await api.previewAutoSchedule({
         periodId,
         algorithmType,
@@ -66,12 +68,14 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
         holidayMode: holidayMode ?? undefined,
         autoGenerateRequirements: autoGenerateReq,
-      });
+      }, { timeout: 600000 }); // 10 minute timeout for Backtracking/Genetic algorithms
+      console.log("[AutoSchedule] Got result:", result);
       setPreviewResult(result.data);
       setEditedPreview([]);
       setRemovedShifts(new Set());
       setRemovedShiftTypes(new Set());
     } catch (error) {
+      console.error("[AutoSchedule] Error:", error);
       setMessage(getErrorMessage(error, "Không thể chạy auto schedule."));
     } finally {
       setRunning(false);
