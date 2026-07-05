@@ -8,6 +8,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,6 +30,17 @@ public class HolidayController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<HolidayResponse>>> getAllHolidays() {
         return ResponseEntity.ok(ApiResponse.success(holidayService.getAllHolidays()));
+    }
+
+    /**
+     * Paginated variant — the holidays page uses the shared &lt;Pagination&gt; widget
+     * to chunk through many years' worth of holidays without loading everything.
+     */
+    @GetMapping("/page")
+    @Operation(summary = "Lấy danh sách ngày lễ có phân trang")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Page<HolidayResponse>>> getHolidaysPage(Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(holidayService.getHolidaysPage(pageable)));
     }
 
     @GetMapping("/active")

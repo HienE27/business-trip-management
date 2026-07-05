@@ -35,6 +35,41 @@ public class SpecialtyService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Paginated variant of {@link #getAllSpecialties()}. Sorted by ID DESC so
+     * newest specialties come first; aligns with the convention used by other
+     * paginated admin endpoints.
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<SpecialtyResponse> getSpecialtiesPage(
+            org.springframework.data.domain.Pageable pageable) {
+        return specialtyRepository.findAll(
+                org.springframework.data.domain.PageRequest.of(
+                        pageable.getPageNumber(),
+                        pageable.getPageSize(),
+                        org.springframework.data.domain.Sort.by(
+                                org.springframework.data.domain.Sort.Direction.DESC, "id")))
+                .map(this::toResponse);
+    }
+
+    /**
+     * Aggregate counts by active flag for the entire table.
+     * Powers dashboard summary cards so values stay accurate across pages.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Long> getStatusCounts() {
+        long active = 0L;
+        long inactive = 0L;
+        for (Specialty s : specialtyRepository.findAll()) {
+            if (Boolean.TRUE.equals(s.getIsActive())) active++; else inactive++;
+        }
+        java.util.Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        counts.put("total", specialtyRepository.count());
+        counts.put("ACTIVE", active);
+        counts.put("INACTIVE", inactive);
+        return counts;
+    }
+
     @Transactional(readOnly = true)
     public List<SpecialtyResponse> getActiveSpecialties() {
         return specialtyRepository.findByIsActiveTrue().stream()

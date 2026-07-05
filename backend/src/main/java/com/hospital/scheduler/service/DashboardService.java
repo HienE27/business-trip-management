@@ -104,34 +104,56 @@ public class DashboardService {
         List<DashboardResponse.StaffWorkloadStatistics> result = new ArrayList<>();
 
         for (Map.Entry<Integer, List<Schedule>> entry : staffSchedules.entrySet()) {
-            Staff staff = entry.getValue().get(0).getStaff();
-            List<Schedule> staffScheduleList = entry.getValue();
-
-            long L01Count = staffScheduleList.stream()
-                    .filter(s -> ConflictDetectionService.SHIFT_TYPE_L01.equals(s.getShiftType().getId()))
-                    .count();
-            long L02Count = staffScheduleList.stream()
-                    .filter(s -> ConflictDetectionService.SHIFT_TYPE_L02.equals(s.getShiftType().getId()))
-                    .count();
-            long L03Count = staffScheduleList.stream()
-                    .filter(s -> ConflictDetectionService.SHIFT_TYPE_L03.equals(s.getShiftType().getId()))
-                    .count();
-            long L04Count = staffScheduleList.stream()
-                    .filter(s -> ConflictDetectionService.SHIFT_TYPE_L04.equals(s.getShiftType().getId()))
-                    .count();
-
-            result.add(DashboardResponse.StaffWorkloadStatistics.builder()
-                    .staffId(staff.getId())
-                    .staffName(staff.getFullName())
-                    .scheduleCount(staffScheduleList.size())
-                    .L01Count(L01Count)
-                    .L02Count(L02Count)
-                    .L03Count(L03Count)
-                    .L04Count(L04Count)
-                    .build());
+            result.add(buildWorkloadStatistic(entry.getValue()));
         }
 
         return result;
+    }
+
+    /**
+     * Paginated variant of {@link #getStaffWorkloadByPeriod(Integer)}. Workload
+     * statistics are computed in-memory from the period's schedule list — for the
+     * current 20-staff dataset this is fine. If staff grows large, swap to a
+     * DB-aggregated query. Default sort: total shifts DESC (heaviest load first).
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<DashboardResponse.StaffWorkloadStatistics> getStaffWorkloadByPeriodPage(
+            Integer periodId, org.springframework.data.domain.Pageable pageable) {
+        List<DashboardResponse.StaffWorkloadStatistics> all = getStaffWorkloadByPeriod(periodId);
+        // Sort DESC by total schedule count so heaviest-loaded staff come first.
+        all.sort(Comparator.comparingLong(DashboardResponse.StaffWorkloadStatistics::getScheduleCount).reversed());
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), all.size());
+        List<DashboardResponse.StaffWorkloadStatistics> slice = start >= all.size() ? List.of() : all.subList(start, end);
+        return new org.springframework.data.domain.PageImpl<>(slice, pageable, all.size());
+    }
+
+    private DashboardResponse.StaffWorkloadStatistics buildWorkloadStatistic(List<Schedule> staffScheduleList) {
+        Staff staff = staffScheduleList.get(0).getStaff();
+
+        long L01Count = staffScheduleList.stream()
+                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L01.equals(s.getShiftType().getId()))
+                .count();
+        long L02Count = staffScheduleList.stream()
+                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L02.equals(s.getShiftType().getId()))
+                .count();
+        long L03Count = staffScheduleList.stream()
+                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L03.equals(s.getShiftType().getId()))
+                .count();
+        long L04Count = staffScheduleList.stream()
+                .filter(s -> ConflictDetectionService.SHIFT_TYPE_L04.equals(s.getShiftType().getId()))
+                .count();
+
+        return DashboardResponse.StaffWorkloadStatistics.builder()
+                .staffId(staff.getId())
+                .staffName(staff.getFullName())
+                .scheduleCount(staffScheduleList.size())
+                .L01Count(L01Count)
+                .L02Count(L02Count)
+                .L03Count(L03Count)
+                .L04Count(L04Count)
+                .build();
     }
 
     /**

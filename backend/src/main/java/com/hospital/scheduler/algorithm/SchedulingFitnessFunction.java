@@ -30,10 +30,17 @@ public class SchedulingFitnessFunction {
     /**
      * Evaluate fitness of a chromosome.
      * Higher fitness = better solution.
-     * 
+     *
      * Fitness formula:
      * fitness = base - conflictPenalty + balanceBonus + coverageBonus
-     * 
+     *
+     * Each assigned slot contributes a {@link #SHIFT_WEIGHT} (by shift type)
+     * to the coverage bonus, so heavier shifts (L01 24/24) naturally pull
+     * more on the fairness signal — under-assigning L01 is penalized the
+     * same way a thin coverage of L02 is. Otherwise a chromosome that
+     * filled only the lightest L03/L04 shifts could look "balanced" while
+     * leaving L01 coverage behind.
+     *
      * @param chromosome The chromosome to evaluate
      * @param leaveRequests Approved leave requests
      * @param existingCompensationDays Existing compensation days (staffId_date format)
@@ -52,32 +59,44 @@ public class SchedulingFitnessFunction {
         Set<String> leaveDays = buildLeaveDaySet(leaveRequests);
         Map<Integer, Set<LocalDate>> staffCompDays = buildCompensationDayMap(existingCompensationDays);
         Map<Integer, Set<LocalDate>> staffLeaves = buildStaffLeaveMap(leaveRequests);
-        
+
         // Calculate conflicts
         int conflicts = countConflicts(chromosome, leaveDays, staffCompDays, staffLeaves, excludedStaffIds);
-        
-        // Calculate coverage
-        double coverage = chromosome.calculateCoverage();
-        
-        // Calculate balance
-        double balance = chromosome.calculateBalance();
-        
+
+        // Calculate coverage (weighted by shift type)
+        double coverage = chromosome.calculateWeightedCoverage(SHIFT_WEIGHT);
+
+        // Calculate balance (weighted by shift type)
+        double balance = chromosome.calculateWeightedBalance(SHIFT_WEIGHT);
+
         // Update chromosome stats
         chromosome.setConflictCount(conflicts);
         chromosome.setCoverageRate(coverage);
         chromosome.setBalanceScore(balance);
-        
+
         // Fitness = base - conflictPenalty + balanceBonus + coverageBonus
         double baseFitness = 1000.0;
         double conflictPenalty = conflicts * config.conflictWeight();
         double balanceBonus = balance * config.balanceWeight();
         double coverageBonus = coverage * config.coverageWeight();
-        
+
         double fitness = baseFitness - conflictPenalty + balanceBonus + coverageBonus;
         chromosome.setFitness(fitness);
-        
+
         return fitness;
     }
+
+    /**
+     * Per-shift-type weight used when calculating coverage & balance bonuses.
+     * L01 (24/24) is the most physically demanding shift and earns the highest
+     * weight; L03/L04 are lighter so they don't dominate the balance signal.
+     */
+    private static final Map<String, Double> SHIFT_WEIGHT = Map.of(
+            CspConstants.DIRECT_24H, 3.0,
+            CspConstants.THONG_TAM, 1.5,
+            CspConstants.DICH_VU, 1.0,
+            CspConstants.CHUYEN_GIA, 1.0
+    );
 
     /**
      * Count constraint violations in chromosome.

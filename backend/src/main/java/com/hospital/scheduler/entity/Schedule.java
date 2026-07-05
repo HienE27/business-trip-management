@@ -3,6 +3,8 @@ package com.hospital.scheduler.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDate;
@@ -33,6 +35,7 @@ public class Schedule {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "period_id", nullable = false)
+    @NotFound(action = NotFoundAction.IGNORE)
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private SchedulePeriod period;
 
@@ -41,22 +44,34 @@ public class Schedule {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "staff_id", nullable = false)
+    @NotFound(action = NotFoundAction.IGNORE)
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "staffRoles", "schedules", "leaveRequests"})
     private Staff staff;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shift_type_id", nullable = false)
+    @NotFound(action = NotFoundAction.IGNORE)
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private ShiftType shiftType;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "requirement_id")
+    @NotFound(action = NotFoundAction.IGNORE)
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private ShiftRequirement requirement;
 
     @Column(name = "has_conflict", nullable = false)
     @Builder.Default
     private Boolean hasConflict = false;
+
+    /**
+     * Flag for preview-only schedules created by the auto-scheduling algorithm.
+     * These are temporary records used only for conflict detection during preview.
+     * They should be ignored by ConflictDetectionService and deleted before applying the real schedule.
+     */
+    @Column(name = "is_preview", nullable = false)
+    @Builder.Default
+    private Boolean isPreview = false;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

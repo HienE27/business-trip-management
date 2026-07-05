@@ -38,7 +38,6 @@ class ScheduleServiceBulkL01Test {
     @Mock private SchedulePeriodRepository periodRepository;
     @Mock private StaffRepository staffRepository;
     @Mock private ShiftTypeRepository shiftTypeRepository;
-    @Mock private ShiftRequirementRepository requirementRepository;
     @Mock private CompensationDayRepository compensationDayRepository;
     @Mock private ScheduleConflictRepository scheduleConflictRepository;
     @Mock private HolidayRepository holidayRepository;

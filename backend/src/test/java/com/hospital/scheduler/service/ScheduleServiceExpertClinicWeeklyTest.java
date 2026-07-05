@@ -35,7 +35,6 @@ class ScheduleServiceExpertClinicWeeklyTest {
     @Mock private SchedulePeriodRepository periodRepository;
     @Mock private StaffRepository staffRepository;
     @Mock private ShiftTypeRepository shiftTypeRepository;
-    @Mock private ShiftRequirementRepository requirementRepository;
     @Mock private CompensationDayRepository compensationDayRepository;
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private AuditHistoryService auditHistoryService;
@@ -95,7 +94,7 @@ class ScheduleServiceExpertClinicWeeklyTest {
             when(scheduleRepository.findExpertClinicByPeriodAndSpecialty(1, null))
                     .thenReturn(List.of(sched1, sched2));
             when(compensationDayRepository.findByPeriodIdWithStaff(1)).thenReturn(Collections.emptyList());
-            when(conflictDetectionService.detectAllConflicts(anyInt(), any(), any(), any(), anyInt()))
+            when(conflictDetectionService.detectAllConflicts(anyInt(), any(), any(), any(), anyInt(), anyBoolean(), anyBoolean()))
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findByScheduleId(anyInt())).thenReturn(Collections.emptyList());
 
@@ -197,7 +196,7 @@ class ScheduleServiceExpertClinicWeeklyTest {
             when(scheduleRepository.findExpertClinicByPeriodAndSpecialty(1, 1))
                     .thenReturn(List.of(cardioSched));
             when(compensationDayRepository.findByPeriodIdWithStaff(1)).thenReturn(Collections.emptyList());
-            when(conflictDetectionService.detectAllConflicts(anyInt(), any(), any(), any(), anyInt()))
+            when(conflictDetectionService.detectAllConflicts(anyInt(), any(), any(), any(), anyInt(), anyBoolean(), anyBoolean()))
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findByScheduleId(anyInt())).thenReturn(Collections.emptyList());
 

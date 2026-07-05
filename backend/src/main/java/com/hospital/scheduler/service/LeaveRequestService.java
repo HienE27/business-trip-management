@@ -13,6 +13,8 @@ import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.CompensationDayRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.hospital.scheduler.repository.LeaveRequestRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
@@ -67,6 +69,36 @@ public class LeaveRequestService {
         return leaveRequestRepository.findByStatus(status).stream()
                 .map(LeaveRequestResponse::fromEntity)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Paginated variant — returns Slice with full {@link Page} metadata so the
+     * frontend can render the shared {@code <Pagination>} component.
+     * Sorts by createdAt DESC so newest requests come first.
+     */
+    public Page<LeaveRequestResponse> getLeaveRequestsPage(Pageable pageable) {
+        org.springframework.data.domain.Page<LeaveRequest> page =
+                leaveRequestRepository.findAll(
+                        org.springframework.data.domain.PageRequest.of(
+                                pageable.getPageNumber(),
+                                pageable.getPageSize(),
+                                org.springframework.data.domain.Sort.by(
+                                        org.springframework.data.domain.Sort.Direction.DESC, "createdAt")));
+        return page.map(LeaveRequestResponse::fromEntity);
+    }
+
+    /**
+     * Aggregate counts by {@link LeaveRequest.LeaveStatus} for the entire table.
+     * Powers the dashboard summary cards so values stay accurate regardless
+     * of which page the user is currently viewing.
+     */
+    public java.util.Map<String, Long> getStatusCounts() {
+        java.util.Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        counts.put("total", leaveRequestRepository.count());
+        for (LeaveRequest.LeaveStatus status : LeaveRequest.LeaveStatus.values()) {
+            counts.put(status.name(), leaveRequestRepository.countByStatus(status));
+        }
+        return counts;
     }
 
     public LeaveRequestResponse getLeaveRequestById(Integer id) {

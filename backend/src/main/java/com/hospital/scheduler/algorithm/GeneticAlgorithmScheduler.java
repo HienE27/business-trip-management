@@ -392,34 +392,51 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
             staffSet.add(staff.getId());
         }
         
-        // Second pass: greedy fill ALL unassigned requirements
+        // Second pass: balance-aware fill for requirements the chromosome did not cover.
+        // Earlier versions used first-fit greedy which produced highly unbalanced
+        // distributions. We now score every eligible candidate by their current
+        // shift count and pick the one with the fewest assignments, breaking ties
+        // by id (deterministic) to keep the algorithm stable.
+        Map<Integer, Integer> staffShiftCount = new HashMap<>();
+        for (Set<Integer> assignedStaff : dateShiftStaffMap.values()) {
+            for (Integer sid : assignedStaff) {
+                staffShiftCount.merge(sid, 1, Integer::sum);
+            }
+        }
+
         for (ShiftRequirementInfo req : requirements) {
             String shiftKey = req.workDate() + "_" + req.shiftTypeId();
-            
-            // Check if this shift already has staff
+
             Set<Integer> assigned = dateShiftStaffMap.getOrDefault(shiftKey, Collections.emptySet());
             if (!assigned.isEmpty()) continue; // Already filled
-            
-            // Find first available staff for this requirement
+
+            // Score every eligible staff and pick the least-loaded
+            Staff picked = null;
+            int bestLoad = Integer.MAX_VALUE;
             for (Staff staff : activeStaff) {
-                String staffDateKey = staff.getId() + "_" + req.workDate();
-                
-                // Check if staff already assigned to any shift on this date
+                // Skip if already on another shift the same day
                 boolean staffBusy = false;
                 for (Set<Integer> staffIds : dateShiftStaffMap.values()) {
-                    if (staffIds.contains(staff.getId()) && staffDateKey.startsWith(staff.getId() + "_")) {
+                    if (staffIds.contains(staff.getId())) {
                         staffBusy = true;
                         break;
                     }
                 }
                 if (staffBusy) continue;
-                
-                // Assign this staff
-                assigned.add(staff.getId());
-                dateShiftStaffMap.put(shiftKey, assigned);
-                assignments.put(staffDateKey, req.shiftTypeId());
-                break;
+
+                int load = staffShiftCount.getOrDefault(staff.getId(), 0);
+                if (load < bestLoad) {
+                    bestLoad = load;
+                    picked = staff;
+                }
             }
+            if (picked == null) continue; // Nobody eligible — leave requirement uncovered
+
+            Set<Integer> newSet = new HashSet<>(assigned);
+            newSet.add(picked.getId());
+            dateShiftStaffMap.put(shiftKey, newSet);
+            staffShiftCount.merge(picked.getId(), 1, Integer::sum);
+            assignments.put(picked.getId() + "_" + req.workDate(), req.shiftTypeId());
         }
         
         // Add conflicts to errors

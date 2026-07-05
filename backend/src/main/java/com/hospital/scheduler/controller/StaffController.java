@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -42,6 +44,13 @@ public class StaffController {
         return ResponseEntity.ok(ApiResponse.success(staffService.getActiveStaff()));
     }
 
+    @GetMapping("/status-counts")
+    @Operation(summary = "Đếm nhân sự theo trạng thái (toàn DB, không phân trang)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
+        return ResponseEntity.ok(ApiResponse.success(staffService.getStatusCounts()));
+    }
+
     @GetMapping("/search")
     @Operation(summary = "Tìm kiếm và lọc nhân sự")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
@@ -59,6 +68,31 @@ public class StaffController {
                 .position(position)
                 .build();
         return ResponseEntity.ok(ApiResponse.success(staffService.searchStaffs(request)));
+    }
+
+    /**
+     * Paginated variant — drives the &lt;Pagination&gt; widget on the Nhân sự page.
+     * Same query params as /search; identical response shape apart from the
+     * wrapping {@link Page} metadata that the pagination component needs.
+     */
+    @GetMapping("/search-page")
+    @Operation(summary = "Tìm kiếm nhân sự có phân trang")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Page<StaffResponse>>> searchStaffsPage(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer specialtyId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String position,
+            Pageable pageable) {
+        StaffSearchRequest request = StaffSearchRequest.builder()
+                .keyword(keyword)
+                .specialtyId(specialtyId)
+                .status(status)
+                .role(role)
+                .position(position)
+                .build();
+        return ResponseEntity.ok(ApiResponse.success(staffService.searchStaffsPage(request, pageable)));
     }
 
     @GetMapping("/{id}")

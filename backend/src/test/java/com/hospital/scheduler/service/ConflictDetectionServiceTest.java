@@ -39,8 +39,6 @@ class ConflictDetectionServiceTest {
     @Mock
     private ShiftTypeRepository shiftTypeRepository;
     @Mock
-    private ShiftRequirementRepository shiftRequirementRepository;
-    @Mock
     private ConflictBroadcastService conflictBroadcastService;
     @Mock
     private EmailService emailService;
@@ -467,152 +465,6 @@ class ConflictDetectionServiceTest {
         }
     }
 
-    // ==================== P2-14: maxShiftsPerMonth ====================
-    @Nested
-    @DisplayName("P2-14: Giới hạn số ngày trực/tháng (maxShiftsPerMonth)")
-    class MaxShiftsPerMonth {
-
-        @Test
-        @DisplayName("Dat gioi han maxShiftsPerMonth L01 -> REJECT")
-        void atMaxShiftsLimit_shouldReject() {
-            Integer periodId = 1;
-
-            when(staffRepository.findById(testStaff.getId()))
-                    .thenReturn(Optional.of(testStaff));
-            // Moi: chi dem L01, khong dem tat ca loai ca
-            when(scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(testStaff.getId(), periodId, "L01"))
-                    .thenReturn(5L);
-
-            List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", null, periodId);
-
-            assertThat(conflicts)
-                    .hasSize(1)
-                    .anyMatch(c -> c.contains("Nhân sự đã đạt giới hạn 5 ngày trực 24/24/tháng"));
-        }
-
-        @Test
-        @DisplayName("Duoi gioi han maxShiftsPerMonth -> OK")
-        void underMaxShiftsLimit_shouldPass() {
-            Integer periodId = 1;
-
-            when(staffRepository.findById(testStaff.getId()))
-                    .thenReturn(Optional.of(testStaff));
-            when(scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(testStaff.getId(), periodId, "L01"))
-                    .thenReturn(3L);
-
-            List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", null, periodId);
-
-            assertThat(conflicts).isEmpty();
-        }
-
-        @Test
-        @DisplayName("Cap nhat lich - loai tru lich hien tai -> OK khi chi con max-1")
-        void updateScheduleExcludingCurrent_shouldPass() {
-            Integer periodId = 1;
-            Integer excludeScheduleId = 100;
-
-            when(staffRepository.findById(testStaff.getId()))
-                    .thenReturn(Optional.of(testStaff));
-            when(scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeIdExcluding(testStaff.getId(), periodId, "L01", excludeScheduleId))
-                    .thenReturn(4L);
-
-            List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", excludeScheduleId, periodId);
-
-            assertThat(conflicts).isEmpty();
-        }
-
-        @Test
-        @DisplayName("Không truyền periodId -> bỏ qua kiểm tra maxShifts")
-        void noPeriodId_shouldSkipMaxShiftsCheck() {
-            when(compensationDayRepository.findByStaffIdAndCompensationDate(testStaff.getId(), monday))
-                    .thenReturn(Optional.empty());
-            when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
-                    .thenReturn(Collections.emptyList());
-
-            List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", null, null);
-
-            assertThat(conflicts).isEmpty();
-            verify(staffRepository, never()).findById(any());
-        }
-
-        @Test
-        @DisplayName("Staff không tồn tại -> bỏ qua kiểm tra maxShifts")
-        void staffNotFound_shouldSkipMaxShiftsCheck() {
-            Integer periodId = 1;
-
-            when(staffRepository.findById(testStaff.getId()))
-                    .thenReturn(Optional.empty());
-
-            List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", null, periodId);
-
-            assertThat(conflicts).isEmpty();
-        }
-
-        @Test
-        @DisplayName("maxShiftsPerMonth null -> dung default 5")
-        void nullMaxShifts_shouldUseDefault5() {
-            Integer periodId = 1;
-            Staff staffWithNullMax = Staff.builder()
-                    .id(2)
-                    .username("nurse2")
-                    .fullName("Nguyen Van B")
-                    .isActive(true)
-                    .maxShiftsPerMonth(null)
-                    .build();
-
-            when(staffRepository.findById(staffWithNullMax.getId()))
-                    .thenReturn(Optional.of(staffWithNullMax));
-            when(scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staffWithNullMax.getId(), periodId, "L01"))
-                    .thenReturn(5L);
-
-            List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    staffWithNullMax.getId(), monday, "L01", null, periodId);
-
-            assertThat(conflicts)
-                    .hasSize(1)
-                    .anyMatch(c -> c.contains("Nhân sự đã đạt giới hạn 5 ngày trực 24/24/tháng"));
-        }
-
-        @Test
-        @DisplayName("validateAndThrow voi maxShifts vuot L01 -> throw ConflictException")
-        void validateAndThrow_withMaxShiftsViolation_shouldThrow() {
-            Integer periodId = 1;
-
-            when(staffRepository.findById(testStaff.getId()))
-                    .thenReturn(Optional.of(testStaff));
-            when(scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(testStaff.getId(), periodId, "L01"))
-                    .thenReturn(5L);
-
-            assertThatThrownBy(() -> conflictDetectionService.validateAndThrow(
-                    testStaff.getId(), monday, "L01", null, periodId))
-                    .isInstanceOf(ConflictException.class)
-                    .hasMessageContaining("Nhân sự đã đạt giới hạn");
-        }
-
-        @Test
-        @DisplayName("L02/L03/L04 khong bi rang buoc maxShiftsPerMonth")
-        void nonL01_shouldNotTriggerMaxShiftsCheck() {
-            Integer periodId = 1;
-
-            when(staffRepository.findById(testStaff.getId()))
-                    .thenReturn(Optional.of(testStaff));
-            // L02/L03/L04: detectMaxShiftsConflict tra ve empty Optional
-            // vi chi apply cho L01. Khong can mock count.
-
-            List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L02", null, periodId);
-
-            // Khong co conflict max shifts cho L02
-            assertThat(conflicts)
-                    .noneMatch(c -> c.contains("Nhân sự đã đạt giới hạn"));
-        }
-    }
-
     // ==================== BACK_TO_BACK_SHIFT ====================
     @Nested
     @DisplayName("P2-13: Ràng buộc ca trực liền kề (BACK_TO_BACK_SHIFT)")
@@ -634,7 +486,7 @@ class ConflictDetectionServiceTest {
                     .thenReturn(List.of(adjacentSchedule));
 
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", null, period1.getId());
+                    testStaff.getId(), monday, "L01", null, period1.getId(), false, false);
 
             assertThat(conflicts)
                     .anyMatch(c -> c.contains("ca trực liền kề"));
@@ -656,7 +508,7 @@ class ConflictDetectionServiceTest {
                     .thenReturn(List.of(adjacentSchedule));
 
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", null, period1.getId());
+                    testStaff.getId(), monday, "L01", null, period1.getId(), false, false);
 
             assertThat(conflicts)
                     .anyMatch(c -> c.contains("ca trực liền kề"));
@@ -669,7 +521,7 @@ class ConflictDetectionServiceTest {
                     .thenReturn(Collections.emptyList());
 
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", null, period1.getId());
+                    testStaff.getId(), monday, "L01", null, period1.getId(), false, false);
 
             assertThat(conflicts)
                     .noneMatch(c -> c.contains("ca trực liền kề"));
@@ -692,7 +544,7 @@ class ConflictDetectionServiceTest {
 
             // excludeScheduleId = 100, same schedule ID -> skip it
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L01", 100, period1.getId());
+                    testStaff.getId(), monday, "L01", 100, period1.getId(), false, false);
 
             assertThat(conflicts)
                     .noneMatch(c -> c.contains("ca trực liền kề"));
@@ -922,8 +774,6 @@ class ConflictDetectionServiceTest {
                         c.setId(9001);
                         return c;
                     });
-            when(shiftRequirementRepository.findByPeriodId(period1.getId()))
-                    .thenReturn(Collections.emptyList());
 
             conflictDetectionService.checkPeriodConflicts(period1.getId());
 
@@ -978,8 +828,6 @@ class ConflictDetectionServiceTest {
                     .thenReturn(Collections.emptyList());
             when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(schedule.getId()))
                     .thenReturn(List.of(preExisting));
-            when(shiftRequirementRepository.findByPeriodId(period1.getId()))
-                    .thenReturn(Collections.emptyList());
 
             conflictDetectionService.checkPeriodConflicts(period1.getId());
 

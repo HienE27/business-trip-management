@@ -61,16 +61,25 @@ public class CompensationDateCalculator {
 
     /**
      * Core base-date computation — no holiday awareness.
+     * Per spec:
+     * - Mon/Tue/Wed/Thu duty → next day (same week)
+     * - Friday duty → Tuesday of NEXT week (skip Mon, skip Fri of current week)
+     * - Saturday duty → Tuesday of NEXT week (skip Mon, skip Fri)
+     * - Sunday duty → Monday next day
      */
     private LocalDate computeBase(LocalDate shiftDate) {
         DayOfWeek dow = shiftDate.getDayOfWeek();
         return switch (dow) {
             case MONDAY, TUESDAY, WEDNESDAY, THURSDAY -> shiftDate.plusDays(1);
-            case FRIDAY, SATURDAY -> {
-                // Find the next Tuesday on or after (shiftDate + 1 day).
-                // For Fri Jun 5  → search from Sat Jun 6  → wraps to Tue Jun 9.
-                // For Fri Jun 26 → search from Sat Jun 27 → wraps to Tue Jul 1.
-                yield findNextDayOfWeek(shiftDate.plusDays(1), DayOfWeek.TUESDAY);
+            case FRIDAY -> {
+                // Friday → Thứ 3 TUẦN SAU (spec: "Thứ 3 tuần sau - bỏ T2, T6")
+                // Jun 5 (Fri) + 4 days = Jun 9 (Tue next week)
+                yield findNextDayOfWeek(shiftDate.plusDays(4), DayOfWeek.TUESDAY);
+            }
+            case SATURDAY -> {
+                // Saturday → Thứ 3 TUẦN SAU (spec: "Thứ 3 tuần sau - bỏ T2, T6")
+                // Jun 6 (Sat) + 3 days = Jun 9 (Tue next week)
+                yield findNextDayOfWeek(shiftDate.plusDays(3), DayOfWeek.TUESDAY);
             }
             case SUNDAY -> findNextDayOfWeek(shiftDate.plusDays(1), DayOfWeek.MONDAY);
         };

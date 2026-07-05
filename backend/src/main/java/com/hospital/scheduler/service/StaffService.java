@@ -19,6 +19,8 @@ import com.hospital.scheduler.repository.SpecialtyRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,6 +85,20 @@ public class StaffService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Aggregate counts grouped by {@link StaffStatus} for dashboard summary cards.
+     * Counts the entire table (no pagination, no filters) so the counts stay
+     * accurate regardless of which page the user is currently viewing.
+     */
+    public Map<String, Long> getStatusCounts() {
+        Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        counts.put("total", staffRepository.count());
+        for (StaffStatus status : StaffStatus.values()) {
+            counts.put(status.name(), staffRepository.countByStatus(status));
+        }
+        return counts;
+    }
+
     public StaffResponse getStaffById(Integer id) {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
@@ -98,6 +114,22 @@ public class StaffService {
         return staffRepository.searchStaffs(keyword, request.getSpecialtyId(), status, role, position).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Paginated search — reuses the same JPA {@code @Query} as {@link #searchStaffs(StaffSearchRequest)}
+     * but returns a {@link Page} so the dashboard can render its &lt;Pagination&gt;
+     * control without loading every staff into memory.
+     */
+    public Page<StaffResponse> searchStaffsPage(StaffSearchRequest request, Pageable pageable) {
+        String keyword = (request.getKeyword() != null && !request.getKeyword().isBlank()) ? request.getKeyword() : null;
+        String status = (request.getStatus() != null && !request.getStatus().isBlank()) ? request.getStatus().toUpperCase() : null;
+        String role = (request.getRole() != null && !request.getRole().isBlank()) ? request.getRole().toUpperCase() : null;
+        String position = (request.getPosition() != null && !request.getPosition().isBlank()) ? request.getPosition() : null;
+
+        return staffRepository
+                .searchStaffs(keyword, request.getSpecialtyId(), status, role, position, pageable)
+                .map(this::toResponse);
     }
 
     public StaffResponse createStaff(StaffRequest request, List<String> roles) {

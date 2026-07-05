@@ -50,50 +50,15 @@ public class ConflictDetectionService {
     }
 
     public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay) {
-        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, false);
+        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, null, skipCompensationDay, false);
     }
 
     public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay, boolean skipShiftTypeConflict) {
-        List<String> conflicts = new ArrayList<>();
-
-        detectLeaveConflict(staffId, workDate).ifPresent(conflicts::add);
-        if (!skipCompensationDay) {
-            detectCompensationConflict(staffId, workDate).ifPresent(conflicts::add);
-        }
-        if (!skipShiftTypeConflict) {
-            detectShiftTypeConflict(staffId, workDate, shiftTypeId, excludeScheduleId).ifPresent(conflicts::add);
-        }
-        // Back-to-back check chỉ áp dụng cho L01 (trực 24/24) vì nó chiếm 24h liên tục
-        // L02, L03, L04 không cần check vì chỉ là ca trong ngày
-        if (SHIFT_TYPE_L01.equals(shiftTypeId)) {
-            detectBackToBackConflict(staffId, workDate, excludeScheduleId).ifPresent(conflicts::add);
-        }
-
-        return conflicts;
-    }
-
-    public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
-                                           Integer excludeScheduleId, Integer periodId) {
-        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, false, false);
-    }
-
-    public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
-                                           Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay) {
-        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, false);
+        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, null, skipCompensationDay, skipShiftTypeConflict);
     }
 
     public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
                                            Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict) {
-        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, skipShiftTypeConflict, false);
-    }
-
-    public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
-                                           Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipMaxShifts) {
-        return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, skipShiftTypeConflict, skipMaxShifts, false);
-    }
-
-    public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId,
-                                           Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipMaxShifts, boolean skipBackToBackConflict) {
         List<String> conflicts = new ArrayList<>();
 
         detectLeaveConflict(staffId, workDate).ifPresent(conflicts::add);
@@ -102,15 +67,6 @@ public class ConflictDetectionService {
         }
         if (!skipShiftTypeConflict) {
             detectShiftTypeConflict(staffId, workDate, shiftTypeId, excludeScheduleId, periodId).ifPresent(conflicts::add);
-        }
-        // Back-to-back check chỉ áp dụng cho L01 (trực 24/24) vì nó chiếm 24h liên tục
-        // L02, L03, L04 không cần check vì chỉ là ca trong ngày
-        if (!skipBackToBackConflict && SHIFT_TYPE_L01.equals(shiftTypeId)) {
-            detectBackToBackConflict(staffId, workDate, excludeScheduleId, periodId).ifPresent(conflicts::add);
-        }
-        // max shifts chỉ áp dụng cho L01 (ca trực 24/24)
-        if (!skipMaxShifts) {
-            detectMaxShiftsConflict(staffId, periodId, excludeScheduleId, shiftTypeId).ifPresent(conflicts::add);
         }
         return conflicts;
     }
@@ -172,76 +128,7 @@ public class ConflictDetectionService {
             }
         }
 
-        // Back-to-back conflict — check pre-loaded adjacent-day schedules (only for L01)
-        if (SHIFT_TYPE_L01.equals(shiftTypeId)) {
-            LocalDate prevDay = workDate.minusDays(1);
-            LocalDate nextDay = workDate.plusDays(1);
-            Map<Integer, List<Schedule>> prevDaySchedules = schedulesByDateByStaff.get(prevDay);
-            Map<Integer, List<Schedule>> nextDaySchedules = schedulesByDateByStaff.get(nextDay);
-
-            List<Schedule> adjacent = new ArrayList<>();
-            if (prevDaySchedules != null) {
-                adjacent.addAll(prevDaySchedules.getOrDefault(staffId, Collections.emptyList()));
-            }
-            if (nextDaySchedules != null) {
-                adjacent.addAll(nextDaySchedules.getOrDefault(staffId, Collections.emptyList()));
-            }
-            // Only consider schedules from THIS period (same periodId)
-            boolean hasAdjacent = adjacent.stream()
-                    .anyMatch(s -> s.getPeriod() != null && periodId.equals(s.getPeriod().getId()));
-            if (hasAdjacent) {
-                conflicts.add("Nhân sự có ca trực liền kề (trước hoặc sau) trong ngày " + workDate + " — không đủ thời gian nghỉ");
-            }
-        }
-
-        // Max shifts conflict — only for L01
-        if (SHIFT_TYPE_L01.equals(shiftTypeId)) {
-            if (periodId != null) {
-                staffRepository.findById(staffId).ifPresent(staff -> {
-                    long currentCount = scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staffId, periodId, shiftTypeId);
-                    int maxShifts = staff.getMaxShiftsPerMonth() != null ? staff.getMaxShiftsPerMonth() : 5;
-                    if (currentCount >= maxShifts) {
-                        conflicts.add("Nhân sự đã đạt giới hạn " + maxShifts + " ngày trực 24/24/tháng");
-                    }
-                });
-            }
-        }
-
         return conflicts;
-    }
-
-    /**
-     * Check if staff has exceeded their max shifts per month for the given period.
-     * Only applies to L01 (24/24 duty shifts).
-     *
-     * @param staffId   The staff member ID
-     * @param periodId  The schedule period ID
-     * @return true if the staff has reached or exceeded their maxShiftsPerMonth limit for L01
-     */
-    public boolean hasExceededMaxShifts(Integer staffId, Integer periodId) {
-        return hasExceededMaxShifts(staffId, periodId, SHIFT_TYPE_L01);
-    }
-
-    /**
-     * Check if staff has exceeded their max shifts per month for the given period and shift type.
-     *
-     * @param staffId     The staff member ID
-     * @param periodId   The schedule period ID
-     * @param shiftTypeId The shift type to check (only L01 enforces max)
-     * @return true if the staff has reached or exceeded their maxShiftsPerMonth limit
-     */
-    public boolean hasExceededMaxShifts(Integer staffId, Integer periodId, String shiftTypeId) {
-        if (periodId == null) {
-            return false;
-        }
-
-        return staffRepository.findById(staffId)
-                .map(staff -> {
-                    long currentCount = scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staffId, periodId, shiftTypeId);
-                    int maxShifts = staff.getMaxShiftsPerMonth() != null ? staff.getMaxShiftsPerMonth() : 5;
-                    return currentCount >= maxShifts;
-                })
-                .orElse(false);
     }
 
     public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
@@ -253,23 +140,15 @@ public class ConflictDetectionService {
     }
 
     public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay, boolean skipShiftTypeConflict) {
-        return hasAnyConflict(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, skipShiftTypeConflict, false);
-    }
-
-    public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipMaxShifts) {
-        return hasAnyConflict(staffId, workDate, shiftTypeId, excludeScheduleId, skipCompensationDay, skipShiftTypeConflict, skipMaxShifts, false);
-    }
-
-    public boolean hasAnyConflict(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipMaxShifts, boolean skipBackToBackConflict) {
-        return !detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, null, skipCompensationDay, skipShiftTypeConflict, skipMaxShifts, skipBackToBackConflict).isEmpty();
+        return !detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, null, skipCompensationDay, skipShiftTypeConflict).isEmpty();
     }
 
     public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
-        validateAndThrow(staffId, workDate, shiftTypeId, excludeScheduleId, null, false, false);
+        validateAndThrow(staffId, workDate, shiftTypeId, excludeScheduleId, null);
     }
 
     public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, Integer periodId) {
-        validateAndThrow(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, false, false);
+        validateAndThrow(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, false);
     }
 
     public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay) {
@@ -278,13 +157,6 @@ public class ConflictDetectionService {
 
     public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict) {
         List<String> conflicts = detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, skipShiftTypeConflict);
-        if (!conflicts.isEmpty()) {
-            throw new ConflictException("Phát hiện xung đột: " + String.join("; ", conflicts));
-        }
-    }
-
-    public void validateAndThrow(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId, Integer periodId, boolean skipCompensationDay, boolean skipShiftTypeConflict, boolean skipBackToBackConflict) {
-        List<String> conflicts = detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, periodId, skipCompensationDay, skipShiftTypeConflict, false, skipBackToBackConflict);
         if (!conflicts.isEmpty()) {
             throw new ConflictException("Phát hiện xung đột: " + String.join("; ", conflicts));
         }
@@ -538,33 +410,6 @@ public class ConflictDetectionService {
                 .map(cd -> "Ngày này là ngày nghỉ bù của nhân sự");
     }
 
-    private java.util.Optional<String> detectBackToBackConflict(Integer staffId, LocalDate workDate, Integer excludeScheduleId) {
-        return detectBackToBackConflict(staffId, workDate, excludeScheduleId, null);
-    }
-
-    private java.util.Optional<String> detectBackToBackConflict(Integer staffId, LocalDate workDate, Integer excludeScheduleId, Integer periodId) {
-        LocalDate prevDay = workDate.minusDays(1);
-        LocalDate nextDay = workDate.plusDays(1);
-
-        List<Schedule> adjacentSchedules = new java.util.ArrayList<>();
-        if (periodId != null) {
-            scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(staffId, periodId, prevDay, prevDay)
-                    .forEach(s -> { if (excludeScheduleId == null || !s.getId().equals(excludeScheduleId)) adjacentSchedules.add(s); });
-            scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(staffId, periodId, nextDay, nextDay)
-                    .forEach(s -> { if (excludeScheduleId == null || !s.getId().equals(excludeScheduleId)) adjacentSchedules.add(s); });
-        } else {
-            scheduleRepository.findByStaffIdAndDateRange(staffId, prevDay, prevDay)
-                    .forEach(s -> { if (excludeScheduleId == null || !s.getId().equals(excludeScheduleId)) adjacentSchedules.add(s); });
-            scheduleRepository.findByStaffIdAndDateRange(staffId, nextDay, nextDay)
-                    .forEach(s -> { if (excludeScheduleId == null || !s.getId().equals(excludeScheduleId)) adjacentSchedules.add(s); });
-        }
-
-        if (adjacentSchedules.isEmpty()) {
-            return java.util.Optional.empty();
-        }
-        return java.util.Optional.of("Nhân sự có ca trực liền kề (trước hoặc sau) trong ngày " + workDate + " — không đủ thời gian nghỉ");
-    }
-
     private java.util.Optional<String> detectShiftTypeConflict(Integer staffId, LocalDate workDate,
                                                                 String shiftTypeId, Integer excludeScheduleId) {
         return detectShiftTypeConflict(staffId, workDate, shiftTypeId, excludeScheduleId, null);
@@ -604,33 +449,6 @@ public class ConflictDetectionService {
             }
         }
         return java.util.Optional.empty();
-    }
-
-    private java.util.Optional<String> detectMaxShiftsConflict(Integer staffId, Integer periodId, Integer excludeScheduleId, String shiftTypeId) {
-        if (periodId == null) {
-            return java.util.Optional.empty();
-        }
-        // Chi kiem tra max shifts khi day la L01 (lich truc 24/24)
-        if (!SHIFT_TYPE_L01.equals(shiftTypeId)) {
-            return java.util.Optional.empty();
-        }
-
-        return staffRepository.findById(staffId)
-                .map(staff -> {
-                    long currentCount;
-                    if (excludeScheduleId != null) {
-                        currentCount = scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeIdExcluding(staffId, periodId, shiftTypeId, excludeScheduleId);
-                    } else {
-                        currentCount = scheduleRepository.countByStaffIdAndPeriodIdAndShiftTypeId(staffId, periodId, shiftTypeId);
-                    }
-                    int maxShifts = staff.getMaxShiftsPerMonth() != null ? staff.getMaxShiftsPerMonth() : 5;
-
-                    if (currentCount >= maxShifts) {
-                        return java.util.Optional.of("Nhân sự đã đạt giới hạn " + maxShifts + " ngày trực 24/24/tháng");
-                    }
-                    return java.util.Optional.<String>empty();
-                })
-                .orElse(java.util.Optional.empty());
     }
 
     public List<Staff> findReplacements(Integer periodId, LocalDate workDate, String shiftTypeId,

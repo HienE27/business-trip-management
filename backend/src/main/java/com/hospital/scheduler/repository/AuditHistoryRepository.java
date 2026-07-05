@@ -42,4 +42,52 @@ public interface AuditHistoryRepository extends JpaRepository<AuditHistory, Inte
     Page<AuditHistory> findByChangedBy(Integer changedById, Pageable pageable);
 
     List<AuditHistory> findAllByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    /**
+     * Count audit history records grouped by action type.
+     * Returns rows like [CREATE, 123], [UPDATE, 456], [DELETE, 789].
+     */
+    @Query("SELECT ah.actionType, COUNT(ah) FROM AuditHistory ah GROUP BY ah.actionType")
+    List<Object[]> countAllGroupedByAction();
+
+    /**
+     * Count audit history records grouped by action type, filtered by date range (inclusive).
+     * Used for KPI summary so the numbers stay in sync with the user-selected period.
+     */
+    @Query("SELECT ah.actionType, COUNT(ah) FROM AuditHistory ah " +
+           "WHERE ah.createdAt >= :start AND ah.createdAt < :end " +
+           "GROUP BY ah.actionType")
+    List<Object[]> countGroupedByActionBetween(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
+    /**
+     * Count audit history records grouped by action type with all client-side filters
+     * (date range, table, action, free-text search across user name, user id, table,
+     *  action and record id).
+     *
+     * All filter parameters except date range are optional — pass null to skip a filter.
+     * The date range is inclusive start, exclusive end.
+     */
+    @Query("SELECT ah.actionType, COUNT(ah) FROM AuditHistory ah " +
+           "LEFT JOIN ah.changedBy cb " +
+           "WHERE (:start IS NULL OR ah.createdAt >= :start) " +
+           "AND (:end IS NULL OR ah.createdAt < :end) " +
+           "AND (:tableName IS NULL OR ah.tableName = :tableName) " +
+           "AND (:action IS NULL OR ah.actionType = :action) " +
+           "AND (" +
+           "  :search IS NULL OR :search = '' OR " +
+           "  LOWER(COALESCE(cb.fullName, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "  CAST(cb.id AS string) LIKE CONCAT('%', :search, '%') OR " +
+           "  LOWER(ah.tableName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "  LOWER(CAST(ah.actionType AS string)) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "  CAST(ah.recordId AS string) LIKE CONCAT('%', :search, '%')" +
+           ") " +
+           "GROUP BY ah.actionType")
+    List<Object[]> countGroupedByActionFiltered(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("tableName") String tableName,
+            @Param("action") com.hospital.scheduler.entity.AuditHistory.ActionType action,
+            @Param("search") String search);
 }

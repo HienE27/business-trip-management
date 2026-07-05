@@ -2,6 +2,7 @@ package com.hospital.scheduler.repository;
 
 import com.hospital.scheduler.entity.ScheduleConflict;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -27,4 +28,8 @@ public interface ScheduleConflictRepository extends JpaRepository<ScheduleConfli
 
     @Query("SELECT sc FROM ScheduleConflict sc JOIN FETCH sc.schedule WHERE sc.schedule.id IN :scheduleIds AND sc.isResolved = false ORDER BY sc.createdAt DESC")
     List<ScheduleConflict> findUnresolvedByScheduleIdsIn(@Param("scheduleIds") List<Integer> scheduleIds);
+    
+    @Modifying
+    @Query("DELETE FROM ScheduleConflict sc WHERE sc.schedule.id IN :scheduleIds")
+    void deleteByScheduleIds(@Param("scheduleIds") List<Integer> scheduleIds);
 }

@@ -55,6 +55,21 @@ public class NotificationController {
                 notificationService.getNotificationsByStaffPaginated(staffId, page, size)));
     }
 
+    /**
+     * Paginated notifications for the currently authenticated user.
+     * Avoids the "/me/{id}" path-variable collision that the original
+     * "/me/paginated" naming had on some Spring setups.
+     */
+    @GetMapping("/me/page")
+    @Operation(summary = "Lấy thông báo của tôi (phân trang)")
+    public ResponseEntity<ApiResponse<Page<NotificationResponse>>> getMyNotificationsPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Integer staffId = authContextService.getCurrentStaff().getId();
+        return ResponseEntity.ok(ApiResponse.success(
+                notificationService.getNotificationsByStaffPaginated(staffId, page, size)));
+    }
+
     @GetMapping("/staff/{staffId}/unread")
     @Operation(summary = "Lấy thông báo chưa đọc")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#staffId)")
@@ -68,6 +83,14 @@ public class NotificationController {
     public ResponseEntity<ApiResponse<Map<String, Long>>> countUnread(@PathVariable Integer staffId) {
         return ResponseEntity.ok(ApiResponse.success(
                 Map.of("count", notificationService.countUnreadNotifications(staffId))));
+    }
+
+    @GetMapping("/me/unread/count")
+    @Operation(summary = "Đếm thông báo chưa đọc của tôi (toàn DB, không phụ thuộc trang)")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> countMyUnread() {
+        return ResponseEntity.ok(ApiResponse.success(
+                Map.of("count", notificationService.getMyUnreadCount())));
     }
 
     @PostMapping

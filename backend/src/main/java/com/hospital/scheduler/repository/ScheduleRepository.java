@@ -108,6 +108,9 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
     @Query("SELECT s FROM Schedule s WHERE s.period.id = :periodId AND s.hasConflict = true")
     List<Schedule> findConflictsByPeriodId(@Param("periodId") Integer periodId);
 
+    @Query("SELECT s FROM Schedule s WHERE s.period.id = :periodId AND s.shiftType.id = :shiftTypeId")
+    List<Schedule> findByPeriodIdAndShiftTypeId(@Param("periodId") Integer periodId, @Param("shiftTypeId") String shiftTypeId);
+
     Optional<Schedule> findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
             @Param("periodId") Integer periodId,
             @Param("staffId") Integer staffId,

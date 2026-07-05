@@ -74,6 +74,15 @@ public class NotificationService {
         return notificationRepository.countUnreadByStaffId(staffId);
     }
 
+    /**
+     * Unread count for the currently authenticated staff. Resolves the staff
+     * id from the security context so the frontend does not need to know it.
+     */
+    public long getMyUnreadCount() {
+        Integer staffId = authContextService.getCurrentStaff().getId();
+        return notificationRepository.countUnreadByStaffId(staffId);
+    }
+
     public Notification findById(Integer notificationId) {
         return notificationRepository.findById(notificationId).orElse(null);
     }

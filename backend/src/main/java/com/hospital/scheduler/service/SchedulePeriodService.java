@@ -17,16 +17,23 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
+import com.hospital.scheduler.repository.ShiftRequirementRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -47,6 +54,8 @@ public class SchedulePeriodService {
     private final ConflictDetectionService conflictDetectionService;
     private final NotificationService notificationService;
     private final EmailService emailService;
+    private final ShiftRequirementRepository shiftRequirementRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public List<SchedulePeriodResponse> getAllPeriods() {
         return periodRepository.findAll().stream()
@@ -58,6 +67,19 @@ public class SchedulePeriodService {
         return periodRepository.findByStatusOrderByStartDateDesc(status).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Paginated variant — newest periods first by startDate DESC.
+     * Drives the /periods/paginated endpoint that the dashboard relies on.
+     */
+    public Page<SchedulePeriodResponse> getPeriodsPage(Pageable pageable) {
+        return periodRepository
+                .findAll(PageRequest.of(
+                        pageable.getPageNumber(),
+                        pageable.getPageSize(),
+                        Sort.by(Sort.Direction.DESC, "startDate")))
+                .map(this::toResponse);
     }
 
     public SchedulePeriodResponse getPeriodById(Integer id) {
@@ -375,8 +397,75 @@ public class SchedulePeriodService {
             throw new BadRequestException("Chỉ có thể xóa kỳ lịch ở trạng thái DRAFT");
         }
 
-        auditHistoryService.logAction("schedule_period", id, AuditHistory.ActionType.DELETE, period, null, null);
+        log.warn("Deleting period id={} name={} - cleaning up child rows", id, period.getPeriodName());
+
+        Integer adminId = authContextService.getCurrentStaff() != null
+                ? authContextService.getCurrentStaff().getId() : null;
+
+        // ==== Cleanup child rows (thứ tự FK quan trọng - xóa leaf trước) ====
+
+        // 1. Shift requirements (FK tới schedule_period, gây lỗi trước đó)
+        List<com.hospital.scheduler.entity.ShiftRequirement> shiftReqs =
+                shiftRequirementRepository.findByPeriodId(id);
+        log.info("Deleting {} shift_requirement rows for periodId={}", shiftReqs.size(), id);
+        for (com.hospital.scheduler.entity.ShiftRequirement sr : shiftReqs) {
+            auditHistoryService.logAction("shift_requirement", sr.getId(),
+                    AuditHistory.ActionType.DELETE, sr, null, adminId);
+        }
+        shiftRequirementRepository.deleteAllByPeriodIdNative(id);
+
+        // 2. Schedules (compensation_day FK → schedule, schedule_exchange FK → schedule, schedule_conflict FK → schedule)
+        // Cascade qua period_id, nhưng cần cleanup các bảng trung gian trước.
+        // Batch the cleanup queries (single SQL with IN clause) instead of N round-trips
+        // — saves hundreds of round-trips for a busy month (e.g. 30 days × 20 staff).
+        List<Schedule> schedules = scheduleRepository.findByPeriodId(id);
+        log.info("Found {} schedules for periodId={} - batch-cleanup child rows", schedules.size(), id);
+
+        if (!schedules.isEmpty()) {
+            List<Integer> scheduleIds = schedules.stream().map(Schedule::getId).toList();
+            String inPlaceholder = String.join(",", Collections.nCopies(scheduleIds.size(), "?"));
+            Object[] idParams = scheduleIds.toArray();
+
+            // Compensation_day: null out the FK in one UPDATE
+            int compUpdated = jdbcTemplate.update(
+                    "UPDATE compensation_day SET schedule_id = NULL WHERE schedule_id IN (" + inPlaceholder + ")",
+                    idParams);
+            log.info("Nullified schedule_id on {} compensation_day rows", compUpdated);
+
+            // Schedule_exchange: bulk delete
+            int exchangeDeleted = jdbcTemplate.update(
+                    "DELETE FROM schedule_exchange WHERE requester_schedule_id IN ("
+                            + inPlaceholder + ") OR target_schedule_id IN (" + inPlaceholder + ")",
+                    concatArrays(idParams, idParams));
+            log.info("Deleted {} schedule_exchange rows", exchangeDeleted);
+
+            // Schedule_conflict: bulk delete
+            int conflictDeleted = jdbcTemplate.update(
+                    "DELETE FROM schedule_conflict WHERE schedule_id IN (" + inPlaceholder + ")",
+                    idParams);
+            log.info("Deleted {} schedule_conflict rows", conflictDeleted);
+        }
+
+        // Audit for schedules (still per-row because each entry needs a unique
+        // audit record; this is the only unavoidable N+1 in the delete path).
+        for (Schedule s : schedules) {
+            auditHistoryService.logAction("schedule", s.getId(),
+                    AuditHistory.ActionType.DELETE, s, null, adminId);
+        }
+        // Cascade delete schedules qua period_id
+        int schedulesDeleted = jdbcTemplate.update("DELETE FROM schedule WHERE period_id = ?", id);
+        log.info("Deleted {} schedules for periodId={}", schedulesDeleted, id);
+
+        // 3. Compensation days còn lại (các comp_day không có schedule nhưng vẫn FK tới period)
+        int compDeleted = jdbcTemplate.update("DELETE FROM compensation_day WHERE period_id = ?", id);
+        log.info("Deleted {} compensation_day rows for periodId={}", compDeleted, id);
+
+        // 4. Audit for period
+        auditHistoryService.logAction("schedule_period", id, AuditHistory.ActionType.DELETE, period, null, adminId);
+
+        // 5. Delete period
         periodRepository.delete(period);
+        log.info("Successfully deleted period id={}", id);
     }
 
     private SchedulePeriodResponse toResponse(SchedulePeriod period) {
@@ -401,5 +490,18 @@ public class SchedulePeriodService {
                 .createdAt(period.getCreatedAt())
                 .updatedAt(period.getUpdatedAt())
                 .build();
+    }
+
+    /**
+     * Concatenate two arrays of the same type. Used for SQL "IN (?,?,?) OR IN (?,?,?)"
+     * patterns where the same parameter list is referenced twice.
+     */
+    private static <T> T[] concatArrays(T[] first, T[] second) {
+        @SuppressWarnings("unchecked")
+        T[] result = (T[]) java.lang.reflect.Array.newInstance(
+                first.getClass().getComponentType(), first.length + second.length);
+        System.arraycopy(first, 0, result, 0, first.length);
+        System.arraycopy(second, 0, result, first.length, second.length);
+        return result;
     }
 }

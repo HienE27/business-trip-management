@@ -2,6 +2,7 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.response.AuditHistoryResponse;
+import com.hospital.scheduler.dto.response.AuditHistorySummaryResponse;
 import com.hospital.scheduler.service.AuditHistoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -66,6 +67,51 @@ public class AuditHistoryController {
                 auditHistoryService.getAuditHistoryByDateRange(startDate, endDate, page, size)));
     }
 
+    @GetMapping("/summary")
+    @Operation(summary = "Lấy thống kê số lượng sự kiện theo từng loại (CREATE/UPDATE/DELETE)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<AuditHistorySummaryResponse>> getSummary() {
+        return ResponseEntity.ok(ApiResponse.success(auditHistoryService.getActionCounts()));
+    }
+
+    @GetMapping("/summary/date-range")
+    @Operation(summary = "Lấy thống kê số lượng sự kiện theo loại trong khoảng thời gian")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<AuditHistorySummaryResponse>> getSummaryByDateRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+        return ResponseEntity.ok(ApiResponse.success(
+                auditHistoryService.getActionCountsBetween(startDate, endDate)));
+    }
+
+    /**
+     * Filtered KPI summary that mirrors every filter on the audit list page (date range +
+     * module + action + search). Calling this with no filters is equivalent to /summary.
+     */
+    @GetMapping("/summary/filter")
+    @Operation(summary = "Lấy thống kê số lượng sự kiện theo loại với các bộ lọc (dateRange/module/action/search)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<AuditHistorySummaryResponse>> getSummaryFiltered(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(required = false) String module,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String search) {
+        com.hospital.scheduler.entity.AuditHistory.ActionType actionEnum = null;
+        if (action != null && !action.isBlank()) {
+            // Accept either UI labels (CREATE/UPDATE/DELETE) or enum names (INSERT/UPDATE/DELETE)
+            String normalized = action.trim().toUpperCase();
+            if (normalized.equals("CREATE")) normalized = "INSERT";
+            try {
+                actionEnum = com.hospital.scheduler.entity.AuditHistory.ActionType.valueOf(normalized);
+            } catch (IllegalArgumentException ignored) {
+                // Unknown action string — treat as no filter, counts will not be constrained
+            }
+        }
+        return ResponseEntity.ok(ApiResponse.success(
+                auditHistoryService.getActionCountsFiltered(startDate, endDate, module, actionEnum, search)));
+    }
+
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa một bản ghi nhật ký")
     @PreAuthorize("hasRole('ADMIN')")
@@ -92,5 +138,17 @@ public class AuditHistoryController {
         LocalDateTime end = endDate.plusDays(1).atStartOfDay().minusNanos(1);
         int count = auditHistoryService.deleteByDateRange(start, end);
         return ResponseEntity.ok(ApiResponse.success(count, "Đã xóa " + count + " bản ghi nhật ký trong khoảng thời gian."));
+    }
+
+    /**
+     * Wipe the entire audit_history table. Restricted to ADMIN role and intended
+     * to be paired with a typed confirmation on the client side ("XÓA" + record count).
+     */
+    @DeleteMapping("/all")
+    @Operation(summary = "Xóa toàn bộ nhật ký (ADMIN only — yêu cầu xác nhận typed trên UI)")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Integer>> deleteAll() {
+        int count = auditHistoryService.deleteAll();
+        return ResponseEntity.ok(ApiResponse.success(count, "Đã xóa toàn bộ " + count + " bản ghi nhật ký."));
     }
 }

@@ -15,6 +15,8 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +45,20 @@ public class ScheduleExchangeService {
         return exchangeRepository.findAll().stream()
                 .map(ScheduleExchangeResponse::fromEntity)
                 .collect(Collectors.toList());
+    }
+
+    public Page<ScheduleExchangeResponse> getExchangesPage(Pageable pageable) {
+        return exchangeRepository.findAll(pageable)
+                .map(ScheduleExchangeResponse::fromEntity);
+    }
+
+    public java.util.Map<String, Long> getStatusCounts() {
+        java.util.Map<String, Long> counts = new java.util.HashMap<>();
+        for (ScheduleExchange.ExchangeStatus status : ScheduleExchange.ExchangeStatus.values()) {
+            counts.put(status.name(), exchangeRepository.countByStatus(status));
+        }
+        counts.put("total", exchangeRepository.count());
+        return counts;
     }
 
     public List<ScheduleExchangeResponse> getExchangesByRequester(Integer requesterId) {
@@ -286,6 +302,13 @@ public class ScheduleExchangeService {
                     null, savedCompForTarget, reviewerId);
         }
 
+        // TODO: The plain setStaff + save approach below trips the
+        // (period_id, staff_id, shift_type_id, work_date) UNIQUE
+        // constraint when both rows are in the same slot. A complete
+        // fix needs to either drop the constraint, use a delete+insert
+        // pattern with FK rewrites, or relax the constraint to defer
+        // the check to the application layer. This is a known
+        // limitation tracked in the UI/UX polish task.
         scheduleRepository.save(requesterSchedule);
         scheduleRepository.save(targetSchedule);
 

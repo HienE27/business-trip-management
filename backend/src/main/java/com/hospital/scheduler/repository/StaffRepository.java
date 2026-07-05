@@ -1,6 +1,8 @@
 package com.hospital.scheduler.repository;
 
 import com.hospital.scheduler.entity.Staff;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -38,6 +40,26 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
                               @Param("role") String role,
                               @Param("position") String position);
 
+    /**
+     * Pageable variant of {@link #searchStaffs} for the /staff/search/paginated endpoint.
+     * Drops JOIN FETCH so Hibernate can emit a proper count query (otherwise it
+     * falls back to in-memory pagination and the count is wrong).
+     */
+    @Query("SELECT DISTINCT s FROM Staff s LEFT JOIN s.specialty LEFT JOIN s.staffRoles sr LEFT JOIN sr.role " +
+           "WHERE (:keyword IS NULL OR LOWER(s.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "OR LOWER(s.username) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "OR LOWER(s.staffCode) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:specialtyId IS NULL OR s.specialty.id = :specialtyId) " +
+           "AND (:status IS NULL OR s.status = :status) " +
+           "AND (:role IS NULL OR (sr.role IS NOT NULL AND UPPER(sr.role.name) = UPPER(:role))) " +
+           "AND (:position IS NULL OR LOWER(s.position) LIKE LOWER(CONCAT('%', :position, '%')))")
+    Page<Staff> searchStaffs(@Param("keyword") String keyword,
+                              @Param("specialtyId") Integer specialtyId,
+                              @Param("status") String status,
+                              @Param("role") String role,
+                              @Param("position") String position,
+                              Pageable pageable);
+
     @Query("SELECT DISTINCT s FROM Staff s LEFT JOIN FETCH s.staffRoles sr LEFT JOIN FETCH sr.role " +
            "WHERE sr.role.name IN ('MANAGER', 'ADMIN')")
     List<Staff> findManagers();
@@ -68,4 +90,6 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
      */
     @Query("SELECT s FROM Staff s WHERE s.staffCode IS NULL ORDER BY s.id")
     List<Staff> findByStaffCodeIsNull();
+
+    long countByStatus(com.hospital.scheduler.entity.StaffStatus status);
 }

@@ -8,12 +8,15 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/specialties")
@@ -35,6 +38,20 @@ public class SpecialtyController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<SpecialtyResponse>>> getActiveSpecialties() {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getActiveSpecialties()));
+    }
+
+    @GetMapping("/page")
+    @Operation(summary = "Lấy danh sách chuyên khoa có phân trang")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Page<SpecialtyResponse>>> getSpecialtiesPage(Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(specialtyService.getSpecialtiesPage(pageable)));
+    }
+
+    @GetMapping("/status-counts")
+    @Operation(summary = "Đếm chuyên khoa theo trạng thái (toàn DB, không phân trang)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
+        return ResponseEntity.ok(ApiResponse.success(specialtyService.getStatusCounts()));
     }
 
     @GetMapping("/{id}")

@@ -10,12 +10,15 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/schedule-exchanges")
@@ -31,6 +34,24 @@ public class ScheduleExchangeController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getAllExchanges() {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getAllExchanges()));
+    }
+
+    /**
+     * Paginated variant — managers browse large lists of requests with the shared
+     * &lt;Pagination&gt; widget. Sorted DESC by createdAt to surface newest first.
+     */
+    @GetMapping("/page")
+    @Operation(summary = "Lấy danh sách yêu cầu đổi ca có phân trang")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Page<ScheduleExchangeResponse>>> getExchangesPage(Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesPage(pageable)));
+    }
+
+    @GetMapping("/status-counts")
+    @Operation(summary = "Đếm yêu cầu đổi ca theo trạng thái (toàn DB, không phân trang)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
+        return ResponseEntity.ok(ApiResponse.success(exchangeService.getStatusCounts()));
     }
 
     @GetMapping("/pending")

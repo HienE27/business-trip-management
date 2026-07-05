@@ -64,6 +64,16 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getStaffWorkloadByPeriod(periodId)));
     }
 
+    @GetMapping("/workload/period/{periodId}/page")
+    @Operation(summary = "Lấy thống kê workload nhân sự theo kỳ có phân trang")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<DashboardResponse.StaffWorkloadStatistics>>> getStaffWorkloadPage(
+            @PathVariable Integer periodId,
+            org.springframework.data.domain.Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(
+                dashboardService.getStaffWorkloadByPeriodPage(periodId, pageable)));
+    }
+
     @GetMapping("/shift-type/{shiftTypeId}/statistics")
     @Operation(summary = "Thống kê chi tiết theo loại ca (L03/L04) theo tuần hoặc tháng — phục vụ M04-F05 và M05-F05")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")

@@ -385,8 +385,8 @@ public class AlgorithmConfigService {
         upsert(MIN_SHIFTS_PER_STAFF, getStringValue(MIN_SHIFTS_PER_STAFF, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca tối thiểu mỗi nhân sự trong kỳ lịch. Đặt 0 để không giới hạn.");
         map.put(MIN_SHIFTS_PER_STAFF, "OK");
-        upsert(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "20"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca tối đa mỗi nhân sự trong kỳ lịch. Bảo vệ nhân sự khỏi bị quá tải.");
+        upsert(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "35"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca tối đa mỗi nhân sự trong kỳ lịch. Spec M07-F01 yêu cầu phân bổ đều không giới hạn cố định, nhưng đặt trần hợp lý để bảo vệ nhân sự khỏi bị quá tải. Default 35 (≈1 ca/ngày + buffer cho L04 đa chuyên khoa).");
         map.put(MAX_SHIFTS_PER_STAFF, "OK");
         return map;
     }

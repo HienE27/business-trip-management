@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -34,6 +36,17 @@ public class SchedulePeriodController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<SchedulePeriodResponse>>> getAllPeriods() {
         return ResponseEntity.ok(ApiResponse.success(periodService.getAllPeriods()));
+    }
+
+    /**
+     * Paginated variant — drives the &lt;Pagination&gt; control on the kỳ-lịch page.
+     * Sorted DESC by startDate so newest periods surface first.
+     */
+    @GetMapping("/page")
+    @Operation(summary = "Lấy danh sách kỳ lịch có phân trang")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Page<SchedulePeriodResponse>>> getPeriodsPage(Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(periodService.getPeriodsPage(pageable)));
     }
 
     @GetMapping("/status/{status}")

@@ -37,4 +37,6 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Inte
     /** Batch query: all approved leaves within a date range (no staff filter, for period-level batch checks). */
     @Query("SELECT lr FROM LeaveRequest lr WHERE lr.status = 'APPROVED' AND lr.startDate <= :endDate AND lr.endDate >= :startDate")
     List<LeaveRequest> findApprovedInRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    long countByStatus(LeaveRequest.LeaveStatus status);
 }

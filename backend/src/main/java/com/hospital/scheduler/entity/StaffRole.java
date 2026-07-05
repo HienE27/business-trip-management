@@ -26,11 +26,13 @@ public class StaffRole {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "staff_id", insertable = false, updatable = false)
+    @org.hibernate.annotations.NotFound(action = org.hibernate.annotations.NotFoundAction.IGNORE)
     @com.fasterxml.jackson.annotation.JsonIgnore
     private Staff staff;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id", insertable = false, updatable = false)
+    @org.hibernate.annotations.NotFound(action = org.hibernate.annotations.NotFoundAction.IGNORE)
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private AppRole role;
 

@@ -10,6 +10,10 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.HolidayRepository;
 import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +49,16 @@ public class HolidayService {
         return holidayRepository.findByYear(year).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<HolidayResponse> getHolidaysPage(Pageable pageable) {
+        return holidayRepository
+                .findAll(PageRequest.of(
+                        pageable.getPageNumber(),
+                        pageable.getPageSize(),
+                        Sort.by(Sort.Direction.DESC, "holidayDate")))
+                .map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

@@ -19,7 +19,6 @@ import com.hospital.scheduler.repository.HolidayRepository;
 import com.hospital.scheduler.repository.ScheduleConflictRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
-import com.hospital.scheduler.repository.ShiftRequirementRepository;
 import com.hospital.scheduler.repository.ShiftTypeRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.AuthContextService;
@@ -54,7 +53,6 @@ public class ScheduleService {
     private final SchedulePeriodRepository periodRepository;
     private final StaffRepository staffRepository;
     private final ShiftTypeRepository shiftTypeRepository;
-    private final ShiftRequirementRepository requirementRepository;
     private final CompensationDayRepository compensationDayRepository;
     private final ScheduleConflictRepository scheduleConflictRepository;
     private final HolidayRepository holidayRepository;
@@ -169,17 +167,11 @@ public class ScheduleService {
                 request.getPeriodId()
         );
 
-        ShiftRequirement requirement = null;
-        if (request.getRequirementId() != null) {
-            requirement = requirementRepository.findById(request.getRequirementId()).orElse(null);
-        }
-
         Schedule schedule = Schedule.builder()
                 .period(period)
                 .workDate(request.getWorkDate())
                 .staff(staff)
                 .shiftType(shiftType)
-                .requirement(requirement)
                 .hasConflict(false)
                 .build();
 
@@ -292,11 +284,6 @@ public class ScheduleService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + targetShiftTypeId));
         schedule.setShiftType(newShiftType);
 
-        if (request.getRequirementId() != null) {
-            ShiftRequirement req = requirementRepository.findById(request.getRequirementId()).orElse(null);
-            schedule.setRequirement(req);
-        }
-
         Schedule updated = scheduleRepository.save(schedule);
 
         if (!wasL01 && willBeL01) {
@@ -326,6 +313,13 @@ public class ScheduleService {
         return toResponse(updated, compDate);
     }
 
+    /**
+     * @deprecated Use {@link ScheduleDeleteService#deleteSchedule(Integer)} which has
+     * richer handling (FK ordering, dedicated notification, audit). This method is
+     * kept only for the {@code deleteAllByPeriodId} companion call inside
+     * {@code ScheduleService}, not for single-id deletes.
+     */
+    @Deprecated
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deleteSchedule(Integer id) {
         Schedule schedule = scheduleRepository.findById(id)
@@ -460,12 +454,14 @@ public class ScheduleService {
     }
 
     private void createCompensationDay(Schedule schedule) {
-        LocalDate shiftDate = schedule.getWorkDate();
-        LocalDate compensationDate = compensationDateCalculator.calculate(shiftDate);
-
-        if (compensationDayRepository.findByStaffIdAndCompensationDate(schedule.getStaff().getId(), compensationDate).isPresent()) {
+        // CRITICAL: Each L01 schedule gets ONE compensation day
+        // Same staff CAN have multiple comp days on same date (e.g., Fri + Mon both → Tuesday)
+        if (!compensationDayRepository.findByScheduleId(schedule.getId()).isEmpty()) {
             return;
         }
+        
+        LocalDate shiftDate = schedule.getWorkDate();
+        LocalDate compensationDate = compensationDateCalculator.calculate(shiftDate);
 
         CompensationDay compDay = CompensationDay.builder()
                 .schedule(schedule)
@@ -480,11 +476,10 @@ public class ScheduleService {
         try {
             saved = compensationDayRepository.save(compDay);
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            // Database-level unique constraint (uk_compensation_staff_date) caught a duplicate.
-            // This can happen via race condition or pre-existing data.
+            // Race condition - another thread already created this compensation day
             org.slf4j.LoggerFactory.getLogger(ScheduleService.class)
-                    .warn("Compensation day already exists for staff {} on {} (DB constraint): {}",
-                            schedule.getStaff().getId(), compensationDate, e.getMessage());
+                    .warn("Compensation day already exists for schedule {} (race condition): {}",
+                            schedule.getId(), e.getMessage());
             return;
         }
         if (saved != null && saved.getId() != null) {
@@ -780,17 +775,11 @@ public class ScheduleService {
                 continue;
             }
 
-            ShiftRequirement requirement = null;
-            if (entry.getRequirementId() != null) {
-                requirement = requirementRepository.findById(entry.getRequirementId()).orElse(null);
-            }
-
             Schedule schedule = Schedule.builder()
                     .period(period)
                     .workDate(workDate)
                     .staff(staff)
                     .shiftType(shiftType)
-                    .requirement(requirement)
                     .hasConflict(false)
                     .build();
 
@@ -952,10 +941,10 @@ public class ScheduleService {
                         .isOvernight(schedule.getShiftType().getIsOvernight())
                         .fatigueScore(schedule.getShiftType().getFatigueScore())
                         .build())
-                .requirementId(schedule.getRequirement() != null ? schedule.getRequirement().getId() : null)
+                .requirementId(null)
                 .compensationDate(compensationDate)
                 .conflictReasons(conflictReasons)
-                .notes(schedule.getRequirement() != null ? schedule.getRequirement().getNote() : null)
+                .notes(null)
                 .hasConflict(schedule.getHasConflict())
                 .createdAt(schedule.getCreatedAt())
                 .updatedAt(schedule.getUpdatedAt())

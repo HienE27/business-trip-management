@@ -7,7 +7,6 @@ import com.hospital.scheduler.dto.response.TemplatePreviewItem;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.scheduler.entity.ScheduleTemplate;
-import com.hospital.scheduler.entity.ShiftRequirement;
 import com.hospital.scheduler.entity.ShiftType;
 import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.exception.BadRequestException;
@@ -15,7 +14,6 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.ScheduleTemplateRepository;
-import com.hospital.scheduler.repository.ShiftRequirementRepository;
 import com.hospital.scheduler.repository.ShiftTypeRepository;
 import com.hospital.scheduler.repository.SpecialtyRepository;
 import com.hospital.scheduler.repository.StaffRepository;
@@ -42,7 +40,6 @@ public class ScheduleTemplateService {
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
     private final SchedulePeriodRepository periodRepository;
-    private final ShiftRequirementRepository requirementRepository;
     private final StaffRepository staffRepository;
     private final ObjectMapper objectMapper;
 
@@ -155,14 +152,7 @@ public class ScheduleTemplateService {
             int dayOfWeek = currentDate.getDayOfWeek().getValue();
 
             if (dayOfWeek == template.getDayOfWeek()) {
-                ShiftRequirement requirement = ShiftRequirement.builder()
-                        .period(period)
-                        .workDate(currentDate)
-                        .shiftType(shiftType)
-                        .specialty(template.getSpecialty())
-                        .requiredStaffCount(template.getRequiredStaffCount())
-                        .build();
-                requirementRepository.save(requirement);
+                // ShiftRequirement removed - no longer creating requirement records
                 appliedCount++;
             }
             currentDate = currentDate.plusDays(1);
@@ -205,21 +195,6 @@ public class ScheduleTemplateService {
 
         int appliedCount = 0;
         for (com.hospital.scheduler.entity.Schedule source : sourceSchedules) {
-            // Ensure a ShiftRequirement exists for this (date, shiftType) in the target period,
-            // so the period's requirement data stays complete after applying the template.
-            ShiftRequirement req = requirementRepository.findByPeriodIdAndWorkDateAndShiftTypeId(
-                    period.getId(), source.getWorkDate(), source.getShiftType().getId())
-                    .orElseGet(() -> {
-                        ShiftRequirement newReq = ShiftRequirement.builder()
-                                .period(period)
-                                .workDate(source.getWorkDate())
-                                .shiftType(source.getShiftType())
-                                .specialty(source.getRequirement() != null ? source.getRequirement().getSpecialty() : null)
-                                .requiredStaffCount(1)
-                                .build();
-                        return requirementRepository.save(newReq);
-                    });
-
             // Skip if schedule already exists (avoid duplicate constraint violation)
             if (scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
                     period.getId(), source.getStaff().getId(), source.getShiftType().getId(), source.getWorkDate()).isPresent()) {
@@ -231,7 +206,6 @@ public class ScheduleTemplateService {
                     .staff(source.getStaff())
                     .shiftType(source.getShiftType())
                     .workDate(source.getWorkDate())
-                    .requirement(req)
                     .hasConflict(false)
                     .build();
             com.hospital.scheduler.entity.Schedule saved = scheduleRepository.save(copy);
@@ -342,7 +316,7 @@ public class ScheduleTemplateService {
                     .dayOfWeek(VIETNAMESE_DAYS[dowValue])
                     .shiftTypeId(s.getShiftType().getId())
                     .shiftTypeName(s.getShiftType().getName())
-                    .specialtyName(s.getRequirement() != null && s.getRequirement().getSpecialty() != null ? s.getRequirement().getSpecialty().getName() : null)
+                    .specialtyName(s.getStaff().getSpecialty() != null ? s.getStaff().getSpecialty().getName() : null)
                     .requiredStaffCount(1)
                     .assignedStaffId(s.getStaff().getId())
                     .assignedStaffName(s.getStaff().getFullName())
@@ -381,14 +355,14 @@ public class ScheduleTemplateService {
         java.util.Map<String, PatternEntry> patternMap = new java.util.LinkedHashMap<>();
         for (com.hospital.scheduler.entity.Schedule s : sourceSchedules) {
             String key = s.getWorkDate().getDayOfWeek().getValue() + "_" + s.getShiftType().getId()
-                    + "_" + (s.getRequirement() != null && s.getRequirement().getSpecialty() != null
-                            ? s.getRequirement().getSpecialty().getId() : "null");
+                    + "_" + (s.getStaff().getSpecialty() != null
+                            ? s.getStaff().getSpecialty().getId() : "null");
             patternMap.merge(key, new PatternEntry(
                             s.getWorkDate().getDayOfWeek().getValue(),
                             s.getShiftType().getId(),
-                            s.getRequirement() != null && s.getRequirement().getSpecialty() != null
-                                    ? s.getRequirement().getSpecialty().getId() : null,
-                            1),
+                            s.getStaff().getSpecialty() != null
+                                    ? s.getStaff().getSpecialty().getId() : null,
+                    1),
                     (existing, incoming) -> {
                         existing.requiredStaffCount++;
                         return existing;
@@ -605,20 +579,8 @@ public class ScheduleTemplateService {
                     ShiftType shiftType = shiftTypeMap.get(entry.shiftTypeId);
                     if (shiftType == null) continue;
 
-                    // Create one requirement per required slot, each with its own Schedule entry.
-                    // The spec says apply creates schedules (not just requirements) so the period
-                    // has actual assignments, not just demand records.
-                    for (int i = 0; i < entry.requiredStaffCount; i++) {
-                        ShiftRequirement req = ShiftRequirement.builder()
-                                .period(period)
-                                .workDate(current)
-                                .shiftType(shiftType)
-                                .specialty(specialty)
-                                .requiredStaffCount(1)
-                                .build();
-                        requirementRepository.save(req);
-                        appliedCount++;
-                    }
+                    // ShiftRequirement removed - just count the slots
+                    appliedCount += entry.requiredStaffCount;
                 }
             }
             current = current.plusDays(1);
@@ -691,18 +653,8 @@ public class ScheduleTemplateService {
                     // Skip if count is 0 or negative
                     if (requiredCount <= 0) continue;
 
-                    // Create requirements based on the count
-                    for (int j = 0; j < requiredCount; j++) {
-                        ShiftRequirement req = ShiftRequirement.builder()
-                                .period(period)
-                                .workDate(current)
-                                .shiftType(shiftType)
-                                .specialty(specialty)
-                                .requiredStaffCount(1)
-                                .build();
-                        requirementRepository.save(req);
-                        appliedCount++;
-                    }
+                    // ShiftRequirement removed - just count the slots
+                    appliedCount += requiredCount;
                 }
             }
             current = current.plusDays(1);

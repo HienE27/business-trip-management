@@ -73,6 +73,10 @@ public class ScheduleChromosome {
         return copy;
     }
     
+    public int[] getGenes() {
+        return genes;
+    }
+
     /**
      * Get staff assigned to a requirement at given index.
      * Returns null if unassigned (gene = -1).
@@ -129,6 +133,36 @@ public class ScheduleChromosome {
         if (required == 0) return 1.0;
         return (double) getAssignmentCount() / required;
     }
+
+    /**
+     * Calculate coverage weighted by shift type.
+     * The numerator is the sum of {@code weight[shiftType]} for every
+     * actually-assigned slot; the denominator is the same sum over all
+     * requirements. Heavy shifts (e.g. L01) thus dominate the coverage
+     * signal — a chromosome that fills only the lightest requirements
+     * shouldn't score a high coverage even when the slot-count looks
+     * good.
+     */
+    public double calculateWeightedCoverage(Map<String, Double> shiftWeight) {
+        double required = 0.0;
+        for (ShiftRequirementInfo req : requirements) {
+            required += weightOf(shiftWeight, req.shiftTypeId());
+        }
+        if (required <= 0.0) return 1.0;
+
+        double filled = 0.0;
+        for (int i = 0; i < genes.length && i < requirements.size(); i++) {
+            if (genes[i] >= 0) {
+                filled += weightOf(shiftWeight, requirements.get(i).shiftTypeId());
+            }
+        }
+        return filled / required;
+    }
+
+    private static double weightOf(Map<String, Double> weights, String shiftTypeId) {
+        Double w = weights.get(shiftTypeId);
+        return w != null ? w : 1.0;
+    }
     
     // Setters for GA use
     public void setConflictCount(int count) { this.conflictCount = count; }
@@ -156,20 +190,55 @@ public class ScheduleChromosome {
     public double calculateBalance() {
         Map<Integer, Integer> counts = getStaffAssignmentCounts();
         if (counts.isEmpty()) return 0.0;
-        
+
         double mean = (double) getAssignmentCount() / staffPool.size();
         double variance = 0.0;
-        
+
         for (Staff staff : staffPool) {
             int count = counts.getOrDefault(staffPool.indexOf(staff), 0);
             variance += Math.pow(count - mean, 2);
         }
         variance /= staffPool.size();
-        
+
         double stdDev = Math.sqrt(variance);
         // Convert to 0-1 score (lower std dev = higher score)
         // Assume max acceptable std dev is mean (complete imbalance)
         if (mean == 0) return 1.0;
+        double normalizedScore = 1.0 - (stdDev / (mean * 2));
+        return Math.max(0.0, Math.min(1.0, normalizedScore));
+    }
+
+    /**
+     * Weighted-balance variant. Each assignment contributes
+     * {@code weight[shiftType]} to the per-staff load; the score rewards
+     * chromosomes that distribute heavier shifts (L01) as evenly as
+     * possible. Standard deviation of weighted loads is normalised the
+     * same way as {@link #calculateBalance()}.
+     */
+    public double calculateWeightedBalance(Map<String, Double> shiftWeight) {
+        if (staffPool.isEmpty()) return 0.0;
+
+        // Per-staff weighted load.
+        double[] loads = new double[staffPool.size()];
+        for (int i = 0; i < genes.length && i < requirements.size(); i++) {
+            int gene = genes[i];
+            if (gene < 0) continue;
+            if (gene >= loads.length) continue;
+            loads[gene] += weightOf(shiftWeight, requirements.get(i).shiftTypeId());
+        }
+
+        double total = 0.0;
+        for (double load : loads) total += load;
+        double mean = total / staffPool.size();
+        if (mean <= 0.0) return 1.0;
+
+        double variance = 0.0;
+        for (double load : loads) {
+            variance += Math.pow(load - mean, 2);
+        }
+        variance /= staffPool.size();
+
+        double stdDev = Math.sqrt(variance);
         double normalizedScore = 1.0 - (stdDev / (mean * 2));
         return Math.max(0.0, Math.min(1.0, normalizedScore));
     }

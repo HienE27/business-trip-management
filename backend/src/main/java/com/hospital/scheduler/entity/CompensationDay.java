@@ -28,8 +28,8 @@ public class CompensationDay {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "schedule_id", nullable = true)
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "schedule_id", nullable = false, unique = true)
     private Schedule schedule;
 
     @ManyToOne(fetch = FetchType.LAZY)

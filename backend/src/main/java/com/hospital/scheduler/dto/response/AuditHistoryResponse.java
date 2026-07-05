@@ -26,7 +26,10 @@ public class AuditHistoryResponse {
     private LocalDateTime createdAt;
 
     public enum ActionType {
-        INSERT, UPDATE, DELETE
+        INSERT, UPDATE, DELETE,
+        PUBLISH,
+        APPROVE, REJECT, CANCEL,
+        BULK_DELETE, BULK_UPDATE
     }
 
     @Getter

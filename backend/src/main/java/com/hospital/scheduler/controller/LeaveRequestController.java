@@ -11,12 +11,15 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/leave-requests")
@@ -32,6 +35,25 @@ public class LeaveRequestController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<LeaveRequestResponse>>> getAllLeaveRequests() {
         return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getAllLeaveRequests()));
+    }
+
+    /**
+     * Paginated variant — delegates to the shared &lt;Pagination&gt; component on the
+     * frontend. Returns Spring's {@link Page} so client receives full metadata
+     * (totalElements, totalPages, number, size, first, last, empty, content).
+     */
+    @GetMapping("/page")
+    @Operation(summary = "Lấy danh sách yêu cầu nghỉ phép có phân trang")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Page<LeaveRequestResponse>>> getLeaveRequestsPage(Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getLeaveRequestsPage(pageable)));
+    }
+
+    @GetMapping("/status-counts")
+    @Operation(summary = "Đếm yêu cầu nghỉ phép theo trạng thái (toàn DB, không phân trang)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
+        return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getStatusCounts()));
     }
 
     @GetMapping("/pending")
