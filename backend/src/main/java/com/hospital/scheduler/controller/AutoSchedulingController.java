@@ -32,6 +32,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/auto-schedule")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Auto Scheduling", description = "Xếp lịch tự động")
 public class AutoSchedulingController {
 
