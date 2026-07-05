@@ -60,7 +60,9 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
       setRunning(true);
       setMessage(null);
       console.log("[AutoSchedule] Starting preview for period", periodId, "algorithm", algorithmType);
-      // Increase timeout for long-running algorithms (Backtracking can take 5+ minutes)
+      
+      // Start progress tracking by calling preview endpoint
+      // Backend will store result in progress tracker
       const result = await api.previewAutoSchedule({
         periodId,
         algorithmType,
@@ -69,7 +71,8 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         holidayMode: holidayMode ?? undefined,
         autoGenerateRequirements: autoGenerateReq,
       }, { timeout: 600000 }); // 10 minute timeout for Backtracking/Genetic algorithms
-      console.log("[AutoSchedule] Got result:", result);
+      
+      console.log("[AutoSchedule] Got direct result:", result);
       setPreviewResult(result.data);
       setEditedPreview([]);
       setRemovedShifts(new Set());
