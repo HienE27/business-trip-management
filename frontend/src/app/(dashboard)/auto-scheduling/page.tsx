@@ -154,7 +154,7 @@ export default function AutoSchedulingPage() {
   };
 
   const handleApplyPreview = async () => {
-    if (!previewResult) return;
+    if (!previewResult || !selectedPeriodId) return;
     const merged: Array<{ workDate: string; shiftTypeId: string; staffId: number }> = [
       ...previewResult.schedules.map((s) => ({
         workDate: s.workDate,

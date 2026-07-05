@@ -59,10 +59,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
     try {
       setRunning(true);
       setMessage(null);
-      console.log("[AutoSchedule] Starting preview for period", periodId, "algorithm", algorithmType);
-      
-      // Start progress tracking by calling preview endpoint
-      // Backend will store result in progress tracker
+
       const result = await api.previewAutoSchedule({
         periodId,
         algorithmType,
@@ -71,8 +68,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         holidayMode: holidayMode ?? undefined,
         autoGenerateRequirements: autoGenerateReq,
       }, { timeout: 600000 }); // 10 minute timeout for Backtracking/Genetic algorithms
-      
-      console.log("[AutoSchedule] Got direct result:", result);
+
       setPreviewResult(result.data);
       setEditedPreview([]);
       setRemovedShifts(new Set());
@@ -91,17 +87,13 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
       edited: Array<{ workDate: string; shiftTypeId: string; staffId: number }>,
       onSuccess: () => void
     ) => {
-      if (!periodId) {
-        console.log("[applyPreview] No periodId, returning early");
-        return;
-      }
+      if (!periodId) return;
       try {
         setApplying(true);
         setMessage(null);
         const schedules = edited.length > 0
           ? edited
           : previewResult?.schedules.map((s) => ({ workDate: s.workDate, shiftTypeId: s.shiftTypeId, staffId: s.staffId })) ?? [];
-        console.log("[applyPreview] Calling API with", schedules.length, "schedules");
         await api.applyPreview({ periodId, algorithmType, schedules });
         setMessage("Đã áp dụng phương án phân công.");
         setPreviewResult(null);
