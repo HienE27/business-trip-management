@@ -145,6 +145,17 @@ public class AutoSchedulingService {
         // This replaces the trust in the in-memory assignments used during preview,
         // which is no longer available at apply time.
         Map<String, Set<String>> inApplyLoop = new HashMap<>();
+        
+        // CRITICAL: Load existing compensation days into in-memory cache to prevent duplicates
+        // when re-running the algorithm after old schedules were deleted
+        Set<String> existingCompDays = new HashSet<>();
+        for (CompensationDay cd : compensationDayRepository.findByPeriodId(period.getId())) {
+            String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
+            existingCompDays.add(compKey);
+            allCompensationShiftDates.get().add(compKey);
+        }
+        log.info("Loaded {} existing compensation days for period {} into memory cache", 
+                existingCompDays.size(), period.getId());
 
         for (var item : request.getSchedules()) {
             Staff staff = staffRepository.findById(item.getStaffId())
@@ -345,6 +356,10 @@ public class AutoSchedulingService {
             log.info("Cleared {} existing schedules and compensation days for period {} before auto-scheduling",
                     existingSchedulesForPeriod.size(), period.getId());
         }
+        
+        // CRITICAL: Clear in-memory cache after deleting old data to prevent stale entries
+        allCompensationShiftDates.get().clear();
+        log.info("Cleared in-memory compensation day cache for period {}", period.getId());
 
         // Load runtime config from DB (or use defaults if not set)
         AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig = algorithmConfigService.getRuntimeConfig();
@@ -623,15 +638,17 @@ public class AutoSchedulingService {
         // checkPeriodConflicts() which queries the DB and writes ScheduleConflict rows.
         int actualConflictCount;
         if (save) {
-            actualConflictCount = conflictDetectionService.checkPeriodConflicts(period.getId()).getTotalConflicts();
-        } else {
-            // Preview mode: use separate service to check conflicts on temporary data
             try {
-                actualConflictCount = previewConflictCheckService.checkConflictsForPreview(createdSchedules, period.getId());
+                actualConflictCount = conflictDetectionService.checkPeriodConflicts(period.getId()).getTotalConflicts();
             } catch (Exception e) {
-                log.warn("Preview conflict check failed: {}. Falling back to in-memory count.", e.getMessage());
+                log.warn("Conflict detection failed: {}. Using in-memory count.", e.getMessage());
                 actualConflictCount = countInMemoryConflicts(createdSchedules);
             }
+        } else {
+            // Preview mode: always use in-memory count to avoid Hibernate assertion failures
+            // The preview is just for visualization, no need for full conflict detection
+            actualConflictCount = countInMemoryConflicts(createdSchedules);
+            log.info("Preview mode: using in-memory conflict count: {}", actualConflictCount);
         }
 
         if (save) {
@@ -769,15 +786,20 @@ public class AutoSchedulingService {
                         ? runtimeConfig.getMaxShiftsPerStaff()
                         : Integer.MAX_VALUE;
                 // Per-shift-type cap: allow high-volume types (L03/L04) to have more per-staff.
-                // Without this, maxShiftsPerStaff=8 caps total across ALL types, so L04 (180 slots) can't be distributed evenly.
-                // L01: 8 max, L02/L03: 12 max, L04: 16 max per staff.
+                // Without this, maxShiftsPerStaff=20 caps total across ALL types, so L04 (e.g. 496 ca across 4 specialties × 31 days)
+                // can't be distributed across only 10 specialty staff.
+                // L01: globalMax, L02/L03: globalMax + 4, L04: globalMax * 2 + 12 to handle multi-specialty daily requirements.
                 final int shiftTypeSpecificMax;
                 if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
-                    shiftTypeSpecificMax = globalMax; // L01: 8 max
+                    shiftTypeSpecificMax = globalMax;
                 } else if (ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
-                    shiftTypeSpecificMax = Math.max(8, globalMax + 8); // L04: 16 max
+                    // L04 may need (specialties × min_per_day × period_days) / staff_pool shifts per person.
+                    // Allow up to ~2x global cap so 1 NS L04 can cover ~50 shifts over a 31-day period.
+                    shiftTypeSpecificMax = (globalMax == Integer.MAX_VALUE)
+                            ? Integer.MAX_VALUE
+                            : Math.max(2 * globalMax + 12, 50);
                 } else {
-                    shiftTypeSpecificMax = Math.max(8, globalMax + 4); // L02/L03: 12 max
+                    shiftTypeSpecificMax = Math.max(8, globalMax + 4); // L02/L03: 4 more than global
                 }
                 // soft cap: prefer staff below (effectiveMax - 1) so rotation reaches underworked staff
                 final int softMax = Math.max(shiftTypeSpecificMax - 1, 0);
@@ -985,12 +1007,13 @@ public class AutoSchedulingService {
                         || currentDate.getDayOfWeek() == DayOfWeek.SUNDAY;
 
                 // FIX: Fairness by SWAP PRIORITY > SHIFT TYPE > TOTAL > rotation
-                // Per-shift-type cap: L01: 8, L02/L03: 12, L04: 16 (same as Greedy)
+                // Per-shift-type cap: L01: globalMax, L02/L03: globalMax + 4, L04: 2×globalMax + 12 (allow ~50 ca/NS to cover multi-specialty workload)
                 final int rrShiftTypeMax;
                 if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
                     rrShiftTypeMax = runtimeConfig.getMaxShiftsPerStaff() > 0 ? runtimeConfig.getMaxShiftsPerStaff() : Integer.MAX_VALUE;
                 } else if (ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
-                    rrShiftTypeMax = Math.max(8, (runtimeConfig.getMaxShiftsPerStaff() > 0 ? runtimeConfig.getMaxShiftsPerStaff() : 8) + 8);
+                    int gm = runtimeConfig.getMaxShiftsPerStaff() > 0 ? runtimeConfig.getMaxShiftsPerStaff() : 0;
+                    rrShiftTypeMax = gm == 0 ? Integer.MAX_VALUE : Math.max(2 * gm + 12, 50);
                 } else {
                     rrShiftTypeMax = Math.max(8, (runtimeConfig.getMaxShiftsPerStaff() > 0 ? runtimeConfig.getMaxShiftsPerStaff() : 8) + 4);
                 }
@@ -1177,7 +1200,10 @@ public class AutoSchedulingService {
             Set<String> existingCompDays = new HashSet<>();
             List<CompensationDay> existingComp = compensationDayRepository.findByPeriodId(period.getId());
             for (CompensationDay cd : existingComp) {
-                existingCompDays.add(cd.getStaff().getId() + "_" + cd.getCompensationDate().toString());
+                String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
+                existingCompDays.add(compKey);
+                // CRITICAL: Also add to in-memory cache to prevent duplicate compensation day creation
+                allCompensationShiftDates.get().add(compKey);
             }
             
             // Get approved leave requests
@@ -1361,7 +1387,11 @@ public class AutoSchedulingService {
             // creating overlapping days when we map back to Schedule).
             Set<String> existingCompDays = new HashSet<>();
             for (CompensationDay cd : compensationDayRepository.findByPeriodId(period.getId())) {
-                existingCompDays.add(cd.getStaff().getId() + "|" + cd.getCompensationDate().toString());
+                // Use underscore separator for consistency with GA and in-memory cache
+                String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
+                existingCompDays.add(compKey);
+                // CRITICAL: Also add to in-memory cache to prevent duplicate compensation day creation
+                allCompensationShiftDates.get().add(compKey);
             }
 
             // Approved leave requests in the window — CSP encodes them as
@@ -2496,11 +2526,32 @@ public class AutoSchedulingService {
                 schedule.getStaff().getId(), shiftDate, compensationDate);
 
         String compKey = schedule.getStaff().getId() + "_" + compensationDate.toString();
+        
+        // Check in-memory cache first (for current run)
         if (allCompensationShiftDates.get().contains(compKey)) {
-            log.debug("Compensation day already tracked for {}", compKey);
+            log.debug("Compensation day already tracked in memory for {}", compKey);
+            return;
+        }
+        
+        // CRITICAL FIX: Also check database for existing compensation day
+        // This prevents duplicate entries when re-running the algorithm
+        if (compensationDayRepository.existsByStaffIdAndCompensationDate(
+                schedule.getStaff().getId(), compensationDate)) {
+            log.warn("Compensation day already exists in DB for staff {} on {}", 
+                    schedule.getStaff().getId(), compensationDate);
+            // Add to in-memory cache to prevent duplicate checks
+            allCompensationShiftDates.get().add(compKey);
+            return;
+        }
+        
+        // Also check if this schedule already has a compensation day (by schedule_id)
+        if (schedule.getId() != null && compensationDayRepository.existsByScheduleId(schedule.getId())) {
+            log.warn("Schedule {} already has a compensation day", schedule.getId());
+            allCompensationShiftDates.get().add(compKey);
             return;
         }
 
+        // Create entity and save
         CompensationDay compDay = CompensationDay.builder()
                 .schedule(schedule)
                 .staff(schedule.getStaff())
@@ -2510,17 +2561,11 @@ public class AutoSchedulingService {
                 .note("Ngày nghỉ bù tự động từ ca L01")
                 .build();
 
-        try {
-            CompensationDay saved = compensationDayRepository.save(compDay);
+        CompensationDay saved = compensationDayRepository.save(compDay);
+        if (saved != null && saved.getId() != null) {
             log.info("Compensation day SAVED: id={}, staffId={}, compDate={}", 
                     saved.getId(), schedule.getStaff().getId(), compensationDate);
             allCompensationShiftDates.get().add(compKey);
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            log.warn("Compensation day already exists for staff {} on {} (DB constraint): {}",
-                    schedule.getStaff().getId(), compensationDate, e.getMessage());
-        } catch (Exception e) {
-            log.error("Failed to create compensation day for staff {} on {}: {}",
-                    schedule.getStaff().getId(), compensationDate, e.getMessage(), e);
         }
     }
 
@@ -2941,7 +2986,92 @@ public class AutoSchedulingService {
         List<ShiftRequirement> deduplicated = new ArrayList<>(uniqueReqs.values());
         log.info("Generated {} requirements (in-memory only, not saved to DB)", deduplicated.size());
 
+        // Validation: detect impossible workload before scheduling.
+        // Spec M07-F06: surface bottleneck information so manager can decide to adjust config or staff pool.
+        validateWorkloadFeasibility(period, config, deduplicated, activeStaff);
+
         return deduplicated;
+    }
+
+    /**
+     * Validate workload feasibility: detect when requirement demand exceeds staff capacity
+     * and emit actionable warnings so the manager can adjust config or staff pool.
+     * Implements Spec M07-F06 (báo cáo ngày chưa phân công được) proactively before scheduling.
+     *
+     * Strategy: group requirements by (shiftType, specialty). For each group, compare total demand
+     * against eligible staff capacity (staff matching the specialty, capped by max shifts per type).
+     */
+    private void validateWorkloadFeasibility(
+            SchedulePeriod period,
+            AutoGenConfig config,
+            List<ShiftRequirement> requirements,
+            List<Staff> activeStaff) {
+
+        // Group requirements by shiftType and compute total demand.
+        Map<String, Long> demandByShiftType = requirements.stream()
+                .collect(Collectors.groupingBy(r -> r.getShiftType().getId(), Collectors.counting()));
+
+        // Group requirements by (shiftType, specialty) for per-specialty capacity check (L04).
+        Map<String, Map<Integer, Long>> demandByShiftTypeSpecialty = new HashMap<>();
+        for (ShiftRequirement r : requirements) {
+            Integer specId = r.getSpecialty() != null ? r.getSpecialty().getId() : 0;
+            demandByShiftTypeSpecialty
+                    .computeIfAbsent(r.getShiftType().getId(), k -> new HashMap<>())
+                    .merge(specId, 1L, Long::sum);
+        }
+
+        // Count active staff per specialty.
+        Map<Integer, Long> staffPerSpecialty = activeStaff.stream()
+                .filter(s -> s.getSpecialty() != null)
+                .collect(Collectors.groupingBy(s -> s.getSpecialty().getId(), Collectors.counting()));
+        long totalActiveStaff = activeStaff.size();
+
+        // L04 per-specialty check.
+        Map<Integer, Long> l04Demand = demandByShiftTypeSpecialty.get("L04");
+        if (l04Demand != null) {
+            for (Map.Entry<Integer, Long> e : l04Demand.entrySet()) {
+                Integer specId = e.getKey();
+                long demand = e.getValue();
+                long pool = staffPerSpecialty.getOrDefault(specId, 0L);
+                if (pool == 0) {
+                    log.warn("WORKLOAD_IMPOSSIBLE L04 specialty={} demand={} but eligible staff=0 (no staff assigned to this specialty). {} ca sẽ thiếu nhân sự.",
+                            specId, demand, demand);
+                } else {
+                    // 1 staff can do at most 1 L04 per day → max capacity = pool × days
+                    long days = Math.max(1L, demand / Math.max(1L, config.l04MinPerDay()));
+                    long maxCapacity = pool * days;
+                    if (demand > maxCapacity) {
+                        log.warn("WORKLOAD_TIGHT L04 specialty={} demand={} ca, max capacity={} ca ({} NS × {} ngày). Cân nhắc thêm NS hoặc giảm l04MinPerDay.",
+                                specId, demand, maxCapacity, pool, days);
+                    }
+                }
+            }
+        }
+
+        // L01/L02/L03 global check: demand vs staff × period days.
+        long periodDays = java.time.temporal.ChronoUnit.DAYS.between(period.getStartDate(), period.getEndDate()) + 1;
+        for (String shiftType : new String[]{"L01", "L02", "L03"}) {
+            Long demand = demandByShiftType.get(shiftType);
+            if (demand == null || demand == 0) continue;
+            int requiredPerDay = getRequiredPerDay(shiftType, config);
+            long expectedDays = (long) Math.ceil((double) demand / Math.max(1, requiredPerDay));
+            long maxCapacity = totalActiveStaff * expectedDays;
+            if (demand > maxCapacity) {
+                log.warn("WORKLOAD_TIGHT {} demand={} ca, max capacity={} ca ({} NS × {} ngày).",
+                        shiftType, demand, maxCapacity, totalActiveStaff, expectedDays);
+            }
+        }
+    }
+
+    private int getRequiredPerDay(String shiftTypeId, AutoGenConfig config) {
+        if (config == null) return 1;
+        return switch (shiftTypeId) {
+            case "L01" -> config.l01MinPerDay();
+            case "L02" -> config.l02MinPerDay();
+            case "L03" -> config.l03MinPerDay();
+            case "L04" -> config.l04MinPerDay();
+            default -> 1;
+        };
     }
 
     private AutoScheduleResponse.GeneratedRequirementInfo toGeneratedRequirementInfo(ShiftRequirement r) {
@@ -2998,9 +3128,12 @@ public class AutoSchedulingService {
         }
 
         // 2. Load all compensation days in the period (single query)
+        // CRITICAL: Also add to in-memory cache to prevent duplicate compensation day creation
         Set<Integer> allOnCompDay = new HashSet<>();
         for (CompensationDay cd : compensationDayRepository.findInRange(periodStart, periodEnd)) {
             allOnCompDay.add(cd.getStaff().getId());
+            String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
+            allCompensationShiftDates.get().add(compKey);
         }
 
         // 3. Load all schedules for the period with details (single query)
@@ -3052,6 +3185,9 @@ public class AutoSchedulingService {
         // compensation on Tuesday (start of new period) — Tuesday must be blocked.
         for (CompensationDay cd : compensationDayRepository.findInRange(periodStart.minusDays(1), periodEnd.plusDays(1))) {
             compDaysByDate.computeIfAbsent(cd.getCompensationDate(), k -> new HashSet<>()).add(cd.getStaff().getId());
+            // Also add to in-memory cache (HashSet handles duplicates)
+            String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
+            allCompensationShiftDates.get().add(compKey);
         }
 
         // Pre-load all L01 schedules for adjacent range (already done above, reuse)
@@ -3210,17 +3346,31 @@ public class AutoSchedulingService {
                 if (hasConflict) continue;
             }
 
-            // 4. Hard maxShiftsPerStaff limit: skip if already at or above limit
-            // Also enforce per-shift-type cap (higher for L03/L04 so rotation can distribute evenly)
-            if (maxShiftsPerStaffLimit > 0) {
+            // 4. Hard maxShiftsPerStaff limit: skip if already at or above limit.
+            // Special handling for L04: it carries multi-specialty daily requirements, so the global
+            // maxShiftsPerStaff cap is too restrictive. We relax it for L04 (rely on type-specific cap only).
+            // L01/L02/L03 keep the global cap to prevent staff overwork.
+            if (maxShiftsPerStaffLimit > 0 && maxShiftsPerStaffLimit < Integer.MAX_VALUE) {
                 Map<String, Long> currentCounts = periodData.staffShiftTypeCounts().get(staff.getId());
-                long totalCurrent = currentCounts != null
-                        ? currentCounts.getOrDefault("L01", 0L) + currentCounts.getOrDefault("L02", 0L)
-                                + currentCounts.getOrDefault("L03", 0L) + currentCounts.getOrDefault("L04", 0L)
-                        : 0L;
-                long thisTypeCount = currentCounts != null ? currentCounts.getOrDefault(shiftTypeId, 0L) : 0L;
-                if (totalCurrent >= maxShiftsPerStaffLimit) continue;
-                if (thisTypeCount >= maxShiftsPerTypeLimit) continue;
+                long totalCurrent = 0L;
+                if (currentCounts != null) {
+                    if (ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
+                        // L04: cap per-type only; global cap is too restrictive for multi-specialty workload.
+                        long thisTypeCount = currentCounts.getOrDefault("L04", 0L);
+                        if (thisTypeCount >= maxShiftsPerTypeLimit) continue;
+                    } else {
+                        // L01/L02/L03: cap by total shifts across all types to prevent overwork.
+                        totalCurrent = currentCounts.getOrDefault("L01", 0L)
+                                + currentCounts.getOrDefault("L02", 0L)
+                                + currentCounts.getOrDefault("L03", 0L);
+                        if (totalCurrent >= maxShiftsPerStaffLimit) continue;
+                        if (!ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
+                            // For L02/L03 also check type-specific cap
+                            long thisTypeCount = currentCounts.getOrDefault(shiftTypeId, 0L);
+                            if (thisTypeCount >= maxShiftsPerTypeLimit) continue;
+                        }
+                    }
+                }
             }
 
             eligible.add(staff);
