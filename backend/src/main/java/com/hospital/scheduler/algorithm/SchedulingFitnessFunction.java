@@ -66,21 +66,26 @@ public class SchedulingFitnessFunction {
         // Calculate coverage (weighted by shift type)
         double coverage = chromosome.calculateWeightedCoverage(SHIFT_WEIGHT);
 
-        // Calculate balance (weighted by shift type)
+        // Calculate overall balance (weighted by shift type)
         double balance = chromosome.calculateWeightedBalance(SHIFT_WEIGHT);
+
+        // Calculate per-type balance: average of individual balance scores per shift type
+        // This penalises chromosomes that distribute one type evenly but dump all L01 on one person
+        double perTypeBalance = chromosome.calculatePerTypeBalance();
 
         // Update chromosome stats
         chromosome.setConflictCount(conflicts);
         chromosome.setCoverageRate(coverage);
         chromosome.setBalanceScore(balance);
 
-        // Fitness = base - conflictPenalty + balanceBonus + coverageBonus
+        // Fitness = base - conflictPenalty + balanceBonus + perTypeBalanceBonus + coverageBonus
         double baseFitness = 1000.0;
-        double conflictPenalty = conflicts * config.conflictWeight();
-        double balanceBonus = balance * config.balanceWeight();
-        double coverageBonus = coverage * config.coverageWeight();
+        double conflictPenalty  = conflicts * config.conflictWeight();
+        double balanceBonus     = balance * config.balanceWeight();
+        double perTypeBonus     = perTypeBalance * config.perTypeBalanceWeight();
+        double coverageBonus    = coverage * config.coverageWeight();
 
-        double fitness = baseFitness - conflictPenalty + balanceBonus + coverageBonus;
+        double fitness = baseFitness - conflictPenalty + balanceBonus + perTypeBonus + coverageBonus;
         chromosome.setFitness(fitness);
 
         return fitness;

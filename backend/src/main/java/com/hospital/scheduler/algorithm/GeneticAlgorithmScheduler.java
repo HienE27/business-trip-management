@@ -393,10 +393,19 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
         }
         
         // Second pass: balance-aware fill for requirements the chromosome did not cover.
-        // Earlier versions used first-fit greedy which produced highly unbalanced
-        // distributions. We now score every eligible candidate by their current
-        // shift count and pick the one with the fewest assignments, breaking ties
-        // by id (deterministic) to keep the algorithm stable.
+        // Uses per-type fairness tracking (per-specialty for L04) to ensure even distribution.
+        // Earlier versions used first-fit greedy which produced highly unbalanced distributions.
+        Map<String, Integer> staffTypeCount = new HashMap<>();  // "typeKey:staffId" -> count
+        for (Map.Entry<String, Set<Integer>> e : dateShiftStaffMap.entrySet()) {
+            String shiftKey = e.getKey();
+            for (Integer sid : e.getValue()) {
+                // Track per-type count with specialty for L04
+                String typeKey = getTypeKeyFromShiftKey(shiftKey);
+                String counterKey = typeKey + ":" + sid;
+                staffTypeCount.merge(counterKey, 1, Integer::sum);
+            }
+        }
+        
         Map<Integer, Integer> staffShiftCount = new HashMap<>();
         for (Set<Integer> assignedStaff : dateShiftStaffMap.values()) {
             for (Integer sid : assignedStaff) {
@@ -410,9 +419,11 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
             Set<Integer> assigned = dateShiftStaffMap.getOrDefault(shiftKey, Collections.emptySet());
             if (!assigned.isEmpty()) continue; // Already filled
 
-            // Score every eligible staff and pick the least-loaded
+            // Score every eligible staff and pick the best one using fairness-aware selection
             Staff picked = null;
-            int bestLoad = Integer.MAX_VALUE;
+            int bestTypeCount = Integer.MAX_VALUE;
+            int bestTotalCount = Integer.MAX_VALUE;
+            
             for (Staff staff : activeStaff) {
                 // Skip if already on another shift the same day
                 boolean staffBusy = false;
@@ -424,9 +435,16 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
                 }
                 if (staffBusy) continue;
 
-                int load = staffShiftCount.getOrDefault(staff.getId(), 0);
-                if (load < bestLoad) {
-                    bestLoad = load;
+                // Use per-type count (with specialty for L04) as primary criterion
+                String typeKey = getTypeKeyForReq(req);
+                String counterKey = typeKey + ":" + staff.getId();
+                int typeCount = staffTypeCount.getOrDefault(counterKey, 0);
+                int totalCount = staffShiftCount.getOrDefault(staff.getId(), 0);
+                
+                // Prefer staff with fewer of this type; tiebreak by total
+                if (typeCount < bestTypeCount || (typeCount == bestTypeCount && totalCount < bestTotalCount)) {
+                    bestTypeCount = typeCount;
+                    bestTotalCount = totalCount;
                     picked = staff;
                 }
             }
@@ -435,34 +453,56 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
             Set<Integer> newSet = new HashSet<>(assigned);
             newSet.add(picked.getId());
             dateShiftStaffMap.put(shiftKey, newSet);
+            
+            // Update both per-type and total counts
+            String typeKey = getTypeKeyForReq(req);
+            staffTypeCount.merge(typeKey + ":" + picked.getId(), 1, Integer::sum);
             staffShiftCount.merge(picked.getId(), 1, Integer::sum);
             assignments.put(picked.getId() + "_" + req.workDate(), req.shiftTypeId());
         }
-        
+
         // Add conflicts to errors
         if (bestSolution.getConflictCount() > 0) {
             errors.add("Còn " + bestSolution.getConflictCount() + " xung đột chưa được giải quyết");
         }
-        
+
         long executionTime = System.currentTimeMillis() - startTime;
-        
+
         // Count filled requirements
         long filledCount = requirements.stream()
                 .filter(req -> dateShiftStaffMap.containsKey(req.workDate() + "_" + req.shiftTypeId()))
                 .count();
-        
+
         return SchedulingResult.builder()
                 .assignments(assignments)
                 .valid(bestSolution.getConflictCount() == 0)
                 .errors(errors)
-                .totalScore(bestSolution.getFitness() > 0 ? 
+                .totalScore(bestSolution.getFitness() > 0 ?
                         BigDecimal.valueOf(bestSolution.getFitness()) : BigDecimal.ZERO)
                 .fairnessScore(BigDecimal.valueOf(bestSolution.getBalanceScore() * 100))
-                .coverageScore(requirements.isEmpty() ? BigDecimal.valueOf(100) : 
+                .coverageScore(requirements.isEmpty() ? BigDecimal.valueOf(100) :
                         BigDecimal.valueOf((double) filledCount / requirements.size() * 100))
                 .scheduleCount(assignments.size())
                 .executionTimeMs(executionTime)
                 .build();
+    }
+
+    /**
+     * Extract type key from shift key (e.g., "2026-08-01_L04" -> "L04").
+     */
+    private static String getTypeKeyFromShiftKey(String shiftKey) {
+        int lastUnderscore = shiftKey.lastIndexOf('_');
+        return lastUnderscore >= 0 ? shiftKey.substring(lastUnderscore + 1) : shiftKey;
+    }
+
+    /**
+     * Get type key for a requirement, using per-specialty for L04.
+     */
+    private static String getTypeKeyForReq(ShiftRequirementInfo req) {
+        if ("L04".equals(req.shiftTypeId()) && req.specialtyId() != null) {
+            return "L04:" + req.specialtyId();
+        }
+        return req.shiftTypeId();
     }
 
     // Required by interface but not implemented for incremental solve

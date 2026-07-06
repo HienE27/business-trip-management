@@ -99,7 +99,6 @@ export default function AutoSchedulingPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingStaffIds, setEditingStaffIds] = useState<Map<string | number, number>>(new Map());
   const [previewEditItem, setPreviewEditItem] = useState<import("@/types/api").AutoScheduleSummary | null>(null);
-  const [autoGenerateRequirements, setAutoGenerateRequirements] = useState(false);
 
   const loadWorkspace = useCallback(async () => {
     try {
@@ -150,7 +149,7 @@ export default function AutoSchedulingPage() {
 
   const handleRunPreview = () => {
     if (!selectedPeriodId) return;
-    void runPreview(selectedPeriodId, excludedStaffIds, autoGenerateRequirements);
+    void runPreview(selectedPeriodId, excludedStaffIds);
   };
 
   const handleApplyPreview = async () => {
@@ -397,8 +396,6 @@ export default function AutoSchedulingPage() {
           isManager={isManager}
           onSaveTemplate={() => setSaveModalOpen(true)}
           onApplyTemplate={openApplyTemplateModal}
-          autoGenerateRequirements={autoGenerateRequirements}
-          onAutoGenerateRequirementsChange={setAutoGenerateRequirements}
         />
       )}
 

@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { KPICard } from "@/components/ui/KPICard";
-import { FormCheckbox } from "@/components/ui";
 import type { AutoScheduleResult, SchedulePeriod, Staff } from "@/types/api";
 import { parseNumber, formatCoverageRate, formatPercent } from "@/lib/number-utils";
 import { useAlgorithmProgress } from "@/hooks/useAlgorithmProgress";
@@ -35,8 +34,6 @@ export type AutoSchedulePanelProps = {
   onSaveTemplate?: () => void;
   onApplyTemplate?: () => void;
   isManager?: boolean;
-  autoGenerateRequirements?: boolean;
-  onAutoGenerateRequirementsChange?: (value: boolean) => void;
 };
 
 /**
@@ -74,8 +71,6 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   onSaveTemplate,
   onApplyTemplate,
   isManager = true,
-  autoGenerateRequirements = false,
-  onAutoGenerateRequirementsChange,
 }: AutoSchedulePanelProps) {
   const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<number>>(new Set());
@@ -96,6 +91,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
   const unassignedDays = previewResult?.unassignedDays ?? [];
   const totalMissing = unassignedDays.reduce((sum: number, d: unknown) => sum + ((d as { missingCount?: number }).missingCount ?? 0), 0);
+  const crossSpecialtyCount = previewResult?.schedules.filter(s => s.crossSpecialty).length ?? 0;
   const coverageRate = previewResult ? Math.min(Math.round(parseNumber(previewResult.coverageRate)), 100) : 0;
   const balanceScore = previewResult ? parseNumber(previewResult.balanceScore) : 0;
   const statusMsgOk = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng") || message?.toLowerCase().includes("đã hủy");
@@ -147,13 +143,6 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
-            <FormCheckbox
-              label="Tự động tạo yêu cầu ca trực"
-              description="Hệ thống sẽ tự động tạo yêu cầu cho tất cả các ngày trong kỳ lịch"
-              checked={autoGenerateRequirements}
-              onChange={(e) => onAutoGenerateRequirementsChange?.(e.target.checked)}
-              disabled={runningAutoSchedule}
-            />
             <Button
               variant="primary"
               size="sm"
@@ -211,7 +200,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
       {previewResult ? (
         <div className="p-4 space-y-4">
           {/* Row 1: Algorithm badge + 4 KPI metrics (5 equal columns on desktop) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {/* Algorithm Badge Card — đồng nhất màu primary cho mọi thuật toán */}
             {algoResultInfo && (
               <div
@@ -253,7 +242,42 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               value={previewResult.conflictCount}
               tone={conflictTone}
             />
+            <KPICard
+              icon="swap_horiz"
+              label="Cross L04"
+              value={crossSpecialtyCount}
+              tone={crossSpecialtyCount > 0 ? "warning" : "info"}
+            />
           </div>
+
+          {crossSpecialtyCount > 0 && (
+            <div className="rounded-xl border border-tertiary/30 bg-tertiary-container/20 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-tertiary-container text-tertiary">
+                  <span className="material-symbols-outlined text-[18px]" aria-hidden="true">swap_horiz</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-label-md font-semibold text-tertiary">Đã dùng Cross-Specialty cho L04</p>
+                  <p className="text-label-xs text-on-surface-variant mt-0.5">
+                    {crossSpecialtyCount} ca L04 được gán nhân sự khác chuyên khoa theo tỷ lệ cấu hình.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {previewResult.schedules.filter(s => s.crossSpecialty).slice(0, 6).map((schedule, idx) => (
+                      <span key={`${schedule.staffId}-${schedule.workDate}-${idx}`} className="inline-flex items-center gap-1 rounded-full border border-tertiary/20 bg-surface-container-lowest px-2 py-1 text-[11px] text-on-surface-variant">
+                        <span className="material-symbols-outlined text-[12px] text-tertiary" aria-hidden="true">stethoscope</span>
+                        {schedule.staffName}: {schedule.staffSpecialtyName ?? "Không rõ"} → {schedule.requiredSpecialtyName ?? "L04"}
+                      </span>
+                    ))}
+                    {crossSpecialtyCount > 6 && (
+                      <span className="inline-flex items-center rounded-full border border-outline-variant bg-surface-container px-2 py-1 text-[11px] text-on-surface-variant">
+                        +{crossSpecialtyCount - 6} ca khác
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Row 2: Shift Type Breakdown Cards (own row, separate grid) */}
           {previewResult.byShiftType && Object.keys(previewResult.byShiftType).length > 0 && (

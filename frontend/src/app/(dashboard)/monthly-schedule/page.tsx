@@ -121,7 +121,6 @@ export default function MonthlySchedulePage() {
     activeStaff,
     conflictData,
     compensationDays,
-    requirements,
     specialties,
     loading,
     refreshing,
@@ -171,7 +170,6 @@ export default function MonthlySchedulePage() {
     activeStaff,
     conflictData,
     compensationDays,
-    requirements,
     focusDate,
     pendingLeaveRequests,
   });

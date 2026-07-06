@@ -39,4 +39,12 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Inte
     List<LeaveRequest> findApprovedInRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 
     long countByStatus(LeaveRequest.LeaveStatus status);
+
+    /** Batch query: approved leaves in a period date range (for scoring / conflict scan). */
+    @Query("SELECT lr FROM LeaveRequest lr LEFT JOIN FETCH lr.staff " +
+           "WHERE lr.status = :status " +
+           "AND lr.period.id = :periodId")
+    List<LeaveRequest> findByPeriodIdAndStatus(
+            @Param("periodId") Integer periodId,
+            @Param("status") LeaveRequest.LeaveStatus status);
 }

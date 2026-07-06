@@ -1,0 +1,6 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e3]:
+    - img [ref=f5e4]
+    - paragraph [ref=f5e7]: Đang kiểm tra xác thực…
+  - button "Open Next.js Dev Tools" [ref=f5e13] [cursor=pointer]:
+    - img [ref=f5e14]

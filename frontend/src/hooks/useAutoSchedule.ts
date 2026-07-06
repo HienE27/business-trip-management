@@ -18,7 +18,7 @@ export type AutoScheduleState = {
 };
 
 export type AutoScheduleActions = {
-  runPreview: (periodId: number | null, excludedStaffIds?: number[], autoGenerateReq?: boolean) => Promise<void>;
+  runPreview: (periodId: number | null, excludedStaffIds?: number[]) => Promise<void>;
   applyPreview: (
     periodId: number | null,
     edited: Array<{ workDate: string; shiftTypeId: string; staffId: number }>,
@@ -54,7 +54,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC">("GREEDY");
   const [holidayMode, setHolidayMode] = useState<"SKIP" | "PARTIAL" | null>(null);
 
-  const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[], autoGenerateReq?: boolean) => {
+  const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[]) => {
     if (!periodId) return;
     try {
       setRunning(true);
@@ -66,7 +66,6 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         maxIterations: 1000,
         excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
         holidayMode: holidayMode ?? undefined,
-        autoGenerateRequirements: autoGenerateReq,
       }, { timeout: 600000 }); // 10 minute timeout for Backtracking/Genetic algorithms
 
       setPreviewResult(result.data);

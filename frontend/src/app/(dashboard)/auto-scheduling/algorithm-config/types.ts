@@ -28,6 +28,8 @@ export type RuntimeConfig = {
   l01MaxPerWeek?: number; l02MaxPerWeek?: number; l03MaxPerWeek?: number; l04MaxPerWeek?: number;
   holidayMode?: string;
   removedShiftTypes?: string[];
+  l04CrossSpecialty?: boolean;
+  l04CrossSpecialtyRatio?: number;
 };
 
 export type AlgorithmMetrics = {
@@ -51,6 +53,8 @@ export type AutoGenConfigPayload = {
   l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
   l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
   removedShiftTypes: string[];
+  l04CrossSpecialty?: boolean;
+  l04CrossSpecialtyRatio?: number;
 };
 
 export type TabKey = "config" | "history" | "audit" | "reference";
@@ -63,6 +67,8 @@ export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([
   "l02MinPerDay", "l02MaxPerDay", "l02MinPerWeek", "l02MaxPerWeek",
   "l03MinPerDay", "l03MaxPerDay", "l03MinPerWeek", "l03MaxPerWeek",
   "l04MinPerDay", "l04MaxPerDay", "l04MinPerWeek", "l04MaxPerWeek",
+  "l04CrossSpecialty",
+  "l04CrossSpecialtyRatio",
 ]);
 
 /** Map snake_case param key (URL/draft) sang camelCase RuntimeConfig field */

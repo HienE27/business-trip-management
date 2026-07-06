@@ -23,6 +23,7 @@ import {
 import { ShiftTypeGroupCard } from "./ShiftTypeGroupCard";
 import { HolidayModeField } from "./HolidayModeField";
 import { RemovedShiftTypesField } from "./RemovedShiftTypesField";
+import { L04CrossSpecialtyCard } from "./L04CrossSpecialtyCard";
 import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
@@ -104,6 +105,8 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l03MaxPerWeek: form.l03MaxPerWeek ?? 0,
         l04MaxPerWeek: form.l04MaxPerWeek ?? 0,
         removedShiftTypes: form.removedShiftTypes ?? [],
+        l04CrossSpecialty: form.l04CrossSpecialty ?? false,
+        l04CrossSpecialtyRatio: form.l04CrossSpecialtyRatio ?? 0.3,
       };
       await Promise.all([
         api.updateRuntimeConfig(form),
@@ -208,6 +211,14 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           />
         ))}
         <AutoCompensationCard form={form} editing={editing} onChange={setField} />
+        <L04CrossSpecialtyCard
+          enabled={form.l04CrossSpecialty ?? false}
+          ratio={form.l04CrossSpecialtyRatio ?? 0.3}
+          editing={editing}
+          onChange={(enabled, ratio) => {
+            setForm(prev => prev ? { ...prev, l04CrossSpecialty: enabled, l04CrossSpecialtyRatio: ratio } : prev);
+          }}
+        />
       </div>
 
       <div>

@@ -162,7 +162,9 @@ public class DataSeeder implements CommandLineRunner {
                 0,      // l03MaxPerWeek
                 0,      // l04MaxPerWeek
                 "SKIP",  // holidayMode
-                List.of()  // removedShiftTypes (none by default)
+                List.of(),  // removedShiftTypes (none by default)
+                false,  // l04CrossSpecialty (disabled by default)
+                0.3f    // l04CrossSpecialtyRatio
         );
         algorithmConfigService.saveAutoGenConfig(defaults);
 

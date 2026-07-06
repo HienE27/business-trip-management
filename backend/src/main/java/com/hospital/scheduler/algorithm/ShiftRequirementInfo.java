@@ -9,9 +9,15 @@ import java.time.LocalDate;
  * @param shiftTypeId The shift type ID (L01, L02, L03, L04)
  * @param workDate    The work date
  * @param requiredCount Number of staff required for this slot
+ * @param specialtyId  The specialty ID for L04 (null for other types)
  */
 public record ShiftRequirementInfo(
         String shiftTypeId,
         LocalDate workDate,
-        int requiredCount
-) {}
+        int requiredCount,
+        Integer specialtyId
+) {
+    public ShiftRequirementInfo(String shiftTypeId, LocalDate workDate, int requiredCount) {
+        this(shiftTypeId, workDate, requiredCount, null);
+    }
+}

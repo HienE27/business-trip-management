@@ -47,7 +47,8 @@ class CspDataBuilder {
         int[] varDay = new int[varCount];
         int[] varShift = new int[varCount];
         int[] varSlot = new int[varCount];
-        fillVarArrays(slotCount, varDay, varShift, varSlot, numDays, numShifts);
+        int[] varSpecialty = new int[varCount];
+        fillVarArrays(slotCount, varDay, varShift, varSlot, varSpecialty, numDays, numShifts, requirements, dates);
 
         boolean[][] leaveMatrix = buildLeaveMatrix(staffList, dates, numDays, numStaff, leaveRequests);
         boolean[] holidayDays = detectHolidayDays(slotCount, numDays, numShifts);
@@ -66,6 +67,7 @@ class CspDataBuilder {
                 .varDay(varDay)
                 .varShift(varShift)
                 .varSlot(varSlot)
+                .varSpecialty(varSpecialty)
                 .slotCount(slotCount)
                 .leaveMatrix(leaveMatrix)
                 .holidayDays(holidayDays)
@@ -112,8 +114,18 @@ class CspDataBuilder {
         return varCount;
     }
 
-    private void fillVarArrays(int[][] slotCount, int[] varDay, int[] varShift, int[] varSlot,
-                               int numDays, int numShifts) {
+    private void fillVarArrays(int[][] slotCount, int[] varDay, int[] varShift, int[] varSlot, int[] varSpecialty,
+                               int numDays, int numShifts, List<ShiftRequirementInfo> requirements, List<LocalDate> dates) {
+        // Build a map of (dayIdx, shiftIdx) -> first requirement's specialty
+        java.util.Map<String, Integer> specialtyMap = new java.util.HashMap<>();
+        for (ShiftRequirementInfo req : requirements) {
+            int dayIdx = (int) ChronoUnit.DAYS.between(dates.get(0), req.workDate());
+            String key = dayIdx + "_" + getShiftIdx(req.shiftTypeId());
+            if (req.specialtyId() != null) {
+                specialtyMap.put(key, req.specialtyId());
+            }
+        }
+        
         int vid = 0;
         for (int d = 0; d < numDays; d++) {
             for (int s = 0; s < numShifts; s++) {
@@ -121,6 +133,13 @@ class CspDataBuilder {
                     varDay[vid] = d;
                     varShift[vid] = s;
                     varSlot[vid] = slot;
+                    // Store specialty for L04 shifts (null/0 for other types)
+                    if (s == 3) { // L04 is index 3 in SHIFT_ORDER
+                        Integer specId = specialtyMap.get(d + "_" + s);
+                        varSpecialty[vid] = specId != null ? specId : 0;
+                    } else {
+                        varSpecialty[vid] = 0;
+                    }
                     vid++;
                 }
             }

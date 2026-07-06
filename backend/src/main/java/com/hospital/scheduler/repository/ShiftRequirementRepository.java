@@ -36,4 +36,38 @@ public interface ShiftRequirementRepository extends JpaRepository<ShiftRequireme
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = "DELETE FROM shift_requirement WHERE period_id = :periodId", nativeQuery = true)
     void deleteAllByPeriodIdNative(@Param("periodId") Integer periodId);
+
+    /**
+     * Delete L04 requirements for specialties that have no active staff.
+     * Returns the number of deleted rows.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+        DELETE sr FROM shift_requirement sr
+        WHERE sr.period_id = :periodId
+          AND sr.shift_type_id = 'L04'
+          AND sr.specialty_id IN (
+              SELECT s.id FROM specialty s
+              LEFT JOIN staff st ON st.specialty_id = s.id AND st.active = true
+              GROUP BY s.id
+              HAVING COUNT(st.id) = 0
+          )
+        """, nativeQuery = true)
+    int deleteL04RequirementsWithoutStaff(@Param("periodId") Integer periodId);
+
+    /**
+     * Find L04 requirements for specialties that have no active staff.
+     */
+    @Query(value = """
+        SELECT sr.* FROM shift_requirement sr
+        WHERE sr.period_id = :periodId
+          AND sr.shift_type_id = 'L04'
+          AND sr.specialty_id IN (
+              SELECT s.id FROM specialty s
+              LEFT JOIN staff st ON st.specialty_id = s.id AND st.active = true
+              GROUP BY s.id
+              HAVING COUNT(st.id) = 0
+          )
+        """, nativeQuery = true)
+    List<ShiftRequirement> findL04RequirementsWithoutStaff(@Param("periodId") Integer periodId);
 }

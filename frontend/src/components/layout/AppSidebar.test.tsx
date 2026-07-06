@@ -12,7 +12,7 @@ function makeAllItems(activeCode?: string): NavigationItem[] {
   return [
     'dashboard', 'monthly-schedule', 'periods', 'duty-24', 'all-day',
     'service-clinic', 'expert-clinic', 'auto-scheduling', 'staff',
-    'leave-requests', 'shift-swaps', 'requirements', 'reports',
+    'leave-requests', 'shift-swaps', 'reports',
     'holidays', 'notifications', 'audit-history',
   ].map((code) => ({
     code,
@@ -36,7 +36,6 @@ function labelFor(code: string): string {
     'staff': 'Nhân sự',
     'leave-requests': 'Nghỉ phép',
     'shift-swaps': 'Đổi trực',
-    'requirements': 'Yêu cầu nhân sự',
     'reports': 'Báo cáo',
     'holidays': 'Ngày lễ',
     'notifications': 'Thông báo',

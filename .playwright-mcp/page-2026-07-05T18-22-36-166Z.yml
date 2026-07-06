@@ -1,0 +1,261 @@
+- generic [active] [ref=f6e1]:
+  - button "Open Next.js Dev Tools" [ref=f6e13] [cursor=pointer]:
+    - img [ref=f6e14]
+  - alert [ref=f6e17]
+  - generic [ref=f6e18]:
+    - link "Chuyển đến nội dung chính" [ref=f6e19] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Điều hướng chính" [ref=f6e20]:
+      - generic [ref=f6e21]:
+        - generic [ref=f6e23]: medical_services
+        - generic [ref=f6e24]:
+          - generic [ref=f6e25]:
+            - heading "Quản lý Lịch" [level=1] [ref=f6e26]
+            - 'generic "Môi trường: development" [ref=f6e27]': DEV
+          - paragraph [ref=f6e28]: Hệ thống điều phối
+      - generic [ref=f6e30]:
+        - generic: search
+        - textbox "Tìm chức năng trong sidebar" [ref=f6e31]:
+          - /placeholder: Tìm chức năng…
+      - navigation [ref=f6e33]:
+        - generic [ref=f6e34]:
+          - generic [ref=f6e35]:
+            - button "Tổng quan 2" [expanded] [ref=f6e36]:
+              - generic [ref=f6e37]: space_dashboard
+              - generic [ref=f6e38]: Tổng quan
+              - generic [ref=f6e39]: "2"
+              - generic [ref=f6e40]: expand_more
+            - list [ref=f6e41]:
+              - listitem [ref=f6e42]:
+                - link "Tổng quan" [ref=f6e43] [cursor=pointer]:
+                  - /url: /dashboard
+                  - generic [ref=f6e44]: dashboard
+                  - generic [ref=f6e45]: Tổng quan
+              - listitem [ref=f6e46]:
+                - link "Lập lịch tháng" [ref=f6e47] [cursor=pointer]:
+                  - /url: /monthly-schedule
+                  - generic [ref=f6e48]: calendar_month
+                  - generic [ref=f6e49]: Lập lịch tháng
+          - generic [ref=f6e50]:
+            - button "Lập lịch 5" [expanded] [ref=f6e51]:
+              - generic [ref=f6e52]: edit_calendar
+              - generic [ref=f6e53]: Lập lịch
+              - generic [ref=f6e54]: "5"
+              - generic [ref=f6e55]: expand_more
+            - list [ref=f6e56]:
+              - listitem [ref=f6e57]:
+                - link "Kỳ lịch công tác" [ref=f6e58] [cursor=pointer]:
+                  - /url: /periods
+                  - generic [ref=f6e59]: event_note
+                  - generic [ref=f6e60]: Kỳ lịch công tác
+              - listitem [ref=f6e61]:
+                - link "Lịch trực 24/24" [ref=f6e62] [cursor=pointer]:
+                  - /url: /duty-24
+                  - generic [ref=f6e63]: emergency
+                  - generic [ref=f6e64]: Lịch trực 24/24
+              - listitem [ref=f6e65]:
+                - link "Lịch thông tầm" [ref=f6e66] [cursor=pointer]:
+                  - /url: /all-day
+                  - generic [ref=f6e67]: schedule
+                  - generic [ref=f6e68]: Lịch thông tầm
+              - listitem [ref=f6e69]:
+                - link "Lịch PK dịch vụ" [ref=f6e70] [cursor=pointer]:
+                  - /url: /service-clinic
+                  - generic [ref=f6e71]: medical_services
+                  - generic [ref=f6e72]: Lịch PK dịch vụ
+              - listitem [ref=f6e73]:
+                - link "Lịch PK chuyên gia" [ref=f6e74] [cursor=pointer]:
+                  - /url: /expert-clinic
+                  - generic [ref=f6e75]: stethoscope
+                  - generic [ref=f6e76]: Lịch PK chuyên gia
+          - generic [ref=f6e77]:
+            - button "Vận hành 5" [expanded] [ref=f6e78]:
+              - generic [ref=f6e79]: settings_b_roll
+              - generic [ref=f6e80]: Vận hành
+              - generic [ref=f6e81]: "5"
+              - generic [ref=f6e82]: expand_more
+            - list [ref=f6e83]:
+              - listitem [ref=f6e84]:
+                - link "Tự động xếp lịch" [ref=f6e85] [cursor=pointer]:
+                  - /url: /auto-scheduling
+                  - generic [ref=f6e86]: auto_mode
+                  - generic [ref=f6e87]: Tự động xếp lịch
+              - listitem [ref=f6e88]:
+                - link "Nhân sự" [ref=f6e89] [cursor=pointer]:
+                  - /url: /staff
+                  - generic [ref=f6e90]: groups
+                  - generic [ref=f6e91]: Nhân sự
+              - listitem [ref=f6e92]:
+                - link "Nghỉ phép" [ref=f6e93] [cursor=pointer]:
+                  - /url: /leave-requests
+                  - generic [ref=f6e94]: event_busy
+                  - generic [ref=f6e95]: Nghỉ phép
+              - listitem [ref=f6e96]:
+                - link "Đổi trực" [ref=f6e97] [cursor=pointer]:
+                  - /url: /swap-requests
+                  - generic [ref=f6e98]: swap_horiz
+                  - generic [ref=f6e99]: Đổi trực
+              - listitem [ref=f6e100]:
+                - link "Ngày lễ" [ref=f6e101] [cursor=pointer]:
+                  - /url: /holidays
+                  - generic [ref=f6e102]: celebration
+                  - generic [ref=f6e103]: Ngày lễ
+          - generic [ref=f6e104]:
+            - button "Theo dõi 3" [expanded] [ref=f6e105]:
+              - generic [ref=f6e106]: monitoring
+              - generic [ref=f6e107]: Theo dõi
+              - generic [ref=f6e108]: "3"
+              - generic [ref=f6e109]: expand_more
+            - list [ref=f6e110]:
+              - listitem [ref=f6e111]:
+                - link "Báo cáo" [ref=f6e112] [cursor=pointer]:
+                  - /url: /reports
+                  - generic [ref=f6e113]: assessment
+                  - generic [ref=f6e114]: Báo cáo
+              - listitem [ref=f6e115]:
+                - link "Thông báo" [ref=f6e116] [cursor=pointer]:
+                  - /url: /notifications
+                  - generic [ref=f6e117]: notifications
+                  - generic [ref=f6e118]: Thông báo
+              - listitem [ref=f6e119]:
+                - link "Nhật ký" [ref=f6e120] [cursor=pointer]:
+                  - /url: /audit-history
+                  - generic [ref=f6e121]: history
+                  - generic [ref=f6e122]: Nhật ký
+    - generic [ref=f6e123]:
+      - banner [ref=f6e124]:
+        - generic [ref=f6e126]:
+          - generic [ref=f6e127]: search
+          - searchbox "Tìm kiếm toàn cục" [ref=f6e128]
+        - generic [ref=f6e129]:
+          - button "Thông báo" [ref=f6e131]:
+            - generic [ref=f6e132]: notifications
+          - link "Cài đặt" [ref=f6e133] [cursor=pointer]:
+            - /url: /settings
+            - generic [ref=f6e134]: settings
+          - generic [ref=f6e135]:
+            - 'button "Tài khoản: admin" [ref=f6e136]':
+              - generic [ref=f6e137]: A
+              - generic [ref=f6e138]:
+                - generic [ref=f6e139]: admin
+                - generic [ref=f6e140]: Trưởng phòng
+              - generic [ref=f6e141]: expand_more
+            - menu:
+              - generic:
+                - paragraph: admin
+                - paragraph: Trưởng phòng
+              - generic:
+                - menuitem "Hồ sơ cá nhân":
+                  - generic: person
+                  - text: Hồ sơ cá nhân
+                - menuitem "Cài đặt":
+                  - generic: settings
+                  - text: Cài đặt
+              - generic:
+                - menuitem "Đăng xuất":
+                  - generic: logout
+                  - text: Đăng xuất
+      - main [ref=f6e142]:
+        - generic [ref=f6e144]:
+          - link "Quay lại" [ref=f6e145] [cursor=pointer]:
+            - /url: /dashboard
+            - generic [ref=f6e146]: arrow_back
+            - generic [ref=f6e147]: Quay lại
+          - generic [ref=f6e149]:
+            - heading "Xếp lịch tự động" [level=1] [ref=f6e150]:
+              - generic [ref=f6e152]: auto_mode
+              - text: Xếp lịch tự động
+            - paragraph [ref=f6e153]: Tự động phân bổ ca trực với thuật toán tối ưu
+          - generic [ref=f6e155]:
+            - generic [ref=f6e156]:
+              - generic [ref=f6e157]:
+                - generic [ref=f6e158]:
+                  - generic [ref=f6e159]: Kỳ xếp lịch
+                  - combobox "Kỳ xếp lịch" [ref=f6e160] [cursor=pointer]:
+                    - option "Kỳ tháng 06/2026"
+                    - option "Kỳ tháng 07/2026" [selected]
+                    - option "Test July 2026"
+                    - option "Tháng 8"
+                    - option "Tháng 10/2026"
+                    - option "Tháng 9/2026"
+                    - option "Thang 10/2026"
+                  - generic: expand_more
+                - status [ref=f6e229]: Đã công bố
+                - generic [ref=f6e163]:
+                  - generic [ref=f6e164]: groups
+                  - generic [ref=f6e165]: "21"
+                  - text: nhân sự
+                - generic [ref=f6e166]:
+                  - generic [ref=f6e167]: date_range
+                  - text: 01-07 → 31/07/2026
+              - generic [ref=f6e168]:
+                - link "tune Cấu hình" [ref=f6e169] [cursor=pointer]:
+                  - /url: /auto-scheduling/algorithm-config
+                  - button "tune Cấu hình" [ref=f6e170]:
+                    - generic [ref=f6e171]: tune
+                    - text: Cấu hình
+                - link "history Lịch sử" [ref=f6e172] [cursor=pointer]:
+                  - /url: /auto-scheduling/history
+                  - button "history Lịch sử" [ref=f6e173]:
+                    - generic [ref=f6e174]: history
+                    - text: Lịch sử
+                - link "calendar_month Lịch trực" [ref=f6e175] [cursor=pointer]:
+                  - /url: /monthly-schedule
+                  - button "calendar_month Lịch trực" [ref=f6e176]:
+                    - generic [ref=f6e177]: calendar_month
+                    - text: Lịch trực
+                - button "bolt Công bố hàng loạt" [ref=f6e178]:
+                  - generic [ref=f6e179]: bolt
+                  - text: Công bố hàng loạt
+            - generic "Cấu hình runtime đang áp dụng" [ref=f6e181]:
+              - 'generic "Hệ số cuối tuần: 3×" [ref=f6e182]':
+                - code [ref=f6e183]: T7/CN
+                - generic [ref=f6e184]: 3×
+              - 'generic "Ngưỡng phủ: 95%" [ref=f6e185]':
+                - code [ref=f6e186]: Coverage
+                - generic [ref=f6e187]: 95%
+              - 'generic "Ngưỡng cân bằng: 85%" [ref=f6e188]':
+                - code [ref=f6e189]: Balance
+                - generic [ref=f6e190]: 85%
+          - generic [ref=f6e191]:
+            - generic [ref=f6e192]:
+              - generic [ref=f6e193]:
+                - generic [ref=f6e194]:
+                  - generic [ref=f6e196]: psychology
+                  - generic [ref=f6e197]:
+                    - button "Greedy" [pressed] [ref=f6e198] [cursor=pointer]:
+                      - generic [ref=f6e199]: bolt
+                      - text: Greedy
+                    - button "Round Robin" [ref=f6e200] [cursor=pointer]:
+                      - generic [ref=f6e201]: autorenew
+                      - text: Round Robin
+                    - button "Backtracking" [ref=f6e202] [cursor=pointer]:
+                      - generic [ref=f6e203]: route
+                      - text: Backtracking
+                    - button "Di truyền" [ref=f6e204] [cursor=pointer]:
+                      - generic [ref=f6e205]: psychology
+                      - text: Di truyền
+                    - button "CSP-MRV-FC" [ref=f6e206] [cursor=pointer]:
+                      - generic [ref=f6e207]: account_tree
+                      - text: CSP-MRV-FC
+                - generic [ref=f6e208]:
+                  - button "play_arrow Chạy" [disabled]:
+                    - generic: play_arrow
+                    - text: Chạy
+              - status [ref=f6e231]:
+                - generic [ref=f6e232]: info
+                - text: Chỉ kỳ DRAFT mới xếp được
+            - status [ref=f6e211]:
+              - generic [ref=f6e213]: auto_mode
+              - heading "Sẵn sàng xếp lịch tự động" [level=2] [ref=f6e214]
+              - paragraph [ref=f6e215]: Chọn thuật toán và nhấn Chạy để phân bổ ca trực một cách tối ưu
+          - button "Ngoại lệ nhân sự Loại trừ nhân sự khỏi lịch tự động" [ref=f6e217] [cursor=pointer]:
+            - generic [ref=f6e219]: block
+            - generic [ref=f6e220]:
+              - paragraph [ref=f6e221]: Ngoại lệ nhân sự
+              - paragraph [ref=f6e222]: Loại trừ nhân sự khỏi lịch tự động
+            - status [ref=f6e225]:
+              - generic [ref=f6e226]: group
+              - text: 21 tham gia
+            - generic [ref=f6e228]: expand_more
+  - generic "Thông báo"

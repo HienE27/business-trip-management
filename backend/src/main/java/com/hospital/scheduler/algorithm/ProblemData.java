@@ -20,6 +20,8 @@ class ProblemData {
     int[] varDay;
     int[] varShift;
     int[] varSlot;
+    // Specialty ID for each variable (null/0 for non-L04 shifts)
+    int[] varSpecialty;
 
     int[][] slotCount;
     boolean[][] leaveMatrix;

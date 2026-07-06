@@ -39,6 +39,8 @@ class CspSearchEngine {
         int[] assignment = new int[data.numVars];
         java.util.Arrays.fill(assignment, -1);
         int[] staffWorkload = new int[data.numStaff];
+        // Per-type workload: staffShiftWorkload[staffIdx][shiftIdx] = how many of that type assigned
+        int[][] staffShiftWorkload = new int[data.numStaff][data.numShifts];
         BitSet[] restDays = new BitSet[data.numStaff];
         for (int i = 0; i < data.numStaff; i++) {
             restDays[i] = new BitSet(data.numDays);
@@ -49,7 +51,7 @@ class CspSearchEngine {
         int[] trailStaff = new int[maxTrail];
         int[] trailPtr = {0};
 
-        boolean found = search(domains, assignment, staffWorkload, restDays,
+        boolean found = search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
                 trailVar, trailStaff, trailPtr, data, startTime);
         if (!found) {
             return Result.builder().valid(false).errors(List.of("Không tìm được lịch hợp lệ")).build();
@@ -65,8 +67,9 @@ class CspSearchEngine {
     }
 
     private boolean search(
-            BitSet[] domains, int[] assignment, int[] staffWorkload, BitSet[] restDays,
-            int[] trailVar, int[] trailStaff, int[] trailPtr, ProblemData data, long startTime) {
+            BitSet[] domains, int[] assignment, int[] staffWorkload, int[][] staffShiftWorkload,
+            BitSet[] restDays, int[] trailVar, int[] trailStaff, int[] trailPtr,
+            ProblemData data, long startTime) {
 
         if (System.currentTimeMillis() - startTime > TIMEOUT_MS) return false;
         if (isGoal(domains, assignment, data)) return true;
@@ -78,7 +81,8 @@ class CspSearchEngine {
         int shiftIdx = data.varShift[var];
         String shiftType = SHIFT_ORDER[shiftIdx];
 
-        List<Integer> candidates = getCandidates(domains[var], staffWorkload);
+        // Sort candidates: fewest of THIS shift type first, then fewest total — ensures even per-type distribution
+        List<Integer> candidates = getCandidates(domains[var], staffWorkload, staffShiftWorkload, shiftIdx);
 
         for (int staffIdx : candidates) {
             if (nogoodStore.violatesNogood(assignment, var, staffIdx, data.numVars)) continue;
@@ -87,6 +91,7 @@ class CspSearchEngine {
             int trailBefore = trailPtr[0];
             assignment[var] = staffIdx;
             staffWorkload[staffIdx]++;
+            staffShiftWorkload[staffIdx][shiftIdx]++;
 
             if (shiftType.equals(DIRECT_24H)) {
                 int compDayIdx = getCompensationDayIdx(dayIdx, data);
@@ -96,7 +101,7 @@ class CspSearchEngine {
             if (propagate(staffIdx, var, domains, restDays, assignment,
                     trailVar, trailStaff, trailPtr, data)) {
 
-                if (search(domains, assignment, staffWorkload, restDays,
+                if (search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
                         trailVar, trailStaff, trailPtr, data, startTime)) {
                     return true;
                 }
@@ -122,6 +127,7 @@ class CspSearchEngine {
             }
             assignment[var] = -1;
             staffWorkload[staffIdx]--;
+            staffShiftWorkload[staffIdx][shiftIdx]--;
             if (shiftType.equals(DIRECT_24H)) {
                 int compDayIdx = getCompensationDayIdx(dayIdx, data);
                 if (compDayIdx >= 0 && compDayIdx < data.numDays) restDays[staffIdx].clear(compDayIdx);
@@ -221,12 +227,24 @@ class CspSearchEngine {
         return bestVar;
     }
 
-    private List<Integer> getCandidates(BitSet domain, int[] staffWorkload) {
+    /**
+     * Sort candidates for a variable:
+     * Tier-1: fewest of THIS shift type → guarantees even per-type distribution
+     * Tier-2: fewest total shifts → secondary tiebreak for overall balance
+     *
+     * This two-level sort prevents the CSP from repeatedly assigning the same
+     * staff to L01 (or any other heavy type) simply because they have the
+     * lowest total workload, while other staff accumulate only light shifts.
+     */
+    private List<Integer> getCandidates(BitSet domain, int[] staffWorkload,
+                                        int[][] staffShiftWorkload, int shiftIdx) {
         List<Integer> list = new ArrayList<>();
         for (int s = domain.nextSetBit(0); s >= 0; s = domain.nextSetBit(s + 1)) {
             list.add(s);
         }
-        list.sort(Comparator.comparingInt(s -> staffWorkload[s]));
+        list.sort(Comparator
+                .comparingInt((Integer s) -> staffShiftWorkload[s][shiftIdx])  // per-type first
+                .thenComparingInt(s -> staffWorkload[s]));                      // total as tiebreak
         return list;
     }
 

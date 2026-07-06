@@ -79,7 +79,7 @@ function buildScheduleExportQuery(filters: ScheduleExportFilters): string {
 class ApiClient {
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit & { timeout?: number } = {}
   ): Promise<ApiResponse<T>> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -769,6 +769,7 @@ class ApiClient {
     message?: string;
     startedAt?: string;
     updatedAt?: string;
+    resultJson?: string;
   }> {
     return this.get(`/auto-schedule/progress/${periodId}`);
   }
@@ -953,6 +954,8 @@ class ApiClient {
     l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
     holidayMode: string;
     removedShiftTypes: string[];
+    l04CrossSpecialty?: boolean;
+    l04CrossSpecialtyRatio?: number;
   }): Promise<ApiResponse<{
     enabled: boolean;
     l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
@@ -961,6 +964,8 @@ class ApiClient {
     l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
     holidayMode: string;
     removedShiftTypes: string[];
+    l04CrossSpecialty?: boolean;
+    l04CrossSpecialtyRatio?: number;
   }>> {
     return this.request<{
       enabled: boolean;
@@ -970,6 +975,8 @@ class ApiClient {
       l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
       holidayMode: string;
       removedShiftTypes: string[];
+      l04CrossSpecialty?: boolean;
+      l04CrossSpecialtyRatio?: number;
     }>("/auto-schedule/auto-gen-config", {
       method: "PUT",
       body: JSON.stringify(data),

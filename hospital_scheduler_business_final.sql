@@ -26,7 +26,6 @@ DROP TABLE IF EXISTS schedule_exchange;
 DROP TABLE IF EXISTS compensation_day;
 DROP TABLE IF EXISTS schedule;
 DROP TABLE IF EXISTS leave_request;
-DROP TABLE IF EXISTS shift_requirement;
 DROP TABLE IF EXISTS schedule_template;
 DROP TABLE IF EXISTS schedule_period;
 DROP TABLE IF EXISTS shift_type;
@@ -181,36 +180,7 @@ CREATE TABLE schedule_period (
 ) ENGINE=InnoDB;
 
 -- =====================================================
--- 9. SHIFT_REQUIREMENT
--- Nhu cầu nhân sự cho từng ngày/ca/chuyên môn.
--- Rất quan trọng cho thuật toán lập lịch tự động.
--- Ví dụ: ngày X, ca đêm, cần 2 bác sĩ và 3 điều dưỡng.
--- =====================================================
-CREATE TABLE shift_requirement (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    period_id INT NOT NULL,
-    work_date DATE NOT NULL,
-    shift_type_id VARCHAR(10) NOT NULL,
-    specialty_id INT NULL,
-    required_staff_count INT NOT NULL,
-    note TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_requirement_period
-        FOREIGN KEY (period_id) REFERENCES schedule_period(id) ON DELETE CASCADE,
-    CONSTRAINT fk_requirement_shift_type
-        FOREIGN KEY (shift_type_id) REFERENCES shift_type(id),
-    CONSTRAINT fk_requirement_specialty
-        FOREIGN KEY (specialty_id) REFERENCES specialty(id),
-    CONSTRAINT chk_requirement_staff_count
-        CHECK (required_staff_count > 0),
-    UNIQUE KEY uk_requirement_unique (period_id, work_date, shift_type_id, specialty_id),
-    UNIQUE KEY uk_requirement_id_period_date_shift (id, period_id, work_date, shift_type_id)
-) ENGINE=InnoDB;
-
--- =====================================================
--- 10. LEAVE_REQUEST
+-- 9. LEAVE_REQUEST
 -- Xin nghỉ theo khoảng ngày thay vì chỉ 1 ngày.
 -- Nếu nghỉ 1 ngày: start_date = end_date.
 -- =====================================================
@@ -236,9 +206,8 @@ CREATE TABLE leave_request (
 ) ENGINE=InnoDB;
 
 -- =====================================================
--- 11. SCHEDULE
+-- 10. SCHEDULE
 -- Lịch phân công thực tế.
--- requirement_id cho biết dòng lịch này đang đáp ứng nhu cầu nào.
 -- has_conflict dùng để lọc nhanh; chi tiết conflict nằm ở schedule_conflict.
 -- =====================================================
 CREATE TABLE schedule (
@@ -247,7 +216,6 @@ CREATE TABLE schedule (
     work_date DATE NOT NULL,
     staff_id INT NOT NULL,
     shift_type_id VARCHAR(10) NOT NULL,
-    requirement_id INT NULL,
     has_conflict BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -258,15 +226,12 @@ CREATE TABLE schedule (
         FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
     CONSTRAINT fk_schedule_shift_type
         FOREIGN KEY (shift_type_id) REFERENCES shift_type(id),
-    CONSTRAINT fk_schedule_requirement
-        FOREIGN KEY (requirement_id, period_id, work_date, shift_type_id)
-        REFERENCES shift_requirement(id, period_id, work_date, shift_type_id),
 
     UNIQUE KEY uk_schedule_unique (period_id, staff_id, shift_type_id, work_date)
 ) ENGINE=InnoDB;
 
 -- =====================================================
--- 12. COMPENSATION_DAY
+-- 11. COMPENSATION_DAY
 -- Ngày nghỉ bù sau ca trực đặc biệt, ví dụ L01.
 -- Composite FK đảm bảo staff_id/period_id/shift_date khớp với schedule_id.
 -- =====================================================
@@ -294,7 +259,7 @@ CREATE TABLE compensation_day (
 ) ENGINE=InnoDB;
 
 -- =====================================================
--- 13. SCHEDULE_EXCHANGE
+-- 12. SCHEDULE_EXCHANGE
 -- Đổi ca giữa 2 nhân sự.
 -- period_id + composite FK đảm bảo 2 ca đổi thuộc cùng kỳ và đúng người sở hữu ca.
 -- =====================================================
@@ -336,7 +301,7 @@ CREATE TABLE schedule_exchange (
 ) ENGINE=InnoDB;
 
 -- =====================================================
--- 14. ALGORITHM_CONFIG
+-- 13. ALGORITHM_CONFIG
 -- Cấu hình thuật toán. value_type giúp backend validate param_value.
 -- =====================================================
 CREATE TABLE algorithm_config (
@@ -353,7 +318,7 @@ CREATE TABLE algorithm_config (
 ) ENGINE=InnoDB;
 
 -- =====================================================
--- 15. SYSTEM_LOG
+-- 14. SYSTEM_LOG
 -- Log hành động hệ thống ở mức tổng quát.
 -- =====================================================
 CREATE TABLE system_log (

@@ -24,7 +24,6 @@ export type ScheduleWorkspaceState = Pick<
   | "activeStaff"
   | "conflictData"
   | "compensationDays"
-  | "requirements"
   | "specialties"
   | "loading"
   | "refreshing"
@@ -126,7 +125,6 @@ export function useScheduleWorkspace(): [ScheduleWorkspaceState, ScheduleWorkspa
     activeStaff: data.activeStaff,
     conflictData: data.conflictData,
     compensationDays: data.compensationDays,
-    requirements: data.requirements,
     specialties: data.specialties,
     loading: data.loading,
     refreshing: data.refreshing,

@@ -468,6 +468,36 @@ public class SchedulePeriodService {
         log.info("Successfully deleted period id={}", id);
     }
 
+    /**
+     * Delete L04 shift requirements for specialties that have no active staff.
+     * This fixes the 39.9% L04 coverage issue by removing impossible requirements.
+     *
+     * @param periodId the period to clean up
+     * @return count of deleted rows
+     */
+    public int deleteL04RequirementsWithoutStaff(Integer periodId) {
+        SchedulePeriod period = periodRepository.findById(periodId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + periodId));
+
+        if (period.getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
+            throw new BadRequestException("Chỉ có thể xóa requirements ở trạng thái DRAFT");
+        }
+
+        // Audit before delete
+        List<com.hospital.scheduler.entity.ShiftRequirement> toDelete =
+                shiftRequirementRepository.findL04RequirementsWithoutStaff(periodId);
+        Integer adminId = authContextService.getCurrentStaff() != null
+                ? authContextService.getCurrentStaff().getId() : null;
+        for (com.hospital.scheduler.entity.ShiftRequirement sr : toDelete) {
+            auditHistoryService.logAction("shift_requirement", sr.getId(),
+                    AuditHistory.ActionType.DELETE, sr, null, adminId);
+        }
+
+        int deleted = shiftRequirementRepository.deleteL04RequirementsWithoutStaff(periodId);
+        log.info("Deleted {} L04 requirements without active staff for periodId={}", deleted, periodId);
+        return deleted;
+    }
+
     private SchedulePeriodResponse toResponse(SchedulePeriod period) {
         SchedulePeriodResponse.StaffSummary generatedBySummary = null;
         if (period.getGeneratedBy() != null) {

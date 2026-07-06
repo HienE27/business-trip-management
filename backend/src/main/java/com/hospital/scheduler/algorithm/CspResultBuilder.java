@@ -69,7 +69,7 @@ class CspResultBuilder {
         }
 
         Map<Integer, Integer> shiftCounts = countShiftsPerStaff(assignments);
-        double fairness = fairnessScore(shiftCounts);
+        double fairness = fairnessScore(assignments, data, staffList);
         double coverage = data.numVars > 0 ? (double) assignments.size() / data.numVars * 100 : 100;
 
         List<Map<String, Object>> unassignedDays = buildUnassignedDaysReport(data, assignments, dates);
@@ -101,9 +101,71 @@ class CspResultBuilder {
     }
 
     /**
-     * Fairness heuristic: 100 - 10 × variance of per-staff shift counts.
-     * Higher = more balanced. Capped at 0 (variance so high that score
-     * would go negative).
+     * Fairness score: average of per-type balance scores (0-100 scale).
+     * For each shift type, compute 1 - normalized_stddev.
+     * For L04, compute per-specialty balance independently.
+     * This is more meaningful than global CV because it penalizes
+     * imbalanced distribution within each shift type.
+     */
+    private double fairnessScore(Map<String, String> assignments, ProblemData data, List<Staff> staffList) {
+        if (assignments.isEmpty()) return 100;
+        
+        // Build per-type, per-staff counts (L04 uses per-specialty key)
+        Map<String, Map<Integer, Integer>> typeStaffCounts = new HashMap<>();
+        for (Map.Entry<String, String> e : assignments.entrySet()) {
+            String[] parts = e.getKey().split("\\|");
+            if (parts.length != 2) continue;
+            int staffId = Integer.parseInt(parts[0]);
+            LocalDate workDate = LocalDate.parse(parts[1]);
+            String shiftType = e.getValue();
+            
+            // Find specialty for L04 from ProblemData
+            String balanceKey = shiftType;
+            if ("L04".equals(shiftType)) {
+                int dayIdx = (int) java.time.temporal.ChronoUnit.DAYS.between(data.baseDate, workDate);
+                if (dayIdx >= 0 && dayIdx < data.numDays) {
+                    Integer specId = data.varSpecialty[dayIdx];
+                    if (specId != null) {
+                        balanceKey = "L04:" + specId;
+                    }
+                }
+            }
+            
+            typeStaffCounts.computeIfAbsent(balanceKey, k -> new HashMap<>())
+                    .merge(staffId, 1, Integer::sum);
+        }
+        
+        if (typeStaffCounts.isEmpty()) return 100;
+        
+        double totalScore = 0.0;
+        int activeTypes = 0;
+        int poolSize = staffList.size();
+        
+        for (Map.Entry<String, Map<Integer, Integer>> entry : typeStaffCounts.entrySet()) {
+            Map<Integer, Integer> staffCounts = entry.getValue();
+            double total = staffCounts.values().stream().mapToInt(Integer::intValue).sum();
+            if (total == 0) continue;
+            
+            double mean = total / poolSize;
+            double variance = 0;
+            for (Staff s : staffList) {
+                int count = staffCounts.getOrDefault(s.getId(), 0);
+                variance += (count - mean) * (count - mean);
+            }
+            variance /= poolSize;
+            double stdDev = Math.sqrt(variance);
+            // Score: 1 - (stdDev / (mean * 2)), capped to [0, 1], then scale to 0-100
+            double typeScore = Math.max(0.0, Math.min(1.0, 1.0 - (stdDev / (mean * 2)))) * 100;
+            totalScore += typeScore;
+            activeTypes++;
+        }
+        
+        return activeTypes > 0 ? totalScore / activeTypes : 100;
+    }
+    
+    /**
+     * Backward-compatible fairness score: 100 - CV (coefficient of variation).
+     * Used when full assignment data is not available.
      */
     private double fairnessScore(Map<Integer, Integer> shiftCounts) {
         if (shiftCounts.isEmpty()) return 100;
@@ -112,7 +174,9 @@ class CspResultBuilder {
         double variance = shiftCounts.values().stream()
                 .mapToDouble(c -> (c - avg) * (c - avg))
                 .average().orElse(0);
-        return Math.max(0, 100 - variance * 10);
+        double stdDev = Math.sqrt(variance);
+        double cv = (stdDev / avg) * 100;
+        return Math.max(0, 100 - cv);
     }
 
     /**

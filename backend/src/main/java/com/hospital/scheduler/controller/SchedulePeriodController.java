@@ -137,4 +137,13 @@ public class SchedulePeriodController {
         periodService.deletePeriod(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa kỳ lịch thành công"));
     }
+
+    @DeleteMapping("/{id}/requirements/cleanup-l04")
+    @Operation(summary = "Xóa L04 requirements cho chuyên khoa không có nhân sự (fix 39.9% coverage)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Integer>> cleanupL04RequirementsWithoutStaff(@PathVariable Integer id) {
+        int deleted = periodService.deleteL04RequirementsWithoutStaff(id);
+        return ResponseEntity.ok(ApiResponse.success(deleted,
+                String.format("Đã xóa %d yêu cầu L04 cho chuyên khoa không có nhân sự", deleted)));
+    }
 }

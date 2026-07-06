@@ -20,6 +20,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,7 @@ import java.util.LinkedHashMap;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class AlgorithmConfigService {
 
     private final AlgorithmConfigRepository configRepository;
@@ -53,6 +55,8 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_L03_MAX_PER_WEEK = "auto_gen_l03_max_per_week";
     public static final String AUTO_GEN_L04_MAX_PER_WEEK = "auto_gen_l04_max_per_week";
     public static final String AUTO_GEN_HOLIDAY_MODE = "auto_gen_holiday_mode";
+    public static final String AUTO_GEN_L04_CROSS_SPECIALTY = "auto_gen_l04_cross_specialty";
+    public static final String AUTO_GEN_L04_CROSS_SPECIALTY_RATIO = "auto_gen_l04_cross_specialty_ratio";
 
     // Algorithm runtime config param keys
     public static final String MAX_ITERATIONS = "max_iterations";
@@ -257,7 +261,9 @@ public class AlgorithmConfigService {
                 getIntValue(AUTO_GEN_L03_MAX_PER_WEEK, 0),
                 getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0),
                 getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"),
-                getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES")
+                getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES"),
+                getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false),
+                getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.3f)
         ));
     }
 
@@ -268,14 +274,14 @@ public class AlgorithmConfigService {
     public void saveAutoGenConfig(AutoGenConfig config) {
         upsert(AUTO_GEN_ENABLED, String.valueOf(config.enabled()), AlgorithmConfig.ValueType.BOOLEAN,
                 "Tự động tạo yêu cầu nhân sự khi mở kỳ lịch mới.");
-        upsert(AUTO_GEN_L01_MIN_PER_DAY, String.valueOf(config.l01MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối thiểu L01 mỗi ngày.");
-        upsert(AUTO_GEN_L02_MIN_PER_DAY, String.valueOf(config.l02MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối thiểu L02 mỗi ngày.");
-        upsert(AUTO_GEN_L03_MIN_PER_DAY, String.valueOf(config.l03MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối thiểu L03 mỗi ngày.");
-        upsert(AUTO_GEN_L04_MIN_PER_DAY, String.valueOf(config.l04MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối thiểu L04 mỗi ngày.");
-        upsert(AUTO_GEN_L01_MAX_PER_DAY, String.valueOf(config.l01MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối đa L01 mỗi ngày. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L02_MAX_PER_DAY, String.valueOf(config.l02MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối đa L02 mỗi ngày. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L03_MAX_PER_DAY, String.valueOf(config.l03MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối đa L03 mỗi ngày. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L04_MAX_PER_DAY, String.valueOf(config.l04MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Số nhân sự tối đa L04 mỗi ngày. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L01_MIN_PER_DAY, String.valueOf(config.l01MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L01 mỗi ngày; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
+        upsert(AUTO_GEN_L02_MIN_PER_DAY, String.valueOf(config.l02MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L02 mỗi ngày; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
+        upsert(AUTO_GEN_L03_MIN_PER_DAY, String.valueOf(config.l03MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L03 mỗi ngày; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
+        upsert(AUTO_GEN_L04_MIN_PER_DAY, String.valueOf(config.l04MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L04 mỗi ngày/chuyên khoa; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
+        upsert(AUTO_GEN_L01_MAX_PER_DAY, String.valueOf(config.l01MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L01 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
+        upsert(AUTO_GEN_L02_MAX_PER_DAY, String.valueOf(config.l02MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L02 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
+        upsert(AUTO_GEN_L03_MAX_PER_DAY, String.valueOf(config.l03MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L03 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
+        upsert(AUTO_GEN_L04_MAX_PER_DAY, String.valueOf(config.l04MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L04 mỗi ngày/chuyên khoa khi sinh mục tiêu. 0 = không đặt trần.");
         upsert(AUTO_GEN_L01_MIN_PER_WEEK, String.valueOf(config.l01MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L01 tối thiểu mỗi người mỗi tuần.");
         upsert(AUTO_GEN_L02_MIN_PER_WEEK, String.valueOf(config.l02MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L02 tối thiểu mỗi người mỗi tuần.");
         upsert(AUTO_GEN_L03_MIN_PER_WEEK, String.valueOf(config.l03MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L03 tối thiểu mỗi người mỗi tuần.");
@@ -291,6 +297,10 @@ public class AlgorithmConfigService {
                 : String.join(",", config.removedShiftTypes());
         upsert("AUTO_GEN_REMOVED_SHIFT_TYPES", removedCsv, AlgorithmConfig.ValueType.STRING,
                 "Danh sách mã loại lịch (L01..L04) bị bỏ qua khi tự động tạo yêu cầu. Phân tách bằng dấu phẩy. Rỗng = không bỏ.");
+        upsert(AUTO_GEN_L04_CROSS_SPECIALTY, String.valueOf(config.l04CrossSpecialty()), AlgorithmConfig.ValueType.BOOLEAN,
+                "Cho phép gán nhân sự từ chuyên khoa khác vào L04 khi chuyên khoa gốc thiếu nhân sự.");
+        upsert(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, String.valueOf(config.l04CrossSpecialtyRatio()), AlgorithmConfig.ValueType.NUMBER,
+                "Tỷ lệ tối đa nhân sự cross-specialty cho L04 (0.0-1.0). Ví dụ: 0.3 = tối đa 30% nhân sự được gán từ chuyên khoa khác.");
     }
 
     /**
@@ -305,16 +315,16 @@ public class AlgorithmConfigService {
                 "Tự động tạo yêu cầu nhân sự khi mở kỳ lịch mới. Bật ON để hệ thống tự đề xuất lịch cho từng người.");
         map.put(AUTO_GEN_ENABLED, "OK");
         upsert(AUTO_GEN_L01_MIN_PER_DAY, getStringValue(AUTO_GEN_L01_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối thiểu cần xếp cho ca L01 (Lịch trực 24/24) mỗi ngày. Tăng nếu tỷ lệ phủ L01 chưa đạt.");
+                "Mục tiêu nhân sự L01 (Lịch trực 24/24) mỗi ngày. Thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
         map.put(AUTO_GEN_L01_MIN_PER_DAY, "OK");
         upsert(AUTO_GEN_L02_MIN_PER_DAY, getStringValue(AUTO_GEN_L02_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối thiểu cần xếp cho ca L02 (Lịch thông tầm) mỗi ngày. Điều chỉnh theo nhu cầu khám thường.");
+                "Mục tiêu nhân sự L02 (Lịch thông tầm) mỗi ngày. Điều chỉnh theo nhu cầu, phần thiếu sẽ hiển thị trong preview.");
         map.put(AUTO_GEN_L02_MIN_PER_DAY, "OK");
         upsert(AUTO_GEN_L03_MIN_PER_DAY, getStringValue(AUTO_GEN_L03_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối thiểu cần xếp cho ca L03 (Phòng khám dịch vụ) mỗi ngày.");
+                "Mục tiêu nhân sự L03 (Phòng khám dịch vụ) mỗi ngày. Đây là mục tiêu mềm của thuật toán.");
         map.put(AUTO_GEN_L03_MIN_PER_DAY, "OK");
         upsert(AUTO_GEN_L04_MIN_PER_DAY, getStringValue(AUTO_GEN_L04_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối thiểu cần xếp cho ca L04 (Phòng khám chuyên gia) mỗi ngày.");
+                "Mục tiêu nhân sự L04 (Phòng khám chuyên gia) mỗi ngày/chuyên khoa. Đây là mục tiêu mềm của thuật toán.");
         map.put(AUTO_GEN_L04_MIN_PER_DAY, "OK");
         upsert(AUTO_GEN_L01_MIN_PER_WEEK, getStringValue(AUTO_GEN_L01_MIN_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca L01 tối thiểu mỗi người trong 1 tuần. Giúp đảm bảo công bằng phân bổ trực đêm cho nhân sự.");
@@ -329,16 +339,16 @@ public class AlgorithmConfigService {
                 "Số ca L04 tối thiểu mỗi người trong 1 tuần.");
         map.put(AUTO_GEN_L04_MIN_PER_WEEK, "OK");
         upsert(AUTO_GEN_L01_MAX_PER_DAY, getStringValue(AUTO_GEN_L01_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối đa L01 mỗi ngày. 0 = không giới hạn.");
+                "Trần khuyến nghị L01 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
         map.put(AUTO_GEN_L01_MAX_PER_DAY, "OK");
         upsert(AUTO_GEN_L02_MAX_PER_DAY, getStringValue(AUTO_GEN_L02_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối đa L02 mỗi ngày. 0 = không giới hạn.");
+                "Trần khuyến nghị L02 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
         map.put(AUTO_GEN_L02_MAX_PER_DAY, "OK");
         upsert(AUTO_GEN_L03_MAX_PER_DAY, getStringValue(AUTO_GEN_L03_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối đa L03 mỗi ngày. 0 = không giới hạn.");
+                "Trần khuyến nghị L03 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
         map.put(AUTO_GEN_L03_MAX_PER_DAY, "OK");
         upsert(AUTO_GEN_L04_MAX_PER_DAY, getStringValue(AUTO_GEN_L04_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối đa L04 mỗi ngày. 0 = không giới hạn.");
+                "Trần khuyến nghị L04 mỗi ngày/chuyên khoa khi sinh mục tiêu. 0 = không đặt trần.");
         map.put(AUTO_GEN_L04_MAX_PER_DAY, "OK");
         upsert(AUTO_GEN_L01_MAX_PER_WEEK, getStringValue(AUTO_GEN_L01_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca L01 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
@@ -481,6 +491,18 @@ public class AlgorithmConfigService {
     private boolean getBooleanValue(String paramKey, boolean defaultValue) {
         return configRepository.findByParamKey(paramKey)
                 .map(c -> Boolean.parseBoolean(c.getParamValue()))
+                .orElse(defaultValue);
+    }
+
+    private float getFloatValue(String paramKey, float defaultValue) {
+        return configRepository.findByParamKey(paramKey)
+                .map(c -> {
+                    try {
+                        return Float.parseFloat(c.getParamValue());
+                    } catch (NumberFormatException e) {
+                        return defaultValue;
+                    }
+                })
                 .orElse(defaultValue);
     }
 
