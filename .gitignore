@@ -209,4 +209,7 @@ login_body.json
 test-report/
 frontend/test-results/
 frontend/playwright-report/
+.playwright-mcp/
 /screenshots/
+backend_err.txt
+backend_out.txt
