@@ -322,10 +322,14 @@ public class ScheduleQualityScorer {
                 .build();
         }
 
-        Set<Integer> activeIds = activeStaff.stream()
-            .map(Staff::getId).collect(Collectors.toSet());
-        Map<Integer, Staff> staffMap = activeStaff.stream()
-            .collect(Collectors.toMap(Staff::getId, s -> s));
+        // Build per-shift-type eligibility map once so we compute fairness
+        // only on staff who COULD have been assigned (Bác sĩ / Điều dưỡng for
+        // L01/L02/L03, by-specialty for L04). This prevents Dược sĩ / KTV
+        // (who have 0 ca by design) from inflating the CV.
+        Set<Integer> nonL04Eligible =
+            StaffShiftTypeEligibility.eligibleStaffIdsForNonL04(activeStaff);
+        Map<Integer, Set<Integer>> l04BySpec =
+            StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff);
 
         // Group schedules by (shiftType, [specialty])
         Map<String, Map<Integer, Integer>> countsByTypeAndStaff = new HashMap<>();
@@ -351,16 +355,14 @@ public class ScheduleQualityScorer {
             Map<Integer, Integer> perStaff = countsByTypeAndStaff.get(typeKey);
 
             // Determine pool: for L04 with specialty, only staff in that specialty.
-            // For others: all active staff.
-            Set<Integer> pool = new HashSet<>(activeIds);
+            // For L01/L02/L03: only Bác sĩ / Điều dưỡng (other specialties cannot take these shifts).
             String typeId = typeKey.split(":")[0];
+            Set<Integer> pool;
             if ("L04".equals(typeId) && typeKey.contains(":")) {
                 Integer specId = Integer.parseInt(typeKey.split(":")[1]);
-                pool = activeStaff.stream()
-                    .filter(s -> s.getSpecialty() != null
-                              && specId.equals(s.getSpecialty().getId()))
-                    .map(Staff::getId)
-                    .collect(Collectors.toSet());
+                pool = l04BySpec.getOrDefault(specId, Set.of());
+            } else {
+                pool = nonL04Eligible;
             }
 
             if (pool.isEmpty()) continue;

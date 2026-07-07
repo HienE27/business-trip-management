@@ -5,9 +5,11 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { AutoScheduleResult, TemplatePreviewItem } from "@/types/api";
 
+type PreviewScheduleEdit = { workDate: string; shiftTypeId: string; staffId: number };
+
 export type AutoScheduleState = {
   previewResult: AutoScheduleResult | null;
-  editedPreview: Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
+  editedPreview: PreviewScheduleEdit[];
   removedShifts: Set<string>;
   removedShiftTypes: Set<string>;
   applying: boolean;
@@ -21,7 +23,7 @@ export type AutoScheduleActions = {
   runPreview: (periodId: number | null, excludedStaffIds?: number[]) => Promise<void>;
   applyPreview: (
     periodId: number | null,
-    edited: Array<{ workDate: string; shiftTypeId: string; staffId: number }>,
+    edited: PreviewScheduleEdit[],
     onSuccess: () => void
   ) => Promise<void>;
   saveAsTemplate: (
@@ -43,9 +45,16 @@ export type AutoScheduleActions = {
   setHolidayMode: (mode: "SKIP" | "PARTIAL" | null) => void;
 };
 
+function parseScheduleKey(key: string): PreviewScheduleEdit | null {
+  const [workDate, shiftTypeId, staffIdRaw] = key.split("_");
+  const staffId = Number(staffIdRaw);
+  if (!workDate || !shiftTypeId || !Number.isFinite(staffId)) return null;
+  return { workDate, shiftTypeId, staffId };
+}
+
 export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [previewResult, setPreviewResult] = useState<AutoScheduleResult | null>(null);
-  const [editedPreview, setEditedPreview] = useState<Array<{ workDate: string; shiftTypeId: string; staffId: number }>>([]);
+  const [editedPreview, setEditedPreview] = useState<PreviewScheduleEdit[]>([]);
   const [removedShifts, setRemovedShifts] = useState<Set<string>>(new Set());
   const [removedShiftTypes, setRemovedShiftTypes] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
@@ -83,17 +92,20 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const applyPreview = useCallback(
     async (
       periodId: number | null,
-      edited: Array<{ workDate: string; shiftTypeId: string; staffId: number }>,
+      edited: PreviewScheduleEdit[],
       onSuccess: () => void
     ) => {
       if (!periodId) return;
       try {
         setApplying(true);
         setMessage(null);
+        const removedSchedules = [...removedShifts, ...removedShiftTypes]
+          .map(parseScheduleKey)
+          .filter((item): item is PreviewScheduleEdit => item !== null);
         const schedules = edited.length > 0
           ? edited
           : previewResult?.schedules.map((s) => ({ workDate: s.workDate, shiftTypeId: s.shiftTypeId, staffId: s.staffId })) ?? [];
-        await api.applyPreview({ periodId, algorithmType, schedules });
+        await api.applyPreview({ periodId, algorithmType, schedules, removedSchedules });
         setMessage("Đã áp dụng phương án phân công.");
         setPreviewResult(null);
         setEditedPreview([]);
@@ -111,7 +123,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         setApplying(false);
       }
     },
-    [previewResult, algorithmType]
+    [previewResult, removedShifts, removedShiftTypes, algorithmType]
   );
 
   const saveAsTemplate = useCallback(

@@ -76,6 +76,7 @@ export default function AutoSchedulingPage() {
   const [activeStaff, setActiveStaff] = useState<Staff[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
   const [excludedStaffIds, setExcludedStaffIds] = useState<number[]>([]);
+  const [autoGenEnabled, setAutoGenEnabled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadMessage, setLoadMessage] = useState<string | null>(null);
   const [applyModalOpen, setApplyModalOpen] = useState(false);
@@ -128,7 +129,33 @@ export default function AutoSchedulingPage() {
     }
   }, [searchParams]);
 
+  const loadAutoGenStatus = useCallback(async () => {
+    // Only ADMIN/MANAGER need to see the auto-gen-disabled warning. The endpoint is
+    // ADMIN-only on PUT, so for STAFF we skip the call entirely.
+    if (!isManager) {
+      setAutoGenEnabled(null);
+      return;
+    }
+    try {
+      const res = await api.getAutoGenConfig();
+      const payload = (res as unknown as { data?: { enabled?: boolean } } | null)?.data;
+      setAutoGenEnabled(typeof payload?.enabled === "boolean" ? payload.enabled : null);
+    } catch {
+      // Endpoint may be unavailable (e.g. user lost role mid-session) — silent fail.
+      setAutoGenEnabled(null);
+    }
+  }, [isManager]);
+
   useEffect(() => { void loadWorkspace(); }, [loadWorkspace]);
+  useEffect(() => { void loadAutoGenStatus(); }, [loadAutoGenStatus]);
+
+  // Refresh auto-gen status when the user comes back to this tab (e.g. after toggling
+  // the switch in /algorithm-config). Avoids stale "disabled" warnings.
+  useEffect(() => {
+    function onFocus() { void loadAutoGenStatus(); }
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [loadAutoGenStatus]);
 
   // Reset preview when period changes
   useEffect(() => { clearPreview(); }, [selectedPeriodId, clearPreview]);
@@ -154,34 +181,24 @@ export default function AutoSchedulingPage() {
 
   const handleApplyPreview = async () => {
     if (!previewResult || !selectedPeriodId) return;
-    const merged: Array<{ workDate: string; shiftTypeId: string; staffId: number }> = [
-      ...previewResult.schedules.map((s) => ({
+    const removedKeys = new Set(removedShiftTypes);
+    const editedKeys = new Set(editedPreview.map((s) => `${s.workDate}_${s.shiftTypeId}`));
+    const baseSchedules = previewResult.schedules
+      .map((s) => ({
         workDate: s.workDate,
         shiftTypeId: s.shiftTypeId,
         staffId: s.staffId,
-      })),
+      }))
+      .filter((s) => !removedKeys.has(`${s.workDate}_${s.shiftTypeId}_${s.staffId}`))
+      .filter((s) => !editedKeys.has(`${s.workDate}_${s.shiftTypeId}`));
+    const merged: Array<{ workDate: string; shiftTypeId: string; staffId: number }> = [
+      ...baseSchedules,
       ...editedPreview,
     ];
     await applyPreview(selectedPeriodId, merged, () => {
       setApplyModalOpen(false);
       void loadWorkspace();
     });
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _handleSuggestReplacement = async (schedule: AutoScheduleSummary) => {
-    if (!schedule.scheduleId) return;
-    setSuggestionsData(null);
-    setSuggestionsLoading(true);
-    setSuggestionsModalOpen(true);
-    try {
-      const data = await api.suggestReplacements(schedule.scheduleId);
-      setSuggestionsData(data);
-    } catch {
-      setSuggestionsData(null);
-    } finally {
-      setSuggestionsLoading(false);
-    }
   };
 
   const handleResetEdits = () => {
@@ -268,6 +285,36 @@ export default function AutoSchedulingPage() {
             <p className="font-semibold">Lỗi tải dữ liệu</p>
             <p className="text-on-surface-variant">{loadMessage}</p>
           </div>
+        </div>
+      )}
+
+      {/* Warning: auto-generation is disabled in algorithm-config.
+          Without it, the scheduler cannot generate shift requirements and `Chạy` will fail. */}
+      {autoGenEnabled === false && (
+        <div
+          role="alert"
+          className="rounded-xl border border-tertiary-container bg-tertiary-container/10 px-4 py-3 text-label-sm text-on-surface flex items-start gap-3"
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-tertiary-container">
+            <span
+              className="material-symbols-outlined text-[18px] text-on-tertiary-container"
+              aria-hidden="true"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >auto_mode</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-on-surface">Tự động tạo yêu cầu ca trực đang tắt</p>
+            <p className="text-on-surface-variant">
+              Thuật toán không thể sinh yêu cầu nhân sự khi chưa bật <code className="px-1 py-0.5 rounded bg-surface-container text-on-surface">auto_gen_enabled</code> trong cấu hình. Bấm <strong>Chạy</strong> sẽ thất bại với lỗi <em>Cấu hình auto-gen chưa được bật</em>.
+            </p>
+          </div>
+          <Link
+            href="/auto-scheduling/algorithm-config"
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-on-primary font-semibold hover:bg-primary-container transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">tune</span>
+            Đi tới Cấu hình
+          </Link>
         </div>
       )}
 

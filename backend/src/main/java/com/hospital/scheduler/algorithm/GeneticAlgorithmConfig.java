@@ -14,7 +14,8 @@ public record GeneticAlgorithmConfig(
     double conflictWeight,        // Weight for conflict penalty in fitness (default: 100.0)
     double balanceWeight,         // Weight for overall balance bonus (default: 10.0)
     double coverageWeight,        // Weight for coverage bonus (default: 50.0)
-    double perTypeBalanceWeight   // Weight for per-shift-type fairness bonus (default: 8.0)
+    double perTypeBalanceWeight,  // Weight for per-shift-type fairness bonus (default: 8.0)
+    double equityWeight           // Weight for cross-type total workload equity (default: 50.0)
 ) {
     public static GeneticAlgorithmConfig DEFAULT = new GeneticAlgorithmConfig(
         100,    // populationSize
@@ -27,7 +28,8 @@ public record GeneticAlgorithmConfig(
         100.0,  // conflictWeight
         10.0,   // balanceWeight
         50.0,   // coverageWeight
-        8.0     // perTypeBalanceWeight
+        8.0,    // perTypeBalanceWeight
+        50.0    // equityWeight
     );
 
     public int eliteCount() {

@@ -94,7 +94,8 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   const crossSpecialtyCount = previewResult?.schedules.filter(s => s.crossSpecialty).length ?? 0;
   const coverageRate = previewResult ? Math.min(Math.round(parseNumber(previewResult.coverageRate)), 100) : 0;
   const balanceScore = previewResult ? parseNumber(previewResult.balanceScore) : 0;
-  const statusMsgOk = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng") || message?.toLowerCase().includes("đã hủy");
+  const statusMsgOk = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng");
+  const statusMsgNeutral = message?.toLowerCase().includes("đã hủy");
 
   const algoResultInfo = previewResult ? ALGO_CONFIG[previewResult.algorithmType as AlgorithmType] : null;
 
@@ -178,6 +179,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               </Badge>
             )}
             {runningAutoSchedule && (
+              <span role="status" aria-live="polite">
               <Badge tone="info" size="sm" className="animate-pulse">
                 <span className="material-symbols-outlined text-[12px]">sync</span>
                 {progress.step || progress.message || "Đang chạy thuật toán…"}
@@ -185,12 +187,15 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                   <span className="ml-1 font-mono tabular-nums">({progress.percent}%)</span>
                 )}
               </Badge>
+              </span>
             )}
             {message && (
-              <Badge tone={statusMsgOk ? "success" : "error"} size="sm">
-                <span className="material-symbols-outlined text-[12px]">{statusMsgOk ? "check_circle" : "error"}</span>
+              <span role="status" aria-live="polite">
+              <Badge tone={statusMsgOk ? "success" : statusMsgNeutral ? "info" : "error"} size="sm">
+                <span className="material-symbols-outlined text-[12px]">{statusMsgOk ? "check_circle" : statusMsgNeutral ? "info" : "error"}</span>
                 {message}
               </Badge>
+              </span>
             )}
           </div>
         )}

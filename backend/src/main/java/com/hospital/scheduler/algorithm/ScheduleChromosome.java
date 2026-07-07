@@ -76,39 +76,61 @@ public class ScheduleChromosome {
             ShiftRequirementInfo req = requirements.get(i);
             String balanceKey = getBalanceKey(req);
             int[] counts = typeCounts.get(balanceKey);
-            
-            // Find staff with fewest assignments of this type (primary) and total (secondary)
+
+            // Find staff with fewest assignments of this type (primary).
+            // Among equally-loaded candidates, prefer the one with fewest TOTAL shifts
+            // (strong cross-type equity). Without this, staff who already have many
+            // L01 can keep absorbing L02/L03/L04 too, creating 8-vs-12 clusters.
             int bestStaff = 0;
             int bestCount = counts != null ? counts[0] : 0;
             int bestTotal = totalCounts[0];
-            
+
             for (int s = 1; s < staffPool.size(); s++) {
                 int typeCount = counts != null ? counts[s] : 0;
                 int total = totalCounts[s];
-                
-                // Prefer staff with fewer of this type; tiebreak by total
-                if (typeCount < bestCount || (typeCount == bestCount && total < bestTotal)) {
+
+                // Primary: minimize type count. Strong secondary: minimize total.
+                if (typeCount < bestCount) {
                     bestStaff = s;
                     bestCount = typeCount;
                     bestTotal = total;
+                } else if (typeCount == bestCount) {
+                    // Within same type load, prefer staff whose total is below
+                    // the population mean to enforce cross-type equity.
+                    // Use a weighted comparison: strong penalty on above-mean total.
+                    double meanTotal = computeMeanTotal(totalCounts);
+                    double thisPenalty = Math.max(0, total - meanTotal);
+                    double bestPenalty = Math.max(0, bestTotal - meanTotal);
+                    if (thisPenalty < bestPenalty) {
+                        bestStaff = s;
+                        bestCount = typeCount;
+                        bestTotal = total;
+                    }
                 }
             }
-            
-            // Add some randomness: 70% use best staff, 30% use random
-            if (random.nextDouble() > 0.70) {
+
+            // Reduce randomness: 80% use best staff (was 70%) — strong balance
+            if (random.nextDouble() > 0.80) {
                 bestStaff = random.nextInt(staffPool.size());
             }
-            
+
             chromosome.genes[i] = bestStaff;
             if (counts != null) {
                 counts[bestStaff]++;
             }
             totalCounts[bestStaff]++;
         }
-        
+
         return chromosome;
     }
-    
+
+    /** Compute mean of non-zero totalCounts entries (population average workload). */
+    private static double computeMeanTotal(int[] totalCounts) {
+        long sum = 0;
+        for (int v : totalCounts) sum += v;
+        return totalCounts.length == 0 ? 0 : (double) sum / totalCounts.length;
+    }
+
     /**
      * Get the balance key for a requirement, used to group requirements
      * for fairness tracking. For L04, uses per-specialty key.
@@ -357,7 +379,31 @@ public class ScheduleChromosome {
         double normalizedScore = 1.0 - (stdDev / (mean * 2));
         return Math.max(0.0, Math.min(1.0, normalizedScore));
     }
-    
+
+    /**
+     * Cross-type equity metric. Standard deviation of each staff member's TOTAL
+     * shift count against the pool mean. Without this, per-type balance can be
+     * perfect while staff total loads diverge wildly.
+     */
+    public double calculateCrossTypeEquity() {
+        if (staffPool.isEmpty()) return 1.0;
+        int[] totals = new int[staffPool.size()];
+        for (int i = 0; i < genes.length && i < requirements.size(); i++) {
+            int gene = genes[i];
+            if (gene < 0 || gene >= totals.length) continue;
+            totals[gene]++;
+        }
+        double total = 0;
+        for (int t : totals) total += t;
+        double mean = total / totals.length;
+        if (mean <= 0) return 1.0;
+        double variance = 0;
+        for (int t : totals) variance += Math.pow(t - mean, 2);
+        variance /= totals.length;
+        double stdDev = Math.sqrt(variance);
+        return Math.max(0.0, Math.min(1.0, 1.0 - (stdDev / (mean * 2))));
+    }
+
     @Override
     public String toString() {
         return String.format("ScheduleChromosome[fitness=%.4f, assignments=%d/%d, conflicts=%d, balance=%.4f]",

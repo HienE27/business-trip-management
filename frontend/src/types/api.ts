@@ -366,6 +366,9 @@ export interface AutoScheduleResult {
     requiredStaffCount: number;
     assignedStaffCount: number;
     missingCount: number;
+    reason?: string;
+    reasonCode?: "NO_SPECIALTY_STAFF" | "NO_ELIGIBLE_STAFF" | "PARTIAL_COVERAGE" | string;
+    severity?: "critical" | "warning" | "info" | string;
   }>;
   /** Chi tiết phân bổ theo từng loại lịch (L01/L02/L03/L04) */
   byShiftType?: Record<string, ShiftTypeBreakdown>;

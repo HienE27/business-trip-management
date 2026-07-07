@@ -14,8 +14,6 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.AlgorithmConfigAuditRepository;
 import com.hospital.scheduler.repository.AlgorithmConfigRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -57,6 +55,9 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_HOLIDAY_MODE = "auto_gen_holiday_mode";
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY = "auto_gen_l04_cross_specialty";
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY_RATIO = "auto_gen_l04_cross_specialty_ratio";
+    public static final String AUTO_GEN_L01_ALLOWED_SPECIALTIES = "auto_gen_l01_allowed_specialties";
+    public static final String AUTO_GEN_L02_ALLOWED_SPECIALTIES = "auto_gen_l02_allowed_specialties";
+    public static final String AUTO_GEN_L03_ALLOWED_SPECIALTIES = "auto_gen_l03_allowed_specialties";
 
     // Algorithm runtime config param keys
     public static final String MAX_ITERATIONS = "max_iterations";
@@ -263,7 +264,12 @@ public class AlgorithmConfigService {
                 getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"),
                 getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES"),
                 getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false),
-                getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.3f)
+                getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.3f),
+                getStringListValue("AUTO_GEN_L04_ALLOWED_SPECIALTIES"), // null/empty = all specialties
+                // L01/L02/L03: null/empty → fallback to CORE_ELIGIBLE_SPECIALTIES (Ngoại, Nội) trong StaffShiftTypeEligibility
+                getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES),
+                getStringListValue(AUTO_GEN_L02_ALLOWED_SPECIALTIES),
+                getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES)
         ));
     }
 
@@ -301,6 +307,21 @@ public class AlgorithmConfigService {
                 "Cho phép gán nhân sự từ chuyên khoa khác vào L04 khi chuyên khoa gốc thiếu nhân sự.");
         upsert(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, String.valueOf(config.l04CrossSpecialtyRatio()), AlgorithmConfig.ValueType.NUMBER,
                 "Tỷ lệ tối đa nhân sự cross-specialty cho L04 (0.0-1.0). Ví dụ: 0.3 = tối đa 30% nhân sự được gán từ chuyên khoa khác.");
+        // Lưu danh sách specialties được phép gán L04 (comma-separated)
+        String allowedSpecs = config.l04AllowedSpecialties() == null || config.l04AllowedSpecialties().isEmpty()
+                ? "" : String.join(",", config.l04AllowedSpecialties());
+        upsert("AUTO_GEN_L04_ALLOWED_SPECIALTIES", allowedSpecs, AlgorithmConfig.ValueType.STRING,
+                "Danh sách chuyên khoa được gán L04. Rỗng = tất cả chuyên khoa. Ví dụ: Ngoại,Nội,Sản");
+        // L01/L02/L03 allowed specialties (CSV). Rỗng → dùng default CORE = Ngoại,Nội.
+        String l01Csv = config.l01AllowedSpecialties() == null ? "" : String.join(",", config.l01AllowedSpecialties());
+        upsert(AUTO_GEN_L01_ALLOWED_SPECIALTIES, l01Csv, AlgorithmConfig.ValueType.STRING,
+                "Danh sách chuyên khoa được gán L01 (trực 24/24). Rỗng = mặc định Ngoại,Nội. Ví dụ: Ngoại,Nội,Sản,Nhi,Mắt,Răng");
+        String l02Csv = config.l02AllowedSpecialties() == null ? "" : String.join(",", config.l02AllowedSpecialties());
+        upsert(AUTO_GEN_L02_ALLOWED_SPECIALTIES, l02Csv, AlgorithmConfig.ValueType.STRING,
+                "Danh sách chuyên khoa được gán L02 (thông tầm). Rỗng = mặc định Ngoại,Nội.");
+        String l03Csv = config.l03AllowedSpecialties() == null ? "" : String.join(",", config.l03AllowedSpecialties());
+        upsert(AUTO_GEN_L03_ALLOWED_SPECIALTIES, l03Csv, AlgorithmConfig.ValueType.STRING,
+                "Danh sách chuyên khoa được gán L03 (phòng khám dịch vụ). Rỗng = mặc định Ngoại,Nội.");
     }
 
     /**
@@ -372,7 +393,7 @@ public class AlgorithmConfigService {
                 "Hệ số phạt khi xếp lịch cho người vào thứ 7 / chủ nhật. Giá trị càng cao → thuật toán càng tránh xếp ca cuối tuần. Đặt 1 để tắt ưu tiên.");
         map.put(WEEKEND_WEIGHT, "OK");
         upsert(OVERNIGHT_RECOVERY_HOURS, getStringValue(OVERNIGHT_RECOVERY_HOURS, "24"), AlgorithmConfig.ValueType.NUMBER,
-                "Khoảng cách nghỉ bắt buộc giữa hai ca trực 24/24 liên tiếp của cùng một người. Thường đặt 24h để đảm bảo nghỉ ngơi đủ.");
+                "Ngưỡng nghỉ ngơi tham chiếu cho L01. Ràng buộc thực tế vẫn theo ngày nghỉ bù và kiểm tra back-to-back.");
         map.put(OVERNIGHT_RECOVERY_HOURS, "OK");
         upsert(GREEDY_COVERAGE_THRESHOLD, getStringValue(GREEDY_COVERAGE_THRESHOLD, "0.85"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng phủ lịch tối thiểu (0.0–1.0). Khi tỷ lệ lịch đã phủ đạt mức này, thuật toán greedy sẽ dừng sớm. Giảm → chạy nhanh hơn; tăng → phủ kỹ hơn.");
@@ -387,13 +408,13 @@ public class AlgorithmConfigService {
                 "Thời gian tối đa cho phép thuật toán backtracking chạy (giây). Hết thời gian → dừng và trả kết quả tốt nhất đã tìm được.");
         map.put(BACKTRACK_TIME_LIMIT_SECONDS, "OK");
         upsert(MIN_STAFF_PER_SHIFT, getStringValue(MIN_STAFF_PER_SHIFT, "1"), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối thiểu cho mỗi ca trực. Tăng nếu cần nhiều người trực cùng lúc.");
+                "Ngưỡng theo dõi số nhân sự tối thiểu mỗi ca; dùng cho đánh giá/chất lượng, không ép thuật toán phá ràng buộc cứng.");
         map.put(MIN_STAFF_PER_SHIFT, "OK");
         upsert(MAX_STAFF_PER_SHIFT, getStringValue(MAX_STAFF_PER_SHIFT, "5"), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối đa cho mỗi ca trực. Giới hạn tránh quá tải một ca.");
         map.put(MAX_STAFF_PER_SHIFT, "OK");
         upsert(MIN_SHIFTS_PER_STAFF, getStringValue(MIN_SHIFTS_PER_STAFF, "0"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca tối thiểu mỗi nhân sự trong kỳ lịch. Đặt 0 để không giới hạn.");
+                "Ngưỡng theo dõi số ca tối thiểu mỗi nhân sự trong kỳ; dùng để đánh giá cân bằng, không ép tạo ca giả.");
         map.put(MIN_SHIFTS_PER_STAFF, "OK");
         upsert(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "35"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca tối đa mỗi nhân sự trong kỳ lịch. Spec M07-F01 yêu cầu phân bổ đều không giới hạn cố định, nhưng đặt trần hợp lý để bảo vệ nhân sự khỏi bị quá tải. Default 35 (≈1 ca/ngày + buffer cho L04 đa chuyên khoa).");
@@ -444,6 +465,8 @@ public class AlgorithmConfigService {
      * Returns an object with all runtime parameters or defaults if not set.
      */
     public AlgorithmRuntimeConfig getRuntimeConfig() {
+        // Load AutoGenConfig to get per-type weekly max values
+        var autoGenConfig = getAutoGenConfig();
         return AlgorithmRuntimeConfig.builder()
                 .maxIterations(getIntValue(MAX_ITERATIONS, 1000))
                 .weekendWeight(getBigDecimalValue(WEEKEND_WEIGHT, 2.0))
@@ -456,6 +479,11 @@ public class AlgorithmConfigService {
                 .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0))
                 .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0))
                 .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 0))
+                // Per-type weekly max from AutoGenConfig
+                .l01MaxPerWeek(autoGenConfig.map(AutoGenConfig::l01MaxPerWeek).orElse(0))
+                .l02MaxPerWeek(autoGenConfig.map(AutoGenConfig::l02MaxPerWeek).orElse(0))
+                .l03MaxPerWeek(autoGenConfig.map(AutoGenConfig::l03MaxPerWeek).orElse(0))
+                .l04MaxPerWeek(autoGenConfig.map(AutoGenConfig::l04MaxPerWeek).orElse(0))
                 .build();
     }
 
@@ -519,6 +547,128 @@ public class AlgorithmConfigService {
     }
 
     /**
+     * Tính toán và trả về AutoGenConfig đề xuất dựa trên mục tiêu ca/người/tháng.
+     *
+     * <p>Công thức:
+     * <ul>
+     *   <li>{@code minPerDay = ⌈(target × eligible) / periodDays⌋} — đảm bảo coverage</li>
+     *   <li>{@code minPerWeek = ⌈target / periodWeeks⌋} — phân bổ đều theo tuần</li>
+     *   <li>{@code maxPerWeek = ⌈(target / periodWeeks) × 1.5⌉} — buffer 50%</li>
+     *   <li>{@code maxPerDay = ⌈maxPerWeek × 1.2⌉} — buffer cho ngày cao điểm</li>
+     * </ul>
+     *
+     * @param periodDays       Số ngày trong kỳ (VD: 30 cho tháng 9)
+     * @param periodWeeks      Số tuần trong kỳ (mặc định 4)
+     * @param eligibleStaff    Map shiftTypeId → số người đủ điều kiện
+     * @param targetPerStaff   Map shiftTypeId → mục tiêu ca/người/tháng
+     * @return Đề xuất AutoGenConfig kèm expected total shifts
+     */
+    public AutoGenConfigRecommendation recommendAutoGenConfig(
+            int periodDays,
+            int periodWeeks,
+            java.util.Map<String, Integer> eligibleStaff,
+            java.util.Map<String, Integer> targetPerStaff,
+            boolean expandNonL04Eligibility,
+            java.util.List<String> expandedSpecialties) {
+
+        // Snapshot existing config để giữ enabled, holidayMode, cross-specialty, allowed lists
+        AutoGenConfig current = getAutoGenConfig().orElseThrow();
+
+        int l01Target = Math.max(0, targetPerStaff.getOrDefault("L01", 0));
+        int l02Target = Math.max(0, targetPerStaff.getOrDefault("L02", 0));
+        int l03Target = Math.max(0, targetPerStaff.getOrDefault("L03", 0));
+        int l04Target = Math.max(0, targetPerStaff.getOrDefault("L04", 0));
+
+        int l01Elig = Math.max(1, eligibleStaff.getOrDefault("L01", 1));
+        int l02Elig = Math.max(1, eligibleStaff.getOrDefault("L02", 1));
+        int l03Elig = Math.max(1, eligibleStaff.getOrDefault("L03", 1));
+        int l04Elig = Math.max(1, eligibleStaff.getOrDefault("L04", 1));
+
+        int days = Math.max(1, periodDays);
+        int weeks = Math.max(1, periodWeeks);
+
+        int l01MinPerDay = Math.max(1, (int) Math.ceil((double) (l01Target * l01Elig) / days));
+        int l02MinPerDay = Math.max(1, (int) Math.ceil((double) (l02Target * l02Elig) / days));
+        int l03MinPerDay = Math.max(1, (int) Math.ceil((double) (l03Target * l03Elig) / days));
+        int l04MinPerDay = Math.max(1, (int) Math.ceil((double) (l04Target * l04Elig) / days));
+
+        int l01MinPerWeek = Math.max(1, (int) Math.ceil((double) l01Target / weeks));
+        int l02MinPerWeek = Math.max(1, (int) Math.ceil((double) l02Target / weeks));
+        int l03MinPerWeek = Math.max(1, (int) Math.ceil((double) l03Target / weeks));
+        int l04MinPerWeek = Math.max(1, (int) Math.ceil((double) l04Target / weeks));
+
+        int l01MaxPerWeek = Math.max(l01MinPerWeek + 1, (int) Math.ceil(((double) l01Target / weeks) * 1.5));
+        int l02MaxPerWeek = Math.max(l02MinPerWeek + 1, (int) Math.ceil(((double) l02Target / weeks) * 1.5));
+        int l03MaxPerWeek = Math.max(l03MinPerWeek + 1, (int) Math.ceil(((double) l03Target / weeks) * 1.5));
+        int l04MaxPerWeek = Math.max(l04MinPerWeek + 1, (int) Math.ceil(((double) l04Target / weeks) * 1.5));
+
+        int l01MaxPerDay = Math.max(l01MinPerDay, (int) Math.ceil(l01MaxPerWeek * 1.2));
+        int l02MaxPerDay = Math.max(l02MinPerDay, (int) Math.ceil(l02MaxPerWeek * 1.2));
+        int l03MaxPerDay = Math.max(l03MinPerDay, (int) Math.ceil(l03MaxPerWeek * 1.2));
+        int l04MaxPerDay = Math.max(l04MinPerDay, (int) Math.ceil(l04MaxPerWeek * 1.2));
+
+        java.util.List<String> l01Spec = expandNonL04Eligibility
+                ? (expandedSpecialties != null && !expandedSpecialties.isEmpty()
+                    ? expandedSpecialties
+                    : java.util.List.of("Bác sĩ", "Điều dưỡng", "Kỹ thuật viên", "Dược sĩ",
+                        "Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"))
+                : (current.l01AllowedSpecialties() != null && !current.l01AllowedSpecialties().isEmpty()
+                    ? current.l01AllowedSpecialties()
+                    : java.util.List.of("Ngoại", "Nội"));
+        java.util.List<String> l02Spec = expandNonL04Eligibility
+                ? l01Spec
+                : (current.l02AllowedSpecialties() != null && !current.l02AllowedSpecialties().isEmpty()
+                    ? current.l02AllowedSpecialties()
+                    : java.util.List.of("Ngoại", "Nội"));
+        java.util.List<String> l03Spec = expandNonL04Eligibility
+                ? l01Spec
+                : (current.l03AllowedSpecialties() != null && !current.l03AllowedSpecialties().isEmpty()
+                    ? current.l03AllowedSpecialties()
+                    : java.util.List.of("Ngoại", "Nội"));
+
+        int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
+                + (l03Target * l03Elig) + (l04Target * l04Elig);
+
+        AutoGenConfig recommended = new AutoGenConfig(
+                current.enabled(),
+                l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
+                l01MaxPerDay, l02MaxPerDay, l03MaxPerDay, l04MaxPerDay,
+                l01MinPerWeek, l02MinPerWeek, l03MinPerWeek, l04MinPerWeek,
+                l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
+                current.holidayMode(),
+                current.removedShiftTypes() != null ? current.removedShiftTypes() : java.util.List.of(),
+                current.l04CrossSpecialty(),
+                current.l04CrossSpecialtyRatio(),
+                current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : java.util.List.of(),
+                l01Spec, l02Spec, l03Spec
+        );
+
+        String rationale = String.format(
+                "Đề xuất cho kỳ %d ngày/%d tuần với tổng ca dự kiến = %d. " +
+                "L01/L02/L03: %d/%d/%d ca/người × %d/%d/%d người eligible. " +
+                "L04: %d ca/người × %d người eligible. " +
+                "%s",
+                days, weeks, totalExpected,
+                l01Target, l02Target, l03Target, l01Elig, l02Elig, l03Elig,
+                l04Target, l04Elig,
+                expandNonL04Eligibility
+                    ? "Mở rộng eligibility L01/L02/L03 cho tất cả specialties để đạt mục tiêu."
+                    : "Giữ eligibility L01/L02/L03 cho Ngoại,Nội (8 người) — nếu không đủ, cân nhắc mở rộng."
+        );
+
+        return new AutoGenConfigRecommendation(recommended, totalExpected, rationale);
+    }
+
+    /**
+     * Kết quả recommend bao gồm config + metadata
+     */
+    public record AutoGenConfigRecommendation(
+            AutoGenConfig config,
+            int totalShiftsExpected,
+            String rationale
+    ) {}
+
+    /**
      * Runtime configuration record for algorithm execution.
      */
     @lombok.Data
@@ -537,5 +687,10 @@ public class AlgorithmConfigService {
         private int maxStaffPerShift;
         private int minShiftsPerStaff;
         private int maxShiftsPerStaff;
+        // Per-shift-type weekly max (from AutoGenConfig)
+        private int l01MaxPerWeek;
+        private int l02MaxPerWeek;
+        private int l03MaxPerWeek;
+        private int l04MaxPerWeek;
     }
 }

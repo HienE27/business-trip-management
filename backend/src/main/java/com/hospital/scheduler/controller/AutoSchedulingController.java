@@ -2,17 +2,18 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.AlgoConfigRequest;
+import com.hospital.scheduler.dto.request.AutoGenConfigRecommendRequest;
 import com.hospital.scheduler.dto.request.AutoScheduleApplyPreviewRequestDTO;
 import com.hospital.scheduler.dto.request.AutoScheduleRequestDTO;
 import com.hospital.scheduler.dto.request.SaveAlgorithmTemplateRequest;
 import com.hospital.scheduler.dto.request.SaveTemplateRequest;
+import com.hospital.scheduler.dto.response.AutoGenConfigRecommendResponse;
 import com.hospital.scheduler.dto.response.AlgorithmConfigDTO;
 import com.hospital.scheduler.dto.response.AlgorithmConfigResponse;
 import com.hospital.scheduler.dto.response.AlgorithmMetricsDTO;
 import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.dto.response.ScheduleTemplateResponse;
 import com.hospital.scheduler.dto.response.AlgorithmConfigAuditDTO;
-import com.hospital.scheduler.entity.AlgorithmConfigAudit;
 import com.hospital.scheduler.repository.AlgorithmConfigAuditRepository;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.service.AlgorithmProgressTracker;
@@ -90,8 +91,6 @@ public class AutoSchedulingController {
     public ResponseEntity<ApiResponse<AutoScheduleResponse>> autoSchedule(
             @Valid @RequestBody AutoScheduleRequestDTO request) {
         AutoScheduleResponse result = autoSchedulingService.autoSchedule(request);
-        // Ensure compensation days are created for all L01 schedules
-        autoSchedulingService.createCompensationDaysForL01InPeriod(result.getPeriodId());
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.success(result, "Xếp lịch tự động hoàn tất"));
     }
@@ -312,7 +311,7 @@ public class AutoSchedulingController {
 
     @GetMapping("/auto-gen-config")
     @Operation(summary = "Lấy cấu hình tạo yêu cầu tự động (L01–L04 limits)")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<com.hospital.scheduler.algorithm.AutoGenConfig>> getAutoGenConfig() {
         return ResponseEntity.ok(ApiResponse.success(configService.getAutoGenConfig().orElse(null)));
     }
@@ -324,6 +323,34 @@ public class AutoSchedulingController {
             @RequestBody com.hospital.scheduler.algorithm.AutoGenConfig config) {
         configService.saveAutoGenConfig(config);
         return ResponseEntity.ok(ApiResponse.success(config, "Cập nhật cấu hình tự động thành công"));
+    }
+
+    @PostMapping("/auto-gen-config/recommend")
+    @Operation(summary = "AI đề xuất AutoGenConfig từ mục tiêu ca/người/tháng (không lưu DB, chỉ tính toán)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<AutoGenConfigRecommendResponse>> recommendAutoGenConfig(
+            @Valid @RequestBody AutoGenConfigRecommendRequest req) {
+        var recommendation = configService.recommendAutoGenConfig(
+                req.periodDays(),
+                req.periodWeeks(),
+                req.eligibleStaff(),
+                req.targetPerStaffPerMonth(),
+                Boolean.TRUE.equals(req.expandNonL04Eligibility()),
+                req.expandedSpecialties()
+        );
+        int totalStaff = req.totalStaff() != null ? req.totalStaff()
+                : req.eligibleStaff().values().stream().mapToInt(Integer::intValue).sum();
+        var response = new AutoGenConfigRecommendResponse(
+                recommendation.config(),
+                recommendation.totalShiftsExpected(),
+                totalStaff,
+                recommendation.rationale()
+        );
+        log.info("AutoGenConfig recommend: totalExpected={}, rationale={}",
+                recommendation.totalShiftsExpected(), recommendation.rationale());
+        return ResponseEntity.ok(ApiResponse.success(response,
+                "Đề xuất cấu hình cho kỳ " + req.periodDays() + " ngày với "
+                        + recommendation.totalShiftsExpected() + " ca dự kiến"));
     }
 
     // ============================================================

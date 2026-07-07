@@ -42,6 +42,7 @@ class NotificationServiceTest {
     @Mock private StaffRepository staffRepository;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private AuthContextService authContextService;
+    @Mock private NotificationBroadcastService notificationBroadcastService;
 
     @InjectMocks
     private NotificationService notificationService;

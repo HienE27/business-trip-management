@@ -11,5 +11,9 @@ public record AutoGenConfig(
     String holidayMode,  // "SKIP" or "PARTIAL"
     List<String> removedShiftTypes,  // e.g. ["L03", "L04"] to skip when generating
     boolean l04CrossSpecialty,  // Allow cross-specialty assignment for L04
-    float l04CrossSpecialtyRatio  // Max ratio (0.0-1.0) of cross-specialty staff per requirement
+    float l04CrossSpecialtyRatio,  // Max ratio (0.0-1.0) of cross-specialty staff per requirement
+    List<String> l04AllowedSpecialties,  // Danh sách specialties được gán L04 (null/empty = tất cả)
+    List<String> l01AllowedSpecialties,  // Danh sách specialties được gán L01 (null/empty = CORE = Ngoại,Nội)
+    List<String> l02AllowedSpecialties,  // Danh sách specialties được gán L02 (null/empty = CORE = Ngoại,Nội)
+    List<String> l03AllowedSpecialties   // Danh sách specialties được gán L03 (null/empty = CORE = Ngoại,Nội)
 ) {}

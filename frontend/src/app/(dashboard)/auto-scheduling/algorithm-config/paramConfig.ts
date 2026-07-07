@@ -24,10 +24,10 @@ export const PARAM_GROUPS: readonly ParamGroup[] = [
     accent: "border-l-4 border-l-blue-500",
     params: ["min_staff_per_shift", "max_staff_per_shift", "min_shifts_per_staff", "max_shifts_per_staff"],
     descriptions: {
-      min_staff_per_shift: { label: "min_staff", desc: "Số nhân sự tối thiểu mỗi ca. Đặt 0 để bỏ qua.", hint: "0–10 · Mặc định: 1" },
-      max_staff_per_shift: { label: "max_staff", desc: "Số nhân sự tối đa mỗi ca. 0 = không giới hạn.", hint: "0–20 · Mặc định: 0 (không giới hạn)" },
-      min_shifts_per_staff: { label: "min_shifts", desc: "Số ca trực tối thiểu mỗi nhân sự trong kỳ. 0 = không áp dụng.", hint: "0–50 · Mặc định: 0" },
-      max_shifts_per_staff: { label: "max_shifts", desc: "Số ca trực tối đa mỗi nhân sự trong kỳ. 0 = không giới hạn.", hint: "0–100 · Mặc định: 0" },
+      min_staff_per_shift: { label: "min_staff", desc: "Ngưỡng theo dõi số nhân sự tối thiểu mỗi ca; hiện dùng để cảnh báo/chất lượng, không ép lịch vượt ràng buộc cứng.", hint: "0–10 · Mặc định: 1 · Theo dõi" },
+      max_staff_per_shift: { label: "max_staff", desc: "Trần nhân sự tối đa mỗi ca khi thuật toán gán lịch. 0 = không giới hạn.", hint: "0–20 · Mặc định: 0 (không giới hạn) · Đang áp dụng" },
+      min_shifts_per_staff: { label: "min_shifts", desc: "Ngưỡng theo dõi số ca tối thiểu mỗi nhân sự trong kỳ; dùng cho đánh giá cân bằng, không ép lịch giả.", hint: "0–50 · Mặc định: 0 · Theo dõi" },
+      max_shifts_per_staff: { label: "max_shifts", desc: "Số ca trực tối đa mỗi nhân sự trong kỳ. 0 = dùng giới hạn theo hồ sơ nhân sự.", hint: "0–100 · Mặc định: 0 · Đang áp dụng" },
     },
   },
   {
@@ -95,7 +95,7 @@ export const PARAM_GROUPS: readonly ParamGroup[] = [
     accent: "border-l-4 border-l-rose-500",
     params: ["overnight_recovery_hours"],
     descriptions: {
-      overnight_recovery_hours: { label: "recovery_hours", desc: "Số giờ nghỉ bắt buộc giữa hai ca trực 24/24. Thường đặt 24 giờ.", hint: "12–72 giờ · Mặc định: 24" },
+      overnight_recovery_hours: { label: "recovery_hours", desc: "Ngưỡng nghỉ ngơi tham chiếu cho L01. Ràng buộc thực tế vẫn theo ngày nghỉ bù và back-to-back checks.", hint: "12–72 giờ · Mặc định: 24 · Theo dõi" },
     },
   },
 ];
@@ -124,8 +124,8 @@ export const SHIFT_TYPE_GROUPS: readonly ShiftTypeGroup[] = [
 ] as const;
 
 const SHIFT_PARAM_LABELS: Record<string, string> = {
-  MinPerDay: "T.min/người",
-  MaxPerDay: "T.max/người",
+  MinPerDay: "T.min/ngày",
+  MaxPerDay: "T.max/ngày",
   MinPerWeek: "T.min/tuần",
   MaxPerWeek: "T.max/tuần",
 };

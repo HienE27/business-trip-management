@@ -71,12 +71,14 @@ public class DataSeeder implements CommandLineRunner {
     private void seedSpecialties() {
         if (specialtyRepository.count() > 0) return;
 
-        specialtyRepository.save(Specialty.builder().name("Bác sĩ").description("Bác sĩ chuyên khoa").isActive(true).build());
-        specialtyRepository.save(Specialty.builder().name("Điều dưỡng").description("Điều dưỡng viên").isActive(true).build());
-        specialtyRepository.save(Specialty.builder().name("Kỹ thuật viên").description("Kỹ thuật viên xét nghiệm").isActive(true).build());
-        specialtyRepository.save(Specialty.builder().name("Dược sĩ").description("Dược sĩ bệnh viện").isActive(true).build());
+        specialtyRepository.save(Specialty.builder().name("Ngoại").description("Khoa Ngoại tổng hợp").isActive(true).build());
+        specialtyRepository.save(Specialty.builder().name("Nội").description("Khoa Nội tổng hợp").isActive(true).build());
+        specialtyRepository.save(Specialty.builder().name("Sản").description("Khoa Sản phụ khoa").isActive(true).build());
+        specialtyRepository.save(Specialty.builder().name("Nhi").description("Khoa Nhi").isActive(true).build());
+        specialtyRepository.save(Specialty.builder().name("Mắt").description("Khoa Mắt").isActive(true).build());
+        specialtyRepository.save(Specialty.builder().name("Răng").description("Khoa Răng hàm mặt").isActive(true).build());
 
-        log.info("✅ Seeded specialties");
+        log.info("✅ Seeded specialties: Ngoại, Nội, Sản, Nhi, Mắt, Răng");
     }
 
     private void seedShiftTypes() {
@@ -164,7 +166,12 @@ public class DataSeeder implements CommandLineRunner {
                 "SKIP",  // holidayMode
                 List.of(),  // removedShiftTypes (none by default)
                 false,  // l04CrossSpecialty (disabled by default)
-                0.3f    // l04CrossSpecialtyRatio
+                0.3f,   // l04CrossSpecialtyRatio
+                List.of(),  // l04AllowedSpecialties (empty = all specialties)
+                // L01/L02/L03 allowed specialties (null/empty → fallback to CORE = Ngoại, Nội)
+                null,   // l01AllowedSpecialties
+                null,   // l02AllowedSpecialties
+                null    // l03AllowedSpecialties
         );
         algorithmConfigService.saveAutoGenConfig(defaults);
 
@@ -173,19 +180,19 @@ public class DataSeeder implements CommandLineRunner {
 
     private void seedScheduleTemplates() {
         if (scheduleTemplateRepository.count() > 0) return;
-        Specialty doctor = specialtyRepository.findByName("Bác sĩ").orElse(null);
-        Specialty nurse = specialtyRepository.findByName("Điều dưỡng").orElse(null);
+        Specialty ngoai = specialtyRepository.findByName("Ngoại").orElse(null);
+        Specialty noi = specialtyRepository.findByName("Nội").orElse(null);
 
         record TemplateSeed(String name, String desc, int dayOfWeek, String shiftTypeId, Specialty specialty, int count) {}
         TemplateSeed[] templates = new TemplateSeed[]{
-                new TemplateSeed("Trực 24/24 thứ 2", "Lịch trực 24/24 vào thứ 2", 1, "L01", doctor, 1),
-                new TemplateSeed("Trực 24/24 thứ 3", "Lịch trực 24/24 vào thứ 3", 2, "L01", doctor, 1),
-                new TemplateSeed("Trực 24/24 thứ 4", "Lịch trực 24/24 vào thứ 4", 3, "L01", doctor, 1),
-                new TemplateSeed("Trực 24/24 thứ 5", "Lịch trực 24/24 vào thứ 5", 4, "L01", doctor, 1),
-                new TemplateSeed("Trực 24/24 thứ 6", "Lịch trực 24/24 vào thứ 6", 5, "L01", doctor, 1),
-                new TemplateSeed("Thông tầm thứ 2–6", "Ca thông tầm các ngày trong tuần", 1, "L02", doctor, 2),
-                new TemplateSeed("PK dịch vụ thứ 2–6", "Phòng khám dịch vụ các ngày trong tuần", 1, "L03", nurse, 1),
-                new TemplateSeed("PK chuyên gia thứ 7", "Phòng khám chuyên gia vào thứ 7", 6, "L04", doctor, 1),
+                new TemplateSeed("Trực 24/24 thứ 2", "Lịch trực 24/24 vào thứ 2", 1, "L01", ngoai, 1),
+                new TemplateSeed("Trực 24/24 thứ 3", "Lịch trực 24/24 vào thứ 3", 2, "L01", ngoai, 1),
+                new TemplateSeed("Trực 24/24 thứ 4", "Lịch trực 24/24 vào thứ 4", 3, "L01", ngoai, 1),
+                new TemplateSeed("Trực 24/24 thứ 5", "Lịch trực 24/24 vào thứ 5", 4, "L01", ngoai, 1),
+                new TemplateSeed("Trực 24/24 thứ 6", "Lịch trực 24/24 vào thứ 6", 5, "L01", ngoai, 1),
+                new TemplateSeed("Thông tầm thứ 2–6", "Ca thông tầm các ngày trong tuần", 1, "L02", ngoai, 2),
+                new TemplateSeed("PK dịch vụ thứ 2–6", "Phòng khám dịch vụ các ngày trong tuần", 1, "L03", noi, 1),
+                new TemplateSeed("PK chuyên gia thứ 7", "Phòng khám chuyên gia vào thứ 7", 6, "L04", ngoai, 1),
         };
 
         for (TemplateSeed t : templates) {
@@ -204,16 +211,18 @@ public class DataSeeder implements CommandLineRunner {
         AppRole adminRole = appRoleRepository.findByName(RoleName.ADMIN).orElse(null);
         AppRole managerRole = appRoleRepository.findByName(RoleName.MANAGER).orElse(null);
         AppRole staffRole = appRoleRepository.findByName(RoleName.STAFF).orElse(null);
-        Specialty doctorSpecialty = specialtyRepository.findByName("Bác sĩ").orElse(null);
-        Specialty nurseSpecialty = specialtyRepository.findByName("Điều dưỡng").orElse(null);
-        Specialty techSpecialty = specialtyRepository.findByName("Kỹ thuật viên").orElse(null);
-        Specialty pharmaSpecialty = specialtyRepository.findByName("Dược sĩ").orElse(null);
+        Specialty ngoai = specialtyRepository.findByName("Ngoại").orElse(null);
+        Specialty noi = specialtyRepository.findByName("Nội").orElse(null);
+        Specialty san = specialtyRepository.findByName("Sản").orElse(null);
+        Specialty nhi = specialtyRepository.findByName("Nhi").orElse(null);
+        Specialty mat = specialtyRepository.findByName("Mắt").orElse(null);
+        Specialty rang = specialtyRepository.findByName("Răng").orElse(null);
 
         // ── ADMIN (ADMIN + MANAGER) ─────────────────────────────────────────
         Staff admin = staffRepository.save(Staff.builder()
                 .username("admin").passwordHash(passwordEncoder.encode("admin123"))
                 .fullName("Nguyễn Văn An").phone("0901000001")
-                .email("admin@hospital.com").specialty(doctorSpecialty)
+                .email("admin@hospital.com").specialty(ngoai)
                 .maxShiftsPerMonth(5).isActive(true).staffRoles(new HashSet<>()).build());
         addRoles(admin, adminRole, managerRole);
 
@@ -221,14 +230,14 @@ public class DataSeeder implements CommandLineRunner {
         Staff mgr1 = staffRepository.save(Staff.builder()
                 .username("manager1").passwordHash(passwordEncoder.encode("123456"))
                 .fullName("Trần Thị Bình").phone("0901000002")
-                .email("manager1@hospital.com").specialty(doctorSpecialty)
+                .email("manager1@hospital.com").specialty(ngoai)
                 .maxShiftsPerMonth(4).isActive(true).staffRoles(new HashSet<>()).build());
         addRoles(mgr1, managerRole);
 
         Staff mgr2 = staffRepository.save(Staff.builder()
                 .username("manager2").passwordHash(passwordEncoder.encode("123456"))
                 .fullName("Lê Hoàng Cường").phone("0901000003")
-                .email("manager2@hospital.com").specialty(nurseSpecialty)
+                .email("manager2@hospital.com").specialty(noi)
                 .maxShiftsPerMonth(4).isActive(true).staffRoles(new HashSet<>()).build());
         addRoles(mgr2, managerRole);
 
@@ -237,23 +246,23 @@ public class DataSeeder implements CommandLineRunner {
                         String email, Specialty specialty, int maxShifts) {}
 
         StaffSeed[] seeds = new StaffSeed[]{
-                new StaffSeed("nvminh",    "123456", "Nguyễn Văn Minh",    "0901000004", "nvminh@hospital.com",    doctorSpecialty,  5),
-                new StaffSeed("tthuhien",  "123456", "Trần Thu Hiền",     "0901000005", "tthuhien@hospital.com",  nurseSpecialty,   5),
-                new StaffSeed("lbthanhtam","123456", "Lê Bùi Thanh Tâm",   "0901000006", "lbthanhtam@hospital.com",doctorSpecialty,  6),
-                new StaffSeed("hpdat",     "123456", "Hoàng Phú Đạt",      "0901000007", "hpdat@hospital.com",     techSpecialty,    5),
-                new StaffSeed("ntphuong",  "123456", "Ngô Thị Phượng",     "0901000008", "ntphuong@hospital.com",  pharmaSpecialty,  4),
-                new StaffSeed("cmtuan",    "123456", "Chu Minh Tuấn",      "0901000009", "cmtuan@hospital.com",    doctorSpecialty,  5),
-                new StaffSeed("dvanh",     "123456", "Đỗ Văn Anh",         "0901000010", "dvanh@hospital.com",     nurseSpecialty,   5),
-                new StaffSeed("nthuylinh", "123456", "Nguyễn Thị Huyền Linh","0901000011","nthuylinh@hospital.com", doctorSpecialty,  6),
-                new StaffSeed("vtquan",    "123456", "Vũ Trọng Quân",      "0901000012", "vtquan@hospital.com",    techSpecialty,    5),
-                new StaffSeed("btdthu",    "123456", "Bùi Thị Diễm Thu",   "0901000013", "btdthu@hospital.com",    pharmaSpecialty,  4),
-                new StaffSeed("nhduy",     "123456", "Nguyễn Hữu Duy",     "0901000014", "nhduy@hospital.com",     doctorSpecialty,  5),
-                new StaffSeed("lthanhha",  "123456", "Lý Thị Thanh Hà",    "0901000015", "lthanhha@hospital.com",  nurseSpecialty,   5),
-                new StaffSeed("dtqhieu",   "123456", "Đinh Trần Quang Hiếu","0901000016","dtqhieu@hospital.com",   doctorSpecialty,  6),
-                new StaffSeed("pthanh",    "123456", "Phạm Thị Thanh",      "0901000017", "pthanh@hospital.com",     pharmaSpecialty,  4),
-                new StaffSeed("vhhuy",     "123456", "Võ Hoàng Huy",        "0901000018", "vhhuy@hospital.com",      techSpecialty,    5),
-                new StaffSeed("atducd",    "123456", "Anh Trần Đức",        "0901000019", "atducd@hospital.com",     doctorSpecialty,  5),
-                new StaffSeed("dttthuy",   "123456", "Đặng Trần Thanh Thúy","0901000020","dttthuy@hospital.com",    nurseSpecialty,   5),
+                new StaffSeed("nvminh",    "123456", "Nguyễn Văn Minh",    "0901000004", "nvminh@hospital.com",    ngoai,  5),
+                new StaffSeed("tthuhien",  "123456", "Trần Thu Hiền",     "0901000005", "tthuhien@hospital.com",  noi,   5),
+                new StaffSeed("lbthanhtam","123456", "Lê Bùi Thanh Tâm",   "0901000006", "lbthanhtam@hospital.com",ngoai,  6),
+                new StaffSeed("hpdat",     "123456", "Hoàng Phú Đạt",      "0901000007", "hpdat@hospital.com",     nhi,   5),
+                new StaffSeed("ntphuong",  "123456", "Ngô Thị Phượng",     "0901000008", "ntphuong@hospital.com",  san,   4),
+                new StaffSeed("cmtuan",    "123456", "Chu Minh Tuấn",      "0901000009", "cmtuan@hospital.com",    ngoai, 5),
+                new StaffSeed("dvanh",     "123456", "Đỗ Văn Anh",         "0901000010", "dvanh@hospital.com",     noi,   5),
+                new StaffSeed("nthuylinh", "123456", "Nguyễn Thị Huyền Linh","0901000011","nthuylinh@hospital.com", ngoai, 6),
+                new StaffSeed("vtquan",    "123456", "Vũ Trọng Quân",      "0901000012", "vtquan@hospital.com",    nhi,   5),
+                new StaffSeed("btdthu",    "123456", "Bùi Thị Diễm Thu",   "0901000013", "btdthu@hospital.com",    mat,   4),
+                new StaffSeed("nhduy",     "123456", "Nguyễn Hữu Duy",     "0901000014", "nhduy@hospital.com",     ngoai, 5),
+                new StaffSeed("lthanhha",  "123456", "Lý Thị Thanh Hà",    "0901000015", "lthanhha@hospital.com",  noi,   5),
+                new StaffSeed("dtqhieu",   "123456", "Đinh Trần Quang Hiếu","0901000016","dtqhieu@hospital.com",   ngoai, 6),
+                new StaffSeed("pthanh",    "123456", "Phạm Thị Thanh",      "0901000017", "pthanh@hospital.com",     san,   4),
+                new StaffSeed("vhhuy",     "123456", "Võ Hoàng Huy",        "0901000018", "vhhuy@hospital.com",      nhi,   5),
+                new StaffSeed("atducd",    "123456", "Anh Trần Đức",        "0901000019", "atducd@hospital.com",     ngoai, 5),
+                new StaffSeed("dttthuy",   "123456", "Đặng Trần Thanh Thúy","0901000020","dttthuy@hospital.com",    noi,   5),
         };
 
         for (StaffSeed s : seeds) {
@@ -288,8 +297,8 @@ public class DataSeeder implements CommandLineRunner {
         ShiftType l03 = shiftTypeRepository.findById("L03").orElse(null);
         ShiftType l04 = shiftTypeRepository.findById("L04").orElse(null);
 
-        Specialty doctor = specialtyRepository.findByName("Bác sĩ").orElse(null);
-        Specialty nurse = specialtyRepository.findByName("Điều dưỡng").orElse(null);
+        Specialty ngoai = specialtyRepository.findByName("Ngoại").orElse(null);
+        Specialty noi = specialtyRepository.findByName("Nội").orElse(null);
 
         // ── 1. June 2026 — PUBLISHED ─────────────────────────────────────────
         if (periodRepository.findAllByStartDateAndEndDate(LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30)).isEmpty()) {
@@ -305,50 +314,50 @@ public class DataSeeder implements CommandLineRunner {
             SchedulePeriod savedPeriod = periodRepository.save(period);
 
             List<Staff> allStaff = staffRepository.findByIsActiveTrue();
-            List<Staff> doctors = allStaff.stream()
-                    .filter(s -> s.getSpecialty() != null && s.getSpecialty().getName().equals("Bác sĩ"))
+            List<Staff> ngoais = allStaff.stream()
+                    .filter(s -> s.getSpecialty() != null && s.getSpecialty().getName().equals("Ngoại"))
                     .toList();
-            List<Staff> nurses = allStaff.stream()
-                    .filter(s -> s.getSpecialty() != null && s.getSpecialty().getName().equals("Điều dưỡng"))
+            List<Staff> nois = allStaff.stream()
+                    .filter(s -> s.getSpecialty() != null && s.getSpecialty().getName().equals("Nội"))
                     .toList();
 
-            int docIdx = 0;
-            int nurIdx = 0;
+            int ngoaiIdx = 0;
+            int noiIdx = 0;
 
             for (int day = 1; day <= 30; day++) {
                 LocalDate date = LocalDate.of(2026, 6, day);
                 if (date.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) continue;
 
-                // L01 — 2 doctors
+                // L01 — 2 Ngoại
                 for (int k = 0; k < 2; k++) {
-                    Staff s = doctors.get(docIdx % doctors.size());
-                    docIdx++;
+                    Staff s = ngoais.get(ngoaiIdx % ngoais.size());
+                    ngoaiIdx++;
                     Schedule sch = scheduleRepository.save(Schedule.builder()
                             .period(savedPeriod).workDate(date).staff(s).shiftType(l01).hasConflict(false).build());
                     createCompensationDayForSeed(sch);
                 }
-                // L02 — 2 doctors
+                // L02 — 2 Ngoại
                 for (int k = 0; k < 2; k++) {
-                    Staff s = doctors.get(docIdx % doctors.size());
-                    docIdx++;
+                    Staff s = ngoais.get(ngoaiIdx % ngoais.size());
+                    ngoaiIdx++;
                     scheduleRepository.save(Schedule.builder()
                             .period(savedPeriod).workDate(date).staff(s).shiftType(l02).hasConflict(false).build());
                 }
-                // L03 — 1 nurse
-                Staff nur = nurses.get(nurIdx % nurses.size());
-                nurIdx++;
+                // L03 — 1 Nội
+                Staff nur = nois.get(noiIdx % nois.size());
+                noiIdx++;
                 scheduleRepository.save(Schedule.builder()
                         .period(savedPeriod).workDate(date).staff(nur).shiftType(l03).hasConflict(false).build());
-                // L04 — 1 doctor
-                Staff expert = doctors.get(docIdx % doctors.size());
-                docIdx++;
+                // L04 — 1 Ngoại
+                Staff expert = ngoais.get(ngoaiIdx % ngoais.size());
+                ngoaiIdx++;
                 scheduleRepository.save(Schedule.builder()
                         .period(savedPeriod).workDate(date).staff(expert).shiftType(l04).hasConflict(false).build());
             }
 
-            // ── Inject 1 real conflict: same person (s3) on same day — L03 + L04 ──
-            if (!doctors.isEmpty()) {
-                Staff conflictStaff = doctors.get(3 % doctors.size());
+            // ── Inject 1 real conflict: same person on same day — L03 + L04 ──
+            if (!ngoais.isEmpty()) {
+                Staff conflictStaff = ngoais.get(3 % ngoais.size());
                 scheduleRepository.save(Schedule.builder()
                         .period(savedPeriod).workDate(LocalDate.of(2026, 6, 10))
                         .staff(conflictStaff).shiftType(l03).hasConflict(true).build());

@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.response.ConflictCheckResponse;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.security.AuthContextService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -39,9 +40,15 @@ class ConflictDetectionServiceTest {
     @Mock
     private ShiftTypeRepository shiftTypeRepository;
     @Mock
+    private ShiftRequirementRepository shiftRequirementRepository;
+    @Mock
     private ConflictBroadcastService conflictBroadcastService;
     @Mock
     private EmailService emailService;
+    @Mock
+    private AuthContextService authContextService;
+    @Mock
+    private SystemLogService systemLogService;
 
     @InjectMocks
     private ConflictDetectionService conflictDetectionService;
@@ -94,6 +101,10 @@ class ConflictDetectionServiceTest {
                 default -> Optional.empty();
             };
         });
+
+        // Default: no shift requirements for any period (checkPeriodConflicts calls
+        // detectCoverageGaps → shiftRequirementRepository.findByPeriodId at the end).
+        when(shiftRequirementRepository.findByPeriodId(anyInt())).thenReturn(Collections.emptyList());
     }
 
     // ==================== M02: L01 vs L02 ====================
@@ -466,12 +477,18 @@ class ConflictDetectionServiceTest {
     }
 
     // ==================== BACK_TO_BACK_SHIFT ====================
+    // NOTE: Production `detectAllConflicts` no longer enforces a back-to-back
+    // shift guard (the hard "ca trực liền kề" rule was removed in favour of
+    // letting the auto-scheduling algorithm balance weekend / overnight
+    // load). The remaining tests below assert the CURRENT behaviour
+    // (adjacent shifts do NOT trigger detectAllConflicts) so future
+    // regressions surface immediately.
     @Nested
-    @DisplayName("P2-13: Ràng buộc ca trực liền kề (BACK_TO_BACK_SHIFT)")
+    @DisplayName("Back-to-back shift guard: KHÔNG còn được enforce ở detectAllConflicts")
     class BackToBackShift {
 
         @Test
-        @DisplayName("Co ca truc lien ke ngay hom truoc -> conflict")
+        @DisplayName("Co ca truc lien ke ngay hom truoc -> KHONG conflict (đã bỏ guard)")
         void adjacentPrevDay_shouldConflict() {
             LocalDate prevDay = monday.minusDays(1);
             Schedule adjacentSchedule = Schedule.builder()
@@ -489,11 +506,11 @@ class ConflictDetectionServiceTest {
                     testStaff.getId(), monday, "L01", null, period1.getId(), false, false);
 
             assertThat(conflicts)
-                    .anyMatch(c -> c.contains("ca trực liền kề"));
+                    .noneMatch(c -> c.contains("ca trực liền kề"));
         }
 
         @Test
-        @DisplayName("Co ca truc lien ke ngay hom sau -> conflict")
+        @DisplayName("Co ca truc lien ke ngay hom sau -> KHONG conflict (đã bỏ guard)")
         void adjacentNextDay_shouldConflict() {
             LocalDate nextDay = monday.plusDays(1);
             Schedule adjacentSchedule = Schedule.builder()
@@ -511,7 +528,7 @@ class ConflictDetectionServiceTest {
                     testStaff.getId(), monday, "L01", null, period1.getId(), false, false);
 
             assertThat(conflicts)
-                    .anyMatch(c -> c.contains("ca trực liền kề"));
+                    .noneMatch(c -> c.contains("ca trực liền kề"));
         }
 
         @Test
@@ -676,8 +693,11 @@ class ConflictDetectionServiceTest {
         }
 
         @Test
-        @DisplayName("L01 adjacent trong cùng period -> CÓ back-to-back conflict")
+        @DisplayName("L01 + L02 same-day trong cùng period -> CÓ shift-type conflict")
         void adjacentL01SamePeriod_hasConflict() {
+            // Same-day L01+L02 conflict triggers the "Trùng loại ca" guard.
+            // (Note: back-to-back across days is NOT enforced anymore — that
+            // responsibility moved to the auto-scheduling algorithm.)
             Schedule scheduleL01Mon = Schedule.builder()
                     .id(400)
                     .staff(testStaff)
@@ -687,24 +707,24 @@ class ConflictDetectionServiceTest {
                     .hasConflict(false)
                     .build();
 
-            Schedule adjacentL01 = Schedule.builder()
+            Schedule sameDayL02 = Schedule.builder()
                     .id(401)
                     .staff(testStaff)
-                    .workDate(LocalDate.of(2026, 7, 5)) // Sunday — adjacent
-                    .shiftType(shiftL01)
+                    .workDate(LocalDate.of(2026, 7, 6)) // same day as L01
+                    .shiftType(shiftL02)
                     .period(period1) // same period
                     .build();
 
             when(scheduleRepository.findByPeriodId(period1.getId()))
-                    .thenReturn(List.of(scheduleL01Mon));
+                    .thenReturn(List.of(scheduleL01Mon, sameDayL02));
             when(leaveRequestRepository.findApprovedInRange(any(), any()))
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findInRange(any(), any()))
                     .thenReturn(Collections.emptyList());
             when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 6)))
-                    .thenReturn(List.of(scheduleL01Mon));
+                    .thenReturn(List.of(scheduleL01Mon, sameDayL02));
             when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 5)))
-                    .thenReturn(List.of(adjacentL01));
+                    .thenReturn(Collections.emptyList());
             when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 7)))
                     .thenReturn(Collections.emptyList());
             when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(any()))
@@ -721,7 +741,7 @@ class ConflictDetectionServiceTest {
             assertThat(result.isHasConflicts()).isTrue();
             assertThat(result.getConflicts()).anyMatch(c ->
                     c.getConflictReasons().stream()
-                            .anyMatch(r -> r.contains("liền kề")));
+                            .anyMatch(r -> r.contains("Trùng loại ca")));
         }
     }
 
@@ -733,7 +753,7 @@ class ConflictDetectionServiceTest {
         @Test
         @DisplayName("Conflict mới trên schedule -> broadcast 1 lần")
         void newConflict_shouldBroadcastOnce() {
-            Schedule schedule = Schedule.builder()
+            Schedule scheduleL01 = Schedule.builder()
                     .id(500)
                     .staff(testStaff)
                     .workDate(monday)
@@ -742,31 +762,29 @@ class ConflictDetectionServiceTest {
                     .hasConflict(false)
                     .build();
 
-            // Adjacent schedule triggers a back-to-back conflict regardless
-            // of max-shifts accounting (which only triggers when periodId is
-            // threaded through detectAllConflicts).
-            Schedule adjacentSchedule = Schedule.builder()
+            // Same-day L01 + L02 → shift-type conflict triggers detectAllConflicts.
+            Schedule sameDayL02 = Schedule.builder()
                     .id(501)
                     .staff(testStaff)
-                    .workDate(monday.minusDays(1))
-                    .shiftType(shiftL01)
+                    .workDate(monday)
+                    .shiftType(shiftL02)
                     .period(period1)
                     .build();
 
             when(scheduleRepository.findByPeriodId(period1.getId()))
-                    .thenReturn(List.of(schedule));
+                    .thenReturn(List.of(scheduleL01, sameDayL02));
             // Batch methods (new implementation — no O(N) individual queries)
             when(leaveRequestRepository.findApprovedInRange(any(), any()))
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findInRange(any(), any()))
                     .thenReturn(Collections.emptyList());
             when(scheduleRepository.findByWorkDateWithDetails(monday))
-                    .thenReturn(List.of(schedule));
+                    .thenReturn(List.of(scheduleL01, sameDayL02));
             when(scheduleRepository.findByWorkDateWithDetails(monday.minusDays(1)))
-                    .thenReturn(List.of(adjacentSchedule));
+                    .thenReturn(Collections.emptyList());
             when(scheduleRepository.findByWorkDateWithDetails(monday.plusDays(1)))
                     .thenReturn(Collections.emptyList());
-            when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(schedule.getId()))
+            when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(scheduleL01.getId()))
                     .thenReturn(Collections.emptyList()); // no prior conflict -> new
             when(scheduleConflictRepository.save(any(ScheduleConflict.class)))
                     .thenAnswer(inv -> {
@@ -785,7 +803,7 @@ class ConflictDetectionServiceTest {
         @Test
         @DisplayName("Conflict đã tồn tại (unresolved) -> KHÔNG broadcast lại")
         void existingConflict_shouldNotBroadcastAgain() {
-            Schedule schedule = Schedule.builder()
+            Schedule scheduleL01 = Schedule.builder()
                     .id(502)
                     .staff(testStaff)
                     .workDate(monday)
@@ -796,37 +814,39 @@ class ConflictDetectionServiceTest {
 
             ScheduleConflict preExisting = ScheduleConflict.builder()
                     .id(8001)
-                    .schedule(schedule)
+                    .schedule(scheduleL01)
                     .conflictType(ScheduleConflict.ConflictType.OTHER)
                     .description("pre-existing")
                     .isResolved(false)
                     .build();
 
-            // Same adjacent-shift trigger as above so detectAllConflicts finds
+            // Same-day L01 + L02 trigger as above so detectAllConflicts finds
             // a conflict — but the schedule already has an unresolved conflict
             // so the broadcast must be skipped.
-            Schedule adjacentSchedule = Schedule.builder()
+            Schedule sameDayL02 = Schedule.builder()
                     .id(503)
                     .staff(testStaff)
-                    .workDate(monday.minusDays(1))
-                    .shiftType(shiftL01)
+                    .workDate(monday)
+                    .shiftType(shiftL02)
                     .period(period1)
                     .build();
 
             when(scheduleRepository.findByPeriodId(period1.getId()))
-                    .thenReturn(List.of(schedule));
+                    .thenReturn(List.of(scheduleL01, sameDayL02));
             // Batch methods (new implementation — no O(N) individual queries)
             when(leaveRequestRepository.findApprovedInRange(any(), any()))
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findInRange(any(), any()))
                     .thenReturn(Collections.emptyList());
             when(scheduleRepository.findByWorkDateWithDetails(monday))
-                    .thenReturn(List.of(schedule));
+                    .thenReturn(List.of(scheduleL01, sameDayL02));
             when(scheduleRepository.findByWorkDateWithDetails(monday.minusDays(1)))
-                    .thenReturn(List.of(adjacentSchedule));
+                    .thenReturn(Collections.emptyList());
             when(scheduleRepository.findByWorkDateWithDetails(monday.plusDays(1)))
                     .thenReturn(Collections.emptyList());
-            when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(schedule.getId()))
+            // Any schedule queried for unresolved conflicts already has one
+            // (the L01 row), so neither row should trigger a fresh broadcast.
+            when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(any()))
                     .thenReturn(List.of(preExisting));
 
             conflictDetectionService.checkPeriodConflicts(period1.getId());
