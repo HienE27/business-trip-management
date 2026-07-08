@@ -360,20 +360,38 @@ public class AutoSchedulingService {
             throw new BadRequestException("Chỉ có thể xếp lịch tự động khi kỳ lịch ở trạng thái DRAFT");
         }
 
-        // Delete existing schedules for this period before generating new ones to avoid accumulation
+        // Decide whether to clear existing schedules BEFORE generating new ones.
+        // - Preview (save=false): NEVER delete — preview is non-destructive, just runs
+        //   the algorithm in-memory and returns the proposed plan. Existing schedules
+        //   are still loaded below as context for the algorithm.
+        // - Apply (save=true): only delete when overwriteExisting=true. Otherwise throw
+        //   BadRequestException to protect manual schedules from being silently lost.
         List<Schedule> existingSchedulesForPeriod = scheduleRepository.findByPeriodId(period.getId());
-        if (!existingSchedulesForPeriod.isEmpty()) {
-            // CRITICAL: Delete in correct FK order: schedule_conflict -> compensation_day -> schedule
-            List<Integer> scheduleIds = existingSchedulesForPeriod.stream().map(Schedule::getId).toList();
-            scheduleConflictRepository.deleteByScheduleIds(scheduleIds);
-            compensationDayRepository.deleteAllByPeriodId(period.getId());
-            entityManager.flush();
-            scheduleRepository.deleteAllByPeriodId(period.getId());
-            entityManager.flush();
-            log.info("Cleared {} existing schedules and compensation days for period {} before auto-scheduling",
+        boolean overwrite = Boolean.TRUE.equals(request.getOverwriteExisting());
+
+        if (save && overwrite) {
+            if (!existingSchedulesForPeriod.isEmpty()) {
+                // CRITICAL: Delete in correct FK order: schedule_conflict -> compensation_day -> schedule
+                List<Integer> scheduleIds = existingSchedulesForPeriod.stream().map(Schedule::getId).toList();
+                scheduleConflictRepository.deleteByScheduleIds(scheduleIds);
+                compensationDayRepository.deleteAllByPeriodId(period.getId());
+                entityManager.flush();
+                scheduleRepository.deleteAllByPeriodId(period.getId());
+                entityManager.flush();
+                log.info("Cleared {} existing schedules and compensation days for period {} (overwriteExisting=true)",
+                        existingSchedulesForPeriod.size(), period.getId());
+            }
+        } else if (save && !overwrite && !existingSchedulesForPeriod.isEmpty()) {
+            throw new BadRequestException(
+                    "Kỳ lịch " + period.getId() + " đã có " + existingSchedulesForPeriod.size()
+                            + " lịch hiện tại (bao gồm có thể cả lịch phân công thủ công). "
+                            + "Đặt overwriteExisting=true nếu muốn xóa hết lịch cũ và xếp lại từ đầu, "
+                            + "hoặc dùng endpoint /preview để xem trước trước khi áp dụng.");
+        } else if (!save) {
+            log.info("Preview mode: keeping {} existing schedules for period {} (preview is non-destructive)",
                     existingSchedulesForPeriod.size(), period.getId());
         }
-        
+
         // CRITICAL: Clear in-memory cache after deleting old data to prevent stale entries
         allCompensationShiftDates.get().clear();
         log.info("Cleared in-memory compensation day cache for period {}", period.getId());
@@ -3994,16 +4012,16 @@ public class AutoSchedulingService {
                         periodData.staffShiftTypeCounts(), l04PerSpecialtyCounts);
                 if (thisTypeCount >= maxShiftsPerTypeLimit) continue;
             }
-            // 4b. Global per-staff total cap (from runtimeConfig), if configured.
-            if (maxShiftsPerStaffLimit > 0 && maxShiftsPerStaffLimit < Integer.MAX_VALUE) {
-                Map<String, Long> currentCounts = periodData.staffShiftTypeCounts().get(staff.getId());
-                if (currentCounts != null) {
-                    long totalCurrent = currentCounts.getOrDefault("L01", 0L)
-                            + currentCounts.getOrDefault("L02", 0L)
-                            + currentCounts.getOrDefault("L03", 0L)
-                            + currentCounts.getOrDefault("L04", 0L);
-                    if (totalCurrent >= maxShiftsPerStaffLimit) continue;
-                }
+                        // 4b. Global per-staff total cap — use runtimeConfig if set, else per-staff maxShiftsPerMonth.
+            int effectiveMaxShifts = (maxShiftsPerStaffLimit > 0 && maxShiftsPerStaffLimit < Integer.MAX_VALUE)
+                    ? maxShiftsPerStaffLimit
+                    : (staff.getMaxShiftsPerMonth() != null && staff.getMaxShiftsPerMonth() > 0
+                            ? staff.getMaxShiftsPerMonth()
+                            : Integer.MAX_VALUE);
+            if (effectiveMaxShifts < Integer.MAX_VALUE) {
+                long totalCurrent = getTotalStaffCount(staff.getId(),
+                        periodData.staffShiftTypeCounts(), l04PerSpecialtyCounts);
+                if (totalCurrent >= effectiveMaxShifts) continue;
             }
             // 4c. Per-type weekly max cap enforcement (l0XMaxPerWeek from config).
             // Weekly counts are reset when the ISO week changes (tracked in runGreedy).

@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(readOnly = true)
 public class SchedulePeriodService {
 
     private static final Logger log = LoggerFactory.getLogger(SchedulePeriodService.class);
@@ -56,6 +56,7 @@ public class SchedulePeriodService {
     private final EmailService emailService;
     private final ShiftRequirementRepository shiftRequirementRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final CacheEvictor cacheEvictor;
 
     public List<SchedulePeriodResponse> getAllPeriods() {
         return periodRepository.findAll().stream()
@@ -88,6 +89,7 @@ public class SchedulePeriodService {
         return toResponse(period);
     }
 
+    @Transactional
     public SchedulePeriodResponse createPeriod(SchedulePeriodRequest request, Integer generatedById) {
         if (request.getStartDate().isAfter(request.getEndDate())) {
             throw new BadRequestException("Ngày bắt đầu phải trước ngày kết thúc");
@@ -109,9 +111,11 @@ public class SchedulePeriodService {
 
         SchedulePeriod saved = periodRepository.save(period);
         auditHistoryService.logAction("schedule_period", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+        cacheEvictor.evictDashboard();
         return toResponse(saved);
     }
 
+    @Transactional
     public SchedulePeriodResponse updatePeriod(Integer id, SchedulePeriodRequest request) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
@@ -131,9 +135,11 @@ public class SchedulePeriodService {
 
         SchedulePeriod saved = periodRepository.save(period);
         auditHistoryService.logAction("schedule_period", id, AuditHistory.ActionType.UPDATE, prev, saved, null);
+        cacheEvictor.evictDashboard();
         return toResponse(saved);
     }
 
+    @Transactional
     public SchedulePeriodResponse publishPeriod(Integer id, Integer publishedById) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
@@ -206,6 +212,7 @@ public class SchedulePeriodService {
         emailService.sendSchedulePublishedEmail(activeStaff, period.getPeriodName(),
                 period.getStartDate(), period.getEndDate(), periodSchedules, periodCompDays);
 
+        cacheEvictor.evictDashboard();
         return toResponse(saved);
     }
 
@@ -218,7 +225,10 @@ public class SchedulePeriodService {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
 
-        ConflictCheckResponse conflictCheck = conflictDetectionService.checkPeriodConflicts(id);
+        // M02-F03 "Xem trước khi phát hành": dry-run MUST be read-only.
+        // Use checkPeriodConflictsReadOnly so we don't mutate schedule.hasConflict,
+        // don't create ScheduleConflict rows, don't send emails, and don't broadcast.
+        ConflictCheckResponse conflictCheck = conflictDetectionService.checkPeriodConflictsReadOnly(id);
         CoverageReportDTO staffingCoverage = null;
         try {
             staffingCoverage = conflictDetectionService.validateStaffingCoverage(id);
@@ -239,6 +249,7 @@ public class SchedulePeriodService {
                 .build();
     }
 
+    @Transactional
     public SchedulePeriodResponse archivePeriod(Integer id) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
@@ -267,9 +278,11 @@ public class SchedulePeriodService {
         auditHistoryService.logAction("schedule_period", saved.getId(), AuditHistory.ActionType.UPDATE,
                 prev, saved, currentStaffId);
 
+        cacheEvictor.evictDashboard();
         return toResponse(saved);
     }
 
+    @Transactional
     public BulkPeriodResponse bulkPublish(List<Integer> periodIds, Integer publishedById) {
         // Batch-fetch all periods in one query
         List<SchedulePeriod> periods = periodRepository.findAllByIdIn(periodIds);
@@ -300,6 +313,7 @@ public class SchedulePeriodService {
                     return publishSingleResult(id, publishedById);
                 })
                 .toList();
+        cacheEvictor.evictDashboard();
         return BulkPeriodResponse.of(results);
     }
 
@@ -335,6 +349,7 @@ public class SchedulePeriodService {
         }
     }
 
+    @Transactional
     public BulkPeriodResponse bulkArchive(List<Integer> periodIds) {
         // Batch-fetch all periods in one query
         List<SchedulePeriod> periods = periodRepository.findAllByIdIn(periodIds);
@@ -365,6 +380,7 @@ public class SchedulePeriodService {
                     return archiveSingleResult(id);
                 })
                 .toList();
+        cacheEvictor.evictDashboard();
         return BulkPeriodResponse.of(results);
     }
 
@@ -389,6 +405,7 @@ public class SchedulePeriodService {
         }
     }
 
+    @Transactional
     public void deletePeriod(Integer id) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
@@ -466,6 +483,7 @@ public class SchedulePeriodService {
         // 5. Delete period
         periodRepository.delete(period);
         log.info("Successfully deleted period id={}", id);
+        cacheEvictor.evictDashboard();
     }
 
     /**
@@ -475,6 +493,7 @@ public class SchedulePeriodService {
      * @param periodId the period to clean up
      * @return count of deleted rows
      */
+    @Transactional
     public int deleteL04RequirementsWithoutStaff(Integer periodId) {
         SchedulePeriod period = periodRepository.findById(periodId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + periodId));

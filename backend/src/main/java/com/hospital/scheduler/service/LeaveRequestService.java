@@ -8,6 +8,7 @@ import com.hospital.scheduler.entity.CompensationDay;
 import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.entity.RoleName;
 import com.hospital.scheduler.entity.Schedule;
+import com.hospital.scheduler.entity.ScheduleConflict;
 import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.exception.BadRequestException;
@@ -16,11 +17,13 @@ import com.hospital.scheduler.repository.CompensationDayRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.hospital.scheduler.repository.LeaveRequestRepository;
+import com.hospital.scheduler.repository.ScheduleConflictRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.dto.request.NotificationDTO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -42,8 +46,10 @@ public class LeaveRequestService {
     private final ScheduleRepository scheduleRepository;
     private final CompensationDayRepository compensationDayRepository;
     private final SchedulePeriodRepository periodRepository;
+    private final ScheduleConflictRepository scheduleConflictRepository;
     private final NotificationService notificationService;
     private final EmailService emailService;
+    private final CacheEvictor cacheEvictor;
     @Lazy
     private final ConflictDetectionService conflictDetectionService;
 
@@ -143,6 +149,7 @@ public class LeaveRequestService {
                             "Nhân sự " + staff.getFullName() + " gửi yêu cầu nghỉ phép từ " + dto.getStartDate() + " đến " + dto.getEndDate()));
         }
 
+        cacheEvictor.evictDashboard();
         return LeaveRequestResponse.fromEntity(saved);
     }
 
@@ -165,6 +172,11 @@ public class LeaveRequestService {
 
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
         auditHistoryService.logAction("leave_request", leaveRequestId, AuditHistory.ActionType.APPROVE, prev, saved, reviewerId);
+
+        // M04-F04: scan for schedules that overlap with the leave window and flag them as
+        // conflicts. Schedules may have been added after the leave was requested (race
+        // condition) so we re-check here at approval time, not just at create time.
+        List<Schedule> affectedSchedules = flagSchedulesOverlappingWithLeave(leaveRequest, reviewerId);
 
         // Notify the staff about approval
         notificationService.createNotification(leaveRequest.getStaff().getId(),
@@ -217,7 +229,61 @@ public class LeaveRequestService {
             }
         }
 
-        return LeaveRequestResponse.fromEntity(saved);
+        cacheEvictor.evictDashboard();
+        return LeaveRequestResponse.fromEntity(saved, affectedSchedules);
+    }
+
+    /**
+     * Find every schedule that overlaps with the leave window and flag each as hasConflict=true.
+     * Also creates a ScheduleConflict row (LEAVE_CONFLICT) for each so the conflict list in the
+     * UI surfaces the leave-overlap. Idempotent — re-approving an already-flagged schedule is
+     * safe (we skip schedules whose only existing conflict is already LEAVE_CONFLICT).
+     *
+     * @return the list of schedules that were flagged (may be empty).
+     */
+    private List<Schedule> flagSchedulesOverlappingWithLeave(LeaveRequest leaveRequest, Integer reviewerId) {
+        List<Schedule> overlapping = scheduleRepository.findByStaffIdAndDateRange(
+                leaveRequest.getStaff().getId(),
+                leaveRequest.getStartDate(),
+                leaveRequest.getEndDate());
+        if (overlapping.isEmpty()) {
+            return List.of();
+        }
+
+        List<Schedule> flagged = new ArrayList<>();
+        for (Schedule schedule : overlapping) {
+            // Avoid duplicate ScheduleConflict rows when re-approving — check if an unresolved
+            // LEAVE_CONFLICT already exists for this schedule.
+            boolean alreadyFlagged = scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(
+                    schedule.getId()).stream()
+                    .anyMatch(sc -> sc.getConflictType() == ScheduleConflict.ConflictType.LEAVE_CONFLICT);
+            if (alreadyFlagged && Boolean.TRUE.equals(schedule.getHasConflict())) {
+                continue;
+            }
+
+            String description = "Trùng với nghỉ phép đã duyệt (leave_request_id="
+                    + leaveRequest.getId() + ", " + leaveRequest.getStartDate()
+                    + " → " + leaveRequest.getEndDate() + ")";
+            schedule.setHasConflict(true);
+            scheduleConflictRepository.save(ScheduleConflict.builder()
+                    .schedule(schedule)
+                    .conflictType(ScheduleConflict.ConflictType.LEAVE_CONFLICT)
+                    .description(description)
+                    .isResolved(false)
+                    .build());
+            flagged.add(schedule);
+
+            auditHistoryService.logAction("schedule", schedule.getId(),
+                    AuditHistory.ActionType.UPDATE, schedule, schedule, reviewerId);
+            log.warn("Schedule {} ({} {}) flagged as LEAVE_CONFLICT after leave {} approval",
+                    schedule.getId(), schedule.getWorkDate(),
+                    schedule.getShiftType() != null ? schedule.getShiftType().getId() : "?",
+                    leaveRequest.getId());
+        }
+        if (!flagged.isEmpty()) {
+            scheduleRepository.saveAll(flagged);
+        }
+        return flagged;
     }
 
     public LeaveRequestResponse rejectLeaveRequest(Integer leaveRequestId, Integer reviewerId, String reviewNote) {
@@ -251,6 +317,7 @@ public class LeaveRequestService {
                 leaveRequest.getStartDate(), leaveRequest.getEndDate(),
                 reviewer.getFullName(), reviewNote);
 
+        cacheEvictor.evictDashboard();
         return LeaveRequestResponse.fromEntity(saved);
     }
 
@@ -283,6 +350,7 @@ public class LeaveRequestService {
         emailService.sendLeaveCancelledEmail(leaveRequest.getStaff(),
                 leaveRequest.getStartDate(), leaveRequest.getEndDate());
 
+        cacheEvictor.evictDashboard();
         return LeaveRequestResponse.fromEntity(saved);
     }
 

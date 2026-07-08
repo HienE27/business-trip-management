@@ -38,6 +38,25 @@ public interface ShiftRequirementRepository extends JpaRepository<ShiftRequireme
     void deleteAllByPeriodIdNative(@Param("periodId") Integer periodId);
 
     /**
+     * Set schedule.requirement_id = NULL for all schedules pointing at this requirement,
+     * so the FK does not block delete. Must be called BEFORE deleteById on shift_requirement.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "UPDATE schedule SET requirement_id = NULL WHERE requirement_id = :requirementId", nativeQuery = true)
+    void detachScheduleReferencesNative(@Param("requirementId") Integer requirementId);
+
+    /**
+     * Set schedule.requirement_id = NULL for all schedules whose requirement belongs to the
+     * given period. Must be called BEFORE bulk-delete of shift_requirement rows.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+        UPDATE schedule SET requirement_id = NULL
+        WHERE requirement_id IN (SELECT id FROM shift_requirement WHERE period_id = :periodId)
+        """, nativeQuery = true)
+    void detachScheduleReferencesByPeriodNative(@Param("periodId") Integer periodId);
+
+    /**
      * Delete L04 requirements for specialties that have no active staff.
      * Returns the number of deleted rows.
      */

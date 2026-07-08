@@ -174,7 +174,6 @@ class ScheduleExchangeServiceTest {
         @DisplayName("Cùng loại (L01↔L01) -> tạo thành công")
         void sameTypeL01Exchange_shouldCreate() {
             ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
-                    .periodId(1)
                     .requesterScheduleId(10)
                     .targetScheduleId(20)
                     .reason("Muốn đổi ngày trực")
@@ -204,7 +203,7 @@ class ScheduleExchangeServiceTest {
         void scheduleNotOwnedByRequester_shouldThrow() {
             // staffB (id=2) owns scheduleB (id=20), but tries to create exchange with scheduleA (id=10, owned by staffA)
             ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
-                    .periodId(1).requesterScheduleId(10).targetScheduleId(20).build();
+                    .requesterScheduleId(10).targetScheduleId(20).build();
             when(staffRepository.findById(2)).thenReturn(Optional.of(staffB)); // staffB requests
             when(scheduleRepository.findById(10)).thenReturn(Optional.of(scheduleA)); // scheduleA belongs to staffA
             when(scheduleRepository.findById(20)).thenReturn(Optional.of(scheduleB));
@@ -218,7 +217,7 @@ class ScheduleExchangeServiceTest {
         @DisplayName("Đổi trực với chính mình -> throw BadRequestException")
         void swapWithSelf_shouldThrow() {
             ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
-                    .periodId(1).requesterScheduleId(10).targetScheduleId(10).build();
+                    .requesterScheduleId(10).targetScheduleId(10).build();
             when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
             when(scheduleRepository.findById(10)).thenReturn(Optional.of(scheduleA));
 
@@ -232,7 +231,7 @@ class ScheduleExchangeServiceTest {
         void periodNotPublished_shouldThrow() {
             testPeriod.setStatus(SchedulePeriod.PeriodStatus.DRAFT);
             ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
-                    .periodId(1).requesterScheduleId(10).targetScheduleId(20).build();
+                    .requesterScheduleId(10).targetScheduleId(20).build();
             when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
             when(scheduleRepository.findById(10)).thenReturn(Optional.of(scheduleA));
             when(scheduleRepository.findById(20)).thenReturn(Optional.of(scheduleB));
@@ -256,7 +255,7 @@ class ScheduleExchangeServiceTest {
                     .workDate(LocalDate.of(2026, 6, 10)).build();
 
             ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
-                    .periodId(1).requesterScheduleId(10).targetScheduleId(20).build();
+                    .requesterScheduleId(10).targetScheduleId(20).build();
             when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
             when(scheduleRepository.findById(10)).thenReturn(Optional.of(l02ScheduleA));
             when(scheduleRepository.findById(20)).thenReturn(Optional.of(l02ScheduleB));
@@ -290,7 +289,7 @@ class ScheduleExchangeServiceTest {
                     .workDate(LocalDate.of(2026, 6, 10)).build();
 
             ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
-                    .periodId(1).requesterScheduleId(10).targetScheduleId(20).build();
+                    .requesterScheduleId(10).targetScheduleId(20).build();
             when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
             when(scheduleRepository.findById(10)).thenReturn(Optional.of(l01ScheduleA));
             when(scheduleRepository.findById(20)).thenReturn(Optional.of(l02ScheduleB));
@@ -310,7 +309,7 @@ class ScheduleExchangeServiceTest {
                     .workDate(LocalDate.of(2026, 6, 5)).build();
 
             ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
-                    .periodId(1).requesterScheduleId(10).targetScheduleId(20).build();
+                    .requesterScheduleId(10).targetScheduleId(20).build();
             when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
             when(scheduleRepository.findById(10)).thenReturn(Optional.of(nonL01ScheduleA));
             when(scheduleRepository.findById(20)).thenReturn(Optional.of(scheduleB));
@@ -333,7 +332,7 @@ class ScheduleExchangeServiceTest {
                     .workDate(LocalDate.of(2026, 6, 10)).build();
 
             ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
-                    .periodId(1).requesterScheduleId(10).targetScheduleId(20).build();
+                    .requesterScheduleId(10).targetScheduleId(20).build();
             when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
             when(scheduleRepository.findById(10)).thenReturn(Optional.of(scheduleA));
             when(scheduleRepository.findById(20)).thenReturn(Optional.of(inactiveSchedule));
@@ -351,7 +350,7 @@ class ScheduleExchangeServiceTest {
         void archivedPeriod_shouldThrow() {
             testPeriod.setStatus(SchedulePeriod.PeriodStatus.ARCHIVED);
             ScheduleExchangeDTO dto = ScheduleExchangeDTO.builder()
-                    .periodId(1).requesterScheduleId(10).targetScheduleId(20).build();
+                    .requesterScheduleId(10).targetScheduleId(20).build();
             when(staffRepository.findById(1)).thenReturn(Optional.of(staffA));
             when(scheduleRepository.findById(10)).thenReturn(Optional.of(scheduleA));
             when(scheduleRepository.findById(20)).thenReturn(Optional.of(scheduleB));
