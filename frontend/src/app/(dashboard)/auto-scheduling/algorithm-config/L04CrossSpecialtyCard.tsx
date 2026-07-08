@@ -21,12 +21,32 @@ export function L04SpecialtyConfig({
 }: L04SpecialtyConfigProps) {
   const [localRatio, setLocalRatio] = useState(ratio);
   const [localAllowed, setLocalAllowed] = useState<string[]>(allowedSpecialties);
+  const [selectionMode, setSelectionMode] = useState<"all" | "partial" | "none">(
+    allowedSpecialties.length === 0 || allowedSpecialties.length === allSpecialties.length
+      ? "all"
+      : allowedSpecialties.length > 0
+      ? "partial"
+      : "none"
+  );
 
   useEffect(() => {
     setLocalAllowed(allowedSpecialties);
-  }, [allowedSpecialties]);
+    // Sync selection mode
+    if (allowedSpecialties.length === 0 || allowedSpecialties.length === allSpecialties.length) {
+      setSelectionMode("all");
+    } else if (allowedSpecialties.length > 0) {
+      setSelectionMode("partial");
+    } else {
+      setSelectionMode("none");
+    }
+  }, [allowedSpecialties, allSpecialties]);
 
-  const isAllSelected = localAllowed.length === 0 || localAllowed.length === allSpecialties.length;
+  // Check if a specialty is selected based on current mode
+  function isSpecialtySelected(specialty: string): boolean {
+    if (selectionMode === "all") return true;
+    if (selectionMode === "none") return false;
+    return localAllowed.includes(specialty);
+  }
 
   function handleToggle() {
     const newEnabled = !enabled;
@@ -40,25 +60,40 @@ export function L04SpecialtyConfig({
 
   function handleSpecialtyToggle(specialty: string) {
     let newAllowed: string[];
-    if (localAllowed.includes(specialty)) {
-      newAllowed = localAllowed.filter(s => s !== specialty);
+    if (selectionMode === "all") {
+      // Clicking from "all" mode → deselect all except this one
+      newAllowed = allSpecialties.filter(s => s !== specialty);
+      setSelectionMode("partial");
+    } else if (selectionMode === "none") {
+      // Clicking from "none" mode → select this one only
+      newAllowed = [specialty];
+      setSelectionMode("partial");
     } else {
-      newAllowed = [...localAllowed, specialty];
+      // Partial mode → toggle normally
+      if (localAllowed.includes(specialty)) {
+        newAllowed = localAllowed.filter(s => s !== specialty);
+        if (newAllowed.length === 0) setSelectionMode("none");
+      } else {
+        newAllowed = [...localAllowed, specialty];
+      }
     }
     setLocalAllowed(newAllowed);
     onChange(enabled, localRatio, newAllowed);
   }
 
   function handleSelectAll() {
-    // Empty array = all specialties
+    // Select all → empty array (backend: "all specialties")
     setLocalAllowed([]);
+    setSelectionMode("all");
     onChange(enabled, localRatio, []);
   }
 
   function handleClearAll() {
-    // Select all specialties explicitly
-    setLocalAllowed([...allSpecialties]);
-    onChange(enabled, localRatio, [...allSpecialties]);
+    // Clear all → empty array (backend: no specialties = all)
+    // But UI shows as "none" mode for visual feedback
+    setLocalAllowed([]);
+    setSelectionMode("none");
+    onChange(enabled, localRatio, []);
   }
 
   return (
@@ -103,7 +138,7 @@ export function L04SpecialtyConfig({
             {/* Quick actions */}
             <div className="flex items-center justify-between">
               <p className="text-label-sm text-on-surface font-medium">
-                {isAllSelected ? "Tất cả chuyên khoa" : `${localAllowed.length}/${allSpecialties.length} chuyên khoa`}
+                {selectionMode === "all" ? "Tất cả chuyên khoa" : selectionMode === "none" ? "Không có chuyên khoa nào" : `${localAllowed.length}/${allSpecialties.length} chuyên khoa`}
               </p>
               {editing && (
                 <div className="flex gap-2">
@@ -130,7 +165,7 @@ export function L04SpecialtyConfig({
             {editing ? (
               <div className="flex flex-wrap gap-2">
                 {allSpecialties.map((specialty) => {
-                  const isSelected = !isAllSelected && localAllowed.includes(specialty);
+                  const isSelected = isSpecialtySelected(specialty);
                   return (
                     <button
                       key={specialty}
@@ -149,9 +184,13 @@ export function L04SpecialtyConfig({
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {isAllSelected ? (
+                {selectionMode === "all" ? (
                   <span className="text-[12px] text-on-surface-variant">
                     Tất cả chuyên khoa được phép
+                  </span>
+                ) : selectionMode === "none" ? (
+                  <span className="text-[12px] text-error">
+                    Không có chuyên khoa nào được phép
                   </span>
                 ) : (
                   localAllowed.map((specialty) => (
