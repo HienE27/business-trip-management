@@ -235,7 +235,7 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
               <div className="space-y-3 max-w-xl">
                 {periods.map(period => {
                   const isSelected = selectedPeriodId === period.id;
-                  const isDraft = period.status === "DRAFT";
+                  const periodIsDraft = period.status === "DRAFT";
                   return (
                     <button
                       key={period.id}
@@ -257,8 +257,8 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
                             )}
                           </p>
                         </div>
-                        <Badge tone={isDraft ? "info" : "success"} size="sm">
-                          {isDraft ? "Nháp" : "Đã công bố"}
+                        <Badge tone={periodIsDraft ? "info" : "success"} size="sm">
+                          {periodIsDraft ? "Nháp" : "Đã công bố"}
                         </Badge>
                       </div>
                     </button>
