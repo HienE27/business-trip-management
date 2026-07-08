@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { RuntimeConfig } from "./types";
 import type { ShiftTypeGroup } from "./paramConfig";
 import { getShiftRowLabel, getShiftRowTooltip } from "./paramConfig";
@@ -17,16 +18,47 @@ function CompactSpinner({ value, onChange, disabled }: {
   onChange: (v: number) => void;
   disabled?: boolean;
 }) {
-  // Select all text on focus for easy replacement
-  function handleFocus(e: React.FocusEvent<HTMLInputElement>) {
-    e.target.select();
+  // Local state để cho phép empty input
+  const [localVal, setLocalVal] = useState(value.toString());
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Sync khi value thay đổi từ bên ngoài
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalVal(value.toString());
+    }
+  }, [value, isFocused]);
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setLocalVal(e.target.value);
+  }
+
+  function handleBlur() {
+    setIsFocused(false);
+    const raw = localVal.trim();
+    if (raw === "") {
+      setLocalVal("0");
+      onChange(0);
+    } else {
+      const parsed = Math.max(0, Math.min(99, parseInt(raw) || 0));
+      setLocalVal(parsed.toString());
+      onChange(parsed);
+    }
+  }
+
+  function handleFocus() {
+    setIsFocused(true);
   }
 
   return (
     <div className={`flex items-center gap-0.5 ${disabled ? "opacity-50" : ""}`}>
       <button
         type="button"
-        onClick={() => onChange(Math.max(0, value - 1))}
+        onClick={() => {
+          const newVal = Math.max(0, value - 1);
+          onChange(newVal);
+          setLocalVal(newVal.toString());
+        }}
         disabled={disabled || value <= 0}
         className="flex items-center justify-center h-6 w-5 rounded border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
         title="Giảm"
@@ -34,19 +66,24 @@ function CompactSpinner({ value, onChange, disabled }: {
         <span className="material-symbols-outlined text-[12px]" aria-hidden="true">remove</span>
       </button>
       <input
-        type="number"
-        min={0}
-        max={99}
-        step={1}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
         disabled={disabled}
         className="h-6 w-10 rounded border border-outline-variant bg-surface-container-lowest px-1 text-center text-[11px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-colors disabled:cursor-not-allowed"
-        value={value}
-        onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))}
+        value={localVal}
+        onChange={handleInputChange}
         onFocus={handleFocus}
+        onBlur={handleBlur}
+        placeholder="—"
       />
       <button
         type="button"
-        onClick={() => onChange(Math.min(99, value + 1))}
+        onClick={() => {
+          const newVal = Math.min(99, value + 1);
+          onChange(newVal);
+          setLocalVal(newVal.toString());
+        }}
         disabled={disabled || value >= 99}
         className="flex items-center justify-center h-6 w-5 rounded border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
         title="Tăng"

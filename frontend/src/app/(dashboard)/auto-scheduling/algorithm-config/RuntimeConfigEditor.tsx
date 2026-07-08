@@ -373,25 +373,54 @@ function NumberSpinner({ value, min, max, step, onChange, disabled }: {
   onChange: (v: number) => void;
   disabled?: boolean;
 }) {
+  // Local state để cho phép empty input
+  const [localVal, setLocalVal] = useState(value.toString());
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Sync khi value thay đổi từ bên ngoài (vd: preset applied)
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalVal(value.toString());
+    }
+  }, [value, isFocused]);
+
   function handleDecrement() {
     const newVal = Math.max(min, value - step);
-    onChange(step < 1 ? Math.round(newVal * 100) / 100 : newVal);
+    const result = step < 1 ? Math.round(newVal * 100) / 100 : newVal;
+    onChange(result);
+    setLocalVal(result.toString());
   }
 
   function handleIncrement() {
     const newVal = Math.min(max, value + step);
-    onChange(step < 1 ? Math.round(newVal * 100) / 100 : newVal);
+    const result = step < 1 ? Math.round(newVal * 100) / 100 : newVal;
+    onChange(result);
+    setLocalVal(result.toString());
   }
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value;
-    const parsed = step < 1 ? parseFloat(raw) || 0 : parseInt(raw) || 0;
-    onChange(parsed);
+    setLocalVal(raw);
   }
 
-  // Select all text on focus for easy replacement
-  function handleFocus(e: React.FocusEvent<HTMLInputElement>) {
-    e.target.select();
+  function handleBlur() {
+    setIsFocused(false);
+    // Parse and validate on blur
+    const raw = localVal.trim();
+    if (raw === "") {
+      // Empty = 0
+      setLocalVal("0");
+      onChange(0);
+    } else {
+      const parsed = step < 1 ? parseFloat(raw) || 0 : parseInt(raw) || 0;
+      const clamped = Math.max(min, Math.min(max, parsed));
+      setLocalVal(clamped.toString());
+      onChange(clamped);
+    }
+  }
+
+  function handleFocus() {
+    setIsFocused(true);
   }
 
   return (
@@ -406,15 +435,16 @@ function NumberSpinner({ value, min, max, step, onChange, disabled }: {
         <span className="material-symbols-outlined text-[14px]" aria-hidden="true">remove</span>
       </button>
       <input
-        type="number"
-        step={step}
-        min={min}
-        max={max}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
         disabled={disabled}
         className="h-8 w-16 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:cursor-not-allowed"
-        value={value}
+        value={localVal}
         onChange={handleInputChange}
         onFocus={handleFocus}
+        onBlur={handleBlur}
+        placeholder="—"
       />
       <button
         type="button"
