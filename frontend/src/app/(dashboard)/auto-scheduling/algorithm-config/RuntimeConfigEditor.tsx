@@ -478,6 +478,24 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           targetsPerStaffPerMonth: { L01: 7, L02: 8, L03: 9, L04: 16 },
           eligibleStaff: { L01: 8, L02: 8, L03: 8, L04: 20 },
         }}
+        currentConfig={form ? {
+          l01MinPerDay: Number(form.auto_gen_l01_min_per_day ?? 1),
+          l01MaxPerDay: Number(form.auto_gen_l01_max_per_day ?? 3),
+          l01MinPerWeek: Number(form.auto_gen_l01_min_per_week ?? 2),
+          l01MaxPerWeek: Number(form.auto_gen_l01_max_per_week ?? 3),
+          l02MinPerDay: Number(form.auto_gen_l02_min_per_day ?? 1),
+          l02MaxPerDay: Number(form.auto_gen_l02_max_per_day ?? 3),
+          l02MinPerWeek: Number(form.auto_gen_l02_min_per_week ?? 2),
+          l02MaxPerWeek: Number(form.auto_gen_l02_max_per_week ?? 3),
+          l03MinPerDay: Number(form.auto_gen_l03_min_per_day ?? 1),
+          l03MaxPerDay: Number(form.auto_gen_l03_max_per_day ?? 3),
+          l03MinPerWeek: Number(form.auto_gen_l03_min_per_week ?? 2),
+          l03MaxPerWeek: Number(form.auto_gen_l03_max_per_week ?? 3),
+          l04MinPerDay: Number(form.auto_gen_l04_min_per_day ?? 1),
+          l04MaxPerDay: Number(form.auto_gen_l04_max_per_day ?? 10),
+          l04MinPerWeek: Number(form.auto_gen_l04_min_per_week ?? 4),
+          l04MaxPerWeek: Number(form.auto_gen_l04_max_per_week ?? 6),
+        } : null}
       />
     </div>
   );
