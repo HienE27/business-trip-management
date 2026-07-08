@@ -685,6 +685,59 @@ export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: Work
         <BalanceView {...balanceData} />
       )}
 
+      {/* Eligibility explanation panel */}
+      {chartData && (() => {
+        const eligibleCount = chartData.staffWorkloadData.filter(
+          (s) => s.specialty && ELIGIBLE_SPECIALTIES.includes(s.specialty)
+        ).length;
+        const nonEligibleCount = chartData.staffWorkloadData.length - eligibleCount;
+        if (nonEligibleCount === 0) return null;
+        return (
+          <div
+            className="flex items-start gap-3 p-4 rounded-xl bg-tertiary-container/30 border border-tertiary/30"
+            role="note"
+            aria-label="Giải thích phân bổ theo eligibility"
+          >
+            <span
+              className="material-symbols-outlined text-tertiary text-[20px] shrink-0 mt-0.5"
+              aria-hidden="true"
+            >
+              info
+            </span>
+            <div className="flex-1 min-w-0 text-body-sm text-on-surface">
+              <p className="font-semibold text-on-surface mb-1">
+                Tại sao có sự chênh lệch giữa các nhân sự?
+              </p>
+              <p className="text-on-surface-variant leading-relaxed">
+                <strong>{eligibleCount}</strong> nhân sự thuộc 6 chuyên khoa Ngoại, Nội, Sản, Nhi, Mắt, Răng
+                được phân các ca <strong>L01 (Trực 24/24)</strong>, <strong>L02 (Thông tầm)</strong>,{" "}
+                <strong>L03 (PK Dịch vụ)</strong> và <strong>L04 (PK Chuyên gia)</strong>.
+              </p>
+              <p className="text-on-surface-variant leading-relaxed mt-1">
+                <strong>{nonEligibleCount}</strong> nhân sự còn lại (Dược sĩ, KTV, hoặc chuyên khoa khác)
+                chỉ eligible cho <strong>L04 (PK Chuyên gia)</strong> theo quy định bệnh viện — không thể
+                nhận L01/L02/L03 vì cần bác sĩ/điều dưỡng thực sự.
+              </p>
+              <p className="text-on-surface-variant leading-relaxed mt-2 text-[12px]">
+                💡 Để cải thiện fairness, hãy <em>tuyển thêm bác sĩ/điều dưỡng</em> cho 6 khoa eligible
+                hoặc <em>mở rộng pool eligibility</em> (cần quyết định từ phía quản lý).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowOnlyEligible((v) => !v)}
+              className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface-container-lowest border border-outline-variant text-label-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
+              title={showOnlyEligible ? "Bỏ lọc" : "Chỉ xem nhân sự eligible"}
+            >
+              <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                {showOnlyEligible ? "visibility_off" : "visibility"}
+              </span>
+              {showOnlyEligible ? "Bỏ lọc" : "Lọc eligible"}
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Footer notes */}
       <div className="flex items-center gap-4 pt-2 border-t border-outline-variant flex-wrap" aria-label="Chú thích biểu đồ">
         <div className="flex items-center gap-1.5">
