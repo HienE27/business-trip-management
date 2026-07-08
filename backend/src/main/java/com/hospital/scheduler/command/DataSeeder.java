@@ -14,8 +14,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
@@ -24,6 +27,8 @@ import java.util.List;
 public class DataSeeder implements CommandLineRunner {
 
     private final AppRoleRepository appRoleRepository;
+    private final AppPermissionRepository appPermissionRepository;
+    private final RolePermissionRepository rolePermissionRepository;
     private final StaffRepository staffRepository;
     private final SpecialtyRepository specialtyRepository;
     private final ShiftTypeRepository shiftTypeRepository;
@@ -45,6 +50,8 @@ public class DataSeeder implements CommandLineRunner {
     @Override
     public void run(String... args) {
         seedRoles();
+        seedPermissions();
+        seedRolePermissions();
         seedSpecialties();
         seedShiftTypes();
         seedHolidays();
@@ -66,6 +73,108 @@ public class DataSeeder implements CommandLineRunner {
         appRoleRepository.save(AppRole.builder().name(RoleName.STAFF).description("Nhân viên sử dụng hệ thống").isActive(true).build());
 
         log.info("✅ Seeded roles: ADMIN, MANAGER, STAFF");
+    }
+
+    /**
+     * M01-F05 "Phân quyền hệ thống": seed toàn bộ permission catalog.
+     * Idempotent: skip nếu bảng đã có dữ liệu.
+     */
+    private void seedPermissions() {
+        if (appPermissionRepository.count() > 0) return;
+
+        record PermissionSeed(String name, String description) {}
+        List<PermissionSeed> seeds = List.of(
+            new PermissionSeed("STAFF_VIEW",         "Xem thông tin nhân sự"),
+            new PermissionSeed("STAFF_MANAGE",       "Tạo/sửa/xóa nhân sự"),
+            new PermissionSeed("SCHEDULE_VIEW",      "Xem lịch trực"),
+            new PermissionSeed("SCHEDULE_CREATE",    "Tạo lịch trực"),
+            new PermissionSeed("SCHEDULE_EDIT",      "Sửa lịch trực"),
+            new PermissionSeed("SCHEDULE_DELETE",    "Xóa lịch trực"),
+            new PermissionSeed("SCHEDULE_PUBLISH",   "Công bố kỳ lịch"),
+            new PermissionSeed("PERIOD_MANAGE",      "Quản lý kỳ lịch (CRUD)"),
+            new PermissionSeed("EXCHANGE_VIEW",      "Xem yêu cầu đổi ca"),
+            new PermissionSeed("EXCHANGE_CREATE",    "Tạo yêu cầu đổi ca"),
+            new PermissionSeed("EXCHANGE_APPROVE",   "Duyệt/từ chối yêu cầu đổi ca"),
+            new PermissionSeed("REPORT_VIEW",        "Xem báo cáo thống kê"),
+            new PermissionSeed("APP_CONFIG_VIEW",    "Xem cấu hình hệ thống"),
+            new PermissionSeed("APP_CONFIG_EDIT",    "Sửa cấu hình hệ thống"),
+            new PermissionSeed("ROLE_VIEW",          "Xem ma trận phân quyền"),
+            new PermissionSeed("ROLE_EDIT",          "Sửa ma trận phân quyền"),
+            new PermissionSeed("DATA_INTEGRITY_RUN", "Chạy kiểm tra tính toàn vẹn dữ liệu"),
+            new PermissionSeed("AUDIT_VIEW",         "Xem lịch sử thao tác"),
+            new PermissionSeed("NOTIFICATION_VIEW",  "Xem thông báo"),
+            new PermissionSeed("SYSTEM_LOG_VIEW",    "Xem system log")
+        );
+
+        for (PermissionSeed seed : seeds) {
+            appPermissionRepository.save(AppPermission.builder()
+                    .name(seed.name())
+                    .description(seed.description())
+                    .isActive(true)
+                    .build());
+        }
+
+        log.info("✅ Seeded {} permissions", seeds.size());
+    }
+
+    /**
+     * M01-F05 "Phân quyền hệ thống": gán permission cho từng role theo ma trận.
+     *
+     * - ADMIN: tất cả 20 permissions
+     * - MANAGER: trừ ROLE_EDIT và DATA_INTEGRITY_RUN (18 permissions)
+     * - STAFF: STAFF_VIEW, SCHEDULE_VIEW, EXCHANGE_VIEW, EXCHANGE_CREATE, NOTIFICATION_VIEW (5 permissions)
+     */
+    private void seedRolePermissions() {
+        if (rolePermissionRepository.count() > 0) return;
+
+        AppRole adminRole = appRoleRepository.findByName(RoleName.ADMIN)
+                .orElseThrow(() -> new IllegalStateException("ADMIN role not seeded yet"));
+        AppRole managerRole = appRoleRepository.findByName(RoleName.MANAGER)
+                .orElseThrow(() -> new IllegalStateException("MANAGER role not seeded yet"));
+        AppRole staffRole = appRoleRepository.findByName(RoleName.STAFF)
+                .orElseThrow(() -> new IllegalStateException("STAFF role not seeded yet"));
+
+        // Cache toàn bộ permission theo tên để tra nhanh
+        Map<String, Integer> permIds = new HashMap<>();
+        for (AppPermission p : appPermissionRepository.findAll()) {
+            permIds.put(p.getName(), p.getId());
+        }
+
+        // Permissions mà MANAGER KHÔNG được phép (chỉ ADMIN)
+        Set<String> adminOnly = Set.of("ROLE_EDIT", "DATA_INTEGRITY_RUN");
+
+        // Permissions mà STAFF được phép
+        Set<String> staffAllowed = Set.of(
+                "STAFF_VIEW", "SCHEDULE_VIEW", "EXCHANGE_VIEW", "EXCHANGE_CREATE", "NOTIFICATION_VIEW"
+        );
+
+        int adminCount = 0, managerCount = 0, staffCount = 0;
+        for (Map.Entry<String, Integer> entry : permIds.entrySet()) {
+            String permName = entry.getKey();
+            Integer permId = entry.getValue();
+
+            // ADMIN: tất cả
+            rolePermissionRepository.save(RolePermission.builder()
+                    .roleId(adminRole.getId()).permissionId(permId).build());
+            adminCount++;
+
+            // MANAGER: trừ adminOnly
+            if (!adminOnly.contains(permName)) {
+                rolePermissionRepository.save(RolePermission.builder()
+                        .roleId(managerRole.getId()).permissionId(permId).build());
+                managerCount++;
+            }
+
+            // STAFF: chỉ staffAllowed
+            if (staffAllowed.contains(permName)) {
+                rolePermissionRepository.save(RolePermission.builder()
+                        .roleId(staffRole.getId()).permissionId(permId).build());
+                staffCount++;
+            }
+        }
+
+        log.info("✅ Seeded role-permission matrix: ADMIN={}, MANAGER={}, STAFF={}",
+                adminCount, managerCount, staffCount);
     }
 
     private void seedSpecialties() {

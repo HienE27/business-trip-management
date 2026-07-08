@@ -192,6 +192,98 @@ public class ConflictDetectionService {
         }
     }
 
+    /**
+     * Read-only conflict check for the publish dry-run. Does NOT mutate any entity,
+     * does NOT call saveConflictInternal / sendConflictAlertToStaff / broadcastConflict*,
+     * and does NOT touch schedule.hasConflict. Safe to call inside a read-only transaction.
+     */
+    public ConflictCheckResponse checkPeriodConflictsReadOnly(Integer periodId) {
+        List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
+        List<ConflictCheckResponse.ConflictDetail> conflictDetails = new ArrayList<>();
+
+        // ── Batch-load all conflict data upfront (4 queries) instead of O(N) per-schedule ──
+        // Collect all unique dates in the period for adjacent-day queries
+        Set<LocalDate> periodDates = schedules.stream()
+                .map(Schedule::getWorkDate)
+                .collect(java.util.stream.Collectors.toSet());
+
+        // Batch 0: pre-load all shift types (only 4, but needed for batch conflict check)
+        Map<String, ShiftType> shiftTypeById = new java.util.HashMap<>();
+        for (ShiftType st : shiftTypeRepository.findAll()) {
+            shiftTypeById.put(st.getId(), st);
+        }
+
+        // Batch 1: all approved leaves within the period's date range
+        LocalDate minDate = periodDates.stream().min(LocalDate::compareTo).orElse(null);
+        LocalDate maxDate = periodDates.stream().max(LocalDate::compareTo).orElse(null);
+
+        Map<Integer, List<LeaveRequest>> leavesByStaff = new java.util.HashMap<>();
+        if (minDate != null && maxDate != null) {
+            for (LeaveRequest lr : leaveRequestRepository.findApprovedInRange(minDate, maxDate)) {
+                leavesByStaff.computeIfAbsent(lr.getStaff().getId(), k -> new java.util.ArrayList<>()).add(lr);
+            }
+        }
+
+        // Batch 2: all compensation days within the period
+        Map<Integer, List<CompensationDay>> compDaysByStaff = new java.util.HashMap<>();
+        if (minDate != null && maxDate != null) {
+            for (CompensationDay cd : compensationDayRepository.findInRange(minDate, maxDate)) {
+                compDaysByStaff.computeIfAbsent(cd.getStaff().getId(), k -> new java.util.ArrayList<>()).add(cd);
+            }
+        }
+
+        // Batch 3: all schedules (period + adjacent days) for shift-type and back-to-back checks
+        Set<LocalDate> adjacentDates = new java.util.HashSet<>(periodDates);
+        if (minDate != null) adjacentDates.add(minDate.minusDays(1));
+        if (maxDate != null) adjacentDates.add(maxDate.plusDays(1));
+
+        Map<LocalDate, Map<Integer, List<Schedule>>> schedulesByDateByStaff = new java.util.HashMap<>();
+        for (LocalDate d : adjacentDates) {
+            for (Schedule s : scheduleRepository.findByWorkDateWithDetails(d)) {
+                schedulesByDateByStaff.computeIfAbsent(d, k -> new java.util.HashMap<>())
+                        .computeIfAbsent(s.getStaff().getId(), k -> new java.util.ArrayList<>()).add(s);
+            }
+        }
+
+        for (Schedule schedule : schedules) {
+            Staff staff = schedule.getStaff();
+            LocalDate workDate = schedule.getWorkDate();
+            String shiftTypeId = schedule.getShiftType().getId();
+
+            List<String> conflicts = detectAllConflictsWithBatch(
+                    staff.getId(), workDate, shiftTypeId, schedule.getId(), periodId,
+                    leavesByStaff, compDaysByStaff, schedulesByDateByStaff, shiftTypeById);
+            if (!conflicts.isEmpty()) {
+                String description = String.join("; ", conflicts);
+                ConflictCheckResponse.ConflictDetail conflictDetail = ConflictCheckResponse.ConflictDetail.builder()
+                        .scheduleId(schedule.getId())
+                        .staffName(staff.getFullName())
+                        .workDate(workDate)
+                        .shiftTypeId(shiftTypeId)
+                        .shiftTypeName(schedule.getShiftType().getName())
+                        .conflictReasons(conflicts)
+                        .periodId(periodId)
+                        .originalStaffId(staff.getId())
+                        .build();
+                conflictDetails.add(conflictDetail);
+            }
+            // NOTE: deliberately no `schedule.setHasConflict(...)` mutation and no save —
+            // dry-run must not write to DB.
+        }
+
+        List<String> coverageGaps = detectCoverageGaps(periodId);
+
+        return ConflictCheckResponse.builder()
+                .periodId(periodId)
+                .hasConflicts(!conflictDetails.isEmpty())
+                .totalConflicts(conflictDetails.size())
+                .conflicts(conflictDetails)
+                .coverageGaps(coverageGaps)
+                .hasCoverageGaps(!coverageGaps.isEmpty())
+                .totalCoverageGaps(coverageGaps.size())
+                .build();
+    }
+
     @Transactional
     public ConflictCheckResponse checkPeriodConflicts(Integer periodId) {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
@@ -436,7 +528,14 @@ public class ConflictDetectionService {
 
             // L01↔L02 conflict (overnight vs non-overnight)
             if (newIsOvernight != existingIsOvernight) {
-                return java.util.Optional.of("Trùng loại ca: lịch trực 24/24 và ca thường không thể cùng ngày");
+                // Use the actual shift-type names so the message is self-explanatory
+                // for whichever pair collides (L01↔L02, L02↔L03, future L05↔L02, ...).
+                String newName = newShiftType != null && newShiftType.getName() != null
+                        ? newShiftType.getName() : shiftTypeId;
+                String existingName = s.getShiftType() != null && s.getShiftType().getName() != null
+                        ? s.getShiftType().getName() : s.getShiftType().getId();
+                return java.util.Optional.of(String.format(
+                        "Lịch \"%s\" và lịch \"%s\" không thể cùng ngày", newName, existingName));
             }
 
             // L03↔L04 conflict (both non-overnight service shifts)
@@ -444,7 +543,12 @@ public class ConflictDetectionService {
                 String nid = newShiftType != null ? newShiftType.getId() : "";
                 String eid = s.getShiftType() != null ? s.getShiftType().getId() : "";
                 if (("L03".equals(nid) && "L04".equals(eid)) || ("L04".equals(nid) && "L03".equals(eid))) {
-                    return java.util.Optional.of("Trùng phòng khám dịch vụ và phòng khám chuyên gia trong ngày");
+                    String newName = newShiftType != null && newShiftType.getName() != null
+                            ? newShiftType.getName() : nid;
+                    String existingName = s.getShiftType() != null && s.getShiftType().getName() != null
+                            ? s.getShiftType().getName() : eid;
+                    return java.util.Optional.of(String.format(
+                            "Lịch \"%s\" và lịch \"%s\" không thể cùng ngày", newName, existingName));
                 }
             }
         }
@@ -582,6 +686,7 @@ public class ConflictDetectionService {
         return gaps;
     }
 
+    @Transactional(readOnly = true)
     public CoverageReportDTO validateStaffingCoverage(Integer periodId) {
         SchedulePeriod period = scheduleRepository.findByPeriodId(periodId).stream()
                 .findFirst()
