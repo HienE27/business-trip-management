@@ -178,7 +178,7 @@ export function AutoCalculateDialog({ open, onClose, onApply, initialValues }: P
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto max-h-[70vh]">
           <section className="bg-surface-container-low rounded-xl p-4 border border-outline-variant">
             <h3 className="text-label-md font-semibold text-on-surface mb-3 flex items-center gap-2">
               <span className="material-symbols-outlined text-[16px]" aria-hidden="true">event</span>
