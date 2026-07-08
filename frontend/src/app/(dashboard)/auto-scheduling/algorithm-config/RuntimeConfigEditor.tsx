@@ -371,6 +371,12 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           onApply={applyPreset}
           onSaveCustomPreset={handleSaveCustomPreset}
           onDeleteCustomPreset={handleDeleteCustomPreset}
+          scheduleStats={{
+            totalStaff: 20,
+            avgShiftsPerStaff: 15,
+            coverageDays: 25,
+            periodDays: 30,
+          }}
         />
       </div>
 
