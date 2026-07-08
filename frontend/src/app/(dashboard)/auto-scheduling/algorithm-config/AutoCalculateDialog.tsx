@@ -7,11 +7,43 @@ import { getErrorMessage } from "@/lib/errors";
 
 type ShiftTypeId = "L01" | "L02" | "L03" | "L04";
 
-const SHIFT_META: Record<ShiftTypeId, { label: string; subtitle: string; color: string; bgColor: string; borderColor: string; chartColor: string }> = {
-  L01: { label: "L01", subtitle: "Trực 24/24", color: "text-red-600", bgColor: "bg-red-50", borderColor: "border-red-500", chartColor: "#ef4444" },
-  L02: { label: "L02", subtitle: "Thông tầm", color: "text-blue-600", bgColor: "bg-blue-50", borderColor: "border-blue-500", chartColor: "#3b82f6" },
-  L03: { label: "L03", subtitle: "PK Dịch vụ", color: "text-green-600", bgColor: "bg-green-50", borderColor: "border-green-500", chartColor: "#22c55e" },
-  L04: { label: "L04", subtitle: "PK Chuyên gia", color: "text-purple-600", bgColor: "bg-purple-50", borderColor: "border-purple-500", chartColor: "#a855f7" },
+const SHIFT_META: Record<ShiftTypeId, { label: string; subtitle: string; color: string; bgColor: string; borderColor: string; chartColor: string; plainDescription: string }> = {
+  L01: { 
+    label: "L01", 
+    subtitle: "Trực 24/24", 
+    color: "text-red-600", 
+    bgColor: "bg-red-50", 
+    borderColor: "border-red-500", 
+    chartColor: "#ef4444",
+    plainDescription: "Ca trực kéo dài 24 tiếng liên tục (từ 7h30 sáng hôm nay đến 7h30 sáng hôm sau). Người trực sẽ được nghỉ bù theo quy định."
+  },
+  L02: { 
+    label: "L02", 
+    subtitle: "Thông tầm", 
+    color: "text-blue-600", 
+    bgColor: "bg-blue-50", 
+    borderColor: "border-blue-500", 
+    chartColor: "#3b82f6",
+    plainDescription: "Ca làm việc ban ngày, không có thời gian nghỉ trưa. Thường dành cho nhân sự hành chính hoặc các ca hỗ trợ."
+  },
+  L03: { 
+    label: "L03", 
+    subtitle: "PK Dịch vụ", 
+    color: "text-green-600", 
+    bgColor: "bg-green-50", 
+    borderColor: "border-green-500", 
+    chartColor: "#22c55e",
+    plainDescription: "Phòng khám phục vụ khám bệnh dịch vụ. Bệnh nhân đặt lịch trước, thường vào buổi sáng hoặc chiều."
+  },
+  L04: { 
+    label: "L04", 
+    subtitle: "PK Chuyên gia", 
+    color: "text-purple-600", 
+    bgColor: "bg-purple-50", 
+    borderColor: "border-purple-500", 
+    chartColor: "#a855f7",
+    plainDescription: "Phòng khám chuyên sâu với bác sĩ chuyên môn cao. Thời gian khám lâu hơn, cần lịch cố định."
+  },
 };
 
 export type AutoCalculateInput = {
@@ -36,9 +68,114 @@ type Props = {
   initialValues?: Partial<AutoCalculateInput>;
   currentConfig?: AutoCalculateResult | null;
   savedPresets?: { id: string; name: string; config: AutoCalculateInput }[];
+  hospitalSize?: "small" | "medium" | "large";
 };
 
-/* ─── Quick Presets ────────────────────────────────────────────────── */
+/* ─── Smart Scenarios ────────────────────────────────────────────── */
+
+type SmartScenario = {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  forBeginner: boolean;
+  hint: string;
+  config: {
+    periodDays: number;
+    periodWeeks: number;
+    targets: Record<ShiftTypeId, number>;
+    eligible: Record<ShiftTypeId, number>;
+  };
+};
+
+const SMART_SCENARIOS: SmartScenario[] = [
+  {
+    id: "newbie",
+    name: "Mới bắt đầu",
+    icon: "school",
+    description: "Cấu hình mặc định an toàn, phù hợp cho người chưa có kinh nghiệm. Hệ thống sẽ tự động tối ưu.",
+    forBeginner: true,
+    hint: "Đây là điểm khởi đầu tốt nhất. Bạn có thể điều chỉnh sau.",
+    config: {
+      periodDays: 30,
+      periodWeeks: 4,
+      targets: { L01: 7, L02: 8, L03: 9, L04: 16 },
+      eligible: { L01: 8, L02: 8, L03: 8, L04: 20 },
+    },
+  },
+  {
+    id: "small_hospital",
+    name: "Bệnh viện nhỏ",
+    icon: "local_hospital",
+    description: "Dành cho cơ sở có ít nhân sự, cần phân bổ công việc hợp lý tránh quá tải.",
+    forBeginner: true,
+    hint: "Nhân sự ít nên mỗi người sẽ trực nhiều hơn một chút.",
+    config: {
+      periodDays: 30,
+      periodWeeks: 4,
+      targets: { L01: 10, L02: 10, L03: 12, L04: 20 },
+      eligible: { L01: 5, L02: 5, L03: 5, L04: 10 },
+    },
+  },
+  {
+    id: "large_hospital",
+    name: "Bệnh viện lớn",
+    icon: "apartment",
+    description: "Nhiều nhân sự, phân bổ đều, mỗi người trực ít hơn nhưng chất lượng cao.",
+    forBeginner: true,
+    hint: "Nhân sự đông nên chia đều, mỗi người trực ít hơn.",
+    config: {
+      periodDays: 30,
+      periodWeeks: 4,
+      targets: { L01: 4, L02: 5, L03: 6, L04: 10 },
+      eligible: { L01: 15, L02: 15, L03: 15, L04: 30 },
+    },
+  },
+  {
+    id: "holiday_month",
+    name: "Tháng có lễ",
+    icon: "celebration",
+    description: "Tết, ngày lễ lớn - cần giảm ca trực nhưng vẫn đảm bảo nhân sự.",
+    forBeginner: false,
+    hint: "Giảm 20% ca trực so với bình thường, ưu tiên nghỉ phép.",
+    config: {
+      periodDays: 30,
+      periodWeeks: 4,
+      targets: { L01: 5, L02: 6, L03: 7, L04: 12 },
+      eligible: { L01: 6, L02: 6, L03: 6, L04: 15 },
+    },
+  },
+  {
+    id: "peak_season",
+    name: "Mùa cao điểm",
+    icon: "trending_up",
+    description: "Dịch bệnh, mùa hè - tăng ca trực để đáp ứng nhu cầu khám chữa bệnh tăng cao.",
+    forBeginner: false,
+    hint: "Tăng 30% nhân sự trực, có thể huy động thêm nhân sự dự phòng.",
+    config: {
+      periodDays: 30,
+      periodWeeks: 4,
+      targets: { L01: 9, L02: 10, L03: 12, L04: 20 },
+      eligible: { L01: 10, L02: 10, L03: 10, L04: 25 },
+    },
+  },
+  {
+    id: "specialist_heavy",
+    name: "Nhiều chuyên gia",
+    icon: "psychology",
+    description: "Bệnh viện có nhiều bác sĩ chuyên khoa, ưu tiên phòng khám chuyên gia.",
+    forBeginner: false,
+    hint: "Tăng ca L03 và L04, giảm L01 để tập trung vào chất lượng khám.",
+    config: {
+      periodDays: 30,
+      periodWeeks: 4,
+      targets: { L01: 5, L02: 6, L03: 12, L04: 20 },
+      eligible: { L01: 10, L02: 10, L03: 12, L04: 25 },
+    },
+  },
+];
+
+/* ─── Quick Presets ─────────────────────────────────────────────── */
 
 type QuickPreset = {
   id: string;
@@ -94,12 +231,13 @@ const QUICK_PRESETS: QuickPreset[] = [
   },
 ];
 
-/* ─── Validation ──────────────────────────────────────────────────── */
+/* ─── Validation with Fix Suggestions ─────────────────────────────── */
 
 type ValidationWarning = {
   type: "error" | "warning" | "info";
   key: string;
   message: string;
+  fixSuggestion?: string;
 };
 
 function validateInput(input: AutoCalculateInput): ValidationWarning[] {
@@ -111,29 +249,64 @@ function validateInput(input: AutoCalculateInput): ValidationWarning[] {
     const weeks = input.periodWeeks;
 
     if (target < 1) {
-      warnings.push({ type: "error", key: `${tid}_target_low`, message: `${tid} - Target/người quá thấp (< 1)` });
+      warnings.push({ 
+        type: "error", 
+        key: `${tid}_target_low`, 
+        message: `${tid} - Số ca mỗi người quá ít (ít nhất cần 1 ca)`,
+        fixSuggestion: `Đặt thành ${Math.max(1, Math.round(target))} ca`
+      });
     }
     if (target > 25) {
-      warnings.push({ type: "warning", key: `${tid}_target_high`, message: `${tid} - Target/người cao (> 25) có thể quá tải` });
+      warnings.push({ 
+        type: "warning", 
+        key: `${tid}_target_high`, 
+        message: `${tid} - Số ca mỗi người khá nhiều (> 25), có thể quá tải`,
+        fixSuggestion: "Xem xét giảm xuống 15-20 ca hoặc tăng nhân sự"
+      });
     }
     if (eligible < 2) {
-      warnings.push({ type: "error", key: `${tid}_eligible_low`, message: `${tid} - Cần tối thiểu 2 người đủ điều kiện` });
+      warnings.push({ 
+        type: "error", 
+        key: `${tid}_eligible_low`, 
+        message: `${tid} - Cần ít nhất 2 người đủ điều kiện để xếp lịch`,
+        fixSuggestion: "Thêm nhân sự hoặc chọn chuyên khoa phù hợp"
+      });
     }
     const avgPerWeek = target / weeks;
     if (avgPerWeek > 6) {
-      warnings.push({ type: "warning", key: `${tid}_workload_high`, message: `${tid} - ${avgPerWeek.toFixed(1)} ca/tuần/người có thể quá tải` });
+      warnings.push({ 
+        type: "warning", 
+        key: `${tid}_workload_high`, 
+        message: `${tid} - ${avgPerWeek.toFixed(1)} ca/tuần/người là khá nhiều`,
+        fixSuggestion: avgPerWeek > 7 ? "Nên giảm target hoặc tăng nhân sự" : "Theo dõi tình hình, có thể điều chỉnh sau"
+      });
     }
     const ratio = eligible / (target || 1);
     if (ratio < 0.5) {
-      warnings.push({ type: "warning", key: `${tid}_balance`, message: `${tid} - Tỷ lệ eligible/target thấp, cần mở rộng eligibility` });
+      warnings.push({ 
+        type: "warning", 
+        key: `${tid}_balance`, 
+        message: `${tid} - Ít nhân sự cho số ca cần trực, có thể quá tải`,
+        fixSuggestion: "Tăng số người đủ điều kiện hoặc giảm target"
+      });
     }
   }
 
   if (input.periodDays < 7) {
-    warnings.push({ type: "error", key: "period_too_short", message: "Kỳ lịch quá ngắn (< 7 ngày)" });
+    warnings.push({ 
+      type: "error", 
+      key: "period_too_short", 
+      message: "Kỳ lịch quá ngắn (cần ít nhất 7 ngày)",
+      fixSuggestion: "Đặt từ 14-30 ngày"
+    });
   }
   if (input.periodDays > 31) {
-    warnings.push({ type: "warning", key: "period_too_long", message: "Kỳ lịch dài (> 31 ngày) - cần đánh giá kỹ" });
+    warnings.push({ 
+      type: "warning", 
+      key: "period_too_long", 
+      message: "Kỳ lịch dài (> 31 ngày) - cần đánh giá kỹ lưỡng",
+      fixSuggestion: "Xem xét chia thành 2 kỳ ngắn hơn"
+    });
   }
 
   return warnings;
@@ -160,7 +333,7 @@ function computeConfig(input: AutoCalculateInput): AutoCalculateResult {
   return out as unknown as AutoCalculateResult;
 }
 
-/* ─── Undo/Redo State ────────────────────────────────────────────── */
+/* ─── Undo/Redo State ───────────────────────────────────────────── */
 
 type DialogState = {
   periodDays: number;
@@ -179,7 +352,7 @@ function stateToInput(state: DialogState): AutoCalculateInput {
   };
 }
 
-/* ─── Diff Helper ────────────────────────────────────────────────── */
+/* ─── Diff Helper ─────────────────────────────────────────────────── */
 
 type DiffValue = {
   current: number;
@@ -216,6 +389,29 @@ function Tooltip({ content, children }: { content: string; children: React.React
   );
 }
 
+/* ─── Info Card Component ────────────────────────────────────────── */
+
+function InfoCard({ title, content, icon, type }: { title: string; content: string; icon: string; type: "info" | "tip" | "warning" }) {
+  const colors = {
+    info: "bg-blue-50 border-blue-200 text-blue-800",
+    tip: "bg-green-50 border-green-200 text-green-800",
+    warning: "bg-amber-50 border-amber-200 text-amber-800",
+  };
+  const icons = { info: "info", tip: "lightbulb", warning: "warning" };
+
+  return (
+    <div className={`p-3 rounded-lg border ${colors[type]}`}>
+      <div className="flex items-start gap-2">
+        <span className="material-symbols-outlined text-[16px] mt-0.5">{icons[type]}</span>
+        <div>
+          <p className="font-medium text-[12px]">{title}</p>
+          <p className="text-[11px] opacity-80">{content}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Chart Component ────────────────────────────────────────────── */
 
 function DistributionChart({
@@ -233,6 +429,9 @@ function DistributionChart({
       <h4 className="text-label-sm font-semibold text-on-surface mb-3 flex items-center gap-2">
         <span className="material-symbols-outlined text-[14px]" aria-hidden="true">bar_chart</span>
         Phân bổ ca dự kiến
+        <Tooltip content="Biểu đồ thể hiện tỷ lệ phân bổ giữa các loại ca trực">
+          <span className="material-symbols-outlined text-[12px] text-on-surface-variant cursor-help">help</span>
+        </Tooltip>
       </h4>
       <div className="space-y-3">
         {shiftIds.map((tid) => {
@@ -281,7 +480,15 @@ function DiffView({
   computed: AutoCalculateResult;
   currentConfig: AutoCalculateResult | null;
 }) {
-  if (!currentConfig) return null;
+  if (!currentConfig) {
+    return (
+      <div className="mt-4 p-4 bg-surface-container-lowest rounded-xl border border-outline-variant">
+        <p className="text-[11px] text-on-surface-variant text-center py-4">
+          Chưa có cấu hình hiện tại để so sánh
+        </p>
+      </div>
+    );
+  }
 
   const shiftIds: ShiftTypeId[] = ["L01", "L02", "L03", "L04"];
 
@@ -394,7 +601,7 @@ function PresetCompareModal({
               <span className="material-symbols-outlined">close</span>
             </button>
           </div>
-          <p className="text-on-surface-variant text-center py-8">Chưa có preset nào được lưu.</p>
+          <p className="text-on-surface-variant text-center py-8">Chưa có preset nào được lưu. Hãy tạo preset trước.</p>
         </div>
       </div>
     );
@@ -559,6 +766,7 @@ export function AutoCalculateDialog({
   initialValues,
   currentConfig,
   savedPresets = [],
+  hospitalSize,
 }: Props) {
   const [periodDays, setPeriodDays] = useState(initialValues?.periodDays ?? 30);
   const [periodWeeks, setPeriodWeeks] = useState(initialValues?.periodWeeks ?? 4);
@@ -575,7 +783,8 @@ export function AutoCalculateDialog({
     L04: initialValues?.eligibleStaff?.L04 ?? 20,
   });
   const [expandEligibility, setExpandEligibility] = useState(false);
-  const [activePreset, setActivePreset] = useState<string | null>("standard");
+  const [activePreset, setActivePreset] = useState<string | null>("newbie");
+  const [activeScenario, setActiveScenario] = useState<string | null>("newbie");
   const [recommendation, setRecommendation] = useState<{
     config: AutoCalculateResult;
     totalShiftsExpected: number;
@@ -590,7 +799,9 @@ export function AutoCalculateDialog({
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showCompareModal, setShowCompareModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [savePresetName, setSavePresetName] = useState("");
+  const [showScenarios, setShowScenarios] = useState(true);
 
   // Undo/Redo
   const [history, setHistory] = useState<DialogState[]>([]);
@@ -723,13 +934,27 @@ export function AutoCalculateDialog({
     }
   }, [open]);
 
+  function applyScenario(scenario: SmartScenario) {
+    pushHistory();
+    setActiveScenario(scenario.id);
+    setActivePreset(null);
+    setPeriodDays(scenario.config.periodDays);
+    setPeriodWeeks(scenario.config.periodWeeks);
+    setTargets(scenario.config.targets);
+    setEligible(scenario.config.eligible);
+    setRecommendation(null);
+    setChangedFields(new Set(["period", "targets", "eligible"]));
+    changedFieldsRef.current = new Set(["period", "targets", "eligible"]);
+  }
+
   function applyQuickPreset(preset: QuickPreset) {
     pushHistory();
     setActivePreset(preset.id);
+    setActiveScenario(null);
     setPeriodDays(preset.periodDays);
     setPeriodWeeks(preset.periodWeeks);
-    setTargets({ ...preset.targets });
-    setEligible({ ...preset.eligible });
+    setTargets(preset.targets);
+    setEligible(preset.eligible);
     setRecommendation(null);
     setChangedFields(new Set(["period", "targets", "eligible"]));
     changedFieldsRef.current = new Set(["period", "targets", "eligible"]);
@@ -738,6 +963,7 @@ export function AutoCalculateDialog({
   function applySavedPreset(preset: { id: string; name: string; config: AutoCalculateInput }) {
     pushHistory();
     setActivePreset(preset.id);
+    setActiveScenario(null);
     setPeriodDays(preset.config.periodDays);
     setPeriodWeeks(preset.config.periodWeeks);
     setTargets(preset.config.targetsPerStaffPerMonth);
@@ -751,6 +977,7 @@ export function AutoCalculateDialog({
   function handleFieldChange(field: string) {
     pushHistory();
     setActivePreset(null);
+    setActiveScenario(null);
     setRecommendation(null);
     changedFieldsRef.current.add(field);
     setChangedFields(new Set(changedFieldsRef.current));
@@ -841,12 +1068,21 @@ export function AutoCalculateDialog({
                   Tự động tính toán giới hạn
                 </h2>
                 <p className="text-[12px] text-on-surface-variant mt-0.5">
-                  Quick preset hoặc tùy chỉnh thủ công
+                  Chọn kịch bản phù hợp hoặc tùy chỉnh thủ công
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* Undo/Redo */}
+              <Tooltip content="Trợ giúp">
+                <button
+                  onClick={() => setShowHelp(!showHelp)}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+                    showHelp ? "bg-primary text-white" : "text-on-surface-variant hover:bg-surface-container-high"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">help</span>
+                </button>
+              </Tooltip>
               <Tooltip content="Undo (Ctrl+Z)">
                 <button
                   onClick={undo}
@@ -879,20 +1115,106 @@ export function AutoCalculateDialog({
             </div>
           </div>
 
+          {/* Help Panel */}
+          {showHelp && (
+            <div className="px-6 py-4 bg-blue-50 border-b border-blue-200">
+              <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                <span className="material-symbols-outlined">school</span>
+                Hướng dẫn sử dụng
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] text-blue-800">
+                <div>
+                  <p className="font-medium mb-1">Bước 1: Chọn kịch bản</p>
+                  <p>Chọn "Mới bắt đầu" nếu bạn chưa có kinh nghiệm, hoặc chọn kịch bản phù hợp với tình hình thực tế.</p>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Bước 2: Điều chỉnh (tùy chọn)</p>
+                  <p>Tùy chỉnh số ngày, tuần, số ca mỗi người nếu cần. Hệ thống sẽ tự động tính toán giới hạn.</p>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Bước 3: Áp dụng</p>
+                  <p>Nhấn "Áp dụng" để cập nhật cấu hình. Dùng Ctrl+Enter để áp dụng nhanh.</p>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Giải thích nhanh</p>
+                  <p><strong>Min/ngày</strong>: Ít nhất bao nhiêu ca mỗi ngày. <strong>Max/ngày</strong>: Nhiều nhất bao nhiêu ca mỗi ngày.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="p-6 space-y-6 overflow-y-auto max-h-[75vh]">
-            {/* Quick Presets */}
+            {/* Smart Scenarios - For Beginners */}
             <section>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-label-md font-semibold text-on-surface flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">auto_mode</span>
+                  Chọn kịch bản của bạn
+                  <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Khuyến nghị cho người mới</span>
+                </h3>
+                <button
+                  onClick={() => setShowScenarios(!showScenarios)}
+                  className="text-[11px] text-primary hover:underline"
+                >
+                  {showScenarios ? "Ẩn kịch bản" : "Hiện kịch bản"}
+                </button>
+              </div>
+
+              {showScenarios && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {SMART_SCENARIOS.map((scenario) => (
+                    <button
+                      key={scenario.id}
+                      onClick={() => applyScenario(scenario)}
+                      className={`p-4 rounded-xl border-2 text-left transition-all duration-200 hover:shadow-md ${
+                        activeScenario === scenario.id
+                          ? "border-primary bg-primary-fixed/50 shadow-sm"
+                          : "border-outline-variant bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-lowest"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3 mb-2">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          scenario.forBeginner ? "bg-green-100 text-green-600" : "bg-blue-100 text-blue-600"
+                        }`}>
+                          <span className="material-symbols-outlined text-[20px]">{scenario.icon}</span>
+                        </div>
+                        <div className="flex-1">
+                          <span className={`text-label-sm font-semibold ${
+                            activeScenario === scenario.id ? "text-primary" : "text-on-surface"
+                          }`}>
+                            {scenario.name}
+                          </span>
+                          {scenario.forBeginner && (
+                            <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full ml-2">Dễ</span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant leading-relaxed mb-2">
+                        {scenario.description}
+                      </p>
+                      <div className="flex items-start gap-1.5 text-[10px] text-blue-600 bg-blue-50 p-2 rounded-lg">
+                        <span className="material-symbols-outlined text-[12px] mt-0.5">lightbulb</span>
+                        <span>{scenario.hint}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Quick Presets - Advanced */}
+            <section className="bg-surface-container-low rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-label-md font-semibold text-on-surface flex items-center gap-2">
                   <span className="material-symbols-outlined text-[16px]" aria-hidden="true">bolt</span>
-                  Quick Presets
+                  Hoặc chọn preset nhanh
                 </h3>
                 <div className="flex items-center gap-2">
                   {savedPresets.length > 0 && (
                     <Tooltip content="So sánh presets">
                       <button
                         onClick={() => setShowCompareModal(true)}
-                        className="text-[11px] px-3 py-1.5 rounded-lg bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high transition-colors flex items-center gap-1"
+                        className="text-[11px] px-3 py-1.5 rounded-lg bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-colors flex items-center gap-1"
                       >
                         <span className="material-symbols-outlined text-[14px]" aria-hidden="true">compare</span>
                         So sánh
@@ -902,7 +1224,7 @@ export function AutoCalculateDialog({
                   <Tooltip content="Xuất JSON">
                     <button
                       onClick={() => setShowExportModal(true)}
-                      className="text-[11px] px-3 py-1.5 rounded-lg bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high transition-colors flex items-center gap-1"
+                      className="text-[11px] px-3 py-1.5 rounded-lg bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-colors flex items-center gap-1"
                     >
                       <span className="material-symbols-outlined text-[14px]" aria-hidden="true">upload</span>
                       Xuất
@@ -919,7 +1241,7 @@ export function AutoCalculateDialog({
                     className={`p-4 rounded-xl border-2 text-left transition-all duration-200 hover:shadow-sm ${
                       activePreset === preset.id
                         ? "border-primary bg-primary-fixed/50"
-                        : "border-outline-variant bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-lowest"
+                        : "border-outline-variant bg-surface-container-lowest hover:border-primary/40"
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-2">
@@ -933,11 +1255,6 @@ export function AutoCalculateDialog({
                       }`}>
                         {preset.label}
                       </span>
-                      {activePreset === preset.id && (
-                        <span className="material-symbols-outlined text-primary text-[14px] ml-auto" aria-hidden="true">
-                          check_circle
-                        </span>
-                      )}
                     </div>
                     <p className="text-[11px] text-on-surface-variant leading-relaxed">
                       {preset.description}
@@ -949,7 +1266,7 @@ export function AutoCalculateDialog({
               {/* Saved Presets */}
               {savedPresets.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-outline-variant">
-                  <h4 className="text-label-sm font-medium text-on-surface-variant mb-2">Preset đã lưu</h4>
+                  <h4 className="text-label-sm font-medium text-on-surface-variant mb-2">Preset đã lưu của bạn</h4>
                   <div className="flex flex-wrap gap-2">
                     {savedPresets.map((preset) => (
                       <button
@@ -958,7 +1275,7 @@ export function AutoCalculateDialog({
                         className={`px-3 py-2 rounded-lg border text-left transition-all ${
                           activePreset === preset.id
                             ? "border-primary bg-primary-fixed/50 text-primary"
-                            : "border-outline-variant bg-surface-container-low hover:bg-surface-container-lowest text-on-surface"
+                            : "border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low text-on-surface"
                         }`}
                       >
                         <span className="material-symbols-outlined text-[14px] mr-1 align-middle" aria-hidden="true">bookmark</span>
@@ -974,9 +1291,7 @@ export function AutoCalculateDialog({
             <section className="bg-surface-container-low rounded-xl p-4 border border-outline-variant">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-label-md font-semibold text-on-surface flex items-center gap-2">
-                  <Tooltip content="Số ngày và tuần trong kỳ lịch cần xếp lịch">
-                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">event</span>
-                  </Tooltip>
+                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">event</span>
                   Thông tin kỳ lịch
                   {changedFields.has("period") && (
                     <span className="w-2 h-2 rounded-full bg-primary animate-pulse" title="Đã thay đổi" />
@@ -994,28 +1309,48 @@ export function AutoCalculateDialog({
                 </button>
               </div>
               <div className={`grid grid-cols-2 gap-3 ${showAdvanced ? "" : "hidden"}`}>
-                <Tooltip content="Tổng số ngày trong kỳ lịch (tháng 9 = 30 ngày, tháng 2 = 28-29 ngày)">
-                  <FormInput
-                    label="Số ngày trong kỳ"
+                <div>
+                  <label className="text-[11px] font-medium text-on-surface-variant mb-1 block">
+                    Số ngày trong kỳ
+                    <Tooltip content="Tổng số ngày cần xếp lịch. Tháng thường có 30 ngày, tháng 2 có 28-29 ngày.">
+                      <span className="ml-1 text-primary cursor-help">?</span>
+                    </Tooltip>
+                  </label>
+                  <input
                     type="number"
-                    min={1}
+                    min={7}
                     max={31}
                     value={periodDays}
-                    onChange={(v) => { setPeriodDays(Math.max(1, parseInt(String(v)) || 1)); handleFieldChange("period"); }}
-                    hint="VD: tháng 9 = 30 ngày"
+                    onChange={(e) => { setPeriodDays(Math.max(7, Math.min(31, parseInt(e.target.value) || 30))); handleFieldChange("period"); }}
+                    className={`w-full h-10 px-3 rounded-lg border text-body-md focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
+                      changedFields.has("period")
+                        ? "border-primary bg-primary-fixed/20"
+                        : "border-outline-variant bg-surface-container-lowest"
+                    }`}
                   />
-                </Tooltip>
-                <Tooltip content="Số tuần trong kỳ (thường là 4-5 tuần)">
-                  <FormInput
-                    label="Số tuần trong kỳ"
+                  <p className="text-[10px] text-on-surface-variant mt-1">VD: Tháng 9 = 30 ngày</p>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-on-surface-variant mb-1 block">
+                    Số tuần trong kỳ
+                    <Tooltip content="Số tuần trong kỳ lịch. Tháng thường có 4 tuần, có thể 5 tuần nếu dài.">
+                      <span className="ml-1 text-primary cursor-help">?</span>
+                    </Tooltip>
+                  </label>
+                  <input
                     type="number"
                     min={1}
                     max={6}
                     value={periodWeeks}
-                    onChange={(v) => { setPeriodWeeks(Math.max(1, parseInt(String(v)) || 1)); handleFieldChange("period"); }}
-                    hint="Mặc định 4 tuần"
+                    onChange={(e) => { setPeriodWeeks(Math.max(1, Math.min(6, parseInt(e.target.value) || 4))); handleFieldChange("period"); }}
+                    className={`w-full h-10 px-3 rounded-lg border text-body-md focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
+                      changedFields.has("period")
+                        ? "border-primary bg-primary-fixed/20"
+                        : "border-outline-variant bg-surface-container-lowest"
+                    }`}
                   />
-                </Tooltip>
+                  <p className="text-[10px] text-on-surface-variant mt-1">Mặc định: 4 tuần</p>
+                </div>
               </div>
               {!showAdvanced && (
                 <div className="flex items-center gap-4 text-[12px]">
@@ -1036,65 +1371,119 @@ export function AutoCalculateDialog({
               )}
             </section>
 
-            {/* Validation Alerts */}
+            {/* Validation Alerts with Fix Suggestions */}
             {(errors.length > 0 || warnings.length > 0) && (
-              <section className={`rounded-xl border p-4 space-y-2 ${
+              <section className={`rounded-xl border p-4 space-y-3 ${
                 errors.length > 0
                   ? "bg-error-container/30 border-error/30"
-                  : "bg-tertiary-container/20 border-tertiary/30"
+                  : "bg-amber-50 border-amber-200"
               }`}>
                 <h4 className={`text-label-sm font-semibold flex items-center gap-2 ${
-                  errors.length > 0 ? "text-error" : "text-tertiary"
+                  errors.length > 0 ? "text-error" : "text-amber-700"
                 }`}>
                   <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
                     {errors.length > 0 ? "error" : "warning"}
                   </span>
                   {errors.length > 0 ? `${errors.length} lỗi cần sửa` : `${warnings.length} cảnh báo`}
                 </h4>
-                <div className="space-y-1">
-                  {[...errors, ...warnings].slice(0, 5).map((v) => (
-                    <div key={v.key} className={`flex items-start gap-2 text-[11px] ${
-                      v.type === "error" ? "text-error" : "text-tertiary"
+                <div className="space-y-2">
+                  {[...errors, ...warnings].map((v) => (
+                    <div key={v.key} className={`flex items-start gap-3 p-2 rounded-lg ${
+                      v.type === "error" ? "bg-white/50" : "bg-amber-100/50"
                     }`}>
-                      <span className="material-symbols-outlined text-[12px] shrink-0 mt-0.5" aria-hidden="true">
+                      <span className={`material-symbols-outlined text-[14px] shrink-0 mt-0.5 ${
+                        v.type === "error" ? "text-error" : "text-amber-600"
+                      }`} aria-hidden="true">
                         {v.type === "error" ? "close" : "info"}
                       </span>
-                      <span>{v.message}</span>
+                      <div className="flex-1">
+                        <p className={`text-[12px] ${v.type === "error" ? "text-error" : "text-amber-800"}`}>
+                          {v.message}
+                        </p>
+                        {v.fixSuggestion && (
+                          <p className="text-[11px] text-green-700 mt-1 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">lightbulb</span>
+                            {v.fixSuggestion}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
               </section>
             )}
 
-            {/* Targets Table with Inputs */}
+            {/* Info Cards */}
+            {infos.length === 0 && errors.length === 0 && warnings.length === 0 && (
+              <InfoCard
+                title="Cấu hình ổn định"
+                content="Các giá trị hiện tại nằm trong phạm vi khuyến nghị. Bạn có thể áp dụng ngay."
+                icon="check_circle"
+                type="tip"
+              />
+            )}
+
+            {/* Shift Types Explanation */}
             <section>
               <h3 className="text-label-md font-semibold text-on-surface mb-3 flex items-center gap-2">
-                <Tooltip content="Số ca mỗi nhân sự cần trực trong kỳ và số người đủ điều kiện cho mỗi loại lịch">
-                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">target</span>
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">info</span>
+                Giải thích các loại ca trực
+                <Tooltip content="Hover vào mỗi loại để xem mô tả chi tiết">
+                  <span className="material-symbols-outlined text-[12px] text-on-surface-variant cursor-help">help</span>
                 </Tooltip>
-                Mục tiêu phân bổ ca
+              </h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {shiftIds.map((tid) => {
+                  const meta = SHIFT_META[tid];
+                  return (
+                    <div
+                      key={tid}
+                      className={`p-3 rounded-xl border-2 ${meta.borderColor} ${meta.bgColor}`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`font-mono font-bold text-[14px] ${meta.color}`}>{tid}</span>
+                        <span className={`text-[12px] font-medium ${meta.color}`}>{meta.subtitle}</span>
+                      </div>
+                      <p className="text-[10px] text-gray-600 leading-relaxed">
+                        {meta.plainDescription}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* Targets Table */}
+            <section>
+              <h3 className="text-label-md font-semibold text-on-surface mb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">target</span>
+                Số ca mỗi người cần trực
                 {changedFields.has("targets") && (
-                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" title="Đã thay đổi" />
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                 )}
               </h3>
               <p className="text-[12px] text-on-surface-variant mb-3">
-                Số ca <strong>mỗi người</strong> mong muốn trong cả kỳ.
+                Điều chỉnh số ca mỗi người cần trực trong kỳ và số nhân sự đủ điều kiện cho mỗi loại lịch.
               </p>
               <div className="border border-outline-variant rounded-xl overflow-hidden">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-surface-container-low border-b border-outline-variant">
-                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase">Loại</th>
+                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase">Loại lịch</th>
                       <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
-                        <Tooltip content="Số nhân sự đủ điều kiện để trực loại ca này">Đủ ĐK</Tooltip>
+                        Nhân sự đủ điều kiện
+                        <Tooltip content="Số người có thể được xếp trực loại ca này">
+                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
+                        </Tooltip>
                       </th>
                       <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
-                        <Tooltip content="Số ca mỗi người cần trực trong kỳ">Ca/kỳ</Tooltip>
+                        Ca mỗi người/kỳ
+                        <Tooltip content="Mỗi người cần trực bao nhiêu ca trong kỳ">
+                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
+                        </Tooltip>
                       </th>
                       <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-right">Tổng ca</th>
-                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-right">
-                        <Tooltip content="Trung bình ca/tuần/người">Ca/tuần</Tooltip>
-                      </th>
+                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-right">Ca/tuần</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant">
@@ -1103,12 +1492,10 @@ export function AutoCalculateDialog({
                       const hasWarning = warnings.some(w => w.key.startsWith(tid));
                       const meta = SHIFT_META[tid];
                       return (
-                        <tr key={tid} className={`hover:bg-surface-container-lowest transition-colors ${hasWarning ? "bg-tertiary-container/10" : ""}`}>
+                        <tr key={tid} className={`hover:bg-surface-container-lowest transition-colors ${hasWarning ? "bg-amber-50" : ""}`}>
                           <td className="py-2 px-3">
                             <div className="flex items-center gap-2">
-                              <Tooltip content={meta.subtitle}>
-                                <span className={`font-mono font-bold text-[13px] ${meta.color}`}>{tid}</span>
-                              </Tooltip>
+                              <span className={`font-mono font-bold text-[13px] ${meta.color}`}>{tid}</span>
                               <span className="text-[12px] text-on-surface-variant">{meta.subtitle}</span>
                             </div>
                           </td>
@@ -1122,7 +1509,7 @@ export function AutoCalculateDialog({
                                 setEligible((prev) => ({ ...prev, [tid]: Math.max(1, parseInt(e.target.value) || 1) }));
                                 handleFieldChange("eligible");
                               }}
-                              className={`w-16 h-8 px-2 rounded-lg border text-label-sm text-right font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
+                              className={`w-16 h-8 px-2 rounded-lg border text-label-sm text-center font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
                                 changedFields.has("eligible")
                                   ? "border-primary bg-primary-fixed/20"
                                   : "border-outline-variant bg-surface-container-lowest"
@@ -1139,7 +1526,7 @@ export function AutoCalculateDialog({
                                 setTargets((prev) => ({ ...prev, [tid]: Math.max(0, parseInt(e.target.value) || 0) }));
                                 handleFieldChange("targets");
                               }}
-                              className={`w-16 h-8 px-2 rounded-lg border text-label-sm text-right font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
+                              className={`w-16 h-8 px-2 rounded-lg border text-label-sm text-center font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
                                 changedFields.has("targets")
                                   ? "border-primary bg-primary-fixed/20"
                                   : "border-outline-variant bg-surface-container-lowest"
@@ -1152,9 +1539,9 @@ export function AutoCalculateDialog({
                             </span>
                           </td>
                           <td className="py-2 px-3 text-right">
-                            <Tooltip content={parseFloat(weeklyAvg) > 6 ? "Quá tải!" : "Bình thường"}>
+                            <Tooltip content={parseFloat(weeklyAvg) > 6 ? "Hơi nhiều, theo dõi kỹ" : "Bình thường"}>
                               <span className={`font-mono text-[12px] ${
-                                parseFloat(weeklyAvg) > 6 ? "text-tertiary font-bold" : "text-on-surface-variant"
+                                parseFloat(weeklyAvg) > 6 ? "text-amber-600 font-bold" : "text-on-surface-variant"
                               }`}>
                                 {weeklyAvg}
                               </span>
@@ -1164,7 +1551,7 @@ export function AutoCalculateDialog({
                       );
                     })}
                     <tr className="bg-primary-fixed/30 font-semibold">
-                      <td className="py-2 px-3 text-on-surface">Tổng</td>
+                      <td className="py-2 px-3 text-on-surface">Tổng cộng</td>
                       <td className="py-2 px-3 text-center font-mono tabular-nums">{totalEligible}</td>
                       <td className="py-2 px-3 text-center font-mono tabular-nums">{totalTarget}</td>
                       <td className="py-2 px-3 text-right font-mono tabular-nums text-primary">{totalGenerated}</td>
@@ -1179,12 +1566,10 @@ export function AutoCalculateDialog({
             <section className="bg-secondary-container/20 rounded-xl p-4 border border-secondary/30">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-label-md font-semibold text-on-surface flex items-center gap-2">
-                  <Tooltip content="Kết quả tính toán tự động dựa trên thông tin bạn nhập">
-                    <span className="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">preview</span>
-                  </Tooltip>
+                  <span className="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">preview</span>
                   Kết quả tính toán
                   {(changedFields.size > 0) && (
-                    <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" title="Đã thay đổi" />
+                    <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
                   )}
                 </h3>
                 <div className="flex items-center gap-2">
@@ -1206,7 +1591,7 @@ export function AutoCalculateDialog({
                     }`}
                   >
                     <span className="material-symbols-outlined text-[14px] align-middle mr-1" aria-hidden="true">compare_arrows</span>
-                    Diff
+                    So sánh
                   </button>
                 </div>
               </div>
@@ -1217,32 +1602,36 @@ export function AutoCalculateDialog({
               {/* Diff View */}
               {showDiff && <DiffView computed={computed} currentConfig={currentConfig} />}
 
-              {/* Options */}
-              <div className="flex items-center gap-2 mt-4 px-3 py-2 rounded-lg bg-surface-container-lowest border border-outline-variant">
-                <Tooltip content="Mở rộng danh sách nhân sự đủ điều kiện cho L01/L02/L03">
-                  <input
-                    type="checkbox"
-                    id="expand-eligibility"
-                    checked={expandEligibility}
-                    onChange={(e) => { setExpandEligibility(e.target.checked); handleFieldChange("eligibility"); }}
-                    className="h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary"
-                  />
-                </Tooltip>
-                <label htmlFor="expand-eligibility" className="text-[12px] text-on-surface cursor-pointer flex-1">
-                  Mở rộng eligibility L01/L02/L03
-                </label>
-              </div>
-
               {/* Results Table */}
               <div className="mt-4 border border-outline-variant rounded-xl overflow-hidden">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-surface-container-low border-b border-outline-variant">
                       <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Loại</th>
-                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Min/ngày</th>
-                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Max/ngày</th>
-                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Min/tuần</th>
-                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Max/tuần</th>
+                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
+                        Min/ngày
+                        <Tooltip content="Ít nhất bao nhiêu ca cần xếp mỗi ngày">
+                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
+                        </Tooltip>
+                      </th>
+                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
+                        Max/ngày
+                        <Tooltip content="Nhiều nhất bao nhiêu ca được phép mỗi ngày">
+                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
+                        </Tooltip>
+                      </th>
+                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
+                        Min/tuần
+                        <Tooltip content="Ít nhất bao nhiêu ca mỗi tuần">
+                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
+                        </Tooltip>
+                      </th>
+                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
+                        Max/tuần
+                        <Tooltip content="Nhiều nhất bao nhiêu ca mỗi tuần">
+                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
+                        </Tooltip>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant">
@@ -1252,16 +1641,13 @@ export function AutoCalculateDialog({
                       const maxDay = c[`${tid.toLowerCase()}MaxPerDay` as keyof AutoCalculateResult] as number;
                       const minWeek = c[`${tid.toLowerCase()}MinPerWeek` as keyof AutoCalculateResult] as number;
                       const maxWeek = c[`${tid.toLowerCase()}MaxPerWeek` as keyof AutoCalculateResult] as number;
-                      const hasWarning = warnings.some(w => w.key.startsWith(tid));
                       const meta = SHIFT_META[tid];
                       const isFromAI = !!recommendation;
                       return (
-                        <tr key={tid} className={`hover:bg-surface-container-lowest transition-colors ${hasWarning ? "bg-tertiary-container/10" : ""}`}>
+                        <tr key={tid} className="hover:bg-surface-container-lowest transition-colors">
                           <td className="py-2 px-3">
                             <div className="flex items-center gap-2">
-                              <Tooltip content={meta.subtitle}>
-                                <span className={`font-mono font-bold text-[13px] ${meta.color}`}>{tid}</span>
-                              </Tooltip>
+                              <span className={`font-mono font-bold text-[13px] ${meta.color}`}>{tid}</span>
                               <span className="text-[11px] text-on-surface-variant">{meta.subtitle}</span>
                               {isFromAI && (
                                 <span className="material-symbols-outlined text-[12px] text-secondary" aria-hidden="true">auto_awesome</span>
@@ -1305,9 +1691,7 @@ export function AutoCalculateDialog({
               )}
 
               <p className="text-[11px] text-on-surface-variant mt-3 leading-relaxed">
-                <Tooltip content="Công thức tính toán tự động">
-                  <span><strong>Công thức:</strong> min/ngày = ⌈(target × eligible) / ngày⌋ · max/tuần = ⌈(target / tuần) × 1.5⌉ · max/ngày = ⌈max/tuần × 1.2⌉</span>
-                </Tooltip>
+                <strong>Công thức tính toán:</strong> Min/ngày = ceil((ca/người × nhân sự) / ngày) · Max/tuần = ceil((ca/người) × 1.5)
               </p>
 
               {/* AI Recommendation */}
@@ -1315,7 +1699,10 @@ export function AutoCalculateDialog({
                 <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">auto_awesome</span>
-                    <span className="text-[13px] font-semibold text-on-surface">AI đề xuất</span>
+                    <span className="text-[13px] font-semibold text-on-surface">Đề xuất từ AI</span>
+                    <Tooltip content="AI sẽ phân tích dữ liệu lịch sử và đề xuất cấu hình tối ưu nhất cho bạn">
+                      <span className="material-symbols-outlined text-[12px] text-on-surface-variant cursor-help">help</span>
+                    </Tooltip>
                   </div>
                   <Button
                     variant="secondary"
@@ -1325,7 +1712,7 @@ export function AutoCalculateDialog({
                     disabled={recommending}
                     icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">neurology</span>}
                   >
-                    {recommending ? "Đang tính..." : "Lấy đề xuất AI"}
+                    {recommending ? "Đang phân tích..." : "AI phân tích & đề xuất"}
                   </Button>
                 </div>
                 {recommendError && (
@@ -1337,7 +1724,7 @@ export function AutoCalculateDialog({
                   <div className="bg-surface-container-lowest rounded-lg p-3 border border-secondary/30 space-y-2">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="text-[12px] text-on-surface-variant">Tổng ca dự kiến:</span>
-                      <span className="font-mono font-bold text-primary tabular-nums">{recommendation.totalShiftsExpected}</span>
+                      <span className="font-mono font-bold text-primary tabular-nums">{recommendation.totalShiftsExpected} ca</span>
                     </div>
                     <p className="text-[11px] text-on-surface leading-relaxed">
                       {recommendation.rationale}
@@ -1353,8 +1740,8 @@ export function AutoCalculateDialog({
             <div className="flex items-center gap-3">
               <div className="text-[11px] text-on-surface-variant">
                 {infos.length > 0 && (
-                  <span className="flex items-center gap-1 text-info">
-                    <span className="material-symbols-outlined text-[12px]" aria-hidden="true">info</span>
+                  <span className="flex items-center gap-1 text-green-600">
+                    <span className="material-symbols-outlined text-[12px]" aria-hidden="true">check_circle</span>
                     {infos.length} gợi ý
                   </span>
                 )}
@@ -1366,7 +1753,7 @@ export function AutoCalculateDialog({
                 )}
               </div>
               <div className="text-[10px] text-on-surface-variant flex items-center gap-2 border-l border-outline-variant pl-3">
-                <span className="hidden sm:inline">Ctrl+Enter: Áp dụng</span>
+                <span>Ctrl+Enter: Áp dụng</span>
                 <span>Esc: Đóng</span>
               </div>
             </div>
@@ -1396,16 +1783,17 @@ export function AutoCalculateDialog({
       {showSaveModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-lg w-full max-w-md p-6">
-            <h3 className="text-title-md font-semibold text-on-surface mb-4">Lưu Preset mới</h3>
-            <FormInput
-              label="Tên preset"
+            <h3 className="text-title-md font-semibold text-on-surface mb-2">Lưu Preset mới</h3>
+            <p className="text-[11px] text-on-surface-variant mb-4">Lưu cấu hình hiện tại để sử dụng lại sau.</p>
+            <input
               type="text"
               value={savePresetName}
-              onChange={(v) => setSavePresetName(String(v))}
+              onChange={(e) => setSavePresetName(e.target.value)}
               placeholder="VD: Cấu hình tháng 6"
-              hint="Đặt tên dễ nhớ để sử dụng lại sau"
+              className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-body-md focus:outline-none focus:ring-2 focus:ring-primary/20 mb-2"
             />
-            <div className="flex justify-end gap-2 mt-4">
+            <p className="text-[10px] text-on-surface-variant mb-4">Đặt tên dễ nhớ để tìm lại sau.</p>
+            <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setShowSaveModal(false)}>Hủy</Button>
               <Button variant="primary" size="sm" onClick={handleSavePreset} disabled={!savePresetName.trim()}>Lưu</Button>
             </div>
