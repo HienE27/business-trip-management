@@ -425,6 +425,12 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
             int bestTotalCount = Integer.MAX_VALUE;
             
             for (Staff staff : activeStaff) {
+                // ELIGIBILITY: staff phải thuộc chuyên khoa phù hợp (Bác sĩ / Điều dưỡng cho
+                // L01-L03; L04 sẽ được AC-3 specialty prune).
+                if (!com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility
+                        .isEligible(staff, req.shiftTypeId(), req.specialtyId())) {
+                    continue;
+                }
                 // Skip if already on another shift the same day
                 boolean staffBusy = false;
                 for (Set<Integer> staffIds : dateShiftStaffMap.values()) {
@@ -513,8 +519,11 @@ public class GeneticAlgorithmScheduler implements SchedulingAlgorithm {
             List<Staff> staffList,
             List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
-        // GA doesn't support incremental solving yet - do full solve
-        return solve(staffList, null, null, requirements, null, leaveRequests, null);
+        // GA doesn't support incremental solving yet - do full solve.
+        // Pass empty set for existingCompensationDays to avoid NPE in
+        // SchedulingFitnessFunction#buildCompensationDayMap when the
+        // orchestrator hasn't pre-loaded them.
+        return solve(staffList, null, null, requirements, Set.of(), leaveRequests, null);
     }
 
     @Override

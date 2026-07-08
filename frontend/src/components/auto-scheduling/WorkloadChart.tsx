@@ -16,7 +16,7 @@
  * Accessible: keyboard nav cho toggle, aria-label trên chart, focus tooltip.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -545,9 +545,28 @@ export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: Work
   const [chartData, setChartData] = useState<WorkloadChartData | null>(null);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("bar");
+  const [showOnlyEligible, setShowOnlyEligible] = useState(false);
   const toast = useToast();
 
+  // Eligible specialties: Ngoại, Nội, Sản, Nhi, Mắt, Răng
+  const ELIGIBLE_SPECIALTIES = ["Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"];
+
   const hasPreview = !!previewSchedules && previewSchedules.length > 0;
+  const balanceData = useMemo(
+    () => (hasPreview ? topN(aggregateByStaff(previewSchedules!), balanceLimit ?? Infinity) : null),
+    [hasPreview, previewSchedules, balanceLimit],
+  );
+
+  // Filter chart data to show only eligible staff
+  const filteredChartData = useMemo(() => {
+    if (!chartData || !showOnlyEligible) return chartData;
+    return {
+      ...chartData,
+      staffWorkloadData: chartData.staffWorkloadData.filter(
+        (s) => s.specialty && ELIGIBLE_SPECIALTIES.includes(s.specialty)
+      ),
+    };
+  }, [chartData, showOnlyEligible]);
 
   const load = useCallback(async () => {
     if (hasPreview) {
@@ -606,11 +625,26 @@ export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: Work
   return (
     <div className="space-y-4">
       {/* KPI summary */}
-      <KpiSummary data={chartData} />
+      <KpiSummary data={filteredChartData ?? chartData!} />
 
       {/* Controls */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <Legend />
+        <div className="flex items-center gap-4 flex-wrap">
+          <Legend />
+          {/* Filter: Chỉ hiển thị nhân sự eligible */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showOnlyEligible}
+              onChange={(e) => setShowOnlyEligible(e.target.checked)}
+              className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary cursor-pointer"
+            />
+            <span className="text-label-sm text-on-surface-variant">
+              Chỉ eligible
+            </span>
+            <span className="text-[11px] text-outline">(Ngoại, Nội, Sản, Nhi, Mắt, Răng)</span>
+          </label>
+        </div>
         <div
           role="group"
           aria-label="Chế độ hiển thị biểu đồ"
@@ -647,10 +681,8 @@ export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: Work
       {/* Chart */}
       {viewMode === "bar" && <HorizontalBarChart data={chartData} />}
       {viewMode === "stacked" && <StackedBarChart data={chartData} />}
-      {viewMode === "balance" && hasPreview && (
-        <BalanceView
-          {...topN(aggregateByStaff(previewSchedules!), balanceLimit ?? Infinity)}
-        />
+      {viewMode === "balance" && balanceData && (
+        <BalanceView {...balanceData} />
       )}
 
       {/* Footer notes */}
@@ -667,6 +699,16 @@ export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: Work
           <span className="w-0.5 h-4 bg-tertiary inline-block" aria-hidden="true" />
           <span className="text-label-xs text-on-surface-variant">Vạch dọc = trung bình</span>
         </div>
+        {showOnlyEligible && filteredChartData && chartData && (
+          <div className="w-full flex items-center justify-between text-[11px] text-tertiary">
+            <span>
+              Đang lọc: hiển thị {filteredChartData.staffWorkloadData.length}/{chartData.staffWorkloadData.length} nhân sự eligible
+            </span>
+            <span className="bg-tertiary-container text-on-tertiary-container px-2 py-0.5 rounded-full font-medium">
+              Ẩn {chartData.staffWorkloadData.length - filteredChartData.staffWorkloadData.length} không eligible
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

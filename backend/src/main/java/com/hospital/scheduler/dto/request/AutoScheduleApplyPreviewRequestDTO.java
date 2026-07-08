@@ -28,12 +28,31 @@ public class AutoScheduleApplyPreviewRequestDTO {
     @NotEmpty(message = "Danh sách lịch xem trước không được để trống")
     private List<PreviewScheduleItem> schedules;
 
+    @Builder.Default
+    private List<RemovedScheduleItem> removedSchedules = List.of();
+
     @Getter
     @Setter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
     public static class PreviewScheduleItem {
+        @NotNull(message = "staffId không được để trống")
+        private Integer staffId;
+
+        @NotNull(message = "workDate không được để trống")
+        private String workDate;
+
+        @NotNull(message = "shiftTypeId không được để trống")
+        private String shiftTypeId;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class RemovedScheduleItem {
         @NotNull(message = "staffId không được để trống")
         private Integer staffId;
 

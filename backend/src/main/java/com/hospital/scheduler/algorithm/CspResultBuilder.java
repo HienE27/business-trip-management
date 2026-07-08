@@ -101,6 +101,26 @@ class CspResultBuilder {
     }
 
     /**
+     * Look up the specialty id for an assignment on a specific day with a
+     * specific shift type. varSpecialty is indexed by variable id (one per
+     * (day, shift) slot), so we scan for the first matching variable.
+     * Returns {@code null} when no matching variable exists or the specialty
+     * is unset (0).
+     */
+    private static Integer lookupSpecialtyForAssignment(ProblemData data, int dayIdx, String shiftType) {
+        if (dayIdx < 0 || dayIdx >= data.numDays) return null;
+        int targetShift = java.util.Arrays.asList(SHIFT_ORDER).indexOf(shiftType);
+        if (targetShift < 0) return null;
+        for (int v = 0; v < data.numVars; v++) {
+            if (data.varDay[v] == dayIdx && data.varShift[v] == targetShift) {
+                int spec = data.varSpecialty[v];
+                return spec != 0 ? spec : null;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Fairness score: average of per-type balance scores (0-100 scale).
      * For each shift type, compute 1 - normalized_stddev.
      * For L04, compute per-specialty balance independently.
@@ -119,15 +139,15 @@ class CspResultBuilder {
             LocalDate workDate = LocalDate.parse(parts[1]);
             String shiftType = e.getValue();
             
-            // Find specialty for L04 from ProblemData
+            // Find specialty for L04 from ProblemData: varSpecialty is indexed
+            // by VARIABLE id (one variable per (day, shift) slot), not by day.
+            // Look up the matching variable via its key in the assignments map.
             String balanceKey = shiftType;
             if ("L04".equals(shiftType)) {
                 int dayIdx = (int) java.time.temporal.ChronoUnit.DAYS.between(data.baseDate, workDate);
-                if (dayIdx >= 0 && dayIdx < data.numDays) {
-                    Integer specId = data.varSpecialty[dayIdx];
-                    if (specId != null) {
-                        balanceKey = "L04:" + specId;
-                    }
+                Integer specId = lookupSpecialtyForAssignment(data, dayIdx, shiftType);
+                if (specId != null) {
+                    balanceKey = "L04:" + specId;
                 }
             }
             

@@ -30,6 +30,7 @@ export type RuntimeConfig = {
   removedShiftTypes?: string[];
   l04CrossSpecialty?: boolean;
   l04CrossSpecialtyRatio?: number;
+  l04AllowedSpecialties?: string[];
 };
 
 export type AlgorithmMetrics = {
@@ -55,6 +56,7 @@ export type AutoGenConfigPayload = {
   removedShiftTypes: string[];
   l04CrossSpecialty?: boolean;
   l04CrossSpecialtyRatio?: number;
+  l04AllowedSpecialties?: string[];
 };
 
 export type TabKey = "config" | "history" | "audit" | "reference";
@@ -69,6 +71,7 @@ export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([
   "l04MinPerDay", "l04MaxPerDay", "l04MinPerWeek", "l04MaxPerWeek",
   "l04CrossSpecialty",
   "l04CrossSpecialtyRatio",
+  "l04AllowedSpecialties",
 ]);
 
 /** Map snake_case param key (URL/draft) sang camelCase RuntimeConfig field */

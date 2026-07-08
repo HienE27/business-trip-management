@@ -5,13 +5,14 @@ import { renderHook, act } from "@testing-library/react";
 vi.mock("@/lib/api", () => ({
   api: {
     previewAutoSchedule: vi.fn(),
-    applyPreview: vi.fn(),
+    applyPreview: vi.fn().mockResolvedValue({ data: undefined }),
     saveScheduleTemplate: vi.fn(),
     applyTemplate: vi.fn(),
   },
   getErrorMessage: (_e: unknown, fallback: string) => fallback,
 }));
 
+import { api } from "@/lib/api";
 import { useAutoSchedule } from "@/hooks/useAutoSchedule";
 
 describe("useAutoSchedule — state defaults", () => {
@@ -148,5 +149,35 @@ describe("useAutoSchedule — editShiftType (rewire shift)", () => {
     // we only mark it removed; the backend sees no replacement row to add.
     expect(result.current[0].editedPreview).toEqual([]);
     expect([...result.current[0].removedShiftTypes]).toContain("2026-06-15_L01_7");
+  });
+});
+
+describe("useAutoSchedule — applyPreview", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.applyPreview).mockResolvedValue({
+      success: true,
+      data: undefined,
+      timestamp: "2026-07-07T00:00:00Z",
+    });
+  });
+
+  it("sends removed schedule tuples when applying shift-type edits", async () => {
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() => useAutoSchedule());
+
+    act(() => result.current[1].editShiftType("2026-06-15", "L01", "L02", 7));
+
+    await act(async () => {
+      await result.current[1].applyPreview(1, result.current[0].editedPreview, onSuccess);
+    });
+
+    expect(api.applyPreview).toHaveBeenCalledWith({
+      periodId: 1,
+      algorithmType: "GREEDY",
+      schedules: [{ workDate: "2026-06-15", shiftTypeId: "L02", staffId: 7 }],
+      removedSchedules: [{ workDate: "2026-06-15", shiftTypeId: "L01", staffId: 7 }],
+    });
+    expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 });

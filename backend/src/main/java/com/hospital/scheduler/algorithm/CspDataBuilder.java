@@ -54,7 +54,7 @@ class CspDataBuilder {
         boolean[] holidayDays = detectHolidayDays(slotCount, numDays, numShifts);
         int[] staffMaxShifts = maxShiftsPerStaff(staffList, numStaff);
 
-        BitSet[] domains = buildInitialDomains(varCount, varDay, varShift, slotCount, numDays, numStaff, leaveMatrix, holidayDays);
+        BitSet[] domains = buildInitialDomains(varCount, varDay, varShift, slotCount, numDays, numStaff, leaveMatrix, holidayDays, staffList);
         List<Integer>[] constraintGraph = buildConstraintGraph(varDay, varShift, varCount, slotCount, dates);
 
         applySymmetryBreaking(domains, varCount);
@@ -193,17 +193,45 @@ class CspDataBuilder {
     }
 
     private BitSet[] buildInitialDomains(int varCount, int[] varDay, int[] varShift, int[][] slotCount,
-                                         int numDays, int numStaff, boolean[][] leaveMatrix, boolean[] holidayDays) {
+                                         int numDays, int numStaff, boolean[][] leaveMatrix, boolean[] holidayDays,
+                                         List<Staff> staffList) {
+        // Pre-compute eligibility flags per staff per shift type (L01/L02/L03 require
+        // Bác sĩ / Điều dưỡng; L04 falls back to the variable's specialty restriction
+        // in buildVariableSpecialty / AC-3, but we still need to honour eligibility
+        // for L04 staff that aren't doctors/nurses either).
+        boolean[] staffEligibleForShift = new boolean[numStaff];
+        java.util.Map<Integer, boolean[]> eligibilityMatrix = new java.util.HashMap<>();
+        java.util.Set<String> eligibleSpecNames = java.util.Set.of("Bác sĩ", "Điều dưỡng");
+        for (int staffIdx = 0; staffIdx < numStaff; staffIdx++) {
+            Staff st = staffList.get(staffIdx);
+            String spName = st.getSpecialty() != null ? st.getSpecialty().getName() : null;
+            boolean active = Boolean.TRUE.equals(st.getIsActive());
+            boolean isDoctorOrNurse = spName != null && eligibleSpecNames.contains(spName);
+            for (int s = 0; s < SHIFT_ORDER.length; s++) {
+                String shiftTypeId = SHIFT_ORDER[s];
+                boolean eligible;
+                if ("L04".equals(shiftTypeId)) {
+                    // L04: any active doctor/nurse is eligible (specialty filter applied in AC-3).
+                    eligible = active && isDoctorOrNurse;
+                } else {
+                    // L01/L02/L03: only Bác sĩ / Điều dưỡng.
+                    eligible = active && isDoctorOrNurse;
+                }
+                eligibilityMatrix.computeIfAbsent(s, k -> new boolean[numStaff])[staffIdx] = eligible;
+            }
+        }
+
         BitSet[] domains = new BitSet[varCount];
         for (int v = 0; v < varCount; v++) {
             domains[v] = new BitSet(numStaff);
             int d = varDay[v];
             int s = varShift[v];
             if (slotCount[d][s] > 0 && !holidayDays[d]) {
+                boolean[] shiftEligibility = eligibilityMatrix.get(s);
                 for (int staffIdx = 0; staffIdx < numStaff; staffIdx++) {
-                    if (!leaveMatrix[staffIdx][d]) {
-                        domains[v].set(staffIdx);
-                    }
+                    if (!leaveMatrix[staffIdx][d]) continue;
+                    if (!shiftEligibility[staffIdx]) continue;
+                    domains[v].set(staffIdx);
                 }
             }
         }

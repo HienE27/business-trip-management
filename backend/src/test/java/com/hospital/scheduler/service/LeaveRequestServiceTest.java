@@ -380,7 +380,7 @@ class LeaveRequestServiceTest {
             assertThat(result.getStatus()).isEqualTo(LeaveRequestResponse.LeaveStatus.APPROVED);
             assertThat(result.getReviewNote()).isEqualTo("Đồng ý");
             verify(auditHistoryService).logAction(
-                    eq("leave_request"), eq(1), eq(AuditHistory.ActionType.UPDATE), any(), any(), eq(2));
+                    eq("leave_request"), eq(1), eq(AuditHistory.ActionType.APPROVE), any(), any(), eq(2));
         }
 
         @Test

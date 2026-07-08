@@ -73,19 +73,25 @@ public class SchedulingFitnessFunction {
         // This penalises chromosomes that distribute one type evenly but dump all L01 on one person
         double perTypeBalance = chromosome.calculatePerTypeBalance();
 
+        // Calculate cross-type equity: penalize staff whose total load diverges
+        // from the pool mean. Without this, per-type balance can be perfect while
+        // total workload diverges wildly (e.g. one staff has 44 shifts, another 30).
+        double crossTypeEquity = chromosome.calculateCrossTypeEquity();
+
         // Update chromosome stats
         chromosome.setConflictCount(conflicts);
         chromosome.setCoverageRate(coverage);
         chromosome.setBalanceScore(balance);
 
-        // Fitness = base - conflictPenalty + balanceBonus + perTypeBalanceBonus + coverageBonus
+        // Fitness = base - conflictPenalty + balanceBonus + perTypeBalanceBonus + equityBonus + coverageBonus
         double baseFitness = 1000.0;
         double conflictPenalty  = conflicts * config.conflictWeight();
         double balanceBonus     = balance * config.balanceWeight();
         double perTypeBonus     = perTypeBalance * config.perTypeBalanceWeight();
+        double equityBonus      = crossTypeEquity * config.equityWeight();
         double coverageBonus    = coverage * config.coverageWeight();
 
-        double fitness = baseFitness - conflictPenalty + balanceBonus + perTypeBonus + coverageBonus;
+        double fitness = baseFitness - conflictPenalty + balanceBonus + perTypeBonus + equityBonus + coverageBonus;
         chromosome.setFitness(fitness);
 
         return fitness;

@@ -677,6 +677,7 @@ class ApiClient {
     periodId: number;
     algorithmType: string;
     schedules: Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
+    removedSchedules?: Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
   }): Promise<ApiResponse<void>> {
     return this.request<void>("/auto-schedule/apply-preview", {
       method: "POST",
@@ -934,6 +935,10 @@ class ApiClient {
     l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
     holidayMode: string;
     removedShiftTypes: string[];
+    l01AllowedSpecialties?: string[] | null;
+    l02AllowedSpecialties?: string[] | null;
+    l03AllowedSpecialties?: string[] | null;
+    l04AllowedSpecialties?: string[] | null;
   }>> {
     return this.request<{
       enabled: boolean;
@@ -943,6 +948,10 @@ class ApiClient {
       l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
       holidayMode: string;
       removedShiftTypes: string[];
+      l01AllowedSpecialties?: string[] | null;
+      l02AllowedSpecialties?: string[] | null;
+      l03AllowedSpecialties?: string[] | null;
+      l04AllowedSpecialties?: string[] | null;
     }>("/auto-schedule/auto-gen-config");
   }
 
@@ -979,6 +988,57 @@ class ApiClient {
       l04CrossSpecialtyRatio?: number;
     }>("/auto-schedule/auto-gen-config", {
       method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async recommendAutoGenConfig(data: {
+    periodDays: number;
+    periodWeeks: number;
+    totalStaff: number;
+    eligibleStaff: Record<string, number>;
+    targetPerStaffPerMonth: Record<string, number>;
+    expandNonL04Eligibility?: boolean;
+    expandedSpecialties?: string[];
+  }): Promise<ApiResponse<{
+    recommendedConfig: {
+      enabled: boolean;
+      l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
+      l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
+      l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
+      l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
+      holidayMode: string;
+      removedShiftTypes: string[];
+      l04CrossSpecialty: boolean;
+      l04CrossSpecialtyRatio: number;
+      l04AllowedSpecialties: string[];
+      l01AllowedSpecialties: string[];
+      l02AllowedSpecialties: string[];
+      l03AllowedSpecialties: string[];
+    };
+    totalShiftsExpected: number;
+    rationale: string;
+  }>> {
+    return this.request<{
+      recommendedConfig: {
+        enabled: boolean;
+        l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
+        l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
+        l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
+        l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
+        holidayMode: string;
+        removedShiftTypes: string[];
+        l04CrossSpecialty: boolean;
+        l04CrossSpecialtyRatio: number;
+        l04AllowedSpecialties: string[];
+        l01AllowedSpecialties: string[];
+        l02AllowedSpecialties: string[];
+        l03AllowedSpecialties: string[];
+      };
+      totalShiftsExpected: number;
+      rationale: string;
+    }>("/auto-schedule/auto-gen-config/recommend", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }

@@ -23,10 +23,11 @@ import {
 import { ShiftTypeGroupCard } from "./ShiftTypeGroupCard";
 import { HolidayModeField } from "./HolidayModeField";
 import { RemovedShiftTypesField } from "./RemovedShiftTypesField";
-import { L04CrossSpecialtyCard } from "./L04CrossSpecialtyCard";
+import { L04SpecialtyConfig } from "./L04CrossSpecialtyCard";
 import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
+import { AutoCalculateDialog, type AutoCalculateResult } from "./AutoCalculateDialog";
 
 type Props = { onSaved?: () => void };
 
@@ -40,16 +41,21 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const [activePreset, setActivePreset] = useState<PresetKey | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [sandboxOpen, setSandboxOpen] = useState(false);
+  const [autoCalcOpen, setAutoCalcOpen] = useState(false);
+  const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, resAutoGen] = await Promise.all([
+      const [res, resAutoGen, specialtiesRes] = await Promise.all([
         api.getRuntimeConfig(),
         api.getAutoGenConfig(),
+        api.getActiveSpecialties(),
       ]);
       const data = (res as unknown as { data: RuntimeConfig }).data;
       const autoGen = (resAutoGen as unknown as { data: RuntimeConfig }).data;
+      const specialties = ((specialtiesRes as unknown as { data: { id: number; name: string }[] }).data ?? []).map(s => s.name);
+      setAllSpecialties(specialties);
       const merged = mergeRuntimeAndAutoGen(data, autoGen);
       setConfig(merged);
       setForm(merged);
@@ -125,6 +131,12 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
 
   function setField<K extends keyof RuntimeConfig>(key: K, value: RuntimeConfig[K]) {
     setForm(prev => prev ? { ...prev, [key]: value } : prev);
+  }
+
+  function handleAutoCalculate(result: AutoCalculateResult) {
+    setForm(prev => prev ? { ...prev, ...result } : prev);
+    setEditing(true);
+    success("Đã áp dụng giá trị tự động tính. Nhấn 'Lưu thay đổi' để lưu vào DB.");
   }
 
   if (loading) return <EditorSkeleton />;
@@ -211,20 +223,34 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           />
         ))}
         <AutoCompensationCard form={form} editing={editing} onChange={setField} />
-        <L04CrossSpecialtyCard
+        <L04SpecialtyConfig
           enabled={form.l04CrossSpecialty ?? false}
           ratio={form.l04CrossSpecialtyRatio ?? 0.3}
+          allowedSpecialties={form.l04AllowedSpecialties ?? []}
+          allSpecialties={allSpecialties}
           editing={editing}
-          onChange={(enabled, ratio) => {
-            setForm(prev => prev ? { ...prev, l04CrossSpecialty: enabled, l04CrossSpecialtyRatio: ratio } : prev);
+          onChange={(enabled, ratio, allowedSpecialties) => {
+            setForm(prev => prev ? { ...prev, l04CrossSpecialty: enabled, l04CrossSpecialtyRatio: ratio, l04AllowedSpecialties: allowedSpecialties } : prev);
           }}
         />
       </div>
 
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="material-symbols-outlined text-on-surface-variant text-[16px]" aria-hidden="true">calendar_view_month</span>
-          <p className="text-label-sm font-medium text-on-surface-variant">Giới hạn theo loại lịch</p>
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-on-surface-variant text-[16px]" aria-hidden="true">calendar_view_month</span>
+            <p className="text-label-sm font-medium text-on-surface-variant">Giới hạn theo loại lịch</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setAutoCalcOpen(true)}
+            icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">calculate</span>}
+            className="rounded-full !bg-primary-fixed !text-primary !border !border-primary/20 hover:!bg-primary/10 px-2.5 py-1 text-[11px]"
+            title="Tự động tính toán min/max từ mục tiêu ca/người/tháng"
+          >
+            Tự động tính
+          </Button>
         </div>
         <div className="flex flex-wrap gap-3">
           {SHIFT_TYPE_GROUPS.map(group => (
@@ -253,6 +279,18 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         presets={ALGORITHM_PRESETS as unknown as Record<string, PresetEntry>}
         currentConfig={(form ?? config) as unknown as Record<string, number | boolean | string>}
         onApply={(preset) => applyPreset(preset.key as PresetKey)}
+      />
+
+      <AutoCalculateDialog
+        open={autoCalcOpen}
+        onClose={() => setAutoCalcOpen(false)}
+        onApply={handleAutoCalculate}
+        initialValues={{
+          periodDays: 30,
+          periodWeeks: 4,
+          targetsPerStaffPerMonth: { L01: 7, L02: 8, L03: 9, L04: 16 },
+          eligibleStaff: { L01: 8, L02: 8, L03: 8, L04: 20 },
+        }}
       />
     </div>
   );
@@ -324,6 +362,8 @@ type ParamFieldProps = {
   onChange: <K extends keyof RuntimeConfig>(key: K, value: RuntimeConfig[K]) => void;
 };
 
+const TRACKING_ONLY_PARAMS = new Set(["min_staff_per_shift", "min_shifts_per_staff", "overnight_recovery_hours"]);
+
 function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: ParamFieldProps) {
   if (param === "holiday_mode") {
     return (
@@ -351,6 +391,7 @@ function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: P
   const display = formatParamDisplay(param, numVal);
   const pct = calcProgressPct(param, numVal);
   const validation = getParamValidation(param, numVal);
+  const isTrackingOnly = TRACKING_ONLY_PARAMS.has(param);
 
   return (
     <div>
@@ -358,6 +399,11 @@ function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: P
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <code className="font-mono text-[12px] font-semibold text-primary bg-primary-fixed/50 px-1.5 py-0.5 rounded">{desc.label}</code>
+            {isTrackingOnly && (
+              <span className="inline-flex items-center rounded-full border border-outline-variant bg-surface-container-low px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+                Theo dõi
+              </span>
+            )}
             <span className="material-symbols-outlined text-[14px] text-on-surface-variant/60 hover:text-primary transition-colors cursor-help" aria-hidden="true">info</span>
           </div>
           <p className="text-[12px] text-on-surface-variant mt-1 leading-relaxed">{desc.desc}</p>

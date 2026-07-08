@@ -1,42 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-type L04CrossSpecialtyCardProps = {
+type L04SpecialtyConfigProps = {
   enabled: boolean;
   ratio: number;
+  allowedSpecialties: string[];
+  allSpecialties: string[];
   editing: boolean;
-  onChange: (enabled: boolean, ratio: number) => void;
+  onChange: (enabled: boolean, ratio: number, allowedSpecialties: string[]) => void;
 };
 
-export function L04CrossSpecialtyCard({ enabled, ratio, editing, onChange }: L04CrossSpecialtyCardProps) {
+export function L04SpecialtyConfig({ 
+  enabled, 
+  ratio, 
+  allowedSpecialties, 
+  allSpecialties, 
+  editing, 
+  onChange 
+}: L04SpecialtyConfigProps) {
   const [localRatio, setLocalRatio] = useState(ratio);
+  const [localAllowed, setLocalAllowed] = useState<string[]>(allowedSpecialties);
+
+  useEffect(() => {
+    setLocalAllowed(allowedSpecialties);
+  }, [allowedSpecialties]);
+
+  const isAllSelected = localAllowed.length === 0 || localAllowed.length === allSpecialties.length;
 
   function handleToggle() {
-    onChange(!enabled, localRatio);
+    const newEnabled = !enabled;
+    onChange(newEnabled, localRatio, localAllowed);
   }
 
   function handleRatioChange(value: number) {
     setLocalRatio(value);
-    onChange(enabled, value);
+    onChange(enabled, value, localAllowed);
+  }
+
+  function handleSpecialtyToggle(specialty: string) {
+    let newAllowed: string[];
+    if (localAllowed.includes(specialty)) {
+      newAllowed = localAllowed.filter(s => s !== specialty);
+    } else {
+      newAllowed = [...localAllowed, specialty];
+    }
+    setLocalAllowed(newAllowed);
+    onChange(enabled, localRatio, newAllowed);
+  }
+
+  function handleSelectAll() {
+    // Empty array = all specialties
+    setLocalAllowed([]);
+    onChange(enabled, localRatio, []);
+  }
+
+  function handleClearAll() {
+    // Select all specialties explicitly
+    setLocalAllowed([...allSpecialties]);
+    onChange(enabled, localRatio, [...allSpecialties]);
   }
 
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden hover:shadow-sm transition-shadow duration-200 border-l-4 border-l-tertiary">
       <div className="px-5 py-4 bg-surface-container-low flex items-center gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-container text-tertiary">
-          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">swap_horiz</span>
+          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">medical_services</span>
         </div>
         <div className="flex-1">
-          <p className="text-label-md font-semibold text-on-surface tracking-tight">Cross-Specialty cho L04</p>
-          <p className="text-[11px] text-on-surface-variant">Gán nhân sự từ chuyên khoa khác vào PK Chuyên gia</p>
+          <p className="text-label-md font-semibold text-on-surface tracking-tight">Chuyên khoa cho L04</p>
+          <p className="text-[11px] text-on-surface-variant">Chọn chuyên khoa được phép gán PK Chuyên gia</p>
         </div>
       </div>
       <div className="p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-label-sm text-on-surface font-medium">Bật Cross-Specialty</p>
-            <p className="text-[11px] text-on-surface-variant mt-0.5">Cho phép gán staff khác chuyên khoa vào L04 khi cần</p>
+            <p className="text-label-sm text-on-surface font-medium">Bật giới hạn chuyên khoa</p>
+            <p className="text-[11px] text-on-surface-variant mt-0.5">Chỉ gán nhân sự thuộc các chuyên khoa được chọn</p>
           </div>
           {editing ? (
             <button
@@ -53,46 +93,99 @@ export function L04CrossSpecialtyCard({ enabled, ratio, editing, onChange }: L04
           ) : (
             <span className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-label-sm font-semibold ${enabled ? "bg-surface-container text-tertiary border border-outline-variant" : "bg-surface-container-high text-outline"}`}>
               <span className={`h-2 w-2 rounded-full ${enabled ? "bg-tertiary" : "bg-outline"}`} />
-              {enabled ? "Bật" : "Tắt"}
+              {enabled ? "Giới hạn" : "Tất cả"}
             </span>
           )}
         </div>
 
         {enabled && (
-          <div className="pt-2 border-t border-outline-variant">
-            <div className="flex items-center justify-between mb-3">
+          <div className="pt-2 border-t border-outline-variant space-y-3">
+            {/* Quick actions */}
+            <div className="flex items-center justify-between">
+              <p className="text-label-sm text-on-surface font-medium">
+                {isAllSelected ? "Tất cả chuyên khoa" : `${localAllowed.length}/${allSpecialties.length} chuyên khoa`}
+              </p>
+              {editing && (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSelectAll}
+                    className="text-[11px] text-primary hover:underline"
+                  >
+                    Chọn tất cả
+                  </button>
+                  <span className="text-outline">|</span>
+                  <button
+                    type="button"
+                    onClick={handleClearAll}
+                    className="text-[11px] text-tertiary hover:underline"
+                  >
+                    Bỏ chọn tất cả
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Specialty chips */}
+            {editing ? (
+              <div className="flex flex-wrap gap-2">
+                {allSpecialties.map((specialty) => {
+                  const isSelected = !isAllSelected && localAllowed.includes(specialty);
+                  return (
+                    <button
+                      key={specialty}
+                      type="button"
+                      onClick={() => handleSpecialtyToggle(specialty)}
+                      className={`px-3 py-1.5 rounded-lg text-label-sm font-medium transition-all ${
+                        isSelected
+                          ? "bg-tertiary text-white border border-tertiary"
+                          : "bg-surface-container text-on-surface-variant border border-outline hover:border-tertiary hover:text-tertiary"
+                      }`}
+                    >
+                      {specialty}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {isAllSelected ? (
+                  <span className="text-[12px] text-on-surface-variant">
+                    Tất cả chuyên khoa được phép
+                  </span>
+                ) : (
+                  localAllowed.map((specialty) => (
+                    <span
+                      key={specialty}
+                      className="px-2.5 py-1 rounded-lg text-[12px] font-medium bg-tertiary-container text-on-tertiary-container"
+                    >
+                      {specialty}
+                    </span>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Cross-specialty ratio */}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/50">
               <div>
-                <p className="text-label-sm text-on-surface font-medium">Tỷ lệ tối đa</p>
-                <p className="text-[11px] text-on-surface-variant mt-0.5">Tỷ lệ staff cross-specialty cho mỗi ca L04</p>
+                <p className="text-label-sm text-on-surface font-medium">Cross-specialty ratio</p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">Tỷ lệ staff ngoài danh sách cho mỗi ca</p>
               </div>
               <span className="font-mono text-lg font-bold text-tertiary tabular-nums">
                 {Math.round(ratio * 100)}%
               </span>
             </div>
-            {editing ? (
-              <div className="space-y-2">
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="5"
-                  value={Math.round(localRatio * 100)}
-                  onChange={(e) => handleRatioChange(parseInt(e.target.value) / 100)}
-                  className="w-full h-2 bg-surface-variant rounded-full appearance-none cursor-pointer accent-tertiary"
-                />
-                <div className="flex justify-between text-[11px] text-outline">
-                  <span>0%</span>
-                  <span>50%</span>
-                  <span>100%</span>
-                </div>
-              </div>
-            ) : (
-              <div className="w-full bg-surface-variant rounded-full h-2 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-tertiary transition-all"
-                  style={{ width: `${ratio * 100}%` }}
-                />
-              </div>
+            {editing && (
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={Math.round(localRatio * 100)}
+                onChange={(e) => handleRatioChange(parseInt(e.target.value) / 100)}
+                className="w-full h-2 bg-surface-variant rounded-full appearance-none cursor-pointer accent-tertiary"
+              />
             )}
           </div>
         )}
@@ -101,7 +194,7 @@ export function L04CrossSpecialtyCard({ enabled, ratio, editing, onChange }: L04
           <div className="flex items-start gap-2 p-3 rounded-lg bg-surface-container-low">
             <span className="material-symbols-outlined text-[16px] text-tertiary shrink-0 mt-0.5" aria-hidden="true">info</span>
             <p className="text-[12px] text-on-surface-variant leading-relaxed">
-              Khi bật, hệ thống sẽ cho phép gán nhân sự từ chuyên khoa khác vào ca L04 (PK Chuyên gia) khi chuyên khoa gốc không đủ nhân sự.
+              Tất cả nhân sự đều có thể được gán vào L04 (PK Chuyên gia). Bật lên để giới hạn theo chuyên khoa cụ thể.
             </p>
           </div>
         )}

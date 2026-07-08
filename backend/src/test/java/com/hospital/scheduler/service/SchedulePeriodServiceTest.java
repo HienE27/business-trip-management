@@ -9,6 +9,7 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
+import com.hospital.scheduler.repository.ShiftRequirementRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.AuthContextService;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -40,12 +42,14 @@ class SchedulePeriodServiceTest {
     @Mock private SchedulePeriodRepository periodRepository;
     @Mock private ScheduleRepository scheduleRepository;
     @Mock private CompensationDayRepository compensationDayRepository;
+    @Mock private ShiftRequirementRepository shiftRequirementRepository;
     @Mock private StaffRepository staffRepository;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private NotificationService notificationService;
     @Mock private EmailService emailService;
     @Mock private AuthContextService authContextService;
+    @Mock private JdbcTemplate jdbcTemplate;
 
     @InjectMocks
     private SchedulePeriodService periodService;
@@ -359,6 +363,7 @@ class SchedulePeriodServiceTest {
         @DisplayName("DRAFT -> xóa thành công")
         void draft_shouldDelete() {
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
+            when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
             doNothing().when(periodRepository).delete(draftPeriod);
 
             periodService.deletePeriod(1);
