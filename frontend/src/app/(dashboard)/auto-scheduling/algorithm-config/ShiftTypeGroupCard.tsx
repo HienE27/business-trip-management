@@ -17,6 +17,11 @@ function CompactSpinner({ value, onChange, disabled }: {
   onChange: (v: number) => void;
   disabled?: boolean;
 }) {
+  // Select all text on focus for easy replacement
+  function handleFocus(e: React.FocusEvent<HTMLInputElement>) {
+    e.target.select();
+  }
+
   return (
     <div className={`flex items-center gap-0.5 ${disabled ? "opacity-50" : ""}`}>
       <button
@@ -37,6 +42,7 @@ function CompactSpinner({ value, onChange, disabled }: {
         className="h-6 w-10 rounded border border-outline-variant bg-surface-container-lowest px-1 text-center text-[11px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-colors disabled:cursor-not-allowed"
         value={value}
         onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))}
+        onFocus={handleFocus}
       />
       <button
         type="button"

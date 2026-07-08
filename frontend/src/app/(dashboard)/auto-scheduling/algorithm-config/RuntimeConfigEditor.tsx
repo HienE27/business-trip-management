@@ -389,6 +389,11 @@ function NumberSpinner({ value, min, max, step, onChange, disabled }: {
     onChange(parsed);
   }
 
+  // Select all text on focus for easy replacement
+  function handleFocus(e: React.FocusEvent<HTMLInputElement>) {
+    e.target.select();
+  }
+
   return (
     <div className={`flex items-center gap-1 ${disabled ? "opacity-50" : ""}`}>
       <button
@@ -409,6 +414,7 @@ function NumberSpinner({ value, min, max, step, onChange, disabled }: {
         className="h-8 w-16 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:cursor-not-allowed"
         value={value}
         onChange={handleInputChange}
+        onFocus={handleFocus}
       />
       <button
         type="button"
