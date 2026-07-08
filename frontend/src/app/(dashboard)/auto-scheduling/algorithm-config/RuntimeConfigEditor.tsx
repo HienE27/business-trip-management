@@ -73,6 +73,42 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     if (form) setActivePreset(detectPreset(form));
   }, [form]);
 
+  // Keyboard shortcuts: Ctrl+S = save, Ctrl+Z = reset, Escape = cancel edit
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore if typing in input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        return;
+      }
+
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === "s") {
+          e.preventDefault();
+          if (editing && form) {
+            void handleSave();
+          }
+        } else if (e.key === "z" && !e.shiftKey) {
+          e.preventDefault();
+          if (editing) {
+            handleReset();
+          }
+        } else if (e.key === "e") {
+          e.preventDefault();
+          if (!editing) {
+            setEditing(true);
+          }
+        }
+      } else if (e.key === "Escape" && editing) {
+        e.preventDefault();
+        handleReset();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [editing, form]);
+
   function applyPreset(key: PresetKey) {
     const preset = ALGORITHM_PRESETS[key];
     setForm(prev => prev ? { ...prev, ...preset.config } : prev);
@@ -139,6 +175,31 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     success("Đã áp dụng giá trị tự động tính. Nhấn 'Lưu thay đổi' để lưu vào DB.");
   }
 
+  // Copy current config to clipboard
+  function handleCopyConfig() {
+    const json = JSON.stringify(form, null, 2);
+    void navigator.clipboard.writeText(json).then(() => {
+      success("Đã copy cấu hình vào clipboard");
+    }).catch(() => {
+      error("Không thể copy clipboard");
+    });
+  }
+
+  // Paste config from clipboard
+  async function handlePasteConfig() {
+    try {
+      const text = await navigator.clipboard.readText();
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === "object") {
+        setForm(prev => prev ? { ...prev, ...parsed } : prev);
+        setEditing(true);
+        success("Đã paste cấu hình từ clipboard");
+      }
+    } catch {
+      error("Không thể paste: clipboard rỗng hoặc định dạng không hợp lệ");
+    }
+  }
+
   if (loading) return <EditorSkeleton />;
   if (!config || !form) return null;
 
@@ -147,6 +208,32 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
 
   return (
     <div className="space-y-5">
+      {/* Keyboard shortcuts hint */}
+      <div className="flex items-center justify-end gap-4 text-[11px] text-on-surface-variant">
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Ctrl</kbd>
+          <span>+</span>
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">E</kbd>
+          <span>Sửa</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Ctrl</kbd>
+          <span>+</span>
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">S</kbd>
+          <span>Lưu</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Ctrl</kbd>
+          <span>+</span>
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Z</kbd>
+          <span>Hoàn tác</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Esc</kbd>
+          <span>Hủy</span>
+        </span>
+      </div>
+
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-5">
         <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
           <div className="flex items-center gap-2 flex-wrap">
@@ -183,13 +270,35 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {/* Quick actions */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopyConfig}
+              icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">content_copy</span>}
+              className="text-[11px]"
+              title="Copy cấu hình"
+            >
+              Copy
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handlePasteConfig}
+              icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">content_paste</span>}
+              className="text-[11px]"
+              title="Paste cấu hình"
+            >
+              Paste
+            </Button>
+            <div className="w-px h-6 bg-outline-variant mx-1" />
             {editing ? (
               <>
                 <Button variant="secondary" size="sm" onClick={handleReset}>Hủy bỏ</Button>
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={handleSave}
+                  onClick={() => void handleSave()}
                   disabled={saving}
                   loading={saving}
                   icon={!saving ? <span className="material-symbols-outlined text-[16px]" aria-hidden="true">save</span> : undefined}
@@ -312,7 +421,7 @@ function EditorSkeleton() {
   );
 }
 
-/* ─── Param Group Card ─────────────────────────────────────── */
+/* ─── Param Group Card (Collapsible) ─────────────────────────── */
 
 type ParamGroupCardProps = {
   group: typeof PARAM_GROUPS[number];
@@ -322,31 +431,49 @@ type ParamGroupCardProps = {
 };
 
 function ParamGroupCard({ group, form, editing, onChange }: ParamGroupCardProps) {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
     <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden hover:shadow-sm transition-shadow duration-200 ${group.accent}`}>
-      <div className="px-5 py-4 bg-surface-container-low flex items-center gap-3">
-        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${group.bg} ${group.color}`}>
-          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{group.icon}</span>
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        className="w-full px-5 py-4 bg-surface-container-low flex items-center justify-between gap-3 hover:bg-surface-container transition-colors"
+        aria-expanded={!collapsed}
+      >
+        <div className="flex items-center gap-3">
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${group.bg} ${group.color}`}>
+            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{group.icon}</span>
+          </div>
+          <p className="text-label-md font-semibold text-on-surface tracking-tight">{group.label}</p>
+          <span className="text-[11px] text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">
+            {group.params.length} thông số
+          </span>
         </div>
-        <p className="text-label-md font-semibold text-on-surface tracking-tight">{group.label}</p>
-      </div>
-      <div className="p-5 space-y-5">
-        {group.params.map(param => {
-          const desc = group.descriptions[param] ?? { label: param, desc: "", hint: "" };
-          const cfgKey = PARAM_KEY_TO_CFG[param] ?? "maxIterations";
-          return (
-            <ParamField
-              key={param}
-              param={param}
-              desc={desc}
-              cfgKey={cfgKey}
-              groupId={group.id}
-              form={form}
-              editing={editing}
-              onChange={onChange}
-            />
-          );
-        })}
+        <span className={`material-symbols-outlined text-[20px] text-on-surface-variant transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`} aria-hidden="true">
+          expand_more
+        </span>
+      </button>
+
+      <div className={`overflow-hidden transition-all duration-300 ${collapsed ? "max-h-0" : "max-h-[1000px]"}`}>
+        <div className="p-5 space-y-5">
+          {group.params.map(param => {
+            const desc = group.descriptions[param] ?? { label: param, desc: "", hint: "" };
+            const cfgKey = PARAM_KEY_TO_CFG[param] ?? "maxIterations";
+            return (
+              <ParamField
+                key={param}
+                param={param}
+                desc={desc}
+                cfgKey={cfgKey}
+                groupId={group.id}
+                form={form}
+                editing={editing}
+                onChange={onChange}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );
