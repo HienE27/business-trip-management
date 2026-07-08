@@ -82,7 +82,9 @@ class CspDataBuilder {
         return data;
     }
 
-    int findStaffIdx(List<Staff> staffList, int staffId) {
+    // ==================== private helpers ====================
+
+    private int findStaffIdx(List<Staff> staffList, int staffId) {
         for (int i = 0; i < staffList.size(); i++) {
             if (staffList.get(i).getId() == staffId) return i;
         }

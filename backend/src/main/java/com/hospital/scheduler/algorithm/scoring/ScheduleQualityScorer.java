@@ -44,13 +44,13 @@ public class ScheduleQualityScorer {
     // ─────────────────────────────────────────────────────────────
 
     /** Trọng số coverage. Mặc định 0.40. */
-    private double coverageWeight = 0.40;
+    private double coverageWeight = DEFAULT_COVERAGE_WEIGHT;
 
     /** Trọng số fairness. Mặc định 0.35. */
-    private double fairnessWeight = 0.35;
+    private double fairnessWeight = DEFAULT_FAIRNESS_WEIGHT;
 
     /** Trọng số constraint. Mặc định 0.25. */
-    private double constraintWeight = 0.25;
+    private double constraintWeight = DEFAULT_CONSTRAINT_WEIGHT;
 
     /** Ngưỡng đạt yêu cầu. Mặc định 80.0. */
     private double passThreshold = 80.0;
@@ -68,10 +68,25 @@ public class ScheduleQualityScorer {
     private double worstCv = 0.50;
 
     // ─────────────────────────────────────────────────────────────
+    // Defaults — single source of truth for all three weights.
+    // References: ScheduleQualityReport javadoc and test helpers.
+    // ─────────────────────────────────────────────────────────────
+
+    /** Default coverage weight: 0.40 */
+    public static final double DEFAULT_COVERAGE_WEIGHT = 0.40;
+
+    /** Default fairness weight: 0.35 */
+    public static final double DEFAULT_FAIRNESS_WEIGHT = 0.35;
+
+    /** Default constraint weight: 0.25 */
+    public static final double DEFAULT_CONSTRAINT_WEIGHT = 0.25;
+
+    // ─────────────────────────────────────────────────────────────
     // Constants
     // ─────────────────────────────────────────────────────────────
 
-    private static final List<String> SHIFT_TYPES = List.of("L01", "L02", "L03", "L04");
+    private static final List<String> SHIFT_TYPES =
+            Arrays.asList(com.hospital.scheduler.algorithm.CspConstants.SHIFT_ORDER);
 
     // ─────────────────────────────────────────────────────────────
     // CONFIG SETTERS

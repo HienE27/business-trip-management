@@ -1,5 +1,7 @@
 package com.hospital.scheduler.algorithm;
 
+import java.util.Map;
+
 /**
  * Shared shift-type constants and lookup helpers used across all CSP modules.
  * Keeping them in one place avoids the "string soup" of L0X literals and
@@ -13,6 +15,24 @@ public final class CspConstants {
     public static final String CHUYEN_GIA = "L04";
 
     public static final String[] SHIFT_ORDER = {DIRECT_24H, THONG_TAM, DICH_VU, CHUYEN_GIA};
+
+    /**
+     * Relative workload weight for each shift type.  L01 (24/24 duty) is
+     * the heaviest; L03/L04 are the lightest.  These weights drive the
+     * weighted-coverage and weighted-balance calculations in
+     * {@link com.hospital.scheduler.algorithm.ScheduleChromosome}.
+     *
+     * <p>The same table is the single source of truth for
+     * {@code SchedulingFitnessShiftWeightTest} — tests must reference this
+     * map rather than duplicating the values inline.
+     */
+    @SuppressWarnings("unchecked")
+    public static final Map<String, Double> SHIFT_WEIGHTS = Map.of(
+            DIRECT_24H, 3.0,
+            THONG_TAM,  1.5,
+            DICH_VU,   1.0,
+            CHUYEN_GIA, 1.0
+    );
 
     private CspConstants() {}
 

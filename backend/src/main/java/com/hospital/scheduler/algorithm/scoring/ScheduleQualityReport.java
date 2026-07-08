@@ -11,17 +11,37 @@ import java.util.Map;
  *
  * <p>Cấu trúc score (0.0 – 100.0):
  * <pre>
- *   totalScore = 0.40 * coverageScore
- *              + 0.35 * fairnessScore
- *              + 0.25 * constraintScore
+ *   totalScore = {@value #DEFAULT_COVERAGE_WEIGHT} * coverageScore
+ *              + {@value #DEFAULT_FAIRNESS_WEIGHT} * fairnessScore
+ *              + {@value #DEFAULT_CONSTRAINT_WEIGHT} * constraintScore
  * </pre>
  *
  * <p>Weights có thể điều chỉnh qua config nhưng mặc định ưu tiên:
  * Coverage > Fairness > Constraint-compliance (constraint chỉ là penalty, không bao giờ bị bỏ qua).
+ *
+ * <p>Default values are declared as public constants in
+ * {@link ScheduleQualityScorer} to prevent drift.
  */
 @Getter
 @Builder
 public class ScheduleQualityReport {
+
+    // ─────────────────────────────────────────────
+    // Re-exported defaults — kept here so callers can read them
+    // without a compile-time dependency on ScheduleQualityScorer.
+    // ─────────────────────────────────────────────
+
+    /** {@value com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer#DEFAULT_COVERAGE_WEIGHT} */
+    public static final double DEFAULT_COVERAGE_WEIGHT =
+            ScheduleQualityScorer.DEFAULT_COVERAGE_WEIGHT;
+
+    /** {@value com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer#DEFAULT_FAIRNESS_WEIGHT} */
+    public static final double DEFAULT_FAIRNESS_WEIGHT =
+            ScheduleQualityScorer.DEFAULT_FAIRNESS_WEIGHT;
+
+    /** {@value com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer#DEFAULT_CONSTRAINT_WEIGHT} */
+    public static final double DEFAULT_CONSTRAINT_WEIGHT =
+            ScheduleQualityScorer.DEFAULT_CONSTRAINT_WEIGHT;
 
     // ─────────────────────────────────────────────
     // 1. TỔNG QUAN
