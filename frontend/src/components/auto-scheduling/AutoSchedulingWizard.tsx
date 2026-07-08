@@ -88,6 +88,7 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
   }, [autoGenEnabled, activeStaff]);
 
   const selectedPeriod = periods.find(p => p.id === selectedPeriodId) ?? null;
+  const isDraft = selectedPeriod?.status === "DRAFT";
 
   const handleNext = useCallback(() => {
     const steps = WIZARD_STEPS.map(s => s.id);
@@ -578,7 +579,6 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
                 variant="primary"
                 size="sm"
                 onClick={handleNext}
-                disabled={currentStep === "period" && !selectedPeriodId}
                 disabled={currentStep === "period" && (!selectedPeriodId || !isDraft)}
               >
                 Tiếp tục →
