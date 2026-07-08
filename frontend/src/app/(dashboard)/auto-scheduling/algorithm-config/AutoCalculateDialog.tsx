@@ -596,33 +596,84 @@ export function AutoCalculateDialog({ open, onClose, onApply, initialValues }: P
                 Mở rộng eligibility L01/L02/L03 (khuyến nghị nếu eligibility &lt; 10 người)
               </label>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {shiftIds.map((tid) => {
-                const c = recommendation?.config ?? computed;
-                const min = c[`${tid.toLowerCase()}MinPerDay` as keyof AutoCalculateResult] as number;
-                const max = c[`${tid.toLowerCase()}MaxPerDay` as keyof AutoCalculateResult] as number;
-                const minW = c[`${tid.toLowerCase()}MinPerWeek` as keyof AutoCalculateResult] as number;
-                const maxW = c[`${tid.toLowerCase()}MaxPerWeek` as keyof AutoCalculateResult] as number;
-                return (
-                  <div key={tid} className="bg-surface-container-lowest rounded-lg p-3 border border-outline-variant">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`font-mono font-bold ${SHIFT_META[tid].color}`}>{tid}</span>
-                      <span className="text-[11px] text-on-surface-variant">{SHIFT_META[tid].subtitle}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                      <div className="flex justify-between items-center">
-                        <span className="text-on-surface-variant">Ngày:</span>
-                        <span className="font-mono font-semibold tabular-nums">{min}-{max}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-on-surface-variant">Tuần:</span>
-                        <span className="font-mono font-semibold tabular-nums">{minW}-{maxW}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="border border-outline-variant rounded-xl overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-low border-b border-outline-variant">
+                    <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Loại</th>
+                    <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Đủ ĐK</th>
+                    <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Ca/kỳ</th>
+                    <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Min/ngày</th>
+                    <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Max/ngày</th>
+                    <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Min/tuần</th>
+                    <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">Max/tuần</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant">
+                  {shiftIds.map((tid) => {
+                    const c = recommendation?.config ?? computed;
+                    const minDay = c[`${tid.toLowerCase()}MinPerDay` as keyof AutoCalculateResult] as number;
+                    const maxDay = c[`${tid.toLowerCase()}MaxPerDay` as keyof AutoCalculateResult] as number;
+                    const minWeek = c[`${tid.toLowerCase()}MinPerWeek` as keyof AutoCalculateResult] as number;
+                    const maxWeek = c[`${tid.toLowerCase()}MaxPerWeek` as keyof AutoCalculateResult] as number;
+                    const hasWarning = warnings.some(w => w.key.startsWith(tid));
+                    return (
+                      <tr key={tid} className={`hover:bg-surface-container-lowest transition-colors ${hasWarning ? "bg-tertiary-container/10" : ""}`}>
+                        <td className="py-2 px-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-mono font-bold text-[13px] ${SHIFT_META[tid].color}`}>{tid}</span>
+                            <span className="text-[12px] text-on-surface-variant">{SHIFT_META[tid].subtitle}</span>
+                          </div>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <span className="font-mono font-semibold text-on-surface">{eligible[tid]}</span>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <span className="font-mono font-semibold text-primary">{targets[tid]}</span>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <span className={`font-mono font-semibold tabular-nums ${
+                            recommendation ? "text-secondary" : "text-on-surface"
+                          }`}>{minDay}</span>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <span className={`font-mono font-semibold tabular-nums ${
+                            recommendation ? "text-secondary" : "text-on-surface"
+                          }`}>{maxDay}</span>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <span className={`font-mono font-semibold tabular-nums ${
+                            recommendation ? "text-secondary" : "text-on-surface"
+                          }`}>{minWeek}</span>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <span className={`font-mono font-semibold tabular-nums ${
+                            recommendation ? "text-secondary" : "text-on-surface"
+                          }`}>{maxWeek}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="bg-primary-fixed/30 font-semibold">
+                    <td className="py-2 px-3 text-on-surface">Tổng</td>
+                    <td className="py-2 px-3 text-center font-mono tabular-nums">{totalEligible}</td>
+                    <td className="py-2 px-3 text-center font-mono tabular-nums text-primary">{totalTarget}</td>
+                    <td className="py-2 px-3"></td>
+                    <td className="py-2 px-3"></td>
+                    <td className="py-2 px-3"></td>
+                    <td className="py-2 px-3"></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+            {recommendation && (
+              <div className="mt-3 px-3 py-2 rounded-lg bg-secondary-container/30 border border-secondary/30">
+                <div className="flex items-center gap-2 text-[11px] text-secondary">
+                  <span className="material-symbols-outlined text-[14px]" aria-hidden="true">auto_awesome</span>
+                  <span>AI đã tối ưu các giá trị (màu xanh) dựa trên dữ liệu thực tế</span>
+                </div>
+              </div>
+            )}
             <p className="text-[11px] text-on-surface-variant mt-3 leading-relaxed">
               <strong>Công thức:</strong> min/ngày = ⌈(target × eligible) / ngày⌋ · max/tuần = ⌈(target / tuần) × 1.5⌉ · max/ngày = ⌈max/tuần × 1.2⌉
             </p>
