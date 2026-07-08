@@ -348,11 +348,13 @@ export const PresetSelector = memo(function PresetSelector({
 
             return (
               <div key={key} className="relative">
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleApplyWithValidation(key as PresetKey, preset)}
                   onMouseEnter={() => setHoveredKey(key)}
                   onMouseLeave={() => setHoveredKey(null)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleApplyWithValidation(key as PresetKey, preset); } }}
                   aria-pressed={isActive}
                   aria-label={`${preset.label}: ${preset.tagline}`}
                   className={`
@@ -390,7 +392,7 @@ export const PresetSelector = memo(function PresetSelector({
                       </button>
                     </div>
                   )}
-                </button>
+                </div>
 
                 {/* Tooltip với validation & preview */}
                 {isHovered && (
