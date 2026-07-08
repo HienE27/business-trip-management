@@ -61,7 +61,7 @@ function PresetTooltipButton({ preset, isActive, onClick }: TooltipProps) {
         onBlur={() => setShowTooltip(false)}
         aria-pressed={isActive}
         aria-label={`${preset.label}: ${preset.tagline}`}
-        className={`group relative flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        className={`group relative flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary min-w-[140px] ${
           isActive
             ? `${preset.accent} ${preset.colorBg} shadow-sm`
             : "border-outline-variant bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-lowest hover:shadow-sm active:scale-[0.98]"
