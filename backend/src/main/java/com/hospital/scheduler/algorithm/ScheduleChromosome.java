@@ -38,6 +38,19 @@ public class ScheduleChromosome {
         this.balanceScore = 0;
         this.coverageRate = 0;
     }
+
+    /**
+     * Test-only constructor that seeds the gene array directly.
+     * Use {@code genes[i] = staffIndex} where a negative value means "unassigned".
+     * Prefer this over reflection in tests.
+     */
+    ScheduleChromosome(List<ShiftRequirementInfo> requirements, List<Staff> staffPool, int[] genes) {
+        this(requirements, staffPool);
+        if (genes.length != this.genes.length) {
+            throw new IllegalArgumentException("genes length must match requirements size");
+        }
+        this.genes = genes.clone();
+    }
     
     /**
      * Create a random chromosome with semi-balanced initial assignment.

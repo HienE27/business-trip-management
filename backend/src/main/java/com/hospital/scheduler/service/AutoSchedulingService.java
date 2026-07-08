@@ -11,6 +11,7 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import com.hospital.scheduler.util.DateUtils;
+import com.hospital.scheduler.util.ScheduleKeyUtils;
 import com.hospital.scheduler.algorithm.AutoGenConfig;
 import com.hospital.scheduler.algorithm.CSPScheduler;
 import com.hospital.scheduler.algorithm.GeneticAlgorithmScheduler;
@@ -1545,7 +1546,6 @@ public class AutoSchedulingService {
             // First pass: collect every L01 assignment's auto-comp day so the
             // second pass can skip them (mirrors the L01 post-processing in
             // runGeneticAlgorithm).
-            Map<String, LocalDate> l01CompByKey = new HashMap<>();
             for (Map.Entry<String, String> entry : cspResult.getAssignments().entrySet()) {
                 if (!ConflictDetectionService.SHIFT_TYPE_L01.equals(entry.getValue())) continue;
                 String[] parts = entry.getKey().split("\\|");
@@ -1554,8 +1554,7 @@ public class AutoSchedulingService {
                 LocalDate workDate = LocalDate.parse(parts[1]);
                 LocalDate compDate = compensationDateCalculator.calculate(workDate);
                 if (compDate != null) {
-                    allCompensationDays.add(staffId + "|" + compDate);
-                    l01CompByKey.put(entry.getKey(), compDate);
+                    allCompensationDays.add(staffId + "_" + compDate);
                 }
             }
 
@@ -1569,7 +1568,7 @@ public class AutoSchedulingService {
                 LocalDate workDate = LocalDate.parse(parts[1]);
                 String shiftTypeId = entry.getValue();
 
-                if (allCompensationDays.contains(staffId + "|" + workDate)) {
+                if (allCompensationDays.contains(staffId + "_" + workDate)) {
                     log.debug("Skipping CSP assignment {} - staff is on a compensation day", entry.getKey());
                     continue;
                 }
@@ -1624,7 +1623,7 @@ public class AutoSchedulingService {
                 entityManager.clear();
                 List<Schedule> compDayViolations = createdSchedules.stream()
                         .filter(s -> allCompensationDays.contains(
-                                s.getStaff().getId() + "|" + s.getWorkDate().toString()))
+                                s.getStaff().getId() + "_" + s.getWorkDate().toString()))
                         .toList();
                 if (!compDayViolations.isEmpty()) {
                     log.warn("CSP produced {} comp-day violations, removing them", compDayViolations.size());
