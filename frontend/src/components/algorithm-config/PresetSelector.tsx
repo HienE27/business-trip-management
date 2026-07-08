@@ -35,6 +35,13 @@ export type SuggestionReason = {
   score: number;
 };
 
+export type ScheduleStats = {
+  totalStaff: number;
+  avgShiftsPerStaff: number;
+  coverageDays: number;
+  periodDays: number;
+};
+
 type Props = {
   presets: Record<string, PresetConfig>;
   activePreset: PresetKey | null;
@@ -42,12 +49,7 @@ type Props = {
   onApply: (key: PresetKey, config: Partial<RuntimeConfig>) => void;
   onSaveCustomPreset?: (key: PresetKey, name: string, config: Partial<RuntimeConfig>) => void;
   onDeleteCustomPreset?: (key: PresetKey) => void;
-  scheduleStats?: {
-    totalStaff: number;
-    avgShiftsPerStaff: number;
-    coverageDays: number;
-    periodDays: number;
-  };
+  scheduleStats?: ScheduleStats;
 };
 
 /**
@@ -56,6 +58,9 @@ type Props = {
  * - Auto-suggest preset dựa trên data thực tế
  * - Visual comparison overlay (A vs B vs current)
  * - A/B preview cho kết quả scheduling
+ * - Modal tạo preset thay prompt()
+ * - Hiệu ứng diff trong comparison
+ * - Export/Import JSON preset
  */
 export const PresetSelector = memo(function PresetSelector({
   presets,
@@ -73,6 +78,10 @@ export const PresetSelector = memo(function PresetSelector({
   const [compareA, setCompareA] = useState<PresetKey | null>(null);
   const [compareB, setCompareB] = useState<PresetKey | null>(null);
   const [showSuggestion, setShowSuggestion] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importJson, setImportJson] = useState("");
+  const [importError, setImportError] = useState("");
 
   // ─── Validation Logic ──────────────────────────────────────────────
   const validatePreset = useCallback((key: PresetKey, preset: PresetConfig, current: RuntimeConfig): ValidationResult => {
@@ -179,6 +188,27 @@ export const PresetSelector = memo(function PresetSelector({
 
   const suggestion = useMemo(() => getSuggestion(), [getSuggestion]);
 
+  // ─── Preview params for hover ─────────────────────────────────────
+  const getPreviewParams = useCallback((key: PresetKey): Array<{ label: string; value: string; current: string }> => {
+    const p = presets[key] as unknown as { config?: Partial<RuntimeConfig> };
+    const presetConfig = p?.config || {};
+    const params = [
+      { key: "maxIterations", label: "Iterations" },
+      { key: "greedyCoverageThreshold", label: "Coverage", format: (v: number) => `${(v * 100).toFixed(0)}%` },
+      { key: "balanceScoreMin", label: "Balance", format: (v: number) => `${(v * 100).toFixed(0)}%` },
+      { key: "weekendWeight", label: "Weekend", format: (v: number) => v.toFixed(1) },
+    ];
+    return params.map(({ key: k, label, format }) => {
+      const val = Number(presetConfig[k] ?? currentConfig[k] ?? 0);
+      const cur = Number(currentConfig[k] ?? 0);
+      return {
+        label,
+        value: format ? format(val) : val.toString(),
+        current: format ? format(cur) : cur.toString(),
+      };
+    });
+  }, [presets, currentConfig]);
+
   // ─── Handlers ───────────────────────────────────────────────────────
   const handleApplyWithValidation = useCallback((key: PresetKey, preset: PresetConfig) => {
     const validation = validatePreset(key, preset, currentConfig);
@@ -196,12 +226,12 @@ export const PresetSelector = memo(function PresetSelector({
     onApply(key, p.config || {});
   }, [currentConfig, onApply, validatePreset, warning]);
 
-  const handleSaveCustomPreset = useCallback(() => {
+  const handleSaveCustomPreset = useCallback((name: string) => {
     if (!onSaveCustomPreset) return;
-    const name = prompt("Tên preset mới:");
     if (!name?.trim()) return;
     const key = `custom_${Date.now()}` as PresetKey;
     onSaveCustomPreset(key, name.trim(), currentConfig);
+    setShowCreateModal(false);
   }, [currentConfig, onSaveCustomPreset]);
 
   const handleDeleteCustomPreset = useCallback((key: PresetKey) => {
@@ -209,6 +239,45 @@ export const PresetSelector = memo(function PresetSelector({
     onDeleteCustomPreset(key);
     setConfirmDelete(null);
   }, [onDeleteCustomPreset]);
+
+  const handleExportPreset = useCallback((key: PresetKey) => {
+    const p = presets[key] as unknown as { config?: Partial<RuntimeConfig> };
+    const presetConfig = p?.config || {};
+    const exportData = {
+      name: presets[key]?.label || key,
+      key,
+      config: presetConfig,
+      exportedAt: new Date().toISOString(),
+    };
+    const json = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `preset-${key}-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [presets]);
+
+  const handleImportPreset = useCallback(() => {
+    try {
+      const parsed = JSON.parse(importJson);
+      if (!parsed.config || typeof parsed.config !== "object") {
+        setImportError("Invalid format: missing config object");
+        return;
+      }
+      const name = parsed.name || `Imported ${Date.now()}`;
+      const key = `custom_${Date.now()}` as PresetKey;
+      if (onSaveCustomPreset) {
+        onSaveCustomPreset(key, name, parsed.config);
+        setShowImportModal(false);
+        setImportJson("");
+        setImportError("");
+      }
+    } catch {
+      setImportError("Invalid JSON format");
+    }
+  }, [importJson, onSaveCustomPreset]);
 
   const presetEntries = Object.entries(presets) as [string, PresetConfig][];
   const builtInKeys = presetEntries.filter(([k]) => !k.startsWith("custom_")).map(([k]) => k as PresetKey);
@@ -275,6 +344,7 @@ export const PresetSelector = memo(function PresetSelector({
             const isCustom = key.startsWith("custom_");
             const isHovered = hoveredKey === key;
             const validation = isHovered ? validatePreset(key as PresetKey, preset, currentConfig) : null;
+            const previewParams = isHovered ? getPreviewParams(key as PresetKey) : [];
 
             return (
               <div key={key} className="relative">
@@ -301,24 +371,58 @@ export const PresetSelector = memo(function PresetSelector({
                   </span>
                   {isActive && <span className="material-symbols-outlined text-primary text-[14px]" aria-hidden="true">check</span>}
                   {isCustom && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setConfirmDelete(key as PresetKey); }}
-                      className="ml-auto p-1 rounded hover:bg-error-container text-on-surface-variant hover:text-error transition-colors"
-                      aria-label={`Xóa ${preset.label}`}
-                    >
-                      <span className="material-symbols-outlined text-[14px]" aria-hidden="true">close</span>
-                    </button>
+                    <div className="ml-auto flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleExportPreset(key as PresetKey); }}
+                        className="p-1 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
+                        aria-label="Export preset"
+                      >
+                        <span className="material-symbols-outlined text-[12px]" aria-hidden="true">download</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete(key as PresetKey); }}
+                        className="p-1 rounded hover:bg-error-container text-on-surface-variant hover:text-error transition-colors"
+                        aria-label={`Xóa ${preset.label}`}
+                      >
+                        <span className="material-symbols-outlined text-[12px]" aria-hidden="true">close</span>
+                      </button>
+                    </div>
                   )}
                 </button>
 
-                {isHovered && validation && (validation.warnings.length > 0 || validation.errors.length > 0) && (
+                {/* Tooltip với validation & preview */}
+                {isHovered && (
                   <div className="absolute top-full left-0 mt-2 z-50 animate-fade-in">
-                    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-3 min-w-[220px] max-w-[300px]">
+                    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-3 min-w-[260px] max-w-[320px]">
                       <div className="space-y-1">
-                        <p className="text-label-sm font-semibold text-on-surface">{preset.label}</p>
+                        <div className="flex items-center gap-2">
+                          <span className={`material-symbols-outlined text-[16px] ${preset.color}`} aria-hidden="true">{preset.icon}</span>
+                          <p className="text-label-sm font-semibold text-on-surface">{preset.label}</p>
+                        </div>
                         <p className="text-[11px] text-on-surface-variant">{preset.tagline}</p>
-                        {validation.warnings.length > 0 && (
+
+                        {/* Preview params */}
+                        {previewParams.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-outline-variant space-y-1">
+                            {previewParams.map((p, i) => (
+                              <div key={i} className="flex items-center justify-between text-[10px]">
+                                <span className="text-on-surface-variant">{p.label}</span>
+                                <div className="flex items-center gap-1">
+                                  <span className={`font-mono font-semibold ${
+                                    p.value !== p.current ? (Number(p.value.replace(/[^0-9.]/g, "")) > Number(p.current.replace(/[^0-9.]/g, "")) ? "text-emerald-500" : "text-rose-500") : "text-on-surface"
+                                  }`}>{p.value}</span>
+                                  {p.value !== p.current && (
+                                    <span className="text-outline">({p.current})</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {validation && validation.warnings.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-outline-variant">
                             <p className="text-[10px] text-tertiary flex items-center gap-1">
                               <span className="material-symbols-outlined text-[12px]" aria-hidden="true">warning</span>
@@ -326,7 +430,7 @@ export const PresetSelector = memo(function PresetSelector({
                             </p>
                           </div>
                         )}
-                        {validation.errors.length > 0 && (
+                        {validation && validation.errors.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-error/30">
                             <p className="text-[10px] text-error flex items-center gap-1">
                               <span className="material-symbols-outlined text-[12px]" aria-hidden="true">error</span>
@@ -342,36 +446,64 @@ export const PresetSelector = memo(function PresetSelector({
             );
           })}
 
-          {onSaveCustomPreset && (
+          {/* Action buttons */}
+          <div className="flex items-center gap-1">
+            {onSaveCustomPreset && (
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-lowest hover:border-primary transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary min-w-[100px]"
+              >
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">add</span>
+                <span className="text-label-sm text-on-surface-variant">Tạo mới</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleSaveCustomPreset}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-lowest hover:border-primary transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary min-w-[100px]"
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-outline-variant bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-lowest transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              title="Import preset từ JSON"
             >
-              <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">add</span>
-              <span className="text-label-sm text-on-surface-variant">Tạo mới</span>
+              <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">upload</span>
             </button>
-          )}
+            <button
+              type="button"
+              onClick={() => {
+                if (!compareA) setCompareA(builtInKeys[0]);
+                if (!compareB) setCompareB(builtInKeys[1]);
+                setShowComparison(true);
+              }}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-low border border-outline-variant hover:border-primary/40 hover:bg-surface-container transition-colors text-[12px]"
+            >
+              <span className="material-symbols-outlined text-[16px]" aria-hidden="true">compare</span>
+              So sánh
+            </button>
+          </div>
         </div>
-
-        {/* Comparison Button */}
-        <button
-          type="button"
-          onClick={() => {
-            if (!compareA) setCompareA(builtInKeys[0]);
-            if (!compareB) setCompareB(builtInKeys[1]);
-            setShowComparison(true);
-          }}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-low border border-outline-variant hover:border-primary/40 hover:bg-surface-container transition-colors text-[12px]"
-        >
-          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">compare</span>
-          So sánh
-        </button>
       </div>
 
       {/* Health Bar */}
       {activePreset && !activePreset.startsWith("custom_") && (
         <PresetHealthBar presetKey={activePreset} currentConfig={currentConfig} />
+      )}
+
+      {/* Create Preset Modal */}
+      {showCreateModal && (
+        <CreatePresetModal
+          onClose={() => setShowCreateModal(false)}
+          onSave={handleSaveCustomPreset}
+        />
+      )}
+
+      {/* Import Preset Modal */}
+      {showImportModal && (
+        <ImportPresetModal
+          json={importJson}
+          error={importError}
+          onChange={setImportJson}
+          onImport={handleImportPreset}
+          onClose={() => { setShowImportModal(false); setImportJson(""); setImportError(""); }}
+        />
       )}
 
       {/* Comparison Modal */}
@@ -404,6 +536,160 @@ export const PresetSelector = memo(function PresetSelector({
   );
 });
 
+/* ─── Create Preset Modal ───────────────────────────────────────────── */
+
+type CreateModalProps = {
+  onClose: () => void;
+  onSave: (name: string) => void;
+};
+
+const PRESET_ICONS = [
+  "bookmark", "star", "bolt", "speed", "verified_user", "shield", "science",
+  "auto_awesome", "tune", "settings", "psychology", "auto_fix_high"
+];
+
+function CreatePresetModal({ onClose, onSave }: CreateModalProps) {
+  const [name, setName] = useState("");
+  const [icon, setIcon] = useState("bookmark");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
+      <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-xl w-full max-w-md mx-4 animate-scale-in" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-primary text-[24px]" aria-hidden="true">add</span>
+            <h2 className="text-title-md font-semibold text-on-surface">Tạo Preset mới</h2>
+          </div>
+          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-surface-container transition-colors">
+            <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-label-sm font-medium text-on-surface mb-2">Tên preset</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="VD: Preset T7-CN"
+              className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest rounded-lg text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="block text-label-sm font-medium text-on-surface mb-2">Icon</label>
+            <div className="flex flex-wrap gap-2">
+              {PRESET_ICONS.map(ic => (
+                <button
+                  key={ic}
+                  type="button"
+                  onClick={() => setIcon(ic)}
+                  className={`w-10 h-10 rounded-lg border flex items-center justify-center transition-colors ${
+                    icon === ic
+                      ? "border-primary bg-primary-fixed text-primary"
+                      : "border-outline-variant hover:border-primary/40 hover:bg-surface-container"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{ic}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-surface-container-low rounded-lg p-3 text-[11px] text-on-surface-variant">
+            <p>Preset sẽ được tạo với cấu hình hiện tại. Bạn có thể chỉnh sửa sau.</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-outline-variant text-label-sm hover:bg-surface-container transition-colors">
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={() => onSave(name)}
+            disabled={!name.trim()}
+            className="px-4 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Tạo preset
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Import Preset Modal ─────────────────────────────────────────── */
+
+type ImportModalProps = {
+  json: string;
+  error: string;
+  onChange: (v: string) => void;
+  onImport: () => void;
+  onClose: () => void;
+};
+
+function ImportPresetModal({ json, error, onChange, onImport, onClose }: ImportModalProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
+      <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-xl w-full max-w-md mx-4 animate-scale-in" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-primary text-[24px]" aria-hidden="true">upload</span>
+            <h2 className="text-title-md font-semibold text-on-surface">Import Preset</h2>
+          </div>
+          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-surface-container transition-colors">
+            <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-label-sm font-medium text-on-surface mb-2">JSON</label>
+            <textarea
+              value={json}
+              onChange={e => onChange(e.target.value)}
+              placeholder='{"name": "My Preset", "config": {...}}'
+              rows={6}
+              className="w-full p-3 border border-outline-variant bg-surface-container-lowest rounded-lg text-body-sm text-on-surface font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-error-container text-error text-[11px]">
+              <span className="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
+              {error}
+            </div>
+          )}
+
+          <div className="bg-surface-container-low rounded-lg p-3 text-[11px] text-on-surface-variant">
+            <p className="mb-2">Dán JSON từ file export preset hoặc tạo thủ công:</p>
+            <code className="block bg-surface-container-lowest p-2 rounded mt-1 text-[10px] overflow-x-auto">
+              {`{"name": "...", "config": {"maxIterations": 2000, ...}}`}
+            </code>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-outline-variant text-label-sm hover:bg-surface-container transition-colors">
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={onImport}
+            disabled={!json.trim()}
+            className="px-4 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Import
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Comparison Overlay ──────────────────────────────────────────── */
 
 type ComparisonProps = {
@@ -432,9 +718,9 @@ function ComparisonOverlay({ presets, compareA, compareB, currentConfig, onChang
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
-      <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-xl w-full max-w-3xl mx-4 animate-scale-in" onClick={e => e.stopPropagation()}>
+      <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-xl w-full max-w-3xl mx-4 animate-scale-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant sticky top-0 bg-surface-container-lowest z-10">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-primary text-[24px]" aria-hidden="true">compare</span>
             <h2 className="text-title-md font-semibold text-on-surface">So sánh Preset</h2>
@@ -481,10 +767,10 @@ function ComparisonOverlay({ presets, compareA, compareB, currentConfig, onChang
                 <tr className="border-b border-outline-variant">
                   <th className="text-left py-3 px-4 text-label-sm text-on-surface-variant font-semibold">Thông số</th>
                   <th className="text-center py-3 px-4 text-label-sm text-on-surface-variant font-semibold min-w-[120px]">Hiện tại</th>
-                  <th className={`text-center py-3 px-4 text-label-sm font-semibold min-w-[120px] ${presets[compareA]?.colorBg || ""}`}>
+                  <th className={`text-center py-3 px-4 text-label-sm font-semibold min-w-[140px] ${presets[compareA]?.colorBg || ""}`}>
                     {presets[compareA]?.label}
                   </th>
-                  <th className={`text-center py-3 px-4 text-label-sm font-semibold min-w-[120px] ${presets[compareB]?.colorBg || ""}`}>
+                  <th className={`text-center py-3 px-4 text-label-sm font-semibold min-w-[140px] ${presets[compareB]?.colorBg || ""}`}>
                     {presets[compareB]?.label}
                   </th>
                 </tr>
@@ -503,35 +789,50 @@ function ComparisonOverlay({ presets, compareA, compareB, currentConfig, onChang
                         <p className="text-[10px] text-on-surface-variant">{formatParamDesc(param)}</p>
                       </td>
                       <td className="text-center py-3 px-4">
-                        <div className="relative">
-                          <BarChart value={current} max={max} color="bg-surface-variant" />
-                          <span className="font-mono text-[13px] font-semibold text-on-surface">{formatValue(current, param)}</span>
+                        <span className="font-mono text-[13px] font-semibold text-on-surface">{formatValue(current, param)}</span>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <div className="flex flex-col items-center">
+                          <div className="relative w-full mb-1">
+                            <BarChart value={valA} max={max} color={presets[compareA]?.accent?.replace("border-", "bg-") || "bg-blue-400"} />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className={`font-mono text-[13px] font-semibold ${
+                              current === valA ? "text-primary" : 
+                              valA > current ? "text-emerald-500" : "text-rose-500"
+                            }`}>
+                              {formatValue(valA, param)}
+                            </span>
+                            {valA !== current && (
+                              <span className={`text-[10px] font-semibold ${
+                                valA > current ? "text-emerald-500" : "text-rose-500"
+                              }`}>
+                                {valA > current ? "+" : ""}{((valA - current) / (max || 1) * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="text-center py-3 px-4">
-                        <div className="relative">
-                          <BarChart value={valA} max={max} color={presets[compareA]?.accent?.replace("border-", "bg-") || "bg-blue-400"} />
-                          <span className={`font-mono text-[13px] font-semibold ${current === valA ? "text-primary" : "text-on-surface"}`}>
-                            {formatValue(valA, param)}
-                          </span>
-                          {valA !== current && (
-                            <span className={`absolute -top-1 -right-1 text-[10px] px-1 rounded ${valA > current ? "text-emerald-500" : "text-rose-500"}`}>
-                              {valA > current ? "+" : ""}{((valA - current) / (max || 1) * 100).toFixed(0)}%
+                        <div className="flex flex-col items-center">
+                          <div className="relative w-full mb-1">
+                            <BarChart value={valB} max={max} color={presets[compareB]?.accent?.replace("border-", "bg-") || "bg-emerald-400"} />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className={`font-mono text-[13px] font-semibold ${
+                              current === valB ? "text-primary" : 
+                              valB > current ? "text-emerald-500" : "text-rose-500"
+                            }`}>
+                              {formatValue(valB, param)}
                             </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="text-center py-3 px-4">
-                        <div className="relative">
-                          <BarChart value={valB} max={max} color={presets[compareB]?.accent?.replace("border-", "bg-") || "bg-emerald-400"} />
-                          <span className={`font-mono text-[13px] font-semibold ${current === valB ? "text-primary" : "text-on-surface"}`}>
-                            {formatValue(valB, param)}
-                          </span>
-                          {valB !== current && (
-                            <span className={`absolute -top-1 -right-1 text-[10px] px-1 rounded ${valB > current ? "text-emerald-500" : "text-rose-500"}`}>
-                              {valB > current ? "+" : ""}{((valB - current) / (max || 1) * 100).toFixed(0)}%
-                            </span>
-                          )}
+                            {valB !== current && (
+                              <span className={`text-[10px] font-semibold ${
+                                valB > current ? "text-emerald-500" : "text-rose-500"
+                              }`}>
+                                {valB > current ? "+" : ""}{((valB - current) / (max || 1) * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -539,6 +840,22 @@ function ComparisonOverlay({ presets, compareA, compareB, currentConfig, onChang
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center justify-center gap-6 mt-4 text-[11px] text-on-surface-variant">
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded bg-emerald-500" />
+              Cao hơn hiện tại
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded bg-rose-500" />
+              Thấp hơn hiện tại
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded bg-primary" />
+              Bằng hiện tại
+            </span>
           </div>
 
           {/* Action Buttons */}
@@ -572,7 +889,7 @@ function ComparisonOverlay({ presets, compareA, compareB, currentConfig, onChang
 function BarChart({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
-    <div className="w-full h-2 bg-surface-variant rounded-full overflow-hidden mb-1">
+    <div className="w-full h-2 bg-surface-variant rounded-full overflow-hidden">
       <div className={`h-full rounded-full transition-all duration-300 ${color}`} style={{ width: `${pct}%` }} />
     </div>
   );

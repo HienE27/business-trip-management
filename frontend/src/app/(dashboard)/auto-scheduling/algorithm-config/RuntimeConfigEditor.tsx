@@ -28,6 +28,7 @@ import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
 import { AutoCalculateDialog, type AutoCalculateResult } from "./AutoCalculateDialog";
+import type { DashboardSummary, ShiftStatistics } from "@/types/api";
 
 type Props = { onSaved?: () => void };
 
@@ -44,22 +45,45 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const [sandboxOpen, setSandboxOpen] = useState(false);
   const [autoCalcOpen, setAutoCalcOpen] = useState(false);
   const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
+  const [scheduleStats, setScheduleStats] = useState<{
+    totalStaff: number;
+    avgShiftsPerStaff: number;
+    coverageDays: number;
+    periodDays: number;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, resAutoGen, specialtiesRes] = await Promise.all([
+      const [res, resAutoGen, specialtiesRes, dashboardRes] = await Promise.all([
         api.getRuntimeConfig(),
         api.getAutoGenConfig(),
         api.getActiveSpecialties(),
+        api.getDashboard(),
       ]);
       const data = (res as unknown as { data: RuntimeConfig }).data;
       const autoGen = (resAutoGen as unknown as { data: RuntimeConfig }).data;
       const specialties = ((specialtiesRes as unknown as { data: { id: number; name: string }[] }).data ?? []).map(s => s.name);
+      const dashboard = dashboardRes as unknown as { data: DashboardData };
+      const summary = dashboard.data?.summary;
+      const shiftStats = dashboard.data?.shiftStatistics as ShiftStatistics | undefined;
+
       setAllSpecialties(specialties);
       const merged = mergeRuntimeAndAutoGen(data, autoGen);
       setConfig(merged);
       setForm(merged);
+
+      // Calculate schedule stats for suggestion algorithm
+      if (summary && shiftStats) {
+        const totalShifts = shiftStats.L01Count + shiftStats.L02Count + shiftStats.L03Count + shiftStats.L04Count;
+        const avgShifts = summary.totalStaff > 0 ? totalShifts / summary.totalStaff : 0;
+        setScheduleStats({
+          totalStaff: summary.totalStaff,
+          avgShiftsPerStaff: Math.round(avgShifts * 10) / 10,
+          coverageDays: Math.round(avgShifts * 4), // rough estimate
+          periodDays: 30,
+        });
+      }
     } catch {
       error("Không thể tải cấu hình runtime");
     } finally {
@@ -371,12 +395,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           onApply={applyPreset}
           onSaveCustomPreset={handleSaveCustomPreset}
           onDeleteCustomPreset={handleDeleteCustomPreset}
-          scheduleStats={{
-            totalStaff: 20,
-            avgShiftsPerStaff: 15,
-            coverageDays: 25,
-            periodDays: 30,
-          }}
+          scheduleStats={scheduleStats || undefined}
         />
       </div>
 

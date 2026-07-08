@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "l01MinPerDay": 5, "l02MinPerDay": 5, "l03MinPerDay": 6, "l04MinPerDay": 4,
+  "l01MaxPerDay": 8, "l02MaxPerDay": 8, "l03MaxPerDay": 9, "l04MaxPerDay": 10,
+  "l01MinPerWeek": 7, "l02MinPerWeek": 8, "l03MinPerWeek": 9, "l04MinPerWeek": 15,
+  "l01MaxPerWeek": 25, "l02MaxPerWeek": 25, "l03MaxPerWeek": 30, "l04MaxPerWeek": 40,
+  "holidayMode": "SKIP",
+  "removedShiftTypes": [],
+  "l04CrossSpecialty": true,
+  "l04CrossSpecialtyRatio": 2.0,
+  "l04AllowedSpecialties": [],
+  "l01AllowedSpecialties": ["Bác sĩ", "Điều dưỡng", "Kỹ thuật viên", "Dược sĩ", "Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"],
+  "l02AllowedSpecialties": ["Bác sĩ", "Điều dưỡng", "Kỹ thuật viên", "Dược sĩ", "Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"],
+  "l03AllowedSpecialties": ["Bác sĩ", "Điều dưỡng", "Kỹ thuật viên", "Dược sĩ", "Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"]
+}
