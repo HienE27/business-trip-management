@@ -33,6 +33,10 @@ const BulkPublishModal = dynamic(
   () => import("./BulkPublishModal").then((m) => m.BulkPublishModal),
   { loading: () => null },
 );
+const AutoSchedulingWizard = dynamic(
+  () => import("@/components/auto-scheduling/AutoSchedulingWizard").then((m) => m.AutoSchedulingWizard),
+  { loading: () => null },
+);
 
 // Heavy chart/panel components — code-split so they don't block initial paint
 const WorkloadChart = dynamic(
@@ -100,6 +104,8 @@ export default function AutoSchedulingPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingStaffIds, setEditingStaffIds] = useState<Map<string | number, number>>(new Map());
   const [previewEditItem, setPreviewEditItem] = useState<import("@/types/api").AutoScheduleSummary | null>(null);
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardCompleted, setWizardCompleted] = useState(false);
 
   const loadWorkspace = useCallback(async () => {
     try {
@@ -376,6 +382,17 @@ export default function AutoSchedulingPage() {
 
             {/* Right: Action links */}
             <div className="flex flex-wrap items-center gap-2">
+              {isManager && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowWizard(true)}
+                  icon={<span className="material-symbols-outlined text-[16px]">menu_book</span>}
+                  className="whitespace-nowrap"
+                >
+                  Hướng dẫn
+                </Button>
+              )}
               <Link href="/auto-scheduling/algorithm-config">
                 <Button variant="secondary" size="sm" icon={<span className="material-symbols-outlined text-[16px]">tune</span>} className="whitespace-nowrap">
                   Cấu hình
@@ -575,6 +592,19 @@ export default function AutoSchedulingPage() {
           setPreviewEditItem(null);
         }}
       />
+
+      {showWizard && isManager && (
+        <AutoSchedulingWizard
+          periods={periods}
+          activeStaff={activeStaff}
+          onComplete={() => {
+            setShowWizard(false);
+            setWizardCompleted(true);
+            void loadWorkspace();
+          }}
+          onSkip={() => setShowWizard(false)}
+        />
+      )}
     </div>
   );
 }
