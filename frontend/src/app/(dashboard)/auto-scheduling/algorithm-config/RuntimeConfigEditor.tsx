@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { PresetKey } from "@/components/algorithm-config/PresetSelector";
+import type { PresetKey, RuntimeConfig as PresetRuntimeConfig } from "@/components/algorithm-config/PresetSelector";
 import { PresetSelector } from "@/components/algorithm-config/PresetSelector";
 import { PresetSandboxModal, type PresetEntry } from "@/components/algorithm-config/PresetSandboxModal";
 import { Button } from "@/components/ui";
@@ -39,6 +39,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<RuntimeConfig | null>(null);
   const [activePreset, setActivePreset] = useState<PresetKey | null>(null);
+  const [customPresets, setCustomPresets] = useState<Record<string, { label: string; tagline: string; config: Partial<RuntimeConfig> }>>({});
   const [showDiff, setShowDiff] = useState(false);
   const [sandboxOpen, setSandboxOpen] = useState(false);
   const [autoCalcOpen, setAutoCalcOpen] = useState(false);
@@ -70,8 +71,24 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
 
   // Re-detect preset khi form thay đổi
   useEffect(() => {
-    if (form) setActivePreset(detectPreset(form));
-  }, [form]);
+    if (form) {
+      const detected = detectPreset(form);
+      if (detected) {
+        setActivePreset(detected);
+      } else {
+        // Check custom presets too
+        const customMatch = Object.keys(customPresets).find(key => {
+          const cp = customPresets[key];
+          return (
+            form.maxIterations === cp.config.maxIterations &&
+            form.weekendWeight === cp.config.weekendWeight &&
+            form.greedyCoverageThreshold === cp.config.greedyCoverageThreshold
+          );
+        });
+        setActivePreset(customMatch || null);
+      }
+    }
+  }, [form, customPresets]);
 
   // Keyboard shortcuts: Ctrl+S = save, Ctrl+Z = reset, Escape = cancel edit
   useEffect(() => {
@@ -109,9 +126,17 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [editing, form]);
 
-  function applyPreset(key: PresetKey) {
-    const preset = ALGORITHM_PRESETS[key];
-    setForm(prev => prev ? { ...prev, ...preset.config } : prev);
+  function applyPreset(key: PresetKey, presetConfig?: Partial<RuntimeConfig>) {
+    const preset = key.startsWith("custom_")
+      ? customPresets[key]
+      : ALGORITHM_PRESETS[key];
+
+    if (!preset) return;
+
+    const newConfig = 'config' in preset ? preset.config : {};
+    const configToApply = presetConfig ?? newConfig;
+
+    setForm(prev => prev ? { ...prev, ...configToApply } : prev);
     setActivePreset(key);
     setEditing(true);
   }
@@ -173,6 +198,27 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     setForm(prev => prev ? { ...prev, ...result } : prev);
     setEditing(true);
     success("Đã áp dụng giá trị tự động tính. Nhấn 'Lưu thay đổi' để lưu vào DB.");
+  }
+
+  function handleSaveCustomPreset(key: PresetKey, name: string, config: Partial<RuntimeConfig>) {
+    setCustomPresets(prev => ({
+      ...prev,
+      [key]: { label: name, tagline: "Preset tùy chỉnh", config },
+    }));
+    success(`Đã tạo preset "${name}"`);
+  }
+
+  function handleDeleteCustomPreset(key: PresetKey) {
+    const name = customPresets[key]?.label || "Preset";
+    setCustomPresets(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    if (activePreset === key) {
+      setActivePreset(null);
+    }
+    success(`Đã xóa preset "${name}"`);
   }
 
   // Copy current config to clipboard
@@ -318,7 +364,14 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             )}
           </div>
         </div>
-        <PresetSelector presets={ALGORITHM_PRESETS} activePreset={activePreset} onApply={applyPreset} />
+        <PresetSelector
+          presets={{ ...ALGORITHM_PRESETS, ...customPresets }}
+          activePreset={activePreset}
+          currentConfig={form}
+          onApply={applyPreset}
+          onSaveCustomPreset={handleSaveCustomPreset}
+          onDeleteCustomPreset={handleDeleteCustomPreset}
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
