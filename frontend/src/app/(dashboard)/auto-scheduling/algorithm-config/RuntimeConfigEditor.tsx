@@ -27,7 +27,7 @@ import { L04SpecialtyConfig } from "./L04CrossSpecialtyCard";
 import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
-import { AutoCalculateDialog, type AutoCalculateResult } from "./AutoCalculateDialog";
+import { AutoCalculateDialog, type AutoCalculateResult, type AutoCalculateInput } from "./AutoCalculateDialog";
 import type { DashboardSummary, ShiftStatistics } from "@/types/api";
 
 type Props = { onSaved?: () => void };
@@ -44,6 +44,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const [showDiff, setShowDiff] = useState(false);
   const [sandboxOpen, setSandboxOpen] = useState(false);
   const [autoCalcOpen, setAutoCalcOpen] = useState(false);
+  const [savedCalcPresets, setSavedCalcPresets] = useState<{ id: string; name: string; config: AutoCalculateInput }[]>([]);
   const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
   const [scheduleStats, setScheduleStats] = useState<{
     totalStaff: number;
@@ -472,6 +473,12 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         open={autoCalcOpen}
         onClose={() => setAutoCalcOpen(false)}
         onApply={handleAutoCalculate}
+        onSavePreset={(name, config) => {
+          const id = `preset-${Date.now()}`;
+          setSavedCalcPresets(prev => [...prev, { id, name, config }]);
+          success(`Đã lưu preset "${name}"`);
+        }}
+        savedPresets={savedCalcPresets}
         initialValues={{
           periodDays: 30,
           periodWeeks: 4,
