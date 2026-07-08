@@ -364,6 +364,65 @@ type ParamFieldProps = {
 
 const TRACKING_ONLY_PARAMS = new Set(["min_staff_per_shift", "min_shifts_per_staff", "overnight_recovery_hours"]);
 
+// Number spinner input với +/- buttons cho nhập liệu nhanh
+function NumberSpinner({ value, min, max, step, onChange, disabled }: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
+  function handleDecrement() {
+    const newVal = Math.max(min, value - step);
+    onChange(step < 1 ? Math.round(newVal * 100) / 100 : newVal);
+  }
+
+  function handleIncrement() {
+    const newVal = Math.min(max, value + step);
+    onChange(step < 1 ? Math.round(newVal * 100) / 100 : newVal);
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    const parsed = step < 1 ? parseFloat(raw) || 0 : parseInt(raw) || 0;
+    onChange(parsed);
+  }
+
+  return (
+    <div className={`flex items-center gap-1 ${disabled ? "opacity-50" : ""}`}>
+      <button
+        type="button"
+        onClick={handleDecrement}
+        disabled={disabled || value <= min}
+        className="flex items-center justify-center h-8 w-7 rounded-lg border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        title="Giảm"
+      >
+        <span className="material-symbols-outlined text-[14px]" aria-hidden="true">remove</span>
+      </button>
+      <input
+        type="number"
+        step={step}
+        min={min}
+        max={max}
+        disabled={disabled}
+        className="h-8 w-16 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:cursor-not-allowed"
+        value={value}
+        onChange={handleInputChange}
+      />
+      <button
+        type="button"
+        onClick={handleIncrement}
+        disabled={disabled || value >= max}
+        className="flex items-center justify-center h-8 w-7 rounded-lg border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        title="Tăng"
+      >
+        <span className="material-symbols-outlined text-[14px]" aria-hidden="true">add</span>
+      </button>
+    </div>
+  );
+}
+
 function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: ParamFieldProps) {
   if (param === "holiday_mode") {
     return (
@@ -395,56 +454,48 @@ function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: P
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3 mb-2">
+      <div className="flex items-center justify-between gap-3 mb-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <code className="font-mono text-[12px] font-semibold text-primary bg-primary-fixed/50 px-1.5 py-0.5 rounded">{desc.label}</code>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <code className="font-mono text-[11px] font-semibold text-primary bg-primary-fixed/50 px-1.5 py-0.5 rounded">{desc.label}</code>
             {isTrackingOnly && (
-              <span className="inline-flex items-center rounded-full border border-outline-variant bg-surface-container-low px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+              <span className="inline-flex items-center rounded-full border border-outline-variant bg-surface-container-low px-1.5 py-0.5 text-[9px] font-semibold text-on-surface-variant">
                 Theo dõi
               </span>
             )}
-            <span className="material-symbols-outlined text-[14px] text-on-surface-variant/60 hover:text-primary transition-colors cursor-help" aria-hidden="true">info</span>
           </div>
-          <p className="text-[12px] text-on-surface-variant mt-1 leading-relaxed">{desc.desc}</p>
-          <p className="text-[11px] text-outline mt-0.5">{desc.hint}</p>
+          <p className="text-[11px] text-on-surface-variant leading-tight">{desc.desc}</p>
         </div>
         {editing ? (
-          <input
-            type="number"
-            step={step}
+          <NumberSpinner
+            value={numVal}
             min={min}
             max={max}
-            className="h-9 w-24 rounded-xl border border-outline-variant bg-surface-container-low px-2.5 text-label-sm font-mono text-on-surface text-right tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-            value={numVal}
-            onChange={(e) => {
-              const raw = e.target.value;
-              const parsed = step < 1 ? parseFloat(raw) || 0 : parseInt(raw) || 0;
-              onChange(cfgKey, parsed as never);
-            }}
+            step={step}
+            onChange={(v) => onChange(cfgKey, v as never)}
           />
         ) : (
-          <span className="font-mono text-xl font-bold text-on-surface shrink-0 tabular-nums">{display}</span>
+          <span className="font-mono text-lg font-bold text-on-surface shrink-0 tabular-nums tabular-nums">{display}</span>
         )}
       </div>
       {validation && (
         <div
-          className={`flex items-start gap-1.5 mt-1.5 px-2 py-1.5 rounded-md border text-[11px] leading-tight ${
+          className={`flex items-start gap-1.5 mb-1.5 px-2 py-1 rounded-md border text-[10px] leading-tight ${
             validation.level === "error"
               ? "bg-error-container/30 text-error border-error/40"
               : "bg-tertiary-container/30 text-tertiary border-tertiary/40"
           }`}
           role={validation.level === "error" ? "alert" : "status"}
         >
-          <span className="material-symbols-outlined text-[12px] shrink-0 mt-0.5" aria-hidden="true">
+          <span className="material-symbols-outlined text-[11px] shrink-0 mt-0.5" aria-hidden="true">
             {validation.level === "error" ? "error" : "warning"}
           </span>
           <span>{validation.message}</span>
         </div>
       )}
-      <div className="w-full bg-surface-variant rounded-full h-2 overflow-hidden mt-2">
+      <div className="w-full bg-surface-variant rounded-full h-1.5 overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${getParamProgressColor(groupId)}`}
+          className={`h-full rounded-full transition-all duration-300 ${getParamProgressColor(groupId)}`}
           style={{ width: `${pct}%` }}
         />
       </div>

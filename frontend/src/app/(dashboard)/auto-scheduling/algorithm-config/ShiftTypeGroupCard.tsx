@@ -11,10 +11,50 @@ type Props = {
   onChange: (key: string, value: number) => void;
 };
 
+// Compact number spinner for shift type cards
+function CompactSpinner({ value, onChange, disabled }: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className={`flex items-center gap-0.5 ${disabled ? "opacity-50" : ""}`}>
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(0, value - 1))}
+        disabled={disabled || value <= 0}
+        className="flex items-center justify-center h-6 w-5 rounded border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+        title="Giảm"
+      >
+        <span className="material-symbols-outlined text-[12px]" aria-hidden="true">remove</span>
+      </button>
+      <input
+        type="number"
+        min={0}
+        max={99}
+        step={1}
+        disabled={disabled}
+        className="h-6 w-10 rounded border border-outline-variant bg-surface-container-lowest px-1 text-center text-[11px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-colors disabled:cursor-not-allowed"
+        value={value}
+        onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))}
+      />
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(99, value + 1))}
+        disabled={disabled || value >= 99}
+        className="flex items-center justify-center h-6 w-5 rounded border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+        title="Tăng"
+      >
+        <span className="material-symbols-outlined text-[12px]" aria-hidden="true">add</span>
+      </button>
+    </div>
+  );
+}
+
 export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
   return (
     <div
-      className={`bg-surface-container-lowest rounded-xl border ${group.borderColor} overflow-hidden flex flex-col w-[180px] shrink-0 group/card`}
+      className={`bg-surface-container-lowest rounded-xl border ${group.borderColor} overflow-hidden flex flex-col w-[190px] shrink-0 group/card shadow-sm hover:shadow-md transition-shadow`}
       style={{ minHeight: 160 }}
     >
       <div className={`px-3 py-2 border-b ${group.borderColor}/30 bg-surface-container-low flex items-start gap-2 shrink-0`}>
@@ -43,30 +83,19 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
               className="flex items-center justify-between gap-2 px-3 py-2 hover:bg-surface-container-low/50 transition-colors group/row"
               title={tooltip}
             >
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="font-mono text-[11px] font-semibold text-primary bg-primary-fixed/50 px-1 py-0.5 rounded leading-none whitespace-nowrap shrink-0">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="font-mono text-[10px] font-semibold text-primary bg-primary-fixed/50 px-1 py-0.5 rounded leading-none whitespace-nowrap shrink-0">
                   {label}
-                </span>
-                <span
-                  className="material-symbols-outlined text-[12px] text-on-surface-variant/60 hover:text-primary transition-colors shrink-0 cursor-help"
-                  aria-hidden="true"
-                >
-                  info
                 </span>
               </div>
               <div className="flex items-center shrink-0">
                 {editing ? (
-                  <input
-                    type="number"
-                    min={0}
-                    max={99}
-                    step={1}
-                    className="h-8 w-16 rounded-lg border border-outline-variant bg-surface-container-low px-2 text-center text-[13px] font-mono text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors tabular-nums"
+                  <CompactSpinner
                     value={numVal}
-                    onChange={(e) => onChange(param, parseInt(e.target.value) || 0)}
+                    onChange={(v) => onChange(param, v)}
                   />
                 ) : (
-                  <span className="font-mono text-sm font-bold text-on-surface w-12 text-right shrink-0 tabular-nums">{display}</span>
+                  <span className="font-mono text-xs font-bold text-on-surface w-10 text-right shrink-0 tabular-nums tabular-nums">{display}</span>
                 )}
               </div>
             </div>
