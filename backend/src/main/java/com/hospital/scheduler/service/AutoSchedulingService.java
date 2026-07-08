@@ -620,13 +620,15 @@ public class AutoSchedulingService {
                 leaveRequestRepository.findByPeriodIdAndStatus(
                         period.getId(), com.hospital.scheduler.entity.LeaveRequest.LeaveStatus.APPROVED);
 
+        com.hospital.scheduler.algorithm.AutoGenConfig autoGenCfgForScoring =
+            algorithmConfigService.getAutoGenConfig().orElse(null);
         com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta scoringMeta =
                 com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta
                         .of(algorithmType, executionTime);
         com.hospital.scheduler.algorithm.scoring.ScheduleQualityReport qualityReport =
                 scheduleQualityScorer.score(
                         createdSchedules, requirements, activeStaff,
-                        compDaysForScoring, approvedLeaves, scoringMeta);
+                        compDaysForScoring, approvedLeaves, scoringMeta, autoGenCfgForScoring);
         log.info("Quality report: {}", qualityReport.summary());
 
         // ── Derive legacy metrics from quality report (backward compat) ──────────
