@@ -113,12 +113,24 @@ public final class StaffShiftTypeEligibility {
             case "L04":
                 // L04: Kiểm tra với danh sách allowed specialties từ config
                 // Nếu allowedSpecialties rỗng/null → tất cả đều được
-                Set<String> allowed = l04AllowedSpecialties != null && !l04AllowedSpecialties.isEmpty()
-                    ? new java.util.HashSet<>(l04AllowedSpecialties)
-                    : ALL_ELIGIBLE_SPECIALTIES;
-
-                if (spName != null && allowed.contains(spName)) {
-                    // Nếu có requiredSpecialtyId, phải khớp
+                // Nếu contains "__NONE__" → không có specialty nào được phép
+                if (l04AllowedSpecialties != null && !l04AllowedSpecialties.isEmpty()) {
+                    if (l04AllowedSpecialties.contains("__NONE__")) {
+                        // Special marker: không có specialty nào được phép
+                        return false;
+                    }
+                    Set<String> allowed = new java.util.HashSet<>(l04AllowedSpecialties);
+                    if (spName != null && allowed.contains(spName)) {
+                        // Nếu có requiredSpecialtyId, phải khớp
+                        if (requiredSpecialtyId != null) {
+                            return sp != null && requiredSpecialtyId.equals(sp.getId());
+                        }
+                        return true;
+                    }
+                    return false;
+                }
+                // Empty/null → all allowed
+                if (spName != null && ALL_ELIGIBLE_SPECIALTIES.contains(spName)) {
                     if (requiredSpecialtyId != null) {
                         return sp != null && requiredSpecialtyId.equals(sp.getId());
                     }

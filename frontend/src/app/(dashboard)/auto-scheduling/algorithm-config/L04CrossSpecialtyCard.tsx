@@ -21,13 +21,19 @@ export function L04SpecialtyConfig({
 }: L04SpecialtyConfigProps) {
   const [localRatio, setLocalRatio] = useState(ratio);
   const [localAllowed, setLocalAllowed] = useState<string[]>(allowedSpecialties);
-  const [selectionMode, setSelectionMode] = useState<"all" | "partial" | "none">(
-    allowedSpecialties.length === 0 || allowedSpecialties.length === allSpecialties.length
-      ? "all"
-      : allowedSpecialties.length > 0
-      ? "partial"
-      : "none"
-  );
+  // Initial mode based on data:
+  // - [] (empty) = "all" (backend default)
+  // - [...allSpecialties] = "all" (explicit)
+  // - partial = "partial"
+  // - length 0 with no allSpecialties = "none"
+  const [selectionMode, setSelectionMode] = useState<"all" | "partial" | "none">(() => {
+    if (allowedSpecialties.length === 0 || allowedSpecialties.length === allSpecialties.length) {
+      return "all";
+    } else if (allowedSpecialties.length > 0) {
+      return "partial";
+    }
+    return "none";
+  });
 
   useEffect(() => {
     setLocalAllowed(allowedSpecialties);
@@ -89,11 +95,11 @@ export function L04SpecialtyConfig({
   }
 
   function handleClearAll() {
-    // Clear all → empty array (backend: no specialties = all)
-    // But UI shows as "none" mode for visual feedback
-    setLocalAllowed([]);
+    // Clear all → ["__NONE__"] (backend: no specialties allowed)
+    const noneMarker = ["__NONE__"];
+    setLocalAllowed(noneMarker);
     setSelectionMode("none");
-    onChange(enabled, localRatio, []);
+    onChange(enabled, localRatio, noneMarker);
   }
 
   return (
