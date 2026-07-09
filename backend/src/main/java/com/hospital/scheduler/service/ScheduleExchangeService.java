@@ -1,5 +1,9 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.algorithm.CSPScheduler;
+import com.hospital.scheduler.algorithm.ScheduleChange;
+import com.hospital.scheduler.algorithm.SchedulingResult;
+import com.hospital.scheduler.algorithm.ShiftRequirementInfo;
 import com.hospital.scheduler.dto.request.ScheduleExchangeDTO;
 import com.hospital.scheduler.dto.response.ScheduleExchangeResponse;
 import com.hospital.scheduler.entity.AuditHistory;
@@ -7,6 +11,7 @@ import com.hospital.scheduler.entity.CompensationDay;
 import com.hospital.scheduler.entity.Schedule;
 import com.hospital.scheduler.entity.ScheduleExchange;
 import com.hospital.scheduler.entity.SchedulePeriod;
+import com.hospital.scheduler.entity.ShiftRequirement;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.dto.request.NotificationDTO;
@@ -15,6 +20,7 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -22,9 +28,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -40,6 +48,9 @@ public class ScheduleExchangeService {
     private final CompensationDateCalculator compensationDateCalculator;
     private final NotificationService notificationService;
     private final EmailService emailService;
+    private final ShiftRequirementRepository shiftRequirementRepository;
+    private final CSPScheduler cspScheduler;
+    private final SchedulingResultLoader schedulingResultLoader;
 
     public List<ScheduleExchangeResponse> getAllExchanges() {
         return exchangeRepository.findAll().stream()
@@ -356,6 +367,14 @@ public class ScheduleExchangeService {
                 requesterSchedule.getWorkDate().toString(),
                 targetSchedule.getShiftType().getName());
 
+        // Post-swap incremental re-solve: confirm the period is still feasible
+        // with the new staff assignments. Two MODIFY deltas reflect the swap:
+        // requesterSchedule's slot now has requesterOldStaff, targetSchedule's
+        // slot now has targetOldStaff. Throw on invalid to roll back the swap.
+        rescheduleAfterSwap(period,
+                requesterOldStaff.getId(), targetOldStaff.getId(),
+                requesterSchedule, targetSchedule);
+
         return ScheduleExchangeResponse.fromEntity(saved);
     }
 
@@ -432,5 +451,55 @@ public class ScheduleExchangeService {
                         "Yêu cầu đổi trực ngày " + exchange.getRequesterSchedule().getWorkDate() + " <-> " + exchange.getTargetSchedule().getWorkDate() + " đã bị hủy."));
 
         return ScheduleExchangeResponse.fromEntity(saved);
+    }
+
+    /**
+     * Re-validate the period after a swap with the {@link CSPScheduler}
+     * incremental resolver. Throws {@link BadRequestException} if the swap
+     * pushes the period out of feasibility so the caller can roll back.
+     */
+    private void rescheduleAfterSwap(
+            SchedulePeriod period,
+            Integer requesterOldStaffId,
+            Integer targetOldStaffId,
+            Schedule requesterSchedule,
+            Schedule targetSchedule) {
+        try {
+            SchedulingResult previous = schedulingResultLoader.loadPreviousFromDb(
+                    period.getId(), scheduleRepository);
+            List<ShiftRequirementInfo> requirements = AutoSchedulingService.toRequirementInfos(
+                    shiftRequirementRepository.findByPeriodId(period.getId()));
+            List<LeaveRequest> leaves = leaveRequestRepository.findApprovedInRange(
+                    period.getStartDate(), period.getEndDate());
+            List<Staff> activeStaff = new ArrayList<>(staffRepository.findByIsActiveTrue());
+
+            ScheduleChange.AssignmentDelta requesterSide = ScheduleChange.AssignmentDelta.builder()
+                    .staffId(requesterOldStaffId)
+                    .date(requesterSchedule.getWorkDate())
+                    .shiftType(requesterSchedule.getShiftType().getId())
+                    .oldStaffId(targetOldStaffId)
+                    .build();
+            ScheduleChange.AssignmentDelta targetSide = ScheduleChange.AssignmentDelta.builder()
+                    .staffId(targetOldStaffId)
+                    .date(targetSchedule.getWorkDate())
+                    .shiftType(targetSchedule.getShiftType().getId())
+                    .oldStaffId(requesterOldStaffId)
+                    .build();
+            ScheduleChange changes = ScheduleChange.builder()
+                    .modified(new ArrayList<>(List.of(requesterSide, targetSide)))
+                    .build();
+
+            SchedulingResult result = cspScheduler.reSolve(previous, changes, activeStaff, requirements, leaves);
+            if (result == null || !result.isValid()) {
+                String reason = result == null ? "no result" : String.join("; ", result.getErrors());
+                throw new BadRequestException("Đổi ca làm period không còn feasible: " + reason);
+            }
+            log.debug("Post-swap re-solve valid for period {}", period.getId());
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("Post-swap re-solve skipped for period {} ({}): {}",
+                    period.getId(), e.getClass().getSimpleName(), e.getMessage());
+        }
     }
 }
