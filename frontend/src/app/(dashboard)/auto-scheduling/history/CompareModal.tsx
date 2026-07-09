@@ -15,7 +15,7 @@ interface CompareModalProps {
 
 const ALGO_LABELS: Record<string, string> = {
   GREEDY: "Tham lam",
-  ROUND_ROBIN: "Luân phiên",
+  FAIR_GREEDY: "Luân phiên",
   BACKTRACKING: "Backtracking",
   GENETIC: "Di truyền",
 };

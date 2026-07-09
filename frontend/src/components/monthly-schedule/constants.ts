@@ -27,7 +27,7 @@ export const SHIFT_TYPE_LABELS: Record<ScheduleTab, string> = {
 
 export const ALGORITHM_OPTIONS = [
   { value: "GREEDY", label: "GREEDY — Ưu tiên cân bằng tải" },
-  { value: "ROUND_ROBIN", label: "ROUND_ROBIN — Xen kẽ luân phiên" },
+  { value: "FAIR_GREEDY", label: "FAIR_GREEDY — Xen kẽ luân phiên" },
   { value: "BACKTRACKING", label: "BACKTRACKING — Tìm kiếm tối ưu" },
   { value: "CSP_MRV_FC", label: "CSP-MRV-FC — Constraint Satisfaction (khuyến nghị)" },
   { value: "GENETIC", label: "GENETIC — Thuật toán di truyền" },

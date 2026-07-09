@@ -15,7 +15,7 @@ export type AutoScheduleState = {
   applying: boolean;
   running: boolean;
   message: string | null;
-  algorithmType: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC";
+  algorithmType: "GREEDY" | "FAIR_GREEDY" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC";
   holidayMode: "SKIP" | "PARTIAL" | null;
 };
 
@@ -41,7 +41,7 @@ export type AutoScheduleActions = {
   clearPreview: () => void;
   clearMessage: () => void;
   setMessage: (msg: string) => void;
-  setAlgorithmType: (type: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC") => void;
+  setAlgorithmType: (type: "GREEDY" | "FAIR_GREEDY" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC") => void;
   setHolidayMode: (mode: "SKIP" | "PARTIAL" | null) => void;
 };
 
@@ -60,7 +60,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [applying, setApplying] = useState(false);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC">("GREEDY");
+  const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "FAIR_GREEDY" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC">("CSP_MRV_FC");
   const [holidayMode, setHolidayMode] = useState<"SKIP" | "PARTIAL" | null>(null);
 
   const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[]) => {
@@ -261,7 +261,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   }, []);
 
   const clearMessage = useCallback(() => setMessage(null), []);
-  const setAlgoType = useCallback((type: "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC") => {
+  const setAlgoType = useCallback((type: "GREEDY" | "FAIR_GREEDY" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC") => {
     setAlgorithmType(type);
   }, [setAlgorithmType]);
 

@@ -12,7 +12,7 @@ import type { AutoScheduleResult, SchedulePeriod, Staff } from "@/types/api";
 import { parseNumber, formatCoverageRate, formatPercent } from "@/lib/number-utils";
 import { useAlgorithmProgress } from "@/hooks/useAlgorithmProgress";
 
-type AlgorithmType = "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC";
+type AlgorithmType = "GREEDY" | "FAIR_GREEDY" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC";
 type EditedPreview = Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
 
 export type AutoSchedulePanelProps = {
@@ -46,7 +46,7 @@ const ALGO_CONFIG: Record<AlgorithmType, {
   desc: string;
 }> = {
   GREEDY:      { icon: "bolt",         label: "Greedy",       desc: "Nhanh, tham lam" },
-  ROUND_ROBIN: { icon: "autorenew",    label: "Round Robin",  desc: "Cân bằng luân phiên" },
+  FAIR_GREEDY: { icon: "autorenew",    label: "Fair Greedy",  desc: "Cân bằng luân phiên" },
   BACKTRACKING:{ icon: "route",        label: "Backtracking", desc: "Tìm kiếm có quay lui" },
   GENETIC:     { icon: "psychology",   label: "Di truyền",    desc: "Tiến hóa quần thể" },
   CSP_MRV_FC:  { icon: "account_tree", label: "CSP-MRV-FC",   desc: "CSP + MRV + Forward Checking" },

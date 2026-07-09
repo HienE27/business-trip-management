@@ -42,8 +42,8 @@ describe("useAutoSchedule — synchronous actions", () => {
     const { result } = renderHook(() => useAutoSchedule());
     act(() => result.current[1].setAlgorithmType("BACKTRACKING"));
     expect(result.current[0].algorithmType).toBe("BACKTRACKING");
-    act(() => result.current[1].setAlgorithmType("ROUND_ROBIN"));
-    expect(result.current[0].algorithmType).toBe("ROUND_ROBIN");
+    act(() => result.current[1].setAlgorithmType("FAIR_GREEDY"));
+    expect(result.current[0].algorithmType).toBe("FAIR_GREEDY");
   });
 
   it("setMessage writes a transient banner message", () => {

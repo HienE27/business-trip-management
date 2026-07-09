@@ -18,7 +18,7 @@ const CompareModal = dynamic(
 
 const ALGO_LABELS: Record<string, string> = {
   GREEDY: "Tham lam",
-  ROUND_ROBIN: "Luân phiên",
+  FAIR_GREEDY: "Luân phiên",
   BACKTRACKING: "Backtracking",
   GENETIC: "Di truyền",
   CSP_MRV_FC: "CSP-MRV-FC",
@@ -26,7 +26,7 @@ const ALGO_LABELS: Record<string, string> = {
 
 const ALGO_COLORS: Record<string, string> = {
   GREEDY: "bg-primary-fixed text-primary border-primary/30",
-  ROUND_ROBIN: "bg-secondary-container text-on-secondary-container border-secondary/30",
+  FAIR_GREEDY: "bg-secondary-container text-on-secondary-container border-secondary/30",
   BACKTRACKING: "bg-tertiary-fixed text-on-tertiary border-tertiary/30",
   GENETIC: "bg-purple-100 text-purple-700 border-purple-300",
   CSP_MRV_FC: "bg-amber-100 text-amber-800 border-amber-300",
