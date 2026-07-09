@@ -56,6 +56,8 @@ services:
       - APP_EMAIL_ENABLED=${APP_EMAIL_ENABLED:-false}
       - APP_EMAIL_FROM=${APP_EMAIL_FROM:-noreply@hospital-scheduler.com}
       - APP_EMAIL_CONFLICT_ENABLED=${APP_EMAIL_CONFLICT_ENABLED:-false}
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:

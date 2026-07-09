@@ -28,9 +28,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Maps server-side exceptions to clean HTTP responses with Vietnamese messages.
+ * Global exception-to-HTTP-response mapper.
  *
- * Security/privacy note: the catch-all {@link #handleGeneral(Exception, HttpServletRequest)}
+ * Security/privacy contract: the catch-all {@link #handleGeneral(Exception, HttpServletRequest)}
  * handler MUST NOT echo {@code ex.getMessage()} — Hibernate/JDBC exception messages can
  * contain SQL fragments with parameter values (e.g. user-controlled IDs), which would
  * leak DB structure and possibly data to the client. We log the full message server-side
@@ -41,7 +41,7 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    // ── Domain exceptions (intentional throws) ───────────────────────────────
+    // ── Domain exceptions (intentional throws from service layer) ─────────────
 
     @ExceptionHandler(AuthorizationDeniedException.class)
     public ResponseEntity<ApiResponse<?>> handleAuthorizationDenied(
@@ -92,8 +92,6 @@ public class GlobalExceptionHandler {
         return errorResponse(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
-    // ── Validation / serialization / deserialization ────────────────────────
-
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<?>> handleValidation(
             MethodArgumentNotValidException ex, HttpServletRequest request) {
@@ -107,94 +105,137 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest()
                 .body(ApiResponse.<Map<String, String>>builder()
                         .success(false)
-                        .message("Input validation failed")
+                        .message("Dữ liệu đầu vào không hợp lệ")
                         .data(errors)
                         .timestamp(LocalDateTime.now())
                         .build());
     }
 
+    // ── HTTP layer / infrastructure exceptions ─────────────────────────────────
+
+    /**
+     * BUG-C2 fix: FK constraint violations must NOT leak SQL details.
+     * Spring's DataIntegrityViolationException wraps the raw JDBC exception whose
+     * message can contain the full UPDATE/DELETE statement with parameter values.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<?>> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex, HttpServletRequest request) {
+        log.warn("Data integrity violation on {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+
+        String message = "Không thể thực hiện: dữ liệu đang được sử dụng ở nơi khác";
+        // Walk the full cause chain (Hibernate wraps MySQL/SQL exceptions deeply).
+        Throwable root = ex;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        String rootMsg = root.getMessage() != null ? root.getMessage().toLowerCase() : "";
+        if (rootMsg.contains("foreign key") || rootMsg.contains("constraint") || rootMsg.contains("ora-02292")) {
+            message = "Không thể xóa: bản ghi đang được tham chiếu bởi dữ liệu khác";
+        }
+
+        return errorResponse(HttpStatus.CONFLICT, message);
+    }
+
+    /**
+     * BUG-M4 fix: Malformed JSON body (e.g. workDate: "not-a-date") must not
+     * return HTTP 500 with Jackson stack trace.
+     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiResponse<?>> handleMessageNotReadable(
+    public ResponseEntity<ApiResponse<?>> handleHttpMessageNotReadable(
             HttpMessageNotReadableException ex, HttpServletRequest request) {
-        // Triggered by: null body, empty body, malformed JSON, malformed date,
-        // wrong type in JSON field, etc. We don't echo ex.getMessage() because
-        // it can leak the expected format and field name.
-        log.warn("Malformed request body on {}: {}", request.getRequestURI(), ex.getMessage());
-        return errorResponse(HttpStatus.BAD_REQUEST, "Request body không hợp lệ hoặc thiếu");
+        String rawMessage = ex.getMessage() != null ? ex.getMessage() : "";
+
+        String hint = "Yêu cầu không hợp lệ: vui lòng kiểm tra định dạng dữ liệu";
+        // Check the top-level message for date parsing errors.
+        if (rawMessage.contains("LocalDate") || rawMessage.contains("DateTimeParse")
+                || rawMessage.contains("ISO-8601")) {
+            hint = "Định dạng ngày không hợp lệ. Sử dụng: YYYY-MM-DD";
+        } else if (rawMessage.contains("Discriminator")) {
+            hint = "Loại yêu cầu không hợp lệ";
+        }
+
+        return errorResponse(HttpStatus.BAD_REQUEST, hint);
     }
 
+    /**
+     * BUG-M3 fix: Non-numeric path variable (e.g. /periods/abc) must not return
+     * HTTP 500 with type mismatch stack trace.
+     */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<ApiResponse<?>> handleTypeMismatch(
+    public ResponseEntity<ApiResponse<?>> handleMethodArgumentTypeMismatch(
             MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
-        // Triggered by e.g. GET /periods/abc where {id} is Integer.
-        // Don't leak the parameter name with the raw value — just say "invalid".
-        log.warn("Type mismatch on {}: param={}, value={}",
-                request.getRequestURI(), ex.getName(), ex.getValue());
-        return errorResponse(HttpStatus.BAD_REQUEST,
-                "Giá trị tham số không hợp lệ: " + ex.getName());
+        String paramName = ex.getName();
+        String expectedType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
+        String message = String.format("Tham số '%s' có định dạng không đúng (cần %s)", paramName, expectedType);
+
+        return errorResponse(HttpStatus.BAD_REQUEST, message);
     }
 
-    @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ApiResponse<?>> handleMissingParam(
-            MissingServletRequestParameterException ex, HttpServletRequest request) {
-        return errorResponse(HttpStatus.BAD_REQUEST,
-                "Thiếu tham số bắt buộc: " + ex.getParameterName());
-    }
-
-    // ── Routing / HTTP method ───────────────────────────────────────────────
-
+    /**
+     * BUG-M1 fix: Unknown URL must return HTTP 404, not HTTP 500
+     * "No static resource ...". Requires:
+     *   spring.mvc.throw-exception-if-no-handler-found=true
+     *   spring.web.resources.add-mappings=false
+     */
     @ExceptionHandler(NoHandlerFoundException.class)
-    public ResponseEntity<ApiResponse<?>> handleNoHandler(
+    public ResponseEntity<ApiResponse<?>> handleNoHandlerFound(
             NoHandlerFoundException ex, HttpServletRequest request) {
-        return errorResponse(HttpStatus.NOT_FOUND, "Endpoint không tồn tại: " + ex.getRequestURL());
+        return errorResponse(HttpStatus.NOT_FOUND, "Không tìm thấy tài nguyên: " + request.getRequestURI());
     }
 
+    /**
+     * Missing required query/path parameter.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<?>> handleMissingServletRequestParameter(
+            MissingServletRequestParameterException ex, HttpServletRequest request) {
+        String message = String.format("Tham số '%s' là bắt buộc", ex.getParameterName());
+        return errorResponse(HttpStatus.BAD_REQUEST, message);
+    }
+
+    /**
+     * Wrong HTTP method (e.g. POST to a GET-only endpoint).
+     */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    public ResponseEntity<ApiResponse<?>> handleMethodNotSupported(
+    public ResponseEntity<ApiResponse<?>> handleHttpRequestMethodNotSupported(
             HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
         return errorResponse(HttpStatus.METHOD_NOT_ALLOWED,
-                "Phương thức HTTP không được hỗ trợ: " + ex.getMethod());
+                "Phương thức " + ex.getMethod() + " không được hỗ trợ cho endpoint này");
     }
 
-    // ── Database / data integrity ───────────────────────────────────────────
-
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ApiResponse<?>> handleDataIntegrity(
-            DataIntegrityViolationException ex, HttpServletRequest request) {
-        // BUG-C2 fix: never expose the SQL/constraint message. Log server-side, return generic.
-        log.warn("Data integrity violation on {}: {}",
-                request.getRequestURI(), ex.getMostSpecificCause().getMessage());
-        return errorResponse(HttpStatus.CONFLICT,
-                "Không thể thực hiện thao tác do dữ liệu liên quan (ràng buộc khóa ngoại hoặc duy nhất). "
-                        + "Vui lòng kiểm tra và xóa dữ liệu liên quan trước.");
-    }
-
-    @ExceptionHandler(OptimisticLockingFailureException.class)
-    public ResponseEntity<ApiResponse<?>> handleOptimisticLock(
-            OptimisticLockingFailureException ex, HttpServletRequest request) {
-        return errorResponse(HttpStatus.CONFLICT,
-                "Dữ liệu đã bị thay đổi bởi người khác. Vui lòng tải lại và thử lại.");
-    }
-
-    // ── File upload ─────────────────────────────────────────────────────────
-
+    /**
+     * File upload exceeds configured size limit.
+     */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<ApiResponse<?>> handleUploadTooLarge(
+    public ResponseEntity<ApiResponse<?>> handleMaxUploadSizeExceeded(
             MaxUploadSizeExceededException ex, HttpServletRequest request) {
         return errorResponse(HttpStatus.PAYLOAD_TOO_LARGE,
-                "File tải lên vượt quá kích thước cho phép");
+                "Dung lượng file vượt quá giới hạn cho phép (tối đa 5MB)");
     }
 
-    // ── Catch-all (last resort) ─────────────────────────────────────────────
+    /**
+     * Optimistic lock failure — concurrent edit conflict.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<?>> handleOptimisticLocking(
+            OptimisticLockingFailureException ex, HttpServletRequest request) {
+        return errorResponse(HttpStatus.CONFLICT,
+                "Dữ liệu đã được chỉnh sửa bởi người khác. Vui lòng tải lại trang và thử lại");
+    }
+
+    // ── Catch-all (SECURITY: never echo ex.getMessage() to client) ─────────────
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleGeneral(
             Exception ex, HttpServletRequest request) {
-        // BUG-C2 fix: NEVER return ex.getMessage() — it may contain SQL fragments,
-        // file paths, or class names. Log full stack server-side, return generic.
-        log.error("Unhandled exception on {} {}", request.getMethod(), request.getRequestURI(), ex);
+        log.error("Unhandled exception on {} {}: {}",
+                request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
+
+        // SECURITY: Return generic message only — ex.getMessage() may contain SQL
+        // fragments, stack traces, or internal paths that must not reach the client.
         return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR,
-                "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau hoặc liên hệ quản trị viên.");
+                "Đã xảy ra lỗi nội bộ. Vui lòng thử lại sau hoặc liên hệ quản trị viên");
     }
 
     // ── Helper ───────────────────────────────────────────────────────────────

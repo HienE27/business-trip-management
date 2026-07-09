@@ -14,6 +14,8 @@ import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.CompensationDayRepository;
+import com.hospital.scheduler.config.CacheConfig;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.hospital.scheduler.repository.LeaveRequestRepository;
@@ -113,6 +115,7 @@ public class LeaveRequestService {
         return LeaveRequestResponse.fromEntity(leaveRequest);
     }
 
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public LeaveRequestResponse createLeaveRequest(Integer staffId, LeaveRequestDTO dto) {
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + staffId));
@@ -153,6 +156,7 @@ public class LeaveRequestService {
         return LeaveRequestResponse.fromEntity(saved);
     }
 
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public LeaveRequestResponse approveLeaveRequest(Integer leaveRequestId, Integer reviewerId, String reviewNote) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveRequestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu nghỉ phép với ID: " + leaveRequestId));
@@ -286,6 +290,7 @@ public class LeaveRequestService {
         return flagged;
     }
 
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public LeaveRequestResponse rejectLeaveRequest(Integer leaveRequestId, Integer reviewerId, String reviewNote) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveRequestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu nghỉ phép với ID: " + leaveRequestId));
@@ -321,6 +326,7 @@ public class LeaveRequestService {
         return LeaveRequestResponse.fromEntity(saved);
     }
 
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public LeaveRequestResponse cancelLeaveRequest(Integer leaveRequestId, Staff currentStaff) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveRequestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu nghỉ phép với ID: " + leaveRequestId));
