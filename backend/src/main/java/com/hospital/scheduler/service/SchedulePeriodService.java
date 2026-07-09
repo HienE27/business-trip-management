@@ -20,9 +20,11 @@ import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.ShiftRequirementRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.AuthContextService;
+import com.hospital.scheduler.config.CacheConfig;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -112,6 +114,7 @@ public class SchedulePeriodService {
         return toResponse(saved);
     }
 
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public SchedulePeriodResponse updatePeriod(Integer id, SchedulePeriodRequest request) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
@@ -134,6 +137,7 @@ public class SchedulePeriodService {
         return toResponse(saved);
     }
 
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public SchedulePeriodResponse publishPeriod(Integer id, Integer publishedById) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
@@ -239,6 +243,7 @@ public class SchedulePeriodService {
                 .build();
     }
 
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public SchedulePeriodResponse archivePeriod(Integer id) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
@@ -389,6 +394,7 @@ public class SchedulePeriodService {
         }
     }
 
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public void deletePeriod(Integer id) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));

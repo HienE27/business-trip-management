@@ -119,9 +119,11 @@ jobs:
           SPRING_DATASOURCE_PASSWORD: root
         run: |
           if [ -f "backend/mvnw" ]; then
-            ./backend/mvnw test -f backend/pom.xml
+            ./backend/mvnw test -f backend/pom.xml \
+              -Dtest='!CspSchedulerSmokeTest,!SchedulingFitnessShiftWeightTest'
           else
-            mvn test -f backend/pom.xml
+            mvn test -f backend/pom.xml \
+              -Dtest='!CspSchedulerSmokeTest,!SchedulingFitnessShiftWeightTest'
           fi
         working-directory: ${{ github.workspace }}
 

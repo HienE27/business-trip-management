@@ -14,6 +14,7 @@ import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.dto.request.NotificationDTO;
+import com.hospital.scheduler.config.CacheConfig;
 import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.HolidayRepository;
 import com.hospital.scheduler.repository.ScheduleConflictRepository;
@@ -28,6 +29,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -205,6 +207,7 @@ public class ScheduleService {
         return toResponse(saved, compDate);
     }
 
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public ScheduleResponse updateSchedule(Integer id, ScheduleRequest request) {
         Schedule schedule = scheduleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + id));
@@ -320,6 +323,7 @@ public class ScheduleService {
      * {@code ScheduleService}, not for single-id deletes.
      */
     @Deprecated
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deleteSchedule(Integer id) {
         Schedule schedule = scheduleRepository.findById(id)

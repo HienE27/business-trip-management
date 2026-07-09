@@ -13,12 +13,15 @@ import com.hospital.scheduler.entity.StaffRole;
 import com.hospital.scheduler.entity.StaffStatus;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ConflictException;
+import com.hospital.scheduler.exception.ForbiddenOperationException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.AppRoleRepository;
 import com.hospital.scheduler.repository.SpecialtyRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.AuthContextService;
+import com.hospital.scheduler.config.CacheConfig;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -71,6 +74,17 @@ public class StaffService {
             sb.append(TEMP_PASSWORD_CHARS.charAt(RANDOM.nextInt(TEMP_PASSWORD_CHARS.length())));
         }
         return sb.toString();
+    }
+
+    /**
+     * Check whether a staff member has the ADMIN role.
+     */
+    private boolean hasAdminRole(Integer staffId) {
+        return staffRepository.findByIdWithRoles(staffId)
+                .map(staff -> staff.getStaffRoles().stream()
+                        .anyMatch(sr -> sr.getRole() != null
+                                && sr.getRole().getName() == RoleName.ADMIN))
+                .orElse(false);
     }
 
     public List<StaffResponse> getAllStaff() {
@@ -132,6 +146,13 @@ public class StaffService {
                 .map(this::toResponse);
     }
 
+    // ── Dashboard cache eviction ──────────────────────────────────────────────
+
+    /**
+     * BUG-C3 fix: evict the entire dashboard cache on every staff mutation so
+     * getDashboardSummary() always returns current data.
+     */
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public StaffResponse createStaff(StaffRequest request, List<String> roles) {
         if (request.getUsername() == null || request.getUsername().isBlank()) {
             throw new BadRequestException("Username không được để trống");
@@ -196,9 +217,19 @@ public class StaffService {
         return created;
     }
 
+    /**
+     * BUG-C3 fix: evict dashboard cache on update.
+     * BUG-M5 fix: reject update on soft-deleted (inactive) staff.
+     */
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public StaffResponse updateStaff(Integer id, StaffRequest request) {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
+
+        // BUG-M5: soft-deleted staff cannot be updated
+        if (!Boolean.TRUE.equals(staff.getIsActive())) {
+            throw new ResourceNotFoundException("Nhân sự không tồn tại hoặc đã ngừng hoạt động");
+        }
 
         if (request.getUsername() != null && !request.getUsername().isBlank()) {
             staffRepository.findByUsername(request.getUsername())
@@ -329,9 +360,22 @@ public class StaffService {
         return toResponse(saved);
     }
 
+    /**
+     * BUG-C1 fix: prevent deletion of the last active admin.
+     * BUG-C3 fix: evict dashboard cache on delete.
+     */
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public void deleteStaff(Integer id) {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
+
+        // BUG-C1: block deletion of the last active admin
+        if (hasAdminRole(id)) {
+            long activeAdminCount = staffRepository.countActiveAdmins();
+            if (activeAdminCount <= 1) {
+                throw new ForbiddenOperationException("Không thể xóa admin cuối cùng của hệ thống");
+            }
+        }
 
         Staff oldStaff = Staff.builder()
                 .username(staff.getUsername())
