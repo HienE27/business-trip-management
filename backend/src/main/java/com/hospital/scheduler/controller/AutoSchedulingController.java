@@ -86,7 +86,7 @@ public class AutoSchedulingController {
     }
 
     @PostMapping
-    @Operation(summary = "M07-F01-F05: Chạy thuật toán xếp lịch tự động (GREEDY/ROUND_ROBIN/BACKTRACKING)")
+    @Operation(summary = "M07-F01-F05: Chạy thuật toán xếp lịch tự động (GREEDY/FAIR_GREEDY/BACKTRACKING/GENETIC/CSP_MRV_FC)")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<AutoScheduleResponse>> autoSchedule(
             @Valid @RequestBody AutoScheduleRequestDTO request) {
