@@ -1,5 +1,9 @@
 package com.hospital.scheduler.service;
 
+import com.hospital.scheduler.algorithm.CSPScheduler;
+import com.hospital.scheduler.algorithm.ScheduleChange;
+import com.hospital.scheduler.algorithm.SchedulingResult;
+import com.hospital.scheduler.algorithm.ShiftRequirementInfo;
 import com.hospital.scheduler.dto.request.ScheduleExchangeDTO;
 import com.hospital.scheduler.dto.response.ScheduleExchangeResponse;
 import com.hospital.scheduler.entity.*;
@@ -44,6 +48,9 @@ class ScheduleExchangeServiceTest {
     @Mock private CompensationDateCalculator compensationDateCalculator;
     @Mock private NotificationService notificationService;
     @Mock private EmailService emailService;
+    @Mock private ShiftRequirementRepository shiftRequirementRepository;
+    @Mock private CSPScheduler cspScheduler;
+    @Mock private SchedulingResultLoader schedulingResultLoader;
 
     @InjectMocks
     private ScheduleExchangeService exchangeService;
@@ -390,6 +397,12 @@ class ScheduleExchangeServiceTest {
                     .thenAnswer(inv -> inv.getArgument(0));
             when(exchangeRepository.save(any(ScheduleExchange.class)))
                     .thenAnswer(inv -> inv.getArgument(0));
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(null);
+            when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
+            when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB));
+            when(cspScheduler.reSolve(any(), any(), any(), any(), any()))
+                    .thenReturn(SchedulingResult.builder().assignments(new java.util.HashMap<>()).valid(true).build());
 
             ScheduleExchangeResponse result = exchangeService.approveExchange(1, 3, "Đồng ý đổi");
 
@@ -508,6 +521,434 @@ class ScheduleExchangeServiceTest {
             assertThatThrownBy(() -> exchangeService.approveExchange(1, 3, null))
                     .isInstanceOf(BadRequestException.class)
                     .hasMessageContaining("chưa được công bố");
+        }
+
+        // -------------------------------------------------------------------------
+        // Change 3: Post-swap CSP incremental re-solve
+        // -------------------------------------------------------------------------
+        @Test
+        @DisplayName("Post-swap re-solve valid -> approve succeeds, reSolve() called once với 2 modified deltas")
+        void postSwapReSolveValid_shouldApprove() {
+            Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
+            when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(2), any()))
+                    .thenReturn(Optional.empty());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(1), any()))
+                    .thenReturn(Optional.empty());
+            when(conflictDetectionService.detectAllConflicts(eq(1), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(conflictDetectionService.detectAllConflicts(eq(2), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.save(any(CompensationDay.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(scheduleRepository.save(any(Schedule.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(exchangeRepository.save(any(ScheduleExchange.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(null);
+            SchedulingResult previous = SchedulingResult.builder()
+                    .assignments(java.util.Map.of(
+                            "1_2026-06-05", "L01",
+                            "2_2026-06-10", "L01"))
+                    .valid(true).build();
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(previous);
+            when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
+            when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB));
+            SchedulingResult reSolveResult = SchedulingResult.builder()
+                    .assignments(java.util.Map.of(
+                            "2_2026-06-05", "L01",
+                            "1_2026-06-10", "L01"))
+                    .valid(true).build();
+            when(cspScheduler.reSolve(any(), any(), any(), any(), any())).thenReturn(reSolveResult);
+
+            ScheduleExchangeResponse result = exchangeService.approveExchange(1, 3, "Đồng ý đổi");
+
+            assertThat(result.getStatus()).isEqualTo(ScheduleExchangeResponse.ExchangeStatus.APPROVED);
+            ArgumentCaptor<ScheduleChange> captor = ArgumentCaptor.forClass(ScheduleChange.class);
+            verify(cspScheduler, times(1)).reSolve(eq(previous), captor.capture(), any(), any(), any());
+            ScheduleChange captured = captor.getValue();
+            assertThat(captured.getModified()).hasSize(2);
+            assertThat(captured.getModified())
+                    .extracting(d -> d.getStaffId() + "_" + d.getDate() + "_" + d.getShiftType())
+                    .containsExactlyInAnyOrder(
+                            "1_2026-06-05_L01",
+                            "2_2026-06-10_L01");
+            assertThat(captured.getModified())
+                    .extracting(ScheduleChange.AssignmentDelta::getOldStaffId)
+                    .containsExactlyInAnyOrder(2, 1);
+        }
+
+        @Test
+        @DisplayName("Post-swap re-solve invalid -> throw BadRequestException với 'không còn feasible'")
+        void postSwapReSolveInvalid_shouldThrow() {
+            Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
+            when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(2), any()))
+                    .thenReturn(Optional.empty());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(1), any()))
+                    .thenReturn(Optional.empty());
+            when(conflictDetectionService.detectAllConflicts(eq(1), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(conflictDetectionService.detectAllConflicts(eq(2), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.save(any(CompensationDay.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(scheduleRepository.save(any(Schedule.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(exchangeRepository.save(any(ScheduleExchange.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(null);
+            SchedulingResult previous = SchedulingResult.builder()
+                    .assignments(java.util.Map.of("1_2026-06-05", "L01"))
+                    .valid(true).build();
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(previous);
+            when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
+            when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB));
+            SchedulingResult invalid = SchedulingResult.builder()
+                    .assignments(java.util.Map.of())
+                    .valid(false)
+                    .errors(List.of("staff_2_quota_exceeded")).build();
+            when(cspScheduler.reSolve(any(), any(), any(), any(), any())).thenReturn(invalid);
+
+            assertThatThrownBy(() -> exchangeService.approveExchange(1, 3, null))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("không còn feasible")
+                    .hasMessageContaining("staff_2_quota_exceeded");
+        }
+
+        @Test
+        @DisplayName("Post-swap re-solve throws exception -> approve vẫn succeed (best-effort, log warn)")
+        void postSwapReSolveThrows_shouldNotBlockApprove() {
+            Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
+            when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(2), any()))
+                    .thenReturn(Optional.empty());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(1), any()))
+                    .thenReturn(Optional.empty());
+            when(conflictDetectionService.detectAllConflicts(eq(1), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(conflictDetectionService.detectAllConflicts(eq(2), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.save(any(CompensationDay.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(scheduleRepository.save(any(Schedule.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(exchangeRepository.save(any(ScheduleExchange.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(null);
+            SchedulingResult previous = SchedulingResult.builder()
+                    .assignments(java.util.Map.of("1_2026-06-05", "L01"))
+                    .valid(true).build();
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(previous);
+            when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
+            when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB));
+            when(cspScheduler.reSolve(any(), any(), any(), any(), any()))
+                    .thenThrow(new RuntimeException("CSP internal boom"));
+
+            ScheduleExchangeResponse result = exchangeService.approveExchange(1, 3, "Đồng ý đổi");
+
+            assertThat(result.getStatus()).isEqualTo(ScheduleExchangeResponse.ExchangeStatus.APPROVED);
+        }
+
+        @Test
+        @DisplayName("Period trống (no staff/requirements/leaves) -> re-solve vẫn chạy best-effort, approve succeeds")
+        void emptyPeriod_shouldStillApprove() {
+            Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
+            when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(2), any()))
+                    .thenReturn(Optional.empty());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(1), any()))
+                    .thenReturn(Optional.empty());
+            when(conflictDetectionService.detectAllConflicts(eq(1), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(conflictDetectionService.detectAllConflicts(eq(2), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.save(any(CompensationDay.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(scheduleRepository.save(any(Schedule.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(exchangeRepository.save(any(ScheduleExchange.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(null);
+            when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
+            when(staffRepository.findByIsActiveTrue()).thenReturn(Collections.emptyList());
+            when(cspScheduler.reSolve(any(), any(), any(), any(), any()))
+                    .thenReturn(SchedulingResult.builder().assignments(new java.util.HashMap<>()).valid(true).build());
+
+            ScheduleExchangeResponse result = exchangeService.approveExchange(1, 3, "Đồng ý đổi");
+
+            assertThat(result.getStatus()).isEqualTo(ScheduleExchangeResponse.ExchangeStatus.APPROVED);
+            verify(cspScheduler, times(1)).reSolve(any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("reSolve() nhận ScheduleChange với đúng 2 MODIFY deltas (staff↔oldStaffId, dates khớp schedules)")
+        void reSolve_calledWithTwoCorrectDeltas() {
+            Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
+            when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(2), any()))
+                    .thenReturn(Optional.empty());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(1), any()))
+                    .thenReturn(Optional.empty());
+            when(conflictDetectionService.detectAllConflicts(eq(1), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(conflictDetectionService.detectAllConflicts(eq(2), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.save(any(CompensationDay.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(scheduleRepository.save(any(Schedule.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(exchangeRepository.save(any(ScheduleExchange.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(null);
+            when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
+            when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB));
+            when(cspScheduler.reSolve(any(), any(), any(), any(), any()))
+                    .thenReturn(SchedulingResult.builder().assignments(new java.util.HashMap<>()).valid(true).build());
+
+            exchangeService.approveExchange(1, 3, "Đồng ý đổi");
+
+            ArgumentCaptor<ScheduleChange> changeCaptor = ArgumentCaptor.forClass(ScheduleChange.class);
+            verify(cspScheduler).reSolve(any(), changeCaptor.capture(), any(), any(), any());
+            ScheduleChange change = changeCaptor.getValue();
+            assertThat(change.getModified()).hasSize(2);
+
+            ScheduleChange.AssignmentDelta requesterSide = change.getModified().get(0);
+            assertThat(requesterSide.getStaffId()).isEqualTo(1);
+            assertThat(requesterSide.getOldStaffId()).isEqualTo(2);
+            assertThat(requesterSide.getDate()).isEqualTo(LocalDate.of(2026, 6, 5));
+            assertThat(requesterSide.getShiftType()).isEqualTo("L01");
+
+            ScheduleChange.AssignmentDelta targetSide = change.getModified().get(1);
+            assertThat(targetSide.getStaffId()).isEqualTo(2);
+            assertThat(targetSide.getOldStaffId()).isEqualTo(1);
+            assertThat(targetSide.getDate()).isEqualTo(LocalDate.of(2026, 6, 10));
+            assertThat(targetSide.getShiftType()).isEqualTo("L01");
+
+            assertThat(change.getRemoved()).isEmpty();
+            assertThat(change.getAdded()).isEmpty();
+            assertThat(change.getAddedLeaves()).isEmpty();
+            assertThat(change.getRemovedLeaves()).isEmpty();
+            assertThat(change.getAddedStaffIds()).isEmpty();
+            assertThat(change.getRemovedStaffIds()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Period DRAFT -> throw BadRequestException, reSolve() KHÔNG được gọi")
+        void draftPeriod_shouldNotInvokeReSolve() {
+            testPeriod.setStatus(SchedulePeriod.PeriodStatus.DRAFT);
+            Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
+            when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+
+            assertThatThrownBy(() -> exchangeService.approveExchange(1, 3, null))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("chưa được công bố");
+
+            verify(cspScheduler, never()).reSolve(any(), any(), any(), any(), any());
+            verify(schedulingResultLoader, never()).loadPreviousFromDb(anyInt(), any());
+            verify(scheduleRepository, never()).save(any(Schedule.class));
+        }
+
+        @Test
+        @DisplayName("Approve happy path -> reSolve() được gọi đúng 1 lần")
+        void happyPath_reSolveCalledExactlyOnce() {
+            Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
+            when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(2), any()))
+                    .thenReturn(Optional.empty());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(eq(1), any()))
+                    .thenReturn(Optional.empty());
+            when(conflictDetectionService.detectAllConflicts(eq(1), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(conflictDetectionService.detectAllConflicts(eq(2), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.save(any(CompensationDay.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(scheduleRepository.save(any(Schedule.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(exchangeRepository.save(any(ScheduleExchange.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(null);
+            when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
+            when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB));
+            when(cspScheduler.reSolve(any(), any(), any(), any(), any()))
+                    .thenReturn(SchedulingResult.builder().assignments(new java.util.HashMap<>()).valid(true).build());
+
+            ScheduleExchangeResponse result = exchangeService.approveExchange(1, 3, "Đồng ý đổi");
+
+            assertThat(result.getStatus()).isEqualTo(ScheduleExchangeResponse.ExchangeStatus.APPROVED);
+            verify(cspScheduler, times(1)).reSolve(any(), any(), any(), any(), any());
+            verify(schedulingResultLoader, times(1)).loadPreviousFromDb(eq(1), any());
+        }
+
+        // ----- 3 test bổ sung: re-solve edge cases -----
+
+        @Test
+        @DisplayName("reSolve=null -> throw BadRequest, schedule KHÔNG swap (rollback)")
+        void reSolveNull_throwsAndDoesNotSwap() {
+            Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
+            when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            when(leaveRequestRepository.findByStaffIdAndDateRange(anyInt(), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(anyInt(), any()))
+                    .thenReturn(Optional.empty());
+            when(conflictDetectionService.detectAllConflicts(anyInt(), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.save(any(CompensationDay.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(null);
+            when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
+            when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB));
+            when(cspScheduler.reSolve(any(), any(), any(), any(), any())).thenReturn(null);
+
+            assertThatThrownBy(() -> exchangeService.approveExchange(1, 3, null))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("no result");
+            // reSolve vẫn được gọi đúng 1 lần (re-solve trigger fired),
+            // throw diễn ra bên trong làm BadRequest lan lên caller
+            verify(cspScheduler, times(1)).reSolve(any(), any(), any(), any(), any());
+            verify(schedulingResultLoader, times(1)).loadPreviousFromDb(eq(1), any());
+        }
+
+        @Test
+        @DisplayName("reSolve ScheduleChange chứa staffId CŨ (1 & 2), không phải id sau swap")
+        void reSolve_receivesOriginalStaffIdsNotSwapped() {
+            Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
+            when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            when(leaveRequestRepository.findByStaffIdAndDateRange(anyInt(), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(anyInt(), any()))
+                    .thenReturn(Optional.empty());
+            when(conflictDetectionService.detectAllConflicts(anyInt(), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.save(any(CompensationDay.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(scheduleRepository.save(any(Schedule.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(exchangeRepository.save(any(ScheduleExchange.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(null);
+            when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
+            when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB));
+            when(cspScheduler.reSolve(any(), any(), any(), any(), any()))
+                    .thenReturn(SchedulingResult.builder().assignments(new java.util.HashMap<>()).valid(true).build());
+
+            exchangeService.approveExchange(1, 3, "ok");
+
+            ArgumentCaptor<ScheduleChange> cap = ArgumentCaptor.forClass(ScheduleChange.class);
+            verify(cspScheduler).reSolve(any(), cap.capture(), any(), any(), any());
+            List<ScheduleChange.AssignmentDelta> deltas = cap.getValue().getModified();
+            assertThat(deltas).hasSize(2);
+            ScheduleChange.AssignmentDelta reqSide = deltas.stream()
+                    .filter(d -> d.getDate().equals(LocalDate.of(2026, 6, 5))).findFirst().orElseThrow();
+            assertThat(reqSide.getStaffId()).isEqualTo(staffA.getId());
+            assertThat(reqSide.getOldStaffId()).isEqualTo(staffB.getId());
+            ScheduleChange.AssignmentDelta tgtSide = deltas.stream()
+                    .filter(d -> d.getDate().equals(LocalDate.of(2026, 6, 10))).findFirst().orElseThrow();
+            assertThat(tgtSide.getStaffId()).isEqualTo(staffB.getId());
+            assertThat(tgtSide.getOldStaffId()).isEqualTo(staffA.getId());
+        }
+
+        @Test
+        @DisplayName("reSolve nhận đủ 5 đối số: previous, change, staff, requirements, leaves đúng loại")
+        void reSolve_receivesAllFiveArgumentsWithCorrectTypes() {
+            Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
+            Staff staffC = Staff.builder().id(99).username("nurseC").fullName("Le Van C").isActive(true).build();
+            SchedulingResult prev = SchedulingResult.builder().valid(true).assignments(new java.util.HashMap<>()).build();
+            ShiftRequirement req = ShiftRequirement.builder().id(99).shiftType(shiftL01())
+                    .period(testPeriod).workDate(LocalDate.of(2026, 6, 5))
+                    .requiredStaffCount(1).build();
+            LeaveRequest leave = LeaveRequest.builder().id(7).staff(staffC)
+                    .startDate(LocalDate.of(2026, 6, 5)).endDate(LocalDate.of(2026, 6, 5))
+                    .status(LeaveRequest.LeaveStatus.APPROVED).build();
+
+            when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
+            when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            when(leaveRequestRepository.findByStaffIdAndDateRange(anyInt(), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByStaffIdAndCompensationDate(anyInt(), any()))
+                    .thenReturn(Optional.empty());
+            when(conflictDetectionService.detectAllConflicts(anyInt(), any(), anyString(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(compensationDayRepository.save(any(CompensationDay.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(scheduleRepository.save(any(Schedule.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(exchangeRepository.save(any(ScheduleExchange.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(prev);
+            when(shiftRequirementRepository.findByPeriodId(anyInt())).thenReturn(List.of(req));
+            when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(List.of(leave));
+            when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB, staffC));
+            when(scheduleRepository.findByStaffIdAndWorkDate(anyInt(), any())).thenReturn(Collections.emptyList());
+            doNothing().when(emailService).sendSwapApprovedEmail(any(), anyString(), anyString());
+            when(cspScheduler.reSolve(any(), any(), any(), any(), any()))
+                    .thenReturn(SchedulingResult.builder().assignments(new java.util.HashMap<>()).valid(true).build());
+
+            exchangeService.approveExchange(1, 3, "ok");
+
+            ArgumentCaptor<SchedulingResult> prevCap = ArgumentCaptor.forClass(SchedulingResult.class);
+            ArgumentCaptor<ScheduleChange> changeCap = ArgumentCaptor.forClass(ScheduleChange.class);
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<Staff>> staffCap = ArgumentCaptor.forClass(List.class);
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<ShiftRequirementInfo>> reqCap = ArgumentCaptor.forClass(List.class);
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<LeaveRequest>> leaveCap = ArgumentCaptor.forClass(List.class);
+
+            verify(cspScheduler).reSolve(prevCap.capture(), changeCap.capture(), staffCap.capture(),
+                    reqCap.capture(), leaveCap.capture());
+
+            assertThat(prevCap.getValue()).isSameAs(prev);
+            assertThat(changeCap.getValue().getModified()).hasSize(2);
+            assertThat(staffCap.getValue()).containsExactlyInAnyOrder(staffA, staffB, staffC);
+            assertThat(reqCap.getValue()).hasSize(1);
+            assertThat(reqCap.getValue().get(0).shiftTypeId()).isEqualTo("L01");
+            assertThat(leaveCap.getValue()).hasSize(1);
+            assertThat(leaveCap.getValue().get(0).getStatus()).isEqualTo(LeaveRequest.LeaveStatus.APPROVED);
+        }
+
+        private ShiftType shiftL01() {
+            return ShiftType.builder().id("L01").name("Lịch trực 24/24").isOvernight(true).build();
         }
     }
 
