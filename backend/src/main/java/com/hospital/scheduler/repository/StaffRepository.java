@@ -19,6 +19,7 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
     Optional<Staff> findByUsername(@Param("username") String username);
     Optional<Staff> findByEmail(String email);
     List<Staff> findByIsActiveTrue();
+    long countByIsActiveTrue();
     List<Staff> findBySpecialtyId(Integer specialtyId);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);

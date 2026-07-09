@@ -56,6 +56,7 @@ public class StaffService {
     private final PasswordEncoder passwordEncoder;
     private final StaffImportParser staffImportParser;
     private final NotificationService notificationService;
+    private final CacheEvictor cacheEvictor;
 
     /**
      * Generate unique staff code in format NV001, NV002, etc.
@@ -214,6 +215,7 @@ public class StaffService {
 
         StaffResponse created = toResponse(staffRepository.findByIdWithRoles(saved.getId()).orElse(saved));
         auditHistoryService.logAction("staff", saved.getId(), AuditHistory.ActionType.INSERT, null, created, authContextService.getCurrentStaff().getId());
+        cacheEvictor.evictDashboard();
         return created;
     }
 
@@ -357,6 +359,7 @@ public class StaffService {
                 new NotificationDTO("Cập nhật hồ sơ",
                         "Hồ sơ của bạn đã được cập nhật bởi quản lý."));
 
+        cacheEvictor.evictDashboard();
         return toResponse(saved);
     }
 
@@ -390,6 +393,7 @@ public class StaffService {
         staffRepository.save(staff);
 
         auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, staff, authContextService.getCurrentStaff().getId());
+        cacheEvictor.evictDashboard();
     }
 
     public StaffResponse getStaffByUsername(String username) {

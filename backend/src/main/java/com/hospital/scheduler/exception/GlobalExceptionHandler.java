@@ -41,28 +41,31 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    private static ResponseEntity<ApiResponse<?>> errorResponse(HttpStatus status, String message) {
-        return ResponseEntity
-                .status(status)
-                .body(ApiResponse.<Object>builder()
-                        .success(false)
-                        .message(message)
-                        .timestamp(LocalDateTime.now())
-                        .build());
-    }
-
     // ── Domain exceptions (intentional throws from service layer) ─────────────
 
     @ExceptionHandler(AuthorizationDeniedException.class)
     public ResponseEntity<ApiResponse<?>> handleAuthorizationDenied(
             AuthorizationDeniedException ex, HttpServletRequest request) {
+        return errorResponse(HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập tài nguyên này");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<?>> handleAccessDenied(
+            AccessDeniedException ex, HttpServletRequest request) {
         return errorResponse(HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này");
     }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<?>> handleAuthentication(
             AuthenticationException ex, HttpServletRequest request) {
-        return errorResponse(HttpStatus.UNAUTHORIZED, "Xác thực thất bại: " + ex.getMessage());
+        return errorResponse(HttpStatus.UNAUTHORIZED, "Xác thực thất bại");
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiResponse<?>> handleBadCredentials(
+            BadCredentialsException ex, HttpServletRequest request) {
+        // Generic message — don't reveal whether username or password was wrong
+        return errorResponse(HttpStatus.UNAUTHORIZED, "Tên đăng nhập hoặc mật khẩu không đúng");
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -87,12 +90,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleForbiddenOperation(
             ForbiddenOperationException ex, HttpServletRequest request) {
         return errorResponse(HttpStatus.FORBIDDEN, ex.getMessage());
-    }
-
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ApiResponse<?>> handleBadCredentials(
-            BadCredentialsException ex, HttpServletRequest request) {
-        return errorResponse(HttpStatus.UNAUTHORIZED, "Tên đăng nhập hoặc mật khẩu không đúng");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -227,15 +224,6 @@ public class GlobalExceptionHandler {
                 "Dữ liệu đã được chỉnh sửa bởi người khác. Vui lòng tải lại trang và thử lại");
     }
 
-    /**
-     * Generic AccessDeniedException (Spring Security ACL / method security).
-     */
-    @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiResponse<?>> handleAccessDenied(
-            AccessDeniedException ex, HttpServletRequest request) {
-        return errorResponse(HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này");
-    }
-
     // ── Catch-all (SECURITY: never echo ex.getMessage() to client) ─────────────
 
     @ExceptionHandler(Exception.class)
@@ -248,5 +236,17 @@ public class GlobalExceptionHandler {
         // fragments, stack traces, or internal paths that must not reach the client.
         return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Đã xảy ra lỗi nội bộ. Vui lòng thử lại sau hoặc liên hệ quản trị viên");
+    }
+
+    // ── Helper ───────────────────────────────────────────────────────────────
+
+    private static ResponseEntity<ApiResponse<?>> errorResponse(HttpStatus status, String message) {
+        return ResponseEntity
+                .status(status)
+                .body(ApiResponse.<Object>builder()
+                        .success(false)
+                        .message(message)
+                        .timestamp(LocalDateTime.now())
+                        .build());
     }
 }

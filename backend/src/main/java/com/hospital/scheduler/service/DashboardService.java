@@ -38,7 +38,7 @@ public class DashboardService {
                 : scheduleRepository.findAll();
 
         DashboardResponse.DashboardSummary summary = DashboardResponse.DashboardSummary.builder()
-                .totalStaff(staffRepository.count())
+                .totalStaff(staffRepository.countByIsActiveTrue())
                 .activeStaff(staffRepository.findByIsActiveTrue().size())
                 .totalSchedules((long) periodSchedules.size())
                 .totalPeriods(periodRepository.count())
