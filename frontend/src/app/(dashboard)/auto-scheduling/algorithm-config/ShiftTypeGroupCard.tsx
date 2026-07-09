@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import type { RuntimeConfig } from "./types";
 import type { ShiftTypeGroup } from "./paramConfig";
-import { getShiftRowLabel, getShiftRowTooltip } from "./paramConfig";
+import { getShiftRowLabel, getShiftRowTooltip, getShiftRowUnit } from "./paramConfig";
+import { getParamValidation, type ValidationResult } from "@/lib/validation/algorithmConfig";
 
 type Props = {
   group: ShiftTypeGroup;
@@ -97,8 +98,8 @@ function CompactSpinner({ value, onChange, disabled }: {
 export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
   return (
     <div
-      className={`bg-surface-container-lowest rounded-xl border ${group.borderColor} overflow-hidden flex flex-col w-[190px] shrink-0 group/card shadow-sm hover:shadow-md transition-shadow`}
-      style={{ minHeight: 160 }}
+      className={`bg-surface-container-lowest rounded-xl border ${group.borderColor} overflow-hidden flex flex-col w-[210px] shrink-0 group/card shadow-sm hover:shadow-md transition-shadow`}
+      style={{ minHeight: 200 }}
     >
       <div className={`px-3 py-2 border-b ${group.borderColor}/30 bg-surface-container-low flex items-start gap-2 shrink-0`}>
         <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${group.colorBg} ${group.color}`}>
@@ -120,31 +121,85 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
           const display = numVal === 0 ? "Tắt" : numVal.toString();
           const label = getShiftRowLabel(param);
           const tooltip = getShiftRowTooltip(param);
+          const unit = getShiftRowUnit(param);
+          const validation = getParamValidation(param, numVal);
+          const crossValidation = getCrossFieldValidation(param, numVal, form);
+          const effectiveValidation: ValidationResult | null =
+            crossValidation ?? validation;
           return (
             <div
               key={param}
-              className="flex items-center justify-between gap-2 px-3 py-2 hover:bg-surface-container-low/50 transition-colors group/row"
+              className="flex flex-col px-3 py-2 hover:bg-surface-container-low/50 transition-colors group/row"
               title={tooltip}
             >
-              <div className="flex items-center gap-1 min-w-0">
-                <span className="font-mono text-[10px] font-semibold text-primary bg-primary-fixed/50 px-1 py-0.5 rounded leading-none whitespace-nowrap shrink-0">
-                  {label}
-                </span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col min-w-0 leading-tight">
+                  <span className="font-mono text-[10px] font-semibold text-primary bg-primary-fixed/50 px-1 py-0.5 rounded w-fit">
+                    {label}
+                  </span>
+                  {unit && (
+                    <span className="text-[9px] text-on-surface-variant mt-0.5">{unit}</span>
+                  )}
+                </div>
+                <div className="flex items-center shrink-0">
+                  {editing ? (
+                    <CompactSpinner
+                      value={numVal}
+                      onChange={(v) => onChange(param, v)}
+                    />
+                  ) : (
+                    <span className="font-mono text-xs font-bold text-on-surface w-10 text-right shrink-0 tabular-nums">{display}</span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center shrink-0">
-                {editing ? (
-                  <CompactSpinner
-                    value={numVal}
-                    onChange={(v) => onChange(param, v)}
-                  />
-                ) : (
-                  <span className="font-mono text-xs font-bold text-on-surface w-10 text-right shrink-0 tabular-nums tabular-nums">{display}</span>
-                )}
-              </div>
+              {effectiveValidation && (
+                <div
+                  className={`mt-1 flex items-start gap-1 px-1.5 py-0.5 rounded text-[9px] leading-tight ${
+                    effectiveValidation.level === "error"
+                      ? "bg-error-container/40 text-error"
+                      : "bg-tertiary-container/40 text-tertiary"
+                  }`}
+                  role={effectiveValidation.level === "error" ? "alert" : "status"}
+                >
+                  <span className="material-symbols-outlined text-[10px] shrink-0 mt-0.5" aria-hidden="true">
+                    {effectiveValidation.level === "error" ? "error" : "warning"}
+                  </span>
+                  <span className="line-clamp-2">{effectiveValidation.message}</span>
+                </div>
+              )}
             </div>
           );
         })}
       </div>
     </div>
   );
+}
+
+function getCrossFieldValidation(
+  param: string,
+  value: number,
+  form: RuntimeConfig,
+): ValidationResult | null {
+  const isMin = param.endsWith("MinPerDay") || param.endsWith("MinPerWeek");
+  const isMax = param.endsWith("MaxPerDay") || param.endsWith("MaxPerWeek");
+  if (!isMin && !isMax) return null;
+  const scope = param.endsWith("Day") ? "ngày" : "tuần";
+  const counterpartKey = isMin
+    ? param.replace("MinPer", "MaxPer")
+    : param.replace("MaxPer", "MinPer");
+  const counterpartVal = form[counterpartKey as keyof RuntimeConfig];
+  if (typeof counterpartVal !== "number") return null;
+  if (isMin && value > counterpartVal && counterpartVal > 0) {
+    return {
+      level: "error",
+      message: `Min/${scope} (${value}) > Max/${scope} (${counterpartVal}) — không khả thi.`,
+    };
+  }
+  if (isMax && value > 0 && value < counterpartVal) {
+    return {
+      level: "error",
+      message: `Max/${scope} (${value}) < Min/${scope} (${counterpartVal}) — không khả thi.`,
+    };
+  }
+  return null;
 }

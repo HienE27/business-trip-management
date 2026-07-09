@@ -124,17 +124,28 @@ export const SHIFT_TYPE_GROUPS: readonly ShiftTypeGroup[] = [
 ] as const;
 
 const SHIFT_PARAM_LABELS: Record<string, string> = {
-  MinPerDay: "T.min/ngày",
-  MaxPerDay: "T.max/ngày",
-  MinPerWeek: "T.min/tuần",
-  MaxPerWeek: "T.max/tuần",
+  MinPerDay: "Tổng ca/ngày",
+  MaxPerDay: "Trần ca/ngày",
+  MinPerWeek: "Ca/người/tuần",
+  MaxPerWeek: "Trần ca/người/tuần",
 };
 
 const SHIFT_PARAM_TOOLTIPS: Record<string, string> = {
-  MinPerDay: "Số nhân sự tối thiểu mỗi ngày",
-  MaxPerDay: "Số nhân sự tối đa mỗi ngày",
-  MinPerWeek: "Số ca trực tối thiểu mỗi tuần",
-  MaxPerWeek: "Số ca trực tối đa mỗi tuần",
+  MinPerDay:
+    "Tổng số ca L0X phải có mỗi ngày (cộng dồn mọi chuyên khoa). Thuật toán cố gắng đạt, không phá ràng buộc cứng.",
+  MaxPerDay:
+    "Trần tổng số ca L0X mỗi ngày. 0 = không đặt trần (theo target ca/người/tháng).",
+  MinPerWeek:
+    "Mỗi nhân sự tối thiểu X ca L0X trong 1 tuần — đảm bảo chia đều, tránh bỏ sót.",
+  MaxPerWeek:
+    "Mỗi nhân sự tối đa X ca L0X trong 1 tuần — chống tập trung quá nhiều ca vào một người. 0 = không giới hạn.",
+};
+
+const SHIFT_PARAM_UNITS: Record<string, string> = {
+  MinPerDay: "ca/ngày (toàn khoa)",
+  MaxPerDay: "ca/ngày (toàn khoa)",
+  MinPerWeek: "ca/người/tuần",
+  MaxPerWeek: "ca/người/tuần",
 };
 
 export function getShiftRowLabel(param: string): string {
@@ -145,6 +156,11 @@ export function getShiftRowLabel(param: string): string {
 export function getShiftRowTooltip(param: string): string {
   const suffix = Object.keys(SHIFT_PARAM_TOOLTIPS).find(k => param.endsWith(k));
   return suffix ? SHIFT_PARAM_TOOLTIPS[suffix] : "";
+}
+
+export function getShiftRowUnit(param: string): string {
+  const suffix = Object.keys(SHIFT_PARAM_UNITS).find(k => param.endsWith(k));
+  return suffix ? SHIFT_PARAM_UNITS[suffix] : "";
 }
 
 /* ─── Numeric param display helpers ─────────────────────────── */
