@@ -47,6 +47,29 @@ public interface SchedulingAlgorithm {
         Set<Integer> excludedStaffIds
     );
 
+    /**
+     * Overload that lets the caller pass L04 allowed specialties (sourced
+     * from {@code AutoGenConfig.l04AllowedSpecialties}). Default impl
+     * delegates to the legacy {@link #solve} method (no L04 override) so
+     * existing implementations (e.g. {@code GeneticAlgorithmScheduler})
+     * keep working.
+     *
+     * @param l04AllowedSpecialties null/empty → all eligible specialties
+     *                              (see {@code StaffShiftTypeEligibility})
+     */
+    default SchedulingResult solve(
+            List<Staff> staffList,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<ShiftRequirementInfo> requirements,
+            Set<String> existingCompensationDays,
+            List<LeaveRequest> leaveRequests,
+            Set<Integer> excludedStaffIds,
+            List<String> l04AllowedSpecialties) {
+        return solve(staffList, startDate, endDate, requirements,
+                existingCompensationDays, leaveRequests, excludedStaffIds);
+    }
+
     // ==================== ISSUE 3 FIX: Incremental Solving ====================
 
     /**

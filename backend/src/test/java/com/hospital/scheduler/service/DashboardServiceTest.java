@@ -77,7 +77,7 @@ class DashboardServiceTest {
     @Test
     @DisplayName("getDashboardSummary -> trả về DashboardSummary với counts")
     void summary() {
-        when(staffRepository.count()).thenReturn(10L);
+        when(staffRepository.countByIsActiveTrue()).thenReturn(10L);
         when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staff));
         when(scheduleRepository.count()).thenReturn(20L);
         when(periodRepository.count()).thenReturn(1L);

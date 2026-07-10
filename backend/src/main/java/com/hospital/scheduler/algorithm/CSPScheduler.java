@@ -64,6 +64,20 @@ public class CSPScheduler implements SchedulingAlgorithm {
             Set<String> existingCompensationDays,
             List<LeaveRequest> leaveRequests,
             Set<Integer> excludedStaffIds) {
+        return solve(staffList, startDate, endDate, requirements,
+                existingCompensationDays, leaveRequests, excludedStaffIds, null);
+    }
+
+    @Override
+    public SchedulingResult solve(
+            List<Staff> staffList,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<ShiftRequirementInfo> requirements,
+            Set<String> existingCompensationDays,
+            List<LeaveRequest> leaveRequests,
+            Set<Integer> excludedStaffIds,
+            List<String> l04AllowedSpecialties) {
 
         long startTime = System.currentTimeMillis();
 
@@ -87,7 +101,7 @@ public class CSPScheduler implements SchedulingAlgorithm {
         List<LocalDate> dates = new ArrayList<>(numDays);
         for (int i = 0; i < numDays; i++) dates.add(startDate.plusDays(i));
 
-        ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests);
+        ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests, l04AllowedSpecialties);
         CspSearchEngine.Result solution = searchEngine.solve(data, startTime);
         return resultBuilder.build(solution, data, activeStaff, dates, startTime);
     }
@@ -106,5 +120,21 @@ public class CSPScheduler implements SchedulingAlgorithm {
             List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
         return incrementalResolver.reSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests);
+    }
+
+    /**
+     * Overload that threads L04 allowed specialties into the incremental
+     * fallback full re-solve (so the eligibility used during a rebuild
+     * matches what was used during the original batch solve).
+     */
+    public SchedulingResult reSolve(
+            SchedulingResult previousResult,
+            ScheduleChange deltaChanges,
+            List<Staff> staffList,
+            List<ShiftRequirementInfo> requirements,
+            List<LeaveRequest> leaveRequests,
+            List<String> l04AllowedSpecialties) {
+        return incrementalResolver.reSolve(previousResult, deltaChanges, staffList, requirements,
+                leaveRequests, l04AllowedSpecialties);
     }
 }

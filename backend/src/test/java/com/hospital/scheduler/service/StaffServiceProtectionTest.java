@@ -51,6 +51,7 @@ class StaffServiceProtectionTest {
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private StaffImportParser staffImportParser;
     @Mock private NotificationService notificationService;
+    @Mock private CacheEvictor cacheEvictor;
 
     @InjectMocks
     private StaffService staffService;

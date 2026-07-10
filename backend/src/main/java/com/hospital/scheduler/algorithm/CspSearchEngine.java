@@ -46,13 +46,22 @@ class CspSearchEngine {
             restDays[i] = new BitSet(data.numDays);
         }
 
+        // Gap 1: week-bucketed per-(staff, shift) counter for under-min biasing.
+        // numWeeks = ceil(numDays / 7) so the last partial week is still tracked.
+        int numWeeks = data.dayToWeek == null ? 0
+                : (data.dayToWeek.length == 0 ? 0 : data.dayToWeek[data.dayToWeek.length - 1] + 1);
+        CspConstraints.MinWeekTracker weekTracker = (numWeeks > 0)
+                ? new CspConstraints.MinWeekTracker(data.numStaff, data.numShifts, numWeeks,
+                        data.minShiftsPerWeekByShift)
+                : null;
+
         int maxTrail = data.numVars * data.numStaff + 1000;
         int[] trailVar = new int[maxTrail];
         int[] trailStaff = new int[maxTrail];
         int[] trailPtr = {0};
 
         boolean found = search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
-                trailVar, trailStaff, trailPtr, data, startTime);
+                trailVar, trailStaff, trailPtr, data, startTime, weekTracker);
         if (!found) {
             return Result.builder().valid(false).errors(List.of("Không tìm được lịch hợp lệ")).build();
         }
@@ -69,7 +78,7 @@ class CspSearchEngine {
     private boolean search(
             BitSet[] domains, int[] assignment, int[] staffWorkload, int[][] staffShiftWorkload,
             BitSet[] restDays, int[] trailVar, int[] trailStaff, int[] trailPtr,
-            ProblemData data, long startTime) {
+            ProblemData data, long startTime, CspConstraints.MinWeekTracker weekTracker) {
 
         if (System.currentTimeMillis() - startTime > TIMEOUT_MS) return false;
         if (isGoal(domains, assignment, data)) return true;
@@ -82,7 +91,8 @@ class CspSearchEngine {
         String shiftType = SHIFT_ORDER[shiftIdx];
 
         // Sort candidates: fewest of THIS shift type first, then fewest total — ensures even per-type distribution
-        List<Integer> candidates = getCandidates(domains[var], staffWorkload, staffShiftWorkload, shiftIdx);
+        List<Integer> candidates = getCandidates(domains[var], staffWorkload, staffShiftWorkload, shiftIdx,
+                weekTracker, dayIdx, shiftIdx);
 
         for (int staffIdx : candidates) {
             if (nogoodStore.violatesNogood(assignment, var, staffIdx, data.numVars)) continue;
@@ -92,6 +102,8 @@ class CspSearchEngine {
             assignment[var] = staffIdx;
             staffWorkload[staffIdx]++;
             staffShiftWorkload[staffIdx][shiftIdx]++;
+            int week = data.dayToWeek == null ? -1 : data.dayToWeek[dayIdx];
+            if (weekTracker != null) weekTracker.increment(staffIdx, shiftIdx, week);
 
             if (shiftType.equals(DIRECT_24H)) {
                 int compDayIdx = getCompensationDayIdx(dayIdx, data);
@@ -102,7 +114,7 @@ class CspSearchEngine {
                     trailVar, trailStaff, trailPtr, data)) {
 
                 if (search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
-                        trailVar, trailStaff, trailPtr, data, startTime)) {
+                        trailVar, trailStaff, trailPtr, data, startTime, weekTracker)) {
                     return true;
                 }
             }
@@ -128,6 +140,7 @@ class CspSearchEngine {
             assignment[var] = -1;
             staffWorkload[staffIdx]--;
             staffShiftWorkload[staffIdx][shiftIdx]--;
+            if (weekTracker != null) weekTracker.decrement(staffIdx, shiftIdx, week);
             if (shiftType.equals(DIRECT_24H)) {
                 int compDayIdx = getCompensationDayIdx(dayIdx, data);
                 if (compDayIdx >= 0 && compDayIdx < data.numDays) restDays[staffIdx].clear(compDayIdx);
@@ -209,6 +222,23 @@ class CspSearchEngine {
                 }
             }
         }
+
+        // Gap 2: BR-04 — adjacent L01 (cùng nhân sự, 2 ngày liên tiếp có L01).
+        // Lookup is O(adjacentPairs) per check which is small (≤ 2*K where K is
+        // number of L01 pairs in the period). Without this guard the CSP could
+        // pick two adjacent L01s and rely on the post-hoc scorer to flag the
+        // violation, which is far more expensive than a single early reject.
+        if (shiftType.equals(DIRECT_24H) && data.adjacentL01Pairs != null) {
+            for (int p = 0; p < data.adjacentL01PairCount; p++) {
+                int base = p * 2;
+                int v1 = data.adjacentL01Pairs[base];
+                int v2 = data.adjacentL01Pairs[base + 1];
+                int otherVar = (v1 == var) ? v2 : (v2 == var ? v1 : -1);
+                if (otherVar >= 0 && assignment[otherVar] == staffIdx) {
+                    return false;
+                }
+            }
+        }
         return true;
     }
 
@@ -237,14 +267,20 @@ class CspSearchEngine {
      * lowest total workload, while other staff accumulate only light shifts.
      */
     private List<Integer> getCandidates(BitSet domain, int[] staffWorkload,
-                                        int[][] staffShiftWorkload, int shiftIdx) {
+                                        int[][] staffShiftWorkload, int shiftIdx,
+                                        CspConstraints.MinWeekTracker weekTracker,
+                                        int dayIdx, int dayShiftIdx) {
         List<Integer> list = new ArrayList<>();
         for (int s = domain.nextSetBit(0); s >= 0; s = domain.nextSetBit(s + 1)) {
             list.add(s);
         }
+        final int week = dayIdx < 0 ? -1 : dayIdx / 7; // mirror CspConstraints.buildWeekBuckets
         list.sort(Comparator
                 .comparingInt((Integer s) -> staffShiftWorkload[s][shiftIdx])  // per-type first
-                .thenComparingInt(s -> staffWorkload[s]));                      // total as tiebreak
+                .thenComparingInt(s -> staffWorkload[s])                        // total as tiebreak
+                .thenComparingInt(s -> weekTracker == null
+                        ? 0
+                        : -weekTracker.underMinScore(s, shiftIdx, week)));      // Gap 1: under-min first
         return list;
     }
 

@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -114,27 +115,91 @@ public class GlobalExceptionHandler {
     // ── HTTP layer / infrastructure exceptions ─────────────────────────────────
 
     /**
-     * BUG-C2 fix: FK constraint violations must NOT leak SQL details.
-     * Spring's DataIntegrityViolationException wraps the raw JDBC exception whose
-     * message can contain the full UPDATE/DELETE statement with parameter values.
+     * BUG-C2 fix: data-integrity violations must NOT leak SQL details, but the
+     * client still needs to know WHICH kind of conflict to react sensibly
+     * (refresh / drop duplicate / wait for lock / fix oversize input).
+     *
+     * We classify by walking the cause chain and matching well-known MySQL /
+     * Postgres / Oracle signatures. Server-side log keeps the full message
+     * (which may contain SQL fragments with bound parameter values) for ops.
+     *
+     * Categories:
+     *   - FK / parent row referenced  → 409, "đang được tham chiếu"
+     *   - Unique violation            → 409, "dữ liệu bị trùng"
+     *   - Lock wait / deadlock        → 409, "đang bị khoá bởi thao tác khác"
+     *   - Data too long / numeric     → 400, "vượt quá giới hạn cho phép"
+     *   - Default (still 409)         → 409, generic "đang được sử dụng"
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<?>> handleDataIntegrityViolation(
             DataIntegrityViolationException ex, HttpServletRequest request) {
-        log.warn("Data integrity violation on {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        // Full message goes to server log only — never echo back to client.
+        log.warn("Data integrity violation on {} {}: {}",
+                request.getMethod(), request.getRequestURI(), ex.getMessage());
 
-        String message = "Không thể thực hiện: dữ liệu đang được sử dụng ở nơi khác";
-        // Walk the full cause chain (Hibernate wraps MySQL/SQL exceptions deeply).
-        Throwable root = ex;
-        while (root.getCause() != null && root.getCause() != root) {
-            root = root.getCause();
+        // Collect signatures from the full cause chain (Hibernate wraps MySQL
+        // exceptions up to 3–4 levels deep). Bound the walk to avoid infinite
+        // loops on self-referential causes.
+        StringBuilder chain = new StringBuilder();
+        Throwable cursor = ex;
+        int depth = 0;
+        while (cursor != null && depth++ < 8) {
+            String m = cursor.getMessage();
+            if (m != null) {
+                chain.append(m).append('\n');
+            }
+            if (cursor.getCause() == cursor) {
+                break;
+            }
+            cursor = cursor.getCause();
         }
-        String rootMsg = root.getMessage() != null ? root.getMessage().toLowerCase() : "";
-        if (rootMsg.contains("foreign key") || rootMsg.contains("constraint") || rootMsg.contains("ora-02292")) {
-            message = "Không thể xóa: bản ghi đang được tham chiếu bởi dữ liệu khác";
+        String haystack = chain.toString().toLowerCase(java.util.Locale.ROOT);
+
+        // 1. Lock wait timeout / deadlock — usually a transient conflict
+        if (haystack.contains("lock wait timeout")
+                || haystack.contains("deadlock")
+                || haystack.contains("try restarting transaction")) {
+            return errorResponse(HttpStatus.CONFLICT,
+                    "Bản ghi đang bị khoá bởi thao tác khác, vui lòng thử lại sau vài giây");
         }
 
-        return errorResponse(HttpStatus.CONFLICT, message);
+        // 2. Foreign-key violation (parent / child)
+        if (haystack.contains("foreign key")
+                || haystack.contains("ora-02292")
+                || haystack.contains("cannot delete or update a parent row")
+                || haystack.contains("violates foreign key")
+                || haystack.contains("is still referenced")) {
+            return errorResponse(HttpStatus.CONFLICT,
+                    "Không thể xoá: bản ghi đang được tham chiếu bởi dữ liệu khác");
+        }
+
+        // 3. Unique-constraint violation — surface a short, safe hint.
+        //    We deliberately do NOT include the index name or column list
+        //    because those leak schema; we just say something is duplicated.
+        if (haystack.contains("duplicate entry")
+                || haystack.contains("ora-00001")
+                || haystack.contains("unique constraint")
+                || haystack.contains("violates unique")) {
+            return errorResponse(HttpStatus.CONFLICT,
+                    "Dữ liệu bị trùng — vui lòng tải lại trang và thử lại");
+        }
+
+        // 4. Truncation / out-of-range / type-mismatch on a value
+        if (haystack.contains("data too long")
+                || haystack.contains("value too long")
+                || haystack.contains("ora-12899")
+                || haystack.contains("out of range")
+                || haystack.contains("incorrect ")
+                || haystack.contains("truncated")
+                || haystack.contains("string data, right truncation")) {
+            return errorResponse(HttpStatus.BAD_REQUEST,
+                    "Giá trị vượt quá giới hạn cho phép — vui lòng kiểm tra lại dữ liệu nhập");
+        }
+
+        // 5. Fallback: keep historical message verbatim so we don't break
+        //    any caller (or test) that pattern-matches on it.
+        return errorResponse(HttpStatus.CONFLICT,
+                "Không thể thực hiện: dữ liệu đang được sử dụng ở nơi khác");
     }
 
     /**
@@ -222,6 +287,21 @@ public class GlobalExceptionHandler {
             OptimisticLockingFailureException ex, HttpServletRequest request) {
         return errorResponse(HttpStatus.CONFLICT,
                 "Dữ liệu đã được chỉnh sửa bởi người khác. Vui lòng tải lại trang và thử lại");
+    }
+
+    /**
+     * Pessimistic / row lock wait timeout (e.g. concurrent transactions on the
+     * same row in algorithm_config hit {@code innodb_lock_wait_timeout}). The
+     * previous catch-all returned 500 "lỗi nội bộ" which obscured the real cause;
+     * surface a clear, actionable hint so the client can retry.
+     */
+    @ExceptionHandler(CannotAcquireLockException.class)
+    public ResponseEntity<ApiResponse<?>> handleCannotAcquireLock(
+            CannotAcquireLockException ex, HttpServletRequest request) {
+        log.warn("Lock wait timeout on {} {}: {}",
+                request.getMethod(), request.getRequestURI(), ex.getMessage());
+        return errorResponse(HttpStatus.CONFLICT,
+                "Bản ghi đang bị khoá bởi thao tác khác, vui lòng thử lại sau vài giây");
     }
 
     // ── Catch-all (SECURITY: never echo ex.getMessage() to client) ─────────────

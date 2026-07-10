@@ -213,3 +213,9 @@ frontend/playwright-report/
 /screenshots/
 backend_err.txt
 backend_out.txt
+audit/ 
+*.py 
+*.txt 
+*.md 
+backend/backend_run.out 
+backend/src/main/java/com/hospital/scheduler/report/ 

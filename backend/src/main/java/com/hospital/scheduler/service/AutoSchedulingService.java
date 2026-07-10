@@ -1549,7 +1549,15 @@ public class AutoSchedulingService {
             List<LeaveRequest> leaveRequests = leaveRequestRepository.findApprovedInRange(
                     period.getStartDate(), period.getEndDate());
 
-            // Run CSP
+            // Run CSP. Thread the L04 allowed-specialties from AutoGenConfig so
+            // the CSP's domain pruning uses the same definition as
+            // StaffShiftTypeEligibility / ScheduleQualityScorer — otherwise the
+            // search and the scoring would silently disagree on who is eligible
+            // for L04 (and the earlier hardcoded "Bác sĩ / Điều dưỡng" check in
+            // CspDataBuilder would invalidate every staff member).
+            List<String> l04Allowed = algorithmConfigService.getAutoGenConfig()
+                    .map(cfg -> cfg.l04AllowedSpecialties() != null ? cfg.l04AllowedSpecialties() : List.<String>of())
+                    .orElse(List.of());
             SchedulingResult cspResult = cspScheduler.solve(
                     activeStaff,
                     period.getStartDate(),
@@ -1557,7 +1565,8 @@ public class AutoSchedulingService {
                     cspRequirements,
                     existingCompDays,
                     leaveRequests,
-                    excludedStaffIds);
+                    excludedStaffIds,
+                    l04Allowed);
 
             if (cspResult == null || !cspResult.isValid()) {
                 log.warn("CSP-MRV-FC returned no feasible solution for period {}: {}",

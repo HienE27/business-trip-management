@@ -249,7 +249,11 @@ public class ScheduleChromosome {
         for (ShiftRequirementInfo req : requirements) {
             required += weightOf(shiftWeight, req.shiftTypeId());
         }
-        if (required <= 0.0) return 1.0;
+        // No requirements -> nothing to cover. Unlike calculateCoverage() (which
+        // treats "vacuously satisfied" as 1.0), weighted coverage follows the
+        // shift-weight contract: an empty chromosome cannot have any covered
+        // demand, so it returns 0.0. (SchedulingFitnessShiftWeightTest#emptyCoverage_returnsZero)
+        if (required <= 0.0) return 0.0;
 
         double filled = 0.0;
         for (int i = 0; i < genes.length && i < requirements.size(); i++) {

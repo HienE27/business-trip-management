@@ -39,6 +39,7 @@ class SchedulePeriodServiceBulkTest {
     @Mock private ConflictDetectionService conflictDetectionService;
     @Mock private NotificationService notificationService;
     @Mock private EmailService emailService;
+    @Mock private CacheEvictor cacheEvictor;
 
     @InjectMocks
     private SchedulePeriodService periodService;

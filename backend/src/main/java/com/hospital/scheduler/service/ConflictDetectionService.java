@@ -112,16 +112,27 @@ public class ConflictDetectionService {
             for (Schedule s : staffDaySchedules) {
                 if (excludeScheduleId != null && s.getId().equals(excludeScheduleId)) continue;
 
-                boolean existingIsOvernight = s.getShiftType() != null && Boolean.TRUE.equals(s.getShiftType().getIsOvernight());
+                ShiftType existingShiftType = s.getShiftType();
+                String existingId = existingShiftType != null ? existingShiftType.getId() : "";
+                boolean existingIsOvernight = existingShiftType != null
+                        && Boolean.TRUE.equals(existingShiftType.getIsOvernight());
+
+                // L01↔L02 conflict (overnight vs non-overnight) — use shared helper
+                // so the batch path and single-call path emit identical messages.
                 if (newIsOvernight != existingIsOvernight) {
-                    conflicts.add("Trùng loại ca: lịch trực 24/24 và ca thường không thể cùng ngày");
+                    conflicts.add(buildShiftTypeConflictMessage(
+                            newShiftType, shiftTypeId,
+                            existingShiftType, existingId));
                     break;
                 }
+                // L03↔L04 conflict (both non-overnight service shifts) — same helper.
                 if (!newIsOvernight && !existingIsOvernight) {
                     String nid = newShiftType != null ? newShiftType.getId() : "";
-                    String eid = s.getShiftType() != null ? s.getShiftType().getId() : "";
-                    if (("L03".equals(nid) && "L04".equals(eid)) || ("L04".equals(nid) && "L03".equals(eid))) {
-                        conflicts.add("Trùng phòng khám dịch vụ và phòng khám chuyên gia trong ngày");
+                    if (("L03".equals(nid) && "L04".equals(existingId))
+                            || ("L04".equals(nid) && "L03".equals(existingId))) {
+                        conflicts.add(buildShiftTypeConflictMessage(
+                                newShiftType, nid,
+                                existingShiftType, existingId));
                         break;
                     }
                 }
@@ -528,14 +539,11 @@ public class ConflictDetectionService {
 
             // L01↔L02 conflict (overnight vs non-overnight)
             if (newIsOvernight != existingIsOvernight) {
-                // Use the actual shift-type names so the message is self-explanatory
-                // for whichever pair collides (L01↔L02, L02↔L03, future L05↔L02, ...).
-                String newName = newShiftType != null && newShiftType.getName() != null
-                        ? newShiftType.getName() : shiftTypeId;
-                String existingName = s.getShiftType() != null && s.getShiftType().getName() != null
-                        ? s.getShiftType().getName() : s.getShiftType().getId();
-                return java.util.Optional.of(String.format(
-                        "Lịch \"%s\" và lịch \"%s\" không thể cùng ngày", newName, existingName));
+                // Delegate message-formatting to the shared helper so both this
+                // single-call path and the batch path produce identical output.
+                return java.util.Optional.of(buildShiftTypeConflictMessage(
+                        newShiftType, shiftTypeId,
+                        s.getShiftType(), s.getShiftType().getId()));
             }
 
             // L03↔L04 conflict (both non-overnight service shifts)
@@ -543,16 +551,55 @@ public class ConflictDetectionService {
                 String nid = newShiftType != null ? newShiftType.getId() : "";
                 String eid = s.getShiftType() != null ? s.getShiftType().getId() : "";
                 if (("L03".equals(nid) && "L04".equals(eid)) || ("L04".equals(nid) && "L03".equals(eid))) {
-                    String newName = newShiftType != null && newShiftType.getName() != null
-                            ? newShiftType.getName() : nid;
-                    String existingName = s.getShiftType() != null && s.getShiftType().getName() != null
-                            ? s.getShiftType().getName() : eid;
-                    return java.util.Optional.of(String.format(
-                            "Lịch \"%s\" và lịch \"%s\" không thể cùng ngày", newName, existingName));
+                    // Same shared helper as the L01↔L02 branch and the batch path.
+                    return java.util.Optional.of(buildShiftTypeConflictMessage(
+                            newShiftType, nid,
+                            s.getShiftType(), eid));
                 }
             }
         }
         return java.util.Optional.empty();
+    }
+
+    /**
+     * Soạn message thống nhất cho shift-type conflict, dùng chung cho cả
+     * {@link #detectShiftTypeConflict} (single-call path) và
+     * {@link #detectAllConflictsWithBatch} (batch path dùng bởi
+     * {@code checkPeriodConflicts}).
+     *
+     * <p>Trước đây 2 path trả 2 format message khác nhau:
+     * <ul>
+     *   <li>Path A (batch): "Trùng loại ca: lịch trực 24/24 và ca thường không thể cùng ngày"
+     *       và "Trùng phòng khám dịch vụ và phòng khám chuyên gia trong ngày"</li>
+     *   <li>Path B (single): "Lịch \"<name1>\" và lịch \"<name2>\" không thể cùng ngày"</li>
+     * </ul>
+     * Sự không nhất quán này khiến 5 test trong
+     * {@code ConflictDetectionServiceTest} bị fail vì 2 path đi qua 2 message
+     * khác nhau nhưng assert cùng keyword.
+     *
+     * <p>Format đã chốt (lấy từ Path B vì generic, không hardcode tên ca):
+     * <pre>
+     *   Lịch "&lt;tên ca 1&gt;" và lịch "&lt;tên ca 2&gt;" không thể cùng ngày
+     * </pre>
+     * Tên ca fallback: {@code ShiftType.name} → {@code ShiftType.id} → raw id
+     * truyền vào (defensive — tránh NullPointerException nếu DB trả null).
+     *
+     * @param newShiftType        ShiftType mới (nullable; nếu null sẽ dùng newShiftTypeId)
+     * @param newShiftTypeId      ID ca mới (nullable; dùng làm fallback cuối)
+     * @param existingShiftType   ShiftType đã tồn tại (nullable; nếu null sẽ dùng existingShiftTypeId)
+     * @param existingShiftTypeId ID ca tồn tại (nullable; dùng làm fallback cuối)
+     * @return Message thống nhất cho shift-type conflict
+     */
+    private static String buildShiftTypeConflictMessage(
+            ShiftType newShiftType, String newShiftTypeId,
+            ShiftType existingShiftType, String existingShiftTypeId) {
+        String newName = newShiftType != null && newShiftType.getName() != null
+                ? newShiftType.getName()
+                : (newShiftTypeId != null ? newShiftTypeId : "");
+        String existingName = existingShiftType != null && existingShiftType.getName() != null
+                ? existingShiftType.getName()
+                : (existingShiftTypeId != null ? existingShiftTypeId : "");
+        return String.format("Lịch \"%s\" và lịch \"%s\" không thể cùng ngày", newName, existingName);
     }
 
     public List<Staff> findReplacements(Integer periodId, LocalDate workDate, String shiftTypeId,

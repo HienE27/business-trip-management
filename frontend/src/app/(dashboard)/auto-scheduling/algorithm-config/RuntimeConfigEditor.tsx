@@ -199,11 +199,13 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         removedShiftTypes: form.removedShiftTypes ?? [],
         l04CrossSpecialty: form.l04CrossSpecialty ?? false,
         l04CrossSpecialtyRatio: form.l04CrossSpecialtyRatio ?? 0.3,
+        l04BalanceStrategy: form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
       };
-      await Promise.all([
-        api.updateRuntimeConfig(form),
-        api.updateAutoGenConfig(autoGenPayload),
-      ]);
+      // Sequential: save runtime-config then auto-gen-config to avoid
+      // concurrent lock contention on the algorithm_config table.
+      // If the first call fails, do not attempt the second.
+      await api.updateRuntimeConfig(form);
+      await api.updateAutoGenConfig(autoGenPayload);
       setConfig(form);
       setEditing(false);
       success("Đã lưu cấu hình thuật toán");
@@ -417,8 +419,9 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           allowedSpecialties={form.l04AllowedSpecialties ?? []}
           allSpecialties={allSpecialties}
           editing={editing}
-          onChange={(enabled, ratio, allowedSpecialties) => {
-            setForm(prev => prev ? { ...prev, l04CrossSpecialty: enabled, l04CrossSpecialtyRatio: ratio, l04AllowedSpecialties: allowedSpecialties } : prev);
+          balanceStrategy={form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE"}
+          onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
+            setForm(prev => prev ? { ...prev, l04CrossSpecialty: enabled, l04CrossSpecialtyRatio: ratio, l04AllowedSpecialties: allowedSpecialties, l04BalanceStrategy: balanceStrategy } : prev);
           }}
         />
       </div>

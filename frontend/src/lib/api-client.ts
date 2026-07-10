@@ -965,6 +965,7 @@ class ApiClient {
     removedShiftTypes: string[];
     l04CrossSpecialty?: boolean;
     l04CrossSpecialtyRatio?: number;
+    l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
   }): Promise<ApiResponse<{
     enabled: boolean;
     l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
@@ -975,6 +976,7 @@ class ApiClient {
     removedShiftTypes: string[];
     l04CrossSpecialty?: boolean;
     l04CrossSpecialtyRatio?: number;
+    l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
   }>> {
     return this.request<{
       enabled: boolean;
@@ -986,6 +988,7 @@ class ApiClient {
       removedShiftTypes: string[];
       l04CrossSpecialty?: boolean;
       l04CrossSpecialtyRatio?: number;
+      l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
     }>("/auto-schedule/auto-gen-config", {
       method: "PUT",
       body: JSON.stringify(data),

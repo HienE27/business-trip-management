@@ -50,6 +50,7 @@ class SchedulePeriodServiceTest {
     @Mock private EmailService emailService;
     @Mock private AuthContextService authContextService;
     @Mock private JdbcTemplate jdbcTemplate;
+    @Mock private CacheEvictor cacheEvictor;
 
     @InjectMocks
     private SchedulePeriodService periodService;

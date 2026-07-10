@@ -31,6 +31,7 @@ export type RuntimeConfig = {
   l04CrossSpecialty?: boolean;
   l04CrossSpecialtyRatio?: number;
   l04AllowedSpecialties?: string[];
+  l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
 };
 
 export type AlgorithmMetrics = {
@@ -57,6 +58,7 @@ export type AutoGenConfigPayload = {
   l04CrossSpecialty?: boolean;
   l04CrossSpecialtyRatio?: number;
   l04AllowedSpecialties?: string[];
+  l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
 };
 
 export type TabKey = "config" | "history" | "audit" | "reference";
@@ -72,6 +74,7 @@ export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([
   "l04CrossSpecialty",
   "l04CrossSpecialtyRatio",
   "l04AllowedSpecialties",
+  "l04BalanceStrategy",
 ]);
 
 /** Map snake_case param key (URL/draft) sang camelCase RuntimeConfig field */

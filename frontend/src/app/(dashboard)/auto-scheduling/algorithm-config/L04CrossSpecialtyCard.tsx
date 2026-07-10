@@ -2,25 +2,30 @@
 
 import { useState, useEffect } from "react";
 
+type L04BalanceStrategy = "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
+
 type L04SpecialtyConfigProps = {
   enabled: boolean;
   ratio: number;
   allowedSpecialties: string[];
   allSpecialties: string[];
   editing: boolean;
-  onChange: (enabled: boolean, ratio: number, allowedSpecialties: string[]) => void;
+  balanceStrategy: L04BalanceStrategy;
+  onChange: (enabled: boolean, ratio: number, allowedSpecialties: string[], balanceStrategy: L04BalanceStrategy) => void;
 };
 
-export function L04SpecialtyConfig({ 
-  enabled, 
-  ratio, 
-  allowedSpecialties, 
-  allSpecialties, 
-  editing, 
-  onChange 
+export function L04SpecialtyConfig({
+  enabled,
+  ratio,
+  allowedSpecialties,
+  allSpecialties,
+  editing,
+  balanceStrategy,
+  onChange
 }: L04SpecialtyConfigProps) {
   const [localRatio, setLocalRatio] = useState(ratio);
   const [localAllowed, setLocalAllowed] = useState<string[]>(allowedSpecialties);
+  const [localStrategy, setLocalStrategy] = useState<L04BalanceStrategy>(balanceStrategy);
   // Initial mode based on data:
   // - [] (empty) = "all" (backend default)
   // - [...allSpecialties] = "all" (explicit)
@@ -47,6 +52,10 @@ export function L04SpecialtyConfig({
     }
   }, [allowedSpecialties, allSpecialties]);
 
+  useEffect(() => {
+    setLocalStrategy(balanceStrategy);
+  }, [balanceStrategy]);
+
   // Check if a specialty is selected based on current mode
   function isSpecialtySelected(specialty: string): boolean {
     if (selectionMode === "all") return true;
@@ -56,12 +65,12 @@ export function L04SpecialtyConfig({
 
   function handleToggle() {
     const newEnabled = !enabled;
-    onChange(newEnabled, localRatio, localAllowed);
+    onChange(newEnabled, localRatio, localAllowed, localStrategy);
   }
 
   function handleRatioChange(value: number) {
     setLocalRatio(value);
-    onChange(enabled, value, localAllowed);
+    onChange(enabled, value, localAllowed, localStrategy);
   }
 
   function handleSpecialtyToggle(specialty: string) {
@@ -84,14 +93,14 @@ export function L04SpecialtyConfig({
       }
     }
     setLocalAllowed(newAllowed);
-    onChange(enabled, localRatio, newAllowed);
+    onChange(enabled, localRatio, newAllowed, localStrategy);
   }
 
   function handleSelectAll() {
     // Select all → empty array (backend: "all specialties")
     setLocalAllowed([]);
     setSelectionMode("all");
-    onChange(enabled, localRatio, []);
+    onChange(enabled, localRatio, [], localStrategy);
   }
 
   function handleClearAll() {
@@ -99,7 +108,12 @@ export function L04SpecialtyConfig({
     const noneMarker = ["__NONE__"];
     setLocalAllowed(noneMarker);
     setSelectionMode("none");
-    onChange(enabled, localRatio, noneMarker);
+    onChange(enabled, localRatio, noneMarker, localStrategy);
+  }
+
+  function handleStrategyChange(value: L04BalanceStrategy) {
+    setLocalStrategy(value);
+    onChange(enabled, localRatio, localAllowed, value);
   }
 
   return (
@@ -231,6 +245,61 @@ export function L04SpecialtyConfig({
                 onChange={(e) => handleRatioChange(parseInt(e.target.value) / 100)}
                 className="w-full h-2 bg-surface-variant rounded-full appearance-none cursor-pointer accent-tertiary"
               />
+            )}
+
+            {/* Balance strategy */}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/50">
+              <div>
+                <p className="text-label-sm text-on-surface font-medium">Balance strategy</p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">Phân bổ staff ngoài chuyên khoa thế nào</p>
+              </div>
+            </div>
+            {editing ? (
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { value: "STRICT_MATCH_ONLY", label: "Strict match", desc: "Chỉ chuyên khoa khớp" },
+                  { value: "FAIR_DISTRIBUTE", label: "Fair distribute", desc: "Round-robin đều" },
+                  { value: "WEIGHTED_FAIR", label: "Weighted fair", desc: "Ưu tiên ít ca + fairness" },
+                ] as { value: L04BalanceStrategy; label: string; desc: string }[]).map((opt) => {
+                  const active = localStrategy === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleStrategyChange(opt.value)}
+                      className={`flex-1 min-w-[120px] px-3 py-2 rounded-lg text-left transition-colors border ${
+                        active
+                          ? "bg-tertiary-container border-tertiary text-on-tertiary-container"
+                          : "bg-surface-container-low border-outline-variant hover:bg-surface-container"
+                      }`}
+                    >
+                      <p className={`text-label-sm font-semibold ${active ? "text-on-tertiary-container" : "text-on-surface"}`}>
+                        {opt.label}
+                      </p>
+                      <p className={`text-[10px] mt-0.5 ${active ? "text-on-tertiary-container/80" : "text-on-surface-variant"}`}>
+                        {opt.desc}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-md text-label-sm font-medium bg-tertiary-container text-on-tertiary-container">
+                  {localStrategy === "STRICT_MATCH_ONLY"
+                    ? "Strict match"
+                    : localStrategy === "FAIR_DISTRIBUTE"
+                    ? "Fair distribute"
+                    : "Weighted fair"}
+                </span>
+                <span className="text-[11px] text-on-surface-variant">
+                  {localStrategy === "STRICT_MATCH_ONLY"
+                    ? "Chỉ chuyên khoa khớp, fallback bỏ ca"
+                    : localStrategy === "FAIR_DISTRIBUTE"
+                    ? "Round-robin đều giữa các ứng viên"
+                    : "Ưu tiên người có ít ca + fairness"}
+                </span>
+              </div>
             )}
           </div>
         )}

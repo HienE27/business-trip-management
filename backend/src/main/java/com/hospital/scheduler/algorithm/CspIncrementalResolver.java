@@ -36,23 +36,33 @@ class CspIncrementalResolver {
             List<Staff> staffList,
             List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
+        return reSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests, null);
+    }
+
+    SchedulingResult reSolve(
+            SchedulingResult previousResult,
+            ScheduleChange deltaChanges,
+            List<Staff> staffList,
+            List<ShiftRequirementInfo> requirements,
+            List<LeaveRequest> leaveRequests,
+            List<String> l04AllowedSpecialties) {
 
         long startTime = System.currentTimeMillis();
         if (deltaChanges == null || !deltaChanges.hasChanges()) {
-            return fullReSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests);
+            return fullReSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests, l04AllowedSpecialties);
         }
         if (deltaChanges.requiresFullReSolve()) {
-            return fullReSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests);
+            return fullReSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests, l04AllowedSpecialties);
         }
 
         IncrementalState state = buildIncrementalState(previousResult, staffList, requirements);
         applyDeltaChanges(state, deltaChanges);
 
         if (!revalidateAndPropagate(state)) {
-            return fullReSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests);
+            return fullReSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests, l04AllowedSpecialties);
         }
         if (!localSearch(state, startTime)) {
-            return fullReSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests);
+            return fullReSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests, l04AllowedSpecialties);
         }
         return buildResultFromIncrementalState(state, staffList, startTime);
     }
@@ -63,6 +73,16 @@ class CspIncrementalResolver {
             List<Staff> staffList,
             List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
+        return fullReSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests, null);
+    }
+
+    SchedulingResult fullReSolve(
+            SchedulingResult previousResult,
+            ScheduleChange deltaChanges,
+            List<Staff> staffList,
+            List<ShiftRequirementInfo> requirements,
+            List<LeaveRequest> leaveRequests,
+            List<String> l04AllowedSpecialties) {
 
         long startTime = System.currentTimeMillis();
 
@@ -94,7 +114,8 @@ class CspIncrementalResolver {
         // builder / search engine / result builder modules)
         List<LocalDate> dates = new ArrayList<>();
         for (LocalDate d = startDate; !d.isAfter(endDate); d = d.plusDays(1)) dates.add(d);
-        ProblemData data = dataBuilder.build(staffList, dates, requirements != null ? requirements : List.of(), leaveRequests);
+        ProblemData data = dataBuilder.build(staffList, dates,
+                requirements != null ? requirements : List.of(), leaveRequests, l04AllowedSpecialties);
         CspSearchEngine.Result solution = searchEngine.solve(data, startTime);
         return resultBuilder.build(solution, data, staffList, dates, startTime);
     }

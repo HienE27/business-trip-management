@@ -32,4 +32,19 @@ class ProblemData {
     List<Integer>[] constraintGraph;
 
     LocalDate baseDate;
+
+    // ───── Gap 1: min-staff enforcement ─────
+    /** Min shifts per staff per shift-type per week (size = numShifts, 0 = no minimum). */
+    int[] minShiftsPerWeekByShift;
+    /** Day index → ISO week-of-period (0-based), for week-bucketing. */
+    int[] dayToWeek;
+
+    // ───── Gap 2: BR-04 adjacent-L01 guard ─────
+    /** Adjacent-day var pairs (v1, v2) where both are L01 on consecutive days (size = 2*K). */
+    int[] adjacentL01Pairs;
+    int adjacentL01PairCount;
+
+    // ───── Gap 3: dynamic shift types ─────
+    /** Shift type id per index (parallel to SHIFT_ORDER-like lookup, but data-driven). */
+    String[] shiftTypeIds;
 }
