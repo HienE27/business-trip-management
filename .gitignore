@@ -217,5 +217,60 @@ audit/
 *.py 
 *.txt 
 *.md 
-backend/backend_run.out 
-backend/src/main/java/com/hospital/scheduler/report/ 
+backend/backend_run.out
+backend/src/main/java/com/hospital/scheduler/report/
+
+# ============================================
+# Cleanup 2026-07-10: dev/debug artifacts
+# ============================================
+
+# JSON debug dumps (API responses, eligibility dumps, etc.)
+apply_body.json
+apply_body_clean.json
+apply_full_body.json
+auto_progress_v2.json
+auto_resp_*.json
+backend/auto_v7_after_fix.json
+current_period2.json
+eligibility_dump.json
+preview_schedules.json
+specialties_dump.json
+staff_dump.json
+staff_v2.json
+staff_v3.json
+workload_v2.json
+config_v15.json
+
+# Backend/frontend error logs
+backend/backend-actual.err
+backend/backend_test.err
+
+# Manual SQL probe scripts (one-off DB inspection)
+check_*.sql
+seed_*.sql
+seed_more_periods.sql
+cleanup_test_staff.sql
+query.sql
+list_periods.sql
+create_period_3.sql
+update_specialties.sql
+
+# Visual probe / smoke artifacts
+reports_period2.png
+frontend/smoke-test-result.json
+frontend/browser-smoke-test.js
+frontend/public/probe.html
+
+# Dev run helper scripts (local only)
+full_test.bat
+start_backend.bat
+reset_notes.txt
+git_status.txt
+test_summary.txt
+check_charset.py
+check_config.py
+check_hex.py
+check_period.py
+check_state2.sql
+run_preview.py
+update_remaining_staff.py
