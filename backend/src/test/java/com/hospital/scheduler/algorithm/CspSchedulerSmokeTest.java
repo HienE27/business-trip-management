@@ -40,7 +40,8 @@ class CspSchedulerSmokeTest {
         HolidayRepository holidayRepo = mock(HolidayRepository.class);
         CompensationDateCalculator compCalc = new CompensationDateCalculator(holidayRepo);
         CspAc3Engine ac3 = new CspAc3Engine(compCalc);
-        CspDataBuilder builder = new CspDataBuilder(compCalc, ac3);
+        CspConstraints constraints = new CspConstraints(compCalc);
+        CspDataBuilder builder = new CspDataBuilder(compCalc, ac3, constraints);
         CspNogoodStore nogoods = new CspNogoodStore();
         CspSearchEngine search = new CspSearchEngine(compCalc, nogoods);
         CspResultBuilder resultBuilder = new CspResultBuilder(compCalc);
