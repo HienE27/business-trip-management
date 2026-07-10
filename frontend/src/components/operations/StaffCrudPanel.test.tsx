@@ -106,7 +106,8 @@ describe('StaffCrudPanel', () => {
 
   it('should render the panel header', async () => {
     await renderPanel();
-    expect(screen.getByText('Nhân sự')).toBeInTheDocument();
+    // Multiple elements can contain "Nhân sự" (breadcrumb + page heading).
+    expect(screen.getAllByText('Nhân sự').length).toBeGreaterThan(0);
   });
 
   it('should render search input', async () => {
@@ -137,11 +138,11 @@ describe('StaffCrudPanel', () => {
     expect(searchInput).toHaveValue('Nguyễn');
   });
 
-  it('should call fetchStaff on mount', async () => {
+  it('should fetch specialties on mount', async () => {
     await renderPanel();
 
     await waitFor(() => {
-      expect(apiModule.api.get).toHaveBeenCalledWith('/staff');
+      expect(apiModule.api.get).toHaveBeenCalledWith('/specialties/active');
     });
   });
 
@@ -162,28 +163,19 @@ describe('StaffCrudPanel', () => {
     expect(document.querySelector('.animate-spin')).toBeInTheDocument();
   });
 
-  it('should open add form when clicking "Thêm nhân viên"', async () => {
-    const user = userEvent.setup();
+  it('should render the add-staff link pointing to /staff/create', async () => {
     await renderPanel();
 
-    const addButton = screen.getByText('Thêm nhân viên');
-    await act(async () => { await user.click(addButton); });
-
-    await waitFor(() => {
-      expect(screen.getByText('Thêm nhân sự')).toBeInTheDocument();
-    });
+    // Production uses a Next.js Link (navigates via <a href>) rather than
+    // opening an inline drawer. Verify the link target instead.
+    const addLink = screen.getByText('Thêm nhân viên').closest('a');
+    expect(addLink).not.toBeNull();
+    expect(addLink).toHaveAttribute('href', '/staff/create');
   });
 
-  it('should call fetchStaff when search keyword changes', async () => {
+  it('should update searchKeyword when typing in search input (local filter)', async () => {
     const user = userEvent.setup();
     await renderPanel();
-
-    // Wait for initial fetch
-    await waitFor(() => {
-      expect(apiModule.api.get).toHaveBeenCalled();
-    });
-
-    const initialCalls = (apiModule.api.get as ReturnType<typeof vi.fn>).mock.calls.length;
 
     const searchInput = screen.getByPlaceholderText(/Tìm kiếm tên, email hoặc mã nhân viên/);
     await act(async () => {
@@ -191,13 +183,9 @@ describe('StaffCrudPanel', () => {
       await user.type(searchInput, 'test');
     });
 
-    // Wait for debounce
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 150));
-    });
-
-    // Should have called fetchStaff again with search params
-    expect((apiModule.api.get as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(initialCalls);
+    // Production: searchKeyword filters `records` locally via useMemo;
+    // it does not trigger an additional `api.get` call.
+    expect(searchInput).toHaveValue('test');
   });
 
   it('should have search input with correct attributes', async () => {

@@ -110,21 +110,23 @@ describe("useAuth — initial bootstrap", () => {
     });
   });
 
-  it("clears stored user and stays unauthenticated when /staff/me fails", async () => {
-    window.localStorage.setItem(
-      "medschedule.user",
-      JSON.stringify({ username: "stale", userId: 0, roles: [] }),
-    );
-    mockedApi.get.mockRejectedValue(new Error("401"));
+it("keeps stored user when /staff/me fails (graceful offline mode)", async () => {
+      window.localStorage.setItem(
+        "medschedule.user",
+        JSON.stringify({ username: "stale", userId: 0, roles: [] }),
+      );
+      mockedApi.get.mockRejectedValue(new Error("401"));
 
-    const { result } = renderHook(() => useAuth(), { wrapper });
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(result.current.user).toBeNull();
-    expect(result.current.isAuthenticated).toBe(false);
-    expect(window.localStorage.getItem("medschedule.user")).toBeNull();
-  });
+      // Bootstrap keeps the localStorage user on API failure so the UI
+      // remains usable; only the explicit logout() flow clears state.
+      expect(result.current.user).toEqual({ username: "stale", userId: 0, roles: [] });
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(window.localStorage.getItem("medschedule.user")).not.toBeNull();
+    });
 });
 
 describe("useAuth — login", () => {

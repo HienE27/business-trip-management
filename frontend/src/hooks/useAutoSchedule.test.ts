@@ -20,7 +20,7 @@ describe("useAutoSchedule — state defaults", () => {
     vi.clearAllMocks();
   });
 
-  it("starts with no preview, no edits, no message, GREEDY algorithm", () => {
+  it("starts with no preview, no edits, no message, CSP_MRV_FC algorithm", () => {
     const { result } = renderHook(() => useAutoSchedule());
     const [state] = result.current;
     expect(state.previewResult).toBeNull();
@@ -29,7 +29,7 @@ describe("useAutoSchedule — state defaults", () => {
     expect(state.applying).toBe(false);
     expect(state.running).toBe(false);
     expect(state.message).toBeNull();
-    expect(state.algorithmType).toBe("GREEDY");
+    expect(state.algorithmType).toBe("CSP_MRV_FC");
   });
 });
 
@@ -174,7 +174,7 @@ describe("useAutoSchedule — applyPreview", () => {
 
     expect(api.applyPreview).toHaveBeenCalledWith({
       periodId: 1,
-      algorithmType: "GREEDY",
+      algorithmType: "CSP_MRV_FC",
       schedules: [{ workDate: "2026-06-15", shiftTypeId: "L02", staffId: 7 }],
       removedSchedules: [{ workDate: "2026-06-15", shiftTypeId: "L01", staffId: 7 }],
     });

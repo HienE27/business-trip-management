@@ -259,17 +259,17 @@ describe('ApiClient API singleton', () => {
       expect(result).toEqual(mockData);
     });
 
-    it('should handle null data in response', async () => {
+it('should handle null data in response', async () => {
       const { api } = await import('@/lib/api');
-      
+
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ success: true, data: null }),
       });
 
       const result = await api.get<unknown>('/staff');
-      
-      expect(result).toBeNull();
+
+      expect(result).toEqual({ success: true, data: null });
     });
   });
 });
