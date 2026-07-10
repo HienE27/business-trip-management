@@ -1,5 +1,6 @@
 package com.hospital.scheduler.algorithm;
 
+import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.HolidayRepository;
 import com.hospital.scheduler.util.CompensationDateCalculator;
@@ -52,8 +53,14 @@ class CspSchedulerSmokeTest {
     private static List<Staff> staff(int n) {
         List<Staff> list = new ArrayList<>();
         for (int i = 1; i <= n; i++) {
+            // CSP eligibility (1ab207b) requires staff.specialty.name ∈
+            // {Nội, Ngoại} for L01/L02/L03. Without a specialty, the domain
+            // pruner would mark every staff ineligible and the solver
+            // returns an empty assignment map.
+            Specialty coreSpecialty = Specialty.builder().id(i).name("Nội").build();
             list.add(Staff.builder()
                     .id(i).username("s" + i).fullName("Staff " + i).isActive(true)
+                    .specialty(coreSpecialty)
                     .maxShiftsPerMonth(20).build());
         }
         return list;

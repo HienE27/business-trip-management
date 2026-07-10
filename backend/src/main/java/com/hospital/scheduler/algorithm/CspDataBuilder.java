@@ -219,8 +219,15 @@ class CspDataBuilder {
 
     private boolean[][] buildLeaveMatrix(List<Staff> staffList, List<LocalDate> dates, int numDays, int numStaff,
                                          List<LeaveRequest> leaveRequests) {
+        // Default = all-true (every staff is available on every day). Individual
+        // APPROVED leave requests then set the matching cell to false.
+        // The previous implementation left the matrix all-false when leaveRequests
+        // was null, which made the domain pruner wipe every variable.
         boolean[][] leaveMatrix = new boolean[numStaff][numDays];
-        if (leaveRequests == null) return leaveMatrix;
+        for (int i = 0; i < numStaff; i++) {
+            java.util.Arrays.fill(leaveMatrix[i], true);
+        }
+        if (leaveRequests == null || leaveRequests.isEmpty()) return leaveMatrix;
 
         // Cache epoch days outside inner loop for O(1) lookup
         long[] dayEpochs = new long[numDays];

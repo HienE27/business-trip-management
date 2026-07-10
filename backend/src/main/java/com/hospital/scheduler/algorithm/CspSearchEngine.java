@@ -201,7 +201,7 @@ class CspSearchEngine {
         String shiftType = SHIFT_ORDER[shiftIdx];
 
         if (restDays[staffIdx].get(dayIdx)) return false;
-        if (data.leaveMatrix[staffIdx][dayIdx]) return false;
+        if (!data.leaveMatrix[staffIdx][dayIdx]) return false;
         if (data.holidayDays[dayIdx]) return false;
         if (staffWorkload[staffIdx] >= data.staffMaxShifts[staffIdx]) return false;
 
