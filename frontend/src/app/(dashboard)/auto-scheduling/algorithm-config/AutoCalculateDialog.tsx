@@ -1125,7 +1125,7 @@ export function AutoCalculateDialog({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] text-blue-800">
                 <div>
                   <p className="font-medium mb-1">Bước 1: Chọn kịch bản</p>
-                  <p>Chọn "Mới bắt đầu" nếu bạn chưa có kinh nghiệm, hoặc chọn kịch bản phù hợp với tình hình thực tế.</p>
+                  <p>Chọn &quot;Mới bắt đầu&quot; nếu bạn chưa có kinh nghiệm, hoặc chọn kịch bản phù hợp với tình hình thực tế.</p>
                 </div>
                 <div>
                   <p className="font-medium mb-1">Bước 2: Điều chỉnh (tùy chọn)</p>
@@ -1133,7 +1133,7 @@ export function AutoCalculateDialog({
                 </div>
                 <div>
                   <p className="font-medium mb-1">Bước 3: Áp dụng</p>
-                  <p>Nhấn "Áp dụng" để cập nhật cấu hình. Dùng Ctrl+Enter để áp dụng nhanh.</p>
+                  <p>Nhấn &quot;Áp dụng&quot; để cập nhật cấu hình. Dùng Ctrl+Enter để áp dụng nhanh.</p>
                 </div>
                 <div>
                   <p className="font-medium mb-1">Giải thích nhanh</p>

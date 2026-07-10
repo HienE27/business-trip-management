@@ -515,7 +515,7 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
                 <div className="flex items-start gap-2">
                   <span className="material-symbols-outlined text-green-600">check_circle</span>
                   <p className="text-[11px] text-green-800">
-                    Thuật toán đã hoàn thành. Nhấn "Tiếp tục" để xem và áp dụng kết quả.
+                    Thuật toán đã hoàn thành. Nhấn &quot;Tiếp tục&quot; để xem và áp dụng kết quả.
                   </p>
                 </div>
               </div>
