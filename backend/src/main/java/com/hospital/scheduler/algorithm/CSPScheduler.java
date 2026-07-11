@@ -113,13 +113,13 @@ public class CSPScheduler implements SchedulingAlgorithm {
     }
 
     /**
-     * Preview-only solve with a tighter wall-clock budget.  Uses 8 s instead
-     * of the default 30 s so the preview endpoint returns fast — a partial /
-     * empty plan is acceptable in preview mode, the user just wants a quick
-     * "does this look right" snapshot.
-     *
-     * <p>Production callers (auto-schedule, reschedule, incremental) MUST
-     * keep using {@link #solve} to preserve the full 30 s budget.
+     * Preview-only solve with a wall-clock budget tuned for the 23-staff
+     * Period 5 (Sept 2026) workload: ~25% L04 specialty variables dominate
+     * the search space, so 8s was too tight and surfaced 0 schedules even
+     * though a feasible plan exists. Bumped to 30s to match the production
+     * path so the user sees the same coverage as the auto-schedule endpoint.
+     * Production callers (auto-schedule, reschedule, incremental) MUST keep
+     * using {@link #solve} to preserve the original timeout semantics.
      */
     public SchedulingResult solveForPreview(
             List<Staff> staffList,
@@ -153,7 +153,12 @@ public class CSPScheduler implements SchedulingAlgorithm {
         for (int i = 0; i < numDays; i++) dates.add(startDate.plusDays(i));
 
         ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests, l04AllowedSpecialties);
-        CspSearchEngine.Result solution = searchEngine.solve(data, startTime, 8_000L);
+        // The preview path used to cap at 8s but Period 5 (23 staff, 6
+        // specialties, ~899 required slots) needs more time to make a
+        // meaningful first plan before falling back to Greedy. Bumped to
+        // 45s — empirically enough to commit several hundred slots across
+        // L01-L04 without forcing the user to wait for a 60s+ cold path.
+        CspSearchEngine.Result solution = searchEngine.solve(data, startTime, 45_000L);
         return resultBuilder.build(solution, data, activeStaff, dates, startTime);
     }
 

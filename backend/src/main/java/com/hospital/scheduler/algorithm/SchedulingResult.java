@@ -41,6 +41,15 @@ public class SchedulingResult {
     private boolean valid;
 
     /**
+     * True when {@link #valid} is true only because the search returned a
+     * partial assignment under timeout pressure (not a complete coverage of
+     * every required slot). The orchestrator can use this to decide whether
+     * to top up the plan with a different algorithm (e.g. Greedy) instead
+     * of treating the partial plan as a finished schedule.
+     */
+    private boolean partial;
+
+    /**
      * Score tổng (0-100)
      */
     private BigDecimal totalScore;

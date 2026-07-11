@@ -34,6 +34,12 @@ class CspSearchEngine {
     private final CompensationDateCalculator compensationDateCalculator;
     private final CspNogoodStore nogoodStore;
 
+    /** Internal search outcome. Used by {@link #search} so the caller can
+     * distinguish a dead-end backtrack from a timeout-induced early exit —
+     * on timeout we still keep the partial assignment so the user sees a
+     * useful preview instead of a "no solution found" wall. */
+    private enum SearchOutcome { FOUND, DEAD_END, TIMED_OUT }
+
     /**
      * Solve with the default 30s timeout (production / auto-schedule path).
      */
@@ -76,11 +82,8 @@ class CspSearchEngine {
         int[] trailStaff = new int[maxTrail];
         int[] trailPtr = {0};
 
-        boolean found = search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
+        SearchOutcome outcome = search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
                 trailVar, trailStaff, trailPtr, data, startTime, weekTracker, timeoutMs);
-        if (!found) {
-            return Result.builder().valid(false).errors(List.of("Không tìm được lịch hợp lệ")).build();
-        }
 
         Map<String, Boolean> result = new HashMap<>();
         for (int v = 0; v < data.numVars; v++) {
@@ -88,20 +91,43 @@ class CspSearchEngine {
                 result.put(assignment[v] + "|" + data.varDay[v] + "|" + data.varShift[v], true);
             }
         }
-        return Result.builder().valid(true).assignment(result).build();
+
+        if (outcome == SearchOutcome.FOUND) {
+            return Result.builder()
+                    .valid(true)
+                    .partial(false)
+                    .assignment(result)
+                    .build();
+        }
+        if (outcome == SearchOutcome.TIMED_OUT) {
+            // Partial coverage under timeout: the caller decides what to do
+            // (typically: fall back to Greedy and merge schedules). We surface
+            // the partial map so nothing is lost, but flag it so the orchestrator
+            // can choose to top up with a different algorithm instead of
+            // treating the partial as a complete plan.
+            return Result.builder()
+                    .valid(!result.isEmpty())
+                    .partial(true)
+                    .assignment(result)
+                    .errors(result.isEmpty()
+                            ? List.of("Hết thời gian trước khi gán được slot nào")
+                            : List.of("Hết thời gian — trả về lịch từng phần"))
+                    .build();
+        }
+        return Result.builder().valid(false).errors(List.of("Không tìm được lịch hợp lệ")).build();
     }
 
-    private boolean search(
+    private SearchOutcome search(
             BitSet[] domains, int[] assignment, int[] staffWorkload, int[][] staffShiftWorkload,
             BitSet[] restDays, int[] trailVar, int[] trailStaff, int[] trailPtr,
             ProblemData data, long startTime, CspConstraints.MinWeekTracker weekTracker,
             long timeoutMs) {
 
-        if (System.currentTimeMillis() - startTime > timeoutMs) return false;
-        if (isGoal(domains, assignment, data)) return true;
+        if (System.currentTimeMillis() - startTime > timeoutMs) return SearchOutcome.TIMED_OUT;
+        if (isGoal(domains, assignment, data)) return SearchOutcome.FOUND;
 
         int var = selectMRV(domains, assignment, data);
-        if (var < 0) return true;
+        if (var < 0) return SearchOutcome.FOUND;
 
         int dayIdx = data.varDay[var];
         int shiftIdx = data.varShift[var];
@@ -130,10 +156,10 @@ class CspSearchEngine {
             if (propagate(staffIdx, var, domains, restDays, assignment,
                     trailVar, trailStaff, trailPtr, data)) {
 
-                if (search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
-                        trailVar, trailStaff, trailPtr, data, startTime, weekTracker, timeoutMs)) {
-                    return true;
-                }
+                SearchOutcome child = search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
+                        trailVar, trailStaff, trailPtr, data, startTime, weekTracker, timeoutMs);
+                if (child == SearchOutcome.FOUND) return SearchOutcome.FOUND;
+                if (child == SearchOutcome.TIMED_OUT) return SearchOutcome.TIMED_OUT;
             }
 
             // Learn from failure before rolling back
@@ -163,7 +189,7 @@ class CspSearchEngine {
                 if (compDayIdx >= 0 && compDayIdx < data.numDays) restDays[staffIdx].clear(compDayIdx);
             }
         }
-        return false;
+        return SearchOutcome.DEAD_END;
     }
 
     private boolean propagate(
@@ -345,6 +371,14 @@ class CspSearchEngine {
     @Getter
     static class Result {
         boolean valid;
+        /**
+         * True when {@link #valid} is true only because the search returned
+         * a partial assignment under timeout pressure (not a complete
+         * coverage of every required slot). The orchestrator can use this
+         * to surface a "coverage rate &lt; 100%" hint in the UI rather than
+         * silently presenting a partial plan as if it were complete.
+         */
+        boolean partial;
         Map<String, Boolean> assignment;
         List<String> errors;
     }

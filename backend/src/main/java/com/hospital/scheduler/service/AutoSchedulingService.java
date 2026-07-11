@@ -42,7 +42,11 @@ import java.util.stream.Collectors;
 public class AutoSchedulingService {
 
     // Wrapper to return both schedules and GA fairness score
-    private record SchedulingResultWithFairness(List<Schedule> schedules, BigDecimal fairnessScore) {}
+    private record SchedulingResultWithFairness(List<Schedule> schedules, BigDecimal fairnessScore, boolean cspPartial) {
+        SchedulingResultWithFairness(List<Schedule> schedules, BigDecimal fairnessScore) {
+            this(schedules, fairnessScore, false);
+        }
+    }
     
     private final ScheduleRepository scheduleRepository;
     private final SchedulePeriodRepository periodRepository;
@@ -550,8 +554,10 @@ public class AutoSchedulingService {
                 // Mắt/Răng staff) even though FAIR_GREEDY finds 300+ schedules,
                 // and the production UX must keep showing the user a usable plan.
                 // Preview also benefits: a slower but populated result is more
-                // useful than an empty coverage chart.
-                log.warn("CSP-MRV-FC returned 0 schedules for period {} — falling back to Greedy. Check CspSearchEngine logs for INCONSISTENT result.", period.getId());
+                // useful than an empty coverage chart. Also triggered when CSP
+                // returned a *partial* plan under timeout (the partial record
+                // was discarded so Greedy can re-cover from scratch).
+                log.warn("CSP-MRV-FC returned 0 schedules / partial for period {} — falling back to Greedy. Check CspSearchEngine logs for INCONSISTENT result.", period.getId());
                 createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
                         request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
                 log.info("Greedy fallback result: {} schedules", createdSchedules.size());
@@ -1605,6 +1611,15 @@ public class AutoSchedulingService {
                 log.warn("CSP-MRV-FC returned no feasible solution for period {}: {}",
                         period.getId(), cspResult == null ? "null result" : cspResult.getErrors());
                 return new SchedulingResultWithFairness(new ArrayList<>(), BigDecimal.ZERO);
+            }
+            if (cspResult.isPartial()) {
+                // CSP returned a partial plan under timeout pressure (e.g. the
+                // 23-staff Period 5 workload with 6 specialties). Signal the
+                // fallback path downstream so Greedy can top up coverage
+                // instead of presenting only the partial set to the user.
+                log.info("CSP-MRV-FC returned a partial plan for period {} ({} assignments) — falling back to Greedy to top up",
+                        period.getId(), cspResult.getScheduleCount());
+                return new SchedulingResultWithFairness(new ArrayList<>(), BigDecimal.ZERO, true);
             }
 
             // Convert domain assignments -> Schedule entities
