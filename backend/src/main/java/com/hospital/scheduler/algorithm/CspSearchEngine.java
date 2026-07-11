@@ -154,7 +154,7 @@ class CspSearchEngine {
             }
 
             if (propagate(staffIdx, var, domains, restDays, assignment,
-                    trailVar, trailStaff, trailPtr, data)) {
+                    trailVar, trailStaff, trailPtr, trailBefore, data)) {
 
                 SearchOutcome child = search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
                         trailVar, trailStaff, trailPtr, data, startTime, weekTracker, timeoutMs);
@@ -194,7 +194,7 @@ class CspSearchEngine {
 
     private boolean propagate(
             int staffIdx, int var, BitSet[] domains, BitSet[] restDays, int[] assignment,
-            int[] trailVar, int[] trailStaff, int[] trailPtr, ProblemData data) {
+            int[] trailVar, int[] trailStaff, int[] trailPtr, int trailBefore, ProblemData data) {
 
         int dayIdx = data.varDay[var];
         int shiftIdx = data.varShift[var];
@@ -228,11 +228,18 @@ class CspSearchEngine {
             }
         }
 
-        // 3. Detect failure: any unassigned variable we just touched has an
-        // empty domain. We only need to check vars whose domains were modified
-        // during this propagate() — anything else was already verified during
-        // earlier propagate calls or AC-3.
-        for (int i = 0; i < trailPtr[0]; i++) {
+        // 3. Detect failure: only the trail entries added in THIS propagate
+        // call can have just become empty as a direct result of OUR clear.
+        // Older trail entries were already verified non-empty at the time they
+        // were added; if we ALSO clear a value from the same var in this
+        // call, we'll catch the empty domain in the new trail entry (because
+        // domains[v] becomes empty at most once, and we record a trail entry
+        // per clear, so the var appears at most once per propagate call —
+        // either it's already in OLD trail from before this call, OR it's
+        // newly added here). Verifying only [trailBefore, trailPtr[0]) is
+        // therefore sufficient and avoids the O(trailSize) scan that
+        // dominates runtime on over-constrained workloads.
+        for (int i = trailBefore; i < trailPtr[0]; i++) {
             int v = trailVar[i];
             if (v >= 0 && v < data.numVars && assignment[v] < 0 && domains[v].isEmpty()) {
                 return false;
