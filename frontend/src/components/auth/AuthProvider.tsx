@@ -74,6 +74,23 @@ function getStoredToken(): string | null {
   return window.localStorage.getItem(TOKEN_STORAGE_KEY);
 }
 
+function isUnauthorizedError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as {
+    status?: number;
+    response?: { status?: number };
+    statusCode?: number;
+    message?: string;
+  };
+  return (
+    candidate.status === 401 ||
+    candidate.response?.status === 401 ||
+    candidate.statusCode === 401 ||
+    (typeof candidate.message === "string" &&
+      candidate.message.includes("HTTP 401"))
+  );
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -103,16 +120,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Refresh user data from server, but don't block UI
-      // user already sees the app with localStorage data
+      // user already sees the app with localStorage data.
+      // On 401 (token expired/invalid), clear auth and bounce to /login
+      // so the user re-authenticates instead of hammering the API with a
+      // stale token and spamming the console.
       try {
         const currentStaff = await api.get<Staff>("/staff/me");
         if (!active) return;
         const nextUser = toAuthUser(currentStaff);
         persistAuthUser(nextUser);
         setUser(nextUser);
-      } catch {
+      } catch (error) {
         if (!active) return;
-        // Keep localStorage user on API failure — don't log them out
+        if (isUnauthorizedError(error)) {
+          window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+          persistAuthUser(null);
+          setUser(null);
+          setToken(null);
+          router.replace("/login");
+        }
+        // For other failures (network, 5xx), keep localStorage user — don't log them out
       } finally {
         if (active) {
           setIsLoading(false);
