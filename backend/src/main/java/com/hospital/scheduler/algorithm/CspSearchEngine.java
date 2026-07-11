@@ -300,13 +300,32 @@ class CspSearchEngine {
     private int selectMRV(BitSet[] domains, int[] assignment, ProblemData data) {
         int bestVar = -1;
         int minSize = Integer.MAX_VALUE;
+        int maxDegree = -1;
         for (int v = 0; v < data.numVars; v++) {
             if (assignment[v] >= 0) continue;
             int size = domains[v].cardinality();
             if (size == 0) return -1;
+            // MRV primary: smaller domain first. Tie-break: degree heuristic
+            // (more unassigned neighbors = more constrained = should be picked
+            // before peers to expose dead-ends earlier). This is a classic CSP
+            // combo called MRV+DH and empirically cuts search tree depth on
+            // over-constrained workloads.
+            int degree = 0;
+            if (size <= minSize && data.constraintGraph != null) {
+                List<Integer> neighbors = data.constraintGraph[v];
+                if (neighbors != null) {
+                    for (int n : neighbors) {
+                        if (assignment[n] < 0) degree++;
+                    }
+                }
+            }
             if (size < minSize) {
                 minSize = size;
                 bestVar = v;
+                maxDegree = degree;
+            } else if (size == minSize && degree > maxDegree) {
+                bestVar = v;
+                maxDegree = degree;
             }
         }
         return bestVar;
