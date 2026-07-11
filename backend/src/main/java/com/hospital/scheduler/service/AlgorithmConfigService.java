@@ -235,39 +235,42 @@ public class AlgorithmConfigService {
      * Returns Optional.empty() if auto-gen is disabled.
      */
     public java.util.Optional<AutoGenConfig> getAutoGenConfig() {
-        var enabledOpt = configRepository.findByParamKey(AUTO_GEN_ENABLED);
-        boolean enabled = enabledOpt.isPresent()
-                ? Boolean.parseBoolean(enabledOpt.get().getParamValue())
-                : true;  // Default to true so auto-scheduling works out-of-the-box
+        // Bulk-load once, then read every key from the in-memory map — replaces
+        // the 25 separate findByParamKey SELECTs that were making the
+        // algorithm-config page take 5+ seconds to load.
+        java.util.Map<String, String> cache = loadConfigCache();
+        String enabledRaw = cache.get(AUTO_GEN_ENABLED);
+        // Default to true so auto-scheduling works out-of-the-box.
+        boolean enabled = enabledRaw == null || Boolean.parseBoolean(enabledRaw);
         // Always return a config with defaults — even if AUTO_GEN_ENABLED is missing from DB,
         // fall back to defaults so auto-scheduling works out-of-the-box without manual config setup.
         return java.util.Optional.of(new AutoGenConfig(
                 enabled,
-                getIntValue(AUTO_GEN_L01_MIN_PER_DAY, 1),
-                getIntValue(AUTO_GEN_L02_MIN_PER_DAY, 1),
-                getIntValue(AUTO_GEN_L03_MIN_PER_DAY, 1),
-                getIntValue(AUTO_GEN_L04_MIN_PER_DAY, 1),
-                getIntValue(AUTO_GEN_L01_MAX_PER_DAY, 0),
-                getIntValue(AUTO_GEN_L02_MAX_PER_DAY, 0),
-                getIntValue(AUTO_GEN_L03_MAX_PER_DAY, 0),
-                getIntValue(AUTO_GEN_L04_MAX_PER_DAY, 0),
-                getIntValue(AUTO_GEN_L01_MIN_PER_WEEK, 1),
-                getIntValue(AUTO_GEN_L02_MIN_PER_WEEK, 2),
-                getIntValue(AUTO_GEN_L03_MIN_PER_WEEK, 1),
-                getIntValue(AUTO_GEN_L04_MIN_PER_WEEK, 1),
-                getIntValue(AUTO_GEN_L01_MAX_PER_WEEK, 0),
-                getIntValue(AUTO_GEN_L02_MAX_PER_WEEK, 0),
-                getIntValue(AUTO_GEN_L03_MAX_PER_WEEK, 0),
-                getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0),
-                getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"),
-                getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES"),
-                getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false),
-                getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.3f),
-                getStringListValue("AUTO_GEN_L04_ALLOWED_SPECIALTIES"), // null/empty = all specialties
+                getIntValue(AUTO_GEN_L01_MIN_PER_DAY, 1, cache),
+                getIntValue(AUTO_GEN_L02_MIN_PER_DAY, 1, cache),
+                getIntValue(AUTO_GEN_L03_MIN_PER_DAY, 1, cache),
+                getIntValue(AUTO_GEN_L04_MIN_PER_DAY, 1, cache),
+                getIntValue(AUTO_GEN_L01_MAX_PER_DAY, 0, cache),
+                getIntValue(AUTO_GEN_L02_MAX_PER_DAY, 0, cache),
+                getIntValue(AUTO_GEN_L03_MAX_PER_DAY, 0, cache),
+                getIntValue(AUTO_GEN_L04_MAX_PER_DAY, 0, cache),
+                getIntValue(AUTO_GEN_L01_MIN_PER_WEEK, 1, cache),
+                getIntValue(AUTO_GEN_L02_MIN_PER_WEEK, 2, cache),
+                getIntValue(AUTO_GEN_L03_MIN_PER_WEEK, 1, cache),
+                getIntValue(AUTO_GEN_L04_MIN_PER_WEEK, 1, cache),
+                getIntValue(AUTO_GEN_L01_MAX_PER_WEEK, 0, cache),
+                getIntValue(AUTO_GEN_L02_MAX_PER_WEEK, 0, cache),
+                getIntValue(AUTO_GEN_L03_MAX_PER_WEEK, 0, cache),
+                getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0, cache),
+                getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP", cache),
+                getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES", cache),
+                getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false, cache),
+                getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.3f, cache),
+                getStringListValue("AUTO_GEN_L04_ALLOWED_SPECIALTIES", cache), // null/empty = all specialties
                 // L01/L02/L03: null/empty → fallback to CORE_ELIGIBLE_SPECIALTIES (Ngoại, Nội) trong StaffShiftTypeEligibility
-                getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES),
-                getStringListValue(AUTO_GEN_L02_ALLOWED_SPECIALTIES),
-                getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES)
+                getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES, cache),
+                getStringListValue(AUTO_GEN_L02_ALLOWED_SPECIALTIES, cache),
+                getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES, cache)
         ));
     }
 
@@ -424,32 +427,70 @@ public class AlgorithmConfigService {
     }
 
     private int getIntValue(String paramKey, int defaultValue) {
-        return configRepository.findByParamKey(paramKey)
-                .map(c -> {
-                    try {
-                        return Integer.parseInt(c.getParamValue());
-                    } catch (NumberFormatException e) {
-                        return defaultValue;
-                    }
-                })
-                .orElse(defaultValue);
+        return getIntValue(paramKey, defaultValue, null);
+    }
+
+    /**
+     * Lookup variant. When {@code cache} is non-null, the param value is read
+     * from the preloaded key/value map (the result of a single bulk SELECT)
+     * instead of issuing a separate SELECT for this key — this is the
+     * fix for the N+1 query pattern that was making the algorithm-config
+     * page render take 5+ seconds.
+     */
+    private int getIntValue(String paramKey, int defaultValue, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        if (raw == null) return defaultValue;
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     private String getStringValue(String paramKey, String defaultValue) {
-        return configRepository.findByParamKey(paramKey)
-                .map(AlgorithmConfig::getParamValue)
-                .orElse(defaultValue);
+        return getStringValue(paramKey, defaultValue, null);
+    }
+
+    private String getStringValue(String paramKey, String defaultValue, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        return raw != null ? raw : defaultValue;
     }
 
     private java.util.List<String> getStringListValue(String paramKey) {
+        return getStringListValue(paramKey, null);
+    }
+
+    private java.util.List<String> getStringListValue(String paramKey, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        if (raw == null || raw.isBlank()) return java.util.List.of();
+        return java.util.Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(t -> !t.isEmpty())
+                .toList();
+    }
+
+    /**
+     * Single-row SELECT kept around for callers that do NOT preload the cache
+     * (e.g. one-off lookups during save/upsert, audit queries).
+     */
+    private String lookupRaw(String paramKey) {
         return configRepository.findByParamKey(paramKey)
                 .map(AlgorithmConfig::getParamValue)
-                .filter(s -> !s.isBlank())
-                .map(s -> java.util.Arrays.stream(s.split(","))
-                        .map(String::trim)
-                        .filter(t -> !t.isEmpty())
-                        .toList())
-                .orElse(java.util.List.of());
+                .orElse(null);
+    }
+
+    /**
+     * Load every config row once and return it as a key/value map.
+     * Used by bulk-read entry points (getAutoGenConfig, getRuntimeConfig)
+     * to eliminate the N+1 query pattern that caused the algorithm-config
+     * page to take 5+ seconds to load.
+     */
+    private java.util.Map<String, String> loadConfigCache() {
+        java.util.Map<String, String> cache = new java.util.HashMap<>();
+        for (com.hospital.scheduler.repository.AlgorithmConfigKeyValue kv : configRepository.findAllAsKeyValuePairs()) {
+            cache.put(kv.getParamKey(), kv.getParamValue());
+        }
+        return cache;
     }
 
     /**
@@ -457,18 +498,22 @@ public class AlgorithmConfigService {
      * Returns an object with all runtime parameters or defaults if not set.
      */
     public AlgorithmRuntimeConfig getRuntimeConfig() {
-        // Load AutoGenConfig to get per-type weekly max values
+        // Load AutoGenConfig to get per-type weekly max values. Both
+        // getAutoGenConfig() and the lookup calls below share the same bulk
+        // SELECT internally — total cost is 1 row-fetch per call instead of
+        // 30+ SELECTs.
         var autoGenConfig = getAutoGenConfig();
+        java.util.Map<String, String> cache = loadConfigCache();
         return AlgorithmRuntimeConfig.builder()
-                .weekendWeight(getBigDecimalValue(WEEKEND_WEIGHT, 2.0))
-                .overnightRecoveryHours(getIntValue(OVERNIGHT_RECOVERY_HOURS, 24))
-                .greedyCoverageThreshold(getBigDecimalValue(GREEDY_COVERAGE_THRESHOLD, 0.85))
-                .balanceScoreMin(getBigDecimalValue(BALANCE_SCORE_MIN, 0.70))
-                .autoCompensationEnabled(getBooleanValue(AUTO_COMPENSATION_ENABLED, true))
-                .minStaffPerShift(getIntValue(MIN_STAFF_PER_SHIFT, 1))
-                .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0))
-                .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0))
-                .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 0))
+                .weekendWeight(getBigDecimalValue(WEEKEND_WEIGHT, 2.0, cache))
+                .overnightRecoveryHours(getIntValue(OVERNIGHT_RECOVERY_HOURS, 24, cache))
+                .greedyCoverageThreshold(getBigDecimalValue(GREEDY_COVERAGE_THRESHOLD, 0.85, cache))
+                .balanceScoreMin(getBigDecimalValue(BALANCE_SCORE_MIN, 0.70, cache))
+                .autoCompensationEnabled(getBooleanValue(AUTO_COMPENSATION_ENABLED, true, cache))
+                .minStaffPerShift(getIntValue(MIN_STAFF_PER_SHIFT, 1, cache))
+                .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0, cache))
+                .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0, cache))
+                .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 0, cache))
                 // Per-type weekly max from AutoGenConfig
                 .l01MaxPerWeek(autoGenConfig.map(AutoGenConfig::l01MaxPerWeek).orElse(0))
                 .l02MaxPerWeek(autoGenConfig.map(AutoGenConfig::l02MaxPerWeek).orElse(0))
@@ -503,33 +548,40 @@ public class AlgorithmConfigService {
     }
 
     private boolean getBooleanValue(String paramKey, boolean defaultValue) {
-        return configRepository.findByParamKey(paramKey)
-                .map(c -> Boolean.parseBoolean(c.getParamValue()))
-                .orElse(defaultValue);
+        return getBooleanValue(paramKey, defaultValue, null);
+    }
+
+    private boolean getBooleanValue(String paramKey, boolean defaultValue, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        return raw != null && Boolean.parseBoolean(raw);
     }
 
     private float getFloatValue(String paramKey, float defaultValue) {
-        return configRepository.findByParamKey(paramKey)
-                .map(c -> {
-                    try {
-                        return Float.parseFloat(c.getParamValue());
-                    } catch (NumberFormatException e) {
-                        return defaultValue;
-                    }
-                })
-                .orElse(defaultValue);
+        return getFloatValue(paramKey, defaultValue, null);
+    }
+
+    private float getFloatValue(String paramKey, float defaultValue, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        if (raw == null) return defaultValue;
+        try {
+            return Float.parseFloat(raw);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     private java.math.BigDecimal getBigDecimalValue(String paramKey, double defaultValue) {
-        return configRepository.findByParamKey(paramKey)
-                .map(c -> {
-                    try {
-                        return new java.math.BigDecimal(c.getParamValue());
-                    } catch (NumberFormatException e) {
-                        return java.math.BigDecimal.valueOf(defaultValue);
-                    }
-                })
-                .orElse(java.math.BigDecimal.valueOf(defaultValue));
+        return getBigDecimalValue(paramKey, defaultValue, null);
+    }
+
+    private java.math.BigDecimal getBigDecimalValue(String paramKey, double defaultValue, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        if (raw == null) return java.math.BigDecimal.valueOf(defaultValue);
+        try {
+            return new java.math.BigDecimal(raw);
+        } catch (NumberFormatException e) {
+            return java.math.BigDecimal.valueOf(defaultValue);
+        }
     }
 
     /**

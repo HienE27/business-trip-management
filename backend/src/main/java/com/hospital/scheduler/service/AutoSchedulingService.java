@@ -1,4 +1,4 @@
-﻿package com.hospital.scheduler.service;
+package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.request.AutoScheduleRequestDTO;
 import com.hospital.scheduler.dto.request.NotificationDTO;
