@@ -404,8 +404,8 @@ public class AutoSchedulingService {
 
         // Load runtime config from DB (or use defaults if not set)
         AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig = algorithmConfigService.getRuntimeConfig();
-        log.info("Using runtime config: maxIterations={}, weekendWeight={}, overnightRecoveryHours={}, greedyThreshold={}, balanceMin={}, maxShiftsPerStaff={}",
-                runtimeConfig.getMaxIterations(), runtimeConfig.getWeekendWeight(),
+        log.info("Using runtime config: weekendWeight={}, overnightRecoveryHours={}, greedyThreshold={}, balanceMin={}, maxShiftsPerStaff={}",
+                runtimeConfig.getWeekendWeight(),
                 runtimeConfig.getOvernightRecoveryHours(), runtimeConfig.getGreedyCoverageThreshold(),
                 runtimeConfig.getBalanceScoreMin(), runtimeConfig.getMaxShiftsPerStaff());
 
