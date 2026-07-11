@@ -107,7 +107,10 @@ class ApiClient {
 
       if (!response.ok) {
         if (response.status === 401 && typeof window !== "undefined") {
+          // Clear BOTH token and user, otherwise the next page load
+          // re-runs AuthProvider with a stale token and the 401 loops.
           window.localStorage.removeItem("medschedule.user");
+          window.localStorage.removeItem("medschedule.token");
           const currentPath = window.location.pathname;
           if (currentPath !== LOGIN_PATH) {
             window.location.replace(LOGIN_PATH);
