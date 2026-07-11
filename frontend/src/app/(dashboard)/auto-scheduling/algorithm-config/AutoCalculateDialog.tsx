@@ -8,43 +8,49 @@ import { getErrorMessage } from "@/lib/errors";
 type ShiftTypeId = "L01" | "L02" | "L03" | "L04";
 
 const SHIFT_META: Record<ShiftTypeId, { label: string; subtitle: string; color: string; bgColor: string; borderColor: string; chartColor: string; plainDescription: string }> = {
-  L01: { 
-    label: "L01", 
-    subtitle: "Trực 24/24", 
-    color: "text-red-600", 
-    bgColor: "bg-red-50", 
-    borderColor: "border-red-500", 
+  L01: {
+    label: "L01",
+    subtitle: "Trực 24/24",
+    color: "text-red-600",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-500",
     chartColor: "#ef4444",
     plainDescription: "Ca trực kéo dài 24 tiếng liên tục (từ 7h30 sáng hôm nay đến 7h30 sáng hôm sau). Người trực sẽ được nghỉ bù theo quy định."
   },
-  L02: { 
-    label: "L02", 
-    subtitle: "Thông tầm", 
-    color: "text-blue-600", 
-    bgColor: "bg-blue-50", 
-    borderColor: "border-blue-500", 
+  L02: {
+    label: "L02",
+    subtitle: "Thông tầm",
+    color: "text-blue-600",
+    bgColor: "bg-blue-50",
+    borderColor: "border-blue-500",
     chartColor: "#3b82f6",
     plainDescription: "Ca làm việc ban ngày, không có thời gian nghỉ trưa. Thường dành cho nhân sự hành chính hoặc các ca hỗ trợ."
   },
-  L03: { 
-    label: "L03", 
-    subtitle: "PK Dịch vụ", 
-    color: "text-green-600", 
-    bgColor: "bg-green-50", 
-    borderColor: "border-green-500", 
+  L03: {
+    label: "L03",
+    subtitle: "PK Dịch vụ",
+    color: "text-green-600",
+    bgColor: "bg-green-50",
+    borderColor: "border-green-500",
     chartColor: "#22c55e",
     plainDescription: "Phòng khám phục vụ khám bệnh dịch vụ. Bệnh nhân đặt lịch trước, thường vào buổi sáng hoặc chiều."
   },
-  L04: { 
-    label: "L04", 
-    subtitle: "PK Chuyên gia", 
-    color: "text-purple-600", 
-    bgColor: "bg-purple-50", 
-    borderColor: "border-purple-500", 
+  L04: {
+    label: "L04",
+    subtitle: "PK Chuyên gia",
+    color: "text-purple-600",
+    bgColor: "bg-purple-50",
+    borderColor: "border-purple-500",
     chartColor: "#a855f7",
     plainDescription: "Phòng khám chuyên sâu với bác sĩ chuyên môn cao. Thời gian khám lâu hơn, cần lịch cố định."
   },
 };
+
+/* Danh sách 6 chuyên khoa chuẩn (đồng bộ backend + WorkloadChart) */
+const ALL_SPECIALTIES: string[] = ["Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"];
+
+/* Chuyên khoa mặc định cho L01/L02/L03 (CORE = Ngoại, Nội) */
+const CORE_SPECIALTIES: string[] = ["Ngoại", "Nội"];
 
 export type AutoCalculateInput = {
   periodDays: number;
@@ -417,9 +423,11 @@ function InfoCard({ title, content, icon, type }: { title: string; content: stri
 function DistributionChart({
   targets,
   eligible,
+  computed,
 }: {
   targets: Record<ShiftTypeId, number>;
   eligible: Record<ShiftTypeId, number>;
+  computed: AutoCalculateResult;
 }) {
   const shiftIds: ShiftTypeId[] = ["L01", "L02", "L03", "L04"];
   const totalShifts = shiftIds.reduce((sum, tid) => sum + targets[tid] * eligible[tid], 0);
@@ -478,7 +486,7 @@ function DiffView({
   currentConfig,
 }: {
   computed: AutoCalculateResult;
-  currentConfig: AutoCalculateResult | null;
+  currentConfig: AutoCalculateResult | null | undefined;
 }) {
   if (!currentConfig) {
     return (
@@ -585,7 +593,7 @@ function PresetCompareModal({
   onSelect,
 }: {
   presets: { id: string; name: string; config: AutoCalculateInput }[];
-  currentConfig: AutoCalculateResult | null;
+  currentConfig: AutoCalculateResult | null | undefined;
   onClose: () => void;
   onSelect: (preset: { id: string; name: string; config: AutoCalculateInput }) => void;
 }) {
@@ -783,6 +791,10 @@ export function AutoCalculateDialog({
     L04: initialValues?.eligibleStaff?.L04 ?? 20,
   });
   const [expandEligibility, setExpandEligibility] = useState(false);
+  /* Danh sách chuyên khoa bổ sung (khi expandEligibility = true).
+     Mặc định rỗng = dùng CORE (Ngoại, Nội). Khi user bật toggle + chọn chip,
+     danh sách này sẽ được gửi kèm request recommend. */
+  const [expandedSpecialties, setExpandedSpecialties] = useState<string[]>([]);
   const [activePreset, setActivePreset] = useState<string | null>("newbie");
   const [activeScenario, setActiveScenario] = useState<string | null>("newbie");
   const [recommendation, setRecommendation] = useState<{
@@ -1007,6 +1019,7 @@ export function AutoCalculateDialog({
         eligibleStaff: { L01: eligible.L01, L02: eligible.L02, L03: eligible.L03, L04: eligible.L04 },
         targetPerStaffPerMonth: { L01: targets.L01, L02: targets.L02, L03: targets.L03, L04: targets.L04 },
         expandNonL04Eligibility: expandEligibility,
+        expandedSpecialties: expandEligibility ? expandedSpecialties : undefined,
       });
       const r = resp as unknown as {
         success: boolean;
@@ -1036,6 +1049,8 @@ export function AutoCalculateDialog({
       changedFieldsRef.current = new Set();
       setHistory([]);
       setHistoryIndex(-1);
+      setExpandEligibility(false);
+      setExpandedSpecialties([]);
     }
   }, [open]);
 
@@ -1560,6 +1575,113 @@ export function AutoCalculateDialog({
                   </tbody>
                 </table>
               </div>
+            </section>
+
+            {/* Expand Eligibility (Mở rộng chuyên khoa đủ điều kiện) */}
+            <section className="bg-surface-container-low rounded-xl p-4 border border-outline-variant">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-label-md font-semibold text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-primary" aria-hidden="true">diversity_3</span>
+                    Mở rộng chuyên khoa đủ điều kiện
+                  </h3>
+                  <p className="text-[12px] text-on-surface-variant mt-1">
+                    Khi thiếu nhân sự, cho phép thu hẹp/mở rộng chuyên khoa được gán vào L01–L04.{" "}
+                    <span className="font-semibold">Mặc định (CORE)</span>: chỉ Ngoại &amp; Nội cho L01–L03.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={expandEligibility}
+                    onChange={(e) => {
+                      setExpandEligibility(e.target.checked);
+                      handleFieldChange("expand");
+                      if (!e.target.checked) setExpandedSpecialties([]);
+                    }}
+                    className="sr-only peer"
+                    aria-label="Bật mở rộng chuyên khoa"
+                  />
+                  <div
+                    className={`w-11 h-6 rounded-full transition-colors duration-200 ${
+                      expandEligibility ? "bg-primary" : "bg-surface-variant"
+                    } peer-focus:ring-2 peer-focus:ring-primary/30`}
+                  />
+                  <div
+                    className={`absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                      expandEligibility ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </label>
+              </div>
+
+              {expandEligibility ? (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-on-surface-variant flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px] text-primary" aria-hidden="true">touch_app</span>
+                    Chọn các chuyên khoa được phép gán vào L01, L02, L03. Để trống = dùng CORE.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_SPECIALTIES.map((spec) => {
+                      const selected = expandedSpecialties.includes(spec);
+                      const isCore = CORE_SPECIALTIES.includes(spec);
+                      return (
+                        <button
+                          key={spec}
+                          type="button"
+                          onClick={() => {
+                            setExpandedSpecialties((prev) =>
+                              selected ? prev.filter((s) => s !== spec) : [...prev, spec],
+                            );
+                            handleFieldChange("expand");
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all ${
+                            selected
+                              ? "bg-primary text-on-primary border-primary shadow-sm"
+                              : "bg-surface-container-lowest text-on-surface border-outline-variant hover:border-primary hover:bg-primary-fixed/40"
+                          }`}
+                          aria-pressed={selected}
+                        >
+                          <span className="material-symbols-outlined text-[14px]" aria-hidden="true">
+                            {selected ? "check_circle" : "add_circle"}
+                          </span>
+                          {spec}
+                          {isCore && (
+                            <span className="ml-1 text-[10px] font-mono opacity-70">(CORE)</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-outline-variant">
+                    <div className="flex items-center gap-2 text-[11px] text-on-surface-variant">
+                      <span className="material-symbols-outlined text-[14px]" aria-hidden="true">info</span>
+                      {expandedSpecialties.length === 0 ? (
+                        <span>Dùng CORE: <span className="font-mono font-semibold">{CORE_SPECIALTIES.join(", ")}</span></span>
+                      ) : (
+                        <span>
+                          Đã chọn: <span className="font-mono font-semibold text-primary">{expandedSpecialties.join(", ")}</span>
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExpandedSpecialties([...ALL_SPECIALTIES]);
+                        handleFieldChange("expand");
+                      }}
+                      className="text-[11px] px-2 py-1 rounded-lg text-primary hover:bg-primary-fixed transition-colors"
+                    >
+                      Chọn tất cả
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-on-surface-variant italic flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[14px]" aria-hidden="true">lock</span>
+                  Bật toggle để mở rộng. Khi tắt, thuật toán chỉ gán nhân sự thuộc chuyên khoa Ngoại, Nội cho L01–L03.
+                </p>
+              )}
             </section>
 
             {/* Results Preview */}
