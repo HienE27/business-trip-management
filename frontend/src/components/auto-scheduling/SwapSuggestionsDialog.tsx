@@ -45,7 +45,7 @@ export const SwapSuggestionsDialog = memo(function SwapSuggestionsDialog({
     const { shiftsByStaffAndType, fairnessByType } = qualityReport;
     const result: SwapSuggestion[] = [];
 
-    for (const [typeKey, perStaff] of Object.entries(shiftsByStaffAndType)) {
+    for (const [typeKey, perStaff] of Object.entries(shiftsByStaffAndType ?? {})) {
       const typeId = typeKey.includes(":") ? typeKey.split(":")[0] : typeKey;
       if (typeId !== "L04") continue; // Only suggest swaps for L01/L02/L03
 
@@ -59,7 +59,7 @@ export const SwapSuggestionsDialog = memo(function SwapSuggestionsDialog({
 
       const most = sorted[0];
       const least = sorted[sorted.length - 1];
-      const detail = fairnessByType[typeKey];
+      const detail = fairnessByType.find((f) => f.shiftType === typeId);
       if (!detail) continue;
 
       const staffA = activeStaff.find((s) => s.id === most.sid);

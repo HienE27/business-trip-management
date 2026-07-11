@@ -1,11 +1,8 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 test.describe('Staff Management Pages', () => {
-  test.beforeEach(async ({ loginAs }) => {
-    await loginAs();
-  });
-
   test('staff list page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/staff');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -19,6 +16,7 @@ test.describe('Staff Management Pages', () => {
   });
 
   test('staff create page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/staff/create');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -32,6 +30,7 @@ test.describe('Staff Management Pages', () => {
   });
 
   test('staff profile page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/staff/profile');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);

@@ -5,8 +5,10 @@
     <!-- Console appender with structured (JSON) output for production -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
-            <!-- Human-readable pattern for dev, JSON for prod via spring profile -->
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <!-- Human-readable pattern for dev, JSON for prod via spring profile.
+                 %X{requestId} is populated by RequestIdFilter so each request's
+                 log lines can be correlated. -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [req=%X{requestId:-}] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
@@ -20,7 +22,7 @@
                 <totalSizeCap>500MB</totalSizeCap>
             </rollingPolicy>
             <encoder>
-                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [req=%X{requestId:-}] %-5level %logger{36} - %msg%n</pattern>
             </encoder>
         </appender>
 
@@ -33,7 +35,7 @@
                 <totalSizeCap>1GB</totalSizeCap>
             </rollingPolicy>
             <encoder>
-                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [req=%X{requestId:-}] %-5level %logger{36} - %msg%n</pattern>
             </encoder>
         </appender>
 

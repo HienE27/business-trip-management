@@ -544,6 +544,13 @@ public class AutoSchedulingService {
             gaFairnessScore = cspResult.fairnessScore();
             log.info("CSP-MRV-FC completed with {} schedules", createdSchedules.size());
             if (createdSchedules.isEmpty()) {
+                // Fall back to Greedy so the UI never shows "0% coverage" when a
+                // feasible plan exists via a different algorithm. CSP-MRV-FC can
+                // fail on over-constrained periods (e.g. period 5 with very few
+                // Mắt/Răng staff) even though FAIR_GREEDY finds 300+ schedules,
+                // and the production UX must keep showing the user a usable plan.
+                // Preview also benefits: a slower but populated result is more
+                // useful than an empty coverage chart.
                 log.warn("CSP-MRV-FC returned 0 schedules for period {} — falling back to Greedy. Check CspSearchEngine logs for INCONSISTENT result.", period.getId());
                 createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
                         request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
@@ -562,23 +569,32 @@ public class AutoSchedulingService {
         List<Schedule> bestSchedules = createdSchedules;
 
         if (greedyBalanceScore.compareTo(runtimeConfig.getBalanceScoreMin()) < 0 && !activeStaff.isEmpty()) {
-            // Try Fair Greedy as a fallback
-            log.info("{} balance score {} < threshold {}, trying Fair Greedy fallback",
-                    algorithmType, greedyBalanceScore, runtimeConfig.getBalanceScoreMin());
-            List<Schedule> fairGreedySchedules = runFairGreedy(period, requirements, activeStaff, false, runtimeConfig,
-                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-            int fgStaffCount = (int) fairGreedySchedules.stream().map(s -> s.getStaff().getId()).distinct().count();
-            BigDecimal fgBalanceScore = calculateBalanceScore(fairGreedySchedules, fgStaffCount > 0 ? fgStaffCount : 1);
-            log.info("Fair Greedy fallback: balanceScore={} ({} had {})", fgBalanceScore, algorithmType, greedyBalanceScore);
-            if (fgBalanceScore.compareTo(bestScore) > 0) {
-                log.info("Using Fair Greedy result (better balance score)");
-                bestScore = fgBalanceScore;
-                bestSchedules = fairGreedySchedules;
-                // If we chose FG as the better option, run again with save=true
-                if (!save) {
-                    createdSchedules = runFairGreedy(period, requirements, activeStaff, save, runtimeConfig,
-                            request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-                    bestSchedules = createdSchedules;
+            // Preview path: skip Fair Greedy fallback so the user gets a fast response.
+            // The Fair Greedy fallback is a heavy second pass that adds minutes on
+            // a 1-month period with 23 staff — preview is about showing the user the
+            // CSP plan quickly, not about finding the global optimum.
+            if (!save) {
+                log.info("{} balance score {} < threshold {} (preview) — skipping Fair Greedy fallback",
+                        algorithmType, greedyBalanceScore, runtimeConfig.getBalanceScoreMin());
+            } else {
+                // Try Fair Greedy as a fallback
+                log.info("{} balance score {} < threshold {}, trying Fair Greedy fallback",
+                        algorithmType, greedyBalanceScore, runtimeConfig.getBalanceScoreMin());
+                List<Schedule> fairGreedySchedules = runFairGreedy(period, requirements, activeStaff, false, runtimeConfig,
+                        request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
+                int fgStaffCount = (int) fairGreedySchedules.stream().map(s -> s.getStaff().getId()).distinct().count();
+                BigDecimal fgBalanceScore = calculateBalanceScore(fairGreedySchedules, fgStaffCount > 0 ? fgStaffCount : 1);
+                log.info("Fair Greedy fallback: balanceScore={} ({} had {})", fgBalanceScore, algorithmType, greedyBalanceScore);
+                if (fgBalanceScore.compareTo(bestScore) > 0) {
+                    log.info("Using Fair Greedy result (better balance score)");
+                    bestScore = fgBalanceScore;
+                    bestSchedules = fairGreedySchedules;
+                    // If we chose FG as the better option, run again with save=true
+                    if (!save) {
+                        createdSchedules = runFairGreedy(period, requirements, activeStaff, save, runtimeConfig,
+                                request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
+                        bestSchedules = createdSchedules;
+                    }
                 }
             }
         }
@@ -588,7 +604,9 @@ public class AutoSchedulingService {
 
         // Phase 3: Local Search fairness rebalance.
         // Keep L01 fixed because it creates compensation-day side effects; safely rebalance L02/L03/L04 only.
-        if (!createdSchedules.isEmpty()) {
+        // Preview path: skip the 200-iteration rebalance — it adds ~10s on a 1-month period
+        // for marginal fairness gain that the user can't see anyway in preview mode.
+        if (!createdSchedules.isEmpty() && save) {
             int optimizedMoves = optimizeFairnessBySafeReassignment(createdSchedules, activeStaff, requirements, 200);
             if (optimizedMoves > 0) {
                 log.info("Local Search fairness optimization applied {} safe reassignment moves", optimizedMoves);
@@ -598,7 +616,9 @@ public class AutoSchedulingService {
         // Phase 3b: HARD GUARANTEE - ensure EVERY active staff has at least 1 shift.
         // This is critical for fairness: no staff should be left with 0 assignments.
         // Only assign to eligible staff for each shift type, using soft constraints.
-        if (!activeStaff.isEmpty() && !createdSchedules.isEmpty()) {
+        // Preview path: skip — preview is about showing the user a quick plan, not
+        // guaranteeing every staff gets a slot in the preview snapshot.
+        if (!activeStaff.isEmpty() && !createdSchedules.isEmpty() && save) {
             Set<Integer> staffWithAnyShift = createdSchedules.stream()
                     .map(s -> s.getStaff().getId())
                     .collect(Collectors.toSet());
@@ -1558,15 +1578,28 @@ public class AutoSchedulingService {
             List<String> l04Allowed = algorithmConfigService.getAutoGenConfig()
                     .map(cfg -> cfg.l04AllowedSpecialties() != null ? cfg.l04AllowedSpecialties() : List.<String>of())
                     .orElse(List.of());
-            SchedulingResult cspResult = cspScheduler.solve(
-                    activeStaff,
-                    period.getStartDate(),
-                    period.getEndDate(),
-                    cspRequirements,
-                    existingCompDays,
-                    leaveRequests,
-                    excludedStaffIds,
-                    l04Allowed);
+            // Preview path uses an 8s wall-clock cap so the UI returns fast even
+            // when the full search would need 30s. The apply path keeps the
+            // default 30s budget — see CSPScheduler#solve vs solveForPreview.
+            SchedulingResult cspResult = save
+                    ? cspScheduler.solve(
+                            activeStaff,
+                            period.getStartDate(),
+                            period.getEndDate(),
+                            cspRequirements,
+                            existingCompDays,
+                            leaveRequests,
+                            excludedStaffIds,
+                            l04Allowed)
+                    : cspScheduler.solveForPreview(
+                            activeStaff,
+                            period.getStartDate(),
+                            period.getEndDate(),
+                            cspRequirements,
+                            existingCompDays,
+                            leaveRequests,
+                            excludedStaffIds,
+                            l04Allowed);
 
             if (cspResult == null || !cspResult.isValid()) {
                 log.warn("CSP-MRV-FC returned no feasible solution for period {}: {}",

@@ -47,4 +47,12 @@ class ProblemData {
     // ───── Gap 3: dynamic shift types ─────
     /** Shift type id per index (parallel to SHIFT_ORDER-like lookup, but data-driven). */
     String[] shiftTypeIds;
+
+    // ───── Performance: per-day variable index ─────
+    /**
+     * For each day, list of variable indices that fall on that day. Built once by
+     * CspDataBuilder so propagate() and isConsistent() can avoid O(numVars) scans
+     * for BR-03 / BR-06 same-day checks.
+     */
+    List<Integer>[] varsByDay;
 }

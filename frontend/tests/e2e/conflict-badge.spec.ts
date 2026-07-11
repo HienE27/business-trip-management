@@ -60,7 +60,7 @@ test.describe('Real-time conflict badge', () => {
       (window as unknown as { WebSocket: unknown }).WebSocket = MockWebSocket;
     });
 
-    await loginAs();
+    await loginAs(page);
   });
 
   test.skip('badge increments when a CONFLICT_DETECTED frame arrives', async ({ page }) => {

@@ -1,11 +1,8 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 test.describe('Reports Pages', () => {
-  test.beforeEach(async ({ loginAs }) => {
-    await loginAs();
-  });
-
   test('reports main page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/reports');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -14,6 +11,7 @@ test.describe('Reports Pages', () => {
   });
 
   test('staff reports page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/reports/staff');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -22,6 +20,7 @@ test.describe('Reports Pages', () => {
   });
 
   test('monthly reports page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/reports/monthly');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -30,6 +29,7 @@ test.describe('Reports Pages', () => {
   });
 
   test('conflicts reports page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/reports/conflicts');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);

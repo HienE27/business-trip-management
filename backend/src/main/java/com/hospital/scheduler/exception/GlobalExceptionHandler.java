@@ -1,9 +1,11 @@
 package com.hospital.scheduler.exception;
 
+import com.hospital.scheduler.config.RequestIdFilter;
 import com.hospital.scheduler.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -326,6 +328,7 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.<Object>builder()
                         .success(false)
                         .message(message)
+                        .data(MDC.get(RequestIdFilter.MDC_KEY)) // expose requestId to client for support correlation
                         .timestamp(LocalDateTime.now())
                         .build());
     }

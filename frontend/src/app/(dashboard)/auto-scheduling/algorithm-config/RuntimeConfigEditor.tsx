@@ -28,7 +28,7 @@ import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
 import { AutoCalculateDialog, type AutoCalculateResult, type AutoCalculateInput } from "./AutoCalculateDialog";
-import type { DashboardSummary, ShiftStatistics } from "@/types/api";
+import type { DashboardData, DashboardSummary, ShiftStatistics } from "@/types/api";
 
 type Props = { onSaved?: () => void };
 
@@ -110,7 +110,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             form.greedyCoverageThreshold === cp.config.greedyCoverageThreshold
           );
         });
-        setActivePreset(customMatch || null);
+        setActivePreset((customMatch as PresetKey | undefined) || null);
       }
     }
   }, [form, customPresets]);
@@ -489,22 +489,22 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           eligibleStaff: { L01: 8, L02: 8, L03: 8, L04: 20 },
         }}
         currentConfig={form ? {
-          l01MinPerDay: Number(form.auto_gen_l01_min_per_day ?? 1),
-          l01MaxPerDay: Number(form.auto_gen_l01_max_per_day ?? 3),
-          l01MinPerWeek: Number(form.auto_gen_l01_min_per_week ?? 2),
-          l01MaxPerWeek: Number(form.auto_gen_l01_max_per_week ?? 3),
-          l02MinPerDay: Number(form.auto_gen_l02_min_per_day ?? 1),
-          l02MaxPerDay: Number(form.auto_gen_l02_max_per_day ?? 3),
-          l02MinPerWeek: Number(form.auto_gen_l02_min_per_week ?? 2),
-          l02MaxPerWeek: Number(form.auto_gen_l02_max_per_week ?? 3),
-          l03MinPerDay: Number(form.auto_gen_l03_min_per_day ?? 1),
-          l03MaxPerDay: Number(form.auto_gen_l03_max_per_day ?? 3),
-          l03MinPerWeek: Number(form.auto_gen_l03_min_per_week ?? 2),
-          l03MaxPerWeek: Number(form.auto_gen_l03_max_per_week ?? 3),
-          l04MinPerDay: Number(form.auto_gen_l04_min_per_day ?? 1),
-          l04MaxPerDay: Number(form.auto_gen_l04_max_per_day ?? 10),
-          l04MinPerWeek: Number(form.auto_gen_l04_min_per_week ?? 4),
-          l04MaxPerWeek: Number(form.auto_gen_l04_max_per_week ?? 6),
+          l01MinPerDay: Number(form.l01MinPerDay ?? 1),
+          l01MaxPerDay: Number(form.l01MaxPerDay ?? 3),
+          l01MinPerWeek: Number(form.l01MinPerWeek ?? 2),
+          l01MaxPerWeek: Number(form.l01MaxPerWeek ?? 3),
+          l02MinPerDay: Number(form.l02MinPerDay ?? 1),
+          l02MaxPerDay: Number(form.l02MaxPerDay ?? 3),
+          l02MinPerWeek: Number(form.l02MinPerWeek ?? 2),
+          l02MaxPerWeek: Number(form.l02MaxPerWeek ?? 3),
+          l03MinPerDay: Number(form.l03MinPerDay ?? 1),
+          l03MaxPerDay: Number(form.l03MaxPerDay ?? 3),
+          l03MinPerWeek: Number(form.l03MinPerWeek ?? 2),
+          l03MaxPerWeek: Number(form.l03MaxPerWeek ?? 3),
+          l04MinPerDay: Number(form.l04MinPerDay ?? 1),
+          l04MaxPerDay: Number(form.l04MaxPerDay ?? 10),
+          l04MinPerWeek: Number(form.l04MinPerWeek ?? 4),
+          l04MaxPerWeek: Number(form.l04MaxPerWeek ?? 6),
         } : null}
       />
     </div>

@@ -85,6 +85,25 @@ export const ALGORITHM_PRESETS: Record<PresetKey, PresetConfig> = {
       backtrackTimeLimitSeconds: 60,
     },
   },
+  // `custom` is a synthetic entry — when the runtime config doesn't match any
+  // built-in preset (balanced/fast/quality/conservative) we surface a "custom"
+  // tab so the user understands their current settings aren't a stock preset.
+  custom: {
+    label: "Tùy chỉnh",
+    tagline: "Cấu hình hiện tại không khớp preset nào",
+    icon: "tune",
+    color: "text-on-surface-variant",
+    colorBg: "bg-surface-container",
+    accent: "border-outline-variant",
+    config: {
+      ...baseConfig,
+      maxIterations: 1000,
+      weekendWeight: 1.5,
+      greedyCoverageThreshold: 0.85,
+      balanceScoreMin: 0.75,
+      backtrackTimeLimitSeconds: 60,
+    },
+  },
 };
 
 /** Trả PresetKey nếu cfg match chính xác 1 preset; ngược lại null */

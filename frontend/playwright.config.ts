@@ -18,10 +18,12 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: process.env.CI ? undefined : ({
+  // Reuse the existing frontend on :3000 (typically started by dev manually).
+  // On CI (no existing server) we boot it ourselves.
+  webServer: process.env.CI ? {
     command: 'pnpm start',
     url: 'http://localhost:3000',
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 120_000,
-  }),
+  } : undefined,
 });

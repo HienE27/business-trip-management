@@ -1,11 +1,8 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 test.describe('Schedule Pages', () => {
-  test.beforeEach(async ({ loginAs }) => {
-    await loginAs();
-  });
-
   test('monthly schedule page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/monthly-schedule');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -14,6 +11,7 @@ test.describe('Schedule Pages', () => {
   });
 
   test('schedule page has tabs available', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/monthly-schedule');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);

@@ -54,8 +54,8 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
   const [randomTip, setRandomTip] = useState(TIPS[0]);
   const [showTips, setShowTips] = useState(true);
   
-  const autoState = useAutoSchedule();
-  const { runPreview, applyPreview } = autoState;
+  const [autoState, autoActions] = useAutoSchedule();
+  const { runPreview, applyPreview } = autoActions;
   const { previewResult: autoPreview, running } = autoState;
   const progress = useAlgorithmProgress(selectedPeriodId, running);
 
@@ -414,7 +414,7 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
                         <p className={`text-[12px] font-medium ${isExcluded ? "text-red-700" : "text-on-surface"}`}>
                           {staff.fullName}
                         </p>
-                        <p className="text-[10px] text-on-surface-variant">{staff.specialtyName}</p>
+                        <p className="text-[10px] text-on-surface-variant">{staff.specialty?.name}</p>
                       </div>
                       {isExcluded && (
                         <Badge tone="error" size="sm">Loại trừ</Badge>
@@ -500,10 +500,10 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
                 </div>
               )}
 
-              {autoPreview.unassignedDays?.length > 0 && (
+              {((autoPreview.unassignedDays?.length ?? 0) > 0) && (
                 <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant">
                   <p className="text-[12px] font-medium text-on-surface mb-2">
-                    Ngày thiếu nhân sự: {autoPreview.unassignedDays.length}
+                    Ngày thiếu nhân sự: {autoPreview.unassignedDays?.length ?? 0}
                   </p>
                   <p className="text-[11px] text-on-surface-variant">
                     Một số ca chưa được phân bổ đủ. Có thể cần thêm nhân sự hoặc điều chỉnh cấu hình.

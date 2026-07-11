@@ -9,7 +9,10 @@ import com.hospital.scheduler.entity.Schedule;
 import com.hospital.scheduler.entity.ScheduleExchange;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.*;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -24,11 +27,44 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class DashboardService {
 
+    private static final Logger log = LoggerFactory.getLogger(DashboardService.class);
+
     private final StaffRepository staffRepository;
     private final ScheduleRepository scheduleRepository;
     private final SchedulePeriodRepository periodRepository;
     private final LeaveRequestRepository leaveRequestRepository;
     private final ScheduleExchangeRepository exchangeRepository;
+
+    /**
+     * BUG-m4 fix: warm Caffeine cache at startup so the first user-facing
+     * dashboard request doesn't pay the 7.6s cold-start cost (first DB
+     * query + JPA cold JIT + Hibernate session init).
+     *
+     * Runs after Spring finishes wiring so Hibernate is ready; failures are
+     * logged but never propagated — we don't want a slow first dashboard
+     * query to crash the entire application.
+     *
+     * To disable in dev set {@code app.dashboard.warmup-enabled=false}.
+     */
+    @PostConstruct
+    void warmupDashboardCache() {
+        boolean enabled = Boolean.parseBoolean(
+                System.getProperty("app.dashboard.warmup-enabled", "true"));
+        if (!enabled) {
+            log.info("Dashboard cache warmup disabled by app.dashboard.warmup-enabled=false");
+            return;
+        }
+        long t0 = System.currentTimeMillis();
+        try {
+            // Populate the two most common cache keys: null = no period, 0 = all periods.
+            getDashboardSummary(null);
+            getDashboardSummary(0);
+            log.info("Dashboard cache warmed in {}ms", System.currentTimeMillis() - t0);
+        } catch (Exception ex) {
+            log.warn("Dashboard cache warmup failed ({}ms) — first request will be slow",
+                    System.currentTimeMillis() - t0, ex);
+        }
+    }
 
     @Cacheable(value = CacheConfig.DASHBOARD_STATS_CACHE, key = "'summary-' + #periodId")
     public DashboardResponse getDashboardSummary(Integer periodId) {

@@ -2,6 +2,7 @@ package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility;
 import com.hospital.scheduler.entity.LeaveRequest;
+import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
@@ -107,7 +108,7 @@ class CspDataBuilder {
                 ? new HashSet<>(l04AllowedSpecialties)
                 : StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES;
 
-        BitSet[] domains = buildInitialDomains(varCount, varDay, varShift, slotCount, numDays, numStaff,
+        BitSet[] domains = buildInitialDomains(varCount, varDay, varShift, varSpecialty, slotCount, numDays, numStaff,
                 leaveMatrix, holidayDays, staffList, l04Allowed);
         List<Integer>[] constraintGraph = buildConstraintGraph(varDay, varShift, varCount, slotCount, dates);
 
@@ -121,6 +122,11 @@ class CspDataBuilder {
 
         // Gap 3: shift type ids (mirror SHIFT_ORDER by default, override when DB-driven)
         String[] shiftTypeIds = constraints.resolveShiftOrder(activeShiftTypeIds);
+
+        // Performance: pre-index vars by day so propagate() and isConsistent() can do
+        // O(varsOnDay) work instead of O(numVars) — important for 29-day periods where
+        // numVars is in the hundreds of thousands and most slots are off-day.
+        List<Integer>[] varsByDay = buildVarsByDay(varDay, varCount, numDays);
 
         ProblemData data = ProblemData.builder()
                 .numDays(numDays)
@@ -144,6 +150,7 @@ class CspDataBuilder {
                 .adjacentL01Pairs(adjacentPairs)
                 .adjacentL01PairCount(adjacentPairs.length / 2)
                 .shiftTypeIds(shiftTypeIds)
+                .varsByDay(varsByDay)
                 .build();
 
         // Initial AC-3 prunes domains using BR-01, BR-02 and BR-03 arcs
@@ -270,7 +277,7 @@ class CspDataBuilder {
         return staffMaxShifts;
     }
 
-    private BitSet[] buildInitialDomains(int varCount, int[] varDay, int[] varShift, int[][] slotCount,
+    private BitSet[] buildInitialDomains(int varCount, int[] varDay, int[] varShift, int[] varSpecialty, int[][] slotCount,
                                          int numDays, int numStaff, boolean[][] leaveMatrix, boolean[] holidayDays,
                                          List<Staff> staffList, Set<String> l04AllowedSpecialties) {
         // Pre-compute eligibility flags per staff per shift type.
@@ -278,6 +285,7 @@ class CspDataBuilder {
         // IMPORTANT: keep this in sync with {@link StaffShiftTypeEligibility}:
         //   L01/L02/L03 → CORE_ELIGIBLE_SPECIALTIES (default = {Ngoại, Nội})
         //   L04         → l04AllowedSpecialties (default = ALL_ELIGIBLE_SPECIALTIES)
+        //                  AND staff.specialty.id == varSpecialty[v] for L04 vars.
         //
         // Specialty.name values come from the {@code Specialty} entity (seeded
         // as "Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng" in DataSeeder), NOT
@@ -312,9 +320,21 @@ class CspDataBuilder {
             int s = varShift[v];
             if (slotCount[d][s] > 0 && !holidayDays[d]) {
                 boolean[] shiftEligibility = eligibilityMatrix.get(s);
+                // Per-variable specialty filter for L04 vars — the shift-level
+                // eligibility matrix only knows whether staff.specialty.name is
+                // in the L04-allowed set; without this extra check, an L04 Mắt
+                // variable would admit staff from Ngoại / Nội / Sản / Nhi / Răng
+                // too, and the search engine would explore thousands of wrong
+                // assignments before backtracking out (often exceeding the
+                // preview timeout).
+                int requiredSpecialtyId = (varSpecialty != null && s == 3) ? varSpecialty[v] : 0;
                 for (int staffIdx = 0; staffIdx < numStaff; staffIdx++) {
                     if (!leaveMatrix[staffIdx][d]) continue;
                     if (!shiftEligibility[staffIdx]) continue;
+                    if (requiredSpecialtyId != 0) {
+                        Specialty sp = staffList.get(staffIdx).getSpecialty();
+                        if (sp == null || sp.getId() == null || sp.getId() != requiredSpecialtyId) continue;
+                    }
                     domains[v].set(staffIdx);
                 }
             }
@@ -371,6 +391,22 @@ class CspDataBuilder {
         }
 
         return graph;
+    }
+
+    /**
+     * Build a {@code [numDays]} array of {@code List<Integer>} of variable indices
+     * that fall on each day. Used by propagate() and isConsistent() to skip
+     * irrelevant vars instead of iterating every var on the hot path.
+     */
+    @SuppressWarnings("unchecked")
+    private List<Integer>[] buildVarsByDay(int[] varDay, int varCount, int numDays) {
+        List<Integer>[] out = new List[numDays];
+        for (int d = 0; d < numDays; d++) out[d] = new ArrayList<>();
+        for (int v = 0; v < varCount; v++) {
+            int d = varDay[v];
+            if (d >= 0 && d < numDays) out[d].add(v);
+        }
+        return out;
     }
 
     /**

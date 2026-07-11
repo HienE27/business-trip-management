@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 /**
  * E2E tests for the Periods (Kỳ lịch công tác) page.
@@ -11,11 +11,8 @@ import { test, expect } from './fixtures/auth.fixture';
  */
 
 test.describe('Periods Page (M02 — Kỳ lịch công tác)', () => {
-  test.beforeEach(async ({ loginAs }) => {
-    await loginAs();
-  });
-
   test('does not redirect away from /periods', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/periods');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);
@@ -26,6 +23,7 @@ test.describe('Periods Page (M02 — Kỳ lịch công tác)', () => {
   });
 
   test('shows page heading and create button', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/periods');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);
@@ -38,6 +36,7 @@ test.describe('Periods Page (M02 — Kỳ lịch công tác)', () => {
   });
 
   test('sidebar highlights "Kỳ lịch công tác" item', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/periods');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);
@@ -51,6 +50,7 @@ test.describe('Periods Page (M02 — Kỳ lịch công tác)', () => {
   });
 
   test('periods list renders rows from backend', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/periods');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2500);
@@ -68,6 +68,7 @@ test.describe('Periods Page (M02 — Kỳ lịch công tác)', () => {
   });
 
   test('clicking "Tạo kỳ lịch" opens the create modal', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/periods');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);
@@ -85,6 +86,7 @@ test.describe('Periods Page (M02 — Kỳ lịch công tác)', () => {
   });
 
   test('sidebar link to /periods navigates correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/dashboard');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);

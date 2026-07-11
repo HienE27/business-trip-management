@@ -12,17 +12,29 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Login response with JWT token")
+@Schema(description = "Login response with JWT access token + refresh token")
 public class AuthResponse {
 
-    @Schema(description = "JWT access token", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+    @Schema(description = "JWT access token (short-lived, e.g. 15 min)", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
     private String token;
+
+    /**
+     * Long-lived refresh token (default 7 days). Frontend should send this
+     * to {@code POST /api/v1/auth/refresh} when the access token expires.
+     * NEVER store the refresh token in localStorage — use an HttpOnly cookie
+     * or in-memory only.
+     */
+    @Schema(description = "Opaque refresh token (long-lived, e.g. 7 days)")
+    private String refreshToken;
 
     @Schema(description = "Token type", example = "Bearer")
     private String tokenType;
 
-    @Schema(description = "Token expiration in milliseconds", example = "86400000")
+    @Schema(description = "Access token expiration in milliseconds", example = "900000")
     private Long expiresIn;
+
+    @Schema(description = "Refresh token expiration in milliseconds", example = "604800000")
+    private Long refreshExpiresIn;
 
     @Schema(description = "User ID", example = "1")
     private Long userId;

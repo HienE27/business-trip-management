@@ -1,11 +1,8 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 test.describe('Request Pages', () => {
-  test.beforeEach(async ({ loginAs }) => {
-    await loginAs();
-  });
-
   test('swap requests page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/swap-requests');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -14,6 +11,7 @@ test.describe('Request Pages', () => {
   });
 
   test('leave requests page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/leave-requests');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);

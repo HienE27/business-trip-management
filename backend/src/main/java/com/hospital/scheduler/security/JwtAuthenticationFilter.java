@@ -43,6 +43,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // BUG-FIX: refresh tokens must NOT be accepted as access tokens.
+        // They have longer expiry and would otherwise keep an attacker authenticated
+        // indefinitely if leaked — only the short-lived access token is the bearer of
+        // an authentication context. Refresh tokens are exchanged exclusively via
+        // POST /api/v1/auth/refresh.
+        if (!"access".equals(jwtService.extractTokenType(jwt))) {
+            logger.warn("Rejecting non-access token on protected endpoint (tokenType != access)");
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         try {
             final String username = jwtService.extractUsername(jwt);
 

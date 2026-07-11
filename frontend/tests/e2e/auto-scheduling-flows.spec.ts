@@ -31,7 +31,7 @@ test.describe('Auto Scheduling Page — M07-F06 / M07-F09', () => {
         body: JSON.stringify([]),
       });
     });
-    await loginAs();
+    await loginAs(page);
   });
 
   test('page loads without crash', async ({ page }) => {

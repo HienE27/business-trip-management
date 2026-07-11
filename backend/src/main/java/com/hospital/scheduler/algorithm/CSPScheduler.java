@@ -112,6 +112,51 @@ public class CSPScheduler implements SchedulingAlgorithm {
         return !deltaChanges.requiresFullReSolve();
     }
 
+    /**
+     * Preview-only solve with a tighter wall-clock budget.  Uses 8 s instead
+     * of the default 30 s so the preview endpoint returns fast — a partial /
+     * empty plan is acceptable in preview mode, the user just wants a quick
+     * "does this look right" snapshot.
+     *
+     * <p>Production callers (auto-schedule, reschedule, incremental) MUST
+     * keep using {@link #solve} to preserve the full 30 s budget.
+     */
+    public SchedulingResult solveForPreview(
+            List<Staff> staffList,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<ShiftRequirementInfo> requirements,
+            Set<String> existingCompensationDays,
+            List<LeaveRequest> leaveRequests,
+            Set<Integer> excludedStaffIds,
+            List<String> l04AllowedSpecialties) {
+        long startTime = System.currentTimeMillis();
+
+        List<Staff> activeStaff = staffList.stream()
+                .filter(Staff::getIsActive)
+                .toList();
+        if (excludedStaffIds != null && !excludedStaffIds.isEmpty()) {
+            activeStaff = activeStaff.stream()
+                    .filter(s -> !excludedStaffIds.contains(s.getId()))
+                    .toList();
+        }
+        if (activeStaff.isEmpty()) {
+            return SchedulingResult.builder()
+                    .valid(false)
+                    .errors(List.of("Không có nhân sự nào hoạt động"))
+                    .executionTimeMs(System.currentTimeMillis() - startTime)
+                    .build();
+        }
+
+        int numDays = (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        List<LocalDate> dates = new ArrayList<>(numDays);
+        for (int i = 0; i < numDays; i++) dates.add(startDate.plusDays(i));
+
+        ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests, l04AllowedSpecialties);
+        CspSearchEngine.Result solution = searchEngine.solve(data, startTime, 8_000L);
+        return resultBuilder.build(solution, data, activeStaff, dates, startTime);
+    }
+
     @Override
     public SchedulingResult reSolve(
             SchedulingResult previousResult,

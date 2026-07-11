@@ -25,8 +25,9 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final StaffRepository staffRepository;
     private final RateLimitingFilter rateLimitingFilter;
+    private final RefreshTokenService refreshTokenService;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest) {
         Staff staff = staffRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> {
@@ -48,16 +49,45 @@ public class AuthService {
                 .filter(r -> r != null)
                 .collect(Collectors.toList());
 
-        String token = jwtService.generateToken(staff.getUsername(), roles);
+        String accessToken = jwtService.generateToken(staff.getUsername(), roles);
+        RefreshTokenService.IssuedRefreshToken refresh =
+                refreshTokenService.issue(staff, getClientIp(httpRequest));
 
         return AuthResponse.builder()
-                .token(token)
+                .token(accessToken)
+                .refreshToken(refresh.rawToken())
                 .tokenType("Bearer")
                 .expiresIn(jwtService.getExpirationTime())
+                .refreshExpiresIn(jwtService.getRefreshExpirationTime())
                 .userId(Long.valueOf(staff.getId()))
                 .username(staff.getUsername())
                 .roles(roles)
                 .build();
+    }
+
+    @Transactional
+    public AuthResponse refresh(String rawRefreshToken, HttpServletRequest httpRequest) {
+        String clientIp = getClientIp(httpRequest);
+        return refreshTokenService.rotate(rawRefreshToken, clientIp)
+                .map(rt -> AuthResponse.builder()
+                        .token(rt.accessToken())
+                        .refreshToken(rt.refreshToken())
+                        .tokenType("Bearer")
+                        .expiresIn(rt.accessExpiresIn())
+                        .refreshExpiresIn(jwtService.getRefreshExpirationTime())
+                        .username(jwtService.extractUsername(rt.accessToken()))
+                        // Roles re-issued via JwtService.generateToken — re-extract from fresh access
+                        // token to avoid stale privilege escalation.
+                        .roles(jwtService.extractRoles(rt.accessToken()))
+                        .build())
+                .orElseThrow(() -> new BadCredentialsException("Refresh token không hợp lệ hoặc đã hết hạn"));
+    }
+
+    @Transactional
+    public void logout(String rawRefreshToken) {
+        if (rawRefreshToken != null && !rawRefreshToken.isBlank()) {
+            refreshTokenService.revoke(rawRefreshToken);
+        }
     }
 
     private String getClientIp(HttpServletRequest req) {

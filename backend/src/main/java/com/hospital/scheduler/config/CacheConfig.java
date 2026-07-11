@@ -27,10 +27,17 @@ public class CacheConfig {
     }
 
     private Caffeine<Object, Object> caffeineCacheBuilder() {
+        // Bug-m4 mitigation: dashboard queries are heavy (multiple joins,
+        // COUNT/FROM aggregations across schedule + staff + period tables).
+        // - expireAfterWrite 5min: short enough that mutations surface quickly
+        //   once an @CacheEvict is missed (extra safety beyond the existing
+        //   per-service @CacheEvict annotations).
+        // - recordStats: lets Prometheus/micrometer expose hit-rate metrics
+        //   so we can tune if hit-rate is still low under prod load.
         return Caffeine.newBuilder()
                 .initialCapacity(100)
                 .maximumSize(500)
-                .expireAfterWrite(10, TimeUnit.MINUTES)
+                .expireAfterWrite(5, TimeUnit.MINUTES)
                 .recordStats();
     }
 }

@@ -8,6 +8,7 @@ import com.hospital.scheduler.entity.ShiftType;
 import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
+import com.hospital.scheduler.repository.HolidayRepository;
 import com.hospital.scheduler.repository.ShiftRequirementRepository;
 import com.hospital.scheduler.repository.ShiftTypeRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
@@ -39,6 +40,7 @@ public class ShiftRequirementService {
     private final SchedulePeriodRepository periodRepository;
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
+    private final HolidayRepository holidayRepository;
     private final AuditHistoryService auditHistoryService;
     private final AuthContextService authContextService;
 
@@ -71,6 +73,7 @@ public class ShiftRequirementService {
 
         List<ShiftRequirement> saved = new ArrayList<>();
         for (ShiftRequirementRequest req : requests) {
+            validateNotHoliday(req.getWorkDate());
             Specialty specialty = resolveSpecialty(req.getSpecialtyId());
             ShiftType shiftType = shiftTypeRepository.findById(req.getShiftTypeId())
                     .orElseThrow(() -> new ResourceNotFoundException(
@@ -120,6 +123,7 @@ public class ShiftRequirementService {
                         "Không tìm thấy yêu cầu ca với ID: " + id));
         ShiftRequirement before = cloneForAudit(entity);
 
+        validateNotHoliday(req.getWorkDate());
         ShiftType shiftType = shiftTypeRepository.findById(req.getShiftTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy loại ca với ID: " + req.getShiftTypeId()));
@@ -186,6 +190,19 @@ public class ShiftRequirementService {
         return specialtyRepository.findById(specialtyId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy chuyên khoa với ID: " + specialtyId));
+    }
+
+    /**
+     * BUG-m6 fix: reject shift requirements that fall on a configured holiday.
+     * Schedule generation skips holidays anyway, so silently accepting the
+     * requirement creates the illusion of coverage that never materialises.
+     */
+    private void validateNotHoliday(LocalDate workDate) {
+        if (workDate == null) return;
+        if (holidayRepository.existsByHolidayDate(workDate)) {
+            throw new BadRequestException(
+                    "Không thể tạo yêu cầu ca vào ngày lễ: " + workDate);
+        }
     }
 
     private Integer currentActorId() {

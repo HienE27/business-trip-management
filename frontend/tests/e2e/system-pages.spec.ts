@@ -1,11 +1,8 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 test.describe('System Pages', () => {
-  test.beforeEach(async ({ loginAs }) => {
-    await loginAs();
-  });
-
   test('holidays page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/holidays');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -14,6 +11,7 @@ test.describe('System Pages', () => {
   });
 
   test('notifications page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/notifications');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -22,6 +20,7 @@ test.describe('System Pages', () => {
   });
 
   test('audit history page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/audit-history');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -30,6 +29,7 @@ test.describe('System Pages', () => {
   });
 
   test('settings page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/settings');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);

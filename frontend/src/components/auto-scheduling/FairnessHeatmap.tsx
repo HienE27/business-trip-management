@@ -31,17 +31,17 @@ const TYPE_ACCENT: Record<string, string> = {
   L04: "border-l-4 border-l-purple-400",
 };
 
-function getCvColor(cv: number): { bg: string; text: string; border: string } {
-  if (cv <= 0.05) return { bg: "bg-secondary-container", text: "text-on-secondary-container", border: "border-secondary/20" };
-  if (cv <= 0.15) return { bg: "bg-primary-fixed", text: "text-primary", border: "border-primary/20" };
-  if (cv <= 0.30) return { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-300" };
+function getCvColor(coefficientOfVariation: number): { bg: string; text: string; border: string } {
+  if (coefficientOfVariation <= 0.05) return { bg: "bg-secondary-container", text: "text-on-secondary-container", border: "border-secondary/20" };
+  if (coefficientOfVariation <= 0.15) return { bg: "bg-primary-fixed", text: "text-primary", border: "border-primary/20" };
+  if (coefficientOfVariation <= 0.30) return { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-300" };
   return { bg: "bg-error-container", text: "text-on-error-container", border: "border-error/30" };
 }
 
-function getCvLabel(cv: number): string {
-  if (cv <= 0.05) return "Tốt";
-  if (cv <= 0.15) return "Khá";
-  if (cv <= 0.30) return "Trung bình";
+function getCvLabel(coefficientOfVariation: number): string {
+  if (coefficientOfVariation <= 0.05) return "Tốt";
+  if (coefficientOfVariation <= 0.15) return "Khá";
+  if (coefficientOfVariation <= 0.30) return "Trung bình";
   return "Kém";
 }
 
@@ -61,7 +61,7 @@ export const FairnessHeatmap = memo(function FairnessHeatmap({
   }
 
   // Per-staff total counts
-  const staffTotals = Object.entries(totalShiftsByStaff)
+  const staffTotals = Object.entries(totalShiftsByStaff ?? {})
     .sort(([, a], [, b]) => b - a);
 
   const overallCv = 1 - qualityReport.fairnessScore / 100;
@@ -103,10 +103,10 @@ export const FairnessHeatmap = memo(function FairnessHeatmap({
         {(["L01", "L02", "L03", "L04"] as const).map((typeId) => {
           const details = groupedByType[typeId] ?? [];
           const worstDetail = details.reduce<FairnessDetail | null>(
-            (worst, d) => (!worst || d.cv > worst.cv ? d : worst), null
+            (worst, d) => (!worst || d.coefficientOfVariation > worst.coefficientOfVariation ? d : worst), null
           );
           const avgCv = details.length > 0
-            ? details.reduce((s, d) => s + d.cv, 0) / details.length
+            ? details.reduce((s, d) => s + d.coefficientOfVariation, 0) / details.length
             : 0;
           const colors = getCvColor(avgCv);
 
@@ -138,21 +138,21 @@ export const FairnessHeatmap = memo(function FairnessHeatmap({
                   {worstDetail && (
                     <div className="space-y-1">
                       {details.map((d) => {
-                        const dColors = getCvColor(d.cv);
+                        const dColors = getCvColor(d.coefficientOfVariation);
                         return (
-                          <div key={d.shiftTypeId} className="flex items-center justify-between gap-2">
+                          <div key={d.shiftType} className="flex items-center justify-between gap-2">
                             <span className="text-label-xs text-on-surface-variant truncate">
                               {d.specialtyName ? `${d.specialtyName}` : "(tất cả)"}
                             </span>
                             <div className="flex items-center gap-1.5">
                               <div className="w-16 bg-surface-variant/50 rounded-full h-1.5 overflow-hidden">
                                 <div
-                                  className={`h-1.5 rounded-full ${d.cv <= 0.05 ? "bg-secondary" : d.cv <= 0.15 ? "bg-primary" : d.cv <= 0.30 ? "bg-orange-500" : "bg-error"}`}
-                                  style={{ width: `${Math.min(100, d.cv * 300)}%` }}
+                                  className={`h-1.5 rounded-full ${d.coefficientOfVariation <= 0.05 ? "bg-secondary" : d.coefficientOfVariation <= 0.15 ? "bg-primary" : d.coefficientOfVariation <= 0.30 ? "bg-orange-500" : "bg-error"}`}
+                                  style={{ width: `${Math.min(100, d.coefficientOfVariation * 300)}%` }}
                                 />
                               </div>
                               <span className="text-[11px] font-mono tabular-nums text-on-surface-variant w-12 text-right">
-                                {d.minCount}–{d.maxCount}
+                                {d.minShifts}–{d.maxShifts}
                               </span>
                             </div>
                           </div>
@@ -180,9 +180,7 @@ export const FairnessHeatmap = memo(function FairnessHeatmap({
         <div className="space-y-1.5 max-h-64 overflow-y-auto">
           {staffTotals.map(([staffId, total]) => {
             const staff = activeStaff.find((s) => s.id === Number(staffId));
-            const specialtyName = typeof staff?.specialty === "object" && staff?.specialty !== null
-              ? (staff.specialty as { name?: string }).name ?? ""
-              : "";
+            const specialtyName = staff?.specialtyName ?? "";
             const maxTotal = staffTotals[0]?.[1] ?? total;
             const pct = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
             return (

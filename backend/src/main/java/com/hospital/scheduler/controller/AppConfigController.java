@@ -5,6 +5,7 @@ import com.hospital.scheduler.dto.request.EmailConfigDTO;
 import com.hospital.scheduler.service.AppConfigService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,7 +61,7 @@ public class AppConfigController {
     @Operation(summary = "Cập nhật cấu hình email")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<EmailConfigDTO>> updateEmailConfig(
-            @RequestBody EmailConfigDTO config) {
+            @Valid @RequestBody EmailConfigDTO config) {
         log.info("Updating email configuration - enabled: {}, conflictEnabled: {}, from: {}, host: {}, port: {}",
                 config.getEmailEnabled(), config.getConflictEmailEnabled(),
                 config.getFromEmail(), config.getSmtpHost(), config.getSmtpPort());

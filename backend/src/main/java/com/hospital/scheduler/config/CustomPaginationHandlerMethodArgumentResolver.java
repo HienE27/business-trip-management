@@ -6,6 +6,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Component;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.ModelAndViewContainer;
@@ -24,6 +25,7 @@ import jakarta.servlet.http.HttpServletRequest;
  * Registered via {@code WebMvcConfigurer#addArgumentResolvers}, replacing the
  * default {@link PageableHandlerMethodArgumentResolver} for this application.
  */
+@Component
 public class CustomPaginationHandlerMethodArgumentResolver extends PageableHandlerMethodArgumentResolver {
 
     private final PaginationConfig paginationConfig;

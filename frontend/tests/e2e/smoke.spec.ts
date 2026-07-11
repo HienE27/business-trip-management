@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 /**
  * Smoke tests verify that the public surface of the dashboard can
@@ -9,6 +9,7 @@ import { test, expect } from './fixtures/auth.fixture';
 
 test.describe('smoke', () => {
   test('root redirects to a safe page', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/');
     // Wait for navigation away from '/' to complete
     await page.waitForURL('**/(!/**)', { timeout: 10_000 }).catch(() => {});
@@ -18,6 +19,7 @@ test.describe('smoke', () => {
   });
 
   test('dashboard route returns a page with the MedSchedule brand', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/dashboard');
     await page.waitForLoadState('domcontentloaded');
     const html = page.locator('html');

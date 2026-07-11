@@ -61,6 +61,18 @@ public class LeaveRequest {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    /**
+     * BUG-m7 fix: optimistic lock against concurrent state transitions
+     * (two reviewers approving/rejecting the same request at the same time).
+     * Hibernate appends {@code AND version = :oldVersion} to UPDATE statements,
+     * so only the first concurrent update succeeds; the second receives
+     * {@link org.springframework.dao.OptimisticLockingFailureException} which
+     * {@code GlobalExceptionHandler} maps to HTTP 409.
+     */
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     public enum LeaveStatus {
         PENDING, APPROVED, REJECTED, CANCELLED
     }

@@ -29,12 +29,28 @@ import static com.hospital.scheduler.algorithm.CspConstants.conflicts;
 @RequiredArgsConstructor
 class CspSearchEngine {
 
-    private static final long TIMEOUT_MS = 30_000L;
+    private static final long DEFAULT_TIMEOUT_MS = 30_000L;
 
     private final CompensationDateCalculator compensationDateCalculator;
     private final CspNogoodStore nogoodStore;
 
+    /**
+     * Solve with the default 30s timeout (production / auto-schedule path).
+     */
     Result solve(ProblemData data, long startTime) {
+        return solve(data, startTime, DEFAULT_TIMEOUT_MS);
+    }
+
+    /**
+     * Solve with a caller-supplied timeout. Used by the preview path so
+     * that preview responses come back fast (typically &lt; 8s) even when
+     * the full run would have taken the full 30s budget. The preview
+     * contract is "show a feasible plan quickly"; if a tighter timeout
+     * exhausts the search the orchestrator still gets a partial / empty
+     * result and can surface a "preview unavailable" message without
+     * blocking the user for 30s.
+     */
+    Result solve(ProblemData data, long startTime, long timeoutMs) {
         BitSet[] domains = copyDomains(data);
         int[] assignment = new int[data.numVars];
         java.util.Arrays.fill(assignment, -1);
@@ -61,7 +77,7 @@ class CspSearchEngine {
         int[] trailPtr = {0};
 
         boolean found = search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
-                trailVar, trailStaff, trailPtr, data, startTime, weekTracker);
+                trailVar, trailStaff, trailPtr, data, startTime, weekTracker, timeoutMs);
         if (!found) {
             return Result.builder().valid(false).errors(List.of("Không tìm được lịch hợp lệ")).build();
         }
@@ -78,9 +94,10 @@ class CspSearchEngine {
     private boolean search(
             BitSet[] domains, int[] assignment, int[] staffWorkload, int[][] staffShiftWorkload,
             BitSet[] restDays, int[] trailVar, int[] trailStaff, int[] trailPtr,
-            ProblemData data, long startTime, CspConstraints.MinWeekTracker weekTracker) {
+            ProblemData data, long startTime, CspConstraints.MinWeekTracker weekTracker,
+            long timeoutMs) {
 
-        if (System.currentTimeMillis() - startTime > TIMEOUT_MS) return false;
+        if (System.currentTimeMillis() - startTime > timeoutMs) return false;
         if (isGoal(domains, assignment, data)) return true;
 
         int var = selectMRV(domains, assignment, data);
@@ -114,7 +131,7 @@ class CspSearchEngine {
                     trailVar, trailStaff, trailPtr, data)) {
 
                 if (search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
-                        trailVar, trailStaff, trailPtr, data, startTime, weekTracker)) {
+                        trailVar, trailStaff, trailPtr, data, startTime, weekTracker, timeoutMs)) {
                     return true;
                 }
             }
@@ -170,12 +187,12 @@ class CspSearchEngine {
             }
         }
 
-        // 2. BR-03: rest day on compensation day
+        // 2. BR-03: rest day on compensation day — only iterate vars on the
+        // specific comp-day, not the full var set.
         int compDayIdx = getCompensationDayIdx(dayIdx, data);
-        if (compDayIdx >= 0 && compDayIdx < data.numDays) {
-            for (int v = 0; v < data.numVars; v++) {
+        if (compDayIdx >= 0 && compDayIdx < data.numDays && data.varsByDay != null) {
+            for (int v : data.varsByDay[compDayIdx]) {
                 if (v == var || assignment[v] >= 0) continue;
-                if (data.varDay[v] != compDayIdx) continue;
                 if (domains[v].get(staffIdx)) {
                     domains[v].clear(staffIdx);
                     trailVar[trailPtr[0]] = v;
@@ -185,9 +202,15 @@ class CspSearchEngine {
             }
         }
 
-        // 3. Detect failure: any unassigned variable has an empty domain
-        for (int v = 0; v < data.numVars; v++) {
-            if (assignment[v] < 0 && domains[v].isEmpty()) return false;
+        // 3. Detect failure: any unassigned variable we just touched has an
+        // empty domain. We only need to check vars whose domains were modified
+        // during this propagate() — anything else was already verified during
+        // earlier propagate calls or AC-3.
+        for (int i = 0; i < trailPtr[0]; i++) {
+            int v = trailVar[i];
+            if (v >= 0 && v < data.numVars && assignment[v] < 0 && domains[v].isEmpty()) {
+                return false;
+            }
         }
         return true;
     }
@@ -213,10 +236,16 @@ class CspSearchEngine {
             }
         }
 
-        // BR-06: at most one L01 per day
-        if (shiftType.equals(DIRECT_24H)) {
-            for (int v = 0; v < data.numVars; v++) {
-                if (v != var && assignment[v] >= 0 && data.varDay[v] == dayIdx
+        // BR-06: at most one L01 per STAFF per day (slots on the same shift-
+        // type same-day for different staff are allowed when requiredStaffCount > 1).
+        // Earlier revisions of this check forgot the staff equality and
+        // rejected every candidate whenever any L01 var on the same day was
+        // already assigned — making CSP fail as soon as it assigned the very
+        // first L01 slot and silently dropping that requirement. The staff
+        // equality restores the intended semantics.
+        if (shiftType.equals(DIRECT_24H) && data.varsByDay != null) {
+            for (int v : data.varsByDay[dayIdx]) {
+                if (v != var && assignment[v] == staffIdx
                         && SHIFT_ORDER[data.varShift[v]].equals(DIRECT_24H)) {
                     return false;
                 }
