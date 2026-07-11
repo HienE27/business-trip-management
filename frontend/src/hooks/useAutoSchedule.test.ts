@@ -40,8 +40,8 @@ describe("useAutoSchedule — synchronous actions", () => {
 
   it("setAlgorithmType updates the algorithm choice", () => {
     const { result } = renderHook(() => useAutoSchedule());
-    act(() => result.current[1].setAlgorithmType("BACKTRACKING"));
-    expect(result.current[0].algorithmType).toBe("BACKTRACKING");
+    act(() => result.current[1].setAlgorithmType("CSP_MRV_FC"));
+    expect(result.current[0].algorithmType).toBe("CSP_MRV_FC");
     act(() => result.current[1].setAlgorithmType("FAIR_GREEDY"));
     expect(result.current[0].algorithmType).toBe("FAIR_GREEDY");
   });

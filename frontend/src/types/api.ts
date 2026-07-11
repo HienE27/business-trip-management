@@ -327,7 +327,6 @@ export interface ScheduleExchangeCreate {
 export interface AutoScheduleRequest {
   periodId: number;
   algorithmType?: string;
-  maxIterations?: number;
   autoAssign?: boolean;
   excludedStaffIds?: number[];
   holidayMode?: "SKIP" | "PARTIAL";

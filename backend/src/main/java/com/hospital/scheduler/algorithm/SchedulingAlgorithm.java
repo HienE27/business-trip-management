@@ -51,8 +51,7 @@ public interface SchedulingAlgorithm {
      * Overload that lets the caller pass L04 allowed specialties (sourced
      * from {@code AutoGenConfig.l04AllowedSpecialties}). Default impl
      * delegates to the legacy {@link #solve} method (no L04 override) so
-     * existing implementations (e.g. {@code GeneticAlgorithmScheduler})
-     * keep working.
+     * existing implementations keep working.
      *
      * @param l04AllowedSpecialties null/empty → all eligible specialties
      *                              (see {@code StaffShiftTypeEligibility})

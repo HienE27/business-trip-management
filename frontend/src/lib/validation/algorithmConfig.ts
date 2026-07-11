@@ -10,16 +10,6 @@ export type ValidationRule = (value: number | boolean | string) => ValidationRes
 
 // Mapping từ paramKey (snake_case) → validation rule
 export const PARAM_VALIDATIONS: Record<string, ValidationRule> = {
-  max_iterations: (v) => {
-    const num = Number(v);
-    if (num < 500) {
-      return { level: "warning", message: "Số vòng lặp thấp (< 500) có thể cho kết quả chưa tối ưu. Khuyến nghị ≥ 1000." };
-    }
-    if (num > 5000) {
-      return { level: "warning", message: "Số vòng lặp cao (> 5000) sẽ chạy chậm. Đảm bảo time limit đủ lớn." };
-    }
-    return null;
-  },
   weekend_weight: (v) => {
     const num = Number(v);
     if (num < 1.0) {
@@ -60,13 +50,6 @@ export const PARAM_VALIDATIONS: Record<string, ValidationRule> = {
     }
     if (num > 48) {
       return { level: "warning", message: "Nghỉ > 48 giờ có thể giảm hiệu suất xếp lịch." };
-    }
-    return null;
-  },
-  backtrack_time_limit_seconds: (v) => {
-    const num = Number(v);
-    if (num < 30) {
-      return { level: "warning", message: "Time limit < 30s → Backtrack có thể dừng trước khi tìm được lời giải tốt." };
     }
     return null;
   },

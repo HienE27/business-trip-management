@@ -44,33 +44,6 @@ const ICON_BOX_LG = "flex h-10 w-10 shrink-0 items-center justify-center rounded
 
 const PARAM_CATEGORY: readonly ParamCategory[] = [
   {
-    id: "logic",
-    label: "Tham số giải thuật",
-    icon: "memory",
-    tone: "primary",
-    description: "Kiểm soát độ sâu & thời gian tìm kiếm",
-    params: [
-      {
-        key: "max_iterations",
-        icon: "loop",
-        tone: "primary",
-        title: "Vòng lặp tối đa",
-        desc: "Số vòng lặp tối đa Backtracking. Tăng: lời giải tốt hơn nhưng chậm hơn.",
-        range: "100-10,000",
-        defaultValue: "1,000",
-      },
-      {
-        key: "backtrack_time_limit_seconds",
-        icon: "timer",
-        tone: "primary",
-        title: "Giới hạn thời gian",
-        desc: "Giới hạn thời gian Backtracking. Hết thời gian: dừng, trả kết quả tốt nhất.",
-        range: "10-300 giây",
-        defaultValue: "60s",
-      },
-    ],
-  },
-  {
     id: "coverage",
     label: "Ngưỡng chất lượng",
     icon: "target",
@@ -156,15 +129,6 @@ const ALGO_META: Record<string, AlgoMeta> = {
     quality: "good",
     best: "Chia đều tải, nhanh hơn Backtrack",
     detail: "Phân ca theo vòng tròn, đảm bảo mỗi nhân sự có lượng ca tương đương.",
-  },
-  BACKTRACKING: {
-    name: "BACKTRACKING",
-    displayName: "Backtracking",
-    icon: "route",
-    speed: "slow",
-    quality: "optimal",
-    best: "Tìm lời giải tốt nhất, kỳ nhỏ",
-    detail: "Thử tất cả khả năng, quay lui khi gặp ngõ cụt. Tối ưu nhưng chậm với dữ liệu lớn.",
   },
   CSP_MRV_FC: {
     name: "CSP_MRV_FC",

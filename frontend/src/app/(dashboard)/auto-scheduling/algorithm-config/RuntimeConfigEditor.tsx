@@ -105,7 +105,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         const customMatch = Object.keys(customPresets).find(key => {
           const cp = customPresets[key];
           return (
-            form.maxIterations === cp.config.maxIterations &&
             form.weekendWeight === cp.config.weekendWeight &&
             form.greedyCoverageThreshold === cp.config.greedyCoverageThreshold
           );
@@ -565,7 +564,7 @@ function ParamGroupCard({ group, form, editing, onChange }: ParamGroupCardProps)
         <div className="p-5 space-y-5">
           {group.params.map(param => {
             const desc = group.descriptions[param] ?? { label: param, desc: "", hint: "" };
-            const cfgKey = PARAM_KEY_TO_CFG[param] ?? "maxIterations";
+            const cfgKey = PARAM_KEY_TO_CFG[param] ?? "weekendWeight";
             return (
               <ParamField
                 key={param}

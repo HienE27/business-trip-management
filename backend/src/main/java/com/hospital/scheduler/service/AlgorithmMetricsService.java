@@ -157,8 +157,7 @@ public class AlgorithmMetricsService {
         // Both keys are scored so historical metrics under the old name keep showing up.
         scores.put("FAIR_GREEDY", calculatePerformanceScore("FAIR_GREEDY"));
         scores.put("ROUND_ROBIN", calculatePerformanceScore("ROUND_ROBIN"));
-        scores.put("BACKTRACKING", calculatePerformanceScore("BACKTRACKING"));
-        scores.put("GENETIC", calculatePerformanceScore("GENETIC"));
+        scores.put("CSP_MRV_FC", calculatePerformanceScore("CSP_MRV_FC"));
         scores.put("CSP_MRV_FC", calculatePerformanceScore("CSP_MRV_FC"));
 
         return scores.entrySet().stream()

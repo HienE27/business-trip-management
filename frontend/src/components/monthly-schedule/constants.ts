@@ -28,9 +28,7 @@ export const SHIFT_TYPE_LABELS: Record<ScheduleTab, string> = {
 export const ALGORITHM_OPTIONS = [
   { value: "GREEDY", label: "GREEDY — Ưu tiên cân bằng tải" },
   { value: "FAIR_GREEDY", label: "FAIR_GREEDY — Xen kẽ luân phiên" },
-  { value: "BACKTRACKING", label: "BACKTRACKING — Tìm kiếm tối ưu" },
   { value: "CSP_MRV_FC", label: "CSP-MRV-FC — Constraint Satisfaction (khuyến nghị)" },
-  { value: "GENETIC", label: "GENETIC — Thuật toán di truyền" },
 ] as const;
 
 export const WEEKDAYS = ["Chủ Nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];

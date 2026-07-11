@@ -91,15 +91,6 @@ export const PresetSelector = memo(function PresetSelector({
     const p = preset as unknown as { config?: Partial<RuntimeConfig> };
     const presetConfig = p.config || {};
 
-    const currentIterations = Number(current.maxIterations ?? 1000);
-    const presetIterations = Number(presetConfig.maxIterations ?? 1000);
-    if (presetIterations > currentIterations * 2) {
-      warnings.push(`Iterations tăng ${((presetIterations / currentIterations - 1) * 100).toFixed(0)}% - chạy lâu hơn`);
-    }
-    if (presetIterations < currentIterations * 0.5) {
-      warnings.push(`Iterations giảm ${((1 - presetIterations / currentIterations) * 100).toFixed(0)}% - có thể chất lượng thấp hơn`);
-    }
-
     const currentThreshold = Number(current.greedyCoverageThreshold ?? 0.8);
     const presetThreshold = Number(presetConfig.greedyCoverageThreshold ?? 0.8);
     if (presetThreshold < currentThreshold - 0.15) {
@@ -112,7 +103,6 @@ export const PresetSelector = memo(function PresetSelector({
       warnings.push("Balance score thấp hơn - phân bổ có thể không đều");
     }
 
-    if (presetConfig.maxIterations === 0) errors.push("Iterations không được bằng 0");
     if (presetConfig.greedyCoverageThreshold === 0) errors.push("Coverage threshold không được bằng 0");
 
     return { valid: errors.length === 0, warnings, errors };
@@ -193,7 +183,6 @@ export const PresetSelector = memo(function PresetSelector({
     const p = presets[key] as unknown as { config?: Partial<RuntimeConfig> };
     const presetConfig = p?.config || {};
     const params = [
-      { key: "maxIterations", label: "Iterations" },
       { key: "greedyCoverageThreshold", label: "Coverage", format: (v: number) => `${(v * 100).toFixed(0)}%` },
       { key: "balanceScoreMin", label: "Balance", format: (v: number) => `${(v * 100).toFixed(0)}%` },
       { key: "weekendWeight", label: "Weekend", format: (v: number) => v.toFixed(1) },
@@ -669,7 +658,7 @@ function ImportPresetModal({ json, error, onChange, onImport, onClose }: ImportM
           <div className="bg-surface-container-low rounded-lg p-3 text-[11px] text-on-surface-variant">
             <p className="mb-2">Dán JSON từ file export preset hoặc tạo thủ công:</p>
             <code className="block bg-surface-container-lowest p-2 rounded mt-1 text-[10px] overflow-x-auto">
-              {`{"name": "...", "config": {"maxIterations": 2000, ...}}`}
+              {`{"name": "...", "config": {"weekendWeight": 2.5, ...}}`}
             </code>
           </div>
         </div>
@@ -706,7 +695,7 @@ type ComparisonProps = {
 };
 
 function ComparisonOverlay({ presets, compareA, compareB, currentConfig, onChangeA, onChangeB, onApply, onClose }: ComparisonProps) {
-  const params = ["maxIterations", "greedyCoverageThreshold", "balanceScoreMin", "weekendWeight", "backtrackTimeLimitSeconds"] as const;
+  const params = ["greedyCoverageThreshold", "balanceScoreMin", "weekendWeight"] as const;
 
   const builtInPresets = Object.entries(presets)
     .filter(([k]) => !k.startsWith("custom_"))
@@ -917,22 +906,20 @@ function PresetHealthBar({ presetKey, currentConfig }: HealthBarProps) {
 }
 
 function analyzePresetHealth(presetKey: PresetKey, config: RuntimeConfig) {
-  const iterations = Number(config.maxIterations ?? 1000);
   const threshold = Number(config.greedyCoverageThreshold ?? 0.8);
   const balance = Number(config.balanceScoreMin ?? 0.7);
 
-  const presets: Record<string, { iterations: number; threshold: number; balance: number }> = {
-    balanced: { iterations: 2000, threshold: 0.90, balance: 0.75 },
-    fast: { iterations: 500, threshold: 0.75, balance: 0.60 },
-    quality: { iterations: 5000, threshold: 0.95, balance: 0.85 },
-    conservative: { iterations: 1000, threshold: 0.60, balance: 0.50 },
+  const presets: Record<string, { threshold: number; balance: number }> = {
+    balanced: { threshold: 0.90, balance: 0.75 },
+    fast: { threshold: 0.75, balance: 0.60 },
+    quality: { threshold: 0.95, balance: 0.85 },
+    conservative: { threshold: 0.60, balance: 0.50 },
   };
 
   const expected = presets[presetKey];
   if (!expected) return { status: "optimal" as const, message: "" };
 
-  const drift = Math.abs(iterations - expected.iterations) / expected.iterations +
-                Math.abs(threshold - expected.threshold) / expected.threshold +
+  const drift = Math.abs(threshold - expected.threshold) / expected.threshold +
                 Math.abs(balance - expected.balance) / expected.balance;
 
   if (drift > 0.5) {
@@ -972,33 +959,27 @@ function DeleteConfirmDialog({ presetLabel, onConfirm, onCancel }: DeleteDialogP
 
 function formatParamLabel(param: string): string {
   const labels: Record<string, string> = {
-    maxIterations: "Iterations",
     greedyCoverageThreshold: "Coverage",
     balanceScoreMin: "Balance",
     weekendWeight: "Weekend",
-    backtrackTimeLimitSeconds: "Backtrack",
   };
   return labels[param] || param;
 }
 
 function formatParamDesc(param: string): string {
   const descs: Record<string, string> = {
-    maxIterations: "Số lần lặp tối đa",
     greedyCoverageThreshold: "Ngưỡng phủ lịch",
     balanceScoreMin: "Điểm cân bằng tối thiểu",
     weekendWeight: "Trọng số cuối tuần",
-    backtrackTimeLimitSeconds: "Giới hạn backtrack (s)",
   };
   return descs[param] || "";
 }
 
 function getParamMax(param: string): number {
   const maxes: Record<string, number> = {
-    maxIterations: 5000,
     greedyCoverageThreshold: 1,
     balanceScoreMin: 1,
     weekendWeight: 5,
-    backtrackTimeLimitSeconds: 300,
   };
   return maxes[param] || 100;
 }
@@ -1009,9 +990,6 @@ function formatValue(value: number, param: string): string {
   }
   if (param === "weekendWeight") {
     return value.toFixed(1);
-  }
-  if (param === "backtrackTimeLimitSeconds") {
-    return `${value}s`;
   }
   return value.toString();
 }

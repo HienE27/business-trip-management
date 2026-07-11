@@ -11,13 +11,11 @@ export type ConfigEntry = {
 export type EditingConfig = Partial<Pick<ConfigEntry, "paramValue" | "description">>;
 
 export type RuntimeConfig = {
-  maxIterations: number;
   weekendWeight: number;
   overnightRecoveryHours: number;
   greedyCoverageThreshold: number;
   balanceScoreMin: number;
   autoCompensationEnabled: boolean;
-  backtrackTimeLimitSeconds: number;
   minStaffPerShift: number;
   maxStaffPerShift: number;
   minShiftsPerStaff: number;
@@ -81,7 +79,6 @@ export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([
 export const PARAM_KEY_TO_CFG: Record<string, keyof RuntimeConfig> = {
   greedy_coverage_threshold: "greedyCoverageThreshold",
   balance_score_min: "balanceScoreMin",
-  backtrack_time_limit_seconds: "backtrackTimeLimitSeconds",
   weekend_weight: "weekendWeight",
   overnight_recovery_hours: "overnightRecoveryHours",
   min_staff_per_shift: "minStaffPerShift",
@@ -89,7 +86,6 @@ export const PARAM_KEY_TO_CFG: Record<string, keyof RuntimeConfig> = {
   min_shifts_per_staff: "minShiftsPerStaff",
   max_shifts_per_staff: "maxShiftsPerStaff",
   holiday_mode: "holidayMode",
-  max_iterations: "maxIterations",
 };
 
 export const LEGACY_AUTO_GEN_KEYS = new Set<string>([

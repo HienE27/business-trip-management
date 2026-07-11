@@ -880,50 +880,40 @@ class ApiClient {
 
   // Runtime Config (all algorithm parameters in one call)
   async getRuntimeConfig(): Promise<ApiResponse<{
-    maxIterations: number;
     weekendWeight: number;
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
     autoCompensationEnabled: boolean;
-    backtrackTimeLimitSeconds: number;
   }>> {
     return this.request<{
-      maxIterations: number;
       weekendWeight: number;
       overnightRecoveryHours: number;
       greedyCoverageThreshold: number;
       balanceScoreMin: number;
       autoCompensationEnabled: boolean;
-      backtrackTimeLimitSeconds: number;
     }>("/auto-schedule/runtime-config");
   }
 
   async updateRuntimeConfig(data: {
-    maxIterations: number;
     weekendWeight: number;
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
     autoCompensationEnabled: boolean;
-    backtrackTimeLimitSeconds: number;
   }): Promise<ApiResponse<{
-    maxIterations: number;
     weekendWeight: number;
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
     autoCompensationEnabled: boolean;
-    backtrackTimeLimitSeconds: number;
   }>> {
     return this.request<{
-      maxIterations: number;
       weekendWeight: number;
       overnightRecoveryHours: number;
       greedyCoverageThreshold: number;
       balanceScoreMin: number;
       autoCompensationEnabled: boolean;
-      backtrackTimeLimitSeconds: number;
     }>("/auto-schedule/runtime-config", {
       method: "PUT",
       body: JSON.stringify(data),

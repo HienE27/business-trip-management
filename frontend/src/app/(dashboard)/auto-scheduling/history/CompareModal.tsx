@@ -16,8 +16,7 @@ interface CompareModalProps {
 const ALGO_LABELS: Record<string, string> = {
   GREEDY: "Tham lam",
   FAIR_GREEDY: "Luân phiên",
-  BACKTRACKING: "Backtracking",
-  GENETIC: "Di truyền",
+  CSP_MRV_FC: "CSP-MRV-FC",
 };
 
 function formatDateTime(dt?: string) {

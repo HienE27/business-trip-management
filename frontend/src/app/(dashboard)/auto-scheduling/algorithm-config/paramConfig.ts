@@ -72,20 +72,6 @@ export const PARAM_GROUPS: readonly ParamGroup[] = [
     },
   },
   {
-    id: "limits",
-    label: "Giới hạn thuật toán",
-    icon: "memory",
-    color: "text-indigo-600",
-    bg: "bg-indigo-50",
-    progressColor: "bg-indigo-500",
-    accent: "border-l-4 border-l-indigo-500",
-    params: ["max_iterations", "backtrack_time_limit_seconds"],
-    descriptions: {
-      max_iterations: { label: "max_iterations", desc: "Số vòng lặp tối đa Backtracking. Tăng → lời giải tốt hơn nhưng chậm hơn.", hint: "100–10000 · Mặc định: 1000" },
-      backtrack_time_limit_seconds: { label: "time_limit", desc: "Giới hạn thời gian Backtracking (giây). Hết thời gian → dừng và trả kết quả tốt nhất.", hint: "10–300 · Mặc định: 60s" },
-    },
-  },
-  {
     id: "recovery",
     label: "Nghỉ ngơi",
     icon: "hotel",
@@ -170,10 +156,9 @@ const PERCENT_PARAMS = new Set(["greedy_coverage_threshold", "balance_score_min"
 export function getParamBounds(param: string): { min: number; max: number; step: number } {
   if (param === "greedy_coverage_threshold" || param === "balance_score_min") return { min: 0.3, max: 1, step: 0.05 };
   if (param === "weekend_weight") return { min: 1, max: 5, step: 0.05 };
-  if (param === "max_iterations" || param === "min_staff_per_shift") return { min: 0, max: 10, step: 1 };
+  if (param === "min_staff_per_shift") return { min: 0, max: 10, step: 1 };
   if (param === "max_staff_per_shift" || param === "max_shifts_per_staff") return { min: 0, max: 100, step: 1 };
   if (param === "min_shifts_per_staff") return { min: 0, max: 50, step: 1 };
-  if (param === "backtrack_time_limit_seconds") return { min: 10, max: 300, step: 1 };
   if (param === "overnight_recovery_hours") return { min: 12, max: 72, step: 1 };
   return { min: 0, max: 100, step: 1 };
 }
@@ -181,7 +166,6 @@ export function getParamBounds(param: string): { min: number; max: number; step:
 export function formatParamDisplay(param: string, numVal: number): string {
   if (PERCENT_PARAMS.has(param)) return `${Math.round(numVal * 100)}%`;
   if (param === "weekend_weight") return `${numVal.toFixed(1)}×`;
-  if (param === "backtrack_time_limit_seconds") return `${numVal}s`;
   if (param === "overnight_recovery_hours") return `${numVal}h`;
   if (numVal === 0) return "Tắt";
   return numVal.toLocaleString();
