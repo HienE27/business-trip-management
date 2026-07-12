@@ -62,8 +62,7 @@ export function StaffExclusionTable({
     onExclusionsChange(next);
   };
 
-  const filteredStaff = useMemo(() => {
-    return staff.filter((s) => {
+  const filteredStaff = staff.filter((s) => {
       if (filterRole !== "ALL") {
         if (!s.roles?.includes(filterRole)) return false;
       }
@@ -77,7 +76,6 @@ export function StaffExclusionTable({
       }
       return true;
     });
-  }, [staff, excludedIds, search, filterRole, showOnlyExcluded]);
 
   const excludedCount = excludedIds.length;
   const includedCount = staff.length - excludedCount;

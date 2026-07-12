@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { PresetKey } from "@/components/algorithm-config/PresetSelector";
+import type { PresetKey, RuntimeConfig as PresetRuntimeConfig } from "@/components/algorithm-config/PresetSelector";
 import { PresetSelector } from "@/components/algorithm-config/PresetSelector";
 import { PresetSandboxModal, type PresetEntry } from "@/components/algorithm-config/PresetSandboxModal";
 import { Button } from "@/components/ui";
@@ -27,7 +27,8 @@ import { L04SpecialtyConfig } from "./L04CrossSpecialtyCard";
 import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
-import { AutoCalculateDialog, type AutoCalculateResult } from "./AutoCalculateDialog";
+import { AutoCalculateDialog, type AutoCalculateResult, type AutoCalculateInput } from "./AutoCalculateDialog";
+import type { DashboardData, DashboardSummary, ShiftStatistics } from "@/types/api";
 
 type Props = { onSaved?: () => void };
 
@@ -39,26 +40,51 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<RuntimeConfig | null>(null);
   const [activePreset, setActivePreset] = useState<PresetKey | null>(null);
+  const [customPresets, setCustomPresets] = useState<Record<string, { label: string; tagline: string; config: Partial<RuntimeConfig> }>>({});
   const [showDiff, setShowDiff] = useState(false);
   const [sandboxOpen, setSandboxOpen] = useState(false);
   const [autoCalcOpen, setAutoCalcOpen] = useState(false);
+  const [savedCalcPresets, setSavedCalcPresets] = useState<{ id: string; name: string; config: AutoCalculateInput }[]>([]);
   const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
+  const [scheduleStats, setScheduleStats] = useState<{
+    totalStaff: number;
+    avgShiftsPerStaff: number;
+    coverageDays: number;
+    periodDays: number;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, resAutoGen, specialtiesRes] = await Promise.all([
+      const [res, resAutoGen, specialtiesRes, dashboardRes] = await Promise.all([
         api.getRuntimeConfig(),
         api.getAutoGenConfig(),
         api.getActiveSpecialties(),
+        api.getDashboard(),
       ]);
       const data = (res as unknown as { data: RuntimeConfig }).data;
       const autoGen = (resAutoGen as unknown as { data: RuntimeConfig }).data;
       const specialties = ((specialtiesRes as unknown as { data: { id: number; name: string }[] }).data ?? []).map(s => s.name);
+      const dashboard = dashboardRes as unknown as { data: DashboardData };
+      const summary = dashboard.data?.summary;
+      const shiftStats = dashboard.data?.shiftStatistics as ShiftStatistics | undefined;
+
       setAllSpecialties(specialties);
       const merged = mergeRuntimeAndAutoGen(data, autoGen);
       setConfig(merged);
       setForm(merged);
+
+      // Calculate schedule stats for suggestion algorithm
+      if (summary && shiftStats) {
+        const totalShifts = shiftStats.L01Count + shiftStats.L02Count + shiftStats.L03Count + shiftStats.L04Count;
+        const avgShifts = summary.totalStaff > 0 ? totalShifts / summary.totalStaff : 0;
+        setScheduleStats({
+          totalStaff: summary.totalStaff,
+          avgShiftsPerStaff: Math.round(avgShifts * 10) / 10,
+          coverageDays: Math.round(avgShifts * 4), // rough estimate
+          periodDays: 30,
+        });
+      }
     } catch {
       error("Không thể tải cấu hình runtime");
     } finally {
@@ -70,12 +96,71 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
 
   // Re-detect preset khi form thay đổi
   useEffect(() => {
-    if (form) setActivePreset(detectPreset(form));
-  }, [form]);
+    if (form) {
+      const detected = detectPreset(form);
+      if (detected) {
+        setActivePreset(detected);
+      } else {
+        // Check custom presets too
+        const customMatch = Object.keys(customPresets).find(key => {
+          const cp = customPresets[key];
+          return (
+            form.weekendWeight === cp.config.weekendWeight &&
+            form.greedyCoverageThreshold === cp.config.greedyCoverageThreshold
+          );
+        });
+        setActivePreset((customMatch as PresetKey | undefined) || null);
+      }
+    }
+  }, [form, customPresets]);
 
-  function applyPreset(key: PresetKey) {
-    const preset = ALGORITHM_PRESETS[key];
-    setForm(prev => prev ? { ...prev, ...preset.config } : prev);
+  // Keyboard shortcuts: Ctrl+S = save, Ctrl+Z = reset, Escape = cancel edit
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore if typing in input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        return;
+      }
+
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === "s") {
+          e.preventDefault();
+          if (editing && form) {
+            void handleSave();
+          }
+        } else if (e.key === "z" && !e.shiftKey) {
+          e.preventDefault();
+          if (editing) {
+            handleReset();
+          }
+        } else if (e.key === "e") {
+          e.preventDefault();
+          if (!editing) {
+            setEditing(true);
+          }
+        }
+      } else if (e.key === "Escape" && editing) {
+        e.preventDefault();
+        handleReset();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [editing, form]);
+
+  function applyPreset(key: PresetKey, presetConfig?: Partial<RuntimeConfig>) {
+    const preset = key.startsWith("custom_")
+      ? customPresets[key]
+      : ALGORITHM_PRESETS[key];
+
+    if (!preset) return;
+
+    const newConfig = 'config' in preset ? preset.config : {};
+    const configToApply = presetConfig ?? newConfig;
+
+    setForm(prev => prev ? { ...prev, ...configToApply } : prev);
     setActivePreset(key);
     setEditing(true);
   }
@@ -113,11 +198,13 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         removedShiftTypes: form.removedShiftTypes ?? [],
         l04CrossSpecialty: form.l04CrossSpecialty ?? false,
         l04CrossSpecialtyRatio: form.l04CrossSpecialtyRatio ?? 0.3,
+        l04BalanceStrategy: form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
       };
-      await Promise.all([
-        api.updateRuntimeConfig(form),
-        api.updateAutoGenConfig(autoGenPayload),
-      ]);
+      // Sequential: save runtime-config then auto-gen-config to avoid
+      // concurrent lock contention on the algorithm_config table.
+      // If the first call fails, do not attempt the second.
+      await api.updateRuntimeConfig(form);
+      await api.updateAutoGenConfig(autoGenPayload);
       setConfig(form);
       setEditing(false);
       success("Đã lưu cấu hình thuật toán");
@@ -139,6 +226,52 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     success("Đã áp dụng giá trị tự động tính. Nhấn 'Lưu thay đổi' để lưu vào DB.");
   }
 
+  function handleSaveCustomPreset(key: PresetKey, name: string, config: Partial<RuntimeConfig>) {
+    setCustomPresets(prev => ({
+      ...prev,
+      [key]: { label: name, tagline: "Preset tùy chỉnh", config },
+    }));
+    success(`Đã tạo preset "${name}"`);
+  }
+
+  function handleDeleteCustomPreset(key: PresetKey) {
+    const name = customPresets[key]?.label || "Preset";
+    setCustomPresets(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    if (activePreset === key) {
+      setActivePreset(null);
+    }
+    success(`Đã xóa preset "${name}"`);
+  }
+
+  // Copy current config to clipboard
+  function handleCopyConfig() {
+    const json = JSON.stringify(form, null, 2);
+    void navigator.clipboard.writeText(json).then(() => {
+      success("Đã copy cấu hình vào clipboard");
+    }).catch(() => {
+      error("Không thể copy clipboard");
+    });
+  }
+
+  // Paste config from clipboard
+  async function handlePasteConfig() {
+    try {
+      const text = await navigator.clipboard.readText();
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === "object") {
+        setForm(prev => prev ? { ...prev, ...parsed } : prev);
+        setEditing(true);
+        success("Đã paste cấu hình từ clipboard");
+      }
+    } catch {
+      error("Không thể paste: clipboard rỗng hoặc định dạng không hợp lệ");
+    }
+  }
+
   if (loading) return <EditorSkeleton />;
   if (!config || !form) return null;
 
@@ -147,6 +280,32 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
 
   return (
     <div className="space-y-5">
+      {/* Keyboard shortcuts hint */}
+      <div className="flex items-center justify-end gap-4 text-[11px] text-on-surface-variant">
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Ctrl</kbd>
+          <span>+</span>
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">E</kbd>
+          <span>Sửa</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Ctrl</kbd>
+          <span>+</span>
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">S</kbd>
+          <span>Lưu</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Ctrl</kbd>
+          <span>+</span>
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Z</kbd>
+          <span>Hoàn tác</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Esc</kbd>
+          <span>Hủy</span>
+        </span>
+      </div>
+
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-5">
         <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
           <div className="flex items-center gap-2 flex-wrap">
@@ -183,13 +342,35 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {/* Quick actions */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopyConfig}
+              icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">content_copy</span>}
+              className="text-[11px]"
+              title="Copy cấu hình"
+            >
+              Copy
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handlePasteConfig}
+              icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">content_paste</span>}
+              className="text-[11px]"
+              title="Paste cấu hình"
+            >
+              Paste
+            </Button>
+            <div className="w-px h-6 bg-outline-variant mx-1" />
             {editing ? (
               <>
                 <Button variant="secondary" size="sm" onClick={handleReset}>Hủy bỏ</Button>
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={handleSave}
+                  onClick={() => void handleSave()}
                   disabled={saving}
                   loading={saving}
                   icon={!saving ? <span className="material-symbols-outlined text-[16px]" aria-hidden="true">save</span> : undefined}
@@ -209,7 +390,15 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             )}
           </div>
         </div>
-        <PresetSelector presets={ALGORITHM_PRESETS} activePreset={activePreset} onApply={applyPreset} />
+        <PresetSelector
+          presets={{ ...ALGORITHM_PRESETS, ...customPresets }}
+          activePreset={activePreset}
+          currentConfig={form}
+          onApply={applyPreset}
+          onSaveCustomPreset={handleSaveCustomPreset}
+          onDeleteCustomPreset={handleDeleteCustomPreset}
+          scheduleStats={scheduleStats || undefined}
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -229,8 +418,9 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           allowedSpecialties={form.l04AllowedSpecialties ?? []}
           allSpecialties={allSpecialties}
           editing={editing}
-          onChange={(enabled, ratio, allowedSpecialties) => {
-            setForm(prev => prev ? { ...prev, l04CrossSpecialty: enabled, l04CrossSpecialtyRatio: ratio, l04AllowedSpecialties: allowedSpecialties } : prev);
+          balanceStrategy={form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE"}
+          onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
+            setForm(prev => prev ? { ...prev, l04CrossSpecialty: enabled, l04CrossSpecialtyRatio: ratio, l04AllowedSpecialties: allowedSpecialties, l04BalanceStrategy: balanceStrategy } : prev);
           }}
         />
       </div>
@@ -285,12 +475,36 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         open={autoCalcOpen}
         onClose={() => setAutoCalcOpen(false)}
         onApply={handleAutoCalculate}
+        onSavePreset={(name, config) => {
+          const id = `preset-${Date.now()}`;
+          setSavedCalcPresets(prev => [...prev, { id, name, config }]);
+          success(`Đã lưu preset "${name}"`);
+        }}
+        savedPresets={savedCalcPresets}
         initialValues={{
           periodDays: 30,
           periodWeeks: 4,
           targetsPerStaffPerMonth: { L01: 7, L02: 8, L03: 9, L04: 16 },
           eligibleStaff: { L01: 8, L02: 8, L03: 8, L04: 20 },
         }}
+        currentConfig={form ? {
+          l01MinPerDay: Number(form.l01MinPerDay ?? 1),
+          l01MaxPerDay: Number(form.l01MaxPerDay ?? 3),
+          l01MinPerWeek: Number(form.l01MinPerWeek ?? 2),
+          l01MaxPerWeek: Number(form.l01MaxPerWeek ?? 3),
+          l02MinPerDay: Number(form.l02MinPerDay ?? 1),
+          l02MaxPerDay: Number(form.l02MaxPerDay ?? 3),
+          l02MinPerWeek: Number(form.l02MinPerWeek ?? 2),
+          l02MaxPerWeek: Number(form.l02MaxPerWeek ?? 3),
+          l03MinPerDay: Number(form.l03MinPerDay ?? 1),
+          l03MaxPerDay: Number(form.l03MaxPerDay ?? 3),
+          l03MinPerWeek: Number(form.l03MinPerWeek ?? 2),
+          l03MaxPerWeek: Number(form.l03MaxPerWeek ?? 3),
+          l04MinPerDay: Number(form.l04MinPerDay ?? 1),
+          l04MaxPerDay: Number(form.l04MaxPerDay ?? 10),
+          l04MinPerWeek: Number(form.l04MinPerWeek ?? 4),
+          l04MaxPerWeek: Number(form.l04MaxPerWeek ?? 6),
+        } : null}
       />
     </div>
   );
@@ -312,7 +526,7 @@ function EditorSkeleton() {
   );
 }
 
-/* ─── Param Group Card ─────────────────────────────────────── */
+/* ─── Param Group Card (Collapsible) ─────────────────────────── */
 
 type ParamGroupCardProps = {
   group: typeof PARAM_GROUPS[number];
@@ -322,31 +536,49 @@ type ParamGroupCardProps = {
 };
 
 function ParamGroupCard({ group, form, editing, onChange }: ParamGroupCardProps) {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
     <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden hover:shadow-sm transition-shadow duration-200 ${group.accent}`}>
-      <div className="px-5 py-4 bg-surface-container-low flex items-center gap-3">
-        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${group.bg} ${group.color}`}>
-          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{group.icon}</span>
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        className="w-full px-5 py-4 bg-surface-container-low flex items-center justify-between gap-3 hover:bg-surface-container transition-colors"
+        aria-expanded={!collapsed}
+      >
+        <div className="flex items-center gap-3">
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${group.bg} ${group.color}`}>
+            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{group.icon}</span>
+          </div>
+          <p className="text-label-md font-semibold text-on-surface tracking-tight">{group.label}</p>
+          <span className="text-[11px] text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">
+            {group.params.length} thông số
+          </span>
         </div>
-        <p className="text-label-md font-semibold text-on-surface tracking-tight">{group.label}</p>
-      </div>
-      <div className="p-5 space-y-5">
-        {group.params.map(param => {
-          const desc = group.descriptions[param] ?? { label: param, desc: "", hint: "" };
-          const cfgKey = PARAM_KEY_TO_CFG[param] ?? "maxIterations";
-          return (
-            <ParamField
-              key={param}
-              param={param}
-              desc={desc}
-              cfgKey={cfgKey}
-              groupId={group.id}
-              form={form}
-              editing={editing}
-              onChange={onChange}
-            />
-          );
-        })}
+        <span className={`material-symbols-outlined text-[20px] text-on-surface-variant transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`} aria-hidden="true">
+          expand_more
+        </span>
+      </button>
+
+      <div className={`overflow-hidden transition-all duration-300 ${collapsed ? "max-h-0" : "max-h-[1000px]"}`}>
+        <div className="p-5 space-y-5">
+          {group.params.map(param => {
+            const desc = group.descriptions[param] ?? { label: param, desc: "", hint: "" };
+            const cfgKey = PARAM_KEY_TO_CFG[param] ?? "weekendWeight";
+            return (
+              <ParamField
+                key={param}
+                param={param}
+                desc={desc}
+                cfgKey={cfgKey}
+                groupId={group.id}
+                form={form}
+                editing={editing}
+                onChange={onChange}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -363,6 +595,101 @@ type ParamFieldProps = {
 };
 
 const TRACKING_ONLY_PARAMS = new Set(["min_staff_per_shift", "min_shifts_per_staff", "overnight_recovery_hours"]);
+
+// Number spinner input với +/- buttons cho nhập liệu nhanh
+function NumberSpinner({ value, min, max, step, onChange, disabled }: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
+  // Local state để cho phép empty input
+  const [localVal, setLocalVal] = useState(value.toString());
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Sync khi value thay đổi từ bên ngoài (vd: preset applied)
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalVal(value.toString());
+    }
+  }, [value, isFocused]);
+
+  function handleDecrement() {
+    const newVal = Math.max(min, value - step);
+    const result = step < 1 ? Math.round(newVal * 100) / 100 : newVal;
+    onChange(result);
+    setLocalVal(result.toString());
+  }
+
+  function handleIncrement() {
+    const newVal = Math.min(max, value + step);
+    const result = step < 1 ? Math.round(newVal * 100) / 100 : newVal;
+    onChange(result);
+    setLocalVal(result.toString());
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setLocalVal(raw);
+  }
+
+  function handleBlur() {
+    setIsFocused(false);
+    // Parse and validate on blur
+    const raw = localVal.trim();
+    if (raw === "") {
+      // Empty = 0
+      setLocalVal("0");
+      onChange(0);
+    } else {
+      const parsed = step < 1 ? parseFloat(raw) || 0 : parseInt(raw) || 0;
+      const clamped = Math.max(min, Math.min(max, parsed));
+      setLocalVal(clamped.toString());
+      onChange(clamped);
+    }
+  }
+
+  function handleFocus() {
+    setIsFocused(true);
+  }
+
+  return (
+    <div className={`flex items-center gap-1 ${disabled ? "opacity-50" : ""}`}>
+      <button
+        type="button"
+        onClick={handleDecrement}
+        disabled={disabled || value <= min}
+        className="flex items-center justify-center h-8 w-7 rounded-lg border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        title="Giảm"
+      >
+        <span className="material-symbols-outlined text-[14px]" aria-hidden="true">remove</span>
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        disabled={disabled}
+        className="h-8 w-16 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:cursor-not-allowed"
+        value={localVal}
+        onChange={handleInputChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        placeholder="—"
+      />
+      <button
+        type="button"
+        onClick={handleIncrement}
+        disabled={disabled || value >= max}
+        className="flex items-center justify-center h-8 w-7 rounded-lg border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        title="Tăng"
+      >
+        <span className="material-symbols-outlined text-[14px]" aria-hidden="true">add</span>
+      </button>
+    </div>
+  );
+}
 
 function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: ParamFieldProps) {
   if (param === "holiday_mode") {
@@ -395,56 +722,48 @@ function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: P
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3 mb-2">
+      <div className="flex items-center justify-between gap-3 mb-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <code className="font-mono text-[12px] font-semibold text-primary bg-primary-fixed/50 px-1.5 py-0.5 rounded">{desc.label}</code>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <code className="font-mono text-[11px] font-semibold text-primary bg-primary-fixed/50 px-1.5 py-0.5 rounded">{desc.label}</code>
             {isTrackingOnly && (
-              <span className="inline-flex items-center rounded-full border border-outline-variant bg-surface-container-low px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+              <span className="inline-flex items-center rounded-full border border-outline-variant bg-surface-container-low px-1.5 py-0.5 text-[9px] font-semibold text-on-surface-variant">
                 Theo dõi
               </span>
             )}
-            <span className="material-symbols-outlined text-[14px] text-on-surface-variant/60 hover:text-primary transition-colors cursor-help" aria-hidden="true">info</span>
           </div>
-          <p className="text-[12px] text-on-surface-variant mt-1 leading-relaxed">{desc.desc}</p>
-          <p className="text-[11px] text-outline mt-0.5">{desc.hint}</p>
+          <p className="text-[11px] text-on-surface-variant leading-tight">{desc.desc}</p>
         </div>
         {editing ? (
-          <input
-            type="number"
-            step={step}
+          <NumberSpinner
+            value={numVal}
             min={min}
             max={max}
-            className="h-9 w-24 rounded-xl border border-outline-variant bg-surface-container-low px-2.5 text-label-sm font-mono text-on-surface text-right tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-            value={numVal}
-            onChange={(e) => {
-              const raw = e.target.value;
-              const parsed = step < 1 ? parseFloat(raw) || 0 : parseInt(raw) || 0;
-              onChange(cfgKey, parsed as never);
-            }}
+            step={step}
+            onChange={(v) => onChange(cfgKey, v as never)}
           />
         ) : (
-          <span className="font-mono text-xl font-bold text-on-surface shrink-0 tabular-nums">{display}</span>
+          <span className="font-mono text-lg font-bold text-on-surface shrink-0 tabular-nums tabular-nums">{display}</span>
         )}
       </div>
       {validation && (
         <div
-          className={`flex items-start gap-1.5 mt-1.5 px-2 py-1.5 rounded-md border text-[11px] leading-tight ${
+          className={`flex items-start gap-1.5 mb-1.5 px-2 py-1 rounded-md border text-[10px] leading-tight ${
             validation.level === "error"
               ? "bg-error-container/30 text-error border-error/40"
               : "bg-tertiary-container/30 text-tertiary border-tertiary/40"
           }`}
           role={validation.level === "error" ? "alert" : "status"}
         >
-          <span className="material-symbols-outlined text-[12px] shrink-0 mt-0.5" aria-hidden="true">
+          <span className="material-symbols-outlined text-[11px] shrink-0 mt-0.5" aria-hidden="true">
             {validation.level === "error" ? "error" : "warning"}
           </span>
           <span>{validation.message}</span>
         </div>
       )}
-      <div className="w-full bg-surface-variant rounded-full h-2 overflow-hidden mt-2">
+      <div className="w-full bg-surface-variant rounded-full h-1.5 overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${getParamProgressColor(groupId)}`}
+          className={`h-full rounded-full transition-all duration-300 ${getParamProgressColor(groupId)}`}
           style={{ width: `${pct}%` }}
         />
       </div>

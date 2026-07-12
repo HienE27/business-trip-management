@@ -6,14 +6,14 @@ import { test, expect } from './fixtures/auth.fixture';
 
 test.describe('Settings Pages', () => {
   test('settings page loads correctly', async ({ page, loginAs }) => {
-    if (!await loginAs()) { test.skip(); }
+    if (!await loginAs(page)) { test.skip(); }
     await page.goto('/settings');
     await page.waitForLoadState('domcontentloaded');
     expect(page.url()).toContain('/settings');
   });
 
   test('settings page shows role/permission card', async ({ page, loginAs }) => {
-    if (!await loginAs()) { test.skip(); }
+    if (!await loginAs(page)) { test.skip(); }
     await page.goto('/settings');
     await page.waitForLoadState('domcontentloaded');
     const permCard = page.getByText('Phân quyền hệ thống').first();
@@ -21,7 +21,7 @@ test.describe('Settings Pages', () => {
   });
 
   test('role permission page loads (admin only)', async ({ page, loginAs }) => {
-    if (!await loginAs()) { test.skip(); }
+    if (!await loginAs(page)) { test.skip(); }
     await page.goto('/settings/roles');
     await page.waitForLoadState('domcontentloaded');
     expect(page.url()).toContain('/settings/roles');
@@ -30,7 +30,7 @@ test.describe('Settings Pages', () => {
   });
 
   test('role permission page accessible only to admin', async ({ page, loginAs }) => {
-    if (!await loginAs()) { test.skip(); }
+    if (!await loginAs(page)) { test.skip(); }
     await page.goto('/settings/roles');
     await page.waitForLoadState('domcontentloaded');
     const pageLoaded = page.locator('body');

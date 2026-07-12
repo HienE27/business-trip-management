@@ -213,3 +213,168 @@ frontend/playwright-report/
 /screenshots/
 backend_err.txt
 backend_out.txt
+audit/ 
+*.py 
+*.txt 
+*.md 
+backend/backend_run.out
+backend/src/main/java/com/hospital/scheduler/report/
+
+# ============================================
+# Cleanup 2026-07-10: dev/debug artifacts
+# ============================================
+
+# JSON debug dumps (API responses, eligibility dumps, etc.)
+apply_body.json
+apply_body_clean.json
+apply_full_body.json
+auto_progress_v2.json
+auto_resp_*.json
+backend/auto_v7_after_fix.json
+current_period2.json
+eligibility_dump.json
+preview_schedules.json
+specialties_dump.json
+staff_dump.json
+staff_v2.json
+staff_v3.json
+workload_v2.json
+config_v15.json
+
+# Backend/frontend error logs
+backend/backend-actual.err
+backend/backend_test.err
+
+# Manual SQL probe scripts (one-off DB inspection)
+check_*.sql
+seed_*.sql
+seed_more_periods.sql
+cleanup_test_staff.sql
+query.sql
+list_periods.sql
+create_period_3.sql
+update_specialties.sql
+
+# Visual probe / smoke artifacts
+reports_period2.png
+frontend/smoke-test-result.json
+frontend/browser-smoke-test.js
+frontend/public/probe.html
+
+# Dev run helper scripts (local only)
+full_test.bat
+start_backend.bat
+reset_notes.txt
+git_status.txt
+test_summary.txt
+check_charset.py
+check_config.py
+check_hex.py
+check_period.py
+check_state2.sql
+run_preview.py
+update_remaining_staff.py
+
+# ============================================
+# Cleanup 2026-07-12: extended dev artifacts
+# ============================================
+
+# Root-level JSON dumps (not covered by the patterns above)
+auto_req*.json
+auto_resp_FINAL.json
+auto_resp_TUNED.json
+auto_resp_*.json
+auto_v*.json
+config_final.json
+config_v*.json
+apply_body.json
+apply_body_clean.json
+apply_full_body.json
+admin_check.sql
+backend/preview_p5.json
+backend/login.json
+backend/auto_v7_after_fix.json
+workload_v2.json
+eligibility_dump.json
+current_period2.json
+specialties_dump.json
+staff_dump.json
+staff_v2.json
+staff_v3.json
+staff_test.json
+preview_schedules.json
+recommend_req.json
+login.json
+login_body.json
+login_resp.json
+periods.json
+health.json
+test-manual.json
+cookies.txt
+COMMIT_MSG.txt
+reports_period2.png
+
+# Root-level debug Python / batch / shell helpers
+full_test.bat
+start_backend.bat
+check_charset.py
+check_config.py
+check_hex.py
+check_period.py
+fix_charset.py
+run_preview.py
+update_remaining_staff.py
+test_preview_speed.py
+
+# Root-level log dumps captured during dev (backend/frontend)
+backend_err_new.log
+backend_new.log
+backend-new.log
+backend-new-err.log
+backend_start.log
+backend-actual.log
+backend-actual.err
+backend-test-latest.log
+backend/backend.err.log
+backend/backend.log
+backend/backend_debug.log
+backend/backend_dev.log
+backend/backend_err.log
+backend/backend_err_new.log
+backend/backend_err_new2.log
+backend/backend_err3.log
+backend/backend_new.log
+backend/backend_new2.log
+backend/backend_run.err
+backend/backend_run.log
+backend/backend_test.err
+backend/backend_test.log
+backend/backend_test3.log
+backend/backend-actual.err
+backend/backend-actual.log
+backend/backend-test-latest.log
+backend/jar_work/
+backend/start_argfile.log
+backend/start_jar.log
+backend/start_v2.log
+backend/start_v3.log
+backend/start_v6.log
+
+# Spring Boot extracted jar artifact (auto-created by boot-run)
+META-INF/
+
+# Frontend dev/probe/test logs (Vitest, ESLint, tsc, dev server)
+frontend/.test-output*.log
+frontend/dev.log
+frontend/lint.log
+frontend/typecheck*.log
+frontend/frontend-actual.log
+frontend/frontend_dev.log
+frontend/frontend_dev2.log
+frontend/frontend_dev_err.log
+frontend/frontend_dev2_err.log
+frontend/frontend_run.log
+frontend/frontend_run.err
+frontend/smoke-test-result.json
+frontend/puppeteer-test-report.json
+frontend/puppeteer-quickadd-report.json

@@ -47,3 +47,7 @@ next-env.d.ts
 /screenshots/
 /test-outputs/
 /verify-*.js
+/test-apply-flow.js
+/test-auto-flow.js
+/test_browser.js
+/browser-smoke-test.js

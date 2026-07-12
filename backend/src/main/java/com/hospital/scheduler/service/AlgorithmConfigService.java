@@ -60,13 +60,11 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_L03_ALLOWED_SPECIALTIES = "auto_gen_l03_allowed_specialties";
 
     // Algorithm runtime config param keys
-    public static final String MAX_ITERATIONS = "max_iterations";
     public static final String WEEKEND_WEIGHT = "weekend_weight";
     public static final String OVERNIGHT_RECOVERY_HOURS = "overnight_recovery_hours";
     public static final String GREEDY_COVERAGE_THRESHOLD = "greedy_coverage_threshold";
     public static final String BALANCE_SCORE_MIN = "balance_score_min";
     public static final String AUTO_COMPENSATION_ENABLED = "auto_compensation_enabled";
-    public static final String BACKTRACK_TIME_LIMIT_SECONDS = "backtrack_time_limit_seconds";
     public static final String MIN_STAFF_PER_SHIFT = "min_staff_per_shift";
     public static final String MAX_STAFF_PER_SHIFT = "max_staff_per_shift";
     public static final String MIN_SHIFTS_PER_STAFF = "min_shifts_per_staff";
@@ -237,39 +235,42 @@ public class AlgorithmConfigService {
      * Returns Optional.empty() if auto-gen is disabled.
      */
     public java.util.Optional<AutoGenConfig> getAutoGenConfig() {
-        var enabledOpt = configRepository.findByParamKey(AUTO_GEN_ENABLED);
-        boolean enabled = enabledOpt.isPresent()
-                ? Boolean.parseBoolean(enabledOpt.get().getParamValue())
-                : true;  // Default to true so auto-scheduling works out-of-the-box
+        // Bulk-load once, then read every key from the in-memory map — replaces
+        // the 25 separate findByParamKey SELECTs that were making the
+        // algorithm-config page take 5+ seconds to load.
+        java.util.Map<String, String> cache = loadConfigCache();
+        String enabledRaw = cache.get(AUTO_GEN_ENABLED);
+        // Default to true so auto-scheduling works out-of-the-box.
+        boolean enabled = enabledRaw == null || Boolean.parseBoolean(enabledRaw);
         // Always return a config with defaults — even if AUTO_GEN_ENABLED is missing from DB,
         // fall back to defaults so auto-scheduling works out-of-the-box without manual config setup.
         return java.util.Optional.of(new AutoGenConfig(
                 enabled,
-                getIntValue(AUTO_GEN_L01_MIN_PER_DAY, 1),
-                getIntValue(AUTO_GEN_L02_MIN_PER_DAY, 1),
-                getIntValue(AUTO_GEN_L03_MIN_PER_DAY, 1),
-                getIntValue(AUTO_GEN_L04_MIN_PER_DAY, 1),
-                getIntValue(AUTO_GEN_L01_MAX_PER_DAY, 0),
-                getIntValue(AUTO_GEN_L02_MAX_PER_DAY, 0),
-                getIntValue(AUTO_GEN_L03_MAX_PER_DAY, 0),
-                getIntValue(AUTO_GEN_L04_MAX_PER_DAY, 0),
-                getIntValue(AUTO_GEN_L01_MIN_PER_WEEK, 1),
-                getIntValue(AUTO_GEN_L02_MIN_PER_WEEK, 2),
-                getIntValue(AUTO_GEN_L03_MIN_PER_WEEK, 1),
-                getIntValue(AUTO_GEN_L04_MIN_PER_WEEK, 1),
-                getIntValue(AUTO_GEN_L01_MAX_PER_WEEK, 0),
-                getIntValue(AUTO_GEN_L02_MAX_PER_WEEK, 0),
-                getIntValue(AUTO_GEN_L03_MAX_PER_WEEK, 0),
-                getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0),
-                getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"),
-                getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES"),
-                getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false),
-                getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.3f),
-                getStringListValue("AUTO_GEN_L04_ALLOWED_SPECIALTIES"), // null/empty = all specialties
+                getIntValue(AUTO_GEN_L01_MIN_PER_DAY, 1, cache),
+                getIntValue(AUTO_GEN_L02_MIN_PER_DAY, 1, cache),
+                getIntValue(AUTO_GEN_L03_MIN_PER_DAY, 1, cache),
+                getIntValue(AUTO_GEN_L04_MIN_PER_DAY, 1, cache),
+                getIntValue(AUTO_GEN_L01_MAX_PER_DAY, 0, cache),
+                getIntValue(AUTO_GEN_L02_MAX_PER_DAY, 0, cache),
+                getIntValue(AUTO_GEN_L03_MAX_PER_DAY, 0, cache),
+                getIntValue(AUTO_GEN_L04_MAX_PER_DAY, 0, cache),
+                getIntValue(AUTO_GEN_L01_MIN_PER_WEEK, 1, cache),
+                getIntValue(AUTO_GEN_L02_MIN_PER_WEEK, 2, cache),
+                getIntValue(AUTO_GEN_L03_MIN_PER_WEEK, 1, cache),
+                getIntValue(AUTO_GEN_L04_MIN_PER_WEEK, 1, cache),
+                getIntValue(AUTO_GEN_L01_MAX_PER_WEEK, 0, cache),
+                getIntValue(AUTO_GEN_L02_MAX_PER_WEEK, 0, cache),
+                getIntValue(AUTO_GEN_L03_MAX_PER_WEEK, 0, cache),
+                getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0, cache),
+                getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP", cache),
+                getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES", cache),
+                getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false, cache),
+                getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.3f, cache),
+                getStringListValue("AUTO_GEN_L04_ALLOWED_SPECIALTIES", cache), // null/empty = all specialties
                 // L01/L02/L03: null/empty → fallback to CORE_ELIGIBLE_SPECIALTIES (Ngoại, Nội) trong StaffShiftTypeEligibility
-                getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES),
-                getStringListValue(AUTO_GEN_L02_ALLOWED_SPECIALTIES),
-                getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES)
+                getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES, cache),
+                getStringListValue(AUTO_GEN_L02_ALLOWED_SPECIALTIES, cache),
+                getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES, cache)
         ));
     }
 
@@ -386,9 +387,6 @@ public class AlgorithmConfigService {
         upsert(AUTO_GEN_HOLIDAY_MODE, getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"), AlgorithmConfig.ValueType.STRING,
                 "Xử lý khi gặp ngày lễ: SKIP = bỏ qua ngày lễ (không xếp lịch), PARTIAL = vẫn xếp lịch nhưng giảm cường độ.");
         map.put(AUTO_GEN_HOLIDAY_MODE, "OK");
-        upsert(MAX_ITERATIONS, getStringValue(MAX_ITERATIONS, "1000"), AlgorithmConfig.ValueType.NUMBER,
-                "Số vòng lặp tối đa cho thuật toán backtracking. Tăng lên nếu thuật toán chưa hết thời gian mà vẫn chưa tìm được lời giải tốt; giảm xuống nếu chạy quá lâu.");
-        map.put(MAX_ITERATIONS, "OK");
         upsert(WEEKEND_WEIGHT, getStringValue(WEEKEND_WEIGHT, "2"), AlgorithmConfig.ValueType.NUMBER,
                 "Hệ số phạt khi xếp lịch cho người vào thứ 7 / chủ nhật. Giá trị càng cao → thuật toán càng tránh xếp ca cuối tuần. Đặt 1 để tắt ưu tiên.");
         map.put(WEEKEND_WEIGHT, "OK");
@@ -404,9 +402,6 @@ public class AlgorithmConfigService {
         upsert(AUTO_COMPENSATION_ENABLED, getStringValue(AUTO_COMPENSATION_ENABLED, "true"), AlgorithmConfig.ValueType.BOOLEAN,
                 "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
         map.put(AUTO_COMPENSATION_ENABLED, "OK");
-        upsert(BACKTRACK_TIME_LIMIT_SECONDS, getStringValue(BACKTRACK_TIME_LIMIT_SECONDS, "60"), AlgorithmConfig.ValueType.NUMBER,
-                "Thời gian tối đa cho phép thuật toán backtracking chạy (giây). Hết thời gian → dừng và trả kết quả tốt nhất đã tìm được.");
-        map.put(BACKTRACK_TIME_LIMIT_SECONDS, "OK");
         upsert(MIN_STAFF_PER_SHIFT, getStringValue(MIN_STAFF_PER_SHIFT, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng theo dõi số nhân sự tối thiểu mỗi ca; dùng cho đánh giá/chất lượng, không ép thuật toán phá ràng buộc cứng.");
         map.put(MIN_STAFF_PER_SHIFT, "OK");
@@ -432,32 +427,70 @@ public class AlgorithmConfigService {
     }
 
     private int getIntValue(String paramKey, int defaultValue) {
-        return configRepository.findByParamKey(paramKey)
-                .map(c -> {
-                    try {
-                        return Integer.parseInt(c.getParamValue());
-                    } catch (NumberFormatException e) {
-                        return defaultValue;
-                    }
-                })
-                .orElse(defaultValue);
+        return getIntValue(paramKey, defaultValue, null);
+    }
+
+    /**
+     * Lookup variant. When {@code cache} is non-null, the param value is read
+     * from the preloaded key/value map (the result of a single bulk SELECT)
+     * instead of issuing a separate SELECT for this key — this is the
+     * fix for the N+1 query pattern that was making the algorithm-config
+     * page render take 5+ seconds.
+     */
+    private int getIntValue(String paramKey, int defaultValue, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        if (raw == null) return defaultValue;
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     private String getStringValue(String paramKey, String defaultValue) {
-        return configRepository.findByParamKey(paramKey)
-                .map(AlgorithmConfig::getParamValue)
-                .orElse(defaultValue);
+        return getStringValue(paramKey, defaultValue, null);
+    }
+
+    private String getStringValue(String paramKey, String defaultValue, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        return raw != null ? raw : defaultValue;
     }
 
     private java.util.List<String> getStringListValue(String paramKey) {
+        return getStringListValue(paramKey, null);
+    }
+
+    private java.util.List<String> getStringListValue(String paramKey, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        if (raw == null || raw.isBlank()) return java.util.List.of();
+        return java.util.Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(t -> !t.isEmpty())
+                .toList();
+    }
+
+    /**
+     * Single-row SELECT kept around for callers that do NOT preload the cache
+     * (e.g. one-off lookups during save/upsert, audit queries).
+     */
+    private String lookupRaw(String paramKey) {
         return configRepository.findByParamKey(paramKey)
                 .map(AlgorithmConfig::getParamValue)
-                .filter(s -> !s.isBlank())
-                .map(s -> java.util.Arrays.stream(s.split(","))
-                        .map(String::trim)
-                        .filter(t -> !t.isEmpty())
-                        .toList())
-                .orElse(java.util.List.of());
+                .orElse(null);
+    }
+
+    /**
+     * Load every config row once and return it as a key/value map.
+     * Used by bulk-read entry points (getAutoGenConfig, getRuntimeConfig)
+     * to eliminate the N+1 query pattern that caused the algorithm-config
+     * page to take 5+ seconds to load.
+     */
+    private java.util.Map<String, String> loadConfigCache() {
+        java.util.Map<String, String> cache = new java.util.HashMap<>();
+        for (com.hospital.scheduler.repository.AlgorithmConfigKeyValue kv : configRepository.findAllAsKeyValuePairs()) {
+            cache.put(kv.getParamKey(), kv.getParamValue());
+        }
+        return cache;
     }
 
     /**
@@ -465,20 +498,22 @@ public class AlgorithmConfigService {
      * Returns an object with all runtime parameters or defaults if not set.
      */
     public AlgorithmRuntimeConfig getRuntimeConfig() {
-        // Load AutoGenConfig to get per-type weekly max values
+        // Load AutoGenConfig to get per-type weekly max values. Both
+        // getAutoGenConfig() and the lookup calls below share the same bulk
+        // SELECT internally — total cost is 1 row-fetch per call instead of
+        // 30+ SELECTs.
         var autoGenConfig = getAutoGenConfig();
+        java.util.Map<String, String> cache = loadConfigCache();
         return AlgorithmRuntimeConfig.builder()
-                .maxIterations(getIntValue(MAX_ITERATIONS, 1000))
-                .weekendWeight(getBigDecimalValue(WEEKEND_WEIGHT, 2.0))
-                .overnightRecoveryHours(getIntValue(OVERNIGHT_RECOVERY_HOURS, 24))
-                .greedyCoverageThreshold(getBigDecimalValue(GREEDY_COVERAGE_THRESHOLD, 0.85))
-                .balanceScoreMin(getBigDecimalValue(BALANCE_SCORE_MIN, 0.70))
-                .autoCompensationEnabled(getBooleanValue(AUTO_COMPENSATION_ENABLED, true))
-                .backtrackTimeLimitSeconds(getIntValue(BACKTRACK_TIME_LIMIT_SECONDS, 60))
-                .minStaffPerShift(getIntValue(MIN_STAFF_PER_SHIFT, 1))
-                .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0))
-                .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0))
-                .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 0))
+                .weekendWeight(getBigDecimalValue(WEEKEND_WEIGHT, 2.0, cache))
+                .overnightRecoveryHours(getIntValue(OVERNIGHT_RECOVERY_HOURS, 24, cache))
+                .greedyCoverageThreshold(getBigDecimalValue(GREEDY_COVERAGE_THRESHOLD, 0.85, cache))
+                .balanceScoreMin(getBigDecimalValue(BALANCE_SCORE_MIN, 0.70, cache))
+                .autoCompensationEnabled(getBooleanValue(AUTO_COMPENSATION_ENABLED, true, cache))
+                .minStaffPerShift(getIntValue(MIN_STAFF_PER_SHIFT, 1, cache))
+                .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0, cache))
+                .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0, cache))
+                .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 0, cache))
                 // Per-type weekly max from AutoGenConfig
                 .l01MaxPerWeek(autoGenConfig.map(AutoGenConfig::l01MaxPerWeek).orElse(0))
                 .l02MaxPerWeek(autoGenConfig.map(AutoGenConfig::l02MaxPerWeek).orElse(0))
@@ -492,8 +527,6 @@ public class AlgorithmConfigService {
      */
     @Transactional
     public void saveRuntimeConfig(AlgorithmRuntimeConfig config) {
-        upsert(MAX_ITERATIONS, String.valueOf(config.getMaxIterations()), AlgorithmConfig.ValueType.NUMBER,
-                "Số vòng lặp tối đa cho thuật toán backtracking. Tăng lên nếu thuật toán chưa hết thời gian mà vẫn chưa tìm được lời giải tốt; giảm xuống nếu chạy quá lâu.");
         upsert(WEEKEND_WEIGHT, String.valueOf(config.getWeekendWeight()), AlgorithmConfig.ValueType.NUMBER,
                 "Hệ số phạt khi xếp lịch cho người vào thứ 7 / chủ nhật. Giá trị càng cao → thuật toán càng tránh xếp ca cuối tuần. Đặt 1 để tắt ưu tiên.");
         upsert(OVERNIGHT_RECOVERY_HOURS, String.valueOf(config.getOvernightRecoveryHours()), AlgorithmConfig.ValueType.NUMBER,
@@ -504,8 +537,6 @@ public class AlgorithmConfigService {
                 "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
         upsert(AUTO_COMPENSATION_ENABLED, String.valueOf(config.isAutoCompensationEnabled()), AlgorithmConfig.ValueType.BOOLEAN,
                 "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
-        upsert(BACKTRACK_TIME_LIMIT_SECONDS, String.valueOf(config.getBacktrackTimeLimitSeconds()), AlgorithmConfig.ValueType.NUMBER,
-                "Thời gian tối đa cho phép thuật toán backtracking chạy (giây). Hết thời gian → dừng và trả kết quả tốt nhất đã tìm được.");
         upsert(MIN_STAFF_PER_SHIFT, String.valueOf(config.getMinStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối thiểu mỗi ca. Đặt 0 để bỏ qua giới hạn này. Nếu không đủ nhân sự đạt ngưỡng, thuật toán sẽ cảnh báo nhưng vẫn xếp.");
         upsert(MAX_STAFF_PER_SHIFT, String.valueOf(config.getMaxStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
@@ -517,33 +548,40 @@ public class AlgorithmConfigService {
     }
 
     private boolean getBooleanValue(String paramKey, boolean defaultValue) {
-        return configRepository.findByParamKey(paramKey)
-                .map(c -> Boolean.parseBoolean(c.getParamValue()))
-                .orElse(defaultValue);
+        return getBooleanValue(paramKey, defaultValue, null);
+    }
+
+    private boolean getBooleanValue(String paramKey, boolean defaultValue, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        return raw != null && Boolean.parseBoolean(raw);
     }
 
     private float getFloatValue(String paramKey, float defaultValue) {
-        return configRepository.findByParamKey(paramKey)
-                .map(c -> {
-                    try {
-                        return Float.parseFloat(c.getParamValue());
-                    } catch (NumberFormatException e) {
-                        return defaultValue;
-                    }
-                })
-                .orElse(defaultValue);
+        return getFloatValue(paramKey, defaultValue, null);
+    }
+
+    private float getFloatValue(String paramKey, float defaultValue, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        if (raw == null) return defaultValue;
+        try {
+            return Float.parseFloat(raw);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     private java.math.BigDecimal getBigDecimalValue(String paramKey, double defaultValue) {
-        return configRepository.findByParamKey(paramKey)
-                .map(c -> {
-                    try {
-                        return new java.math.BigDecimal(c.getParamValue());
-                    } catch (NumberFormatException e) {
-                        return java.math.BigDecimal.valueOf(defaultValue);
-                    }
-                })
-                .orElse(java.math.BigDecimal.valueOf(defaultValue));
+        return getBigDecimalValue(paramKey, defaultValue, null);
+    }
+
+    private java.math.BigDecimal getBigDecimalValue(String paramKey, double defaultValue, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        if (raw == null) return java.math.BigDecimal.valueOf(defaultValue);
+        try {
+            return new java.math.BigDecimal(raw);
+        } catch (NumberFormatException e) {
+            return java.math.BigDecimal.valueOf(defaultValue);
+        }
     }
 
     /**
@@ -676,13 +714,11 @@ public class AlgorithmConfigService {
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     public static class AlgorithmRuntimeConfig {
-        private int maxIterations;
         private java.math.BigDecimal weekendWeight;
         private int overnightRecoveryHours;
         private java.math.BigDecimal greedyCoverageThreshold;
         private java.math.BigDecimal balanceScoreMin;
         private boolean autoCompensationEnabled;
-        private int backtrackTimeLimitSeconds;
         private int minStaffPerShift;
         private int maxStaffPerShift;
         private int minShiftsPerStaff;

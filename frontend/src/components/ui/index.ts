@@ -33,6 +33,7 @@ export { FormSelect } from "./FormSelect";
 export { FormTextarea } from "./FormTextarea";
 export { FormCheckbox } from "./FormCheckbox";
 export { Button, IconButton } from "./Button";
+export { Badge } from "./Badge";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { TypedConfirmDialog } from "./TypedConfirmDialog";
 export { Pagination } from "./Pagination";

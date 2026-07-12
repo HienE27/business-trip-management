@@ -27,6 +27,13 @@ public class JwtService {
     @Value("${jwt.expiration}")
     private long jwtExpiration;
 
+    /**
+     * Refresh-token expiry in milliseconds (defaults to 7 days).
+     * Configured by {@code jwt.refresh-expiration} so ops can shorten it in prod.
+     */
+    @Value("${jwt.refresh-expiration:604800000}")
+    private long refreshExpiration;
+
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
@@ -39,7 +46,20 @@ public class JwtService {
     public String generateToken(String username, List<String> roles) {
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("roles", roles);
+        extraClaims.put("tokenType", "access");
         return generateToken(extraClaims, username);
+    }
+
+    /**
+     * Issue a refresh token — same signing key but longer expiry and
+     * {@code tokenType=refresh} claim so we can distinguish the two later
+     * in {@code JwtAuthenticationFilter}.
+     */
+    public String generateRefreshToken(String username, List<String> roles) {
+        Map<String, Object> extraClaims = new HashMap<>();
+        extraClaims.put("roles", roles);
+        extraClaims.put("tokenType", "refresh");
+        return buildToken(extraClaims, username, refreshExpiration);
     }
 
     public String generateToken(Map<String, Object> extraClaims, String username) {
@@ -48,6 +68,10 @@ public class JwtService {
 
     public long getExpirationTime() {
         return jwtExpiration;
+    }
+
+    public long getRefreshExpirationTime() {
+        return refreshExpiration;
     }
 
     private String buildToken(Map<String, Object> extraClaims, String username, long expiration) {
@@ -99,5 +123,17 @@ public class JwtService {
     public List<String> extractRoles(String token) {
         Claims claims = extractAllClaims(token);
         return claims.get("roles", List.class);
+    }
+
+    /**
+     * Returns the {@code tokenType} claim — either {@code "access"} or
+     * {@code "refresh"}. Access tokens have this claim set to {@code "access"}
+     * (set in {@link #generateToken}); refresh tokens have {@code "refresh"}.
+     * Tokens issued before this field was added default to {@code "access"}.
+     */
+    public String extractTokenType(String token) {
+        Claims claims = extractAllClaims(token);
+        Object v = claims.get("tokenType");
+        return v != null ? v.toString() : "access";
     }
 }

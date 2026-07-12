@@ -64,6 +64,20 @@ public class CSPScheduler implements SchedulingAlgorithm {
             Set<String> existingCompensationDays,
             List<LeaveRequest> leaveRequests,
             Set<Integer> excludedStaffIds) {
+        return solve(staffList, startDate, endDate, requirements,
+                existingCompensationDays, leaveRequests, excludedStaffIds, null);
+    }
+
+    @Override
+    public SchedulingResult solve(
+            List<Staff> staffList,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<ShiftRequirementInfo> requirements,
+            Set<String> existingCompensationDays,
+            List<LeaveRequest> leaveRequests,
+            Set<Integer> excludedStaffIds,
+            List<String> l04AllowedSpecialties) {
 
         long startTime = System.currentTimeMillis();
 
@@ -87,7 +101,7 @@ public class CSPScheduler implements SchedulingAlgorithm {
         List<LocalDate> dates = new ArrayList<>(numDays);
         for (int i = 0; i < numDays; i++) dates.add(startDate.plusDays(i));
 
-        ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests);
+        ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests, l04AllowedSpecialties);
         CspSearchEngine.Result solution = searchEngine.solve(data, startTime);
         return resultBuilder.build(solution, data, activeStaff, dates, startTime);
     }
@@ -98,6 +112,56 @@ public class CSPScheduler implements SchedulingAlgorithm {
         return !deltaChanges.requiresFullReSolve();
     }
 
+    /**
+     * Preview-only solve with a wall-clock budget tuned for the 23-staff
+     * Period 5 (Sept 2026) workload: ~25% L04 specialty variables dominate
+     * the search space, so 8s was too tight and surfaced 0 schedules even
+     * though a feasible plan exists. Bumped to 30s to match the production
+     * path so the user sees the same coverage as the auto-schedule endpoint.
+     * Production callers (auto-schedule, reschedule, incremental) MUST keep
+     * using {@link #solve} to preserve the original timeout semantics.
+     */
+    public SchedulingResult solveForPreview(
+            List<Staff> staffList,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<ShiftRequirementInfo> requirements,
+            Set<String> existingCompensationDays,
+            List<LeaveRequest> leaveRequests,
+            Set<Integer> excludedStaffIds,
+            List<String> l04AllowedSpecialties) {
+        long startTime = System.currentTimeMillis();
+
+        List<Staff> activeStaff = staffList.stream()
+                .filter(Staff::getIsActive)
+                .toList();
+        if (excludedStaffIds != null && !excludedStaffIds.isEmpty()) {
+            activeStaff = activeStaff.stream()
+                    .filter(s -> !excludedStaffIds.contains(s.getId()))
+                    .toList();
+        }
+        if (activeStaff.isEmpty()) {
+            return SchedulingResult.builder()
+                    .valid(false)
+                    .errors(List.of("Không có nhân sự nào hoạt động"))
+                    .executionTimeMs(System.currentTimeMillis() - startTime)
+                    .build();
+        }
+
+        int numDays = (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        List<LocalDate> dates = new ArrayList<>(numDays);
+        for (int i = 0; i < numDays; i++) dates.add(startDate.plusDays(i));
+
+        ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests, l04AllowedSpecialties);
+        // The preview path used to cap at 8s but Period 5 (23 staff, 6
+        // specialties, ~899 required slots) needs more time to make a
+        // meaningful first plan before falling back to Greedy. Bumped to
+        // 45s — empirically enough to commit several hundred slots across
+        // L01-L04 without forcing the user to wait for a 60s+ cold path.
+        CspSearchEngine.Result solution = searchEngine.solve(data, startTime, 45_000L);
+        return resultBuilder.build(solution, data, activeStaff, dates, startTime);
+    }
+
     @Override
     public SchedulingResult reSolve(
             SchedulingResult previousResult,
@@ -106,5 +170,21 @@ public class CSPScheduler implements SchedulingAlgorithm {
             List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
         return incrementalResolver.reSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests);
+    }
+
+    /**
+     * Overload that threads L04 allowed specialties into the incremental
+     * fallback full re-solve (so the eligibility used during a rebuild
+     * matches what was used during the original batch solve).
+     */
+    public SchedulingResult reSolve(
+            SchedulingResult previousResult,
+            ScheduleChange deltaChanges,
+            List<Staff> staffList,
+            List<ShiftRequirementInfo> requirements,
+            List<LeaveRequest> leaveRequests,
+            List<String> l04AllowedSpecialties) {
+        return incrementalResolver.reSolve(previousResult, deltaChanges, staffList, requirements,
+                leaveRequests, l04AllowedSpecialties);
     }
 }

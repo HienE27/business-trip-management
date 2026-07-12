@@ -28,12 +28,10 @@ const VALUE_TYPES = [
 
 const PRESET_PARAMS = [
   { label: "Chọn thông số...", value: "" },
-  { label: "max_iterations — Số vòng lặp tối đa", value: "max_iterations" },
   { label: "weekend_weight — Hệ số nhân cuối tuần", value: "weekend_weight" },
   { label: "greedy_coverage_threshold — Ngưỡng phủ lịch (Greedy)", value: "greedy_coverage_threshold" },
   { label: "balance_score_min — Ngưỡng cân bằng tải", value: "balance_score_min" },
   { label: "overnight_recovery_hours — Giờ nghỉ giữa các ca", value: "overnight_recovery_hours" },
-  { label: "backtrack_time_limit_seconds — Giới hạn thời gian Backtrack", value: "backtrack_time_limit_seconds" },
   { label: "staff_preference_weight — Trọng số ưu tiên nhân sự", value: "staff_preference_weight" },
   { label: "specialty_match_weight — Trọng số chuyên khoa", value: "specialty_match_weight" },
   { label: "min_staff_per_shift — Tối thiểu nhân sự/ca", value: "min_staff_per_shift" },
@@ -43,12 +41,10 @@ const PRESET_PARAMS = [
 ];
 
 const PRESET_VALUES: Record<string, { value: string; type: FormState["valueType"]; description: string }> = {
-  max_iterations: { value: "1000", type: "NUMBER", description: "Số vòng lặp tối đa của thuật toán Backtracking" },
   weekend_weight: { value: "2.0", type: "NUMBER", description: "Hệ số nhân penalty cuối tuần (T7/CN)" },
   greedy_coverage_threshold: { value: "0.85", type: "NUMBER", description: "Ngưỡng phủ lịch để Greedy dừng sớm" },
   balance_score_min: { value: "0.70", type: "NUMBER", description: "Ngưỡng cân bằng tải tối thiểu" },
   overnight_recovery_hours: { value: "24", type: "NUMBER", description: "Số giờ nghỉ bắt buộc giữa hai ca trực 24/24" },
-  backtrack_time_limit_seconds: { value: "60", type: "NUMBER", description: "Giới hạn thời gian chạy Backtracking (giây)" },
   staff_preference_weight: { value: "1.5", type: "NUMBER", description: "Trọng số cho sở thích ca trực của nhân sự" },
   specialty_match_weight: { value: "2.0", type: "NUMBER", description: "Trọng số cho việc khớp chuyên khoa" },
   min_staff_per_shift: { value: "1", type: "NUMBER", description: "Số nhân sự tối thiểu cần thiết mỗi ca" },

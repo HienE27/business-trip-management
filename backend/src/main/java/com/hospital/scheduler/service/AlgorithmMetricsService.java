@@ -153,9 +153,12 @@ public class AlgorithmMetricsService {
     public String getBestAlgorithm() {
         Map<String, Double> scores = new LinkedHashMap<>();
         scores.put("GREEDY", calculatePerformanceScore("GREEDY"));
+        // FAIR_GREEDY is the renamed Round-Robin alias (lazy greedy with fair-share rotation).
+        // Both keys are scored so historical metrics under the old name keep showing up.
+        scores.put("FAIR_GREEDY", calculatePerformanceScore("FAIR_GREEDY"));
         scores.put("ROUND_ROBIN", calculatePerformanceScore("ROUND_ROBIN"));
-        scores.put("BACKTRACKING", calculatePerformanceScore("BACKTRACKING"));
-        scores.put("GENETIC", calculatePerformanceScore("GENETIC"));
+        scores.put("CSP_MRV_FC", calculatePerformanceScore("CSP_MRV_FC"));
+        scores.put("CSP_MRV_FC", calculatePerformanceScore("CSP_MRV_FC"));
 
         return scores.entrySet().stream()
                 .max(Map.Entry.comparingByValue())

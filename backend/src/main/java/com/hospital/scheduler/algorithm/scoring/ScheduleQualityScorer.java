@@ -1,5 +1,6 @@
 package com.hospital.scheduler.algorithm.scoring;
 
+import com.hospital.scheduler.algorithm.AutoGenConfig;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.ConflictDetectionService;
 import lombok.Builder;
@@ -226,6 +227,85 @@ public class ScheduleQualityScorer {
         return score(schedules, requirements, activeStaff, List.of(), List.of(), meta);
     }
 
+    /**
+     * Overload cho phép truyền {@link AutoGenConfig} để dùng config động
+     * cho fairness eligibility (xem {@link #computeFairness(List, List, AutoGenConfig)}).
+     * Nếu {@code autoGenConfig} là null → fallback về hardcoded CORE (Ngoại, Nội).
+     */
+    public ScheduleQualityReport score(
+            List<Schedule> schedules,
+            List<ShiftRequirement> requirements,
+            List<Staff> activeStaff,
+            List<CompensationDay> compDays,
+            List<LeaveRequest> leaveRequests,
+            ScoringMeta meta,
+            AutoGenConfig autoGenConfig) {
+        // Reuse main logic with a slight detour: we use a thread-local override
+        // by wrapping into a helper that calls computeFairness with cfg.
+        return scoreWithAutoGen(schedules, requirements, activeStaff, compDays, leaveRequests, meta, autoGenConfig);
+    }
+
+    private ScheduleQualityReport scoreWithAutoGen(
+            List<Schedule> schedules,
+            List<ShiftRequirement> requirements,
+            List<Staff> activeStaff,
+            List<CompensationDay> compDays,
+            List<LeaveRequest> leaveRequests,
+            ScoringMeta meta,
+            AutoGenConfig cfg) {
+
+        long t0 = System.currentTimeMillis();
+        if (schedules == null) schedules = List.of();
+        if (requirements == null) requirements = List.of();
+        if (activeStaff == null) activeStaff = List.of();
+        if (compDays == null) compDays = List.of();
+        if (leaveRequests == null) leaveRequests = List.of();
+
+        CoverageResult cov = computeCoverage(schedules, requirements);
+        double coverageScore = cov.totalCoveragePct;
+
+        // 2. Fairness (with AutoGen config for dynamic eligibility)
+        FairnessResult fair = computeFairness(schedules, activeStaff, cfg);
+        double fairnessScore = fair.overallFairnessPct;
+
+        ConstraintResult con = computeConstraints(schedules, activeStaff, compDays, leaveRequests);
+        double constraintScore = con.score;
+
+        double total = coverageWeight * coverageScore
+            + fairnessWeight * fairnessScore
+            + constraintWeight * constraintScore;
+
+        long elapsed = System.currentTimeMillis() - t0;
+        return ScheduleQualityReport.builder()
+            .totalScore(round(total))
+            .grade(grade(total, passThreshold))
+            .coverageScore(round(coverageScore))
+            .fairnessScore(round(fairnessScore))
+            .constraintScore(round(constraintScore))
+            .totalRequired(cov.totalRequired)
+            .totalAssigned(cov.totalAssigned)
+            .totalShortfall(cov.totalShortfall)
+            .coverageByType(cov.byType)
+            .fairnessByType(fair.byType)
+            .totalShiftsByStaff(fair.totalShiftsByStaff)
+            .shiftsByStaffAndType(fair.shiftsByStaffAndType)
+            .passed(total >= passThreshold)
+            .hardViolationCount(con.hardCount)
+            .softViolationCount(con.softCount)
+            .violations(con.violations)
+            .algorithmUsed(meta != null ? meta.getAlgorithmUsed() : "unknown")
+            .executionTimeMs(meta != null ? meta.getExecutionTimeMs() : elapsed)
+            .optimizationRounds(meta != null ? meta.getOptimizationRounds() : 0)
+            .build();
+    }
+
+    private String grade(double total, double threshold) {
+        if (total >= 90.0) return "A";
+        if (total >= 80.0) return "B";
+        if (total >= threshold) return "C";
+        return "D";
+    }
+
     // ─────────────────────────────────────────────────────────────
     // 1. COVERAGE
     // ─────────────────────────────────────────────────────────────
@@ -327,6 +407,18 @@ public class ScheduleQualityScorer {
     private FairnessResult computeFairness(
             List<Schedule> schedules,
             List<Staff> activeStaff) {
+        return computeFairness(schedules, activeStaff, null);
+    }
+
+    /**
+     * Overload cho phép truyền {@link AutoGenConfig} để dùng config động cho
+     * eligibility L01/L02/L03 (thay vì hardcoded CORE = Ngoại + Nội).
+     * Nếu {@code cfg} là null → fallback về CORE defaults.
+     */
+    private FairnessResult computeFairness(
+            List<Schedule> schedules,
+            List<Staff> activeStaff,
+            AutoGenConfig cfg) {
 
         if (activeStaff.isEmpty()) {
             return FairnessResult.builder()
@@ -341,10 +433,41 @@ public class ScheduleQualityScorer {
         // only on staff who COULD have been assigned (Bác sĩ / Điều dưỡng for
         // L01/L02/L03, by-specialty for L04). This prevents Dược sĩ / KTV
         // (who have 0 ca by design) from inflating the CV.
-        Set<Integer> nonL04Eligible =
-            StaffShiftTypeEligibility.eligibleStaffIdsForNonL04(activeStaff);
-        Map<Integer, Set<Integer>> l04BySpec =
-            StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff);
+        //
+        // Nếu có AutoGenConfig → dùng danh sách allowed specialties động
+        // (l01/l02/l03AllowedSpecialties). Nếu rỗng hoặc null → fallback CORE.
+        final Set<Integer> nonL04Eligible;
+        final Map<Integer, Set<Integer>> l04BySpec;
+        if (cfg != null) {
+            java.util.List<String> l01Specs = cfg.l01AllowedSpecialties() != null && !cfg.l01AllowedSpecialties().isEmpty()
+                ? cfg.l01AllowedSpecialties() : java.util.List.of();
+            java.util.List<String> l02Specs = cfg.l02AllowedSpecialties() != null && !cfg.l02AllowedSpecialties().isEmpty()
+                ? cfg.l02AllowedSpecialties() : java.util.List.of();
+            java.util.List<String> l03Specs = cfg.l03AllowedSpecialties() != null && !cfg.l03AllowedSpecialties().isEmpty()
+                ? cfg.l03AllowedSpecialties() : java.util.List.of();
+
+            // Gộp cả 3 danh sách (nếu có) → set union để fairness pool cho L01/L02/L03
+            Set<String> unionSpecs = new HashSet<>();
+            unionSpecs.addAll(l01Specs);
+            unionSpecs.addAll(l02Specs);
+            unionSpecs.addAll(l03Specs);
+
+            nonL04Eligible = activeStaff.stream()
+                .filter(s -> s != null && Boolean.TRUE.equals(s.getIsActive())
+                    && s.getSpecialty() != null
+                    && (unionSpecs.isEmpty()
+                        ? StaffShiftTypeEligibility.CORE_ELIGIBLE_SPECIALTIES.contains(s.getSpecialty().getName())
+                        : unionSpecs.contains(s.getSpecialty().getName())))
+                .map(Staff::getId)
+                .collect(Collectors.toSet());
+
+            l04BySpec = StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff, cfg.l04AllowedSpecialties());
+        } else {
+            nonL04Eligible =
+                StaffShiftTypeEligibility.eligibleStaffIdsForNonL04(activeStaff);
+            l04BySpec =
+                StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff);
+        }
 
         // Group schedules by (shiftType, [specialty])
         Map<String, Map<Integer, Integer>> countsByTypeAndStaff = new HashMap<>();

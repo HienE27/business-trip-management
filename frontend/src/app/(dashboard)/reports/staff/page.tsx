@@ -58,10 +58,19 @@ function ReportsStaffContent() {
   const fetchPeriods = useCallback(async () => {
     try {
       const data = await api.get<SchedulePeriod[]>("/periods");
-      const published = data.filter((p) => p.status === "PUBLISHED");
-      setPeriods(published);
-      if (published.length > 0 && !selectedPeriodId) {
-        setSelectedPeriodId(published[0].id);
+      // Show all periods (DRAFT + PUBLISHED + ARCHIVED) so users can verify
+      // freshly generated schedules against the period they just ran the
+      // auto-scheduling algorithm on. Previously this filter was hard-locked
+      // to PUBLISHED, which hid DRAFT periods and confused users into thinking
+      // the algorithm had saved data when it had not.
+      const sorted = [...data].sort((a, b) => {
+        const da = new Date(a.startDate).getTime();
+        const db = new Date(b.startDate).getTime();
+        return db - da;
+      });
+      setPeriods(sorted);
+      if (sorted.length > 0 && !selectedPeriodId) {
+        setSelectedPeriodId(sorted[0].id);
       }
     } catch {
       setMessage("Không thể tải danh sách kỳ lịch.");
@@ -201,7 +210,9 @@ function ReportsStaffContent() {
             >
               <option value="">-- Chọn kỳ lịch --</option>
               {periods.map((p) => (
-                <option key={p.id} value={p.id}>{p.periodName}</option>
+                <option key={p.id} value={p.id}>
+                  {p.periodName} {p.status === "DRAFT" ? "(đang soạn)" : p.status === "PUBLISHED" ? "(đã công bố)" : "(lưu trữ)"}
+                </option>
               ))}
             </select>
             <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[18px] pointer-events-none">expand_more</span>

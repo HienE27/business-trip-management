@@ -1,11 +1,8 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 test.describe('Auto Scheduling Pages', () => {
-  test.beforeEach(async ({ loginAs }) => {
-    await loginAs();
-  });
-
   test('auto scheduling main page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/auto-scheduling');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -19,6 +16,7 @@ test.describe('Auto Scheduling Pages', () => {
   });
 
   test('algorithm config page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/auto-scheduling/algorithm-config');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -32,6 +30,7 @@ test.describe('Auto Scheduling Pages', () => {
   });
 
   test('auto scheduling history page loads correctly', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/auto-scheduling/history');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);

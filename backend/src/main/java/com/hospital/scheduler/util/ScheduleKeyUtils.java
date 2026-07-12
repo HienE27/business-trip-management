@@ -17,21 +17,17 @@ import java.time.LocalDate;
  * always consistent regardless of which algorithm generated the data.
  *
  * <h3>Why two separators?</h3>
- * {@code _} (underscore) appears in the legacy GA path
- * ({@code GeneticAlgorithmScheduler} / {@code ScheduleChromosome}) for
- * serialised assignment keys.  It is <b>not</b> written to shared caches —
- * only to the GA's own internal structures.  The one exception is
- * {@code scheduleKey()} used by {@code applyPreviewSchedule} for serialising
- * removal-requests across the HTTP boundary; that format is intentionally
- * a three-part key ({@code staffId_date_shiftTypeId}) and is never compared
- * against compensation-day or assignment sets.
+ * {@code _} (underscore) appears in serialised schedule-removal keys
+ * passed across the HTTP boundary ({@code applyPreviewSchedule}).  Those
+ * keys are intentionally a three-part tuple
+ * ({@code staffId_date_shiftTypeId}) and never compared against the
+ * canonical pipe-separator assignment keys used by the CSP layer.
  *
  * <h3>Migration note</h3>
- * When the GA path is refactored to use pipe-separated keys internally,
- * the underscore-format methods can be removed.  Until then, callers that
- * bridge between the two worlds (e.g. {@code runGeneticAlgorithm}) are
- * responsible for converting their internal underscore keys to the
- * canonical pipe format before touching shared state.
+ * Shared state (compensation-day sets, ThreadLocal caches) must always
+ * use the canonical pipe format.  When new auto-scheduling algorithms
+ * are introduced they should likewise write through the canonical format
+ * so reads stay consistent across the codebase.
  */
 public final class ScheduleKeyUtils {
 
@@ -74,40 +70,6 @@ public final class ScheduleKeyUtils {
      */
     public static LocalDate parseDateFromCspKey(String key) {
         return LocalDate.parse(key.split("\\" + PIPE)[1]);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Underscore keys — legacy GA internal format
-    // ─────────────────────────────────────────────────────────────
-
-    /**
-     * Legacy assignment key used inside {@code GeneticAlgorithmScheduler}.
-     * Format: {@code staffId_yyyy-MM-dd}
-     *
-     * @deprecated callers must migrate to the canonical pipe format.
-     *             This method will be removed once the GA path is refactored.
-     */
-    @Deprecated
-    public static String gaAssignmentKey(int staffId, LocalDate date) {
-        return staffId + UNDERSCORE + date.toString();
-    }
-
-    /**
-     * Parse the staff ID from a legacy GA assignment key.
-     * @deprecated callers must migrate to the canonical pipe format.
-     */
-    @Deprecated
-    public static int parseStaffIdFromGaKey(String key) {
-        return Integer.parseInt(key.split(UNDERSCORE)[0]);
-    }
-
-    /**
-     * Parse the date from a legacy GA assignment key.
-     * @deprecated callers must migrate to the canonical pipe format.
-     */
-    @Deprecated
-    public static LocalDate parseDateFromGaKey(String key) {
-        return LocalDate.parse(key.split(UNDERSCORE)[1]);
     }
 
     // ─────────────────────────────────────────────────────────────

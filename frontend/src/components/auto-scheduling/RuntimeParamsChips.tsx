@@ -4,13 +4,11 @@ import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 
 interface RuntimeParamsSummary {
-  maxIterations: number;
   weekendWeight: number;
   overnightRecoveryHours: number;
   greedyCoverageThreshold: number;
   balanceScoreMin: number;
   autoCompensationEnabled: boolean;
-  backtrackTimeLimitSeconds: number;
 }
 
 interface RuntimeParamsChipsProps {

@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 /**
  * Smoke tests for every primary route in the dashboard.
@@ -37,12 +37,9 @@ const CASES: Case[] = [
 
 test.describe.configure({ mode: 'serial' });
 test.describe('All routes — sidebar + redirect regression', () => {
-  test.beforeEach(async ({ loginAs }) => {
-    await loginAs();
-  });
-
   for (const { path, expectedSection } of CASES) {
     test(`GET ${path} → stays on URL and highlights "${expectedSection}"`, async ({ page }) => {
+      await loginAs(page);
       await page.goto(path);
       await page.waitForLoadState('domcontentloaded');
       await page.waitForTimeout(1200);

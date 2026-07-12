@@ -17,6 +17,7 @@ test.describe('Accessibility (axe-core)', { tag: '@a11y' }, () => {
   }
 
   test('Login page <html lang> attribute is set', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
     const html = page.locator('html');
@@ -24,6 +25,7 @@ test.describe('Accessibility (axe-core)', { tag: '@a11y' }, () => {
   });
 
   test('Dashboard has a non-empty <title>', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/dashboard');
     await page.waitForLoadState('domcontentloaded');
     const title = await page.title();

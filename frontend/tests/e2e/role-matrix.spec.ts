@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 /**
  * E2E tests for Role Permission Matrix (M01-F05).
@@ -10,11 +10,8 @@ import { test, expect } from './fixtures/auth.fixture';
  */
 
 test.describe('Role Permission Matrix (M01-F05)', () => {
-  test.beforeEach(async ({ loginAs }) => {
-    await loginAs();
-  });
-
   test('renders the ma trận phân quyền heading', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/settings/roles');
     await page.waitForLoadState('domcontentloaded');
 
@@ -24,6 +21,7 @@ test.describe('Role Permission Matrix (M01-F05)', () => {
   });
 
   test('shows role columns in the table header', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/settings/roles');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500); // allow API response
@@ -35,6 +33,7 @@ test.describe('Role Permission Matrix (M01-F05)', () => {
   });
 
   test('shows instruction text for admin users', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/settings/roles');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);
@@ -45,6 +44,7 @@ test.describe('Role Permission Matrix (M01-F05)', () => {
   });
 
   test('has legend explaining granted/revoked states', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/settings/roles');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);
@@ -54,6 +54,7 @@ test.describe('Role Permission Matrix (M01-F05)', () => {
   });
 
   test('displays M01-F05 attribution in footer', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/settings/roles');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);
@@ -62,6 +63,7 @@ test.describe('Role Permission Matrix (M01-F05)', () => {
   });
 
   test('has toggle buttons in the matrix cells', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/settings/roles');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);

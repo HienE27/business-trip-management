@@ -2,63 +2,118 @@
 
 import { useState, useEffect } from "react";
 
+type L04BalanceStrategy = "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
+
 type L04SpecialtyConfigProps = {
   enabled: boolean;
   ratio: number;
   allowedSpecialties: string[];
   allSpecialties: string[];
   editing: boolean;
-  onChange: (enabled: boolean, ratio: number, allowedSpecialties: string[]) => void;
+  balanceStrategy: L04BalanceStrategy;
+  onChange: (enabled: boolean, ratio: number, allowedSpecialties: string[], balanceStrategy: L04BalanceStrategy) => void;
 };
 
-export function L04SpecialtyConfig({ 
-  enabled, 
-  ratio, 
-  allowedSpecialties, 
-  allSpecialties, 
-  editing, 
-  onChange 
+export function L04SpecialtyConfig({
+  enabled,
+  ratio,
+  allowedSpecialties,
+  allSpecialties,
+  editing,
+  balanceStrategy,
+  onChange
 }: L04SpecialtyConfigProps) {
   const [localRatio, setLocalRatio] = useState(ratio);
   const [localAllowed, setLocalAllowed] = useState<string[]>(allowedSpecialties);
+  const [localStrategy, setLocalStrategy] = useState<L04BalanceStrategy>(balanceStrategy);
+  // Initial mode based on data:
+  // - [] (empty) = "all" (backend default)
+  // - [...allSpecialties] = "all" (explicit)
+  // - partial = "partial"
+  // - length 0 with no allSpecialties = "none"
+  const [selectionMode, setSelectionMode] = useState<"all" | "partial" | "none">(() => {
+    if (allowedSpecialties.length === 0 || allowedSpecialties.length === allSpecialties.length) {
+      return "all";
+    } else if (allowedSpecialties.length > 0) {
+      return "partial";
+    }
+    return "none";
+  });
 
   useEffect(() => {
     setLocalAllowed(allowedSpecialties);
-  }, [allowedSpecialties]);
+    // Sync selection mode
+    if (allowedSpecialties.length === 0 || allowedSpecialties.length === allSpecialties.length) {
+      setSelectionMode("all");
+    } else if (allowedSpecialties.length > 0) {
+      setSelectionMode("partial");
+    } else {
+      setSelectionMode("none");
+    }
+  }, [allowedSpecialties, allSpecialties]);
 
-  const isAllSelected = localAllowed.length === 0 || localAllowed.length === allSpecialties.length;
+  useEffect(() => {
+    setLocalStrategy(balanceStrategy);
+  }, [balanceStrategy]);
+
+  // Check if a specialty is selected based on current mode
+  function isSpecialtySelected(specialty: string): boolean {
+    if (selectionMode === "all") return true;
+    if (selectionMode === "none") return false;
+    return localAllowed.includes(specialty);
+  }
 
   function handleToggle() {
     const newEnabled = !enabled;
-    onChange(newEnabled, localRatio, localAllowed);
+    onChange(newEnabled, localRatio, localAllowed, localStrategy);
   }
 
   function handleRatioChange(value: number) {
     setLocalRatio(value);
-    onChange(enabled, value, localAllowed);
+    onChange(enabled, value, localAllowed, localStrategy);
   }
 
   function handleSpecialtyToggle(specialty: string) {
     let newAllowed: string[];
-    if (localAllowed.includes(specialty)) {
-      newAllowed = localAllowed.filter(s => s !== specialty);
+    if (selectionMode === "all") {
+      // Clicking from "all" mode → deselect all except this one
+      newAllowed = allSpecialties.filter(s => s !== specialty);
+      setSelectionMode("partial");
+    } else if (selectionMode === "none") {
+      // Clicking from "none" mode → select this one only
+      newAllowed = [specialty];
+      setSelectionMode("partial");
     } else {
-      newAllowed = [...localAllowed, specialty];
+      // Partial mode → toggle normally
+      if (localAllowed.includes(specialty)) {
+        newAllowed = localAllowed.filter(s => s !== specialty);
+        if (newAllowed.length === 0) setSelectionMode("none");
+      } else {
+        newAllowed = [...localAllowed, specialty];
+      }
     }
     setLocalAllowed(newAllowed);
-    onChange(enabled, localRatio, newAllowed);
+    onChange(enabled, localRatio, newAllowed, localStrategy);
   }
 
   function handleSelectAll() {
-    // Empty array = all specialties
+    // Select all → empty array (backend: "all specialties")
     setLocalAllowed([]);
-    onChange(enabled, localRatio, []);
+    setSelectionMode("all");
+    onChange(enabled, localRatio, [], localStrategy);
   }
 
   function handleClearAll() {
-    // Select all specialties explicitly
-    setLocalAllowed([...allSpecialties]);
-    onChange(enabled, localRatio, [...allSpecialties]);
+    // Clear all → ["__NONE__"] (backend: no specialties allowed)
+    const noneMarker = ["__NONE__"];
+    setLocalAllowed(noneMarker);
+    setSelectionMode("none");
+    onChange(enabled, localRatio, noneMarker, localStrategy);
+  }
+
+  function handleStrategyChange(value: L04BalanceStrategy) {
+    setLocalStrategy(value);
+    onChange(enabled, localRatio, localAllowed, value);
   }
 
   return (
@@ -103,7 +158,7 @@ export function L04SpecialtyConfig({
             {/* Quick actions */}
             <div className="flex items-center justify-between">
               <p className="text-label-sm text-on-surface font-medium">
-                {isAllSelected ? "Tất cả chuyên khoa" : `${localAllowed.length}/${allSpecialties.length} chuyên khoa`}
+                {selectionMode === "all" ? "Tất cả chuyên khoa" : selectionMode === "none" ? "Không có chuyên khoa nào" : `${localAllowed.length}/${allSpecialties.length} chuyên khoa`}
               </p>
               {editing && (
                 <div className="flex gap-2">
@@ -130,7 +185,7 @@ export function L04SpecialtyConfig({
             {editing ? (
               <div className="flex flex-wrap gap-2">
                 {allSpecialties.map((specialty) => {
-                  const isSelected = !isAllSelected && localAllowed.includes(specialty);
+                  const isSelected = isSpecialtySelected(specialty);
                   return (
                     <button
                       key={specialty}
@@ -149,9 +204,13 @@ export function L04SpecialtyConfig({
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {isAllSelected ? (
+                {selectionMode === "all" ? (
                   <span className="text-[12px] text-on-surface-variant">
                     Tất cả chuyên khoa được phép
+                  </span>
+                ) : selectionMode === "none" ? (
+                  <span className="text-[12px] text-error">
+                    Không có chuyên khoa nào được phép
                   </span>
                 ) : (
                   localAllowed.map((specialty) => (
@@ -186,6 +245,61 @@ export function L04SpecialtyConfig({
                 onChange={(e) => handleRatioChange(parseInt(e.target.value) / 100)}
                 className="w-full h-2 bg-surface-variant rounded-full appearance-none cursor-pointer accent-tertiary"
               />
+            )}
+
+            {/* Balance strategy */}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/50">
+              <div>
+                <p className="text-label-sm text-on-surface font-medium">Balance strategy</p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">Phân bổ staff ngoài chuyên khoa thế nào</p>
+              </div>
+            </div>
+            {editing ? (
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { value: "STRICT_MATCH_ONLY", label: "Strict match", desc: "Chỉ chuyên khoa khớp" },
+                  { value: "FAIR_DISTRIBUTE", label: "Fair distribute", desc: "Round-robin đều" },
+                  { value: "WEIGHTED_FAIR", label: "Weighted fair", desc: "Ưu tiên ít ca + fairness" },
+                ] as { value: L04BalanceStrategy; label: string; desc: string }[]).map((opt) => {
+                  const active = localStrategy === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleStrategyChange(opt.value)}
+                      className={`flex-1 min-w-[120px] px-3 py-2 rounded-lg text-left transition-colors border ${
+                        active
+                          ? "bg-tertiary-container border-tertiary text-on-tertiary-container"
+                          : "bg-surface-container-low border-outline-variant hover:bg-surface-container"
+                      }`}
+                    >
+                      <p className={`text-label-sm font-semibold ${active ? "text-on-tertiary-container" : "text-on-surface"}`}>
+                        {opt.label}
+                      </p>
+                      <p className={`text-[10px] mt-0.5 ${active ? "text-on-tertiary-container/80" : "text-on-surface-variant"}`}>
+                        {opt.desc}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-md text-label-sm font-medium bg-tertiary-container text-on-tertiary-container">
+                  {localStrategy === "STRICT_MATCH_ONLY"
+                    ? "Strict match"
+                    : localStrategy === "FAIR_DISTRIBUTE"
+                    ? "Fair distribute"
+                    : "Weighted fair"}
+                </span>
+                <span className="text-[11px] text-on-surface-variant">
+                  {localStrategy === "STRICT_MATCH_ONLY"
+                    ? "Chỉ chuyên khoa khớp, fallback bỏ ca"
+                    : localStrategy === "FAIR_DISTRIBUTE"
+                    ? "Round-robin đều giữa các ứng viên"
+                    : "Ưu tiên người có ít ca + fairness"}
+                </span>
+              </div>
             )}
           </div>
         )}

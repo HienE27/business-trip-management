@@ -86,7 +86,7 @@ public class AutoSchedulingController {
     }
 
     @PostMapping
-    @Operation(summary = "M07-F01-F05: Chạy thuật toán xếp lịch tự động (GREEDY/ROUND_ROBIN/BACKTRACKING)")
+    @Operation(summary = "M07-F01-F05: Chạy thuật toán xếp lịch tự động (GREEDY/FAIR_GREEDY/BACKTRACKING/GENETIC/CSP_MRV_FC)")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<AutoScheduleResponse>> autoSchedule(
             @Valid @RequestBody AutoScheduleRequestDTO request) {
@@ -304,7 +304,7 @@ public class AutoSchedulingController {
     @Operation(summary = "Cập nhật cấu hình runtime của thuật toán")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<AlgorithmConfigService.AlgorithmRuntimeConfig>> updateRuntimeConfig(
-            @RequestBody AlgorithmConfigService.AlgorithmRuntimeConfig config) {
+            @Valid @RequestBody AlgorithmConfigService.AlgorithmRuntimeConfig config) {
         configService.saveRuntimeConfig(config);
         return ResponseEntity.ok(ApiResponse.success(config, "Cập nhật cấu hình runtime thành công"));
     }
@@ -320,7 +320,7 @@ public class AutoSchedulingController {
     @Operation(summary = "Cập nhật cấu hình tạo yêu cầu tự động")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<com.hospital.scheduler.algorithm.AutoGenConfig>> saveAutoGenConfig(
-            @RequestBody com.hospital.scheduler.algorithm.AutoGenConfig config) {
+            @Valid @RequestBody com.hospital.scheduler.algorithm.AutoGenConfig config) {
         configService.saveAutoGenConfig(config);
         return ResponseEntity.ok(ApiResponse.success(config, "Cập nhật cấu hình tự động thành công"));
     }

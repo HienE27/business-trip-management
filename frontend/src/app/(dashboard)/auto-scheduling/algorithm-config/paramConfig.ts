@@ -72,20 +72,6 @@ export const PARAM_GROUPS: readonly ParamGroup[] = [
     },
   },
   {
-    id: "limits",
-    label: "Giới hạn thuật toán",
-    icon: "memory",
-    color: "text-indigo-600",
-    bg: "bg-indigo-50",
-    progressColor: "bg-indigo-500",
-    accent: "border-l-4 border-l-indigo-500",
-    params: ["max_iterations", "backtrack_time_limit_seconds"],
-    descriptions: {
-      max_iterations: { label: "max_iterations", desc: "Số vòng lặp tối đa Backtracking. Tăng → lời giải tốt hơn nhưng chậm hơn.", hint: "100–10000 · Mặc định: 1000" },
-      backtrack_time_limit_seconds: { label: "time_limit", desc: "Giới hạn thời gian Backtracking (giây). Hết thời gian → dừng và trả kết quả tốt nhất.", hint: "10–300 · Mặc định: 60s" },
-    },
-  },
-  {
     id: "recovery",
     label: "Nghỉ ngơi",
     icon: "hotel",
@@ -124,17 +110,28 @@ export const SHIFT_TYPE_GROUPS: readonly ShiftTypeGroup[] = [
 ] as const;
 
 const SHIFT_PARAM_LABELS: Record<string, string> = {
-  MinPerDay: "T.min/ngày",
-  MaxPerDay: "T.max/ngày",
-  MinPerWeek: "T.min/tuần",
-  MaxPerWeek: "T.max/tuần",
+  MinPerDay: "Tổng ca/ngày",
+  MaxPerDay: "Trần ca/ngày",
+  MinPerWeek: "Ca/người/tuần",
+  MaxPerWeek: "Trần ca/người/tuần",
 };
 
 const SHIFT_PARAM_TOOLTIPS: Record<string, string> = {
-  MinPerDay: "Số nhân sự tối thiểu mỗi ngày",
-  MaxPerDay: "Số nhân sự tối đa mỗi ngày",
-  MinPerWeek: "Số ca trực tối thiểu mỗi tuần",
-  MaxPerWeek: "Số ca trực tối đa mỗi tuần",
+  MinPerDay:
+    "Tổng số ca L0X phải có mỗi ngày (cộng dồn mọi chuyên khoa). Thuật toán cố gắng đạt, không phá ràng buộc cứng.",
+  MaxPerDay:
+    "Trần tổng số ca L0X mỗi ngày. 0 = không đặt trần (theo target ca/người/tháng).",
+  MinPerWeek:
+    "Mỗi nhân sự tối thiểu X ca L0X trong 1 tuần — đảm bảo chia đều, tránh bỏ sót.",
+  MaxPerWeek:
+    "Mỗi nhân sự tối đa X ca L0X trong 1 tuần — chống tập trung quá nhiều ca vào một người. 0 = không giới hạn.",
+};
+
+const SHIFT_PARAM_UNITS: Record<string, string> = {
+  MinPerDay: "ca/ngày (toàn khoa)",
+  MaxPerDay: "ca/ngày (toàn khoa)",
+  MinPerWeek: "ca/người/tuần",
+  MaxPerWeek: "ca/người/tuần",
 };
 
 export function getShiftRowLabel(param: string): string {
@@ -147,6 +144,11 @@ export function getShiftRowTooltip(param: string): string {
   return suffix ? SHIFT_PARAM_TOOLTIPS[suffix] : "";
 }
 
+export function getShiftRowUnit(param: string): string {
+  const suffix = Object.keys(SHIFT_PARAM_UNITS).find(k => param.endsWith(k));
+  return suffix ? SHIFT_PARAM_UNITS[suffix] : "";
+}
+
 /* ─── Numeric param display helpers ─────────────────────────── */
 
 const PERCENT_PARAMS = new Set(["greedy_coverage_threshold", "balance_score_min"]);
@@ -154,10 +156,9 @@ const PERCENT_PARAMS = new Set(["greedy_coverage_threshold", "balance_score_min"
 export function getParamBounds(param: string): { min: number; max: number; step: number } {
   if (param === "greedy_coverage_threshold" || param === "balance_score_min") return { min: 0.3, max: 1, step: 0.05 };
   if (param === "weekend_weight") return { min: 1, max: 5, step: 0.05 };
-  if (param === "max_iterations" || param === "min_staff_per_shift") return { min: 0, max: 10, step: 1 };
+  if (param === "min_staff_per_shift") return { min: 0, max: 10, step: 1 };
   if (param === "max_staff_per_shift" || param === "max_shifts_per_staff") return { min: 0, max: 100, step: 1 };
   if (param === "min_shifts_per_staff") return { min: 0, max: 50, step: 1 };
-  if (param === "backtrack_time_limit_seconds") return { min: 10, max: 300, step: 1 };
   if (param === "overnight_recovery_hours") return { min: 12, max: 72, step: 1 };
   return { min: 0, max: 100, step: 1 };
 }
@@ -165,7 +166,6 @@ export function getParamBounds(param: string): { min: number; max: number; step:
 export function formatParamDisplay(param: string, numVal: number): string {
   if (PERCENT_PARAMS.has(param)) return `${Math.round(numVal * 100)}%`;
   if (param === "weekend_weight") return `${numVal.toFixed(1)}×`;
-  if (param === "backtrack_time_limit_seconds") return `${numVal}s`;
   if (param === "overnight_recovery_hours") return `${numVal}h`;
   if (numVal === 0) return "Tắt";
   return numVal.toLocaleString();

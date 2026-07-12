@@ -107,7 +107,10 @@ class ApiClient {
 
       if (!response.ok) {
         if (response.status === 401 && typeof window !== "undefined") {
+          // Clear BOTH token and user, otherwise the next page load
+          // re-runs AuthProvider with a stale token and the 401 loops.
           window.localStorage.removeItem("medschedule.user");
+          window.localStorage.removeItem("medschedule.token");
           const currentPath = window.location.pathname;
           if (currentPath !== LOGIN_PATH) {
             window.location.replace(LOGIN_PATH);
@@ -877,50 +880,40 @@ class ApiClient {
 
   // Runtime Config (all algorithm parameters in one call)
   async getRuntimeConfig(): Promise<ApiResponse<{
-    maxIterations: number;
     weekendWeight: number;
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
     autoCompensationEnabled: boolean;
-    backtrackTimeLimitSeconds: number;
   }>> {
     return this.request<{
-      maxIterations: number;
       weekendWeight: number;
       overnightRecoveryHours: number;
       greedyCoverageThreshold: number;
       balanceScoreMin: number;
       autoCompensationEnabled: boolean;
-      backtrackTimeLimitSeconds: number;
     }>("/auto-schedule/runtime-config");
   }
 
   async updateRuntimeConfig(data: {
-    maxIterations: number;
     weekendWeight: number;
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
     autoCompensationEnabled: boolean;
-    backtrackTimeLimitSeconds: number;
   }): Promise<ApiResponse<{
-    maxIterations: number;
     weekendWeight: number;
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
     autoCompensationEnabled: boolean;
-    backtrackTimeLimitSeconds: number;
   }>> {
     return this.request<{
-      maxIterations: number;
       weekendWeight: number;
       overnightRecoveryHours: number;
       greedyCoverageThreshold: number;
       balanceScoreMin: number;
       autoCompensationEnabled: boolean;
-      backtrackTimeLimitSeconds: number;
     }>("/auto-schedule/runtime-config", {
       method: "PUT",
       body: JSON.stringify(data),
@@ -965,6 +958,7 @@ class ApiClient {
     removedShiftTypes: string[];
     l04CrossSpecialty?: boolean;
     l04CrossSpecialtyRatio?: number;
+    l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
   }): Promise<ApiResponse<{
     enabled: boolean;
     l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
@@ -975,6 +969,7 @@ class ApiClient {
     removedShiftTypes: string[];
     l04CrossSpecialty?: boolean;
     l04CrossSpecialtyRatio?: number;
+    l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
   }>> {
     return this.request<{
       enabled: boolean;
@@ -986,6 +981,7 @@ class ApiClient {
       removedShiftTypes: string[];
       l04CrossSpecialty?: boolean;
       l04CrossSpecialtyRatio?: number;
+      l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
     }>("/auto-schedule/auto-gen-config", {
       method: "PUT",
       body: JSON.stringify(data),

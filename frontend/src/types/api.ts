@@ -327,7 +327,6 @@ export interface ScheduleExchangeCreate {
 export interface AutoScheduleRequest {
   periodId: number;
   algorithmType?: string;
-  maxIterations?: number;
   autoAssign?: boolean;
   excludedStaffIds?: number[];
   holidayMode?: "SKIP" | "PARTIAL";
@@ -695,4 +694,30 @@ export interface StaffShiftStatistics {
   L04Count: number;
   totalHours: number;
   workloadPercentage: number;
+}
+
+// ============================================================
+// Algorithm quality / fairness (used by FairnessHeatmap)
+// ============================================================
+export interface FairnessDetail {
+  shiftType: string;
+  specialtyName?: string | null;
+  meanShifts: number;
+  stdDev: number;
+  coefficientOfVariation: number;
+  minShifts: number;
+  maxShifts: number;
+  spread: number;
+  fair: boolean;
+}
+
+export interface QualityReport {
+  periodId: number;
+  staffId?: number;
+  fairnessByType: FairnessDetail[];
+  totalShiftsByStaff?: Record<number, number>;
+  shiftsByStaffAndType?: Record<string, Record<string, number>>;
+  overallCoefficientOfVariation: number;
+  fairnessScore: number;
+  warnings: string[];
 }

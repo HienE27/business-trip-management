@@ -1,11 +1,8 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 test.describe('Schedule CRUD Operations', () => {
-  test.beforeEach(async ({ loginAs }) => {
-    await loginAs();
-  });
-
   test('monthly schedule page loads without crash', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/monthly-schedule');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -15,6 +12,7 @@ test.describe('Schedule CRUD Operations', () => {
   });
 
   test('can interact with L01 (Trực 24/24) tab', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/monthly-schedule');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -36,6 +34,7 @@ test.describe('Schedule CRUD Operations', () => {
   });
 
   test('can interact with schedule type tabs', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/monthly-schedule');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -55,6 +54,7 @@ test.describe('Schedule CRUD Operations', () => {
   });
 
   test('schedule page has functional navigation elements', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/monthly-schedule');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -68,6 +68,7 @@ test.describe('Schedule CRUD Operations', () => {
   });
 
   test('schedule page displays content area', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/monthly-schedule');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
@@ -80,6 +81,7 @@ test.describe('Schedule CRUD Operations', () => {
   });
 
   test('schedule page is interactive', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/monthly-schedule');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);

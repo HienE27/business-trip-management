@@ -29,12 +29,34 @@ import static com.hospital.scheduler.algorithm.CspConstants.conflicts;
 @RequiredArgsConstructor
 class CspSearchEngine {
 
-    private static final long TIMEOUT_MS = 30_000L;
+    private static final long DEFAULT_TIMEOUT_MS = 30_000L;
 
     private final CompensationDateCalculator compensationDateCalculator;
     private final CspNogoodStore nogoodStore;
 
+    /** Internal search outcome. Used by {@link #search} so the caller can
+     * distinguish a dead-end backtrack from a timeout-induced early exit —
+     * on timeout we still keep the partial assignment so the user sees a
+     * useful preview instead of a "no solution found" wall. */
+    private enum SearchOutcome { FOUND, DEAD_END, TIMED_OUT }
+
+    /**
+     * Solve with the default 30s timeout (production / auto-schedule path).
+     */
     Result solve(ProblemData data, long startTime) {
+        return solve(data, startTime, DEFAULT_TIMEOUT_MS);
+    }
+
+    /**
+     * Solve with a caller-supplied timeout. Used by the preview path so
+     * that preview responses come back fast (typically &lt; 8s) even when
+     * the full run would have taken the full 30s budget. The preview
+     * contract is "show a feasible plan quickly"; if a tighter timeout
+     * exhausts the search the orchestrator still gets a partial / empty
+     * result and can surface a "preview unavailable" message without
+     * blocking the user for 30s.
+     */
+    Result solve(ProblemData data, long startTime, long timeoutMs) {
         BitSet[] domains = copyDomains(data);
         int[] assignment = new int[data.numVars];
         java.util.Arrays.fill(assignment, -1);
@@ -46,16 +68,22 @@ class CspSearchEngine {
             restDays[i] = new BitSet(data.numDays);
         }
 
+        // Gap 1: week-bucketed per-(staff, shift) counter for under-min biasing.
+        // numWeeks = ceil(numDays / 7) so the last partial week is still tracked.
+        int numWeeks = data.dayToWeek == null ? 0
+                : (data.dayToWeek.length == 0 ? 0 : data.dayToWeek[data.dayToWeek.length - 1] + 1);
+        CspConstraints.MinWeekTracker weekTracker = (numWeeks > 0)
+                ? new CspConstraints.MinWeekTracker(data.numStaff, data.numShifts, numWeeks,
+                        data.minShiftsPerWeekByShift)
+                : null;
+
         int maxTrail = data.numVars * data.numStaff + 1000;
         int[] trailVar = new int[maxTrail];
         int[] trailStaff = new int[maxTrail];
         int[] trailPtr = {0};
 
-        boolean found = search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
-                trailVar, trailStaff, trailPtr, data, startTime);
-        if (!found) {
-            return Result.builder().valid(false).errors(List.of("Không tìm được lịch hợp lệ")).build();
-        }
+        SearchOutcome outcome = search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
+                trailVar, trailStaff, trailPtr, data, startTime, weekTracker, timeoutMs);
 
         Map<String, Boolean> result = new HashMap<>();
         for (int v = 0; v < data.numVars; v++) {
@@ -63,26 +91,51 @@ class CspSearchEngine {
                 result.put(assignment[v] + "|" + data.varDay[v] + "|" + data.varShift[v], true);
             }
         }
-        return Result.builder().valid(true).assignment(result).build();
+
+        if (outcome == SearchOutcome.FOUND) {
+            return Result.builder()
+                    .valid(true)
+                    .partial(false)
+                    .assignment(result)
+                    .build();
+        }
+        if (outcome == SearchOutcome.TIMED_OUT) {
+            // Partial coverage under timeout: the caller decides what to do
+            // (typically: fall back to Greedy and merge schedules). We surface
+            // the partial map so nothing is lost, but flag it so the orchestrator
+            // can choose to top up with a different algorithm instead of
+            // treating the partial as a complete plan.
+            return Result.builder()
+                    .valid(!result.isEmpty())
+                    .partial(true)
+                    .assignment(result)
+                    .errors(result.isEmpty()
+                            ? List.of("Hết thời gian trước khi gán được slot nào")
+                            : List.of("Hết thời gian — trả về lịch từng phần"))
+                    .build();
+        }
+        return Result.builder().valid(false).errors(List.of("Không tìm được lịch hợp lệ")).build();
     }
 
-    private boolean search(
+    private SearchOutcome search(
             BitSet[] domains, int[] assignment, int[] staffWorkload, int[][] staffShiftWorkload,
             BitSet[] restDays, int[] trailVar, int[] trailStaff, int[] trailPtr,
-            ProblemData data, long startTime) {
+            ProblemData data, long startTime, CspConstraints.MinWeekTracker weekTracker,
+            long timeoutMs) {
 
-        if (System.currentTimeMillis() - startTime > TIMEOUT_MS) return false;
-        if (isGoal(domains, assignment, data)) return true;
+        if (System.currentTimeMillis() - startTime > timeoutMs) return SearchOutcome.TIMED_OUT;
+        if (isGoal(domains, assignment, data)) return SearchOutcome.FOUND;
 
         int var = selectMRV(domains, assignment, data);
-        if (var < 0) return true;
+        if (var < 0) return SearchOutcome.FOUND;
 
         int dayIdx = data.varDay[var];
         int shiftIdx = data.varShift[var];
         String shiftType = SHIFT_ORDER[shiftIdx];
 
         // Sort candidates: fewest of THIS shift type first, then fewest total — ensures even per-type distribution
-        List<Integer> candidates = getCandidates(domains[var], staffWorkload, staffShiftWorkload, shiftIdx);
+        List<Integer> candidates = getCandidates(domains[var], staffWorkload, staffShiftWorkload, shiftIdx,
+                weekTracker, dayIdx, shiftIdx);
 
         for (int staffIdx : candidates) {
             if (nogoodStore.violatesNogood(assignment, var, staffIdx, data.numVars)) continue;
@@ -92,6 +145,8 @@ class CspSearchEngine {
             assignment[var] = staffIdx;
             staffWorkload[staffIdx]++;
             staffShiftWorkload[staffIdx][shiftIdx]++;
+            int week = data.dayToWeek == null ? -1 : data.dayToWeek[dayIdx];
+            if (weekTracker != null) weekTracker.increment(staffIdx, shiftIdx, week);
 
             if (shiftType.equals(DIRECT_24H)) {
                 int compDayIdx = getCompensationDayIdx(dayIdx, data);
@@ -99,12 +154,12 @@ class CspSearchEngine {
             }
 
             if (propagate(staffIdx, var, domains, restDays, assignment,
-                    trailVar, trailStaff, trailPtr, data)) {
+                    trailVar, trailStaff, trailPtr, trailBefore, data)) {
 
-                if (search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
-                        trailVar, trailStaff, trailPtr, data, startTime)) {
-                    return true;
-                }
+                SearchOutcome child = search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
+                        trailVar, trailStaff, trailPtr, data, startTime, weekTracker, timeoutMs);
+                if (child == SearchOutcome.FOUND) return SearchOutcome.FOUND;
+                if (child == SearchOutcome.TIMED_OUT) return SearchOutcome.TIMED_OUT;
             }
 
             // Learn from failure before rolling back
@@ -128,17 +183,18 @@ class CspSearchEngine {
             assignment[var] = -1;
             staffWorkload[staffIdx]--;
             staffShiftWorkload[staffIdx][shiftIdx]--;
+            if (weekTracker != null) weekTracker.decrement(staffIdx, shiftIdx, week);
             if (shiftType.equals(DIRECT_24H)) {
                 int compDayIdx = getCompensationDayIdx(dayIdx, data);
                 if (compDayIdx >= 0 && compDayIdx < data.numDays) restDays[staffIdx].clear(compDayIdx);
             }
         }
-        return false;
+        return SearchOutcome.DEAD_END;
     }
 
     private boolean propagate(
             int staffIdx, int var, BitSet[] domains, BitSet[] restDays, int[] assignment,
-            int[] trailVar, int[] trailStaff, int[] trailPtr, ProblemData data) {
+            int[] trailVar, int[] trailStaff, int[] trailPtr, int trailBefore, ProblemData data) {
 
         int dayIdx = data.varDay[var];
         int shiftIdx = data.varShift[var];
@@ -157,12 +213,12 @@ class CspSearchEngine {
             }
         }
 
-        // 2. BR-03: rest day on compensation day
+        // 2. BR-03: rest day on compensation day — only iterate vars on the
+        // specific comp-day, not the full var set.
         int compDayIdx = getCompensationDayIdx(dayIdx, data);
-        if (compDayIdx >= 0 && compDayIdx < data.numDays) {
-            for (int v = 0; v < data.numVars; v++) {
+        if (compDayIdx >= 0 && compDayIdx < data.numDays && data.varsByDay != null) {
+            for (int v : data.varsByDay[compDayIdx]) {
                 if (v == var || assignment[v] >= 0) continue;
-                if (data.varDay[v] != compDayIdx) continue;
                 if (domains[v].get(staffIdx)) {
                     domains[v].clear(staffIdx);
                     trailVar[trailPtr[0]] = v;
@@ -172,9 +228,22 @@ class CspSearchEngine {
             }
         }
 
-        // 3. Detect failure: any unassigned variable has an empty domain
-        for (int v = 0; v < data.numVars; v++) {
-            if (assignment[v] < 0 && domains[v].isEmpty()) return false;
+        // 3. Detect failure: only the trail entries added in THIS propagate
+        // call can have just become empty as a direct result of OUR clear.
+        // Older trail entries were already verified non-empty at the time they
+        // were added; if we ALSO clear a value from the same var in this
+        // call, we'll catch the empty domain in the new trail entry (because
+        // domains[v] becomes empty at most once, and we record a trail entry
+        // per clear, so the var appears at most once per propagate call —
+        // either it's already in OLD trail from before this call, OR it's
+        // newly added here). Verifying only [trailBefore, trailPtr[0]) is
+        // therefore sufficient and avoids the O(trailSize) scan that
+        // dominates runtime on over-constrained workloads.
+        for (int i = trailBefore; i < trailPtr[0]; i++) {
+            int v = trailVar[i];
+            if (v >= 0 && v < data.numVars && assignment[v] < 0 && domains[v].isEmpty()) {
+                return false;
+            }
         }
         return true;
     }
@@ -188,7 +257,7 @@ class CspSearchEngine {
         String shiftType = SHIFT_ORDER[shiftIdx];
 
         if (restDays[staffIdx].get(dayIdx)) return false;
-        if (data.leaveMatrix[staffIdx][dayIdx]) return false;
+        if (!data.leaveMatrix[staffIdx][dayIdx]) return false;
         if (data.holidayDays[dayIdx]) return false;
         if (staffWorkload[staffIdx] >= data.staffMaxShifts[staffIdx]) return false;
 
@@ -200,11 +269,34 @@ class CspSearchEngine {
             }
         }
 
-        // BR-06: at most one L01 per day
-        if (shiftType.equals(DIRECT_24H)) {
-            for (int v = 0; v < data.numVars; v++) {
-                if (v != var && assignment[v] >= 0 && data.varDay[v] == dayIdx
+        // BR-06: at most one L01 per STAFF per day (slots on the same shift-
+        // type same-day for different staff are allowed when requiredStaffCount > 1).
+        // Earlier revisions of this check forgot the staff equality and
+        // rejected every candidate whenever any L01 var on the same day was
+        // already assigned — making CSP fail as soon as it assigned the very
+        // first L01 slot and silently dropping that requirement. The staff
+        // equality restores the intended semantics.
+        if (shiftType.equals(DIRECT_24H) && data.varsByDay != null) {
+            for (int v : data.varsByDay[dayIdx]) {
+                if (v != var && assignment[v] == staffIdx
                         && SHIFT_ORDER[data.varShift[v]].equals(DIRECT_24H)) {
+                    return false;
+                }
+            }
+        }
+
+        // Gap 2: BR-04 — adjacent L01 (cùng nhân sự, 2 ngày liên tiếp có L01).
+        // Lookup is O(adjacentPairs) per check which is small (≤ 2*K where K is
+        // number of L01 pairs in the period). Without this guard the CSP could
+        // pick two adjacent L01s and rely on the post-hoc scorer to flag the
+        // violation, which is far more expensive than a single early reject.
+        if (shiftType.equals(DIRECT_24H) && data.adjacentL01Pairs != null) {
+            for (int p = 0; p < data.adjacentL01PairCount; p++) {
+                int base = p * 2;
+                int v1 = data.adjacentL01Pairs[base];
+                int v2 = data.adjacentL01Pairs[base + 1];
+                int otherVar = (v1 == var) ? v2 : (v2 == var ? v1 : -1);
+                if (otherVar >= 0 && assignment[otherVar] == staffIdx) {
                     return false;
                 }
             }
@@ -215,13 +307,32 @@ class CspSearchEngine {
     private int selectMRV(BitSet[] domains, int[] assignment, ProblemData data) {
         int bestVar = -1;
         int minSize = Integer.MAX_VALUE;
+        int maxDegree = -1;
         for (int v = 0; v < data.numVars; v++) {
             if (assignment[v] >= 0) continue;
             int size = domains[v].cardinality();
             if (size == 0) return -1;
+            // MRV primary: smaller domain first. Tie-break: degree heuristic
+            // (more unassigned neighbors = more constrained = should be picked
+            // before peers to expose dead-ends earlier). This is a classic CSP
+            // combo called MRV+DH and empirically cuts search tree depth on
+            // over-constrained workloads.
+            int degree = 0;
+            if (size <= minSize && data.constraintGraph != null) {
+                List<Integer> neighbors = data.constraintGraph[v];
+                if (neighbors != null) {
+                    for (int n : neighbors) {
+                        if (assignment[n] < 0) degree++;
+                    }
+                }
+            }
             if (size < minSize) {
                 minSize = size;
                 bestVar = v;
+                maxDegree = degree;
+            } else if (size == minSize && degree > maxDegree) {
+                bestVar = v;
+                maxDegree = degree;
             }
         }
         return bestVar;
@@ -237,14 +348,20 @@ class CspSearchEngine {
      * lowest total workload, while other staff accumulate only light shifts.
      */
     private List<Integer> getCandidates(BitSet domain, int[] staffWorkload,
-                                        int[][] staffShiftWorkload, int shiftIdx) {
+                                        int[][] staffShiftWorkload, int shiftIdx,
+                                        CspConstraints.MinWeekTracker weekTracker,
+                                        int dayIdx, int dayShiftIdx) {
         List<Integer> list = new ArrayList<>();
         for (int s = domain.nextSetBit(0); s >= 0; s = domain.nextSetBit(s + 1)) {
             list.add(s);
         }
+        final int week = dayIdx < 0 ? -1 : dayIdx / 7; // mirror CspConstraints.buildWeekBuckets
         list.sort(Comparator
                 .comparingInt((Integer s) -> staffShiftWorkload[s][shiftIdx])  // per-type first
-                .thenComparingInt(s -> staffWorkload[s]));                      // total as tiebreak
+                .thenComparingInt(s -> staffWorkload[s])                        // total as tiebreak
+                .thenComparingInt(s -> weekTracker == null
+                        ? 0
+                        : -weekTracker.underMinScore(s, shiftIdx, week)));      // Gap 1: under-min first
         return list;
     }
 
@@ -280,6 +397,14 @@ class CspSearchEngine {
     @Getter
     static class Result {
         boolean valid;
+        /**
+         * True when {@link #valid} is true only because the search returned
+         * a partial assignment under timeout pressure (not a complete
+         * coverage of every required slot). The orchestrator can use this
+         * to surface a "coverage rate &lt; 100%" hint in the UI rather than
+         * silently presenting a partial plan as if it were complete.
+         */
+        boolean partial;
         Map<String, Boolean> assignment;
         List<String> errors;
     }

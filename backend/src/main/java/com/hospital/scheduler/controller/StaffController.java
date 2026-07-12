@@ -97,7 +97,7 @@ public class StaffController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết nhân sự")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#id)")
     public ResponseEntity<ApiResponse<StaffResponse>> getStaffById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(staffService.getStaffById(id)));
     }

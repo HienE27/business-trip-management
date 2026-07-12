@@ -77,6 +77,7 @@ class CspResultBuilder {
 
         return SchedulingResult.builder()
                 .valid(true)
+                .partial(solution.isPartial())
                 .assignments(assignments)
                 .compensationDays(compensationDays)
                 .errors(Collections.emptyList())

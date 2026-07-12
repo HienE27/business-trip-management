@@ -2,7 +2,6 @@ package com.hospital.scheduler.algorithm;
 
 import org.springframework.stereotype.Component;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -131,13 +130,25 @@ class CspNogoodStore {
         return new HashSet<>(nogood);
     }
 
+    /** Reused scratch buffer for {@link #violatesNogood} — saves a numVars-length
+     * int[] allocation on every candidate check (caller-side). Thread-local so
+     * concurrent searches don't trample each other. */
+    private final ThreadLocal<int[]> scratchAssignment = ThreadLocal.withInitial(() -> null);
+
     /**
      * Convenience for the search loop: copy the assignment, slot in the
      * candidate value, and ask the store if the resulting partial is
      * known to fail.
      */
     boolean violatesNogood(int[] assignment, int var, int staffIdx, int numVars) {
-        int[] temp = Arrays.copyOf(assignment, numVars);
+        int[] temp = scratchAssignment.get();
+        if (temp == null || temp.length < numVars) {
+            temp = new int[numVars];
+            scratchAssignment.set(temp);
+        }
+        // Fast copy via System.arraycopy — significantly cheaper than Arrays.copyOf
+        // for numVars in the hundreds (no defensive size checks / clear-on-init).
+        System.arraycopy(assignment, 0, temp, 0, numVars);
         temp[var] = staffIdx;
         return isNogood(temp, numVars);
     }

@@ -54,6 +54,8 @@ class LeaveRequestServiceTest {
     @Mock private SchedulePeriodRepository periodRepository;
     @Mock private NotificationService notificationService;
     @Mock private EmailService emailService;
+    @Mock private CacheEvictor cacheEvictor;
+    @Mock private ConflictDetectionService conflictDetectionService;
 
     @InjectMocks
     private LeaveRequestService leaveRequestService;

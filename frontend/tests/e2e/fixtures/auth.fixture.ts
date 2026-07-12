@@ -3,8 +3,12 @@ import { test as base, type Page } from '@playwright/test';
 /**
  * Auth fixture for the Hospital Scheduler E2E test suite.
  *
- * Performs a real login against the running backend before each test
- * that uses the `loginAs` fixture.
+ * Performs a real login against the running backend.
+ *
+ * Tests that need an authenticated session should call
+ * `await loginAs(page)` directly in the test body, not via
+ * `beforeEach(({ loginAs }) => …)` — the latter triggers a sync-loader
+ * regression in Playwright 1.61 + Node 22.
  */
 
 const TEST_USERNAME = process.env.E2E_USERNAME ?? 'admin';
@@ -26,7 +30,6 @@ export async function waitForAuthReady(page: Page, timeout = 20_000): Promise<vo
 export async function loginAsTestUser(page: Page): Promise<boolean> {
   await page.goto(LOGIN_PATH);
   await page.waitForLoadState('domcontentloaded');
-  // Give React time to render the login form
   await page.waitForTimeout(1000);
 
   const usernameInput = page.locator('#username');
@@ -39,7 +42,6 @@ export async function loginAsTestUser(page: Page): Promise<boolean> {
   await passwordInput.fill(TEST_PASSWORD);
   await page.getByRole('button', { name: /đăng nhập/i }).click();
 
-  // Wait for the URL to change away from /login (React Router client-side nav)
   const start = Date.now();
   const timeout = 15_000;
   while (Date.now() - start < timeout) {
@@ -51,9 +53,19 @@ export async function loginAsTestUser(page: Page): Promise<boolean> {
   return !page.url().includes('/login');
 }
 
-export const test = base.extend<{ loginAs: () => Promise<boolean> }>({
-  loginAs: async ({ page }, runFixture) => {
-    await runFixture(() => loginAsTestUser(page));
+/**
+ * `loginAs(page)` helper — preferred way to authenticate a test.
+ * We deliberately expose it as a free function (and as a fixture) so that
+ * tests don't have to destructure it inside `beforeEach`, avoiding the
+ * Playwright 1.61 / Node 22 sync-loader regression.
+ */
+export async function loginAs(page: Page): Promise<boolean> {
+  return loginAsTestUser(page);
+}
+
+export const test = base.extend<{ loginAs: (page: Page) => Promise<boolean> }>({
+  loginAs: async ({}, use) => {
+    await use(loginAs);
   },
 });
 

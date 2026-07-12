@@ -7,15 +7,13 @@ import { parseNumber } from "@/lib/number-utils";
 import { EmptyState } from "@/components/ui/EmptyState";
 import type { AlgorithmMetrics } from "./types";
 
-type AlgoFilter = "ALL" | "GREEDY" | "ROUND_ROBIN" | "BACKTRACKING" | "GENETIC" | "CSP_MRV_FC";
+type AlgoFilter = "ALL" | "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC";
 type CoverageFilter = "ALL" | "high" | "medium" | "low";
 
 const ALGO_OPTIONS: { value: AlgoFilter; label: string }[] = [
   { value: "ALL", label: "Tất cả thuật toán" },
   { value: "GREEDY", label: "Greedy" },
-  { value: "ROUND_ROBIN", label: "Round Robin" },
-  { value: "BACKTRACKING", label: "Backtracking" },
-  { value: "GENETIC", label: "Di truyền" },
+  { value: "FAIR_GREEDY", label: "Fair Greedy" },
   { value: "CSP_MRV_FC", label: "CSP-MRV-FC" },
 ];
 

@@ -23,6 +23,8 @@ const eslintConfig = defineConfig([
     "server.cjs",
     "*.cjs",
     "test-*.js",
+    "test_*.js",
+    "browser-smoke-test.js",
   ]),
 ]);
 

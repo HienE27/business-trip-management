@@ -131,29 +131,29 @@ class ConflictDetectionServiceTest {
 
             assertThat(conflicts)
                     .hasSize(1)
-                    .anyMatch(c -> c.contains("Trùng loại ca"));
+                    .anyMatch(c -> c.contains("không thể cùng ngày"));
         }
 
         @Test
         @DisplayName("L02 + L01 cùng ngày -> phải REJECT (đảo ngược)")
         void L02AndL01SameDay_shouldReject() {
             List<Schedule> existingSchedules = List.of(
-                    Schedule.builder()
-                            .id(100)
-                            .staff(testStaff)
-                            .workDate(monday)
-                            .shiftType(ShiftType.builder().id("L01").name("Lịch trực 24/24").isOvernight(true).build())
-                            .build()
-            );
-            when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
-                    .thenReturn(existingSchedules);
+                            Schedule.builder()
+                                    .id(100)
+                                    .staff(testStaff)
+                                    .workDate(monday)
+                                    .shiftType(ShiftType.builder().id("L01").name("Lịch trực 24/24").isOvernight(true).build())
+                                    .build()
+                    );
+                    when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
+                            .thenReturn(existingSchedules);
 
-            List<String> conflicts = conflictDetectionService.detectAllConflicts(
-                    testStaff.getId(), monday, "L02", null);
+                    List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                            testStaff.getId(), monday, "L02", null);
 
-            assertThat(conflicts)
-                    .hasSize(1)
-                    .anyMatch(c -> c.contains("Trùng loại ca"));
+                    assertThat(conflicts)
+                            .hasSize(1)
+                            .anyMatch(c -> c.contains("không thể cùng ngày"));
         }
 
         @Test
@@ -205,7 +205,7 @@ class ConflictDetectionServiceTest {
 
             assertThat(conflicts)
                     .hasSize(1)
-                    .anyMatch(c -> c.contains("Trùng phòng khám dịch vụ và phòng khám chuyên gia"));
+                    .anyMatch(c -> c.contains("không thể cùng ngày"));
         }
 
         @Test
@@ -227,7 +227,7 @@ class ConflictDetectionServiceTest {
 
             assertThat(conflicts)
                     .hasSize(1)
-                    .anyMatch(c -> c.contains("Trùng phòng khám dịch vụ và phòng khám chuyên gia"));
+                    .anyMatch(c -> c.contains("không thể cùng ngày"));
         }
 
         @Test
@@ -459,7 +459,7 @@ class ConflictDetectionServiceTest {
             assertThatThrownBy(() -> conflictDetectionService.validateAndThrow(
                     testStaff.getId(), monday, "L01", null))
                     .isInstanceOf(ConflictException.class)
-                    .hasMessageContaining("Trùng loại ca");
+                    .hasMessageContaining("không thể cùng ngày");
         }
 
         @Test
@@ -695,7 +695,7 @@ class ConflictDetectionServiceTest {
         @Test
         @DisplayName("L01 + L02 same-day trong cùng period -> CÓ shift-type conflict")
         void adjacentL01SamePeriod_hasConflict() {
-            // Same-day L01+L02 conflict triggers the "Trùng loại ca" guard.
+            // Same-day L01+L02 conflict triggers the "không thể cùng ngày" reason.
             // (Note: back-to-back across days is NOT enforced anymore — that
             // responsibility moved to the auto-scheduling algorithm.)
             Schedule scheduleL01Mon = Schedule.builder()
@@ -741,7 +741,7 @@ class ConflictDetectionServiceTest {
             assertThat(result.isHasConflicts()).isTrue();
             assertThat(result.getConflicts()).anyMatch(c ->
                     c.getConflictReasons().stream()
-                            .anyMatch(r -> r.contains("Trùng loại ca")));
+                            .anyMatch(r -> r.contains("không thể cùng ngày")));
         }
     }
 

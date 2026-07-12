@@ -19,9 +19,6 @@ public class AutoScheduleRequestDTO {
     private String algorithmType = "GREEDY";
 
     @Builder.Default
-    private Integer maxIterations = 1000;
-
-    @Builder.Default
     private Boolean autoAssign = true;
 
     @Builder.Default
@@ -34,5 +31,19 @@ public class AutoScheduleRequestDTO {
      * When null, uses the value from algorithm_config DB.
      */
     private String holidayMode;
+
+    /**
+     * Whether to overwrite existing schedules in the period before generating new ones.
+     *
+     * - false (default): throw BadRequestException if the period already has schedules,
+     *   protecting manual assignments from being silently deleted by auto-schedule.
+     * - true: clear all existing schedules (manual + auto) for the period first, then
+     *   generate fresh. Manager must explicitly confirm overwrite via UI prompt.
+     *
+     * Preview (/preview) is always non-destructive — it does NOT delete schedules
+     * regardless of this flag.
+     */
+    @Builder.Default
+    private Boolean overwriteExisting = false;
 
 }

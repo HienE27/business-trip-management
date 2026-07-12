@@ -1,11 +1,8 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 
 test.describe('Navigation', () => {
-  test.beforeEach(async ({ loginAs }) => {
-    await loginAs();
-  });
-
   test('sidebar navigation links are present', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/dashboard');
 
     // Wait for either dashboard content or login redirect
@@ -26,6 +23,7 @@ test.describe('Navigation', () => {
   });
 
   test('navigation has correct icons', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
 
@@ -43,6 +41,7 @@ test.describe('Navigation', () => {
   });
 
   test('navigation items have hover states', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
 
@@ -68,6 +67,7 @@ test.describe('Navigation', () => {
 
 test.describe('Dashboard Page', () => {
   test('dashboard page loads successfully', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
 
@@ -77,6 +77,7 @@ test.describe('Dashboard Page', () => {
   });
 
   test('dashboard shows KPI cards', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
 
@@ -96,6 +97,7 @@ test.describe('Dashboard Page', () => {
 
 test.describe('Page Routing', () => {
   test('can navigate to staff management page', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/staff');
 
     await page.waitForLoadState('networkidle');
@@ -106,6 +108,7 @@ test.describe('Page Routing', () => {
   });
 
   test('can navigate to schedule page', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/schedule');
 
     await page.waitForLoadState('networkidle');
@@ -116,6 +119,7 @@ test.describe('Page Routing', () => {
   });
 
   test('can navigate to auto-scheduling page', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/auto-scheduling');
 
     await page.waitForLoadState('networkidle');
@@ -126,6 +130,7 @@ test.describe('Page Routing', () => {
   });
 
   test('404 page shows error message', async ({ page }) => {
+    await loginAs(page);
     await page.goto('/nonexistent-page-12345');
 
     // Should show error or redirect

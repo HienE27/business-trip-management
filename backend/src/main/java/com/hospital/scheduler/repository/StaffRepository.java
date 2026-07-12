@@ -19,6 +19,7 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
     Optional<Staff> findByUsername(@Param("username") String username);
     Optional<Staff> findByEmail(String email);
     List<Staff> findByIsActiveTrue();
+    long countByIsActiveTrue();
     List<Staff> findBySpecialtyId(Integer specialtyId);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
@@ -92,4 +93,14 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
     List<Staff> findByStaffCodeIsNull();
 
     long countByStatus(com.hospital.scheduler.entity.StaffStatus status);
+
+    /**
+     * Count active (is_active = true) staff members who have the ADMIN role.
+     * Used to prevent deleting the last admin.
+     */
+    @Query("SELECT COUNT(DISTINCT s) FROM Staff s " +
+           "JOIN s.staffRoles sr " +
+           "JOIN sr.role r " +
+           "WHERE s.isActive = true AND r.name = 'ADMIN'")
+    long countActiveAdmins();
 }
