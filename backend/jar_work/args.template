@@ -1,4 +1,0 @@
--cp
-E:\DACN\business-trip-management\backend\target\classes;E:\DACN\business-trip-management\backend\jar_work\BOOT-INF\classes;<JARS>
--Dspring.profiles.active=local-staging
-com.hospital.scheduler.HospitalSchedulerApplication

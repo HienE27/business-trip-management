@@ -1,8 +1,0 @@
-{
-  "periodDays": 30,
-  "periodWeeks": 4,
-  "totalStaff": 20,
-  "eligibleStaff": { "L01": 8, "L02": 8, "L03": 8, "L04": 20 },
-  "targetPerStaffPerMonth": { "L01": 7, "L02": 8, "L03": 9, "L04": 16 },
-  "expandNonL04Eligibility": false
-}

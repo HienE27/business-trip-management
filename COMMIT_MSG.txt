@@ -1,7 +1,0 @@
-feat(frontend): improve number input UX with spinner controls
-
-- Add NumberSpinner component with +/- buttons for faster data entry
-- Compact number spinner for ShiftTypeGroupCard (L01-L04)
-- Improve spacing and visual hierarchy in ParamField
-- Add hover shadow effects on cards
-- Reduce text sizes for denser information display
