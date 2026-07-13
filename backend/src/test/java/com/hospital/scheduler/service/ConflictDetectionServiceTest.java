@@ -795,9 +795,11 @@ class ConflictDetectionServiceTest {
 
             conflictDetectionService.checkPeriodConflicts(period1.getId());
 
-            // new conflict -> exactly one broadcast
+            // new conflict -> exactly one batch broadcast
+            // (refactored from per-conflict broadcastConflict to a single
+            //  broadcastConflictBatch call — same dedup contract, fewer round-trips)
             verify(conflictBroadcastService, times(1))
-                    .broadcastConflict(any(ScheduleConflict.class), any());
+                    .broadcastConflictBatch(anyList(), eq(period1.getId()));
         }
 
         @Test
