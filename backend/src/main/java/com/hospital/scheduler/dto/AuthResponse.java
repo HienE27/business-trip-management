@@ -44,4 +44,8 @@ public class AuthResponse {
 
     @Schema(description = "User roles", example = "[\"ADMIN\", \"MANAGER\"]")
     private List<String> roles;
+
+    @Schema(description = "Flattened permission set for the user (deduplicated across roles)",
+            example = "[\"STAFF_VIEW\",\"SCHEDULE_VIEW\"]")
+    private List<String> permissions;
 }

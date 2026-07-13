@@ -313,15 +313,21 @@ public class ScheduleExchangeService {
                     null, savedCompForTarget, reviewerId);
         }
 
-        // TODO: The plain setStaff + save approach below trips the
-        // (period_id, staff_id, shift_type_id, work_date) UNIQUE
-        // constraint when both rows are in the same slot. A complete
-        // fix needs to either drop the constraint, use a delete+insert
-        // pattern with FK rewrites, or relax the constraint to defer
-        // the check to the application layer. This is a known
-        // limitation tracked in the UI/UX polish task.
-        scheduleRepository.save(requesterSchedule);
-        scheduleRepository.save(targetSchedule);
+        // BUGFIX (was #5): Plain setStaff + save tripped the (period_id, staff_id,
+        // shift_type_id, work_date) unique constraint when both schedules land on
+        // the same slot post-swap (e.g. A had L01 Mon + L02 Mon, after swap B has
+        // L01/L02 Mon — the L02 row collides with B's existing L02 Mon).
+        //
+        // Strategy: swap is logically (delete old schedule row, insert new row with
+        // swapped staff). To preserve audit history and compensation FK integrity,
+        // we copy the row's mutable fields into a fresh entity, delete the old one,
+        // then save the new one. CompensationDay.schedule FK is rewired to the new
+        // schedule id before the old row is deleted.
+        copyCompensationFkAndDelete(requesterSchedule, targetOldStaff, requesterWorkDate,
+                period, reviewerId);
+        copyCompensationFkAndDelete(targetSchedule, requesterOldStaff, targetWorkDate,
+                period, reviewerId);
+        log.debug("Schedule swap persisted atomically for exchange {}", exchange.getId());
 
         // Validate NEW compensation days do not conflict with existing schedules
         if (targetIsL01) {
@@ -498,8 +504,59 @@ public class ScheduleExchangeService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.warn("Post-swap re-solve skipped for period {} ({}): {}",
+            // BUGFIX (was #6): silently logging and continuing broke the swap
+            // rollback contract — the surrounding @Transactional would commit the
+            // schedule swap even when the period became infeasible. Re-throw as a
+            // domain BadRequestException so Spring rolls back the entire transaction
+            // atomically and the swap is rejected, matching the documented contract.
+            log.warn("Post-swap re-solve failed for period {} ({}): {}",
                     period.getId(), e.getClass().getSimpleName(), e.getMessage());
+            throw new BadRequestException(
+                    "Đổi ca làm period không còn feasible sau khi đổi: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Swap a schedule's staff by recreating the row — required to side-step the
+     * (period_id, staff_id, shift_type_id, work_date) UNIQUE constraint when both
+     * sides of the swap target the same slot. The old row is deleted only after the
+     * new row is persisted and any compensation-day FK is rewired.
+     *
+     * <p>Atomicity: both the new schedule insert and the old row delete happen in
+     * the surrounding {@code @Transactional}. A failure on the second delete (after
+     * the first insert) rolls back the first insert automatically.
+     */
+    private void copyCompensationFkAndDelete(Schedule original, Staff newStaff,
+                                             LocalDate workDate, SchedulePeriod period,
+                                             Integer reviewerId) {
+        // Build the swapped row preserving all immutable fields (id is intentionally omitted).
+        Schedule replacement = Schedule.builder()
+                .period(original.getPeriod())
+                .staff(newStaff)
+                .shiftType(original.getShiftType())
+                .workDate(workDate)
+                .requirement(original.getRequirement())
+                .hasConflict(false)
+                .isPreview(original.getIsPreview())
+                .build();
+        Schedule saved = scheduleRepository.save(replacement);
+
+        // Rewire any compensation_day rows that referenced the old schedule id so
+        // the FK doesn't block the delete. findByScheduleId returns a List (0..n).
+        List<CompensationDay> compDays = compensationDayRepository.findByScheduleId(original.getId());
+        for (CompensationDay cd : compDays) {
+            cd.setSchedule(saved);
+            compensationDayRepository.save(cd);
+        }
+
+        scheduleRepository.delete(original);
+        // Best-effort audit — never fail the swap for an audit miss.
+        try {
+            auditHistoryService.logAction("schedule", saved.getId(),
+                    AuditHistory.ActionType.UPDATE, original, saved, reviewerId);
+        } catch (Exception auditEx) {
+            log.warn("Audit for schedule swap (id={} -> {}) skipped: {}",
+                    original.getId(), saved.getId(), auditEx.getMessage());
         }
     }
 }

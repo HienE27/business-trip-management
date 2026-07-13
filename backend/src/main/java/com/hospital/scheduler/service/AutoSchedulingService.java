@@ -80,6 +80,14 @@ public class AutoSchedulingService {
     // Swap request priority: Set of staff IDs who should be PREFERRED (those whose swap partner was assigned)
     private final ThreadLocal<Set<Integer>> swapPriorityStaffIds = ThreadLocal.withInitial(HashSet::new);
 
+    // BUGFIX (was M07 #3): Per-period execution locks. Concurrent autoSchedule /
+    // previewSchedule calls on the same period are serialized so their
+    // delete-and-regenerate operations cannot interleave. Locks are created on
+    // first use and reused; they live as long as the JVM (acceptable for a
+    // scheduling system whose period cardinality is small).
+    private final java.util.concurrent.ConcurrentHashMap<Integer, java.util.concurrent.locks.Lock> periodLocks =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     // Pre-loaded period-level conflict data (rebuilt each scheduling run)
     private record BatchConflictData(
             Set<Integer> onLeaveStaffIds,
@@ -97,27 +105,85 @@ public class AutoSchedulingService {
     ) {}
 
     public AutoScheduleResponse previewSchedule(AutoScheduleRequestDTO request) {
-        inMemoryAssignments.set(new HashMap<>());
-        inMemoryCompensationShiftDates.set(new HashSet<>());
-        allCompensationShiftDates.set(new HashSet<>());
-        swapPriorityStaffIds.set(new HashSet<>());
+        // BUGFIX (was M07 #3): Same per-period lock as autoSchedule — a preview run
+        // also deletes-and-regenerates schedule rows, so it must not race with
+        // a concurrent autoSchedule or another preview on the same period.
+        java.util.concurrent.locks.Lock periodLock = acquirePeriodLock(request.getPeriodId());
+        boolean acquired = false;
         try {
-            return runScheduling(request, false);
+            acquired = periodLock.tryLock();
+            if (!acquired) {
+                throw new BadRequestException(
+                        "Kỳ lịch " + request.getPeriodId() + " đang được xếp tự động bởi một yêu cầu khác. "
+                                + "Vui lòng đợi yêu cầu trước hoàn tất rồi thử lại.");
+            }
+            inMemoryAssignments.set(new HashMap<>());
+            inMemoryCompensationShiftDates.set(new HashSet<>());
+            allCompensationShiftDates.set(new HashSet<>());
+            swapPriorityStaffIds.set(new HashSet<>());
+            try {
+                return runScheduling(request, false);
+            } finally {
+                inMemoryAssignments.remove();
+                inMemoryCompensationShiftDates.remove();
+                allCompensationShiftDates.remove();
+                swapPriorityStaffIds.remove();
+            }
         } finally {
-            inMemoryAssignments.remove();
-            inMemoryCompensationShiftDates.remove();
-            allCompensationShiftDates.remove();
-            swapPriorityStaffIds.remove();
+            if (acquired) {
+                periodLock.unlock();
+            }
         }
     }
 
     public AutoScheduleResponse autoSchedule(AutoScheduleRequestDTO request) {
+        // BUGFIX (was M07 #3): Acquire a per-period execution lock so two concurrent
+        // autoSchedule requests on the same period cannot interleave their
+        // delete-and-regenerate operations and produce duplicate or lost schedules.
+        // The V9 migration dropped the schedule UNIQUE constraint, so the only
+        // remaining defence is this lock. If the period is already locked, return 409
+        // so the client can retry once the first run completes.
+        java.util.concurrent.locks.Lock periodLock = acquirePeriodLock(request.getPeriodId());
+        boolean acquired = false;
+        try {
+            acquired = periodLock.tryLock();
+            if (!acquired) {
+                throw new BadRequestException(
+                        "Kỳ lịch " + request.getPeriodId() + " đang được xếp tự động bởi một yêu cầu khác. "
+                                + "Vui lòng đợi yêu cầu trước hoàn tất rồi thử lại.");
+            }
+            inMemoryAssignments.set(new HashMap<>());
+            inMemoryCompensationShiftDates.set(new HashSet<>());
+            allCompensationShiftDates.set(new HashSet<>());
+            swapPriorityStaffIds.set(new HashSet<>());
+            try {
+                return runScheduling(request, true);
+            } finally {
+                inMemoryAssignments.remove();
+                inMemoryCompensationShiftDates.remove();
+                allCompensationShiftDates.remove();
+                swapPriorityStaffIds.remove();
+            }
+        } finally {
+            if (acquired) {
+                periodLock.unlock();
+            }
+        }
+    }
+
+    public AutoScheduleResponse applyPreviewSchedule(com.hospital.scheduler.dto.request.AutoScheduleApplyPreviewRequestDTO request) {
+        // BUGFIX (was M07 #4): the apply path reads from the in-memory cache
+        // (allCompensationShiftDates, inMemoryAssignments, etc.) but never
+        // cleared it in a finally block. When Tomcat reuses a worker thread
+        // for a different request, the leftover snapshot could be observed by
+        // any code that touches these ThreadLocals. Initialize fresh values
+        // here and remove them on exit so the worker thread is left clean.
         inMemoryAssignments.set(new HashMap<>());
         inMemoryCompensationShiftDates.set(new HashSet<>());
         allCompensationShiftDates.set(new HashSet<>());
         swapPriorityStaffIds.set(new HashSet<>());
         try {
-            return runScheduling(request, true);
+            return applyPreviewScheduleInternal(request);
         } finally {
             inMemoryAssignments.remove();
             inMemoryCompensationShiftDates.remove();
@@ -126,7 +192,7 @@ public class AutoSchedulingService {
         }
     }
 
-    public AutoScheduleResponse applyPreviewSchedule(com.hospital.scheduler.dto.request.AutoScheduleApplyPreviewRequestDTO request) {
+    private AutoScheduleResponse applyPreviewScheduleInternal(com.hospital.scheduler.dto.request.AutoScheduleApplyPreviewRequestDTO request) {
         SchedulePeriod period = periodRepository.findById(request.getPeriodId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + request.getPeriodId()));
 
@@ -163,8 +229,25 @@ public class AutoSchedulingService {
             existingCompDays.add(compKey);
             allCompensationShiftDates.get().add(compKey);
         }
-        log.info("Loaded {} existing compensation days for period {} into memory cache", 
+        log.info("Loaded {} existing compensation days for period {} into memory cache",
                 existingCompDays.size(), period.getId());
+
+        // Index period requirements once so the per-item resolver runs in O(1) and we
+        // can detect L04-style multi-specialty collisions deterministically instead of
+        // leaning on findFirst() (M07 #8 was exactly that bug).
+        List<ShiftRequirement> periodRequirementsAll = requirementRepository.findByPeriodId(period.getId());
+        Map<Integer, ShiftRequirement> byId = new HashMap<>();
+        for (ShiftRequirement r : periodRequirementsAll) {
+            if (r.getId() != null) {
+                byId.put(r.getId(), r);
+            }
+        }
+        // Map key = "yyyy-MM-dd|shiftTypeId" → matching requirements (1+ for L04 multi-specialty)
+        Map<String, List<ShiftRequirement>> byDateShift = new HashMap<>();
+        for (ShiftRequirement r : periodRequirementsAll) {
+            String key = r.getWorkDate().toString() + "|" + r.getShiftType().getId();
+            byDateShift.computeIfAbsent(key, k -> new ArrayList<>()).add(r);
+        }
 
         Set<String> removedScheduleKeys = request.getRemovedSchedules() == null
                 ? Set.of()
@@ -181,11 +264,43 @@ public class AutoSchedulingService {
 
             Staff staff = staffRepository.findById(item.getStaffId())
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + item.getStaffId()));
-            ShiftRequirement requirement = requirementRepository.findByPeriodId(period.getId()).stream()
-                    .filter(req -> req.getWorkDate().toString().equals(item.getWorkDate()))
-                    .filter(req -> req.getShiftType().getId().equals(item.getShiftTypeId()))
-                    .findFirst()
-                    .orElse(null);
+            ShiftRequirement requirement;
+            if (item.getRequirementId() != null) {
+                // BUGFIX (was M07 #8): prefer the explicit id from the preview
+                // payload so multi-specialty L04 requirements resolve deterministically.
+                requirement = byId.get(item.getRequirementId());
+                if (requirement == null) {
+                    throw new BadRequestException("requirementId không hợp lệ: " + item.getRequirementId());
+                }
+                // Sanity-check: caller claims this requirement belongs to the same
+                // (workDate, shiftType) — refuse otherwise.
+                String reqDate = requirement.getWorkDate().toString();
+                String reqShift = requirement.getShiftType().getId();
+                if (!reqDate.equals(item.getWorkDate()) || !reqShift.equals(item.getShiftTypeId())) {
+                    throw new BadRequestException(
+                            "requirementId " + item.getRequirementId()
+                                    + " không khớp (workDate=" + reqDate + ", shiftTypeId=" + reqShift
+                                    + ") so với (workDate=" + item.getWorkDate()
+                                    + ", shiftTypeId=" + item.getShiftTypeId() + ")");
+                }
+            } else {
+                // Backwards-compatible fallback: look up by (workDate, shiftTypeId) but
+                // fail loudly if multiple match so callers learn to populate requirementId.
+                String key = item.getWorkDate() + "|" + item.getShiftTypeId();
+                List<ShiftRequirement> candidates = byDateShift.getOrDefault(key, List.of());
+                if (candidates.isEmpty()) {
+                    requirement = null;
+                } else if (candidates.size() == 1) {
+                    requirement = candidates.get(0);
+                } else {
+                    throw new BadRequestException(
+                            "Có nhiều requirement cho (workDate=" + item.getWorkDate()
+                                    + ", shiftTypeId=" + item.getShiftTypeId()
+                                    + ") — client phải gửi requirementId để chọn đúng (ID ứng viên: "
+                                    + candidates.stream().map(r -> String.valueOf(r.getId())).collect(Collectors.joining(", "))
+                                    + ").");
+                }
+            }
             ShiftType shiftType = requirement != null ? requirement.getShiftType() : null;
             if (shiftType == null) {
                 throw new BadRequestException("Không tìm thấy ca trực phù hợp cho ngày " + item.getWorkDate());
@@ -268,6 +383,7 @@ public class AutoSchedulingService {
                         .staffSpecialtyName(getStaffSpecialtyName(s))
                         .requiredSpecialtyName(getRequiredSpecialtyName(s))
                         .crossSpecialty(isCrossSpecialtyAssignment(s))
+                        .requirementId(s.getRequirement() != null ? s.getRequirement().getId() : null)
                         .build())
                 .toList();
 
@@ -307,26 +423,25 @@ public class AutoSchedulingService {
 
         long executionTime = System.currentTimeMillis() - startTime;
 
-        // Save metrics so History tab shows this execution. The conflictCount we record
-        // is filled in below after we re-check the persisted state — leaves placeholders
-        // in the metrics call site so the value stays consistent with what the monthly-schedule
-        // page will show.
-        try {
-            saveMetrics(period, request.getAlgorithmType(), (int) executionTime, coverageRate, balanceScore, 0, savedSchedules.size());
-            log.info("Metrics saved for period {} with algorithm {}: coverage={}%, balance={}",
-                    period.getId(), request.getAlgorithmType(), coverageRate, balanceScore);
-        } catch (Exception e) {
-            log.error("Failed to save metrics for period {}: {}", period.getId(), e.getMessage(), e);
-        }
-
-        // Re-check conflicts after persistence so the response carries the same value the
-        // monthly-schedule page will surface. Without this, the response always reports 0
-        // and the manager has no signal that the apply produced violations.
+        // Save metrics so History tab shows this execution. The conflictCount is
+        // determined AFTER re-checking the persisted state so the recorded value
+        // matches what the monthly-schedule page will display. Pre-fix (was M07 #9):
+        // we recorded conflictCount=0 here and re-checked later, but never updated
+        // the row — leaving every history entry pinned to 0 conflicts.
         int appliedConflictCount = 0;
         try {
             appliedConflictCount = conflictDetectionService.checkPeriodConflicts(period.getId()).getTotalConflicts();
         } catch (Exception e) {
-            log.error("Failed to check period conflicts after apply for period {}: {}", period.getId(), e.getMessage(), e);
+            log.error("Failed to check period conflicts after apply for period {}: {}",
+                    period.getId(), e.getMessage(), e);
+        }
+        try {
+            saveMetrics(period, request.getAlgorithmType(), (int) executionTime, coverageRate,
+                    balanceScore, appliedConflictCount, savedSchedules.size());
+            log.info("Metrics saved for period {} with algorithm {}: coverage={}%, balance={}, conflicts={}",
+                    period.getId(), request.getAlgorithmType(), coverageRate, balanceScore, appliedConflictCount);
+        } catch (Exception e) {
+            log.error("Failed to save metrics for period {}: {}", period.getId(), e.getMessage(), e);
         }
 
         // Build shift type breakdown
@@ -446,10 +561,25 @@ public class AutoSchedulingService {
         // CRITICAL: Re-sync existing requirements with current config so changes to min/max per day
         // take effect on the next preview run. Without this, the scheduler would re-use stale
         // requiredCount values persisted by a previous run with older config.
-        syncExistingRequirementsWithConfig(period, autoGenConfig.get(), activeStaff);
-        requirements = generateRequirementsFromConfig(period, autoGenConfig.get(), activeStaff);
-        requirements = persistRequirementsIfTransient(requirements);
-        log.info("Generated {} requirements from config for period {}", requirements.size(), period.getId());
+        // BUGFIX (was M07 #6): Preview runs must NOT delete-and-regenerate requirements.
+        // The user expects preview to be read-only — touching persisted state would
+        // silently mutate the draft period on every preview. Only run the destructive
+        // sync + persist path when the caller is committing the result (save=true).
+        if (save) {
+            syncExistingRequirementsWithConfig(period, autoGenConfig.get(), activeStaff);
+            requirements = generateRequirementsFromConfig(period, autoGenConfig.get(), activeStaff);
+            requirements = persistRequirementsIfTransient(requirements);
+            log.info("Generated {} requirements from config for period {}", requirements.size(), period.getId());
+        } else {
+            // Preview mode: reuse whatever is already in the DB without touching it.
+            requirements = requirementRepository.findByPeriodId(period.getId());
+            if (requirements == null || requirements.isEmpty()) {
+                // First run against a fresh period — fall back to in-memory generation
+                // without persisting, so a preview still has data to schedule against.
+                requirements = generateRequirementsFromConfig(period, autoGenConfig.get(), activeStaff);
+                log.info("Preview-only generated {} requirements (transient) for period {}", requirements.size(), period.getId());
+            }
+        }
 
         // Pre-load existing compensation days from the same period so greedy doesn't assign L01 on a day
         // that is already someone's compensation day (confirmed day off — cannot assign L01)
@@ -493,6 +623,24 @@ public class AutoSchedulingService {
                 ? request.getAlgorithmType().toUpperCase()
                 : "CSP_MRV_FC";
 
+        // Whitelist supported algorithm types — reject unknown values with HTTP 400
+        // instead of silently substituting Greedy. Without this guard, callers can
+        // request "BACKTRACKING" or "GENETIC" and the run would still be persisted as
+        // that algorithm in metrics — masking the fact that no such algorithm ran.
+        java.util.Set<String> supportedAlgorithms = java.util.Set.of(
+                "GREEDY",
+                "ROUND_ROBIN",
+                "FAIR_ROUND_ROBIN",
+                "FAIR",
+                "FAIR_GREEDY",
+                "CSP_MRV_FC",
+                "CSP"
+        );
+        if (!supportedAlgorithms.contains(algorithmType)) {
+            throw new BadRequestException("algorithmType '" + request.getAlgorithmType()
+                    + "' không được hỗ trợ. Các giá trị hợp lệ: " + supportedAlgorithms);
+        }
+
         List<Schedule> createdSchedules;
         if ("ROUND_ROBIN".equals(algorithmType)
                 || "FAIR_ROUND_ROBIN".equals(algorithmType)
@@ -527,20 +675,33 @@ public class AutoSchedulingService {
                         request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
                 log.info("Greedy fallback result: {} schedules", createdSchedules.size());
             } else if (cspResult.cspPartial()) {
-                // CSP produced a partial plan under timeout. We already kept
-                // the partial schedules; now ask Greedy to fill the slots CSP
-                // didn't reach. The merge preserves CSP's fairness for the
-                // slots it managed to assign and uses Greedy's fast coverage
-                // for the remainder — giving the user a full-coverage plan
-                // that is closer to the CSP ideal than a pure Greedy run.
-                List<Schedule> greedyPlan = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
+                // CSP produced a partial plan under timeout. BUGFIX (was M07 #2):
+                // the previous version ran Greedy with save=true here, persisting
+                // Greedy's full plan to the DB. Then filterSchedulesExcluding()
+                // trimmed the in-memory list to keep only the slots CSP hadn't
+                // already covered — but the DB already had the full Greedy plan
+                // including duplicate rows. DB and response diverged on every
+                // CSP-partial path (response showed merged, DB had CSP + full Greedy).
+                //
+                // New flow: run Greedy with save=false to obtain the plan in-memory,
+                // compute the top-up set (slots CSP didn't cover), persist only those
+                // top-up slots via a dedicated REQUIRES_NEW pass, and merge the
+                // persisted top-up back into createdSchedules. DB and response now
+                // agree on exactly CSP rows + top-up rows.
+                log.info("CSP produced partial plan ({} schedules) — running Greedy save=false for top-up planning",
+                        createdSchedules.size());
+                List<Schedule> greedyPlan = runGreedy(period, requirements, activeStaff, /*save=*/false, runtimeConfig,
                         request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
                 List<Schedule> greedyTopUp = filterSchedulesExcluding(greedyPlan, createdSchedules);
-                log.info("Greedy top-up added {} schedules to CSP partial (merged total {})",
-                        greedyTopUp.size(), createdSchedules.size() + greedyTopUp.size());
-                createdSchedules = mergeSchedules(createdSchedules, greedyTopUp);
+                log.info("Greedy top-up identified {} new slots (of {} planned) — persisting now",
+                        greedyTopUp.size(), greedyPlan.size());
+                List<Schedule> persistedTopUp = persistGreedyTopUpOnly(period, greedyTopUp, save, activeStaff);
+                createdSchedules = mergeSchedules(createdSchedules, persistedTopUp);
+                log.info("CSP+top-up merged total = {} (DB and response now match)", createdSchedules.size());
             }
         } else {
+            // Explicit Greedy branch (was previously the implicit default for unknown values —
+            // now unreachable thanks to the whitelist check above).
             createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
                     request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
         }
@@ -561,24 +722,34 @@ public class AutoSchedulingService {
                 log.info("{} balance score {} < threshold {} (preview) — skipping Fair Greedy fallback",
                         algorithmType, greedyBalanceScore, runtimeConfig.getBalanceScoreMin());
             } else {
-                // Try Fair Greedy as a fallback
-                log.info("{} balance score {} < threshold {}, trying Fair Greedy fallback",
+                // Try Fair Greedy as a fallback. BUGFIX (was M07 #1): previously
+                // this branch called runFairGreedy(..., /*save=*/false, ...) as a
+                // probe, then swapped `bestSchedules` to the in-memory probe result
+                // when its balance score beat Greedy's. That left the persisted
+                // Greedy schedules in the DB while the response advertised the
+                // un-persisted Fair Greedy plan — response and DB diverged on
+                // every fallback. Now we run Fair Greedy with save=true directly
+                // when we're in a save path; the persisted schedule set and the
+                // schedule set reported to the caller always agree.
+                log.info("{} balance score {} < threshold {}, running Fair Greedy (save=true) as fallback",
                         algorithmType, greedyBalanceScore, runtimeConfig.getBalanceScoreMin());
-                List<Schedule> fairGreedySchedules = runFairGreedy(period, requirements, activeStaff, false, runtimeConfig,
+                List<Schedule> fairGreedySchedules = runFairGreedy(period, requirements, activeStaff, /*save=*/true, runtimeConfig,
                         request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
                 int fgStaffCount = (int) fairGreedySchedules.stream().map(s -> s.getStaff().getId()).distinct().count();
                 BigDecimal fgBalanceScore = calculateBalanceScore(fairGreedySchedules, fgStaffCount > 0 ? fgStaffCount : 1);
                 log.info("Fair Greedy fallback: balanceScore={} ({} had {})", fgBalanceScore, algorithmType, greedyBalanceScore);
                 if (fgBalanceScore.compareTo(bestScore) > 0) {
-                    log.info("Using Fair Greedy result (better balance score)");
+                    log.info("Using Fair Greedy result (better balance score, {} schedules persisted)",
+                            fairGreedySchedules.size());
                     bestScore = fgBalanceScore;
                     bestSchedules = fairGreedySchedules;
-                    // If we chose FG as the better option, run again with save=true
-                    if (!save) {
-                        createdSchedules = runFairGreedy(period, requirements, activeStaff, save, runtimeConfig,
-                                request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-                        bestSchedules = createdSchedules;
-                    }
+                } else {
+                    // FG didn't actually beat Greedy on balance — roll back FG's
+                    // persistence so DB doesn't carry both plans. Easiest path:
+                    // delete the rows we just inserted and keep the Greedy set.
+                    log.info("Fair Greedy did not improve over {} — rolling back its persisted schedules", algorithmType);
+                    final List<Schedule> greedySnapshot = createdSchedules;
+                    rollBackSchedulesByPredicate(fairGreedySchedules, sched -> !greedySnapshot.contains(sched));
                 }
             }
         }
@@ -710,6 +881,7 @@ public class AutoSchedulingService {
                         .staffSpecialtyName(getStaffSpecialtyName(s))
                         .requiredSpecialtyName(getRequiredSpecialtyName(s))
                         .crossSpecialty(isCrossSpecialtyAssignment(s))
+                        .requirementId(s.getRequirement() != null ? s.getRequirement().getId() : null)
                         .build())
                 .collect(Collectors.toList());
 
@@ -1582,6 +1754,85 @@ public class AutoSchedulingService {
         merged.addAll(cspPartial);
         merged.addAll(topUp);
         return merged;
+    }
+
+    /**
+     * Persist only the Greedy top-up slots (those not already covered by CSP's
+     * partial plan). Returns the schedules actually written to the DB. When
+     * {@code save=false} (preview mode) this is a no-op and returns the input
+     * list untouched — preview wants in-memory data only, no DB writes.
+     *
+     * <p>BUGFIX (was M07 #2) helper. Called from the CSP-partial branch to
+     * keep DB rows aligned with the response schedules list.
+     */
+    private List<Schedule> persistGreedyTopUpOnly(SchedulePeriod period,
+                                                  List<Schedule> topUp,
+                                                  boolean save,
+                                                  List<Staff> activeStaff) {
+        if (topUp == null || topUp.isEmpty()) return List.of();
+        if (!save) {
+            log.debug("persistGreedyTopUpOnly: preview mode — {} schedules kept in-memory only", topUp.size());
+            return topUp;
+        }
+
+        List<Schedule> persisted = new ArrayList<>(topUp.size());
+        int failed = 0;
+        for (Schedule s : topUp) {
+            try {
+                // Re-validate against current DB state (CSP/greedy in-memory data
+                // may be slightly stale by the time we persist, especially after
+                // the multi-second CSP run). Skip duplicates and conflicts that
+                // surfaced since the in-memory plan was built.
+                if (scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                        period.getId(),
+                        s.getStaff().getId(),
+                        s.getShiftType().getId(),
+                        s.getWorkDate()).isPresent()) {
+                    failed++;
+                    log.debug("persistGreedyTopUpOnly: skip duplicate staff={} date={} shift={}",
+                            s.getStaff().getId(), s.getWorkDate(), s.getShiftType().getId());
+                    continue;
+                }
+                // Strip the unsaved entity state and re-insert via the canonical
+                // build path so compensation-day and audit side-effects run.
+                s.setId(null);
+                s.setPeriod(period);
+                Schedule saved = scheduleRepository.save(s);
+                persisted.add(saved);
+
+                if (Boolean.TRUE.equals(s.getShiftType().getIsOvernight())) {
+                    // Inline compensation-day creation for the L01 top-up slot.
+                    // Reusing createCompensationDaysForL01InPeriod() at this
+                    // granularity would re-scan the entire period, which is
+                    // wasteful for a single schedule. The INSERT IGNORE pattern
+                    // mirrors the canonical path and safely handles duplicate
+                    // compensation dates from concurrent runs.
+                    try {
+                        LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+                        compensationDayRepository.insertIgnoreCompensationDay(
+                                s.getStaff().getId(),
+                                period.getId(),
+                                s.getId(),
+                                s.getWorkDate(),
+                                compDate,
+                                "Ngày nghỉ bù tự động từ CSP-partial Greedy top-up (shift_id=" + s.getId() + ")"
+                        );
+                    } catch (Exception compEx) {
+                        log.warn("Top-up compensation day creation failed for shift id={}: {}",
+                                s.getId(), compEx.getMessage());
+                    }
+                }
+            } catch (Exception ex) {
+                failed++;
+                log.warn("persistGreedyTopUpOnly: failed to save staff={} date={} shift={}: {}",
+                        s.getStaff().getId(), s.getWorkDate(), s.getShiftType().getId(), ex.getMessage());
+            }
+        }
+        if (failed > 0) {
+            log.warn("persistGreedyTopUpOnly: {} of {} top-up slots skipped due to duplicates/conflicts",
+                    failed, topUp.size());
+        }
+        return persisted;
     }
 
     // ==================== M07-F06: Báo cáo ngày chưa phân công ====================
@@ -2834,6 +3085,35 @@ public class AutoSchedulingService {
         return BigDecimal.valueOf(score).setScale(2, RoundingMode.HALF_UP);
     }
 
+    /**
+     * Delete any persisted schedule from {@code candidate} that passes the
+     * {@code shouldDelete} predicate AND is not present in {@code keep}.
+     *
+     * <p>BUGFIX (was M07 #1) helper: when Fair Greedy ran as a fallback probe
+     * (save=true) but its balance score didn't actually beat Greedy, we need
+     * to undo FG's persisted rows so DB only carries the chosen plan. The
+     * predicate filter prevents deleting schedules Greedy already created —
+     * those rows are owned by the Greedy run and stay.
+     */
+    private void rollBackSchedulesByPredicate(List<Schedule> candidate, java.util.function.Predicate<Schedule> shouldDelete) {
+        if (candidate == null || candidate.isEmpty()) return;
+        int deleted = 0;
+        for (Schedule s : candidate) {
+            if (!shouldDelete.test(s)) continue;
+            Integer id = s.getId();
+            if (id == null) continue; // not yet persisted
+            try {
+                scheduleRepository.deleteById(id);
+                deleted++;
+            } catch (Exception ex) {
+                log.warn("rollback schedule id={} failed: {}", id, ex.getMessage());
+            }
+        }
+        if (deleted > 0) {
+            log.info("Fair Greedy rollback: removed {} persisted schedules", deleted);
+        }
+    }
+
     private void saveMetrics(SchedulePeriod period, String algorithmType, int executionTime,
                              BigDecimal coverageRate, BigDecimal balanceScore, int conflictCount, int totalSchedulesCreated) {
         AlgorithmMetrics metrics = AlgorithmMetrics.builder()
@@ -3997,6 +4277,8 @@ public class AutoSchedulingService {
                             .staffName(s.getStaff().getFullName())
                             .workDate(s.getWorkDate().toString())
                             .shiftTypeId(s.getShiftType().getId())
+                            .shiftTypeName(s.getShiftType().getName())
+                            .requirementId(s.getRequirement() != null ? s.getRequirement().getId() : null)
                             .build())
                     .toList();
 
@@ -4072,5 +4354,20 @@ public class AutoSchedulingService {
         return changes.getAdded().size() + changes.getRemoved().size()
                 + changes.getModified().size() + changes.getAddedLeaves().size()
                 + changes.getRemovedLeaves().size();
+    }
+
+    /**
+     * BUGFIX (was M07 #3): Acquire (or lazily create) a non-fair lock for the
+     * given period. Concurrent autoSchedule/previewSchedule calls on the same
+     * period coordinate via {@link java.util.concurrent.locks.Lock#tryLock()};
+     * the loser gets a 400 BadRequestException so the client can retry.
+     *
+     * <p>The map is unbounded on purpose — period IDs are small bounded integers
+     * from a separate table, and locks are JVM-scoped which matches the
+     * request-scoped transaction boundary.
+     */
+    private java.util.concurrent.locks.Lock acquirePeriodLock(Integer periodId) {
+        return periodLocks.computeIfAbsent(periodId,
+                id -> new java.util.concurrent.locks.ReentrantLock());
     }
 }

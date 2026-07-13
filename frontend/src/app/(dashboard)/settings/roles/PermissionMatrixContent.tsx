@@ -123,6 +123,12 @@ export function PermissionMatrixContent() {
     try {
       setSaving(true);
       await api.toggleRolePermission({ roleId, permissionId, granted: newValue });
+      // BUGFIX (was FE#1): Pending toggles were only cleared in the catch branch,
+      // so on success the entry stayed in the map → cell kept rendering the spinner
+      // forever. Clear it on success too. Also update the local `matrix` so the
+      // cell flips immediately without waiting for a refetch.
+      setPendingToggles((prev) => { const next = new Map(prev); next.delete(key); return next; });
+      setMatrix((prev) => mergeToggleIntoMatrix(prev, roleId, permissionId, newValue));
       toast.success(`${newValue ? "Cấp" : "Thu hồi"} quyền thành công.`);
     } catch (e) {
       setPendingToggles((prev) => { const next = new Map(prev); next.delete(key); return next; });
@@ -300,4 +306,32 @@ export function PermissionMatrixContent() {
       />
     </div>
   );
+}
+
+/**
+ * BUGFIX (was FE#1): After a successful toggle, splice the new granted value
+ * into the local matrix so the cell flips immediately instead of waiting for a
+ * network refetch. Returns the original `prev` reference when the entry is
+ * missing or already matches — keeps React's bailout behaviour intact.
+ */
+function mergeToggleIntoMatrix(
+  prev: RolePermissionMatrix | null,
+  roleId: number,
+  permissionId: number,
+  newValue: boolean,
+): RolePermissionMatrix | null {
+  if (!prev) return prev;
+  let changed = false;
+  const next = {
+    ...prev,
+    matrix: prev.matrix.map((entry) => {
+      if (entry.roleId === roleId && entry.permissionId === permissionId) {
+        if (entry.granted === newValue) return entry;
+        changed = true;
+        return { ...entry, granted: newValue };
+      }
+      return entry;
+    }),
+  };
+  return changed ? next : prev;
 }

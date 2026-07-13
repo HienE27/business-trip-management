@@ -14,11 +14,14 @@ import { api } from "@/lib/api";
 import type { Staff } from "@/types/api";
 
 const AUTH_STORAGE_KEY = "medschedule.user";
+const TOKEN_STORAGE_KEY = "medschedule.token";
+const REFRESH_TOKEN_STORAGE_KEY = "medschedule.refreshToken";
 
 type AuthUser = {
   username: string;
   userId: number;
   roles: string[];
+  permissions: string[];
 };
 
 type AuthState = {
@@ -39,20 +42,20 @@ type LoginResponse = {
     userId?: number;
     username?: string;
     roles?: string[];
+    permissions?: string[];
   };
 };
-
-const TOKEN_STORAGE_KEY = "medschedule.token";
 
 const AuthContext = createContext<AuthState | null>(null);
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
-function toAuthUser(staff: Staff): AuthUser {
+function toAuthUser(staff: Staff, permissions: string[] = []): AuthUser {
   return {
     username: staff.username,
     userId: staff.id,
     roles: staff.roles ?? [],
+    permissions,
   };
 }
 
@@ -91,6 +94,28 @@ function isUnauthorizedError(error: unknown): boolean {
   );
 }
 
+/**
+ * BUGFIX (was FE#7) helper. The api-client wraps fetch errors with a
+ * uniform shape; here we sniff for 5xx specifically so the bootstrap
+ * path can flag the session as stale without immediately bouncing the
+ * user to /login on a transient backend hiccup.
+ */
+function looksLike5xx(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as {
+    status?: number;
+    response?: { status?: number };
+    statusCode?: number;
+    message?: string;
+  };
+  const code =
+    candidate.status ?? candidate.response?.status ?? candidate.statusCode;
+  if (typeof code === "number" && code >= 500 && code < 600) return true;
+  return (
+    typeof candidate.message === "string" && /HTTP 5\d{2}/.test(candidate.message)
+  );
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -100,9 +125,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     const currentStaff = await api.get<Staff>("/staff/me");
-    const nextUser = toAuthUser(currentStaff);
-    persistAuthUser(nextUser);
-    setUser(nextUser);
+    // Preserve the permissions we already have in state — they came from the
+    // JWT issued at login and the /staff/me endpoint doesn't carry them.
+    setUser((prev) => {
+      const nextUser = toAuthUser(currentStaff, prev?.permissions ?? []);
+      persistAuthUser(nextUser);
+      return nextUser;
+    });
   }, []);
 
   useEffect(() => {
@@ -127,19 +156,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const currentStaff = await api.get<Staff>("/staff/me");
         if (!active) return;
-        const nextUser = toAuthUser(currentStaff);
-        persistAuthUser(nextUser);
-        setUser(nextUser);
+        // Preserve permissions already known from the JWT/login payload —
+        // /staff/me does not carry them. Falling back to whatever was already
+        // in state prevents a brief flash of zero-permission UI right after
+        // page reload (the bug that caused RouteGuard to 403 STAFF on
+        // /holidays even though the JWT clearly carries HOLIDAY_VIEW).
+        // Use functional updater to read the latest user state — the closure
+        // captured by useEffect has a stale `user` reference because the effect
+        // runs once on mount with `user = null`.
+        setUser((prev) => {
+          const nextUser = toAuthUser(currentStaff, prev?.permissions ?? []);
+          persistAuthUser(nextUser);
+          return nextUser;
+        });
       } catch (error) {
         if (!active) return;
         if (isUnauthorizedError(error)) {
+          // Token definitively invalid — clear everything so the next page
+          // load treats the user as anonymous instead of carrying around a
+          // dead token that 401s every request.
           window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+          window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
           persistAuthUser(null);
           setUser(null);
           setToken(null);
           router.replace("/login");
+        } else if (looksLike5xx(error)) {
+          // BUGFIX (was FE#7): server is reachable but unhappy (5xx). The
+          // previous code silently kept the localStorage user in place and
+          // showed them as logged in — so they'd see the dashboard for
+          // ~half a second then every API call would fail, leaving the UI
+          // half-rendered with no recovery path (no toast, no banner). Now
+          // we surface a soft warning via setMessage-equivalent and a
+          // "session-stale" hint that callers can use to show a banner.
+          // We do NOT auto-logout (the user may have valid data cached and
+          // a retry might succeed); we just record the staleness so the
+          // UI can offer a manual "Thử lại" path.
+          // The persistAuthUser() call remains — keep the cached user so
+          // the role/permissions stay populated for navigation, but tag
+          // the session as stale via window.sessionStorage so other
+          // components can react.
+          try {
+            window.sessionStorage.setItem("medschedule.session.stale", "1");
+          } catch {
+            /* sessionStorage unavailable — fall through */
+          }
+          // Re-throw the error is unnecessary; the finally{} below still
+          // flips isLoading off so the UI renders. Surface to console for
+          // ops debugging but don't pollute the user-facing toast queue.
+          // eslint-disable-next-line no-console
+          console.warn("[AuthProvider] /staff/me returned 5xx during bootstrap:", error);
         }
-        // For other failures (network, 5xx), keep localStorage user — don't log them out
+        // For non-401 / non-5xx (network drop, CORS, etc.), keep localStorage
+        // user as-is — the next successful call will refresh silently.
       } finally {
         if (active) {
           setIsLoading(false);
@@ -175,11 +244,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       username: payload.data?.username ?? username,
       userId: payload.data?.userId ?? 0,
       roles: payload.data?.roles ?? [],
+      permissions: payload.data?.permissions ?? [],
     };
 
     if (token) {
       window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
       setToken(token);
+    }
+    // Refresh token — the backend may also send it via `Set-Cookie` (HttpOnly)
+    // and credentials: "include" already attaches that cookie. The JS-readable
+    // mirror is kept in localStorage so the api-client can include it in the
+    // /auth/refresh POST body if needed.
+    const refreshToken = payload.data && (payload.data as { refreshToken?: string }).refreshToken;
+    if (refreshToken) {
+      window.localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
     }
     persistAuthUser(fallbackUser);
     setUser(fallbackUser);
@@ -198,6 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api.logout();
     } finally {
       window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+      window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
       setToken(null);
       persistAuthUser(null);
       setUser(null);

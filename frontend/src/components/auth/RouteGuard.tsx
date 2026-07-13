@@ -1,0 +1,166 @@
+"use client";
+
+import type { ReactNode } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useMemo } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Permission } from "@/lib/permissions";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { EmptyState } from "@/components/ui/EmptyState";
+
+/**
+ * Map a path under {@code (dashboard)} to the permission set required to
+ * render it. Only paths listed here are guarded — anything else falls back
+ * to the default rule (any authenticated user can view).
+ *
+ * <p>To add a new guarded page:
+ * <ol>
+ *   <li>Add a permission to {@code Permissions.java} + frontend mirror.</li>
+ *   <li>Add the route + required permission here.</li>
+ *   <li>Wire {@code <RouteGuard>} around the page content in the layout.</li>
+ * </ol>
+ */
+export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
+  // Nhân sự & phân quyền
+  "/staff": [Permission.STAFF_VIEW],
+  "/staff/create": [Permission.STAFF_CREATE],
+  "/periods": [Permission.PERIOD_VIEW],
+  "/periods/create": [Permission.PERIOD_CREATE],
+
+  // Auto-scheduling & cấu hình
+  "/auto-scheduling": [Permission.AUTO_SCHEDULE_VIEW],
+  "/algorithm-config": [Permission.AUTO_SCHEDULE_CONFIG_VIEW],
+
+  // Duyệt
+  "/leave-requests": [Permission.LEAVE_VIEW],
+  "/swap-requests": [Permission.EXCHANGE_VIEW],
+
+  // Báo cáo
+  "/reports": [Permission.REPORT_VIEW],
+
+  // Cài đặt
+  "/settings": [Permission.APP_CONFIG_VIEW],
+  "/settings/roles": [Permission.ROLE_VIEW],
+
+  // Audit + System log
+  "/audit-history": [Permission.AUDIT_VIEW],
+  "/system-logs": [Permission.SYSTEM_LOG_VIEW],
+
+  // Ngày lễ
+  "/holidays": [Permission.HOLIDAY_VIEW],
+
+  // Schedule template
+  "/schedule-templates": [Permission.SCHEDULE_TEMPLATE_MANAGE],
+
+  // Notifications — cho phép STAFF xem của mình
+  "/notifications": [Permission.NOTIFICATION_VIEW],
+
+  // Monthly schedule (theo từng loại ca) — STAFF chỉ xem của mình, ADMIN/MANAGER đầy đủ
+  "/duty-24": [Permission.SCHEDULE_VIEW],
+  "/all-day": [Permission.SCHEDULE_VIEW],
+  "/service-clinic": [Permission.SCHEDULE_VIEW],
+  "/expert-clinic": [Permission.SCHEDULE_VIEW],
+  "/schedule-summary": [Permission.SCHEDULE_VIEW],
+
+  // Data integrity (admin only)
+  "/data-integrity": [Permission.DATA_INTEGRITY_RUN],
+};
+
+export function requiredPermissionsForPath(pathname: string): Permission[] {
+  if (!pathname) return [];
+  // Exact match first
+  if (ROUTE_PERMISSIONS[pathname]) {
+    return ROUTE_PERMISSIONS[pathname];
+  }
+  // Otherwise, walk up the path segments looking for a partial match so that
+  // /staff/123 or /periods/45/edit still hit the parent route's rule.
+  const segments = pathname.split("/").filter(Boolean);
+  while (segments.length > 1) {
+    segments.pop();
+    const candidate = "/" + segments.join("/");
+    if (ROUTE_PERMISSIONS[candidate]) {
+      return ROUTE_PERMISSIONS[candidate];
+    }
+  }
+  return [];
+}
+
+type Props = {
+  children: ReactNode;
+};
+
+/**
+ * Page-level guard for the {@code (dashboard)} route group.
+ *
+ * <p>Behaviour:
+ * <ul>
+ *   <li>User not authenticated → redirect to /login (handled by AuthGuard).</li>
+ *   <li>User authenticated but missing permission for current path → keep URL,
+ *       render EmptyState "Bạn không có quyền truy cập trang này" + button
+ *       "Về Tổng quan". NO redirect.</li>
+ *   <li>Path not in {@link ROUTE_PERMISSIONS} → render children as-is
+ *       (permissive default so we don't accidentally hide new pages).</li>
+ * </ul>
+ */
+export function RouteGuard({ children }: Props) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
+  const { can } = usePermissions();
+
+  const required = useMemo(() => requiredPermissionsForPath(pathname), [pathname]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  // BUGFIX (was FE#11): rendering an animated "Đang tải..." spinner while
+  // the auth state is settling caused a visible flash on every route
+  // navigation — the page content would briefly appear, get replaced by
+  // the spinner for one frame as the layout re-mounted, then disappear
+  // again. Worse, replacing the spinner with the EmptyState / page after
+  // a tick also caused a height jump. Replace the spinner with a stable
+  // skeleton: same minimum height as the EmptyState (so the layout
+  // doesn't reflow), no internal animation that gets interrupted, and
+  // a one-shot fade-in via Tailwind so we never flash white-to-blank.
+  if (isLoading || !isAuthenticated) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        aria-busy={isLoading}
+        className="flex h-64 items-center justify-center text-on-surface-variant animate-fade-in"
+      >
+        {isLoading ? "Đang tải..." : "Đang chuyển hướng..."}
+      </div>
+    );
+  }
+
+  if (required.length === 0) {
+    return <>{children}</>;
+  }
+
+  if (!can(required)) {
+    return (
+      <EmptyState
+        icon="lock"
+        title="Bạn không có quyền truy cập trang này"
+        description="Tài khoản của bạn không được cấp quyền để xem nội dung này. Liên hệ quản trị viên nếu bạn cho rằng đây là nhầm lẫn."
+        action={
+          <button
+            onClick={() => router.replace("/dashboard")}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-lg font-label-md hover:bg-primary/90 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[18px]">home</span>
+            Về Tổng quan
+          </button>
+        }
+      />
+    );
+  }
+
+  return <>{children}</>;
+}

@@ -55,13 +55,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<?>> handleAccessDenied(
             AccessDeniedException ex, HttpServletRequest request) {
-        return errorResponse(HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này");
+        return errorResponse(HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện hành động này");
     }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<?>> handleAuthentication(
             AuthenticationException ex, HttpServletRequest request) {
-        return errorResponse(HttpStatus.UNAUTHORIZED, "Xác thực thất bại");
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .header("WWW-Authenticate", "Bearer realm=\"medschedule\"")
+                .body(ApiResponse.builder()
+                        .success(false)
+                        .message("Phiên đăng nhập đã hết hạn hoặc không hợp lệ")
+                        .data(null)
+                        .timestamp(LocalDateTime.now())
+                        .build());
     }
 
     @ExceptionHandler(BadCredentialsException.class)

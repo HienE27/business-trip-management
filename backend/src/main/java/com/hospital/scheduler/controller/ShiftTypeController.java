@@ -3,6 +3,7 @@ package com.hospital.scheduler.controller;
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.ShiftTypeRequest;
 import com.hospital.scheduler.dto.response.ShiftTypeResponse;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.ShiftTypeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,28 +26,28 @@ public class ShiftTypeController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách loại ca")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "') or hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ShiftTypeResponse>>> getAllShiftTypes() {
         return ResponseEntity.ok(ApiResponse.success(shiftTypeService.getAllShiftTypes()));
     }
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách loại ca đang hoạt động")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<ShiftTypeResponse>>> getActiveShiftTypes() {
         return ResponseEntity.ok(ApiResponse.success(shiftTypeService.getActiveShiftTypes()));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết loại ca")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "') or hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<ShiftTypeResponse>> getShiftTypeById(@PathVariable String id) {
         return ResponseEntity.ok(ApiResponse.success(shiftTypeService.getShiftTypeById(id)));
     }
 
     @PostMapping
     @Operation(summary = "Tạo loại ca mới")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "')")
     public ResponseEntity<ApiResponse<ShiftTypeResponse>> createShiftType(@Valid @RequestBody ShiftTypeRequest request) {
         ShiftTypeResponse created = shiftTypeService.createShiftType(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(created, "Tạo loại ca thành công"));
@@ -54,7 +55,7 @@ public class ShiftTypeController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật loại ca")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "')")
     public ResponseEntity<ApiResponse<ShiftTypeResponse>> updateShiftType(
             @PathVariable String id,
             @Valid @RequestBody ShiftTypeRequest request) {
@@ -63,7 +64,7 @@ public class ShiftTypeController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa loại ca (soft delete)")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "')")
     public ResponseEntity<ApiResponse<Void>> deleteShiftType(@PathVariable String id) {
         shiftTypeService.deleteShiftType(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa loại ca thành công"));

@@ -5,7 +5,15 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { AutoScheduleResult, TemplatePreviewItem } from "@/types/api";
 
-type PreviewScheduleEdit = { workDate: string; shiftTypeId: string; staffId: number };
+type PreviewScheduleEdit = {
+  workDate: string;
+  shiftTypeId: string;
+  staffId: number;
+  // BUGFIX (was M07 #8): carry the backend requirement id through the
+  // edit→apply round-trip so the resolver can disambiguate L04 slots with
+  // multiple specialties.
+  requirementId?: number | null;
+};
 
 export type AutoScheduleState = {
   previewResult: AutoScheduleResult | null;
@@ -103,7 +111,15 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
           .filter((item): item is PreviewScheduleEdit => item !== null);
         const schedules = edited.length > 0
           ? edited
-          : previewResult?.schedules.map((s) => ({ workDate: s.workDate, shiftTypeId: s.shiftTypeId, staffId: s.staffId })) ?? [];
+          : previewResult?.schedules.map((s) => ({
+              workDate: s.workDate,
+              shiftTypeId: s.shiftTypeId,
+              staffId: s.staffId,
+              // BUGFIX (was M07 #8): forward the requirementId emitted by the
+              // backend so the resolver picks the right (date, shiftType)
+              // requirement even when L04 has multiple specialties.
+              requirementId: s.requirementId ?? null,
+            })) ?? [];
         await api.applyPreview({ periodId, algorithmType, schedules, removedSchedules });
         setMessage("Đã áp dụng phương án phân công.");
         setPreviewResult(null);

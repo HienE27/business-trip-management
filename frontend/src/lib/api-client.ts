@@ -40,10 +40,39 @@ import type {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
 const LOGIN_PATH = "/login";
 const TOKEN_STORAGE_KEY = "medschedule.token";
+const REFRESH_TOKEN_STORAGE_KEY = "medschedule.refreshToken";
 
 function getStoredToken(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+function getStoredRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+}
+
+/**
+ * Global event bus so the api-client can ask the React tree to surface a
+ * toast (e.g. for 403 "Bạn không có quyền…" or for network failures) without
+ * importing React / hooks directly. ApiClient → window.dispatchEvent →
+ * ToastBridge (in app/layout.tsx) → useToast.
+ */
+export const API_EVENTS = {
+  Forbidden: "medschedule:api:forbidden",
+  AuthError: "medschedule:api:auth-error",
+  NetworkError: "medschedule:api:network-error",
+} as const;
+
+export type ApiEventDetail = {
+  status?: number;
+  message: string;
+  path?: string;
+};
+
+function emit(name: string, detail: ApiEventDetail) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(name, { detail }));
 }
 
 /**
@@ -77,9 +106,56 @@ function buildScheduleExportQuery(filters: ScheduleExportFilters): string {
 }
 
 class ApiClient {
+  private refreshing: Promise<string | null> | null = null;
+
+  private async attemptRefresh(): Promise<string | null> {
+    const refresh = getStoredRefreshToken();
+    if (!refresh) return null;
+    if (!this.refreshing) {
+      this.refreshing = (async () => {
+        try {
+          const res = await fetch(`${API_BASE}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken: refresh }),
+          });
+          if (!res.ok) return null;
+          const payload = (await res.json()) as {
+            data?: { token?: string; refreshToken?: string };
+          };
+          const next = payload.data?.token;
+          const nextRefresh = payload.data?.refreshToken;
+          if (next && typeof window !== "undefined") {
+            window.localStorage.setItem(TOKEN_STORAGE_KEY, next);
+            if (nextRefresh) {
+              window.localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, nextRefresh);
+            }
+          }
+          return next ?? null;
+        } catch {
+          return null;
+        } finally {
+          this.refreshing = null;
+        }
+      })();
+    }
+    return this.refreshing;
+  }
+
+  private clearAuthAndRedirect() {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem("medschedule.user");
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+    window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+    const currentPath = window.location.pathname;
+    if (currentPath !== LOGIN_PATH) {
+      window.location.replace(LOGIN_PATH);
+    }
+  }
+
   private async request<T>(
     endpoint: string,
-    options: RequestInit & { timeout?: number } = {}
+    options: RequestInit & { timeout?: number; _retried?: boolean } = {},
   ): Promise<ApiResponse<T>> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -91,45 +167,76 @@ class ApiClient {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    // Support AbortController timeout if specified
     const timeout = options.timeout ?? 60000;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+    let response: Response;
     try {
-      const response = await fetch(`${API_BASE}${endpoint}`, {
+      response = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
         headers,
         credentials: "include",
         signal: controller.signal,
       });
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        if (response.status === 401 && typeof window !== "undefined") {
-          // Clear BOTH token and user, otherwise the next page load
-          // re-runs AuthProvider with a stale token and the 401 loops.
-          window.localStorage.removeItem("medschedule.user");
-          window.localStorage.removeItem("medschedule.token");
-          const currentPath = window.location.pathname;
-          if (currentPath !== LOGIN_PATH) {
-            window.location.replace(LOGIN_PATH);
-          } else {
-            throw new Error(`HTTP 401 — Phiên đăng nhập hết hạn`);
-          }
-        }
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${response.status}`);
-      }
-
-      return response.json().catch(() => ({ success: true, data: null, message: "Thành công" }));
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === "AbortError") {
         throw new Error(`Yêu cầu hết thời gian chờ (${Math.round(timeout / 1000)}s). Thuật toán có thể đang chạy quá lâu.`);
       }
+      emit(API_EVENTS.NetworkError, { message: "Mất kết nối tới máy chủ. Vui lòng thử lại.", path: endpoint });
       throw error;
     }
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({} as { message?: string }));
+
+      // 401 + we have a refresh token + haven't retried yet → try to refresh
+      // once. If refresh succeeds, replay the request; otherwise force a
+      // full re-login. This avoids the "kick to /login on a single expired
+      // access token" loop.
+      if (
+        response.status === 401 &&
+        !options._retried &&
+        getStoredRefreshToken() &&
+        endpoint !== "/auth/refresh" &&
+        endpoint !== "/auth/login"
+      ) {
+        const newToken = await this.attemptRefresh();
+        if (newToken) {
+          return this.request<T>(endpoint, { ...options, _retried: true });
+        }
+      }
+
+      if (response.status === 401) {
+        emit(API_EVENTS.AuthError, {
+          status: 401,
+          message: errorData.message || "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+          path: endpoint,
+        });
+        this.clearAuthAndRedirect();
+        throw new Error(errorData.message || `HTTP 401 — Phiên đăng nhập hết hạn`);
+      }
+
+      if (response.status === 403) {
+        // 403 = authenticated but missing permission. We DO NOT redirect —
+        // the user is logged in, they just can't see this thing. Toast it
+        // and let the page render whatever it has.
+        emit(API_EVENTS.Forbidden, {
+          status: 403,
+          message:
+            errorData.message ||
+            "Bạn không có quyền thực hiện thao tác này. Liên hệ quản trị viên nếu bạn cho rằng đây là nhầm lẫn.",
+          path: endpoint,
+        });
+        throw new Error(errorData.message || `HTTP 403 — Không có quyền truy cập`);
+      }
+
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    return response.json().catch(() => ({ success: true, data: null, message: "Thành công" }));
   }
 
   // Generic HTTP methods
@@ -679,8 +786,20 @@ class ApiClient {
   async applyPreview(data: {
     periodId: number;
     algorithmType: string;
-    schedules: Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
-    removedSchedules?: Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
+    // BUGFIX (was M07 #8): requirementId is forwarded by the wizard when the
+    // auto-schedule preview carries one; the backend uses it to resolve
+    // multi-specialty L04 slots deterministically.
+    schedules: Array<{
+      workDate: string;
+      shiftTypeId: string;
+      staffId: number;
+      requirementId?: number | null;
+    }>;
+    removedSchedules?: Array<{
+      workDate: string;
+      shiftTypeId: string;
+      staffId: number;
+    }>;
   }): Promise<ApiResponse<void>> {
     return this.request<void>("/auto-schedule/apply-preview", {
       method: "POST",

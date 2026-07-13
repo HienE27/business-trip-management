@@ -2,6 +2,7 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.security.AuthContextService;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.DataIntegrityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,16 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * Admin endpoints cho data integrity cleanup.
- *
- * Dùng để sửa các lỗi như:
- * - staff_role có role_id không tồn tại trong app_role
- * - staff_role có staff_id không tồn tại trong staff
- *
- * Sau khi cleanup, các endpoint trước đây throw
- * "No row with the given identifier exists" sẽ load bình thường.
- */
 @RestController
 @RequestMapping("/api/v1/admin/data-integrity")
 @RequiredArgsConstructor
@@ -38,7 +29,7 @@ public class DataIntegrityController {
 
     @PostMapping("/cleanup-staff-role-orphans")
     @Operation(summary = "Xóa orphan rows trong bảng staff_role (role_id hoặc staff_id không tồn tại)")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.DATA_INTEGRITY_RUN + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> cleanupStaffRoleOrphans() {
         log.warn("Admin triggered staff_role cleanup");
         Map<String, Object> report = dataIntegrityService.cleanupStaffRoleOrphans();
@@ -50,7 +41,7 @@ public class DataIntegrityController {
 
     @GetMapping("/orphan-schedule-exchanges")
     @Operation(summary = "Báo cáo schedule_exchange tham chiếu tới schedule đã xóa")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.DATA_INTEGRITY_RUN + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> reportOrphanScheduleExchanges() {
         return ResponseEntity.ok(ApiResponse.success(
                 dataIntegrityService.reportOrphanScheduleExchanges()));
@@ -58,7 +49,7 @@ public class DataIntegrityController {
 
     @PostMapping("/cancel-orphan-schedule-exchanges")
     @Operation(summary = "Cancel tất cả schedule_exchange có reference schedule đã xóa (lý do: 'Lịch trực liên quan đã bị xóa')")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.DATA_INTEGRITY_RUN + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> cancelOrphanScheduleExchanges() {
         Integer adminId = authContextService.getCurrentStaff() != null
                 ? authContextService.getCurrentStaff().getId() : null;

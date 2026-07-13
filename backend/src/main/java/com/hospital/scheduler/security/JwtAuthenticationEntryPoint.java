@@ -3,7 +3,7 @@ package com.hospital.scheduler.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.hospital.scheduler.dto.ErrorResponse;
+import com.hospital.scheduler.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
@@ -32,16 +32,17 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             AuthenticationException authException
     ) throws IOException {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setHeader("WWW-Authenticate", "Bearer realm=\"medschedule\"");
 
-        ErrorResponse errorResponse = ErrorResponse.builder()
+        ApiResponse<?> body = ApiResponse.builder()
+                .success(false)
+                .message("Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.")
+                .data(null)
                 .timestamp(LocalDateTime.now())
-                .status(HttpServletResponse.SC_UNAUTHORIZED)
-                .error("Unauthorized")
-                .message("Authentication required. Please login to access this resource.")
-                .path(request.getRequestURI())
                 .build();
 
-        objectMapper.writeValue(response.getOutputStream(), errorResponse);
+        objectMapper.writeValue(response.getOutputStream(), body);
     }
 }

@@ -206,4 +206,17 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
      */
     @Query("SELECT s.period.id, s.workDate, s.shiftType.id, COUNT(s) FROM Schedule s GROUP BY s.period.id, s.workDate, s.shiftType.id")
     List<Object[]> countGroupedByPeriodWorkDateShiftType();
+
+    /**
+     * BUGFIX (was BE#20) helper: aggregate per-period (totalSchedules, distinctStaff)
+     * in a single grouped query, replacing the N+1 of getPeriodSummaries().
+     *
+     * <p>Returns Object[] rows of {@code [periodId(Integer), totalSchedules(Long),
+     * distinctStaff(Long)]}. Periods with zero schedules are absent from the
+     * result — callers must combine this with their own period list and treat
+     * missing keys as 0.
+     */
+    @Query("SELECT s.period.id, COUNT(s), COUNT(DISTINCT s.staff.id) " +
+           "FROM Schedule s GROUP BY s.period.id")
+    List<Object[]> aggregateByPeriod();
 }

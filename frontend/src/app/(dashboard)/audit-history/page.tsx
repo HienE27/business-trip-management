@@ -7,6 +7,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/BackButton";
 import { useToast } from "@/hooks/useToast";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Permission } from "@/lib/permissions";
 import { getErrorMessage } from "@/lib/errors";
 import { ConfirmDialog } from "@/components/ui";
 import type { AuditHistory, AuditHistoryPage, AuditHistorySummary } from "@/types/api";
@@ -430,6 +432,9 @@ function DetailModal({ record, onClose }: { record: AuditHistory; onClose: () =>
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AuditHistoryPage() {
+  const { can } = usePermissions();
+  const canExport = can(Permission.AUDIT_EXPORT);
+  const canDelete = can(Permission.AUDIT_DELETE);
   const [pageData, setPageData] = useState<AuditHistoryPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -461,6 +466,27 @@ export default function AuditHistoryPage() {
   // Typed-confirm state for "Xóa tất cả" — user must type this exact string to unlock the button.
   const [deleteAllConfirmText, setDeleteAllConfirmText] = useState("");
   const DELETE_ALL_CONFIRM_PHRASE = "XÓA TẤT CẢ";
+
+  // BUGFIX (was FE#9): the date-range and "xóa tất cả" dialogs are
+  // imperative modals that close on backdrop click but ignore the
+  // Escape key — leaving keyboard-only users stranded. ConfirmDialog
+  // handles its own Escape; the two custom ones need their own handler.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (deleting) return; // don't dismiss mid-delete
+      if (deleteDialogType === "date-range") {
+        setDeleteDialogType(null);
+        setDeleteDateFrom("");
+        setDeleteDateTo("");
+      } else if (deleteDialogType === "all") {
+        setDeleteDialogType(null);
+        setDeleteAllConfirmText("");
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [deleteDialogType, deleting]);
 
   const fetchData = useCallback(async (pageNum: number, size: number, refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -994,6 +1020,7 @@ useEffect(() => {
             <span className={`material-symbols-outlined text-[16px] ${refreshing ? "animate-spin" : ""}`} aria-hidden="true">sync</span>
           </IconButton>
 
+          {canExport && (
           <Button
             variant="secondary"
             size="sm"
@@ -1002,6 +1029,7 @@ useEffect(() => {
           >
             Xuất
           </Button>
+        )}
 
           {selectedIds.size > 0 && (
             <>
@@ -1045,16 +1073,18 @@ useEffect(() => {
             <>
               <div className="w-px h-5 bg-outline-variant shrink-0" />
               <div className="relative shrink-0">
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => setDeleteOpen((v) => !v)}
-                  icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete_sweep</span>}
-                  iconPosition="left"
-                >
-                  Xóa
-                  <span className="material-symbols-outlined text-[12px] ml-0.5" aria-hidden="true">expand_more</span>
-                </Button>
+                {canDelete && (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => setDeleteOpen((v) => !v)}
+                    icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete_sweep</span>}
+                    iconPosition="left"
+                  >
+                    Xóa
+                    <span className="material-symbols-outlined text-[12px] ml-0.5" aria-hidden="true">expand_more</span>
+                  </Button>
+                )}
 
                 {deleteOpen && (
                   <>
@@ -1375,15 +1405,17 @@ useEffect(() => {
 
                           {/* Delete button — visible on hover on md+ */}
                           <div className="hidden md:flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <IconButton
-                              label={`Xóa bản ghi ${r.id}`}
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); requestDelete(r.id, `${r.tableName} #${r.recordId}`); }}
-                              className="text-outline hover:text-error hover:bg-error-container"
-                            >
-                              <span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete</span>
-                            </IconButton>
+                            {canDelete && (
+                              <IconButton
+                                label={`Xóa bản ghi ${r.id}`}
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => { e.stopPropagation(); requestDelete(r.id, `${r.tableName} #${r.recordId}`); }}
+                                className="text-outline hover:text-error hover:bg-error-container"
+                              >
+                                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete</span>
+                              </IconButton>
+                            )}
                           </div>
                         </div>
                       );

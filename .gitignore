@@ -181,9 +181,21 @@ tests/
 
 # Debug and test scripts
 *.ps1
+*.cmd
 *.class
 DbSchema.class
 CheckReq.class
+
+# Maven binary / wrapper unpacked cache
+backend/apache-maven-3.9.9/
+
+# Frontend dev/debug helpers
+frontend/*.cmd
+frontend/dump_*.js
+frontend/test_*.js
+frontend/screenshots_all/
+frontend/screenshots_leak_inspect/
+frontend/screenshots_masking/
 
 # Puppeteer screenshots (test artifacts)
 frontend/puppeteer-screenshots/

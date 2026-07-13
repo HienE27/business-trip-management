@@ -11,6 +11,7 @@ import {
   ConflictToastBridge,
 } from "@/components/realtime/ConflictStreamBridge";
 import { NotificationStreamBridge } from "@/components/realtime/NotificationStreamBridge";
+import { ApiToastBridge } from "@/components/auth/ApiToastBridge";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import "./globals.css";
 
@@ -66,6 +67,7 @@ export default function RootLayout({
                   <ConflictStreamBridge />
                   <ConflictToastBridge />
                   <NotificationStreamBridge />
+                  <ApiToastBridge />
                   <ErrorBoundary>
                     {children}
                   </ErrorBoundary>

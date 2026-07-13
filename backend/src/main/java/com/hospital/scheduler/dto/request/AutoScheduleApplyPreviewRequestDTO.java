@@ -45,6 +45,21 @@ public class AutoScheduleApplyPreviewRequestDTO {
 
         @NotNull(message = "shiftTypeId không được để trống")
         private String shiftTypeId;
+
+        /**
+         * BUGFIX (was M07 #8): L04 (Phòng khám chuyên gia) can have multiple
+         * requirements on the same {@code workDate} + {@code shiftTypeId} when
+         * multiple specialties serve the slot. Without an explicit id, the
+         * resolver had to use {@code findFirst()} which would silently link
+         * the wrong specialty. The frontend embeds the requirement id when
+         * the preview is built so this mapping is deterministic.
+         *
+         * Optional for backwards compatibility — when null, the resolver
+         * still falls back to (workDate, shiftTypeId) only if that
+         * combination is unique within the period. Ambiguous cases (L04 with
+         * multiple specialties) require this id to be set.
+         */
+        private Integer requirementId;
     }
 
     @Getter

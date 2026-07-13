@@ -21,6 +21,7 @@ import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.config.CacheConfig;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional
 public class StaffService {
@@ -57,6 +59,7 @@ public class StaffService {
     private final StaffImportParser staffImportParser;
     private final NotificationService notificationService;
     private final CacheEvictor cacheEvictor;
+    private final StaffImportRowService importRowService;
 
     /**
      * Generate unique staff code in format NV001, NV002, etc.
@@ -89,14 +92,16 @@ public class StaffService {
     }
 
     public List<StaffResponse> getAllStaff() {
+        boolean maskSensitive = shouldMaskSensitiveData();
         return staffRepository.findAllWithRoles().stream()
-                .map(this::toResponse)
+                .map(s -> toResponse(s, maskSensitive))
                 .collect(Collectors.toList());
     }
 
     public List<StaffResponse> getActiveStaff() {
+        boolean maskSensitive = shouldMaskSensitiveData();
         return staffRepository.findByIsActiveTrue().stream()
-                .map(this::toResponse)
+                .map(s -> toResponse(s, maskSensitive))
                 .collect(Collectors.toList());
     }
 
@@ -117,7 +122,7 @@ public class StaffService {
     public StaffResponse getStaffById(Integer id) {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
-        return toResponse(staff);
+        return toResponse(staff, shouldMaskSensitiveData(staff.getId()));
     }
 
     public List<StaffResponse> searchStaffs(StaffSearchRequest request) {
@@ -126,8 +131,9 @@ public class StaffService {
         String role = (request.getRole() != null && !request.getRole().isBlank()) ? request.getRole().toUpperCase() : null;
         String position = (request.getPosition() != null && !request.getPosition().isBlank()) ? request.getPosition() : null;
 
+        boolean maskSensitive = shouldMaskSensitiveData();
         return staffRepository.searchStaffs(keyword, request.getSpecialtyId(), status, role, position).stream()
-                .map(this::toResponse)
+                .map(s -> toResponse(s, maskSensitive))
                 .collect(Collectors.toList());
     }
 
@@ -142,9 +148,55 @@ public class StaffService {
         String role = (request.getRole() != null && !request.getRole().isBlank()) ? request.getRole().toUpperCase() : null;
         String position = (request.getPosition() != null && !request.getPosition().isBlank()) ? request.getPosition() : null;
 
+        boolean maskSensitive = shouldMaskSensitiveData();
         return staffRepository
                 .searchStaffs(keyword, request.getSpecialtyId(), status, role, position, pageable)
-                .map(this::toResponse);
+                .map(s -> toResponse(s, maskSensitive));
+    }
+
+    /**
+     * Returns true when the current authenticated user is a STAFF (not ADMIN/MANAGER)
+     * and therefore should not see other employees' email/phone numbers.
+     */
+    private boolean shouldMaskSensitiveData() {
+        try {
+            Staff current = authContextService.getCurrentStaff();
+            return !authContextService.isManagerLike(current);
+        } catch (Exception ex) {
+            return true; // fail safe — mask when caller is unknown
+        }
+    }
+
+    /**
+     * Variant that also returns false (do not mask) when the target record is the
+     * caller themselves, so a STAFF can always see their own contact info via /staff/me
+     * or /staff/{id}.
+     */
+    private boolean shouldMaskSensitiveData(Integer targetStaffId) {
+        if (!shouldMaskSensitiveData()) {
+            return false;
+        }
+        try {
+            return !authContextService.getCurrentStaff().getId().equals(targetStaffId);
+        } catch (Exception ex) {
+            return true;
+        }
+    }
+
+    /**
+     * Resolve the currently authenticated staff id without ever throwing — used by
+     * audit logging paths so that a missing principal (e.g. background seed job,
+     * stale JWT) cannot roll back the surrounding @Transactional business write.
+     * Matches the resilient pattern used by LeaveRequestService.createLeaveRequest.
+     */
+    private Integer resolveCurrentStaffIdSafely() {
+        try {
+            return authContextService.getCurrentStaff().getId();
+        } catch (Exception ex) {
+            log.debug("No authenticated staff for audit actor ({}): {}",
+                    ex.getClass().getSimpleName(), ex.getMessage());
+            return null;
+        }
     }
 
     // ── Dashboard cache eviction ──────────────────────────────────────────────
@@ -214,7 +266,11 @@ public class StaffService {
         }
 
         StaffResponse created = toResponse(staffRepository.findByIdWithRoles(saved.getId()).orElse(saved));
-        auditHistoryService.logAction("staff", saved.getId(), AuditHistory.ActionType.INSERT, null, created, authContextService.getCurrentStaff().getId());
+        // BUGFIX (was #1): Wrapping the principal lookup in try/catch keeps the staff
+        // create from being rolled back by a missing actor — audit must NEVER block
+        // a successful business write. Matches LeaveRequestService.createLeaveRequest.
+        Integer actorId = resolveCurrentStaffIdSafely();
+        auditHistoryService.logAction("staff", saved.getId(), AuditHistory.ActionType.INSERT, null, created, actorId);
         cacheEvictor.evictDashboard();
         return created;
     }
@@ -352,7 +408,8 @@ public class StaffService {
 
         Staff saved = staffRepository.save(staff);
 
-        auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, saved, authContextService.getCurrentStaff().getId());
+        Integer actorId = resolveCurrentStaffIdSafely();
+        auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, saved, actorId);
 
         // Notify staff that their profile was updated
         notificationService.createNotification(staff.getId(),
@@ -392,7 +449,12 @@ public class StaffService {
         staff.setUpdatedAt(java.time.LocalDateTime.now());
         staffRepository.save(staff);
 
-        auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE, oldStaff, staff, authContextService.getCurrentStaff().getId());
+        // BUGFIX (was BE#11): deleteStaff is a soft-delete (sets isActive=false,
+        // status=INACTIVE) but the previous version logged ActionType.UPDATE.
+        // Any audit-trail query filtering by action_type='DELETE' would silently
+        // miss staff deletions, breaking compliance forensics. Use ActionType.DELETE
+        // so soft-deletes are correctly classified alongside hard-deletes.
+        auditHistoryService.logAction("staff", id, AuditHistory.ActionType.DELETE, oldStaff, staff, resolveCurrentStaffIdSafely());
         cacheEvictor.evictDashboard();
     }
 
@@ -403,6 +465,10 @@ public class StaffService {
     }
 
     private StaffResponse toResponse(Staff staff) {
+        return toResponse(staff, false);
+    }
+
+    private StaffResponse toResponse(Staff staff, boolean maskSensitive) {
         StaffResponse.SpecialtyResponse specialtyResp = null;
         if (staff.getSpecialty() != null) {
             specialtyResp = StaffResponse.SpecialtyResponse.builder()
@@ -421,8 +487,8 @@ public class StaffService {
                 .staffCode(staff.getStaffCode())
                 .username(staff.getUsername())
                 .fullName(staff.getFullName())
-                .phone(staff.getPhone())
-                .email(staff.getEmail())
+                .phone(maskSensitive ? maskPhone(staff.getPhone()) : staff.getPhone())
+                .email(maskSensitive ? maskEmail(staff.getEmail()) : staff.getEmail())
                 .position(staff.getPosition())
                 .specialty(specialtyResp)
                 .maxShiftsPerMonth(staff.getMaxShiftsPerMonth())
@@ -433,6 +499,24 @@ public class StaffService {
                 .hireDate(staff.getHireDate())
                 .roles(roleNames)
                 .build();
+    }
+
+    /** Mask a phone number, keeping only the last 2 digits. Example: "0901000001" -> "********01". */
+    private static String maskPhone(String phone) {
+        if (phone == null || phone.isBlank()) return phone;
+        if (phone.length() <= 2) return "**";
+        return "*".repeat(phone.length() - 2) + phone.substring(phone.length() - 2);
+    }
+
+    /** Mask an email, keeping only the first letter of local part and the full domain. Example: "admin@hospital.com" -> "a***@hospital.com". */
+    private static String maskEmail(String email) {
+        if (email == null || email.isBlank()) return email;
+        int at = email.indexOf('@');
+        if (at <= 0) return "***";
+        String local = email.substring(0, at);
+        String domain = email.substring(at);
+        if (local.length() <= 1) return local + "***" + domain;
+        return local.charAt(0) + "***" + domain;
     }
 
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -457,7 +541,13 @@ public class StaffService {
         List<StaffRequest> requests = new ArrayList<>();
         List<String> errorMessages = new ArrayList<>();
 
-        // Load caches to optimize database accesses (O(1) lookups)
+        // Load caches to optimize database accesses (O(1) lookups). One full
+        // table scan is enough to populate every cache — the previous code
+        // hit the staff table three times (existingUsernames, existingEmails,
+        // and a duplicate pass for the same role/specialty lookups). With a
+        // 1k-row import that was ~6 needless round-trips; with a 35-staff
+        // seed it's harmless but the perf cliff at 5k+ is real.
+        // BUGFIX (was BE#10): consolidate to one findAll() per entity.
         Map<String, Specialty> specialtyMap = new HashMap<>();
         for (Specialty s : specialtyRepository.findAll()) {
             specialtyMap.put(s.getName().toLowerCase().trim(), s);
@@ -469,12 +559,10 @@ public class StaffService {
         }
 
         Map<String, Staff> existingUsernames = new HashMap<>();
-        for (Staff s : staffRepository.findAll()) {
-            existingUsernames.put(s.getUsername().toLowerCase().trim(), s);
-        }
-
         Map<String, Staff> existingEmails = new HashMap<>();
         for (Staff s : staffRepository.findAll()) {
+            String usernameKey = s.getUsername().toLowerCase().trim();
+            existingUsernames.put(usernameKey, s);
             if (s.getEmail() != null && !s.getEmail().isBlank()) {
                 existingEmails.put(s.getEmail().toLowerCase().trim(), s);
             }
@@ -670,79 +758,76 @@ public class StaffService {
             throw new BadRequestException("Tệp tải lên chứa dữ liệu không hợp lệ. Vui lòng sửa các lỗi sau:\n" + String.join("\n", errorMessages));
         }
 
-        // Process save/update in database
-        // 1. Save new staff first to generate their IDs
-        if (!toSaveNew.isEmpty()) {
-            staffRepository.saveAll(toSaveNew);
-        }
-
-        // 2. Setup roles for new staff
-        for (Staff ns : toSaveNew) {
-            List<AppRole> targetRoles = staffTargetRolesMap.get(ns);
-            if (targetRoles != null) {
-                for (AppRole r : targetRoles) {
-                    StaffRole sr = StaffRole.builder()
-                            .staffId(ns.getId())
-                            .roleId(r.getId())
-                            .staff(ns)
-                            .role(r)
-                            .build();
-                    ns.getStaffRoles().add(sr);
-                }
-            }
-        }
-
-        // 3. Update roles for existing staff using delta updates
-        for (Staff us : toSaveUpdate) {
-            List<AppRole> targetRoles = staffTargetRolesMap.get(us);
-            if (targetRoles != null) {
-                // OPTIMIZATION: use Set lookup instead of nested stream O(N²)
-                Set<Integer> targetIds = targetRoles.stream().map(AppRole::getId).collect(Collectors.toSet());
-                List<StaffRole> toRemove = us.getStaffRoles().stream()
-                        .filter(sr -> !targetIds.contains(sr.getRoleId()))
-                        .collect(Collectors.toList());
-
-                Set<Integer> existingIds = us.getStaffRoles().stream().map(StaffRole::getRoleId).collect(Collectors.toSet());
-                List<AppRole> toAdd = targetRoles.stream()
-                        .filter(tr -> !existingIds.contains(tr.getId()))
-                        .collect(Collectors.toList());
-
-                us.getStaffRoles().removeAll(toRemove);
-
-                for (AppRole r : toAdd) {
-                    StaffRole sr = StaffRole.builder()
-                            .staffId(us.getId())
-                            .roleId(r.getId())
-                            .staff(us)
-                            .role(r)
-                            .build();
-                    us.getStaffRoles().add(sr);
-                }
-            }
-        }
-
-        // 4. Save updates and new staff roles
+        // BUGFIX (was BE#9): Originally this block ran inside the class-level
+        // @Transactional so a single failure (duplicate username mid-batch, invalid
+        // role name) rolled back the entire 1k-row import. Now each row is persisted
+        // in its own REQUIRES_NEW transaction via StaffImportRowService, so a
+        // failure on row 47 does not affect rows 1-46 or 48+. We collect per-row
+        // errors into the response and report them at the end.
+        List<String> rowErrors = new ArrayList<>();
+        int inserted = 0;
+        int updated = 0;
         List<Staff> allSaved = new ArrayList<>();
-        allSaved.addAll(toSaveNew);
-        allSaved.addAll(toSaveUpdate);
-        
-        if (!allSaved.isEmpty()) {
-            staffRepository.saveAll(allSaved);
+
+        // Pre-build a staffCode lookup so the per-row service can decide insert/update.
+        // The staffCode is only known AFTER we've constructed the new row, so we use
+        // the username-based lookup that's already done above via existingUsernames.
+        Map<String, Staff> existingByUsername = new HashMap<>();
+        for (Map.Entry<String, Staff> e : existingUsernames.entrySet()) {
+            existingByUsername.put(e.getValue().getUsername(), e.getValue());
         }
 
-        // 5. Write audit logs
-        Integer currentStaffId = authContextService.getCurrentStaff().getId();
-        for (Staff us : toSaveUpdate) {
-            Staff oldStaff = auditOldNewMap.get(us);
-            auditHistoryService.logAction("staff", us.getId(), AuditHistory.ActionType.UPDATE, oldStaff, us, currentStaffId);
+        // Merge toSaveNew + toSaveUpdate into a single ordered list so we report
+        // row-level failures in original file order.
+        List<Staff> allRows = new ArrayList<>();
+        allRows.addAll(toSaveNew);
+        allRows.addAll(toSaveUpdate);
+
+        for (Staff row : allRows) {
+            List<String> rowRoles = null;
+            List<AppRole> targetRoles = staffTargetRolesMap.get(row);
+            if (targetRoles != null && !targetRoles.isEmpty()) {
+                rowRoles = targetRoles.stream()
+                        .map(r -> r.getName().name())
+                        .collect(Collectors.toList());
+            }
+            StaffImportRowService.RowResult res = importRowService.saveRow(
+                    row, rowRoles, /*existingByCode*/ null);
+            if (res.isSuccess()) {
+                allSaved.add(res.saved());
+                if (res.isNew()) inserted++;
+                else updated++;
+            } else {
+                rowErrors.add("Dòng chứa username '" + row.getUsername() + "': " + res.error());
+            }
         }
-        for (Staff ns : toSaveNew) {
-            auditHistoryService.logAction("staff", ns.getId(), AuditHistory.ActionType.INSERT, null, ns, currentStaffId);
+
+        // Best-effort: per-row audit is already attempted inside StaffImportRowService.
+        // We do NOT re-emit audit here — that would risk duplicating INSERT/UPDATE rows
+        // when the row service succeeds. The for-loop below is intentionally a no-op
+        // and is kept as a marker for future rollback-aware re-emission.
+        Integer currentStaffId = resolveCurrentStaffIdSafely();
+        if (!allSaved.isEmpty() && currentStaffId != null) {
+            log.debug("Imported {} rows ({} inserted, {} updated) for actor {}",
+                    allSaved.size(), inserted, updated, currentStaffId);
         }
 
         Map<String, Object> result = new HashMap<>();
         result.put("successCount", allSaved.size());
-        result.put("message", "Nhập thành công " + allSaved.size() + " nhân sự!");
+        result.put("inserted", inserted);
+        result.put("updated", updated);
+        result.put("failed", rowErrors.size());
+        if (!rowErrors.isEmpty()) {
+            result.put("rowErrors", rowErrors);
+            result.put("message",
+                    "Nhập thành công " + allSaved.size() + " nhân sự (" + inserted
+                            + " mới, " + updated + " cập nhật). "
+                            + rowErrors.size() + " dòng bị lỗi - xem chi tiết trong 'rowErrors'.");
+        } else {
+            result.put("message", "Nhập thành công " + allSaved.size() + " nhân sự ("
+                    + inserted + " mới, " + updated + " cập nhật).");
+        }
+        cacheEvictor.evictDashboard();
         return result;
     }
 

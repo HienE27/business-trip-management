@@ -9,6 +9,9 @@ import { getErrorMessage } from "@/lib/errors";
 import { getRoleLabel, ROLE_LABELS } from "@/lib/roleLabels";
 import { useToast } from "@/hooks/useToast";
 import { FormInput, FormSelect, Button, ConfirmDialog } from "@/components/ui";
+import { PermissionGate } from "@/components/auth/PermissionGate";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Permission } from "@/lib/permissions";
 import { Pagination } from "@/components/ui/Pagination";
 import { SpecialtyCrudPanel } from "./SpecialtyCrudPanel";
 import type { Specialty } from "@/types/api";
@@ -144,6 +147,7 @@ export function StaffCrudPanel() {
   }>({ total: 0, ACTIVE: 0, ON_LEAVE: 0, INACTIVE: 0 });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
+  const { can } = usePermissions();
 
   // Sync global search ?q= URL param to local search state
   useEffect(() => {
@@ -218,9 +222,17 @@ export function StaffCrudPanel() {
     fetchSpecialties();
   }, [fetchSpecialties]);
 
+  // BUGFIX (was FE#5): The previous version wrapped fetchStaff() in
+  // setTimeout(...0) + clearTimeout(timer) inside the effect cleanup.
+// That pattern only debounces a single tick before firing — and worse,
+  // the cleanup ran `clearTimeout(timer)` BEFORE the timeout callback
+  // executed, so on rapid filter changes the previous fetch was being
+  // cancelled while a new one started. Call fetchStaff() directly: the
+  // effect's dependency tracking already ensures we only run when inputs
+  // change, and concurrent in-flight requests are cancelled via the
+  // AbortController inside fetchStaff (when the caller passes it).
   useEffect(() => {
-    const timer = setTimeout(() => fetchStaff(), 0);
-    return () => clearTimeout(timer);
+    fetchStaff();
   }, [fetchStaff]);
 
   useEffect(() => {
@@ -264,36 +276,19 @@ export function StaffCrudPanel() {
     [statusCounts.total, statusCounts.ACTIVE, statusCounts.ON_LEAVE, statusCounts.INACTIVE]
   );
 
-  const filteredRecords = useMemo(() => {
-    const keyword = searchKeyword.trim().toLowerCase();
-
-    const deduped = records.filter((r, i, arr) =>
+  // BUGFIX (was FE#6): The previous version applied BOTH server-side
+  // filters (via api.searchStaffsPage(...)) and a redundant client-side
+  // filter (this useMemo). With server filtering, the client pass was
+  // hiding rows that the backend already correctly returned — visible as
+  // a confusing mismatch between totalElements (server count) and the
+  // actual rendered rows. Trust the server result instead.
+  const dedupedRecords = useMemo(() => {
+    return records.filter((r, i, arr) =>
       arr.findIndex((x) => x.id === r.id) === i
     );
+  }, [records]);
 
-    return deduped.filter((record) => {
-      const matchesKeyword = !keyword
-        ? true
-        : record.fullName.toLowerCase().includes(keyword) ||
-          record.staffCode.toLowerCase().includes(keyword) ||
-          record.username.toLowerCase().includes(keyword) ||
-          (record.specialty?.name ?? "").toLowerCase().includes(keyword) ||
-          record.email.toLowerCase().includes(keyword);
-
-      const matchesStatus =
-        !statusFilter ||
-        (statusFilter === "ACTIVE" && record.status === "active") ||
-        (statusFilter === "ON_LEAVE" && record.status === "on_leave") ||
-        (statusFilter === "INACTIVE" && record.status === "inactive");
-
-      const matchesRole =
-        !roleFilter || record.roles.some((r) => r.toUpperCase() === roleFilter.toUpperCase());
-
-      return matchesKeyword && matchesStatus && matchesRole;
-    });
-  }, [records, searchKeyword, statusFilter, roleFilter]);
-
-  const pagedRecords = filteredRecords;
+  const pagedRecords = dedupedRecords;
 
   function handlePageSizeChange(size: number) {
     setPageSize(size);
@@ -303,7 +298,7 @@ export function StaffCrudPanel() {
   function handleExportExcel() {
     const rows = [
       ["Họ tên", "Tên đăng nhập", "Vai trò", "Chuyên khoa", "SĐT", "Email", "Trạng thái"],
-      ...filteredRecords.map((r) => [
+      ...dedupedRecords.map((r) => [
         r.fullName,
         r.username,
         getRoleLabel(r.roles),
@@ -777,14 +772,16 @@ export function StaffCrudPanel() {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
-          <button
-            className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 h-10 text-label-md font-medium text-on-surface shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-            onClick={() => document.getElementById("staff-import-input")?.click()}
-            type="button"
-          >
-            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">upload</span>
-            Nhập Excel
-          </button>
+          {can(Permission.STAFF_IMPORT) && (
+            <button
+              className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 h-10 text-label-md font-medium text-on-surface shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              onClick={() => document.getElementById("staff-import-input")?.click()}
+              type="button"
+            >
+              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">upload</span>
+              Nhập Excel
+            </button>
+          )}
           <input
             id="staff-import-input"
             type="file"
@@ -792,21 +789,25 @@ export function StaffCrudPanel() {
             className="hidden"
             onChange={handleImportFile}
           />
-          <button
-            className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 h-10 text-label-md font-medium text-on-surface shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-            onClick={handleExportExcel}
-            type="button"
-          >
-            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">download</span>
-            Xuất Excel
-          </button>
-          <Link
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 h-10 text-label-md font-medium text-on-primary shadow-sm transition-all duration-200 hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-            href="/staff/create"
-          >
-            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">add</span>
-            Thêm nhân viên
-          </Link>
+          {can(Permission.STAFF_EXPORT) && (
+            <button
+              className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 h-10 text-label-md font-medium text-on-surface shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              onClick={handleExportExcel}
+              type="button"
+            >
+              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">download</span>
+              Xuất Excel
+            </button>
+          )}
+          {can(Permission.STAFF_CREATE) && (
+            <Link
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 h-10 text-label-md font-medium text-on-primary shadow-sm transition-all duration-200 hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              href="/staff/create"
+            >
+              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">add</span>
+              Thêm nhân viên
+            </Link>
+          )}
         </div>
       </section>
 
@@ -963,32 +964,38 @@ export function StaffCrudPanel() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                          <Link
-                            aria-label={`Xem chi tiết ${record.fullName}`}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors"
-                            href={`/staff/${record.id}`}
-                            title="Xem chi tiết"
-                          >
-                            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">visibility</span>
-                          </Link>
-                          <button
-                            aria-label={`Chỉnh sửa ${record.fullName}`}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors"
-                            onClick={() => openEditPage(record.id)}
-                            title="Chỉnh sửa"
-                            type="button"
-                          >
-                            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">edit</span>
-                          </button>
-                          <button
-                            aria-label={`Xóa ${record.fullName}`}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-error hover:bg-error-container transition-colors"
-                            onClick={() => requestDelete(record.id, record.fullName)}
-                            title="Xóa"
-                            type="button"
-                          >
-                            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">delete</span>
-                          </button>
+                          {can(Permission.STAFF_VIEW) && (
+                            <Link
+                              aria-label={`Xem chi tiết ${record.fullName}`}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors"
+                              href={`/staff/${record.id}`}
+                              title="Xem chi tiết"
+                            >
+                              <span aria-hidden="true" className="material-symbols-outlined text-[16px]">visibility</span>
+                            </Link>
+                          )}
+                          {can(Permission.STAFF_UPDATE) && (
+                            <button
+                              aria-label={`Chỉnh sửa ${record.fullName}`}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors"
+                              onClick={() => openEditPage(record.id)}
+                              title="Chỉnh sửa"
+                              type="button"
+                            >
+                              <span aria-hidden="true" className="material-symbols-outlined text-[16px]">edit</span>
+                            </button>
+                          )}
+                          {can(Permission.STAFF_DELETE) && (
+                            <button
+                              aria-label={`Xóa ${record.fullName}`}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-error hover:bg-error-container transition-colors"
+                              onClick={() => requestDelete(record.id, record.fullName)}
+                              title="Xóa"
+                              type="button"
+                            >
+                              <span aria-hidden="true" className="material-symbols-outlined text-[16px]">delete</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -997,7 +1004,7 @@ export function StaffCrudPanel() {
               </tbody>
             </table>
           )}
-          {!loading && filteredRecords.length > 0 && (
+          {!loading && dedupedRecords.length > 0 && (
             <Pagination
               currentPage={currentPage + 1}
               totalPages={totalPages}

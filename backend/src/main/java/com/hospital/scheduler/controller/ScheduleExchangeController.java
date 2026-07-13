@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.ScheduleExchangeDTO;
 import com.hospital.scheduler.dto.response.ScheduleExchangeResponse;
 import com.hospital.scheduler.entity.ScheduleExchange;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.ScheduleExchangeService;
 import com.hospital.scheduler.security.AuthContextService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,39 +32,35 @@ public class ScheduleExchangeController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách tất cả yêu cầu đổi ca")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getAllExchanges() {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getAllExchanges()));
     }
 
-    /**
-     * Paginated variant — managers browse large lists of requests with the shared
-     * &lt;Pagination&gt; widget. Sorted DESC by createdAt to surface newest first.
-     */
     @GetMapping("/page")
     @Operation(summary = "Lấy danh sách yêu cầu đổi ca có phân trang")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "')")
     public ResponseEntity<ApiResponse<Page<ScheduleExchangeResponse>>> getExchangesPage(Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesPage(pageable)));
     }
 
     @GetMapping("/status-counts")
     @Operation(summary = "Đếm yêu cầu đổi ca theo trạng thái (toàn DB, không phân trang)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "')")
     public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getStatusCounts()));
     }
 
     @GetMapping("/pending")
     @Operation(summary = "Lấy danh sách yêu cầu đang chờ duyệt")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "')")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getPendingExchanges() {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getPendingExchanges()));
     }
 
     @GetMapping("/status/{status}")
     @Operation(summary = "Lấy yêu cầu theo trạng thái")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getByStatus(@PathVariable String status) {
         return ResponseEntity.ok(ApiResponse.success(
                 exchangeService.getExchangesByStatus(ScheduleExchange.ExchangeStatus.valueOf(status.toUpperCase()))));
@@ -71,21 +68,21 @@ public class ScheduleExchangeController {
 
     @GetMapping("/requester/{requesterId}")
     @Operation(summary = "Lấy yêu cầu đổi ca theo người yêu cầu")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "') or @authContextService.isCurrentStaff(#requesterId)")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getByRequester(@PathVariable Integer requesterId) {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesByRequester(requesterId)));
     }
 
     @GetMapping("/target/{targetId}")
     @Operation(summary = "Lấy yêu cầu đổi ca theo người được đổi")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#targetId)")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "') or @authContextService.isCurrentStaff(#targetId)")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getByTarget(@PathVariable Integer targetId) {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesByTarget(targetId)));
     }
 
     @GetMapping("/user/{userId}")
     @Operation(summary = "Lấy yêu cầu đổi ca liên quan đến người dùng")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#userId)")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "') or @authContextService.isCurrentStaff(#userId)")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getForUser(@PathVariable Integer userId) {
         authContextService.requireManagerOrSelfForUserData(userId);
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesForUser(userId)));
@@ -93,14 +90,14 @@ public class ScheduleExchangeController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết yêu cầu đổi ca")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "') or @authContextService.isCurrentStaffOwnerOfExchange(#id)")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangeById(id)));
     }
 
     @PostMapping("/requester/{requesterId}")
     @Operation(summary = "Tạo yêu cầu đổi ca mới")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#requesterId)")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_CREATE + "') and @authContextService.isCurrentStaff(#requesterId)")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> create(
             @PathVariable Integer requesterId,
             @Valid @RequestBody ScheduleExchangeDTO dto) {
@@ -112,7 +109,7 @@ public class ScheduleExchangeController {
 
     @PutMapping("/{id}/approve")
     @Operation(summary = "Duyệt yêu cầu đổi ca")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "')")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> approve(
             @PathVariable Integer id,
             @RequestParam Integer reviewerId,
@@ -124,7 +121,7 @@ public class ScheduleExchangeController {
 
     @PutMapping("/{id}/reject")
     @Operation(summary = "Từ chối yêu cầu đổi ca")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "')")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> reject(
             @PathVariable Integer id,
             @RequestParam Integer reviewerId,
@@ -136,7 +133,7 @@ public class ScheduleExchangeController {
 
     @PutMapping("/{id}/cancel")
     @Operation(summary = "Hủy yêu cầu đổi ca")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaffOwnerOfExchange(#id)")
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "') or (hasAuthority('" + Permissions.EXCHANGE_CANCEL_SELF + "') and @authContextService.isCurrentStaffOwnerOfExchange(#id))")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> cancel(@PathVariable Integer id) {
         ScheduleExchangeResponse cancelled = exchangeService.cancelExchange(id, authContextService.getCurrentStaff());
         return ResponseEntity.ok(ApiResponse.success(cancelled, "Hủy yêu cầu đổi ca thành công"));

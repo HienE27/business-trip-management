@@ -46,6 +46,20 @@ public class JwtService {
     public String generateToken(String username, List<String> roles) {
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("roles", roles);
+        extraClaims.put("permissions", List.of());
+        extraClaims.put("tokenType", "access");
+        return generateToken(extraClaims, username);
+    }
+
+    /**
+     * Build an access token containing both roles and the user's flattened
+     * permission set so {@code @PreAuthorize("hasAuthority(...)")} can match
+     * without a database round-trip on every request.
+     */
+    public String generateToken(String username, List<String> roles, List<String> permissions) {
+        Map<String, Object> extraClaims = new HashMap<>();
+        extraClaims.put("roles", roles != null ? roles : List.of());
+        extraClaims.put("permissions", permissions != null ? permissions : List.of());
         extraClaims.put("tokenType", "access");
         return generateToken(extraClaims, username);
     }
@@ -55,9 +69,10 @@ public class JwtService {
      * {@code tokenType=refresh} claim so we can distinguish the two later
      * in {@code JwtAuthenticationFilter}.
      */
-    public String generateRefreshToken(String username, List<String> roles) {
+    public String generateRefreshToken(String username, List<String> roles, List<String> permissions) {
         Map<String, Object> extraClaims = new HashMap<>();
-        extraClaims.put("roles", roles);
+        extraClaims.put("roles", roles != null ? roles : List.of());
+        extraClaims.put("permissions", permissions != null ? permissions : List.of());
         extraClaims.put("tokenType", "refresh");
         return buildToken(extraClaims, username, refreshExpiration);
     }
@@ -122,7 +137,27 @@ public class JwtService {
     @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
         Claims claims = extractAllClaims(token);
-        return claims.get("roles", List.class);
+        Object raw = claims.get("roles");
+        if (raw instanceof List<?> list) {
+            return list.stream().map(String::valueOf).toList();
+        }
+        return List.of();
+    }
+
+    /**
+     * Flatten permission set carried in the access token. Older tokens
+     * (issued before RBAC v2) do not include this claim — we return an empty
+     * list rather than {@code null} so the security filter can treat the
+     * principal as having no fine-grained permissions until they re-auth.
+     */
+    @SuppressWarnings("unchecked")
+    public List<String> extractPermissions(String token) {
+        Claims claims = extractAllClaims(token);
+        Object raw = claims.get("permissions");
+        if (raw instanceof List<?> list) {
+            return list.stream().map(String::valueOf).toList();
+        }
+        return List.of();
     }
 
     /**

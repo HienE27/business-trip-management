@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.StaffRequest;
 import com.hospital.scheduler.dto.request.StaffSearchRequest;
 import com.hospital.scheduler.dto.response.StaffResponse;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.StaffService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,28 +33,28 @@ public class StaffController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách nhân sự")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
     public ResponseEntity<ApiResponse<List<StaffResponse>>> getAllStaff() {
         return ResponseEntity.ok(ApiResponse.success(staffService.getAllStaff()));
     }
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách nhân sự đang hoạt động")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
     public ResponseEntity<ApiResponse<List<StaffResponse>>> getActiveStaff() {
         return ResponseEntity.ok(ApiResponse.success(staffService.getActiveStaff()));
     }
 
     @GetMapping("/status-counts")
     @Operation(summary = "Đếm nhân sự theo trạng thái (toàn DB, không phân trang)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
     public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
         return ResponseEntity.ok(ApiResponse.success(staffService.getStatusCounts()));
     }
 
     @GetMapping("/search")
     @Operation(summary = "Tìm kiếm và lọc nhân sự")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
     public ResponseEntity<ApiResponse<List<StaffResponse>>> searchStaffs(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer specialtyId,
@@ -70,14 +71,9 @@ public class StaffController {
         return ResponseEntity.ok(ApiResponse.success(staffService.searchStaffs(request)));
     }
 
-    /**
-     * Paginated variant — drives the &lt;Pagination&gt; widget on the Nhân sự page.
-     * Same query params as /search; identical response shape apart from the
-     * wrapping {@link Page} metadata that the pagination component needs.
-     */
     @GetMapping("/search-page")
     @Operation(summary = "Tìm kiếm nhân sự có phân trang")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
     public ResponseEntity<ApiResponse<Page<StaffResponse>>> searchStaffsPage(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer specialtyId,
@@ -97,7 +93,7 @@ public class StaffController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết nhân sự")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#id)")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "') or @authContextService.isCurrentStaff(#id)")
     public ResponseEntity<ApiResponse<StaffResponse>> getStaffById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(staffService.getStaffById(id)));
     }
@@ -112,7 +108,7 @@ public class StaffController {
 
     @PostMapping
     @Operation(summary = "Tạo nhân sự mới")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_CREATE + "')")
     public ResponseEntity<ApiResponse<StaffResponse>> createStaff(
             @Valid @RequestBody StaffRequest request,
             @RequestParam(required = false) List<String> roles) {
@@ -126,7 +122,7 @@ public class StaffController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật nhân sự")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_UPDATE + "') or @authContextService.isCurrentStaff(#id)")
     public ResponseEntity<ApiResponse<StaffResponse>> updateStaff(
             @PathVariable Integer id,
             @Valid @RequestBody StaffRequest request) {
@@ -135,7 +131,7 @@ public class StaffController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa nhân sự (soft delete)")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_DELETE + "')")
     public ResponseEntity<ApiResponse<Void>> deleteStaff(@PathVariable Integer id) {
         staffService.deleteStaff(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa nhân sự thành công"));
@@ -143,7 +139,7 @@ public class StaffController {
 
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Nhập danh sách nhân sự từ Excel hoặc CSV")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_IMPORT + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> importStaffs(
             @RequestParam("file") MultipartFile file) {
         Map<String, Object> result = staffService.importStaffs(file);

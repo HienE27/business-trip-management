@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.response.RolePermissionMatrixResponse;
 import com.hospital.scheduler.dto.response.RolePermissionMatrixResponse.*;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,11 @@ public class RoleService {
     private final AppRoleRepository roleRepository;
     private final AppPermissionRepository permissionRepository;
     private final RolePermissionRepository rolePermissionRepository;
+    // BUGFIX (was BE#12): togglePermission was a security-critical mutation
+    // without any audit trail. Inject AuditHistoryService + AuthContextService
+    // so every grant/revoke gets logged with the actor that performed the change.
+    private final AuditHistoryService auditHistoryService;
+    private final AuthContextService authContextService;
 
     /**
      * Returns the full role-permission matrix for the admin UI.
@@ -78,6 +84,11 @@ public class RoleService {
      */
     @Transactional
     public void togglePermission(Integer roleId, Integer permissionId, Boolean granted) {
+        // BUGFIX (was BE#12): the previous version silently granted/revoked
+        // permissions with zero audit trail. Any post-incident review of "who
+        // changed which permission" was impossible. Now we log every grant/revoke
+        // with the actor and the exact (roleId, permissionId, granted) tuple so
+        // auditors can see who flipped which cell.
         if (Boolean.TRUE.equals(granted)) {
             if (!rolePermissionRepository.existsById(
                     new RolePermissionId(roleId, permissionId))) {
@@ -90,6 +101,29 @@ public class RoleService {
         } else {
             rolePermissionRepository.deleteById(
                     new RolePermissionId(roleId, permissionId));
+        }
+
+        Integer actorId = resolveActorSafely();
+        java.util.Map<String, Object> oldValue = java.util.Map.of(
+                "roleId", roleId,
+                "permissionId", permissionId,
+                "granted", !Boolean.TRUE.equals(granted));
+        java.util.Map<String, Object> newValue = java.util.Map.of(
+                "roleId", roleId,
+                "permissionId", permissionId,
+                "granted", Boolean.TRUE.equals(granted));
+        AuditHistory.ActionType action = Boolean.TRUE.equals(granted)
+                ? AuditHistory.ActionType.INSERT : AuditHistory.ActionType.DELETE;
+
+        auditHistoryService.logAction("role_permission",
+                roleId, action, oldValue, newValue, actorId);
+    }
+
+    private Integer resolveActorSafely() {
+        try {
+            return authContextService.getCurrentStaff().getId();
+        } catch (Exception ex) {
+            return null; // background job / no auth context — log without actor
         }
     }
 

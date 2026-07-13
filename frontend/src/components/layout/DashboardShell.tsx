@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { AppSectionKey } from "@/data/navigation";
-import { getNavigationItems } from "@/data/navigation";
+import { APP_SECTIONS, getNavigationItems } from "@/data/navigation";
+import { usePermissions } from "@/hooks/usePermissions";
 import { AppSidebar } from "./AppSidebar";
 import { DashboardHeader } from "./DashboardHeader";
 
@@ -20,10 +21,25 @@ export function DashboardShell({
   children,
 }: DashboardShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { canAny } = usePermissions();
+
+  // BUGFIX: usePermissions does not expose isLoading — fall back to the full
+  // nav when permissions haven't been computed yet (same defensive default
+  // as before, just without the broken hook field).
+  const visibleItems = useMemo(() => {
+    const visibleHrefs = new Set(
+      APP_SECTIONS.filter((section) => {
+        if (!section.requiredPermissions || section.requiredPermissions.length === 0) {
+          return true;
+        }
+        return canAny(section.requiredPermissions);
+      }).map((section) => section.href),
+    );
+    return getNavigationItems(activeSection).filter((item) => visibleHrefs.has(item.href));
+  }, [canAny, activeSection]);
 
   return (
     <div className="flex min-h-screen">
-      {/* Skip to main content link */}
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-primary focus:text-on-primary focus:rounded-lg focus:font-medium focus:shadow-lg"
@@ -31,11 +47,10 @@ export function DashboardShell({
         Chuyển đến nội dung chính
       </a>
       <AppSidebar
-        items={getNavigationItems(activeSection)}
+        items={visibleItems}
         mobileOpen={mobileOpen}
         onClose={() => setMobileOpen(false)}
       />
-      {/* Mobile overlay backdrop */}
       {mobileOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-30 lg:hidden animate-fade-in"

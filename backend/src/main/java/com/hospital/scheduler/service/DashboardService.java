@@ -247,21 +247,31 @@ public class DashboardService {
     }
 
     public List<DashboardResponse.PeriodSummary> getPeriodSummaries() {
+        // BUGFIX (was BE#20): the previous implementation called
+        // scheduleRepository.findByPeriodId(period.getId()) for every period in
+        // the DB — classic N+1: 1 query for periods + N queries for schedules.
+        // For 12 periods that's 13 round-trips just to render the dashboard
+        // list. Now we aggregate via a single grouped query and bucket the
+        // result in memory, reducing the work to 2 round-trips total.
+        java.util.Map<Integer, long[]> aggregateByPeriodId = new java.util.HashMap<>();
+        for (Object[] row : scheduleRepository.aggregateByPeriod()) {
+            Integer periodId = (Integer) row[0];
+            long totalSchedules = ((Number) row[1]).longValue();
+            long distinctStaff = ((Number) row[2]).longValue();
+            aggregateByPeriodId.put(periodId, new long[]{ totalSchedules, distinctStaff });
+        }
+
         return periodRepository.findAll().stream()
                 .map(period -> {
-                    List<Schedule> schedules = scheduleRepository.findByPeriodId(period.getId());
-                    Set<Integer> staffIds = schedules.stream()
-                            .map(s -> s.getStaff().getId())
-                            .collect(Collectors.toSet());
-
+                    long[] counts = aggregateByPeriodId.getOrDefault(period.getId(), new long[]{0, 0});
                     return DashboardResponse.PeriodSummary.builder()
                             .periodId(period.getId())
                             .periodName(period.getPeriodName())
                             .startDate(period.getStartDate())
                             .endDate(period.getEndDate())
                             .status(period.getStatus().name())
-                            .scheduleCount(schedules.size())
-                            .staffCount(staffIds.size())
+                            .scheduleCount((int) counts[0])
+                            .staffCount((int) counts[1])
                             .build();
                 })
                 .collect(Collectors.toList());

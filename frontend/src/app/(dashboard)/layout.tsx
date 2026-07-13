@@ -2,10 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { DashboardShell } from "@/components/layout/DashboardShell";
-import {
-  resolveSectionKey,
-  getSectionMeta,
-} from "@/data/navigation";
+import { resolveSectionKey, getSectionMeta } from "@/data/navigation";
+import { RouteGuard } from "@/components/auth/RouteGuard";
 
 /**
  * Shared layout for all dashboard pages.
@@ -29,13 +27,16 @@ export default function DashboardLayout({
   const activeSection = resolveSectionKey(pathname);
   const meta = getSectionMeta(activeSection);
 
+  // Filter the sidebar by permissions, then mount RouteGuard around
+  // children so any direct URL access without a permission lands on
+  // the in-page EmptyState 403 instead of silently rendering the page.
   return (
     <DashboardShell
       activeSection={activeSection}
       title={meta.label}
       description={meta.description}
     >
-      {children}
+      <RouteGuard>{children}</RouteGuard>
     </DashboardShell>
   );
 }

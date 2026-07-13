@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
@@ -13,6 +13,8 @@ import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
 import { buildCalendarAnnotations, buildCoverageMap } from "@/components/monthly-schedule/utils";
 import { useSchedulePeriodData } from "@/hooks/useSchedulePeriodData";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Permission } from "@/lib/permissions";
 import { useScheduleFilters } from "@/hooks/useScheduleFilters";
 import type { DashboardData } from "@/types/api";
 
@@ -22,6 +24,11 @@ type WorkflowStep = {
   icon: string;
   href: string;
   accent: string;
+  // BUGFIX (was FE#14): Optional list of permissions a user must have at
+  // least one of to see this card. STAFF users were previously shown every
+  // card and bounced by RouteGuard when clicking ones they could not open.
+  // When omitted the card is visible to every authenticated role.
+  requiredAnyPermission?: Permission[];
 };
 
 const QUICK_ACTIONS: WorkflowStep[] = [
@@ -31,6 +38,7 @@ const QUICK_ACTIONS: WorkflowStep[] = [
     icon: "calendar_month",
     href: "/monthly-schedule",
     accent: "border-l-primary",
+    requiredAnyPermission: [Permission.AUTO_SCHEDULE_RUN, Permission.SCHEDULE_VIEW],
   },
   {
     label: "Nhân sự",
@@ -38,6 +46,9 @@ const QUICK_ACTIONS: WorkflowStep[] = [
     icon: "groups",
     href: "/staff",
     accent: "border-l-secondary",
+    // Per Project Context, only ADMIN and MANAGER manage staff. STAFF has
+    // STAFF_VIEW only for their own profile — they should not see this card.
+    requiredAnyPermission: [Permission.STAFF_CREATE, Permission.STAFF_UPDATE],
   },
   {
     label: "Duyệt đổi trực",
@@ -45,6 +56,9 @@ const QUICK_ACTIONS: WorkflowStep[] = [
     icon: "swap_horiz",
     href: "/swap-requests",
     accent: "border-l-tertiary",
+    // Approval is MANAGER+ only. STAFF has EXCHANGE_VIEW for their own requests
+    // — they reach this page via the sidebar but shouldn't see this dashboard card.
+    requiredAnyPermission: [Permission.EXCHANGE_APPROVE],
   },
   {
     label: "Nghỉ phép",
@@ -52,6 +66,7 @@ const QUICK_ACTIONS: WorkflowStep[] = [
     icon: "event_busy",
     href: "/leave-requests",
     accent: "border-l-outline",
+    requiredAnyPermission: [Permission.LEAVE_APPROVE, Permission.LEAVE_VIEW],
   },
   {
     label: "Báo cáo",
@@ -59,6 +74,7 @@ const QUICK_ACTIONS: WorkflowStep[] = [
     icon: "assessment",
     href: "/reports",
     accent: "border-l-secondary",
+    requiredAnyPermission: [Permission.REPORT_VIEW],
   },
   {
     label: "Nhật ký",
@@ -66,12 +82,24 @@ const QUICK_ACTIONS: WorkflowStep[] = [
     icon: "history",
     href: "/audit-history",
     accent: "border-l-outline",
+    requiredAnyPermission: [Permission.AUDIT_VIEW],
   },
 ];
 
 export default function DashboardPage() {
   const router = useRouter();
   const data = useSchedulePeriodData({ conflictPollMs: 60000 });
+  const { canAny } = usePermissions();
+
+  // BUGFIX (was FE#14): Filter quick actions by what the current user is
+  // actually allowed to do. STAFF users previously saw every card and only
+  // bounced into RouteGuard's empty-state when clicking — confusing UX.
+  const visibleQuickActions = useMemo(
+    () => QUICK_ACTIONS.filter((a) =>
+      !a.requiredAnyPermission || canAny(a.requiredAnyPermission),
+    ),
+    [canAny],
+  );
 
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -93,19 +121,33 @@ export default function DashboardPage() {
     setMessage,
   } = data;
 
+  // BUGFIX (was FE#4): the data race here was that a fast-firing
+  // selectedPeriodId change (P1 → P2 → P3) sent three parallel GETs. If
+  // P3's response happened to resolve before P2's, we'd display P3 with
+  // P2's payload — confusing and silently wrong. Now we tag each fetch
+  // with a generation token via a ref and only commit the latest one.
+  // Also route the request through AbortController so an out-of-date
+  // fetch is cancelled when a newer one starts.
+  const latestRequestRef = useRef(0);
   useEffect(() => {
-    let active = true;
+    const myGen = ++latestRequestRef.current;
+    const ctrl = new AbortController();
     const params = selectedPeriodId != null ? { periodId: selectedPeriodId } : undefined;
     api
-      .get<DashboardData>("/dashboard", params)
+      .get<DashboardData>("/dashboard", params, { signal: ctrl.signal })
       .then((res) => {
-        if (active) setDashboardData(res);
+        if (myGen === latestRequestRef.current) setDashboardData(res);
       })
       .catch((error: unknown) => {
-        if (active) setMessage(getErrorMessage(error, "Không thể tải dữ liệu dashboard."));
+        // Aborted fetches are expected during fast period switching — don't
+        // surface them as errors.
+        if ((error as { name?: string })?.name === "AbortError") return;
+        if (myGen === latestRequestRef.current) {
+          setMessage(getErrorMessage(error, "Không thể tải dữ liệu dashboard."));
+        }
       });
     return () => {
-      active = false;
+      ctrl.abort();
     };
   }, [selectedPeriodId, setMessage]);
 
@@ -418,7 +460,7 @@ export default function DashboardPage() {
       <section className="space-y-3">
         <h2 className="text-title-lg text-on-surface font-semibold">Thao tác nhanh</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 min-w-0">
-          {QUICK_ACTIONS.map((action) => (
+          {visibleQuickActions.map((action) => (
             <Link
               key={action.href}
               href={action.href}

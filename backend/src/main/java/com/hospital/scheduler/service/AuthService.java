@@ -7,6 +7,7 @@ import com.hospital.scheduler.dto.LoginRequest;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.JwtService;
+import com.hospital.scheduler.security.PermissionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,6 +27,10 @@ public class AuthService {
     private final StaffRepository staffRepository;
     private final RateLimitingFilter rateLimitingFilter;
     private final RefreshTokenService refreshTokenService;
+    private final PermissionService permissionService;
+    // BUGFIX (was BE#14): inject shared ClientIpResolver so login & rate-limit
+    // agree on IPv6 + X-Forwarded-For validation.
+    private final com.hospital.scheduler.security.ClientIpResolver clientIpResolver;
 
     @Transactional
     public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest) {
@@ -49,7 +54,9 @@ public class AuthService {
                 .filter(r -> r != null)
                 .collect(Collectors.toList());
 
-        String accessToken = jwtService.generateToken(staff.getUsername(), roles);
+        List<String> permissions = permissionService.permissionsOf(staff);
+
+        String accessToken = jwtService.generateToken(staff.getUsername(), roles, permissions);
         RefreshTokenService.IssuedRefreshToken refresh =
                 refreshTokenService.issue(staff, getClientIp(httpRequest));
 
@@ -62,6 +69,7 @@ public class AuthService {
                 .userId(Long.valueOf(staff.getId()))
                 .username(staff.getUsername())
                 .roles(roles)
+                .permissions(permissions)
                 .build();
     }
 
@@ -76,9 +84,8 @@ public class AuthService {
                         .expiresIn(rt.accessExpiresIn())
                         .refreshExpiresIn(jwtService.getRefreshExpirationTime())
                         .username(jwtService.extractUsername(rt.accessToken()))
-                        // Roles re-issued via JwtService.generateToken — re-extract from fresh access
-                        // token to avoid stale privilege escalation.
                         .roles(jwtService.extractRoles(rt.accessToken()))
+                        .permissions(jwtService.extractPermissions(rt.accessToken()))
                         .build())
                 .orElseThrow(() -> new BadCredentialsException("Refresh token không hợp lệ hoặc đã hết hạn"));
     }
@@ -91,31 +98,11 @@ public class AuthService {
     }
 
     private String getClientIp(HttpServletRequest req) {
-        // Only trust X-Forwarded-For when the request originates from a known/trusted proxy.
-        // For direct requests or untrusted proxies, fall back to the direct socket address.
-        String xf = req.getHeader("X-Forwarded-For");
-        String directIp = req.getRemoteAddr();
-        if (xf == null || xf.isBlank()) {
-            return directIp;
-        }
-        // Whitelist of known proxy IPs — only use X-Forwarded-For from these sources.
-        // If not from a trusted proxy, return the direct IP to prevent spoofing.
-        String firstIp = xf.split(",")[0].trim();
-        return isTrustedProxy(directIp) ? firstIp : directIp;
-    }
-
-    private boolean isTrustedProxy(String ip) {
-        return "127.0.0.1".equals(ip)
-                || "0:0:0:0:0:0:0:1".equals(ip)
-                || ip.startsWith("10.")   // RFC 1918 private
-                || ip.startsWith("172.16.") || ip.startsWith("172.17.")
-                || ip.startsWith("172.18.") || ip.startsWith("172.19.")
-                || ip.startsWith("172.20.") || ip.startsWith("172.21.")
-                || ip.startsWith("172.22.") || ip.startsWith("172.23.")
-                || ip.startsWith("172.24.") || ip.startsWith("172.25.")
-                || ip.startsWith("172.26.") || ip.startsWith("172.27.")
-                || ip.startsWith("172.28.") || ip.startsWith("172.29.")
-                || ip.startsWith("172.30.") || ip.startsWith("172.31.")
-                || ip.startsWith("192.168."); // RFC 1918 private
+        // BUGFIX (was BE#14): delegate to ClientIpResolver so the trusted-proxy
+        // check handles IPv6 (::1, fc00::/7, fe80::/10, ::ffff:1.2.3.4) and
+        // shared address space (100.64/10) correctly. The original hand-written
+        // allowlist only matched the long-form IPv6 loopback string and missed
+        // the canonical short-form.
+        return clientIpResolver.resolve(req);
     }
 }
