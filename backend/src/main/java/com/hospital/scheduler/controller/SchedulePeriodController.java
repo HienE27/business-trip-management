@@ -7,6 +7,7 @@ import com.hospital.scheduler.dto.response.BulkPeriodResponse;
 import com.hospital.scheduler.dto.response.PublishDryRunResponse;
 import com.hospital.scheduler.dto.response.SchedulePeriodResponse;
 import com.hospital.scheduler.entity.SchedulePeriod;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.ConflictDetectionService;
 import com.hospital.scheduler.service.SchedulePeriodService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,25 +34,21 @@ public class SchedulePeriodController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách kỳ lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<List<SchedulePeriodResponse>>> getAllPeriods() {
         return ResponseEntity.ok(ApiResponse.success(periodService.getAllPeriods()));
     }
 
-    /**
-     * Paginated variant — drives the &lt;Pagination&gt; control on the kỳ-lịch page.
-     * Sorted DESC by startDate so newest periods surface first.
-     */
     @GetMapping("/page")
     @Operation(summary = "Lấy danh sách kỳ lịch có phân trang")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<Page<SchedulePeriodResponse>>> getPeriodsPage(Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(periodService.getPeriodsPage(pageable)));
     }
 
     @GetMapping("/status/{status}")
     @Operation(summary = "Lấy danh sách kỳ lịch theo trạng thái")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<List<SchedulePeriodResponse>>> getPeriodsByStatus(@PathVariable String status) {
         SchedulePeriod.PeriodStatus periodStatus = SchedulePeriod.PeriodStatus.valueOf(status.toUpperCase());
         return ResponseEntity.ok(ApiResponse.success(periodService.getPeriodsByStatus(periodStatus)));
@@ -59,14 +56,14 @@ public class SchedulePeriodController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết kỳ lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<SchedulePeriodResponse>> getPeriodById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(periodService.getPeriodById(id)));
     }
 
     @PostMapping
     @Operation(summary = "Tạo kỳ lịch mới")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_CREATE + "')")
     public ResponseEntity<ApiResponse<SchedulePeriodResponse>> createPeriod(
             @Valid @RequestBody SchedulePeriodRequest request,
             @RequestParam(required = false) Integer generatedById) {
@@ -76,7 +73,7 @@ public class SchedulePeriodController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật kỳ lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_UPDATE + "')")
     public ResponseEntity<ApiResponse<SchedulePeriodResponse>> updatePeriod(
             @PathVariable Integer id,
             @Valid @RequestBody SchedulePeriodRequest request) {
@@ -85,7 +82,7 @@ public class SchedulePeriodController {
 
     @PostMapping("/{id}/publish")
     @Operation(summary = "Công bố kỳ lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_PUBLISH + "')")
     public ResponseEntity<ApiResponse<SchedulePeriodResponse>> publishPeriod(
             @PathVariable Integer id,
             @RequestParam(required = false) Integer publishedById) {
@@ -94,7 +91,7 @@ public class SchedulePeriodController {
 
     @GetMapping("/{id}/publish/dry-run")
     @Operation(summary = "Kiểm tra trước khi công bố kỳ lịch (dry-run)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_PUBLISH + "')")
     public ResponseEntity<ApiResponse<PublishDryRunResponse>> dryRunPublish(@PathVariable Integer id) {
         PublishDryRunResponse response = periodService.dryRunPublish(id);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -102,14 +99,14 @@ public class SchedulePeriodController {
 
     @PostMapping("/{id}/archive")
     @Operation(summary = "Lưu trữ kỳ lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_ARCHIVE + "')")
     public ResponseEntity<ApiResponse<SchedulePeriodResponse>> archivePeriod(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(periodService.archivePeriod(id), "Lưu trữ kỳ lịch thành công"));
     }
 
     @PostMapping("/bulk/publish")
     @Operation(summary = "Công bố hàng loạt nhiều kỳ lịch DRAFT")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_PUBLISH + "')")
     public ResponseEntity<ApiResponse<BulkPeriodResponse>> bulkPublish(
             @Valid @RequestBody BulkPeriodRequest request,
             @RequestParam(required = false) Integer publishedById) {
@@ -121,7 +118,7 @@ public class SchedulePeriodController {
 
     @PostMapping("/bulk/archive")
     @Operation(summary = "Lưu trữ hàng loạt nhiều kỳ lịch PUBLISHED")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_ARCHIVE + "')")
     public ResponseEntity<ApiResponse<BulkPeriodResponse>> bulkArchive(
             @Valid @RequestBody BulkPeriodRequest request) {
         BulkPeriodResponse result = periodService.bulkArchive(request.getPeriodIds());
@@ -132,7 +129,7 @@ public class SchedulePeriodController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa kỳ lịch")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_DELETE + "')")
     public ResponseEntity<ApiResponse<Void>> deletePeriod(@PathVariable Integer id) {
         periodService.deletePeriod(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa kỳ lịch thành công"));
@@ -140,7 +137,7 @@ public class SchedulePeriodController {
 
     @DeleteMapping("/{id}/requirements/cleanup-l04")
     @Operation(summary = "Xóa L04 requirements cho chuyên khoa không có nhân sự (fix 39.9% coverage)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_UPDATE + "')")
     public ResponseEntity<ApiResponse<Integer>> cleanupL04RequirementsWithoutStaff(@PathVariable Integer id) {
         int deleted = periodService.deleteL04RequirementsWithoutStaff(id);
         return ResponseEntity.ok(ApiResponse.success(deleted,

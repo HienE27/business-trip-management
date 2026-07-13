@@ -12,6 +12,7 @@ import com.hospital.scheduler.dto.response.ExpertClinicWeeklyResponse;
 import com.hospital.scheduler.dto.response.ScheduleResponse;
 import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.security.AuthContextService;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.CompensationDayService;
 import com.hospital.scheduler.service.ConflictDetectionService;
 import com.hospital.scheduler.service.ScheduleDeleteService;
@@ -43,7 +44,7 @@ public class ScheduleController {
 
     @GetMapping("/conflicts/check")
     @Operation(summary = "Kiểm tra xung đột lịch trong kỳ (query alias)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<ConflictCheckResponse>> checkConflictsQuery(
             @RequestParam("periodId") Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.checkConflictsInPeriod(periodId)));
@@ -51,14 +52,14 @@ public class ScheduleController {
 
     @GetMapping("/conflicts/check/{periodId}")
     @Operation(summary = "Kiểm tra xung đột lịch trong kỳ")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<ConflictCheckResponse>> checkConflicts(@PathVariable Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.checkConflictsInPeriod(periodId)));
     }
 
     @GetMapping("/replacements/{periodId}")
     @Operation(summary = "Đề xuất người thay thế cho một ca")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_UPDATE + "')")
     public ResponseEntity<ApiResponse<List<StaffResponse>>> findReplacements(
             @PathVariable Integer periodId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workDate,
@@ -71,21 +72,21 @@ public class ScheduleController {
 
     @GetMapping("/period/{periodId}")
     @Operation(summary = "Lấy danh sách lịch theo kỳ")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getSchedulesByPeriod(@PathVariable Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByPeriod(periodId)));
     }
 
     @GetMapping("/compensation-days/{periodId}")
     @Operation(summary = "Lấy danh sách ngày nghỉ bù theo kỳ lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<?>>> getCompensationDays(@PathVariable Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(compensationDayService.getCompensationDaysByPeriod(periodId)));
     }
 
     @GetMapping("/period/{periodId}/date/{date}")
     @Operation(summary = "Lấy danh sách lịch theo kỳ và ngày")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getSchedulesByPeriodAndDate(
             @PathVariable Integer periodId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -94,14 +95,14 @@ public class ScheduleController {
 
     @GetMapping("/staff/{staffId}")
     @Operation(summary = "Lấy danh sách lịch theo nhân sự")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or @authContextService.isCurrentStaff(#staffId)")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "') or @authContextService.isCurrentStaff(#staffId)")
     public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getSchedulesByStaff(@PathVariable Integer staffId) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByStaff(staffId)));
     }
 
     @GetMapping("/expert-clinic")
     @Operation(summary = "Lấy lịch phòng khám chuyên gia theo kỳ và chuyên khoa (M05-F04)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getExpertClinicSchedules(
             @RequestParam Integer periodId,
             @RequestParam(required = false) Integer specialtyId) {
@@ -110,7 +111,7 @@ public class ScheduleController {
 
     @GetMapping("/expert-clinic/weekly")
     @Operation(summary = "Lấy lịch phòng khám chuyên gia theo tuần (M05-F04)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<ExpertClinicWeeklyResponse>> getExpertClinicWeeklyView(
             @RequestParam Integer periodId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
@@ -121,14 +122,14 @@ public class ScheduleController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<ScheduleResponse>> getScheduleById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getScheduleById(id)));
     }
 
     @PostMapping
     @Operation(summary = "Tạo lịch mới")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_CREATE + "')")
     public ResponseEntity<ApiResponse<ScheduleResponse>> createSchedule(@Valid @RequestBody ScheduleRequest request) {
         ScheduleResponse created = scheduleService.createSchedule(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(created, "Tạo lịch thành công"));
@@ -136,7 +137,7 @@ public class ScheduleController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_UPDATE + "')")
     public ResponseEntity<ApiResponse<ScheduleResponse>> updateSchedule(
             @PathVariable Integer id,
             @Valid @RequestBody ScheduleRequest request) {
@@ -145,7 +146,7 @@ public class ScheduleController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_DELETE + "')")
     public ResponseEntity<ApiResponse<Void>> deleteSchedule(@PathVariable Integer id) {
         scheduleDeleteService.deleteSchedule(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa lịch thành công"));
@@ -153,7 +154,7 @@ public class ScheduleController {
 
     @DeleteMapping("/period/{periodId}")
     @Operation(summary = "Xóa tất cả lịch trong một kỳ lịch")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_DELETE + "')")
     public ResponseEntity<ApiResponse<Void>> deleteSchedulesByPeriod(@PathVariable Integer periodId) {
         scheduleService.deleteAllByPeriodId(periodId);
         return ResponseEntity.ok(ApiResponse.success(null, "Đã xóa tất cả lịch của kỳ " + periodId));
@@ -161,7 +162,7 @@ public class ScheduleController {
 
     @PutMapping("/{id}/override")
     @Operation(summary = "Override xung đột - giữ lịch bất chấp cảnh báo")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_UPDATE + "')")
     public ResponseEntity<ApiResponse<ScheduleResponse>> overrideConflict(
             @PathVariable Integer id,
             @Valid @RequestBody OverrideConflictRequest body) {
@@ -171,7 +172,7 @@ public class ScheduleController {
 
     @PostMapping("/bulk-l01")
     @Operation(summary = "Bulk tạo lịch L01 (trực 24/24)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_CREATE + "')")
     public ResponseEntity<ApiResponse<BulkL01Response>> createBulkL01(
             @Valid @RequestBody BulkL01Request request) {
         BulkL01Response response = scheduleService.createBulkL01(request);
@@ -182,7 +183,7 @@ public class ScheduleController {
 
     @PostMapping("/bulk")
     @Operation(summary = "Bulk tạo lịch cho bất kỳ loại ca nào (L01/L02/L03/L04)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_CREATE + "')")
     public ResponseEntity<ApiResponse<BulkScheduleResponse>> createBulkSchedule(
             @RequestParam String shiftTypeId,
             @Valid @RequestBody BulkScheduleRequest request) {

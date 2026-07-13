@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { GuardedScheduleByTypePage } from "@/components/monthly-schedule/GuardedScheduleByTypePage";
 import {
   SCHEDULE_TYPE_CONFIG_MAP,
@@ -17,10 +18,18 @@ const VALID_TYPES: ScheduleRouteKey[] = [
 
 export default async function ScheduleByTypePage({ params }: PageProps) {
   const { type } = await params;
-  const routeKey = (VALID_TYPES.includes(type as ScheduleRouteKey)
-    ? type
-    : "duty-24") as ScheduleRouteKey;
 
+  // BUGFIX (was FE#15): the previous implementation silently remapped
+  // any unknown type segment (e.g. /schedule/foo) to "duty-24". That
+  // hid typos from the user and made /schedule/<anything> always render
+  // the L01 duty roster, confusing anybody debugging a stale link.
+  // Now we 404 loudly for unknown segments so the user gets a clear
+  // signal and isn't accidentally reading the wrong schedule.
+  if (!VALID_TYPES.includes(type as ScheduleRouteKey)) {
+    notFound();
+  }
+
+  const routeKey = type as ScheduleRouteKey;
   const config = SCHEDULE_TYPE_CONFIG_MAP[routeKey];
 
   return <GuardedScheduleByTypePage config={config} />;

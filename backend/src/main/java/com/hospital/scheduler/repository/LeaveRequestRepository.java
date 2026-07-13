@@ -27,6 +27,26 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Inte
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 
+    /**
+     * Overlap query that excludes a specific leave request id. Used when
+     * updating an existing leave so the row being edited is not counted as
+     * a collision with itself.
+     *
+     * BUGFIX (was BE#3): previously the validator only ran the inclusive
+     * variant, so updating a leave (e.g. extending the date range) would
+     * collide with its own current row and the update was rejected with a
+     * "Nhân sự đã có yêu cầu nghỉ phép trùng" error. Pass {@code excludeId}
+     * = the request being updated to avoid this false positive.
+     */
+    @Query("SELECT lr FROM LeaveRequest lr WHERE lr.staff.id = :staffId AND " +
+           "(lr.startDate <= :endDate AND lr.endDate >= :startDate) AND " +
+           "lr.id <> :excludeId")
+    List<LeaveRequest> findByStaffIdAndDateRangeExcluding(
+            @Param("staffId") Integer staffId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("excludeId") Integer excludeId);
+
     @Query("SELECT lr FROM LeaveRequest lr WHERE lr.status = 'PENDING' ORDER BY lr.createdAt")
     List<LeaveRequest> findPendingRequests();
 

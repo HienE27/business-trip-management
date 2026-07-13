@@ -15,6 +15,7 @@ import com.hospital.scheduler.dto.response.AutoScheduleResponse;
 import com.hospital.scheduler.dto.response.ScheduleTemplateResponse;
 import com.hospital.scheduler.dto.response.AlgorithmConfigAuditDTO;
 import com.hospital.scheduler.repository.AlgorithmConfigAuditRepository;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.service.AlgorithmProgressTracker;
 import com.hospital.scheduler.service.AutoSchedulingService;
@@ -64,40 +65,66 @@ public class AutoSchedulingController {
 
     @PostMapping("/preview")
     @Operation(summary = "M07-F07: Xem trước lịch trước khi xác nhận")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_RUN + "')")
     public ResponseEntity<ApiResponse<AutoScheduleResponse>> previewSchedule(
             @Valid @RequestBody AutoScheduleRequestDTO request) {
-        // Start progress tracking
-        progressTracker.start(request.getPeriodId());
+        // Whitelist check runs BEFORE progressTracker.start() so an unknown algorithmType
+        // never pollutes the progress map with a stale RUNNING entry that the next call
+        // for the same period would later complete (audit Bug #14 cross-run contamination).
+        validateAlgorithmType(request);
+        // Start progress tracking — capture the run token so subsequent updates are scoped
+        // to this run only (prevents cross-run contamination when two requests overlap).
+        AlgorithmProgressTracker.Progress progress = progressTracker.start(request.getPeriodId());
+        String runToken = progress.getRunToken();
         try {
             AutoScheduleResponse result = autoSchedulingService.previewSchedule(request);
             log.info("Preview completed for period {}: {} schedules, coverage={}, conflicts={}",
                     request.getPeriodId(), result.getTotalSchedulesCreated(),
                     result.getCoverageRate(), result.getConflictCount());
             // Store result in progress tracker for polling
-            progressTracker.completeWithResult(request.getPeriodId(),
+            progressTracker.completeWithResult(request.getPeriodId(), runToken,
                     "Xem trước lịch thành công", serializeToJson(result));
             return ResponseEntity.ok(ApiResponse.success(result, "Xem trước lịch"));
         } catch (Exception e) {
             log.error("Preview failed for period {}: {}", request.getPeriodId(), e.getMessage(), e);
-            progressTracker.fail(request.getPeriodId(), e.getMessage());
+            progressTracker.fail(request.getPeriodId(), runToken, e.getMessage());
             throw e;
         }
     }
 
     @PostMapping
-    @Operation(summary = "M07-F01-F05: Chạy thuật toán xếp lịch tự động (GREEDY/FAIR_GREEDY/BACKTRACKING/GENETIC/CSP_MRV_FC)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @Operation(summary = "M07-F01-F05: Chạy thuật toán xếp lịch tự động (GREEDY / FAIR_GREEDY / CSP_MRV_FC). BACKTRACKING và GENETIC không còn được hỗ trợ — trả 400 nếu truyền vào.")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_RUN + "')")
     public ResponseEntity<ApiResponse<AutoScheduleResponse>> autoSchedule(
             @Valid @RequestBody AutoScheduleRequestDTO request) {
+        validateAlgorithmType(request);
         AutoScheduleResponse result = autoSchedulingService.autoSchedule(request);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.success(result, "Xếp lịch tự động hoàn tất"));
     }
 
+    /** Whitelisted algorithm types — single source of truth for both /preview and POST. */
+    private static final java.util.Set<String> SUPPORTED_ALGORITHMS = java.util.Set.of(
+            "GREEDY", "ROUND_ROBIN", "FAIR_ROUND_ROBIN", "FAIR", "FAIR_GREEDY",
+            "CSP_MRV_FC", "CSP"
+    );
+
+    /** Reject unknown algorithmType BEFORE any DB writes or scheduler entry so callers
+     * get a fast 400 with a clear message rather than a heavy run that silently substitutes
+     * Greedy (the previous behavior — see audit Bug #7). */
+    private void validateAlgorithmType(com.hospital.scheduler.dto.request.AutoScheduleRequestDTO request) {
+        String requested = request.getAlgorithmType() == null ? "CSP_MRV_FC"
+                : request.getAlgorithmType().toUpperCase();
+        if (!SUPPORTED_ALGORITHMS.contains(requested)) {
+            throw new com.hospital.scheduler.exception.BadRequestException(
+                    "algorithmType '" + request.getAlgorithmType()
+                            + "' không được hỗ trợ. Các giá trị hợp lệ: " + SUPPORTED_ALGORITHMS);
+        }
+    }
+
     @GetMapping("/progress/{periodId}")
     @Operation(summary = "Lấy tiến độ chạy thuật toán theo period (polling endpoint)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getProgress(@PathVariable Integer periodId) {
         AlgorithmProgressTracker.Progress p = progressTracker.get(periodId);
         if (p == null) {
@@ -126,7 +153,7 @@ public class AutoSchedulingController {
 
     @PostMapping("/apply-preview")
     @Operation(summary = "M07-F07: Áp dụng bản nháp đã chỉnh sửa thủ công")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_APPLY + "')")
     public ResponseEntity<ApiResponse<AutoScheduleResponse>> applyPreviewSchedule(
             @Valid @RequestBody AutoScheduleApplyPreviewRequestDTO request) {
         AutoScheduleResponse result = autoSchedulingService.applyPreviewSchedule(request);
@@ -136,7 +163,7 @@ public class AutoSchedulingController {
 
     @PostMapping("/save-template")
     @Operation(summary = "M07-F10: Lưu lịch đã xếp tự động thành mẫu để tái sử dụng")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_TEMPLATE_MANAGE + "')")
     public ResponseEntity<ApiResponse<ScheduleTemplateResponse>> saveAsTemplate(
             @Valid @RequestBody SaveTemplateRequest request) {
         var result = scheduleTemplateService.saveTemplateFromGenerated(request);
@@ -146,21 +173,21 @@ public class AutoSchedulingController {
 
     @GetMapping("/templates")
     @Operation(summary = "M07-F10c: Liệt kê tất cả mẫu lịch đang hoạt động")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ScheduleTemplateResponse>>> listTemplates() {
         return ResponseEntity.ok(ApiResponse.success(scheduleTemplateService.getActiveTemplates()));
     }
 
     @GetMapping("/templates/{templateId}")
     @Operation(summary = "M07-F10d: Tải chi tiết một mẫu lịch theo ID")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<ScheduleTemplateResponse>> getTemplate(@PathVariable Integer templateId) {
         return ResponseEntity.ok(ApiResponse.success(scheduleTemplateService.getTemplateById(templateId)));
     }
 
     @PostMapping("/templates")
     @Operation(summary = "M07-F10b: Lưu cấu hình thuật toán thành mẫu có thể tái sử dụng")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<AlgorithmConfigResponse>> saveAlgorithmAsTemplate(
             @Valid @RequestBody SaveAlgorithmTemplateRequest request) {
         AlgorithmConfigResponse result = configService.saveAsTemplate(request);
@@ -170,7 +197,7 @@ public class AutoSchedulingController {
 
     @GetMapping("/unassigned/{periodId}")
     @Operation(summary = "M07-F06: Báo cáo ngày chưa phân công được")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getUnassignedDaysReport(@PathVariable Integer periodId) {
         Map<String, Object> report = autoSchedulingService.getUnassignedDaysReport(periodId);
         return ResponseEntity.ok(ApiResponse.success(report));
@@ -178,7 +205,7 @@ public class AutoSchedulingController {
 
     @GetMapping("/suggest-replacements/{scheduleId}")
     @Operation(summary = "M07-F08: Đề xuất người thay thế khi có thay đổi đột xuất")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> suggestReplacements(@PathVariable Integer scheduleId) {
         Map<String, Object> suggestions = autoSchedulingService.suggestReplacements(scheduleId);
         return ResponseEntity.ok(ApiResponse.success(suggestions));
@@ -186,7 +213,7 @@ public class AutoSchedulingController {
 
     @GetMapping("/workload-chart/{periodId}")
     @Operation(summary = "M07-F09: Data biểu đồ cân bằng tải nhân sự")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getWorkloadChartData(
             @PathVariable Integer periodId,
             @RequestParam(required = false) String shiftTypeId) {
@@ -196,14 +223,14 @@ public class AutoSchedulingController {
 
     @GetMapping("/metrics/period/{periodId}")
     @Operation(summary = "Lấy lịch sử chạy thuật toán theo kỳ")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<AlgorithmMetricsDTO>>> getMetricsByPeriod(@PathVariable Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(autoSchedulingService.getMetricsByPeriod(periodId)));
     }
 
     @GetMapping("/metrics")
     @Operation(summary = "Lấy tất cả lịch sử chạy thuật toán")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<List<AlgorithmMetricsDTO>>> getAllMetrics() {
         return ResponseEntity.ok(ApiResponse.success(autoSchedulingService.getAllMetrics()));
     }
@@ -214,7 +241,7 @@ public class AutoSchedulingController {
      */
     @GetMapping("/metrics/page")
     @Operation(summary = "Lấy danh sách lịch sử chạy thuật toán có phân trang")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<Page<AlgorithmMetricsDTO>>> getMetricsPage(
             @RequestParam(required = false) Integer periodId,
             Pageable pageable) {
@@ -232,14 +259,14 @@ public class AutoSchedulingController {
 
     @GetMapping("/config")
     @Operation(summary = "Lấy tất cả cấu hình thuật toán")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<List<AlgorithmConfigDTO>>> getAllConfigs() {
         return ResponseEntity.ok(ApiResponse.success(configService.getAllConfigs()));
     }
 
     @GetMapping("/config/page")
     @Operation(summary = "Lấy danh sách cấu hình thuật toán có phân trang")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<AlgorithmConfigDTO>>> getConfigsPage(
             org.springframework.data.domain.Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(configService.getConfigsPage(pageable)));
@@ -247,14 +274,14 @@ public class AutoSchedulingController {
 
     @GetMapping("/config/{paramKey}")
     @Operation(summary = "Lấy cấu hình theo paramKey")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<AlgorithmConfigDTO>> getConfigById(@PathVariable String paramKey) {
         return ResponseEntity.ok(ApiResponse.success(configService.getConfigByParamKey(paramKey)));
     }
 
     @PostMapping("/config")
     @Operation(summary = "Tạo mới cấu hình thuật toán")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<AlgorithmConfigDTO>> createConfig(
             @Valid @RequestBody AlgoConfigRequest request) {
         AlgorithmConfigDTO created = configService.createConfig(request);
@@ -264,7 +291,7 @@ public class AutoSchedulingController {
 
     @PutMapping("/config/{paramKey}")
     @Operation(summary = "Cập nhật cấu hình thuật toán")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<AlgorithmConfigDTO>> updateConfig(
             @PathVariable String paramKey,
             @Valid @RequestBody AlgoConfigRequest request) {
@@ -274,7 +301,7 @@ public class AutoSchedulingController {
 
     @DeleteMapping("/config/{paramKey}")
     @Operation(summary = "Xóa cấu hình thuật toán")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<Void>> deleteConfig(@PathVariable String paramKey) {
         configService.deleteConfig(paramKey);
         return ResponseEntity.ok(ApiResponse.success((Void) null, "Xóa cấu hình thành công"));
@@ -282,7 +309,7 @@ public class AutoSchedulingController {
 
     @PostMapping("/config/sync-descriptions")
     @Operation(summary = "Đồng bộ mô tả các tham số thuật toán theo phiên bản code hiện tại")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<Map<String, String>>> syncDescriptions() {
         Map<String, String> result = configService.syncDescriptions();
         return ResponseEntity.ok(ApiResponse.success(result, "Đã đồng bộ " + result.size() + " mô tả"));
@@ -294,7 +321,7 @@ public class AutoSchedulingController {
 
     @GetMapping("/runtime-config")
     @Operation(summary = "Lấy cấu hình runtime của thuật toán (tất cả tham số chính)")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<AlgorithmConfigService.AlgorithmRuntimeConfig>> getRuntimeConfig() {
         AlgorithmConfigService.AlgorithmRuntimeConfig config = configService.getRuntimeConfig();
         return ResponseEntity.ok(ApiResponse.success(config));
@@ -302,7 +329,7 @@ public class AutoSchedulingController {
 
     @PutMapping("/runtime-config")
     @Operation(summary = "Cập nhật cấu hình runtime của thuật toán")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<AlgorithmConfigService.AlgorithmRuntimeConfig>> updateRuntimeConfig(
             @Valid @RequestBody AlgorithmConfigService.AlgorithmRuntimeConfig config) {
         configService.saveRuntimeConfig(config);
@@ -311,14 +338,14 @@ public class AutoSchedulingController {
 
     @GetMapping("/auto-gen-config")
     @Operation(summary = "Lấy cấu hình tạo yêu cầu tự động (L01–L04 limits)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<com.hospital.scheduler.algorithm.AutoGenConfig>> getAutoGenConfig() {
         return ResponseEntity.ok(ApiResponse.success(configService.getAutoGenConfig().orElse(null)));
     }
 
     @PutMapping("/auto-gen-config")
     @Operation(summary = "Cập nhật cấu hình tạo yêu cầu tự động")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<com.hospital.scheduler.algorithm.AutoGenConfig>> saveAutoGenConfig(
             @Valid @RequestBody com.hospital.scheduler.algorithm.AutoGenConfig config) {
         configService.saveAutoGenConfig(config);
@@ -327,7 +354,7 @@ public class AutoSchedulingController {
 
     @PostMapping("/auto-gen-config/recommend")
     @Operation(summary = "AI đề xuất AutoGenConfig từ mục tiêu ca/người/tháng (không lưu DB, chỉ tính toán)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<AutoGenConfigRecommendResponse>> recommendAutoGenConfig(
             @Valid @RequestBody AutoGenConfigRecommendRequest req) {
         var recommendation = configService.recommendAutoGenConfig(
@@ -359,7 +386,7 @@ public class AutoSchedulingController {
 
     @GetMapping("/metrics/stats")
     @Operation(summary = "Lấy thống kê hiệu suất thuật toán")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getAlgorithmStats() {
         Map<String, Object> stats = metricsService.getAlgorithmStatsSummary();
         return ResponseEntity.ok(ApiResponse.success(stats));
@@ -367,7 +394,7 @@ public class AutoSchedulingController {
 
     @GetMapping("/metrics/best-algorithm")
     @Operation(summary = "Lấy thuật toán có hiệu suất tốt nhất")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getBestAlgorithm() {
         String best = metricsService.getBestAlgorithm();
         double score = metricsService.calculatePerformanceScore(best);
@@ -381,7 +408,7 @@ public class AutoSchedulingController {
 
     @GetMapping("/config/audit")
     @Operation(summary = "Feature E: Lấy lịch sử thay đổi AlgorithmConfig")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUDIT_VIEW + "') and hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<AlgorithmConfigAuditDTO>>> getConfigAudit(
             @RequestParam(required = false) String paramKey,
             @RequestParam(defaultValue = "0") int page,

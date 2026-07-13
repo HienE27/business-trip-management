@@ -7,6 +7,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Pagination } from "@/components/ui/Pagination";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Permission } from "@/lib/permissions";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate, formatDateFull } from "@/lib/date";
@@ -44,6 +46,8 @@ function isManagerLike(staff: Staff | null) {
 function SwapRequestsContent() {
   const searchParams = useSearchParams();
   const { user: authUser } = useAuth();
+  const { can } = usePermissions();
+  const canApprove = can(Permission.EXCHANGE_APPROVE);
   const [exchanges, setExchanges] = useState<ScheduleExchangeResponse[]>([]);
   const [currentUser, setCurrentUser] = useState<Staff | null>(null);
   const [mySchedules, setMySchedules] = useState<Schedule[]>([]);
@@ -83,6 +87,19 @@ function SwapRequestsContent() {
   const [selectedExchange, setSelectedExchange] = useState<ScheduleExchangeResponse | null>(null);
   const [reviewNote, setReviewNote] = useState("");
 
+  // BUGFIX (was FE#10): previous version's cancel handlers reset
+  // selectedExchange + conflictWarning but left reviewNote in state. When
+  // the user opened Exchange A, typed a note, cancelled, then opened
+  // Exchange B, the previous note was pre-filled — leaking reviewer
+  // commentary across requests. Centralize close so every exit path
+  // (backdrop, X button, Đóng button, post-approve success) wipes
+  // all three fields.
+  const closeDetailModal = useCallback(() => {
+    setSelectedExchange(null);
+    setConflictWarning(null);
+    setReviewNote("");
+  }, []);
+
   const fetchExchanges = useCallback(async () => {
     ignoreRef.current = false;
     try {
@@ -93,12 +110,9 @@ function SwapRequestsContent() {
       setCurrentUser(meRes);
 
       const managerView = isManagerLike(meRes);
-      // For now always use the paginated manager endpoint (user-scoped
-      // endpoint does not yet have a paginated counterpart; the manager
-      // path still returns every exchange so we can stay paginated).
-      const pageResult = managerView
-        ? await api.getExchangesPage(page, pageSize)
-        : await api.getExchangesPage(page, pageSize);
+      // BUGFIX (was FE#3): Both ternary branches called the same endpoint — the
+      // branch was dead code. Always use the paginated endpoint.
+      const pageResult = await api.getExchangesPage(page, pageSize);
       if (ignoreRef.current) return;
       setExchanges(pageResult.content ?? []);
       setTotalPages(pageResult.totalPages ?? 0);
@@ -115,23 +129,45 @@ function SwapRequestsContent() {
             : [];
         setMySchedules(schedulesArray);
 
+        // BUGFIX (was FE#3): Fan out one fetch per unique period via Promise.all
+        // with no cancellation. When the user paginates or switches tabs mid-flight
+        // every in-flight request continues to resolution, hammering the API and
+        // racing with later fetches. Each request now carries its own AbortController
+        // so the effect cleanup can abort them.
         const periodIds = Array.from(new Set(schedulesArray.map((s) => s.periodId)));
-        const relatedSchedules = await Promise.all(
-          periodIds.map((periodId) => api.get<Schedule[]>(`/schedules/period/${periodId}`)),
-        );
-        if (ignoreRef.current) return;
-        setAllSchedules(
-          relatedSchedules
-            .flatMap((items) => {
-              if (!items) return [];
-              if (Array.isArray(items)) return items;
-              if (typeof items === 'object' && 'content' in items) {
-                return (items as { content: Schedule[] }).content ?? [];
-              }
-              return [];
-            })
-            .filter((schedule) => schedule.staff.id !== meRes.id),
-        );
+        const periodControllers: AbortController[] = [];
+        try {
+          const relatedSchedules = await Promise.all(
+            periodIds.map((periodId) => {
+              const ctrl = new AbortController();
+              periodControllers.push(ctrl);
+              // api.get signature: (endpoint, params?, requestInit?). Pass {} for
+              // params so the third arg goes through as RequestInit containing signal.
+              return api.get<Schedule[]>(`/schedules/period/${periodId}`, {}, { signal: ctrl.signal });
+            }),
+          );
+          if (ignoreRef.current) return;
+          setAllSchedules(
+            relatedSchedules
+              .flatMap((items) => {
+                if (!items) return [];
+                if (Array.isArray(items)) return items;
+                if (typeof items === 'object' && 'content' in items) {
+                  return (items as { content: Schedule[] }).content ?? [];
+                }
+                return [];
+              })
+              .filter((schedule) => schedule.staff.id !== meRes.id),
+          );
+        } catch (periodErr) {
+          // Aborted fetches are expected on cleanup — don't surface them as errors
+          if ((periodErr as { name?: string })?.name === "AbortError") return;
+          throw periodErr;
+        } finally {
+          for (const ctrl of periodControllers) {
+            try { ctrl.abort(); } catch { /* noop */ }
+          }
+        }
       } else {
         if (ignoreRef.current) return;
         setMySchedules([]);
@@ -700,7 +736,7 @@ function SwapRequestsContent() {
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           role="dialog"
         >
-          <div className="absolute inset-0 bg-black/40" onClick={() => { setSelectedExchange(null); setConflictWarning(null); }} aria-hidden="true" />
+          <div className="absolute inset-0 bg-black/40" onClick={closeDetailModal} aria-hidden="true" />
           <div className="relative w-full max-w-lg rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
               <div className="flex items-center gap-3">
@@ -716,7 +752,7 @@ function SwapRequestsContent() {
                 label="Đóng"
                 variant="ghost"
                 size="sm"
-                onClick={() => setSelectedExchange(null)}
+                onClick={closeDetailModal}
                 className="text-on-surface-variant"
               >
                 <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
@@ -798,11 +834,11 @@ function SwapRequestsContent() {
                 variant="secondary"
                 size="md"
                 fullWidth
-                onClick={() => { setSelectedExchange(null); setConflictWarning(null); }}
+                onClick={closeDetailModal}
               >
                 Đóng
               </Button>
-              {managerMode && selectedExchange.status === "PENDING" && (
+              {canApprove && managerMode && selectedExchange.status === "PENDING" && (
                 <>
                   <Button
                     variant="danger"

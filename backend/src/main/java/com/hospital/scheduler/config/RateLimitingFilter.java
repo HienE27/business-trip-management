@@ -1,5 +1,6 @@
 package com.hospital.scheduler.config;
 
+import com.hospital.scheduler.security.ClientIpResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,16 @@ public class RateLimitingFilter implements Filter {
     private int windowMinutes;
 
     private final Map<String, List<Long>> ipAttempts = new ConcurrentHashMap<>();
+
+    // BUGFIX (was BE#15): the previous version unconditionally trusted the
+    // X-Forwarded-For header, letting an attacker spoof the source IP and
+    // bypass IP-based login throttling. Delegate to ClientIpResolver so the
+    // trusted-proxy check is shared with AuthService.
+    private final com.hospital.scheduler.security.ClientIpResolver clientIpResolver;
+
+    public RateLimitingFilter(com.hospital.scheduler.security.ClientIpResolver clientIpResolver) {
+        this.clientIpResolver = clientIpResolver;
+    }
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
@@ -87,7 +98,9 @@ public class RateLimitingFilter implements Filter {
     }
 
     private String getClientIp(HttpServletRequest req) {
-        String xf = req.getHeader("X-Forwarded-For");
-        return xf != null ? xf.split(",")[0].trim() : req.getRemoteAddr();
+        // BUGFIX (was BE#15): delegate to ClientIpResolver so the X-Forwarded-For
+        // header is only honored when the direct connection comes from a trusted
+        // (private/loopback) address — preventing attacker spoofing of the source IP.
+        return clientIpResolver.resolve(req);
     }
 }

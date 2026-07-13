@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.response.DashboardResponse;
 import com.hospital.scheduler.dto.response.ScheduleAggregationResponse;
 import com.hospital.scheduler.exception.BadRequestException;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.DashboardService;
 import com.hospital.scheduler.service.ReportExportService;
 import com.hospital.scheduler.service.SchedulePdfExportService;
@@ -35,7 +36,7 @@ public class DashboardController {
 
     @GetMapping
     @Operation(summary = "Lấy tổng quan dashboard")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_VIEW + "')")
     public ResponseEntity<ApiResponse<DashboardResponse>> getDashboard(
             @RequestParam(required = false) Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getDashboardSummary(periodId)));
@@ -43,7 +44,7 @@ public class DashboardController {
 
     @GetMapping("/shifts")
     @Operation(summary = "Lấy thống kê các loại ca")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_VIEW + "')")
     public ResponseEntity<ApiResponse<DashboardResponse.ShiftStatistics>> getShiftStatistics(
             @RequestParam(required = false) Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getShiftStatistics(periodId)));
@@ -51,14 +52,14 @@ public class DashboardController {
 
     @GetMapping("/leave-requests")
     @Operation(summary = "Lấy thống kê yêu cầu nghỉ phép")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_VIEW + "')")
     public ResponseEntity<ApiResponse<DashboardResponse.LeaveRequestStatistics>> getLeaveRequestStatistics() {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getLeaveRequestStatistics()));
     }
 
     @GetMapping("/workload/period/{periodId}")
     @Operation(summary = "Lấy thống kê workload nhân sự theo kỳ")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_AGGREGATE + "')")
     public ResponseEntity<ApiResponse<List<DashboardResponse.StaffWorkloadStatistics>>> getStaffWorkload(
             @PathVariable Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getStaffWorkloadByPeriod(periodId)));
@@ -66,7 +67,7 @@ public class DashboardController {
 
     @GetMapping("/workload/period/{periodId}/page")
     @Operation(summary = "Lấy thống kê workload nhân sự theo kỳ có phân trang")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_AGGREGATE + "')")
     public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<DashboardResponse.StaffWorkloadStatistics>>> getStaffWorkloadPage(
             @PathVariable Integer periodId,
             org.springframework.data.domain.Pageable pageable) {
@@ -76,7 +77,7 @@ public class DashboardController {
 
     @GetMapping("/shift-type/{shiftTypeId}/statistics")
     @Operation(summary = "Thống kê chi tiết theo loại ca (L03/L04) theo tuần hoặc tháng — phục vụ M04-F05 và M05-F05")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_AGGREGATE + "')")
     public ResponseEntity<ApiResponse<DashboardResponse.ShiftTypeDetailStatistics>> getShiftTypeStatistics(
             @PathVariable String shiftTypeId,
             @RequestParam Integer periodId,
@@ -87,21 +88,21 @@ public class DashboardController {
 
     @GetMapping("/periods")
     @Operation(summary = "Lấy tóm tắt các kỳ lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_VIEW + "')")
     public ResponseEntity<ApiResponse<List<DashboardResponse.PeriodSummary>>> getPeriodSummaries() {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getPeriodSummaries()));
     }
 
     @GetMapping("/heatmap/period/{periodId}")
     @Operation(summary = "Lấy dữ liệu heatmap lịch trực")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_AGGREGATE + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getHeatmapData(@PathVariable Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getScheduleHeatmapData(periodId)));
     }
 
     @GetMapping("/export/schedule/{periodId}")
     @Operation(summary = "Xuất báo cáo lịch công tác ra Excel với bộ lọc")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_EXPORT + "')")
     public ResponseEntity<byte[]> exportScheduleToExcel(
             @PathVariable Integer periodId,
             @RequestParam(required = false) String shiftTypeId,
@@ -117,7 +118,7 @@ public class DashboardController {
 
     @GetMapping("/export/schedule/{periodId}/pdf")
     @Operation(summary = "Xuất báo cáo lịch công tác ra PDF với bộ lọc")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_EXPORT + "')")
     public ResponseEntity<byte[]> exportScheduleToPdf(
             @PathVariable Integer periodId,
             @RequestParam(required = false) String shiftTypeId,
@@ -136,7 +137,7 @@ public class DashboardController {
 
     @GetMapping("/export/workload/{periodId}")
     @Operation(summary = "Xuất báo cáo thống kê tải nhân sự ra Excel với bộ lọc")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.REPORT_EXPORT + "')")
     public ResponseEntity<byte[]> exportWorkloadReportToExcel(
             @PathVariable Integer periodId,
             @RequestParam(required = false) String shiftTypeId,
@@ -151,7 +152,7 @@ public class DashboardController {
 
     @GetMapping("/aggregate")
     @Operation(summary = "Tổng hợp lịch theo khoảng ngày (dùng cho view tuần/tháng không theo kỳ lịch)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_AGGREGATE + "')")
     public ApiResponse<ScheduleAggregationResponse> aggregateByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,

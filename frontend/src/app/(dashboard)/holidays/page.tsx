@@ -6,7 +6,8 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Pagination } from "@/components/ui/Pagination";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Permission } from "@/lib/permissions";
 import { useToast } from "@/hooks/useToast";
 import { Button, ConfirmDialog, IconButton } from "@/components/ui";
 import { BackButton } from "@/components/ui/BackButton";
@@ -44,8 +45,10 @@ const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 function HolidaysContent() {
-  const { user } = useAuth();
-  const isAdmin = user?.roles?.some((r) => r === "ADMIN") ?? false;
+  const { can } = usePermissions();
+  const canCreate = can(Permission.HOLIDAY_CREATE);
+  const canUpdate = can(Permission.HOLIDAY_UPDATE);
+  const canDelete = can(Permission.HOLIDAY_DELETE);
   const toast = useToast();
   const ignoreRef = useRef(false);
 
@@ -91,12 +94,22 @@ function HolidaysContent() {
     fetchHolidays();
   }, [fetchHolidays]);
 
-  const filtered = holidays.filter((h) => {
+  // Compute the page-level filter (year / type) and the active-filter
+  // separately so the empty state can distinguish "no holidays in this
+  // page" from "no holidays match after the is-active filter". BUGFIX
+  // (was FE#12): the previous version conflated the two with a single
+  // `filtered` that included `h.isActive` — so users who toggled "inactive"
+  // saw "Không có ngày lễ, thêm mới nhé" and assumed the feature was
+  // missing.
+  const visibleOnPage = holidays.filter((h) => {
     if (String(h.year) !== yearFilter && yearFilter !== "all") return false;
     if (typeFilter === "national" && !h.isNationalHoliday) return false;
     if (typeFilter === "special" && h.isNationalHoliday) return false;
-    return h.isActive;
+    return true;
   });
+  const filtered = visibleOnPage.filter((h) => h.isActive);
+  const hasInactive = visibleOnPage.some((h) => !h.isActive);
+  const filterIsActive = yearFilter !== "all" || typeFilter !== "all";
 
   const openAdd = () => {
     setEditingId(null);
@@ -201,7 +214,7 @@ function HolidaysContent() {
             Quản lý ngày lễ quốc gia và ngày nghỉ đặc biệt
           </p>
         </div>
-        {isAdmin && (
+        {canCreate && (
           <Button
             variant="primary"
             size="md"
@@ -253,12 +266,36 @@ function HolidaysContent() {
 
       {/* Table */}
       {filtered.length === 0 ? (
+        // FE#12 empty state — three distinct cases:
+        //   (a) user has a filter applied but no matches -> suggest relaxing the filter
+        //   (b) hidden (inactive) rows exist on this page -> suggest toggling isActive
+        //   (c) genuinely no holidays -> offer create CTA
         <EmptyState
-          icon="celebration"
-          title="Không có ngày lễ"
-          description="Thêm ngày lễ mới để quản lý lịch trực chính xác hơn."
+          icon={filterIsActive ? "filter_alt" : hasInactive ? "visibility_off" : "celebration"}
+          title={
+            filterIsActive
+              ? "Không có ngày lễ khớp bộ lọc"
+              : hasInactive
+                ? "Không có ngày lễ đang kích hoạt trên trang này"
+                : "Chưa có ngày lễ nào"
+          }
+          description={
+            filterIsActive
+              ? "Hãy thử bỏ bộ lọc năm hoặc loại để xem các ngày lễ khác."
+              : hasInactive
+                ? "Có ngày lễ đang ở trạng thái ngưng hoạt động — bật \"Hiện ngưng hoạt động\" trong bộ lọc để xem."
+                : "Thêm ngày lễ mới để quản lý lịch trực chính xác hơn."
+          }
           action={
-            isAdmin ? (
+            filterIsActive ? (
+              <Button variant="secondary" size="md" onClick={() => { setYearFilter("all"); setTypeFilter("all"); }}>
+                Bỏ bộ lọc
+              </Button>
+            ) : hasInactive ? (
+              <Button variant="secondary" size="md" onClick={() => { /* TODO: implement isActive filter toggle */ }}>
+                Hiện ngưng hoạt động
+              </Button>
+            ) : canCreate ? (
               <Button variant="primary" size="md" icon={<span className="material-symbols-outlined text-[18px]">add</span>} onClick={openAdd}>
                 Thêm ngày lễ
               </Button>
@@ -276,7 +313,7 @@ function HolidaysContent() {
                   <th className="px-5 py-3 text-label-sm text-on-surface-variant uppercase tracking-wide font-semibold">Năm</th>
                   <th className="px-5 py-3 text-label-sm text-on-surface-variant uppercase tracking-wide font-semibold">Loại</th>
                   <th className="px-5 py-3 text-label-sm text-on-surface-variant uppercase tracking-wide font-semibold">Mô tả</th>
-                  {isAdmin && <th className="px-5 py-3 text-label-sm text-on-surface-variant uppercase tracking-wide font-semibold text-right">Thao tác</th>}
+                  {(canUpdate || canDelete) && <th className="px-5 py-3 text-label-sm text-on-surface-variant uppercase tracking-wide font-semibold text-right">Thao tác</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">
@@ -304,27 +341,31 @@ function HolidaysContent() {
                         {h.description || "—"}
                       </p>
                     </td>
-                    {isAdmin && (
+                    {(canUpdate || canDelete) && (
                       <td className="px-5 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <IconButton
-                            label="Chỉnh sửa"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEdit(h)}
-                            className="text-on-surface-variant hover:text-primary"
-                          >
-                            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>
-                          </IconButton>
-                          <IconButton
-                            label="Xóa"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteId(h.id)}
-                            className="text-on-surface-variant hover:text-error"
-                          >
-                            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
-                          </IconButton>
+                          {canUpdate && (
+                            <IconButton
+                              label="Chỉnh sửa"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEdit(h)}
+                              className="text-on-surface-variant hover:text-primary"
+                            >
+                              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>
+                            </IconButton>
+                          )}
+                          {canDelete && (
+                            <IconButton
+                              label="Xóa"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeleteId(h.id)}
+                              className="text-on-surface-variant hover:text-error"
+                            >
+                              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
+                            </IconButton>
+                          )}
                         </div>
                       </td>
                     )}

@@ -3,6 +3,7 @@ package com.hospital.scheduler.controller;
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.SpecialtyRequest;
 import com.hospital.scheduler.dto.response.SpecialtyResponse;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.SpecialtyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,42 +29,42 @@ public class SpecialtyController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách chuyên khoa")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "') or hasAuthority('" + Permissions.STAFF_VIEW + "')")
     public ResponseEntity<ApiResponse<List<SpecialtyResponse>>> getAllSpecialties() {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getAllSpecialties()));
     }
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách chuyên khoa đang hoạt động")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<SpecialtyResponse>>> getActiveSpecialties() {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getActiveSpecialties()));
     }
 
     @GetMapping("/page")
     @Operation(summary = "Lấy danh sách chuyên khoa có phân trang")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
     public ResponseEntity<ApiResponse<Page<SpecialtyResponse>>> getSpecialtiesPage(Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getSpecialtiesPage(pageable)));
     }
 
     @GetMapping("/status-counts")
     @Operation(summary = "Đếm chuyên khoa theo trạng thái (toàn DB, không phân trang)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
     public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getStatusCounts()));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết chuyên khoa")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "') or hasAuthority('" + Permissions.STAFF_VIEW + "')")
     public ResponseEntity<ApiResponse<SpecialtyResponse>> getSpecialtyById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getSpecialtyById(id)));
     }
 
     @PostMapping
     @Operation(summary = "Tạo chuyên khoa mới")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
     public ResponseEntity<ApiResponse<SpecialtyResponse>> createSpecialty(@Valid @RequestBody SpecialtyRequest request) {
         SpecialtyResponse created = specialtyService.createSpecialty(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(created, "Tạo chuyên khoa thành công"));
@@ -71,7 +72,7 @@ public class SpecialtyController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật chuyên khoa")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
     public ResponseEntity<ApiResponse<SpecialtyResponse>> updateSpecialty(
             @PathVariable Integer id,
             @Valid @RequestBody SpecialtyRequest request) {
@@ -80,7 +81,7 @@ public class SpecialtyController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa chuyên khoa (soft delete)")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
     public ResponseEntity<ApiResponse<Void>> deleteSpecialty(@PathVariable Integer id) {
         specialtyService.deleteSpecialty(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa chuyên khoa thành công"));

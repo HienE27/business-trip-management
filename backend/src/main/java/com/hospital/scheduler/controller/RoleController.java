@@ -2,6 +2,7 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.response.RolePermissionMatrixResponse;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.RoleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,26 +17,15 @@ public class RoleController {
 
     private final RoleService roleService;
 
-    /**
-     * GET /api/v1/roles/permissions/matrix
-     *
-     * Returns the full role-permission matrix for the admin UI (M01-F05).
-     * Only ADMIN may view this.
-     */
     @GetMapping("/permissions/matrix")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.ROLE_VIEW + "')")
     public ResponseEntity<ApiResponse<RolePermissionMatrixResponse>> getPermissionMatrix() {
         RolePermissionMatrixResponse matrix = roleService.getPermissionMatrix();
         return ResponseEntity.ok(ApiResponse.success(matrix));
     }
 
-    /**
-     * POST /api/v1/roles/permissions/toggle
-     *
-     * Grants or revokes a permission for a given role.
-     */
     @PostMapping("/permissions/toggle")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.ROLE_EDIT + "')")
     public ResponseEntity<ApiResponse<Void>> togglePermission(
             @Valid @RequestBody TogglePermissionRequest request) {
         roleService.togglePermission(request.getRoleId(), request.getPermissionId(), request.getGranted());

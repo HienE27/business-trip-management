@@ -23,6 +23,8 @@ import com.hospital.scheduler.repository.ScheduleConflictRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
+import com.hospital.scheduler.config.CacheConfig;
+import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.dto.request.NotificationDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +54,7 @@ public class LeaveRequestService {
     private final NotificationService notificationService;
     private final EmailService emailService;
     private final CacheEvictor cacheEvictor;
+    private final AuthContextService authContextService;
     @Lazy
     private final ConflictDetectionService conflictDetectionService;
 
@@ -142,7 +145,14 @@ public class LeaveRequestService {
                 .build();
 
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
-        auditHistoryService.logAction("leave_request", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+        // BUGFIX (was BE#4): audit actor was hardcoded null, leaving
+        // leave_request INSERT entries without anyone on the audit trail. Now
+        // we resolve the authenticated staff id via AuthContextService. If
+        // resolution fails (e.g. background job without context), we still
+        // log the leave creation but with a null actor + warn — never block
+        // the business transaction on auditing.
+        Integer auditActor = resolveCurrentStaffIdSafely();
+        auditHistoryService.logAction("leave_request", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, auditActor);
 
         // Notify managers about the new leave request
         List<Staff> managers = staffRepository.findManagers();
@@ -424,6 +434,24 @@ public class LeaveRequestService {
                 .build();
     }
 
+    /**
+     * Resolve the actor for audit logging. Returns {@code null} if no
+     * authenticated principal is available (e.g. the request came through a
+     * background job that bypassed the security filter chain). Returning null
+     * rather than throwing lets the business transaction commit even when
+     * auditing can't be attributed — the audit row stays nullable today but
+     * still records the action. See BUGFIX BE#4.
+     */
+    private Integer resolveCurrentStaffIdSafely() {
+        try {
+            return authContextService.getCurrentStaff().getId();
+        } catch (Exception ex) {
+            log.debug("No authenticated staff for audit actor ({}): {}",
+                    ex.getClass().getSimpleName(), ex.getMessage());
+            return null;
+        }
+    }
+
     private void validateLeaveRequest(Integer staffId, LeaveRequestDTO dto) {
         if (dto.getStartDate().isAfter(dto.getEndDate())) {
             throw new BadRequestException("Ngày bắt đầu phải trước ngày kết thúc");
@@ -433,9 +461,14 @@ public class LeaveRequestService {
             throw new BadRequestException("Ngày bắt đầu không được trong quá khứ");
         }
 
-        // Check for overlapping APPROVED or PENDING leave requests
-        List<LeaveRequest> overlappingLeaves = leaveRequestRepository.findByStaffIdAndDateRange(
-                staffId, dto.getStartDate(), dto.getEndDate());
+        // Check for overlapping APPROVED or PENDING leave requests. Pass -1 as
+        // the excludeId so the database never returns the row we just created
+        // in the same request (defense in depth for BUGFIX BE#3) — there should
+        // be no row to exclude today, but using the safer repo variant guards
+        // against future callers attaching an existing-id and silently
+        // returning the row being edited.
+        List<LeaveRequest> overlappingLeaves = leaveRequestRepository.findByStaffIdAndDateRangeExcluding(
+                staffId, dto.getStartDate(), dto.getEndDate(), -1);
         boolean hasOverlap = overlappingLeaves.stream()
                 .anyMatch(lr -> lr.getStatus() == LeaveRequest.LeaveStatus.APPROVED
                         || lr.getStatus() == LeaveRequest.LeaveStatus.PENDING);

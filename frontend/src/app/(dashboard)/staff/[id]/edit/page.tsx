@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -172,7 +172,13 @@ export default function StaffEditPage() {
 function StaffEditContent() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const staffId = Number(params.id);
+  // BUGFIX (was FE#13): Number("") and Number("abc") both return NaN.
+  // Before this fix, an invalid URL like /staff/abc/edit would render
+  // with staffId=NaN, triggering /staff/NaN to the backend (404),
+  // spamming the user with a confusing "Lỗi tải dữ liệu" toast. Now we
+  // validate up front and bounce to /staff with a clear message.
+  const rawId = Number(params.id);
+  const staffId = Number.isInteger(rawId) && rawId > 0 ? rawId : NaN;
   const role = useRole();
   const canSeeAudit = canViewAuditLog(role);
 
@@ -186,9 +192,34 @@ function StaffEditContent() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const toast = useToast();
 
+  // BUGFIX (was FE#2): Hold the post-submit navigation timer in a ref so we
+  // can cancel it on unmount — otherwise leaving the page within 1.2s would
+  // still fire `router.push` against a stale staffId.
+  const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (navigationTimerRef.current !== null) {
+        clearTimeout(navigationTimerRef.current);
+        navigationTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // BUGFIX (was FE#13): if the URL has a non-numeric id (e.g. /staff/abc/edit
+  // from a stale bookmark), bounce back to the list immediately instead of
+  // staying on the form with a misleading "Không tải được dữ liệu" toast.
+  useEffect(() => {
+    if (Number.isNaN(staffId)) {
+      setMessage("ID nhân sự không hợp lệ — đang quay lại danh sách.");
+      const t = setTimeout(() => router.replace("/staff"), 1200);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [staffId, router]);
+
   const fetchData = useCallback(async () => {
     if (isNaN(staffId)) {
-      setMessage("ID nhân sự không hợp lệ.");
+      // Already handled by the bounce effect above — bail silently.
       setLoading(false);
       return;
     }
@@ -282,7 +313,13 @@ function StaffEditContent() {
       }
       await api.put(`/staff/${staffId}`, body);
       toast.success("Đã cập nhật thông tin nhân sự.");
-      setTimeout(() => {
+      // BUGFIX (was FE#2): Cancel any previous pending navigation before
+      // scheduling a new one so we never accumulate stale timers on resubmit.
+      if (navigationTimerRef.current !== null) {
+        clearTimeout(navigationTimerRef.current);
+      }
+      navigationTimerRef.current = setTimeout(() => {
+        navigationTimerRef.current = null;
         router.push(`/staff/${staffId}`);
       }, 1200);
     } catch (err) {
@@ -510,7 +547,14 @@ function StaffEditContent() {
                   min={1}
                   max={31}
                   value={String(form.maxShiftsPerMonth)}
-                  onChange={(e) => updateField("maxShiftsPerMonth", parseInt(e.target.value) || 5)}
+                  onChange={(e) => {
+                    // BUGFIX (was FE#13): parseInt("") returns NaN, which
+                    // is undefined for the backend. Coerce to a safe default
+                    // (5 = project's documented monthly cap) when the user
+                    // clears the field. Whitespace/non-digits get clamped.
+                    const raw = parseInt(e.target.value, 10);
+                    updateField("maxShiftsPerMonth", Number.isFinite(raw) && raw > 0 ? raw : 5);
+                  }}
                   disabled={submitting}
                   icon="event"
                 />

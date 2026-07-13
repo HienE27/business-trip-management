@@ -271,14 +271,24 @@ public class ScheduleService {
             period = targetPeriod;
         }
 
+        // BUGFIX (was #7): Originally compensation days were deleted here, BEFORE
+        // the schedule save. If any later step threw, the schedule kept the old
+        // shift/staff/date but lost its compensation day with no replacement created.
+        // Now we capture the comp-day IDs to remove, save the schedule, and only
+        // delete them after the save succeeds.
+        List<Integer> compDayIdsToDelete = new java.util.ArrayList<>();
         if (wasL01 && (shiftTypeChanged || staffChanged)) {
-            List<CompensationDay> compDays = compensationDayRepository.findByScheduleId(id);
-            compensationDayRepository.deleteAll(compDays);
+            compDayIdsToDelete.addAll(
+                    compensationDayRepository.findByScheduleId(id).stream()
+                            .map(CompensationDay::getId).toList());
         }
-
         if (wasL01 && willBeL01 && dateChanged) {
-            List<CompensationDay> oldCompDays = compensationDayRepository.findByScheduleId(id);
-            compensationDayRepository.deleteAll(oldCompDays);
+            // Same row id may be present from the previous branch — dedupe.
+            compDayIdsToDelete.addAll(
+                    compensationDayRepository.findByScheduleId(id).stream()
+                            .map(CompensationDay::getId)
+                            .filter(pid -> !compDayIdsToDelete.contains(pid))
+                            .toList());
         }
 
         schedule.setWorkDate(targetWorkDate);
@@ -288,6 +298,14 @@ public class ScheduleService {
         schedule.setShiftType(newShiftType);
 
         Schedule updated = scheduleRepository.save(schedule);
+
+        // Now safe to remove the old compensation days — the schedule row is
+        // persisted with its new staff/date, so any failure past this point either
+        // rolls back the entire transaction (including this delete) or completes
+        // with the replacement compensation days created below.
+        if (!compDayIdsToDelete.isEmpty()) {
+            compensationDayRepository.deleteAllByIdInBatch(compDayIdsToDelete);
+        }
 
         if (!wasL01 && willBeL01) {
             createCompensationDay(updated);
@@ -314,47 +332,6 @@ public class ScheduleService {
                     .orElse(null);
         }
         return toResponse(updated, compDate);
-    }
-
-    /**
-     * @deprecated Use {@link ScheduleDeleteService#deleteSchedule(Integer)} which has
-     * richer handling (FK ordering, dedicated notification, audit). This method is
-     * kept only for the {@code deleteAllByPeriodId} companion call inside
-     * {@code ScheduleService}, not for single-id deletes.
-     */
-    @Deprecated
-    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void deleteSchedule(Integer id) {
-        Schedule schedule = scheduleRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + id));
-
-        SchedulePeriod period = schedule.getPeriod();
-        if (period.getStatus() != SchedulePeriod.PeriodStatus.DRAFT) {
-            throw new BadRequestException("Chỉ có thể xóa lịch khi kỳ lịch ở trạng thái DRAFT");
-        }
-
-        // If L01, delete related compensation days first
-        if (ConflictDetectionService.SHIFT_TYPE_L01.equals(schedule.getShiftType().getId())) {
-            List<CompensationDay> compDays = compensationDayRepository.findByScheduleId(id);
-            for (CompensationDay cd : compDays) {
-                auditHistoryService.logAction("compensation_day", cd.getId(), AuditHistory.ActionType.DELETE, cd, null, authContextService.getCurrentStaff().getId());
-            }
-            compensationDayRepository.deleteAll(compDays);
-        }
-
-        // Delete ScheduleConflict records first to avoid FK constraint issues
-        List<ScheduleConflict> conflicts = scheduleConflictRepository.findByScheduleId(id);
-        for (ScheduleConflict sc : conflicts) {
-            scheduleConflictRepository.delete(sc);
-        }
-
-        auditHistoryService.logAction("schedule", id, AuditHistory.ActionType.DELETE, schedule, null, authContextService.getCurrentStaff().getId());
-        notificationService.createNotification(schedule.getStaff().getId(),
-                new NotificationDTO("Xóa lịch trực",
-                        "Lịch trực ngày " + schedule.getWorkDate() + " đã bị xóa."));
-        // Use JdbcTemplate for direct SQL delete
-        jdbcTemplate.update("DELETE FROM schedule WHERE id = ?", id);
     }
 
     /**

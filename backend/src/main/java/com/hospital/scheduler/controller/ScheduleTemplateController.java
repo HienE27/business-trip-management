@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.ScheduleTemplateRequest;
 import com.hospital.scheduler.dto.response.ScheduleTemplateResponse;
 import com.hospital.scheduler.dto.response.TemplatePreviewItem;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.ScheduleTemplateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,28 +28,28 @@ public class ScheduleTemplateController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách mẫu lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_TEMPLATE_MANAGE + "') or hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ScheduleTemplateResponse>>> getAllTemplates() {
         return ResponseEntity.ok(ApiResponse.success(templateService.getAllTemplates()));
     }
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách mẫu lịch đang hoạt động")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_TEMPLATE_MANAGE + "') or hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ScheduleTemplateResponse>>> getActiveTemplates() {
         return ResponseEntity.ok(ApiResponse.success(templateService.getActiveTemplates()));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết mẫu lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_TEMPLATE_MANAGE + "') or hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<ScheduleTemplateResponse>> getTemplateById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(templateService.getTemplateById(id)));
     }
 
     @PostMapping
     @Operation(summary = "Tạo mẫu lịch mới")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_TEMPLATE_MANAGE + "')")
     public ResponseEntity<ApiResponse<ScheduleTemplateResponse>> createTemplate(
             @Valid @RequestBody ScheduleTemplateRequest request) {
         ScheduleTemplateResponse created = templateService.createTemplate(request);
@@ -58,7 +59,7 @@ public class ScheduleTemplateController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật mẫu lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_TEMPLATE_MANAGE + "')")
     public ResponseEntity<ApiResponse<ScheduleTemplateResponse>> updateTemplate(
             @PathVariable Integer id,
             @Valid @RequestBody ScheduleTemplateRequest request) {
@@ -67,7 +68,7 @@ public class ScheduleTemplateController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa mẫu lịch (soft delete)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_TEMPLATE_MANAGE + "')")
     public ResponseEntity<ApiResponse<Void>> deleteTemplate(@PathVariable Integer id) {
         templateService.deleteTemplate(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa mẫu lịch thành công"));
@@ -75,7 +76,7 @@ public class ScheduleTemplateController {
 
     @PostMapping("/{templateId}/apply/{periodId}")
     @Operation(summary = "Áp dụng mẫu lịch vào kỳ lịch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_APPLY + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> applyTemplate(
             @PathVariable Integer templateId,
             @PathVariable Integer periodId) {
@@ -87,7 +88,7 @@ public class ScheduleTemplateController {
 
     @GetMapping("/{templateId}/preview/{periodId}")
     @Operation(summary = "Xem trước mẫu lịch trước khi áp dụng — trả về danh sách ca dự kiến")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<TemplatePreviewItem>>> previewTemplate(
             @PathVariable Integer templateId,
             @PathVariable Integer periodId) {
@@ -97,7 +98,7 @@ public class ScheduleTemplateController {
 
     @PostMapping("/{templateId}/apply/{periodId}/with-edits")
     @Operation(summary = "Áp dụng mẫu lịch GENERATED vào kỳ lịch với các chỉnh sửa của người dùng")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_APPLY + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> applyTemplateWithEdits(
             @PathVariable Integer templateId,
             @PathVariable Integer periodId,

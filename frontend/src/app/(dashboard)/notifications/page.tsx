@@ -172,10 +172,25 @@ function NotificationsContent() {
     try {
       await api.delete(`/notifications/${id}`);
       setNotifications((prev) => prev.filter((n) => n.id !== id));
-      if (wasUnread) {
-        const next = Math.max(0, unreadCount - 1);
-        setUnreadCount(next);
-        await refreshCount(next);
+      // BUGFIX (was FE#8): the previous code blindly subtracted 1 from
+      // unreadCount locally without re-fetching from the server. That
+      // drifts when another notification was marked read/unread between
+      // the page load and the delete click. Recompute the count from
+      // the server's countMyUnreadNotifications() endpoint so the badge
+      // and the count shown to the user stay in sync with the truth.
+      try {
+        const fresh = await api.countMyUnreadNotifications();
+        const serverUnread = fresh?.data?.count ?? 0;
+        setUnreadCount(serverUnread);
+        await refreshCount(serverUnread);
+      } catch {
+        // Fallback to the local decrement if the server count endpoint
+        // is unavailable for some reason — better than nothing.
+        if (wasUnread) {
+          const next = Math.max(0, unreadCount - 1);
+          setUnreadCount(next);
+          await refreshCount(next);
+        }
       }
     } catch (err) {
       setMessage(getErrorMessage(err, "Lỗi xóa thông báo."));

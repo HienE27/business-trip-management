@@ -6,6 +6,7 @@ import com.hospital.scheduler.dto.response.ScheduleTemplateResponse;
 import com.hospital.scheduler.dto.response.TemplatePreviewItem;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.ScheduleTemplate;
 import com.hospital.scheduler.entity.ShiftType;
 import com.hospital.scheduler.entity.Specialty;
@@ -20,6 +21,7 @@ import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.entity.CompensationDay;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -36,12 +39,17 @@ public class ScheduleTemplateService {
     private final ScheduleTemplateRepository templateRepository;
     private final ScheduleRepository scheduleRepository;
     private final com.hospital.scheduler.repository.CompensationDayRepository compensationDayRepository;
+    private final com.hospital.scheduler.repository.LeaveRequestRepository leaveRequestRepository;
     private final CompensationDateCalculator compensationDateCalculator;
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
     private final SchedulePeriodRepository periodRepository;
     private final StaffRepository staffRepository;
     private final ObjectMapper objectMapper;
+    // BUGFIX (was BE#13): inject audit dependencies so template CRUD writes
+    // to audit_history. Without these, template mutations were invisible.
+    private final AuditHistoryService auditHistoryService;
+    private final com.hospital.scheduler.security.AuthContextService authContextService;
 
     private static final String[] VIETNAMESE_DAYS = { "", "T2", "T3", "T4", "T5", "T6", "T7", "CN" };
 
@@ -83,6 +91,10 @@ public class ScheduleTemplateService {
                 .build();
 
         ScheduleTemplate saved = templateRepository.save(template);
+        // BUGFIX (was BE#13): createTemplate previously bypassed audit_history
+        // entirely. Template mutations are admin/manager actions that must be
+        // traceable. Log the INSERT with the new state.
+        auditCreateTemplate(saved);
         return ScheduleTemplateResponse.fromEntity(saved);
     }
 
@@ -98,6 +110,18 @@ public class ScheduleTemplateService {
             specialty = specialtyRepository.findById(request.getSpecialtyId()).orElse(null);
         }
 
+        // BUGFIX (was BE#13): capture pre-update snapshot for audit diff.
+        ScheduleTemplate before = ScheduleTemplate.builder()
+                .id(template.getId())
+                .name(template.getName())
+                .description(template.getDescription())
+                .dayOfWeek(template.getDayOfWeek())
+                .shiftTypeId(template.getShiftTypeId())
+                .specialty(template.getSpecialty())
+                .requiredStaffCount(template.getRequiredStaffCount())
+                .isActive(template.getIsActive())
+                .build();
+
         template.setName(request.getName());
         template.setDescription(request.getDescription());
         template.setDayOfWeek(request.getDayOfWeek());
@@ -105,14 +129,30 @@ public class ScheduleTemplateService {
         template.setSpecialty(specialty);
         template.setRequiredStaffCount(request.getRequiredStaffCount() != null ? request.getRequiredStaffCount() : 1);
 
-        return ScheduleTemplateResponse.fromEntity(templateRepository.save(template));
+        ScheduleTemplateResponse response = ScheduleTemplateResponse.fromEntity(templateRepository.save(template));
+        // BUGFIX (was BE#13): audit UPDATE with both snapshots.
+        auditUpdateTemplate(template.getId(), before, template);
+        return response;
     }
 
     public void deleteTemplate(Integer id) {
         ScheduleTemplate template = templateRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mẫu lịch với ID: " + id));
+        // BUGFIX (was BE#13): capture pre-delete snapshot before mutation.
+        ScheduleTemplate before = ScheduleTemplate.builder()
+                .id(template.getId())
+                .name(template.getName())
+                .description(template.getDescription())
+                .dayOfWeek(template.getDayOfWeek())
+                .shiftTypeId(template.getShiftTypeId())
+                .specialty(template.getSpecialty())
+                .requiredStaffCount(template.getRequiredStaffCount())
+                .isActive(template.getIsActive())
+                .build();
         template.setIsActive(false);
         templateRepository.save(template);
+        // BUGFIX (was BE#13): audit DELETE (soft-delete via isActive=false).
+        auditDeleteTemplate(template.getId(), before, template);
     }
 
     public int applyTemplateToPeriod(Integer templateId, Integer periodId) {
@@ -145,19 +185,24 @@ public class ScheduleTemplateService {
         ShiftType shiftType = shiftTypeRepository.findById(template.getShiftTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + template.getShiftTypeId()));
 
+        // Legacy single weekday pattern template: count matching dates so callers at
+        // least know how many slots the template would target. The actual schedule
+        // creation is performed by runScheduling()/runGreedy() against the auto-gen
+        // configuration, not by inserting rows here — this branch is purely a probe.
         int appliedCount = 0;
         LocalDate currentDate = period.getStartDate();
 
         while (!currentDate.isAfter(period.getEndDate())) {
             int dayOfWeek = currentDate.getDayOfWeek().getValue();
-
             if (dayOfWeek == template.getDayOfWeek()) {
-                // ShiftRequirement removed - no longer creating requirement records
                 appliedCount++;
             }
             currentDate = currentDate.plusDays(1);
         }
 
+        log.info("applyTemplate (legacy pattern) matched {} candidate dates for period {} (template {}). " +
+                "Actual schedule creation is handled by runScheduling() against the algorithm config.",
+                appliedCount, period.getId(), template.getId());
         return appliedCount;
     }
 
@@ -194,18 +239,76 @@ public class ScheduleTemplateService {
         }
 
         int appliedCount = 0;
+        int skipped = 0;
+        // Track staff/date slots already added in this apply pass so we don't produce
+        // duplicate shifts when the source period carries multiple schedules for the
+        // same staff/date/type combination (e.g. legacy data pre-V9 unique-constraint drop).
+        java.util.Set<String> taken = new java.util.HashSet<>();
         for (com.hospital.scheduler.entity.Schedule source : sourceSchedules) {
-            // Skip if schedule already exists (avoid duplicate constraint violation)
-            if (scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
-                    period.getId(), source.getStaff().getId(), source.getShiftType().getId(), source.getWorkDate()).isPresent()) {
+            // Validate that the source schedule's date still sits inside the target
+            // period's date window — templates store concrete workDate, so copying a
+            // May source into a June period would create shifts that lie completely
+            // outside the target period. Skip + log instead of inserting junk data.
+            LocalDate sourceDate = source.getWorkDate();
+            if (sourceDate == null
+                    || sourceDate.isBefore(period.getStartDate())
+                    || sourceDate.isAfter(period.getEndDate())) {
+                skipped++;
                 continue;
             }
 
+            String slotKey = source.getStaff().getId() + "|" + source.getShiftType().getId() + "|" + sourceDate;
+            if (!taken.add(slotKey)) {
+                skipped++;
+                continue;
+            }
+
+            // Skip if schedule already exists (avoid duplicate constraint violation)
+            if (scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                    period.getId(), source.getStaff().getId(), source.getShiftType().getId(), sourceDate).isPresent()) {
+                skipped++;
+                continue;
+            }
+
+            // BUGFIX (was M07 #11): the previous version inserted ANY source
+            // schedule into the target period as long as the unique constraint
+            // wasn't violated. That bypassed every business rule we care about:
+            //   1. Staff has APPROVED/PENDING leave on this date — should skip.
+            //   2. This date is the staff's compensation day — should skip.
+            //   3. The staff already has a different same-day shift that conflicts
+            //      with this one (L01 vs L02, or L03 vs L04 per Project Context
+            //      CRITICAL constraints) — should skip.
+            // Running these checks here keeps generated-template apply consistent
+            // with how the manual and auto-scheduling paths validate before insert.
+            if (hasApprovedOrPendingLeaveOn(source.getStaff().getId(), sourceDate)) {
+                log.info("applyGeneratedTemplate skip staff={} date={}: có yêu cầu nghỉ phép APPROVED/PENDING",
+                        source.getStaff().getId(), sourceDate);
+                skipped++;
+                continue;
+            }
+            if (isCompensationDayFor(source.getStaff().getId(), sourceDate)) {
+                log.info("applyGeneratedTemplate skip staff={} date={}: trùng ngày nghỉ bù",
+                        source.getStaff().getId(), sourceDate);
+                skipped++;
+                continue;
+            }
+            if (hasConflictingSameDayShift(source.getStaff().getId(), sourceDate,
+                    source.getShiftType().getId(), taken)) {
+                log.info("applyGeneratedTemplate skip staff={} date={} shift={}: đã có ca khác trong ngày xung đột",
+                        source.getStaff().getId(), sourceDate, source.getShiftType().getId());
+                skipped++;
+                continue;
+            }
+
+            // NOTE: legacy path kept the same workDate because generated templates are
+            // saved from the same period (the user re-runs auto-scheduling from a baseline
+            // template). Cross-period templates were never supported here — see
+            // extractPatternTemplate() for the legitimate pattern-based cross-period flow.
             com.hospital.scheduler.entity.Schedule copy = com.hospital.scheduler.entity.Schedule.builder()
                     .period(period)
                     .staff(source.getStaff())
                     .shiftType(source.getShiftType())
-                    .workDate(source.getWorkDate())
+                    .workDate(sourceDate)
                     .hasConflict(false)
                     .build();
             com.hospital.scheduler.entity.Schedule saved = scheduleRepository.save(copy);
@@ -233,6 +336,10 @@ public class ScheduleTemplateService {
             }
         }
 
+        if (skipped > 0) {
+            log.warn("applyGeneratedTemplate skipped {} out-of-window or duplicate schedules (period {})",
+                    skipped, period.getId());
+        }
         return appliedCount;
     }
 
@@ -350,23 +457,61 @@ public class ScheduleTemplateService {
             sourceSchedules = scheduleRepository.findByPeriodId(request.getPeriodId());
         }
 
-        // Extract pattern data: group by (dayOfWeek, shiftTypeId, specialtyId) → requiredStaffCount
-        // This makes the template reusable across any period, not just the source period.
-        java.util.Map<String, PatternEntry> patternMap = new java.util.LinkedHashMap<>();
+        // Extract pattern data: group by (dayOfWeek, shiftTypeId, specialtyId) → requiredStaffCount.
+        // The template is intended to be reusable across any period, so each pattern entry
+        // describes how many staff we need on a SINGLE matching date (not the cumulative
+        // count across the source period).
+        //
+        // BUGFIX (was M07 #13): the previous implementation used `patternMap.merge` to
+        // sum ALL occurrences of (dow, shiftType, specialty) across the source period.
+        // Example failure: a January source has 4 Mondays × 2 Nội khoa staff on L01 duty.
+        // The merge would store `requiredStaffCount = 8` — meaning "every Monday needs
+        // 8 Nội khoa on L01" — instead of the correct "each Monday needs 2 Nội khoa".
+        //
+        // New approach (single pass, O(N)):
+        //   1. For each schedule, compute its (dow, shiftType, specialty) bucket key.
+        //   2. Within the bucket, tally per-date totals: how many staff on THIS date match.
+        //   3. The bucket's requiredStaffCount = the MODE of those per-date totals
+        //      (most common per-date staffing for this dow+shift+specialty combo).
+        java.util.Map<String, int[]> bucketMeta = new java.util.LinkedHashMap<>();
+        java.util.Map<String, java.util.Map<LocalDate, int[]>> perBucketPerDate = new java.util.LinkedHashMap<>();
         for (com.hospital.scheduler.entity.Schedule s : sourceSchedules) {
-            String key = s.getWorkDate().getDayOfWeek().getValue() + "_" + s.getShiftType().getId()
-                    + "_" + (s.getStaff().getSpecialty() != null
-                            ? s.getStaff().getSpecialty().getId() : "null");
-            patternMap.merge(key, new PatternEntry(
-                            s.getWorkDate().getDayOfWeek().getValue(),
-                            s.getShiftType().getId(),
-                            s.getStaff().getSpecialty() != null
-                                    ? s.getStaff().getSpecialty().getId() : null,
-                    1),
-                    (existing, incoming) -> {
-                        existing.requiredStaffCount++;
-                        return existing;
-                    });
+            int dow = s.getWorkDate().getDayOfWeek().getValue();
+            String shiftId = s.getShiftType().getId();
+            Integer specId = s.getStaff().getSpecialty() != null ? s.getStaff().getSpecialty().getId() : null;
+            String key = dow + "_" + shiftId + "_" + (specId != null ? specId : "null");
+
+            if (!bucketMeta.containsKey(key)) {
+                bucketMeta.put(key, new int[]{ dow, 0 /* placeholder */ });
+                perBucketPerDate.put(key, new java.util.LinkedHashMap<>());
+                bucketMeta.get(key)[0] = dow;
+            }
+            perBucketPerDate.get(key)
+                    .computeIfAbsent(s.getWorkDate(), d -> new int[1])[0]++;
+        }
+
+        java.util.Map<String, PatternEntry> patternMap = new java.util.LinkedHashMap<>();
+        for (java.util.Map.Entry<String, java.util.Map<LocalDate, int[]>> e : perBucketPerDate.entrySet()) {
+            String key = e.getKey();
+            java.util.Map<LocalDate, int[]> perDate = e.getValue();
+            int mode = pickMode(perDate.values());
+
+            // Recover bucket metadata (dow / shiftType / specialty) from a representative schedule.
+            com.hospital.scheduler.entity.Schedule sample = sourceSchedules.stream()
+                    .filter(s -> (s.getWorkDate().getDayOfWeek().getValue() + "_" + s.getShiftType().getId()
+                            + "_" + (s.getStaff().getSpecialty() != null
+                                    ? s.getStaff().getSpecialty().getId() : "null")).equals(key))
+                    .findFirst().orElse(null);
+            if (sample == null) continue;
+
+            Integer specId = sample.getStaff().getSpecialty() != null
+                    ? sample.getStaff().getSpecialty().getId() : null;
+            PatternEntry entry = new PatternEntry(
+                    sample.getWorkDate().getDayOfWeek().getValue(),
+                    sample.getShiftType().getId(),
+                    specId,
+                    mode);
+            patternMap.put(key, entry);
         }
 
         if (patternMap.isEmpty()) {
@@ -435,6 +580,143 @@ public class ScheduleTemplateService {
             this.shiftTypeId = shiftTypeId;
             this.specialtyId = specialtyId;
             this.requiredStaffCount = requiredStaffCount;
+        }
+    }
+
+    /**
+     * Pick the most common value from a collection of int[] singletons. If there
+     * is a tie, the smallest value wins (consistent & deterministic). Returns 0
+     * for an empty input.
+     *
+     * <p>BUGFIX (was M07 #13) helper: the original pattern extractor summed all
+     * occurrences — fixing the bucket count requires selecting the modal per-date
+     * staffing rather than the cumulative total.
+     */
+    private static int pickMode(java.util.Collection<int[]> values) {
+        if (values == null || values.isEmpty()) return 0;
+        java.util.Map<Integer, Integer> freq = new java.util.HashMap<>();
+        for (int[] arr : values) {
+            int v = arr[0];
+            freq.merge(v, 1, Integer::sum);
+        }
+        int bestVal = 0;
+        int bestCount = -1;
+        for (java.util.Map.Entry<Integer, Integer> e : freq.entrySet()) {
+            int v = e.getKey();
+            int c = e.getValue();
+            if (c > bestCount || (c == bestCount && v < bestVal)) {
+                bestVal = v;
+                bestCount = c;
+            }
+        }
+        return bestVal;
+    }
+
+    // ─── Audit helpers (BE#13) ──────────────────────────────────────────────────
+    // Template CRUD previously bypassed audit_history entirely. These helpers
+    // log INSERT/UPDATE/DELETE entries with full before/after snapshots so
+    // administrators can answer "who changed template X and how".
+    private void auditCreateTemplate(ScheduleTemplate saved) {
+        safeAudit("schedule_template", saved.getId(),
+                AuditHistory.ActionType.INSERT, null, saved);
+    }
+
+    private void auditUpdateTemplate(Integer id, ScheduleTemplate before, ScheduleTemplate after) {
+        safeAudit("schedule_template", id,
+                AuditHistory.ActionType.UPDATE, before, after);
+    }
+
+    private void auditDeleteTemplate(Integer id, ScheduleTemplate before, ScheduleTemplate after) {
+        safeAudit("schedule_template", id,
+                AuditHistory.ActionType.DELETE, before, after);
+    }
+
+    private void safeAudit(String table, Integer recordId,
+                           AuditHistory.ActionType action,
+                           Object oldValue, Object newValue) {
+        try {
+            Integer actorId = authContextService.getCurrentStaff().getId();
+            auditHistoryService.logAction(table, recordId, action, oldValue, newValue, actorId);
+        } catch (Exception ex) {
+            // Never fail a business transaction because auditing hiccupped.
+            log.warn("safeAudit({}/{} {}) skipped: {}", table, recordId, action, ex.getMessage());
+        }
+    }
+
+    // ─── M07 #11 helpers ────────────────────────────────────────────────────────
+    // Generated-template apply previously bypassed every business rule we enforce
+    // for the manual & auto-scheduling paths. These helpers let applyGeneratedTemplate
+    // consult the same checks before inserting a copied schedule. All helpers are
+    // read-only and silent on failure (return false) so a transient DB hiccup
+    // doesn't cascade into the apply pass.
+
+    private boolean hasApprovedOrPendingLeaveOn(Integer staffId, LocalDate workDate) {
+        try {
+            java.util.List<com.hospital.scheduler.entity.LeaveRequest> leaves =
+                    leaveRequestRepository.findByStaffIdAndDateRange(staffId, workDate, workDate);
+            return leaves.stream().anyMatch(lr ->
+                    lr.getStatus() == com.hospital.scheduler.entity.LeaveRequest.LeaveStatus.APPROVED
+                            || lr.getStatus() == com.hospital.scheduler.entity.LeaveRequest.LeaveStatus.PENDING);
+        } catch (Exception ex) {
+            log.warn("hasApprovedOrPendingLeaveOn({}, {}) failed: {}", staffId, workDate, ex.getMessage());
+            return false;
+        }
+    }
+
+    private boolean isCompensationDayFor(Integer staffId, LocalDate workDate) {
+        try {
+            return compensationDayRepository.existsByStaffIdAndCompensationDate(staffId, workDate);
+        } catch (Exception ex) {
+            log.warn("isCompensationDayFor({}, {}) failed: {}", staffId, workDate, ex.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Project Context CRITICAL constraint: the same staff cannot be on two
+     * shifts that conflict on the same day. Concretely:
+     * <ul>
+     *   <li>L01 (24/24 duty, overnight) vs L02 (thông tầm) — mutually exclusive.</li>
+     *   <li>L03 (PK dịch vụ) vs L04 (PK chuyên gia) — mutually exclusive.</li>
+     * </ul>
+     * The simplest signal is "any other shift on the same date for this staff
+     * within the target period", which covers both rules since each rule only
+     * fires when the conflicting shift type would already be on the day.
+     *
+     * <p>{@code takenShiftsForSession} carries the in-progress slots from the
+     * current apply pass so we don't insert two conflicting shifts before
+     * persisting either.
+     */
+    private boolean hasConflictingSameDayShift(Integer staffId, LocalDate workDate,
+                                               String newShiftTypeId,
+                                               java.util.Set<String> takenShiftsForSession) {
+        try {
+            java.util.List<com.hospital.scheduler.entity.Schedule> existing =
+                    scheduleRepository.findByStaffIdAndWorkDate(staffId, workDate);
+            for (com.hospital.scheduler.entity.Schedule s : existing) {
+                if (!s.getShiftType().getId().equals(newShiftTypeId)) {
+                    return true;
+                }
+            }
+            // In-progress slots from the same apply pass (avoid inserting two same-day
+            // shifts back-to-back).
+            if (takenShiftsForSession != null) {
+                String slotKey = staffId + "|" + workDate;
+                for (String taken : takenShiftsForSession) {
+                    String[] parts = taken.split("\\|");
+                    if (parts.length >= 3
+                            && parts[0].equals(String.valueOf(staffId))
+                            && parts[2].equals(workDate.toString())
+                            && !parts[1].equals(newShiftTypeId)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (Exception ex) {
+            log.warn("hasConflictingSameDayShift({}, {}, {}) failed: {}",
+                    staffId, workDate, newShiftTypeId, ex.getMessage());
+            return false;
         }
     }
 

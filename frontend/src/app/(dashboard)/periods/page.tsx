@@ -7,6 +7,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Button, IconButton } from "@/components/ui";
 import { Pagination } from "@/components/ui/Pagination";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Permission } from "@/lib/permissions";
 import { api } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
@@ -39,6 +41,12 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string; 
 };
 
 export default function PeriodsPage() {
+  const { can } = usePermissions();
+  const canCreate = can(Permission.PERIOD_CREATE);
+  const canUpdate = can(Permission.PERIOD_UPDATE);
+  const canPublish = can(Permission.PERIOD_PUBLISH);
+  const canArchive = can(Permission.PERIOD_DELETE);
+  const canDelete = can(Permission.PERIOD_DELETE);
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -233,10 +241,12 @@ export default function PeriodsPage() {
                 Tạo và quản lý các kỳ lịch theo tháng. Mỗi kỳ lịch cần được công bố trước khi nhân sự có thể xem.
               </p>
             </div>
-            <Button onClick={openCreateModal}>
-              <span className="material-symbols-outlined text-[20px]">add</span>
-              Tạo kỳ lịch
-            </Button>
+            {canCreate && (
+              <Button onClick={openCreateModal}>
+                <span className="material-symbols-outlined text-[20px]">add</span>
+                Tạo kỳ lịch
+              </Button>
+            )}
           </div>
 
           {/* Filter bar */}
@@ -308,10 +318,12 @@ export default function PeriodsPage() {
                 title="Chưa có kỳ lịch nào"
                 description="Mỗi kỳ lịch cần được tạo và công bố trước khi nhân sự có thể xem lịch của mình."
                 action={
-                  <Button onClick={openCreateModal}>
-                    <span className="material-symbols-outlined text-[20px]">add</span>
-                    Tạo kỳ lịch đầu tiên
-                  </Button>
+                  canCreate ? (
+                    <Button onClick={openCreateModal}>
+                      <span className="material-symbols-outlined text-[20px]">add</span>
+                      Tạo kỳ lịch đầu tiên
+                    </Button>
+                  ) : undefined
                 }
               />
             ) : filteredPeriods.length === 0 ? (
@@ -354,49 +366,57 @@ export default function PeriodsPage() {
                           <div className="flex items-center gap-1">
                             {p.status === "DRAFT" && (
                               <>
-                                <IconButton
-                                  label="Chỉnh sửa"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => openEditModal(p)}
-                                  className="text-primary"
-                                >
-                                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">edit</span>
-                                </IconButton>
-                                <IconButton
-                                  label="Công bố"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handlePublish(p.id)}
-                                  disabled={publishingId === p.id}
-                                  loading={publishingId === p.id}
-                                  className="text-secondary"
-                                >
-                                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">publish</span>
-                                </IconButton>
-                                <IconButton
-                                  label="Lưu trữ"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => confirmDeleteOrArchive(p.id, "archive")}
-                                  disabled={archivingId === p.id}
-                                  loading={archivingId === p.id}
-                                  className="text-outline"
-                                >
-                                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">archive</span>
-                                </IconButton>
-                                <IconButton
-                                  label="Xóa"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => confirmDeleteOrArchive(p.id, "delete")}
-                                  className="text-error"
-                                >
-                                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">delete</span>
-                                </IconButton>
+                                {canUpdate && (
+                                  <IconButton
+                                    label="Chỉnh sửa"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openEditModal(p)}
+                                    className="text-primary"
+                                  >
+                                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">edit</span>
+                                  </IconButton>
+                                )}
+                                {canPublish && (
+                                  <IconButton
+                                    label="Công bố"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handlePublish(p.id)}
+                                    disabled={publishingId === p.id}
+                                    loading={publishingId === p.id}
+                                    className="text-secondary"
+                                  >
+                                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">publish</span>
+                                  </IconButton>
+                                )}
+                                {canArchive && (
+                                  <IconButton
+                                    label="Lưu trữ"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => confirmDeleteOrArchive(p.id, "archive")}
+                                    disabled={archivingId === p.id}
+                                    loading={archivingId === p.id}
+                                    className="text-outline"
+                                  >
+                                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">archive</span>
+                                  </IconButton>
+                                )}
+                                {canDelete && (
+                                  <IconButton
+                                    label="Xóa"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => confirmDeleteOrArchive(p.id, "delete")}
+                                    className="text-error"
+                                  >
+                                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">delete</span>
+                                  </IconButton>
+                                )}
                               </>
                             )}
-                            {p.status === "PUBLISHED" && (
+                            {p.status === "PUBLISHED" && canArchive && (
                               <IconButton
                                 label="Lưu trữ"
                                 variant="ghost"

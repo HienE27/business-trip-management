@@ -3,6 +3,7 @@ package com.hospital.scheduler.controller;
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.HolidayRequest;
 import com.hospital.scheduler.dto.response.HolidayResponse;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.HolidayService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,46 +28,42 @@ public class HolidayController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách tất cả ngày lễ")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.HOLIDAY_VIEW + "')")
     public ResponseEntity<ApiResponse<List<HolidayResponse>>> getAllHolidays() {
         return ResponseEntity.ok(ApiResponse.success(holidayService.getAllHolidays()));
     }
 
-    /**
-     * Paginated variant — the holidays page uses the shared &lt;Pagination&gt; widget
-     * to chunk through many years' worth of holidays without loading everything.
-     */
     @GetMapping("/page")
     @Operation(summary = "Lấy danh sách ngày lễ có phân trang")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.HOLIDAY_VIEW + "')")
     public ResponseEntity<ApiResponse<Page<HolidayResponse>>> getHolidaysPage(Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(holidayService.getHolidaysPage(pageable)));
     }
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách ngày lễ đang hoạt động")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAuthority('" + Permissions.HOLIDAY_VIEW + "')")
     public ResponseEntity<ApiResponse<List<HolidayResponse>>> getActiveHolidays() {
         return ResponseEntity.ok(ApiResponse.success(holidayService.getActiveHolidays()));
     }
 
     @GetMapping("/year/{year}")
     @Operation(summary = "Lấy danh sách ngày lễ theo năm")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.HOLIDAY_VIEW + "')")
     public ResponseEntity<ApiResponse<List<HolidayResponse>>> getHolidaysByYear(@PathVariable Integer year) {
         return ResponseEntity.ok(ApiResponse.success(holidayService.getHolidaysByYear(year)));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết ngày lễ")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.HOLIDAY_VIEW + "')")
     public ResponseEntity<ApiResponse<HolidayResponse>> getHolidayById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(holidayService.getHolidayById(id)));
     }
 
     @PostMapping
     @Operation(summary = "Tạo ngày lễ mới")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.HOLIDAY_CREATE + "')")
     public ResponseEntity<ApiResponse<HolidayResponse>> createHoliday(@Valid @RequestBody HolidayRequest request) {
         HolidayResponse created = holidayService.createHoliday(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(created, "Tạo ngày lễ thành công"));
@@ -74,7 +71,7 @@ public class HolidayController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật ngày lễ")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + Permissions.HOLIDAY_UPDATE + "')")
     public ResponseEntity<ApiResponse<HolidayResponse>> updateHoliday(
             @PathVariable Integer id,
             @Valid @RequestBody HolidayRequest request) {
@@ -83,7 +80,7 @@ public class HolidayController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa ngày lễ (soft delete)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.HOLIDAY_DELETE + "')")
     public ResponseEntity<ApiResponse<Void>> deleteHoliday(@PathVariable Integer id) {
         holidayService.deleteHoliday(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa ngày lễ thành công"));

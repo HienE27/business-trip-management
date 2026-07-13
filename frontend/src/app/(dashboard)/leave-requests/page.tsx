@@ -12,6 +12,8 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateRange, formatDateTime } from "@/lib/date";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Permission } from "@/lib/permissions";
 import { BackButton } from "@/components/ui/BackButton";
 
 // Lazy-load the confirm dialog. The dialog is only visible after the
@@ -47,7 +49,11 @@ function getStaffDisplayName(req: LeaveRequest) {
 function LeaveRequestsContent() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const isManager = user?.roles?.some((r) => r === "ADMIN" || r === "MANAGER") ?? false;
+  const { can } = usePermissions();
+  const canApprove = can(Permission.LEAVE_APPROVE);
+  const canCancelSelf = can(Permission.LEAVE_CANCEL_SELF);
+  const hasApproveRole = user?.roles?.some((r) => r === "ADMIN" || r === "MANAGER") ?? false;
+  const isManager = hasApproveRole || canApprove;
 
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -568,7 +574,7 @@ function LeaveRequestsContent() {
               >
                 Đóng
               </Button>
-              {isManager && detailRequest.status === "PENDING" && (
+              {canApprove && isManager && detailRequest.status === "PENDING" && (
                 <>
                   <Button
                     variant="danger"

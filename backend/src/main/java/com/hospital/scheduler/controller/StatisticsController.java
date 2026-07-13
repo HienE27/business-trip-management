@@ -2,6 +2,7 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.response.StaffShiftStatistics;
+import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.StatisticsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,7 +23,7 @@ public class StatisticsController {
 
     @GetMapping("/staff")
     @Operation(summary = "Lấy thống kê ca trực theo nhân sự (M02-F05, M04-F05, M05-F05)")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + Permissions.REPORT_VIEW + "')")
     public ResponseEntity<ApiResponse<List<StaffShiftStatistics>>> getStaffStatistics(
             @RequestParam Integer periodId,
             @RequestParam(required = false) String shiftTypeId) {

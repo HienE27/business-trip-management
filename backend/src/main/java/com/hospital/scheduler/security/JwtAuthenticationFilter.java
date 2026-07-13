@@ -60,9 +60,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 if (jwtService.isTokenValid(jwt)) {
                     List<String> roles = jwtService.extractRoles(jwt);
-                    List<SimpleGrantedAuthority> authorities = roles.stream()
-                            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                            .collect(Collectors.toList());
+                    List<String> permissions = jwtService.extractPermissions(jwt);
+
+                    java.util.Set<SimpleGrantedAuthority> authorities = new java.util.LinkedHashSet<>();
+                    // Roles keep the ROLE_ prefix so legacy @hasRole checks keep working.
+                    if (roles != null) {
+                        for (String role : roles) {
+                            authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+                        }
+                    }
+                    // Permissions are flat authorities (no prefix) so @hasAuthority('PERM_X') matches.
+                    if (permissions != null) {
+                        for (String perm : permissions) {
+                            authorities.add(new SimpleGrantedAuthority(perm));
+                        }
+                    }
 
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             username,
