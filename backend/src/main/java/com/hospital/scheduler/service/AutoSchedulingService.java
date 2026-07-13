@@ -309,7 +309,7 @@ public class AutoSchedulingService {
             LocalDate workDate = LocalDate.parse(item.getWorkDate());
 
             // Check if workDate is a holiday
-            if (holidayRepository.existsByHolidayDate(workDate)) {
+            if (holidayRepository.existsByHolidayDateAndIsActiveTrue(workDate)) {
                 throw new ConflictException("Không thể phân công vào ngày lễ: " + workDate);
             }
 
