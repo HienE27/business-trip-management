@@ -139,7 +139,7 @@ public class ScheduleService {
             throw new BadRequestException("Chỉ có thể thêm lịch khi kỳ lịch ở trạng thái DRAFT");
         }
 
-        if (holidayRepository.existsByHolidayDate(request.getWorkDate())) {
+        if (holidayRepository.existsByHolidayDateAndIsActiveTrue(request.getWorkDate())) {
             throw new BadRequestException("Ngày " + request.getWorkDate() + " là ngày nghỉ lễ. Không thể xếp lịch vào ngày nghỉ lễ.");
         }
 
@@ -221,7 +221,7 @@ public class ScheduleService {
             throw new BadRequestException("Ngày làm việc phải nằm trong kỳ lịch");
         }
 
-        if (holidayRepository.existsByHolidayDate(request.getWorkDate())) {
+        if (holidayRepository.existsByHolidayDateAndIsActiveTrue(request.getWorkDate())) {
             throw new BadRequestException("Ngày " + request.getWorkDate() + " là ngày nghỉ lễ. Không thể xếp lịch vào ngày nghỉ lễ.");
         }
 
@@ -518,7 +518,7 @@ public class ScheduleService {
             }
 
             // Validate: do not schedule on holidays
-            if (holidayRepository.existsByHolidayDate(workDate)) {
+            if (holidayRepository.existsByHolidayDateAndIsActiveTrue(workDate)) {
                 errors.add("Ngày " + workDate + " là ngày nghỉ lễ");
                 results.add(BulkL01Response.BulkL01ScheduleResult.builder()
                         .staffId(staffId)
@@ -736,7 +736,7 @@ public class ScheduleService {
                 continue;
             }
 
-            if (holidayRepository.existsByHolidayDate(workDate)) {
+            if (holidayRepository.existsByHolidayDateAndIsActiveTrue(workDate)) {
                 results.add(BulkScheduleResponse.BulkResultEntry.builder()
                         .workDate(workDate.toString())
                         .staffId(staffId)

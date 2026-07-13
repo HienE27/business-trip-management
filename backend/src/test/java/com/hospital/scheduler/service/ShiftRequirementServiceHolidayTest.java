@@ -73,7 +73,7 @@ class ShiftRequirementServiceHolidayTest {
 
         lenient().when(periodRepository.findById(1)).thenReturn(Optional.of(period));
         lenient().when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(shiftType));
-        lenient().when(holidayRepository.existsByHolidayDate(any())).thenReturn(false);
+        lenient().when(holidayRepository.existsByHolidayDateAndIsActiveTrue(any())).thenReturn(false);
         lenient().when(authContextService.getCurrentStaff()).thenReturn(null);
     }
 
@@ -85,7 +85,7 @@ class ShiftRequirementServiceHolidayTest {
         @DisplayName("Upsert on a holiday → BadRequestException")
         void upsert_onHoliday_throwsBadRequest() {
             LocalDate holiday = LocalDate.of(2026, 7, 2); // Tết Độc Lập giả định
-            when(holidayRepository.existsByHolidayDate(holiday)).thenReturn(true);
+            when(holidayRepository.existsByHolidayDateAndIsActiveTrue(holiday)).thenReturn(true);
 
             ShiftRequirementRequest req = ShiftRequirementRequest.builder()
                     .workDate(holiday)
@@ -102,7 +102,7 @@ class ShiftRequirementServiceHolidayTest {
         @DisplayName("Upsert on a non-holiday → does not call holidayRepository twice for each req, but accepts")
         void upsert_onWorkday_proceeds() {
             LocalDate workDay = LocalDate.of(2026, 7, 6); // Thứ 2
-            when(holidayRepository.existsByHolidayDate(workDay)).thenReturn(false);
+            when(holidayRepository.existsByHolidayDateAndIsActiveTrue(workDay)).thenReturn(false);
             when(shiftRequirementRepository.findByPeriodIdAndWorkDateAndShiftTypeId(anyInt(), any(), any()))
                     .thenReturn(java.util.Optional.empty());
             when(shiftRequirementRepository.save(any(com.hospital.scheduler.entity.ShiftRequirement.class)))
@@ -146,7 +146,7 @@ class ShiftRequirementServiceHolidayTest {
                             .requiredStaffCount(1)
                             .build();
             when(shiftRequirementRepository.findById(100)).thenReturn(Optional.of(existing));
-            when(holidayRepository.existsByHolidayDate(holiday)).thenReturn(true);
+            when(holidayRepository.existsByHolidayDateAndIsActiveTrue(holiday)).thenReturn(true);
 
             ShiftRequirementRequest req = ShiftRequirementRequest.builder()
                     .workDate(holiday)

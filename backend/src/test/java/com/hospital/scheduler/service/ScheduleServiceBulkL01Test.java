@@ -79,7 +79,7 @@ class ScheduleServiceBulkL01Test {
                 .build();
 
         // Default stubbing for HolidayRepository and ScheduleConflictRepository
-        when(holidayRepository.existsByHolidayDate(any(LocalDate.class))).thenReturn(false);
+        when(holidayRepository.existsByHolidayDateAndIsActiveTrue(any(LocalDate.class))).thenReturn(false);
         when(scheduleConflictRepository.findUnresolvedByScheduleIdsIn(anyList())).thenReturn(List.of());
     }
 

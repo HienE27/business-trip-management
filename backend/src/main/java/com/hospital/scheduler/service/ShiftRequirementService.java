@@ -199,7 +199,7 @@ public class ShiftRequirementService {
      */
     private void validateNotHoliday(LocalDate workDate) {
         if (workDate == null) return;
-        if (holidayRepository.existsByHolidayDate(workDate)) {
+        if (holidayRepository.existsByHolidayDateAndIsActiveTrue(workDate)) {
             throw new BadRequestException(
                     "Không thể tạo yêu cầu ca vào ngày lễ: " + workDate);
         }
