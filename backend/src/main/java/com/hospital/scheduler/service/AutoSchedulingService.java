@@ -2131,8 +2131,6 @@ public class AutoSchedulingService {
      * Returns a simple record with enabled, ratio, and allowedSpecialties.
      */
     private static record CrossSpecialtyConfig(boolean enabled, float ratio, List<String> allowedSpecialties) {}
-
-    public static record CrossSpecialtyConfig(boolean enabled, float ratio, List<String> allowedSpecialties) {}
     public CrossSpecialtyConfig getL04CrossSpecialtyConfig() {
         return algorithmConfigService.getAutoGenConfig()
                 .map(cfg -> new CrossSpecialtyConfig(cfg.l04CrossSpecialty(), cfg.l04CrossSpecialtyRatio(), cfg.l04AllowedSpecialties()))

@@ -2,6 +2,7 @@ package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
+import com.hospital.scheduler.security.AuthContextService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;

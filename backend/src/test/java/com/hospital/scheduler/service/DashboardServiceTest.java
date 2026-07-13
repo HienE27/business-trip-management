@@ -134,8 +134,11 @@ class DashboardServiceTest {
     @Test
     @DisplayName("getPeriodSummaries -> per-period schedule + staff count")
     void periodSummaries() {
+        // BE#20: getPeriodSummaries now calls aggregateByPeriod() + findAll() instead of
+        // findByPeriodId per period (N+1 fix). Match the new implementation.
+        Object[] aggregateRow = new Object[]{1, 1L, 1L};
+        when(scheduleRepository.aggregateByPeriod()).thenReturn(java.util.List.<Object[]>of(aggregateRow));
         when(periodRepository.findAll()).thenReturn(List.of(period));
-        when(scheduleRepository.findByPeriodId(1)).thenReturn(List.of(schedule));
 
         var result = dashboardService.getPeriodSummaries();
 

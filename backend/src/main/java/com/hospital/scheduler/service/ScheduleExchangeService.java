@@ -551,12 +551,17 @@ public class ScheduleExchangeService {
 
         scheduleRepository.delete(original);
         // Best-effort audit — never fail the swap for an audit miss.
+        // Use original.getId() for the log key so the message is always safe to build
+        // even if saved is null (which can happen if save() returns null for a
+        // transient entity in some JPA implementations).
+        int logKey = original.getId();
         try {
-            auditHistoryService.logAction("schedule", saved.getId(),
-                    AuditHistory.ActionType.UPDATE, original, saved, reviewerId);
+            if (saved != null) {
+                auditHistoryService.logAction("schedule", saved.getId(),
+                        AuditHistory.ActionType.UPDATE, original, saved, reviewerId);
+            }
         } catch (Exception auditEx) {
-            log.warn("Audit for schedule swap (id={} -> {}) skipped: {}",
-                    original.getId(), saved.getId(), auditEx.getMessage());
+            log.warn("Audit for schedule swap (id={}) skipped: {}", logKey, auditEx.getMessage());
         }
     }
 }
