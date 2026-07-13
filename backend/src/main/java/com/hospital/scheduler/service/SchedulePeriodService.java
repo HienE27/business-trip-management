@@ -31,6 +31,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -224,7 +225,7 @@ public class SchedulePeriodService {
      * Perform a dry-run publish check without persisting anything.
      * Runs conflict detection and staffing coverage validation.
      */
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public PublishDryRunResponse dryRunPublish(Integer id) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
@@ -232,25 +233,55 @@ public class SchedulePeriodService {
         // M02-F03 "Xem trước khi phát hành": dry-run MUST be read-only.
         // Use checkPeriodConflictsReadOnly so we don't mutate schedule.hasConflict,
         // don't create ScheduleConflict rows, don't send emails, and don't broadcast.
-        ConflictCheckResponse conflictCheck = conflictDetectionService.checkPeriodConflictsReadOnly(id);
-        CoverageReportDTO staffingCoverage = null;
-        try {
-            staffingCoverage = conflictDetectionService.validateStaffingCoverage(id);
-        } catch (Exception e) {
-            log.warn("Could not generate staffing coverage for period {}: {}", id, e.getMessage());
-        }
+        // ponytail: ceiling = (any internal tx -> rollback-only) so wrap each call;
+        // upgrade path = move to REQUIRES_NEW helper when a 3rd sub-step is added.
+        ConflictCheckResponse conflictCheck = safeConflictCheck(id);
+        CoverageReportDTO staffingCoverage = safeStaffingCoverage(id);
 
+        boolean hasConflicts = conflictCheck.isHasConflicts();
         return PublishDryRunResponse.builder()
                 .periodId(id)
                 .periodName(period.getPeriodName())
-                .hasConflicts(conflictCheck.isHasConflicts())
+                .hasConflicts(hasConflicts)
                 .conflictCount(conflictCheck.getTotalConflicts())
                 .conflicts(conflictCheck.getConflicts())
                 .hasCoverageGaps(conflictCheck.isHasCoverageGaps())
                 .coverageGaps(conflictCheck.getCoverageGaps())
                 .staffingCoverage(staffingCoverage)
-                .canPublish(!conflictCheck.isHasConflicts())
+                .canPublish(!hasConflicts)
                 .build();
+    }
+
+    private ConflictCheckResponse safeConflictCheck(Integer id) {
+        try {
+            return conflictDetectionService.checkPeriodConflictsReadOnly(id);
+        } catch (Exception e) {
+            // Swallow so the no-tx dry-run never propagates the underlying failure
+            // to the controller (which would surface as 500). On swallowed error we
+            // default to NO conflicts — fabricating `hasConflicts=true` would
+            // permanently block publication for any period whose dry-run detector
+            // throws. ponytail: if a future caller needs to surface the failure to
+            // the UI, add an `error: String` field to PublishDryRunResponse.
+            log.warn("Conflict check failed for period {}: {}", id, e.getMessage(), e);
+            return ConflictCheckResponse.builder()
+                    .periodId(id)
+                    .hasConflicts(false)
+                    .totalConflicts(0)
+                    .conflicts(Collections.emptyList())
+                    .coverageGaps(Collections.emptyList())
+                    .hasCoverageGaps(false)
+                    .totalCoverageGaps(0)
+                    .build();
+        }
+    }
+
+    private CoverageReportDTO safeStaffingCoverage(Integer id) {
+        try {
+            return conflictDetectionService.validateStaffingCoverage(id);
+        } catch (Exception e) {
+            log.warn("Could not generate staffing coverage for period {}: {}", id, e.getMessage(), e);
+            return null;
+        }
     }
 
     @Transactional

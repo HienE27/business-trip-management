@@ -384,4 +384,54 @@ class SchedulePeriodServiceTest {
                     .hasMessageContaining("DRAFT");
         }
     }
+
+    // ==================== dryRunPublish ====================
+    // Regression: BUG-1 — GET /periods/{id}/publish/dry-run returned 500 for every
+    // period because checkPeriodConflictsReadOnly propagated into the controller.
+    // The dry-run must always return a PublishDryRunResponse (200), even when the
+    // conflict or coverage sub-checks blow up — swallowing + safe default is the
+    // contract.
+    @Nested
+    @DisplayName("dryRunPublish - Kiểm tra trước khi công bố")
+    class DryRunPublish {
+
+        @Test
+        @DisplayName("Sub-check throws -> still 200, canPublish=true (no fabricated conflicts)")
+        void conflictCheckThrows_shouldNotBubble500() {
+            when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
+            when(conflictDetectionService.checkPeriodConflictsReadOnly(1))
+                    .thenThrow(new RuntimeException("simulated detector boom"));
+
+            var response = periodService.dryRunPublish(1);
+
+            assertThat(response.getPeriodId()).isEqualTo(1);
+            assertThat(response.getPeriodName()).isEqualTo("Tháng 6/2026");
+            assertThat(response.isHasConflicts()).isFalse(); // safe default, NOT fabricated true
+            assertThat(response.isCanPublish()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Coverage throws -> staffingCoverage=null, response still built")
+        void coverageCheckThrows_shouldReturnNullCoverage() {
+            when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
+            when(conflictDetectionService.checkPeriodConflictsReadOnly(1))
+                    .thenReturn(ConflictCheckResponse.builder().hasConflicts(false).build());
+            when(conflictDetectionService.validateStaffingCoverage(1))
+                    .thenThrow(new RuntimeException("simulated coverage boom"));
+
+            var response = periodService.dryRunPublish(1);
+
+            assertThat(response.getStaffingCoverage()).isNull();
+            assertThat(response.isCanPublish()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Period not found -> ResourceNotFoundException")
+        void missingPeriod_shouldThrow() {
+            when(periodRepository.findById(99)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> periodService.dryRunPublish(99))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+    }
 }

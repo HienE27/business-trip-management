@@ -356,9 +356,10 @@ public class ConflictDetectionService {
                     staff.getId(), workDate, shiftTypeId, schedule.getId(), periodId,
                     leavesByStaff, compDaysByStaff, schedulesByDateByStaff, shiftTypeById);
             if (!conflicts.isEmpty()) {
-                schedule.setHasConflict(true);
-                schedulesToUpdate.add(schedule);
-
+                // READ-ONLY path: never mutate schedule.hasConflict, never save,
+                // never create ScheduleConflict rows, never send email, never broadcast.
+                // The real conflict persistence/broadcast happens in checkPeriodConflicts
+                // (the mutating variant) — NOT here.
                 String description = String.join("; ", conflicts);
                 ConflictCheckResponse.ConflictDetail conflictDetail = ConflictCheckResponse.ConflictDetail.builder()
                         .scheduleId(schedule.getId())
@@ -371,53 +372,8 @@ public class ConflictDetectionService {
                         .originalStaffId(staff.getId())
                         .build();
                 conflictDetails.add(conflictDetail);
-
-                // Persist the conflict record so the resolution flow can find it later, and
-                // notify both the staff member and the conflict channel.
-                ConflictSaveResult saveResult = saveConflictInternal(schedule, ScheduleConflict.ConflictType.OTHER, description);
-                // Fire-and-forget: email is @Async so this call just submits to the thread pool
-                // without blocking the transaction. Catch any exception to prevent the email
-                // failure from affecting the conflict persistence flow.
-                try {
-                    emailService.sendConflictAlertToStaff(staff, schedule, description);
-                } catch (Exception e) {
-                    org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
-                            .warn("Failed to send conflict email for schedule {}: {}", schedule.getId(), e.getMessage());
-                    // Log failure to system log for manual follow-up
-                    try {
-                        systemLogService.logSystem("EMAIL_FAILURE",
-                                "Failed to send conflict alert email for schedule ID=" + schedule.getId() +
-                                ", staff=" + staff.getFullName() + " (" + staff.getId() + ")" +
-                                ", reason: " + e.getMessage(),
-                                authContextService.getCurrentStaff().getId(), null, null);
-                    } catch (Exception logEx) {
-                        org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
-                                .error("Failed to log email failure for schedule {}: {}", schedule.getId(), logEx.getMessage());
-                    }
-                }
-
-                // Only broadcast when the conflict is genuinely new — re-running the
-                // periodic conflict check on a schedule that already has an unresolved
-                // conflict would otherwise spam every connected client with duplicate
-                // notifications on every dashboard refresh.
-                if (saveResult.created()) {
-                    try {
-                        conflictBroadcastService.broadcastConflict(saveResult.conflict(), conflictDetail);
-                    } catch (Exception e) {
-                        org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
-                                .warn("Failed to broadcast conflict for schedule {}: {}", schedule.getId(), e.getMessage());
-                    }
-                }
-            } else if (Boolean.TRUE.equals(schedule.getHasConflict())) {
-                // Conflict was resolved since the last check — clear the flag.
-                schedule.setHasConflict(false);
-                schedulesToUpdate.add(schedule);
             }
-        }
-
-        // Batch save all schedule updates (performance optimization)
-        if (!schedulesToUpdate.isEmpty()) {
-            scheduleRepository.saveAll(schedulesToUpdate);
+            // READ-ONLY path: do NOT flip hasConflict back to false either — pure detection.
         }
 
         List<String> coverageGaps = detectCoverageGaps(periodId);
