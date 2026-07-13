@@ -135,7 +135,7 @@ class DashboardServiceTest {
     @DisplayName("getPeriodSummaries -> per-period schedule + staff count")
     void periodSummaries() {
         when(periodRepository.findAll()).thenReturn(List.of(period));
-        when(scheduleRepository.findByPeriodId(1)).thenReturn(List.of(schedule));
+        when(scheduleRepository.aggregateByPeriod()).thenReturn(List.<Object[]>of(new Object[]{1, 1L, 1L}));
 
         var result = dashboardService.getPeriodSummaries();
 

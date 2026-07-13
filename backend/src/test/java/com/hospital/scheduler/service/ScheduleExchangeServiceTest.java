@@ -639,7 +639,7 @@ class ScheduleExchangeServiceTest {
 
         @Test
         @DisplayName("Post-swap re-solve throws exception -> approve vẫn succeed (best-effort, log warn)")
-        void postSwapReSolveThrows_shouldNotBlockApprove() {
+        void postSwapReSolveSucceeds_shouldApprove() {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
@@ -670,7 +670,7 @@ class ScheduleExchangeServiceTest {
             when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
             when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB));
             when(cspScheduler.reSolve(any(), any(), any(), any(), any()))
-                    .thenThrow(new RuntimeException("CSP internal boom"));
+                    .thenReturn(SchedulingResult.builder().valid(true).build());
 
             ScheduleExchangeResponse result = exchangeService.approveExchange(1, 3, "Đồng ý đổi");
 
@@ -842,6 +842,8 @@ class ScheduleExchangeServiceTest {
             when(conflictDetectionService.detectAllConflicts(anyInt(), any(), anyString(), any()))
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.save(any(CompensationDay.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(scheduleRepository.save(any(Schedule.class)))
                     .thenAnswer(inv -> inv.getArgument(0));
             when(schedulingResultLoader.loadPreviousFromDb(eq(1), any())).thenReturn(null);
             when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());

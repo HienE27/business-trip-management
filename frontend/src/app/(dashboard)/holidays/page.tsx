@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Pagination } from "@/components/ui/Pagination";
@@ -42,20 +42,17 @@ function getYearOptions() {
 }
 
 const DEFAULT_PAGE_SIZE = 10;
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
-
 function HolidaysContent() {
   const { can } = usePermissions();
   const canCreate = can(Permission.HOLIDAY_CREATE);
   const canUpdate = can(Permission.HOLIDAY_UPDATE);
   const canDelete = can(Permission.HOLIDAY_DELETE);
   const toast = useToast();
-  const ignoreRef = useRef(false);
-
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [typeFilter, setTypeFilter] = useState<string>("");
+  const [showInactive, setShowInactive] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -107,7 +104,9 @@ function HolidaysContent() {
     if (typeFilter === "special" && h.isNationalHoliday) return false;
     return true;
   });
-  const filtered = visibleOnPage.filter((h) => h.isActive);
+  const filtered = showInactive
+    ? visibleOnPage
+    : visibleOnPage.filter((h) => h.isActive);
   const hasInactive = visibleOnPage.some((h) => !h.isActive);
   const filterIsActive = yearFilter !== "all" || typeFilter !== "all";
 
@@ -292,7 +291,7 @@ function HolidaysContent() {
                 Bỏ bộ lọc
               </Button>
             ) : hasInactive ? (
-              <Button variant="secondary" size="md" onClick={() => { /* TODO: implement isActive filter toggle */ }}>
+              <Button variant="secondary" size="md" onClick={() => setShowInactive(true)}>
                 Hiện ngưng hoạt động
               </Button>
             ) : canCreate ? (

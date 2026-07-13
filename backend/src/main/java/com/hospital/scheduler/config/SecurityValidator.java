@@ -50,29 +50,22 @@ public class SecurityValidator {
 
     private void validateJwtSecret() {
         if (jwtSecret == null || jwtSecret.isBlank()) {
-            log.error("[SECURITY] JWT secret is not configured. " +
-                    "Set JWT_SECRET environment variable in production!");
-            return;
+            throw new IllegalStateException("JWT_SECRET must be configured in production");
         }
 
         if (DEFAULT_JWT_SECRET.equals(jwtSecret)) {
-            log.error("[SECURITY] JWT secret is using the default placeholder value. " +
-                    "This is a CRITICAL security vulnerability in production. " +
-                    "Generate a new secret: openssl rand -base64 32");
-            return;
+            throw new IllegalStateException("JWT_SECRET must not use the default placeholder in production");
         }
 
         // Check minimum length (base64 encoded, so 32 bytes → ~44 chars)
         try {
             byte[] decoded = java.util.Base64.getDecoder().decode(jwtSecret);
             if (decoded.length < MIN_JWT_SECRET_BYTES) {
-                log.warn("[SECURITY] JWT secret is too short ({} bytes). " +
-                        "Minimum recommended: {} bytes. Generate: openssl rand -base64 32",
-                        decoded.length, MIN_JWT_SECRET_BYTES);
+                throw new IllegalStateException("JWT_SECRET must contain at least "
+                        + MIN_JWT_SECRET_BYTES + " bytes in production");
             }
         } catch (IllegalArgumentException e) {
-            log.warn("[SECURITY] JWT secret is not valid base64. " +
-                    "Ensure JWT_SECRET is base64-encoded. Generate: openssl rand -base64 32");
+            throw new IllegalStateException("JWT_SECRET must be valid base64 in production", e);
         }
     }
 }

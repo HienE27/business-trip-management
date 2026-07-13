@@ -66,8 +66,11 @@ public class SecurityConfig {
                                 "/v3/api-docs.yaml",
                                 "/swagger-resources/**",
                                 "/webjars/**",
-                                "/actuator/**"
+                                "/actuator/health",
+                                "/actuator/info"
                         ).permitAll()
+
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
 
                         // All other endpoints require authentication
                         .anyRequest().authenticated())

@@ -64,8 +64,8 @@ export async function loginAs(page: Page): Promise<boolean> {
 }
 
 export const test = base.extend<{ loginAs: (page: Page) => Promise<boolean> }>({
-  loginAs: async ({}, use) => {
-    await use(loginAs);
+  loginAs: async ({}, registerFixture) => {
+    await registerFixture(loginAs);
   },
 });
 
