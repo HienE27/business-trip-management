@@ -91,6 +91,7 @@ describe("useAuth — initial bootstrap", () => {
       username: "alice",
       userId: 42,
       roles: ["ADMIN"],
+      permissions: [],
     });
     expect(result.current.isAuthenticated).toBe(true);
     expect(mockedApi.get).toHaveBeenCalledWith("/staff/me");
@@ -113,7 +114,7 @@ describe("useAuth — initial bootstrap", () => {
 it("keeps stored user when /staff/me fails (graceful offline mode)", async () => {
       window.localStorage.setItem(
         "medschedule.user",
-        JSON.stringify({ username: "stale", userId: 0, roles: [] }),
+        JSON.stringify({ username: "stale", userId: 0, roles: [], permissions: [] }),
       );
       mockedApi.get.mockRejectedValue(new Error("401"));
 
@@ -123,7 +124,7 @@ it("keeps stored user when /staff/me fails (graceful offline mode)", async () =>
 
       // Bootstrap keeps the localStorage user on API failure so the UI
       // remains usable; only the explicit logout() flow clears state.
-      expect(result.current.user).toEqual({ username: "stale", userId: 0, roles: [] });
+      expect(result.current.user).toEqual({ username: "stale", userId: 0, roles: [], permissions: [] });
       expect(result.current.isAuthenticated).toBe(true);
       expect(window.localStorage.getItem("medschedule.user")).not.toBeNull();
     });
@@ -147,6 +148,7 @@ describe("useAuth — login", () => {
       username: "alice",
       userId: 42,
       roles: ["ADMIN"],
+      permissions: [],
     });
     // Routed to home
     expect(mockRouter.replace).toHaveBeenCalledWith("/");

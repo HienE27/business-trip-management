@@ -26,6 +26,7 @@ Object.defineProperty(global, 'window', {
     ...global.window,
     location: locationMock,
     localStorage: localStorageMock,
+    dispatchEvent: vi.fn(),
   },
   writable: true,
 });

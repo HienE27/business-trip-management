@@ -11,6 +11,7 @@ vi.mock('@/lib/api', () => ({
     post: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
+    searchStaffsPage: vi.fn(),
   },
 }));
 
@@ -47,6 +48,16 @@ vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>
   ),
+}));
+
+// Mock usePermissions (requires AuthProvider which is not in this test's tree)
+vi.mock('@/hooks/usePermissions', () => ({
+  usePermissions: () => ({
+    can: () => true,
+    canAny: () => true,
+    permissions: new Set(),
+    hasPermission: () => true,
+  }),
 }));
 
 // Test data
@@ -99,6 +110,11 @@ describe('StaffCrudPanel', () => {
         return Promise.resolve(mockStaffMembers);
       }
       return Promise.resolve([]);
+    });
+    (apiModule.api.searchStaffsPage as ReturnType<typeof vi.fn>).mockResolvedValue({
+      content: mockStaffMembers,
+      totalPages: 1,
+      totalElements: 2
     });
   });
 
@@ -155,7 +171,7 @@ describe('StaffCrudPanel', () => {
   });
 
   it('should show loading state initially', async () => {
-    (apiModule.api.get as ReturnType<typeof vi.fn>).mockImplementation(() =>
+    (apiModule.api.searchStaffsPage as ReturnType<typeof vi.fn>).mockImplementation(() =>
       new Promise(() => {}) // Never resolves to keep loading state
     );
 

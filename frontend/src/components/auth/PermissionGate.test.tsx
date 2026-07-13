@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { PermissionGate } from "./PermissionGate";
+import { Permission } from "@/lib/permissions";
 import { usePermissions } from "@/hooks/usePermissions";
 
 vi.mock("@/hooks/usePermissions", () => ({
@@ -47,9 +48,9 @@ describe("PermissionGate", () => {
   });
 
   it("requires ALL permissions by default", () => {
-    setup(new Set(["A"]));
+    setup(new Set([Permission.STAFF_VIEW]));
     render(
-      <PermissionGate required={["A", "B"]}>
+      <PermissionGate required={[Permission.STAFF_VIEW, Permission.STAFF_CREATE]}>
         <button>Both</button>
       </PermissionGate>
     );
@@ -57,9 +58,9 @@ describe("PermissionGate", () => {
   });
 
   it("passes when requireAll=false and user has any of the permissions", () => {
-    setup(new Set(["A"]));
+    setup(new Set([Permission.STAFF_VIEW]));
     render(
-      <PermissionGate required={["A", "B"]} requireAll={false}>
+      <PermissionGate required={[Permission.STAFF_VIEW, Permission.STAFF_CREATE]} requireAll={false}>
         <button>Either</button>
       </PermissionGate>
     );
@@ -69,7 +70,7 @@ describe("PermissionGate", () => {
   it("renders fallback when user lacks permission", () => {
     setup(new Set([]));
     render(
-      <PermissionGate required="X" fallback={<span>locked</span>}>
+      <PermissionGate required={Permission.STAFF_DELETE} fallback={<span>locked</span>}>
         <button>hidden</button>
       </PermissionGate>
     );

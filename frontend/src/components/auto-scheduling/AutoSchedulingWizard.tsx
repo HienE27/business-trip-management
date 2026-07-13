@@ -140,10 +140,9 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
   const currentStepIndex = WIZARD_STEPS.findIndex(s => s.id === currentStep);
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
-      <div className="w-full max-w-4xl bg-surface-container-lowest rounded-3xl border border-outline-variant shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[200] flex flex-col bg-surface-container-lowest overflow-hidden">
         {/* Header */}
-        <div className="bg-primary px-6 py-4 text-white">
+        <div className="bg-primary px-6 py-4 text-white shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
@@ -176,7 +175,8 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
         </div>
 
         {/* Content */}
-        <div className="p-6 min-h-[400px]">
+        <div className="p-6 md:p-10 min-h-[400px] flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto">
           {/* Welcome Step */}
           {currentStep === "welcome" && (
             <div className="text-center py-8">
@@ -557,10 +557,11 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
               </div>
             </div>
           )}
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-outline-variant bg-surface-container-low flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-outline-variant bg-surface-container-low flex items-center justify-between shrink-0">
           <Button
             variant="ghost"
             size="sm"
@@ -604,7 +605,6 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
           </div>
         </div>
       </div>
-    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, loginAs } from './fixtures/auth.fixture';
 import { scanPage, PAGES } from './accessibility';
 
 /**
@@ -16,7 +16,7 @@ test.describe('Accessibility (axe-core)', { tag: '@a11y' }, () => {
     });
   }
 
-  test('Login page <html lang> attribute is set', async ({ page }) => {
+  test('Login page <html lang> attribute is set', async ({ page, loginAs }) => {
     await loginAs(page);
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
@@ -24,7 +24,7 @@ test.describe('Accessibility (axe-core)', { tag: '@a11y' }, () => {
     await expect(html).toHaveAttribute('lang', 'vi');
   });
 
-  test('Dashboard has a non-empty <title>', async ({ page }) => {
+  test('Dashboard has a non-empty <title>', async ({ page, loginAs }) => {
     await loginAs(page);
     await page.goto('/dashboard');
     await page.waitForLoadState('domcontentloaded');
