@@ -855,6 +855,8 @@ class ScheduleExchangeServiceTest {
             when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
             when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB));
             when(cspScheduler.reSolve(any(), any(), any(), any(), any())).thenReturn(null);
+            when(exchangeRepository.save(any(ScheduleExchange.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
 
             assertThatThrownBy(() -> exchangeService.approveExchange(1, 3, null))
                     .isInstanceOf(BadRequestException.class)

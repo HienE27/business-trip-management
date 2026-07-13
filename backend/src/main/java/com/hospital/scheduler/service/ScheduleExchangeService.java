@@ -210,6 +210,46 @@ public class ScheduleExchangeService {
         Schedule requesterSchedule = exchange.getRequesterSchedule();
         Schedule targetSchedule = exchange.getTargetSchedule();
 
+        // P8: extracted validation phase. Throws BadRequestException if any
+        // constraint is violated. Returns the inputs needed for the swap.
+        SwapContext ctx = validateSwapConstraints(exchange, requesterSchedule, targetSchedule);
+
+        // P8: extracted execution phase — deletes old comp days, swaps staff,
+        // creates new comp days, persists atomically.
+        executeSwap(ctx, reviewerId);
+
+        // P8: validate NEW compensation days do not conflict with existing schedules.
+        validateCompensationConflicts(ctx);
+
+        // P8: finalize: mark exchange APPROVED + audit + notify
+        finalizeApproval(exchange, ctx, reviewer, reviewerId, reviewNote);
+
+        return ScheduleExchangeResponse.fromEntity(exchangeRepository.save(exchange));
+    }
+
+    /**
+     * Holds the inputs that flow from {@link #validateSwapConstraints} to
+     * {@link #executeSwap}. Avoids passing 6+ parameters around.
+     */
+    private record SwapContext(
+            Schedule requesterSchedule,
+            Schedule targetSchedule,
+            Staff requesterOldStaff,
+            Staff targetOldStaff,
+            LocalDate requesterWorkDate,
+            LocalDate targetWorkDate,
+            SchedulePeriod period,
+            boolean requesterIsL01,
+            boolean targetIsL01) {}
+
+    /**
+     * P8: phase 1 — verify the swap is allowed.
+     * Checks: period status, leaves on both sides, comp days on both sides,
+     * post-swap conflict detection for both staff members.
+     */
+    private SwapContext validateSwapConstraints(ScheduleExchange exchange,
+                                                Schedule requesterSchedule,
+                                                Schedule targetSchedule) {
         Staff requesterOldStaff = requesterSchedule.getStaff();
         Staff targetOldStaff = targetSchedule.getStaff();
         LocalDate requesterWorkDate = requesterSchedule.getWorkDate();
@@ -221,17 +261,12 @@ public class ScheduleExchangeService {
 
         List<LeaveRequest> targetLeaves = leaveRequestRepository.findByStaffIdAndDateRange(
                 targetOldStaff.getId(), targetWorkDate, targetWorkDate);
-        boolean targetHasApprovedLeave = targetLeaves.stream()
-                .anyMatch(l -> l.getStatus() == LeaveRequest.LeaveStatus.APPROVED);
-        if (targetHasApprovedLeave) {
+        if (targetLeaves.stream().anyMatch(l -> l.getStatus() == LeaveRequest.LeaveStatus.APPROVED)) {
             throw new BadRequestException("Nhân sự được đổi (" + targetOldStaff.getFullName() + ") có ngày nghỉ phép được duyệt vào ngày " + targetWorkDate);
         }
-
         List<LeaveRequest> requesterLeaves = leaveRequestRepository.findByStaffIdAndDateRange(
                 requesterOldStaff.getId(), requesterWorkDate, requesterWorkDate);
-        boolean requesterHasApprovedLeave = requesterLeaves.stream()
-                .anyMatch(l -> l.getStatus() == LeaveRequest.LeaveStatus.APPROVED);
-        if (requesterHasApprovedLeave) {
+        if (requesterLeaves.stream().anyMatch(l -> l.getStatus() == LeaveRequest.LeaveStatus.APPROVED)) {
             throw new BadRequestException("Nhân sự yêu cầu (" + requesterOldStaff.getFullName() + ") có ngày nghỉ phép được duyệt vào ngày " + requesterWorkDate);
         }
 
@@ -239,7 +274,6 @@ public class ScheduleExchangeService {
                 .ifPresent(cd -> {
                     throw new BadRequestException("Nhân sự được đổi (" + targetOldStaff.getFullName() + ") có ngày nghỉ bù vào ngày " + targetWorkDate);
                 });
-
         compensationDayRepository.findByStaffIdAndCompensationDate(requesterOldStaff.getId(), requesterWorkDate)
                 .ifPresent(cd -> {
                     throw new BadRequestException("Nhân sự yêu cầu (" + requesterOldStaff.getFullName() + ") có ngày nghỉ bù vào ngày " + requesterWorkDate);
@@ -251,7 +285,6 @@ public class ScheduleExchangeService {
         if (!requesterConflicts.isEmpty()) {
             throw new BadRequestException("Nhân sự yêu cầu (" + requesterOldStaff.getFullName() + ") bị xung đột sau khi đổi: " + String.join("; ", requesterConflicts));
         }
-
         List<String> targetConflicts = conflictDetectionService.detectAllConflicts(
                 targetOldStaff.getId(), requesterWorkDate,
                 targetSchedule.getShiftType().getId(), requesterSchedule.getId());
@@ -262,17 +295,34 @@ public class ScheduleExchangeService {
         boolean requesterIsL01 = ConflictDetectionService.SHIFT_TYPE_L01.equals(requesterSchedule.getShiftType().getId());
         boolean targetIsL01 = ConflictDetectionService.SHIFT_TYPE_L01.equals(targetSchedule.getShiftType().getId());
 
+        return new SwapContext(
+                requesterSchedule, targetSchedule,
+                requesterOldStaff, targetOldStaff,
+                requesterWorkDate, targetWorkDate,
+                requesterSchedule.getPeriod(),
+                requesterIsL01, targetIsL01);
+    }
+
+    /**
+     * P8: phase 2 — perform the swap atomically:
+     *  1. Delete existing comp days for affected staff + dates (audit each).
+     *  2. Copy schedule rows to new staff (preserving FK + audit trail).
+     *  3. Create new comp days for the new L01 assignments (audit each).
+     */
+    private void executeSwap(SwapContext ctx, Integer reviewerId) {
         // Delete existing compensation days for affected staff + date combinations
-        if (requesterIsL01) {
-                    compensationDayRepository.findByStaffIdAndCompensationDate(requesterOldStaff.getId(), requesterWorkDate)
+        if (ctx.requesterIsL01()) {
+            compensationDayRepository.findByStaffIdAndCompensationDate(
+                    ctx.requesterOldStaff().getId(), ctx.requesterWorkDate())
                     .ifPresent(cd -> {
                         auditHistoryService.logAction("compensation_day", cd.getId(), AuditHistory.ActionType.DELETE,
                                 cd, null, reviewerId);
                         compensationDayRepository.delete(cd);
                     });
         }
-        if (targetIsL01) {
-            compensationDayRepository.findByStaffIdAndCompensationDate(targetOldStaff.getId(), targetWorkDate)
+        if (ctx.targetIsL01()) {
+            compensationDayRepository.findByStaffIdAndCompensationDate(
+                    ctx.targetOldStaff().getId(), ctx.targetWorkDate())
                     .ifPresent(cd -> {
                         auditHistoryService.logAction("compensation_day", cd.getId(), AuditHistory.ActionType.DELETE,
                                 cd, null, reviewerId);
@@ -280,108 +330,111 @@ public class ScheduleExchangeService {
                     });
         }
 
-        // Swap staff on schedules
-        requesterSchedule.setStaff(targetOldStaff);
-        targetSchedule.setStaff(requesterOldStaff);
+        // Swap staff on schedules (in-memory)
+        ctx.requesterSchedule().setStaff(ctx.targetOldStaff());
+        ctx.targetSchedule().setStaff(ctx.requesterOldStaff());
 
         // Create new compensation days for the new L01 assignments
-        SchedulePeriod period = requesterSchedule.getPeriod();
-        if (targetIsL01) {
+        SchedulePeriod period = ctx.period();
+        if (ctx.targetIsL01()) {
             CompensationDay newCompForRequester = CompensationDay.builder()
-                    .schedule(requesterSchedule)
-                    .staff(requesterOldStaff)
+                    .schedule(ctx.requesterSchedule())
+                    .staff(ctx.requesterOldStaff())
                     .period(period)
-                    .shiftDate(targetWorkDate)
-                    .compensationDate(compensationDateCalculator.calculate(targetWorkDate))
-                    .note("Ngày nghỉ bù từ đổi ca: " + targetOldStaff.getFullName() + " -> " + requesterOldStaff.getFullName())
+                    .shiftDate(ctx.targetWorkDate())
+                    .compensationDate(compensationDateCalculator.calculate(ctx.targetWorkDate()))
+                    .note("Ngày nghỉ bù từ đổi ca: " + ctx.targetOldStaff().getFullName() + " -> " + ctx.requesterOldStaff().getFullName())
                     .build();
             CompensationDay savedCompForRequester = compensationDayRepository.save(newCompForRequester);
             auditHistoryService.logAction("compensation_day", savedCompForRequester.getId(), AuditHistory.ActionType.INSERT,
                     null, savedCompForRequester, reviewerId);
         }
-        if (requesterIsL01) {
+        if (ctx.requesterIsL01()) {
             CompensationDay newCompForTarget = CompensationDay.builder()
-                    .schedule(targetSchedule)
-                    .staff(targetOldStaff)
+                    .schedule(ctx.targetSchedule())
+                    .staff(ctx.targetOldStaff())
                     .period(period)
-                    .shiftDate(requesterWorkDate)
-                    .compensationDate(compensationDateCalculator.calculate(requesterWorkDate))
-                    .note("Ngày nghỉ bù từ đổi ca: " + requesterOldStaff.getFullName() + " -> " + targetOldStaff.getFullName())
+                    .shiftDate(ctx.requesterWorkDate())
+                    .compensationDate(compensationDateCalculator.calculate(ctx.requesterWorkDate()))
+                    .note("Ngày nghỉ bù từ đổi ca: " + ctx.requesterOldStaff().getFullName() + " -> " + ctx.targetOldStaff().getFullName())
                     .build();
             CompensationDay savedCompForTarget = compensationDayRepository.save(newCompForTarget);
             auditHistoryService.logAction("compensation_day", savedCompForTarget.getId(), AuditHistory.ActionType.INSERT,
                     null, savedCompForTarget, reviewerId);
         }
 
-        // BUGFIX (was #5): Plain setStaff + save tripped the (period_id, staff_id,
-        // shift_type_id, work_date) unique constraint when both schedules land on
-        // the same slot post-swap (e.g. A had L01 Mon + L02 Mon, after swap B has
-        // L01/L02 Mon — the L02 row collides with B's existing L02 Mon).
-        //
-        // Strategy: swap is logically (delete old schedule row, insert new row with
-        // swapped staff). To preserve audit history and compensation FK integrity,
-        // we copy the row's mutable fields into a fresh entity, delete the old one,
-        // then save the new one. CompensationDay.schedule FK is rewired to the new
-        // schedule id before the old row is deleted.
-        copyCompensationFkAndDelete(requesterSchedule, targetOldStaff, requesterWorkDate,
+        // BUGFIX (was #5): Plain setStaff + save tripped the unique constraint when
+        // both schedules land on the same slot post-swap. Strategy: copy row into
+        // fresh entity, delete old, save new. CompensationDay.schedule FK is
+        // rewired to the new schedule id before the old row is deleted.
+        copyCompensationFkAndDelete(ctx.requesterSchedule(), ctx.targetOldStaff(), ctx.requesterWorkDate(),
                 period, reviewerId);
-        copyCompensationFkAndDelete(targetSchedule, requesterOldStaff, targetWorkDate,
+        copyCompensationFkAndDelete(ctx.targetSchedule(), ctx.requesterOldStaff(), ctx.targetWorkDate(),
                 period, reviewerId);
-        log.debug("Schedule swap persisted atomically for exchange {}", exchange.getId());
+        log.debug("Schedule swap persisted atomically for exchange");
+    }
 
-        // Validate NEW compensation days do not conflict with existing schedules
-        if (targetIsL01) {
-            LocalDate newCompForRequesterDate = compensationDateCalculator.calculate(targetWorkDate);
-            List<Schedule> reqSchedulesOnCompDate = scheduleRepository.findByStaffIdAndWorkDate(requesterOldStaff.getId(), newCompForRequesterDate);
+    /**
+     * P8: phase 3 — validate the NEW compensation days don't collide with
+     * existing schedules. Throws on collision (rolls back the swap).
+     */
+    private void validateCompensationConflicts(SwapContext ctx) {
+        if (ctx.targetIsL01()) {
+            LocalDate newCompForRequesterDate = compensationDateCalculator.calculate(ctx.targetWorkDate());
+            List<Schedule> reqSchedulesOnCompDate = scheduleRepository.findByStaffIdAndWorkDate(
+                    ctx.requesterOldStaff().getId(), newCompForRequesterDate);
             if (!reqSchedulesOnCompDate.isEmpty()) {
-                throw new BadRequestException("Ngày nghỉ bù mới của " + requesterOldStaff.getFullName()
+                throw new BadRequestException("Ngày nghỉ bù mới của " + ctx.requesterOldStaff().getFullName()
                         + " (" + newCompForRequesterDate + ") bị xung đột với lịch hiện có: "
                         + reqSchedulesOnCompDate.get(0).getShiftType().getName());
             }
         }
-        if (requesterIsL01) {
-            LocalDate newCompForTargetDate = compensationDateCalculator.calculate(requesterWorkDate);
-            List<Schedule> tgtSchedulesOnCompDate = scheduleRepository.findByStaffIdAndWorkDate(targetOldStaff.getId(), newCompForTargetDate);
+        if (ctx.requesterIsL01()) {
+            LocalDate newCompForTargetDate = compensationDateCalculator.calculate(ctx.requesterWorkDate());
+            List<Schedule> tgtSchedulesOnCompDate = scheduleRepository.findByStaffIdAndWorkDate(
+                    ctx.targetOldStaff().getId(), newCompForTargetDate);
             if (!tgtSchedulesOnCompDate.isEmpty()) {
-                throw new BadRequestException("Ngày nghỉ bù mới của " + targetOldStaff.getFullName()
+                throw new BadRequestException("Ngày nghỉ bù mới của " + ctx.targetOldStaff().getFullName()
                         + " (" + newCompForTargetDate + ") bị xung đột với lịch hiện có: "
                         + tgtSchedulesOnCompDate.get(0).getShiftType().getName());
             }
         }
+    }
 
+    /**
+     * P8: phase 4 — finalize the approved exchange: update status, audit,
+     * notify both staff, send email, run post-swap CSP re-solve.
+     */
+    private void finalizeApproval(ScheduleExchange exchange, SwapContext ctx,
+                                  Staff reviewer, Integer reviewerId, String reviewNote) {
         exchange.setStatus(ScheduleExchange.ExchangeStatus.APPROVED);
         exchange.setReviewedBy(reviewer);
         exchange.setReviewedAt(LocalDateTime.now());
         exchange.setReviewNote(reviewNote);
 
         ScheduleExchange saved = exchangeRepository.save(exchange);
-        auditHistoryService.logAction("schedule_exchange", exchangeId, AuditHistory.ActionType.APPROVE,
+        auditHistoryService.logAction("schedule_exchange", saved.getId(), AuditHistory.ActionType.APPROVE,
                 "PENDING", saved, reviewerId);
 
-        // Notify both staff about the approved exchange
-        String approveMsg = "Yêu cầu đổi trực ngày " + requesterSchedule.getWorkDate() + " <-> " + targetSchedule.getWorkDate() + " đã được duyệt bởi " + reviewer.getFullName() + ".";
-        notificationService.createNotification(requesterOldStaff.getId(),
+        String approveMsg = "Yêu cầu đổi trực ngày " + ctx.requesterSchedule().getWorkDate()
+                + " <-> " + ctx.targetSchedule().getWorkDate()
+                + " đã được duyệt bởi " + reviewer.getFullName() + ".";
+        notificationService.createNotification(ctx.requesterOldStaff().getId(),
                 new NotificationDTO("Yêu cầu đổi trực đã được duyệt", approveMsg));
-        notificationService.createNotification(targetOldStaff.getId(),
+        notificationService.createNotification(ctx.targetOldStaff().getId(),
                 new NotificationDTO("Yêu cầu đổi trực đã được duyệt", approveMsg));
 
-        // Send email notifications to both staff
-        emailService.sendSwapApprovedEmail(requesterOldStaff,
-                targetSchedule.getWorkDate().toString(),
-                requesterSchedule.getShiftType().getName());
-        emailService.sendSwapApprovedEmail(targetOldStaff,
-                requesterSchedule.getWorkDate().toString(),
-                targetSchedule.getShiftType().getName());
+        emailService.sendSwapApprovedEmail(ctx.requesterOldStaff(),
+                ctx.targetSchedule().getWorkDate().toString(),
+                ctx.requesterSchedule().getShiftType().getName());
+        emailService.sendSwapApprovedEmail(ctx.targetOldStaff(),
+                ctx.requesterSchedule().getWorkDate().toString(),
+                ctx.targetSchedule().getShiftType().getName());
 
-        // Post-swap incremental re-solve: confirm the period is still feasible
-        // with the new staff assignments. Two MODIFY deltas reflect the swap:
-        // requesterSchedule's slot now has requesterOldStaff, targetSchedule's
-        // slot now has targetOldStaff. Throw on invalid to roll back the swap.
-        rescheduleAfterSwap(period,
-                requesterOldStaff.getId(), targetOldStaff.getId(),
-                requesterSchedule, targetSchedule);
-
-        return ScheduleExchangeResponse.fromEntity(saved);
+        // Post-swap incremental re-solve: confirm period is still feasible
+        rescheduleAfterSwap(ctx.period(),
+                ctx.requesterOldStaff().getId(), ctx.targetOldStaff().getId(),
+                ctx.requesterSchedule(), ctx.targetSchedule());
     }
 
     public ScheduleExchangeResponse rejectExchange(Integer exchangeId, Integer reviewerId, String reviewNote) {
