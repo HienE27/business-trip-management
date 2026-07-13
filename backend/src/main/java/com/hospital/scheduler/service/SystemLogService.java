@@ -44,30 +44,11 @@ public class SystemLogService {
     }
 
     /**
-     * Deprecated: unbounded listing used to dump millions of rows. Use
-     * {@link #getAllLogsPage(int, int)} instead. Kept only for callers still
-     * relying on the legacy payload shape.
-     */
-    @Deprecated
-    public List<SystemLogResponse> getAllLogs() {
-        return systemLogRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt")).stream()
-                .map(SystemLogResponse::fromEntity)
-                .collect(Collectors.toList());
-    }
-
-    /**
      * BUGFIX (was BE#18): paginated variant of getLogsByStaff.
      */
     public Page<SystemLogResponse> getLogsByStaffPage(Integer staffId, int page, int size) {
         return systemLogRepository.findByStaffId(staffId, sortedByNewest(page, size))
                 .map(SystemLogResponse::fromEntity);
-    }
-
-    @Deprecated
-    public List<SystemLogResponse> getLogsByStaff(Integer staffId) {
-        return systemLogRepository.findByStaffId(staffId).stream()
-                .map(SystemLogResponse::fromEntity)
-                .collect(Collectors.toList());
     }
 
     /**
@@ -78,26 +59,12 @@ public class SystemLogService {
                 .map(SystemLogResponse::fromEntity);
     }
 
-    @Deprecated
-    public List<SystemLogResponse> getLogsByActionType(String actionType) {
-        return systemLogRepository.findByActionType(actionType).stream()
-                .map(SystemLogResponse::fromEntity)
-                .collect(Collectors.toList());
-    }
-
     /**
      * BUGFIX (was BE#18): paginated variant of getLogsByDateRange.
      */
     public Page<SystemLogResponse> getLogsByDateRangePage(LocalDateTime startDate, LocalDateTime endDate, int page, int size) {
         return systemLogRepository.findByDateRange(startDate, endDate, sortedByNewest(page, size))
                 .map(SystemLogResponse::fromEntity);
-    }
-
-    @Deprecated
-    public List<SystemLogResponse> getLogsByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
-        return systemLogRepository.findByDateRange(startDate, endDate).stream()
-                .map(SystemLogResponse::fromEntity)
-                .collect(Collectors.toList());
     }
 
     @Transactional

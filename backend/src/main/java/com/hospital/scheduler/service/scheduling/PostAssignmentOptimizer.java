@@ -309,13 +309,6 @@ public class PostAssignmentOptimizer {
     }
 
     /**
-     * Compatibility bridge for AutoSchedulingService.buildNewSchedule().
-     */
-    public Schedule buildNewScheduleCompat(Staff staff, ShiftRequirement req, LocalDate workDate) {
-        return buildNewSchedule(staff, req, workDate);
-    }
-
-    /**
      * Compatibility bridge for AutoSchedulingService.buildSafeRebalanceCounts().
      */
     public Map<String, Map<Integer, Long>> buildSafeRebalanceCountsCompat(List<Schedule> schedules,

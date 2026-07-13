@@ -79,7 +79,6 @@ public class AutoSchedulingService {
     private final CSPScheduler cspScheduler;
     private final EntityManager entityManager;
     private final ScheduleConflictRepository scheduleConflictRepository;
-    private final PreviewConflictCheckService previewConflictCheckService;
     private final AlgorithmProgressTracker progressTracker;
     private final ScheduleQualityScorer scheduleQualityScorer;
 
@@ -1898,10 +1897,6 @@ public class AutoSchedulingService {
         return postAssignmentOptimizer.guaranteeMinimumShifts(schedules, staffWithoutShifts, requirements, activeStaff, stateAccessor);
     }
 
-    private Schedule buildNewSchedule(Staff staff, ShiftRequirement req, LocalDate workDate) {
-        return postAssignmentOptimizer.buildNewScheduleCompat(staff, req, workDate);
-    }
-
     private Map<String, Map<Integer, Long>> buildSafeRebalanceCounts(List<Schedule> schedules, List<Staff> activeStaff) {
         // ... preserved for local-search delegation compatibility — see PostAssignmentOptimizer
         return postAssignmentOptimizer.buildSafeRebalanceCountsCompat(schedules, activeStaff);
@@ -2165,28 +2160,6 @@ public class AutoSchedulingService {
         }
 
         return selected;
-    }
-
-    private Schedule buildSchedule(SchedulePeriod period, Staff staff, ShiftType shiftType,
-                                   LocalDate workDate, ShiftRequirement requirement) {
-        // Check DB for existing schedule
-        Optional<Schedule> existing = scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
-                period.getId(), staff.getId(), shiftType.getId(), workDate);
-        if (existing.isPresent()) return null;
-
-        // Check in-memory assignments (for preview mode and same-run conflicts)
-        if (hasInMemoryConflict(staff.getId(), workDate, shiftType.getId())) {
-            return null;
-        }
-
-        return Schedule.builder()
-                .period(period)
-                .staff(staff)
-                .shiftType(shiftType)
-                .workDate(workDate)
-                .requirement(requirement)
-                .hasConflict(false)
-                .build();
     }
 
     private boolean hasInMemoryConflict(Integer staffId, LocalDate workDate, String shiftTypeId) {
@@ -2859,47 +2832,7 @@ public class AutoSchedulingService {
         return result;
     }
 
-    private List<Staff> filterAndSortEligibleStaff(List<Staff> pool, ShiftRequirement req,
-                                                    Set<Integer> excludedStaffIds, boolean skipCompensationCheck, boolean skipMaxShifts,
-                                                    Comparator<Staff> sortComparator) {
-        var crossConfig = getL04CrossSpecialtyConfig();
-        boolean isL04WithSpecialty = ConflictDetectionService.SHIFT_TYPE_L04.equals(req.getShiftType().getId())
-                && req.getSpecialty() != null;
-        boolean crossEnabled = crossConfig.enabled() && isL04WithSpecialty;
-
-        // Step 1: Get strict matches
-        List<Staff> strictMatches = pool.stream()
-                .filter(s -> excludedStaffIds == null || !excludedStaffIds.contains(s.getId()))
-                .filter(s -> s.getSpecialty() != null && s.getSpecialty().getId().equals(req.getSpecialty().getId()))
-                .filter(s -> !conflictDetectionService.hasAnyConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId(), null, skipCompensationCheck, false))
-                .filter(s -> !hasInMemoryConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId()))
-                .collect(Collectors.toList());
-
-        // Step 2: If cross-specialty enabled and strict matches insufficient, add cross matches
-        if (crossEnabled && strictMatches.size() < req.getRequiredStaffCount()) {
-            int needed = req.getRequiredStaffCount() - strictMatches.size();
-            int maxCross = Math.max(1, (int) (req.getRequiredStaffCount() * crossConfig.ratio()));
-            int toTake = Math.min(needed, maxCross);
-
-            List<Staff> crossMatches = pool.stream()
-                    .filter(s -> excludedStaffIds == null || !excludedStaffIds.contains(s.getId()))
-                    .filter(s -> s.getSpecialty() == null || !s.getSpecialty().getId().equals(req.getSpecialty().getId()))
-                    .filter(s -> !conflictDetectionService.hasAnyConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId(), null, skipCompensationCheck, false))
-                    .filter(s -> !hasInMemoryConflict(s.getId(), req.getWorkDate(), req.getShiftType().getId()))
-                    .sorted(sortComparator)
-                    .limit(toTake)
-                    .collect(Collectors.toList());
-
-            strictMatches.addAll(crossMatches);
-            if (log.isDebugEnabled()) {
-                log.debug("filterAndSortEligibleStaff cross-specialty: {} strict + {} cross for specialty {}",
-                        strictMatches.size() - crossMatches.size(), crossMatches.size(), req.getSpecialty().getId());
-            }
-        }
-
-        return strictMatches.stream().sorted(sortComparator).collect(Collectors.toList());
-    }
-
+    // filterAndSortEligibleStaff (pre-batch) was removed in M07 refactor — git history.
     private Schedule buildAndSaveSchedule(SchedulePeriod period, Staff staff, ShiftRequirement req,
                                          LocalDate workDate, boolean save, List<Schedule> list) {
         Schedule schedule = Schedule.builder()
