@@ -325,6 +325,43 @@ class SchedulePeriodServiceTest {
                     .isInstanceOf(BadRequestException.class)
                     .hasMessageContaining("có xung đột");
         }
+
+        // Regression: P1 BUG-1 (publish path) — checkPeriodConflicts occasionally
+        // throws on transient infra issues (lazy-init race, SQL hiccup). Previously
+        // surfaced as 500 and blocked admins. Now: retry once, then surface 503.
+        @Test
+        @DisplayName("Detector throws once -> retry succeeds, publish completes")
+        void detectorFailsOnceThenSucceeds_shouldRetryAndPublish() {
+            when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
+            when(conflictDetectionService.checkPeriodConflicts(1))
+                    .thenThrow(new RuntimeException("transient lazy-init boom"))
+                    .thenReturn(ConflictCheckResponse.builder().hasConflicts(false).conflicts(List.of()).build());
+            when(periodRepository.save(any(SchedulePeriod.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+            when(scheduleRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
+            when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(adminStaff));
+
+            SchedulePeriodResponse result = periodService.publishPeriod(1, 1);
+
+            assertThat(result.getStatus()).isEqualTo("PUBLISHED");
+            verify(conflictDetectionService, times(2)).checkPeriodConflicts(1);
+        }
+
+        @Test
+        @DisplayName("Detector throws on both attempts -> ServiceUnavailableException, no publish")
+        void detectorFailsTwice_shouldThrow503AndNotPublish() {
+            when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
+            when(conflictDetectionService.checkPeriodConflicts(1))
+                    .thenThrow(new RuntimeException("detector boom"));
+
+            assertThatThrownBy(() -> periodService.publishPeriod(1, 1))
+                    .isInstanceOf(com.hospital.scheduler.exception.ServiceUnavailableException.class)
+                    .hasMessageContaining("không khả dụng");
+            // Detector called exactly twice (initial + 1 retry), no save happened
+            verify(conflictDetectionService, times(2)).checkPeriodConflicts(1);
+            verify(periodRepository, never()).save(any(SchedulePeriod.class));
+        }
     }
 
     // ==================== archivePeriod ====================

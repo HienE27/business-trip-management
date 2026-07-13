@@ -103,6 +103,14 @@ public class GlobalExceptionHandler {
         return errorResponse(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<ApiResponse<?>> handleServiceUnavailable(
+            ServiceUnavailableException ex, HttpServletRequest request) {
+        log.warn("Service unavailable on {} {}: {}",
+                request.getMethod(), request.getRequestURI(), ex.getMessage());
+        return errorResponse(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<?>> handleValidation(
             MethodArgumentNotValidException ex, HttpServletRequest request) {

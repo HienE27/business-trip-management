@@ -14,6 +14,7 @@ import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
+import com.hospital.scheduler.exception.ServiceUnavailableException;
 import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
@@ -153,7 +154,7 @@ public class SchedulePeriodService {
             throw new BadRequestException("Chỉ có thể công bố kỳ lịch ở trạng thái DRAFT");
         }
 
-        ConflictCheckResponse conflictCheck = conflictDetectionService.checkPeriodConflicts(id);
+        ConflictCheckResponse conflictCheck = safeConflictCheckForPublish(id);
         if (conflictCheck.isHasConflicts()) {
             String msg = conflictCheck.getConflicts().stream()
                     .map(c -> c.getStaffName() + " (" + c.getWorkDate() + "): " + String.join(", ", c.getConflictReasons()))
@@ -281,6 +282,35 @@ public class SchedulePeriodService {
         } catch (Exception e) {
             log.warn("Could not generate staffing coverage for period {}: {}", id, e.getMessage(), e);
             return null;
+        }
+    }
+
+    /**
+     * P1 BUG-1 (publish path): the detector occasionally throws on transient
+     * failures (lazy-init race, SQL hiccup, detached entity) which previously
+     * surfaced as 500 and blocked admins from publishing. We retry once — most
+     * transient glitches clear on the second attempt. If the detector still
+     * fails, we throw ServiceUnavailableException (HTTP 503) so the publish is
+     * blocked safely instead of silently publishing a possibly-conflicted period.
+     * <p>
+     * ponytail: ceiling = (silent publish on detector failure) — never fabricate
+     * "no conflicts" here; upgrade path = call ConflictDetectionService via a
+     * scheduled warm-up job so transient lazy-init races are caught pre-publish.
+     */
+    private ConflictCheckResponse safeConflictCheckForPublish(Integer id) {
+        try {
+            return conflictDetectionService.checkPeriodConflicts(id);
+        } catch (Exception first) {
+            log.warn("Conflict detector failed for period {} on first attempt: {} — retrying once",
+                    id, first.getMessage());
+            try {
+                return conflictDetectionService.checkPeriodConflicts(id);
+            } catch (Exception second) {
+                log.error("Conflict detector failed for period {} on retry — aborting publish: {}",
+                        id, second.getMessage(), second);
+                throw new ServiceUnavailableException(
+                        "Bộ kiểm tra xung đột tạm thời không khả dụng, vui lòng thử lại sau ít phút", second);
+            }
         }
     }
 
