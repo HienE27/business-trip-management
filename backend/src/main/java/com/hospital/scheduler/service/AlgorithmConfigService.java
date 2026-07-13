@@ -418,12 +418,8 @@ public class AlgorithmConfigService {
     }
 
     private void upsert(String paramKey, String value, AlgorithmConfig.ValueType valueType, String description) {
-        AlgorithmConfig config = configRepository.findByParamKey(paramKey)
-                .orElse(AlgorithmConfig.builder().paramKey(paramKey).build());
-        config.setParamValue(value);
-        config.setValueType(valueType);
-        config.setDescription(description);
-        configRepository.save(config);
+        // Native upsert — avoids SELECT-then-INSERT race that caused 409 on concurrent PUTs.
+        configRepository.upsertConfig(paramKey, value, valueType.name(), description);
     }
 
     private int getIntValue(String paramKey, int defaultValue) {
