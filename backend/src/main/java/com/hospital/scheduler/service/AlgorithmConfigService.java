@@ -513,7 +513,7 @@ public class AlgorithmConfigService {
                 .minStaffPerShift(getIntValue(MIN_STAFF_PER_SHIFT, 1, cache))
                 .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0, cache))
                 .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0, cache))
-                .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 0, cache))
+                .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 99, cache))
                 // Per-type weekly max from AutoGenConfig
                 .l01MaxPerWeek(autoGenConfig.map(AutoGenConfig::l01MaxPerWeek).orElse(0))
                 .l02MaxPerWeek(autoGenConfig.map(AutoGenConfig::l02MaxPerWeek).orElse(0))
