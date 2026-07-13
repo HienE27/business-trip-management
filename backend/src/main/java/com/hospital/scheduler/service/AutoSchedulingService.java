@@ -3347,10 +3347,12 @@ public class AutoSchedulingService {
                         .collect(Collectors.toSet());
 
                 if (!l04SpecialtyIds.isEmpty()) {
-                    // Count eligible L04 staff (only Bác sĩ, Điều dưỡng)
+                    // Count eligible L04 staff — use ALL_ELIGIBLE_SPECIALTIES (Ngoại, Nội, Sản, Nhi, Mắt, Răng)
+                    // so that staff from extended specialties can fill L04 slots when their
+                    // own specialty pool is exhausted (cross-specialty = true by default for L04).
                     int totalEligibleL04Staff = (int) safeActiveStaff.stream()
                             .filter(s -> s.getSpecialty() != null
-                                    && StaffShiftTypeEligibility.ELIGIBLE_SPECIALTY_NAMES.contains(s.getSpecialty().getName()))
+                                    && StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES.contains(s.getSpecialty().getName()))
                             .count();
 
                     if (crossEnabled) {
@@ -3737,8 +3739,10 @@ public class AutoSchedulingService {
                     .isEligible(staff, shiftTypeId, requiredSpecId, nonL04Allowed);
             // For L04 with cross-specialty enabled: staff from other eligible specialties are allowed
             if (!isEligible && crossEnabled && ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
-                // Check if staff is at least in ELIGIBLE_SPECIALTY_NAMES (Bác sĩ, Điều dưỡng)
-                if (staff.getSpecialty() != null && StaffShiftTypeEligibility.ELIGIBLE_SPECIALTY_NAMES
+                // Cross-specialty L04: staff must belong to at least ONE eligible specialty
+                // (CORE or extended). Use ALL_ELIGIBLE_SPECIALTIES so Nhi/Mắt/Răng/Sản
+                // staff can fill L04 when their own specialty's pool is exhausted.
+                if (staff.getSpecialty() != null && StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
                         .contains(staff.getSpecialty().getName())) {
                     isEligible = true;
                 }
