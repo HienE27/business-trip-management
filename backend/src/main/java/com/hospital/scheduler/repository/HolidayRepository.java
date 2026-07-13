@@ -12,10 +12,18 @@ import java.util.Optional;
 
 @Repository
 public interface HolidayRepository extends JpaRepository<Holiday, Integer> {
+    /**
+     * Returns ALL holiday rows (active and inactive) for the given date.
+     * Intentionally not scoped by {@code isActive}: this is a key-based lookup
+     * used when callers need to know whether a row exists at all (e.g.
+     * {@code DataSeeder.seedHolidays}). For the "is this date currently a
+     * holiday?" question, use {@link #existsByHolidayDateAndIsActiveTrue}.
+     */
     Optional<Holiday> findByHolidayDate(LocalDate holidayDate);
+
     List<Holiday> findByIsActiveTrue();
     List<Holiday> findByYear(Integer year);
-    List<Holiday> findByHolidayDateBetween(LocalDate start, LocalDate end);
+
     /**
      * BUGFIX (was BE#16): original {@code existsByHolidayDate} matched the row regardless
      * of {@code isActive}. After soft-delete (isActive=false), users could never
