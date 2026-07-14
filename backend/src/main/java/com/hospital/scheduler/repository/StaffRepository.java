@@ -95,12 +95,19 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
     long countByStatus(com.hospital.scheduler.entity.StaffStatus status);
 
     /**
-     * Count active (is_active = true) staff members who have the ADMIN role.
-     * Used to prevent deleting the last admin.
+     * Count active staff holding the ADMIN role.
+     * Used by StaffService to block removal/demotion of the last active admin
+     * — without this guard the system can be left without any administrator.
      */
-    @Query("SELECT COUNT(DISTINCT s) FROM Staff s " +
-           "JOIN s.staffRoles sr " +
-           "JOIN sr.role r " +
-           "WHERE s.isActive = true AND r.name = 'ADMIN'")
+    @Query("SELECT COUNT(DISTINCT s) FROM Staff s JOIN s.staffRoles sr JOIN sr.role r " +
+           "WHERE s.isActive = true AND r.name = com.hospital.scheduler.entity.RoleName.ADMIN")
     long countActiveAdmins();
+
+    /**
+     * Check whether the given staff ID currently holds the ADMIN role.
+     * Returns false for staff with no roles or who only hold non-admin roles.
+     */
+    @Query("SELECT (COUNT(sr) > 0) FROM Staff s JOIN s.staffRoles sr JOIN sr.role r " +
+           "WHERE s.id = :staffId AND r.name = com.hospital.scheduler.entity.RoleName.ADMIN")
+    boolean hasAdminRole(@Param("staffId") Integer staffId);
 }

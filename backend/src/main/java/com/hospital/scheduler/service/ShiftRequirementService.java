@@ -73,7 +73,7 @@ public class ShiftRequirementService {
 
         List<ShiftRequirement> saved = new ArrayList<>();
         for (ShiftRequirementRequest req : requests) {
-            validateNotHoliday(req.getWorkDate());
+            validateWorkDateNotHoliday(req.getWorkDate());
             Specialty specialty = resolveSpecialty(req.getSpecialtyId());
             ShiftType shiftType = shiftTypeRepository.findById(req.getShiftTypeId())
                     .orElseThrow(() -> new ResourceNotFoundException(
@@ -123,7 +123,7 @@ public class ShiftRequirementService {
                         "Không tìm thấy yêu cầu ca với ID: " + id));
         ShiftRequirement before = cloneForAudit(entity);
 
-        validateNotHoliday(req.getWorkDate());
+        validateWorkDateNotHoliday(req.getWorkDate());
         ShiftType shiftType = shiftTypeRepository.findById(req.getShiftTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy loại ca với ID: " + req.getShiftTypeId()));
@@ -193,15 +193,16 @@ public class ShiftRequirementService {
     }
 
     /**
+<<<<<<< Updated upstream
      * BUG-m6 fix: reject shift requirements that fall on a configured holiday.
      * Schedule generation skips holidays anyway, so silently accepting the
      * requirement creates the illusion of coverage that never materialises.
      */
-    private void validateNotHoliday(LocalDate workDate) {
+    private void validateWorkDateNotHoliday(LocalDate workDate) {
         if (workDate == null) return;
-        if (holidayRepository.existsByHolidayDateAndIsActiveTrue(workDate)) {
+        if (holidayRepository.existsByHolidayDate(workDate)) {
             throw new BadRequestException(
-                    "Không thể tạo yêu cầu ca vào ngày lễ: " + workDate);
+                "Ngày " + workDate + " là ngày lễ, không thể tạo yêu cầu ca");
         }
     }
 

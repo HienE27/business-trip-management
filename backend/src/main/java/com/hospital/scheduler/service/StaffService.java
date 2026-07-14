@@ -62,6 +62,20 @@ public class StaffService {
     private final StaffImportRowService importRowService;
 
     /**
+     * Block delete/deactivate/demote of the last active admin in the system.
+     * Throws BadRequestException if removing this staff would leave zero admins.
+     */
+    private void guardLastAdminRemoval(Integer staffId) {
+        if (staffId == null || !staffRepository.hasAdminRole(staffId)) {
+            return;
+        }
+        if (staffRepository.countActiveAdmins() <= 1) {
+            throw new BadRequestException(
+                "Không thể xóa/vô hiệu hóa admin cuối cùng của hệ thống");
+        }
+    }
+
+    /**
      * Generate unique staff code in format NV001, NV002, etc.
      * Uses database-level MAX query for efficiency.
      */
@@ -284,9 +298,24 @@ public class StaffService {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
 
-        // BUG-M5: soft-deleted staff cannot be updated
+        // Block edits on inactive staff — the edit page is meant for active
+        // accounts only; an INACTIVE staff should not be edit-able (re-activate
+        // through a separate flow if/when that exists).
         if (!Boolean.TRUE.equals(staff.getIsActive())) {
-            throw new ResourceNotFoundException("Nhân sự không tồn tại hoặc đã ngừng hoạt động");
+            throw new ResourceNotFoundException(
+                "Nhân sự không tồn tại hoặc đã ngừng hoạt động");
+        }
+
+        // If the update is going to demote/deactivate this staff and they
+        // currently hold the ADMIN role, refuse unless other active admins exist.
+        boolean willDeactivate = Boolean.FALSE.equals(request.getIsActive())
+                || (request.getStatus() != null
+                    && "INACTIVE".equalsIgnoreCase(request.getStatus()));
+        boolean willRemoveAdminRole = request.getRoles() != null
+                && request.getRoles().stream()
+                    .noneMatch(r -> "ADMIN".equalsIgnoreCase(r));
+        if (willDeactivate || willRemoveAdminRole) {
+            guardLastAdminRemoval(id);
         }
 
         if (request.getUsername() != null && !request.getUsername().isBlank()) {
@@ -429,13 +458,7 @@ public class StaffService {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
 
-        // BUG-C1: block deletion of the last active admin
-        if (hasAdminRole(id)) {
-            long activeAdminCount = staffRepository.countActiveAdmins();
-            if (activeAdminCount <= 1) {
-                throw new ForbiddenOperationException("Không thể xóa admin cuối cùng của hệ thống");
-            }
-        }
+        guardLastAdminRemoval(id);
 
         Staff oldStaff = Staff.builder()
                 .username(staff.getUsername())

@@ -22,9 +22,9 @@ public final class CspConstants {
      * weighted-coverage and weighted-balance calculations in
      * {@link com.hospital.scheduler.algorithm.ScheduleChromosome}.
      *
-     * <p>The same shift-weight table is referenced by the smoke tests —
-     * tests should map this constant rather than duplicate the literal
-     * values inline.
+     * <p>The same shift-weight table is the single source of truth for
+     * {@code SchedulingFitnessShiftWeightTest} — tests must reference this
+     * map rather than duplicating the values inline.
      */
     @SuppressWarnings("unchecked")
     public static final Map<String, Double> SHIFT_WEIGHTS = Map.of(

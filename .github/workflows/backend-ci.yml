@@ -74,20 +74,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: test_db
-        options: >-
-          --health-cmd="mysqladmin ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-        ports:
-          - 3306:3306
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -113,17 +99,13 @@ jobs:
         run: chmod +x backend/mvnw
 
       - name: Run tests
-        env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/test_db
-          SPRING_DATASOURCE_USERNAME: root
-          SPRING_DATASOURCE_PASSWORD: root
         run: |
           if [ -f "backend/mvnw" ]; then
             ./backend/mvnw test -f backend/pom.xml \
-              -Dtest='!CspSchedulerSmokeTest,!SchedulingFitnessShiftWeightTest'
+              -Dspring.profiles.active=test
           else
             mvn test -f backend/pom.xml \
-              -Dtest='!CspSchedulerSmokeTest,!SchedulingFitnessShiftWeightTest'
+              -Dspring.profiles.active=test
           fi
         working-directory: ${{ github.workspace }}
 

@@ -1,0 +1,37 @@
+spring:
+  datasource:
+    # Dynamically overridden by TestcontainerConfig singleton
+    url: ${TEST_DATASOURCE_URL:jdbc:tc:mysql:8.0:///}
+  jpa:
+    # Validate schema on startup so bad entity mappings fail fast
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        # MySQL dialect to match production
+        dialect: org.hibernate.dialect.MySQLDialect
+        jdbc:
+          batch_size: 50
+  mail:
+    host: localhost
+    port: 25
+  security:
+    enabled: false
+
+logging:
+  level:
+    com.hospital.scheduler: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+
+app:
+  # Disable seeder so integration tests are deterministic and fast
+  data.seeder.enabled: false
+  email:
+    enabled: false
+
+# Testcontainers JDBC proxy driver registration — loaded early via
+# @Import from the integration smoke test so the driver is registered
+# before the DataSource initializer runs.
