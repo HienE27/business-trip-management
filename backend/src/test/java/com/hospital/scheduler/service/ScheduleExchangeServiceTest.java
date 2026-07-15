@@ -638,7 +638,7 @@ class ScheduleExchangeServiceTest {
         }
 
         @Test
-        @DisplayName("Post-swap re-solve throws exception -> approve vẫn succeed (best-effort, log warn)")
+        @DisplayName("Post-swap re-solve throws exception -> approve FAIL với BadRequest (BUGFIX: rollback toàn bộ swap để giữ tính nguyên tử)")
         void postSwapReSolveThrows_shouldNotBlockApprove() {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
@@ -672,9 +672,16 @@ class ScheduleExchangeServiceTest {
             when(cspScheduler.reSolve(any(), any(), any(), any(), any()))
                     .thenThrow(new RuntimeException("CSP internal boom"));
 
-            ScheduleExchangeResponse result = exchangeService.approveExchange(1, 3, "Đồng ý đổi");
-
-            assertThat(result.getStatus()).isEqualTo(ScheduleExchangeResponse.ExchangeStatus.APPROVED);
+            // BUGFIX (was ScheduleExchangeService#6): silently logging a re-solve
+            // failure and continuing used to commit the schedule swap even when
+            // the period became infeasible. The fix is to re-throw as a domain
+            // BadRequestException so Spring rolls back the entire transaction
+            // atomically and the swap is rejected. The test now asserts that
+            // contract.
+            assertThatThrownBy(() -> exchangeService.approveExchange(1, 3, "Đồng ý đổi"))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("không còn feasible")
+                    .hasMessageContaining("CSP internal boom");
         }
 
         @Test
@@ -848,6 +855,8 @@ class ScheduleExchangeServiceTest {
             when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
             when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staffA, staffB));
             when(cspScheduler.reSolve(any(), any(), any(), any(), any())).thenReturn(null);
+            when(exchangeRepository.save(any(ScheduleExchange.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
 
             assertThatThrownBy(() -> exchangeService.approveExchange(1, 3, null))
                     .isInstanceOf(BadRequestException.class)

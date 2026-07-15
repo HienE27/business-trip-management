@@ -5,6 +5,7 @@ import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.AuthResponse;
 import com.hospital.scheduler.dto.LoginRequest;
 import com.hospital.scheduler.dto.RefreshTokenRequest;
+import com.hospital.scheduler.dto.request.ChangePasswordRequest;
 import com.hospital.scheduler.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -96,6 +97,24 @@ public class AuthController {
         response.addHeader(HttpHeaders.SET_COOKIE, buildExpiredAuthCookie(AUTH_COOKIE_NAME).toString());
         response.addHeader(HttpHeaders.SET_COOKIE, buildExpiredAuthCookie(REFRESH_COOKIE_NAME).toString());
         return ResponseEntity.ok(ApiResponse.success(null, "Logout successful"));
+    }
+
+    /**
+     * Self-service password rotation. Verifies the supplied {@code currentPassword}
+     * before accepting {@code newPassword} — matches the login flow so a probe
+     * can't distinguish "wrong old password" from "unknown user". The active
+     * access token remains valid (no forced re-auth).
+     */
+    @PostMapping("/change-password")
+    @Operation(
+            summary = "Đổi mật khẩu (self-service)",
+            description = "Đổi mật khẩu của chính người dùng hiện tại. Cần xác nhận mật khẩu hiện tại. " +
+                    "Access token hiện tại vẫn dùng được — không bắt buộc đăng nhập lại."
+    )
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(request);
+        return ResponseEntity.ok(ApiResponse.success(null, "Đổi mật khẩu thành công"));
     }
 
     private ResponseCookie buildAuthCookie(String name, String token, long expiresIn) {

@@ -3,6 +3,7 @@ package com.hospital.scheduler.config;
 import com.hospital.scheduler.security.JwtAccessDeniedHandler;
 import com.hospital.scheduler.security.JwtAuthenticationEntryPoint;
 import com.hospital.scheduler.security.JwtAuthenticationFilter;
+import com.hospital.scheduler.security.PermissionInvalidationFilter;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -35,6 +36,7 @@ public class SecurityConfig {
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final RateLimitingFilter rateLimitingFilter;
     private final CorsProperties corsProperties;
+    private final PermissionInvalidationFilter permissionInvalidationFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -74,6 +76,11 @@ public class SecurityConfig {
 
                 // Add JWT filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // Permission version check — runs AFTER JwtAuthenticationFilter so the
+                // Authentication + permVer claim are both available. Rejects stale JWTs
+                // with 401 PERMISSION_VERSION_STALE so the frontend interceptor can
+                // force a clean re-login after every permission-matrix change.
+                .addFilterAfter(permissionInvalidationFilter, JwtAuthenticationFilter.class)
                 // Add rate limiting filter before everything
                 .addFilterBefore(rateLimitingFilter, JwtAuthenticationFilter.class);
 

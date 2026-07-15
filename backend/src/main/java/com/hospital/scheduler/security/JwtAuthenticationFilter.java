@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
         final String jwt = resolveJwt(request);
 
-        if (jwt == null) {
+        if (jwt == null || jwt.isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -48,45 +48,59 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // indefinitely if leaked — only the short-lived access token is the bearer of
         // an authentication context. Refresh tokens are exchanged exclusively via
         // POST /api/v1/auth/refresh.
-        if (!"access".equals(jwtService.extractTokenType(jwt))) {
-            logger.warn("Rejecting non-access token on protected endpoint (tokenType != access)");
-            filterChain.doFilter(request, response);
-            return;
-        }
-
+        // BUG-FIX (was 500-on-empty-auth): extractTokenType throws on malformed
+        // tokens. Wrapped the whole block in try/catch so a stray empty/whitespace
+        // token in Authorization or X-Auth-Token can't take down the filter chain
+        // with a 500.
         try {
-            final String username = jwtService.extractUsername(jwt);
+            if (!"access".equals(jwtService.extractTokenType(jwt))) {
+                logger.warn("Rejecting non-access token on protected endpoint (tokenType != access)");
+                filterChain.doFilter(request, response);
+                return;
+            }
 
-            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                if (jwtService.isTokenValid(jwt)) {
-                    List<String> roles = jwtService.extractRoles(jwt);
-                    List<String> permissions = jwtService.extractPermissions(jwt);
+            try {
+                final String username = jwtService.extractUsername(jwt);
 
-                    java.util.Set<SimpleGrantedAuthority> authorities = new java.util.LinkedHashSet<>();
-                    // Roles keep the ROLE_ prefix so legacy @hasRole checks keep working.
-                    if (roles != null) {
-                        for (String role : roles) {
-                            authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    if (jwtService.isTokenValid(jwt)) {
+                        List<String> roles = jwtService.extractRoles(jwt);
+                        List<String> permissions = jwtService.extractPermissions(jwt);
+
+                        java.util.Set<SimpleGrantedAuthority> authorities = new java.util.LinkedHashSet<>();
+                        // Roles keep the ROLE_ prefix so legacy @hasRole checks keep working.
+                        if (roles != null) {
+                            for (String role : roles) {
+                                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+                            }
                         }
-                    }
-                    // Permissions are flat authorities (no prefix) so @hasAuthority('PERM_X') matches.
-                    if (permissions != null) {
-                        for (String perm : permissions) {
-                            authorities.add(new SimpleGrantedAuthority(perm));
+                        // Permissions are flat authorities (no prefix) so @hasAuthority('PERM_X') matches.
+                        if (permissions != null) {
+                            for (String perm : permissions) {
+                                authorities.add(new SimpleGrantedAuthority(perm));
+                            }
                         }
-                    }
 
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            username,
-                            null,
-                            authorities
-                    );
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                                username,
+                                null,
+                                authorities
+                        );
+                        // BUGFIX (was STALE-LOGOUT): PermissionInvalidationFilter relies
+                        // on being able to extract the raw JWT from the Authentication so
+                        // it can re-read the permVer claim. The standard Spring contract
+                        // is to put the username in the principal slot, which would break
+                        // that filter. Stash the JWT in `details` so both the standard
+                        // contract AND the cross-filter contract hold simultaneously.
+                        authToken.setDetails(new JwtAuthenticationDetails(jwt, request));
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
                 }
+            } catch (Exception e) {
+                logger.error("Cannot set user authentication: " + e.getMessage());
             }
         } catch (Exception e) {
-            logger.error("Cannot set user authentication: " + e.getMessage());
+            logger.error("JwtAuthenticationFilter: failed to inspect token — passing through unauthenticated: " + e.getMessage());
         }
 
         filterChain.doFilter(request, response);

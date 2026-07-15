@@ -21,6 +21,8 @@ export const Permission = {
 
   // Staff
   STAFF_VIEW: "STAFF_VIEW",
+  STAFF_VIEW_ALL: "STAFF_VIEW_ALL",
+  STAFF_VIEW_SELF: "STAFF_VIEW_SELF",
   STAFF_CREATE: "STAFF_CREATE",
   STAFF_UPDATE: "STAFF_UPDATE",
   STAFF_DELETE: "STAFF_DELETE",
@@ -82,11 +84,10 @@ export const Permission = {
   NOTIFICATION_BROADCAST: "NOTIFICATION_BROADCAST",
   NOTIFICATION_MANAGE_SELF: "NOTIFICATION_MANAGE_SELF",
 
-  // Audit / System log / Config / Integrity
+  // Audit / Config / Integrity
   AUDIT_VIEW: "AUDIT_VIEW",
   AUDIT_DELETE: "AUDIT_DELETE",
   AUDIT_EXPORT: "AUDIT_EXPORT",
-  SYSTEM_LOG_VIEW: "SYSTEM_LOG_VIEW",
   APP_CONFIG_VIEW: "APP_CONFIG_VIEW",
   APP_CONFIG_EDIT: "APP_CONFIG_EDIT",
   DATA_INTEGRITY_RUN: "DATA_INTEGRITY_RUN",
@@ -105,22 +106,79 @@ export type Permission = (typeof Permission)[keyof typeof Permission];
  * permissions lấy từ `useAuth().user?.permissions`.
  *
  * <p>Nguồn sự thật: backend {@code Permissions.staffPermissions()} / {@code managerPermissions()}.
+ *
+ * <p>Mapping theo tài liệu {@code QuanLyLichCongTac_v5.md} mục M01-F05:
+ * <ul>
+ *   <li><b>ADMIN</b> (Trưởng phòng): toàn quyền</li>
+ *   <li><b>MANAGER</b> (Quản lý lịch): xem + phê duyệt + xếp lịch M02–M05 + auto-schedule M07</li>
+ *   <li><b>STAFF</b> (Nhân viên): xem lịch cá nhân + tự đăng ký nghỉ/đổi ca</li>
+ * </ul>
  */
 export const RoleDefaultPermissions: Record<string, Permission[]> = {
   ADMIN: Object.values(Permission),
-  MANAGER: Object.values(Permission).filter(
-    (p) =>
-      p !== Permission.ROLE_EDIT &&
-      p !== Permission.AUDIT_DELETE &&
-      p !== Permission.SYSTEM_LOG_VIEW &&
-      p !== Permission.DATA_INTEGRITY_RUN &&
-      p !== Permission.AUTO_SCHEDULE_CONFIG_EDIT &&
-      p !== Permission.APP_CONFIG_EDIT,
-  ),
-  STAFF: [
+  MANAGER: [
+    // ── Dashboard: xem ──────────────────────────────────────
     Permission.DASHBOARD_VIEW,
+    Permission.DASHBOARD_AGGREGATE,
+
+    // ── Nhân sự: xem toàn phòng (admin thêm/sửa/xoá/import) ─
     Permission.STAFF_VIEW,
+    Permission.STAFF_VIEW_ALL,
+    Permission.STAFF_VIEW_SELF,
+
+    // ── Ma trận phân quyền: xem ───────────────────────────
+    Permission.ROLE_VIEW,
+
+    // ── Kỳ lịch công tác: xem (admin tạo/sửa/xoá) ────────
+    Permission.PERIOD_VIEW,
+
+    // ── Lịch trực L01–L04: xem + xếp thủ công + công bố ─
     Permission.SCHEDULE_VIEW,
+    Permission.SCHEDULE_CREATE,
+    Permission.SCHEDULE_UPDATE,
+    Permission.SCHEDULE_DELETE,
+    Permission.SCHEDULE_PUBLISH,
+    Permission.SCHEDULE_EXPORT,
+
+    // ── Auto-schedule M07: xem + chạy + áp dụng ───────────
+    Permission.AUTO_SCHEDULE_VIEW,
+    Permission.AUTO_SCHEDULE_RUN,
+    Permission.AUTO_SCHEDULE_APPLY,
+    Permission.AUTO_SCHEDULE_CONFIG_VIEW,
+
+    // ── Nghỉ phép: xem + phê duyệt ────────────────────────
+    Permission.LEAVE_VIEW,
+    Permission.LEAVE_CREATE,
+    Permission.LEAVE_APPROVE,
+    Permission.LEAVE_CANCEL_SELF,
+
+    // ── Đổi ca: xem + phê duyệt (M02-F04) ────────────────
+    Permission.EXCHANGE_VIEW,
+    Permission.EXCHANGE_CREATE,
+    Permission.EXCHANGE_APPROVE,
+    Permission.EXCHANGE_CANCEL_SELF,
+
+    // ── Báo cáo: xem + xuất (M06-F04, M07-F09) ───────────
+    Permission.REPORT_VIEW,
+    Permission.REPORT_EXPORT,
+
+    // ── Ngày lễ: xem (admin mới được sửa) ─────────────────
+    Permission.HOLIDAY_VIEW,
+
+    // ── Thông báo: xem (admin mới gửi broadcast) ──────────
+    Permission.NOTIFICATION_VIEW,
+    Permission.NOTIFICATION_MANAGE_SELF,
+
+    // ── Audit + cấu hình: xem (admin mới sửa/xoá) ────────
+    Permission.AUDIT_VIEW,
+    Permission.APP_CONFIG_VIEW,
+  ],
+  STAFF: [
+    // ── Nhân viên: xem lịch cá nhân + tự đăng ký ──────────
+    Permission.DASHBOARD_VIEW,
+    Permission.STAFF_VIEW_SELF,
+    Permission.SCHEDULE_VIEW,
+    Permission.HOLIDAY_VIEW,
     Permission.LEAVE_VIEW,
     Permission.LEAVE_CREATE,
     Permission.LEAVE_CANCEL_SELF,

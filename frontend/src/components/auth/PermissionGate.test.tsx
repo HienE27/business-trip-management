@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { PermissionGate } from "./PermissionGate";
 import { Permission } from "@/lib/permissions";
 import { usePermissions } from "@/hooks/usePermissions";
+import { Permission } from "@/lib/permissions";
 
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: vi.fn(),
@@ -13,11 +14,11 @@ const mockUsePermissions = vi.mocked(usePermissions);
 function setup(permissions: Set<string>) {
   mockUsePermissions.mockReturnValue({
     permissions,
-    can: (p: string | string[]) => {
+    can: (p: Permission | Permission[]) => {
       const list = Array.isArray(p) ? p : [p];
       return list.every((x) => permissions.has(x));
     },
-    canAny: (p: string[]) => p.some((x) => permissions.has(x)),
+    canAny: (p: Permission[]) => p.some((x) => permissions.has(x)),
     hasPermission: (p: string) => permissions.has(p),
   });
 }

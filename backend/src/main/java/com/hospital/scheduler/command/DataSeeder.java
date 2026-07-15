@@ -84,9 +84,22 @@ public class DataSeeder implements CommandLineRunner {
      * <p>Idempotent: skips insertion when the permission already exists by
      * name — so re-running the seeder after a schema upgrade will add any
      * newly-introduced permissions without touching existing rows.
+     *
+     * <p>Cũng dọn các permission mồ côi (tồn tại trong DB nhưng không còn
+     * trong catalog) cùng với các liên kết role_permission trỏ tới chúng.
      */
     private void seedPermissions() {
         Map<String, String> catalog = Permissions.catalog();
+
+        // Cleanup orphan permissions
+        for (AppPermission old : appPermissionRepository.findAll()) {
+            if (!catalog.containsKey(old.getName())) {
+                rolePermissionRepository.deleteByPermissionId(old.getId());
+                appPermissionRepository.delete(old);
+                log.info("Removed orphan permission: {}", old.getName());
+            }
+        }
+
         int created = 0;
         for (Map.Entry<String, String> entry : catalog.entrySet()) {
             String name = entry.getKey();
@@ -110,8 +123,8 @@ public class DataSeeder implements CommandLineRunner {
      *
      * <ul>
      *   <li>ADMIN: tất cả permission trong {@link Permissions#allPermissions()}</li>
-     *   <li>MANAGER: trừ {@link Permissions#adminOnlyPermissions()}</li>
-     *   <li>STAFF: {@link Permissions#staffPermissions()}</li>
+     *   <li>MANAGER: {@link Permissions#managerPermissions()} (xem + phê duyệt + xếp lịch M02–M05, M07)</li>
+     *   <li>STAFF: {@link Permissions#staffPermissions()} (xem lịch cá nhân + tự đăng ký nghỉ/đổi ca)</li>
      * </ul>
      *
      * <p>Idempotent: xóa các liên kết role_permission cũ trước khi seed lại
@@ -263,13 +276,26 @@ public class DataSeeder implements CommandLineRunner {
                 0,      // l04MaxPerWeek
                 "SKIP",  // holidayMode
                 List.of(),  // removedShiftTypes (none by default)
-                false,  // l04CrossSpecialty (disabled by default)
-                0.3f,   // l04CrossSpecialtyRatio
-                List.of(),  // l04AllowedSpecialties (empty = all specialties)
-                // L01/L02/L03 allowed specialties (null/empty → fallback to CORE = Ngoại, Nội)
+                // L01 cross-specialty (null/empty → fallback to CORE = Ngoại, Nội)
+                false,  // l01CrossSpecialty
+                0.5f,   // l01CrossSpecialtyRatio
                 null,   // l01AllowedSpecialties
+                "FAIR_DISTRIBUTE",
+                // L02 cross-specialty
+                false,  // l02CrossSpecialty
+                0.5f,   // l02CrossSpecialtyRatio
                 null,   // l02AllowedSpecialties
-                null    // l03AllowedSpecialties
+                "FAIR_DISTRIBUTE",
+                // L03 cross-specialty
+                false,  // l03CrossSpecialty
+                0.5f,   // l03CrossSpecialtyRatio
+                null,   // l03AllowedSpecialties
+                "FAIR_DISTRIBUTE",
+                // L04 cross-specialty (enabled by default — needed for L04 shortage coverage)
+                true,   // l04CrossSpecialty
+                0.5f,   // l04CrossSpecialtyRatio (cross only when shortage >= 50%)
+                List.of(),  // l04AllowedSpecialties (empty = all specialties)
+                "FAIR_DISTRIBUTE"
         );
         algorithmConfigService.saveAutoGenConfig(defaults);
 

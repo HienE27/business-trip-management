@@ -21,6 +21,7 @@ import com.hospital.scheduler.service.AlgorithmProgressTracker;
 import com.hospital.scheduler.service.AutoSchedulingService;
 import com.hospital.scheduler.service.ScheduleTemplateService;
 import com.hospital.scheduler.service.AlgorithmMetricsService;
+import com.hospital.scheduler.service.scheduling.SchedulingFeasibilityAnalyzer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -53,6 +54,7 @@ public class AutoSchedulingController {
     private final AlgorithmProgressTracker progressTracker;
     private final AlgorithmConfigAuditRepository auditRepository;
     private final ObjectMapper objectMapper;
+    private final SchedulingFeasibilityAnalyzer feasibilityAnalyzer;
 
     private String serializeToJson(Object obj) {
         try {
@@ -219,6 +221,15 @@ public class AutoSchedulingController {
             @RequestParam(required = false) String shiftTypeId) {
         Map<String, Object> chartData = autoSchedulingService.getWorkloadChartData(periodId, shiftTypeId);
         return ResponseEntity.ok(ApiResponse.success(chartData));
+    }
+
+    @GetMapping("/feasibility/{periodId}")
+    @Operation(summary = "M07-F11: Kiểm tra tính khả thi của kỳ lịch trước khi chạy auto-scheduling")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
+    public ResponseEntity<ApiResponse<SchedulingFeasibilityAnalyzer.FeasibilityReport>> checkFeasibility(
+            @PathVariable Integer periodId) {
+        SchedulingFeasibilityAnalyzer.FeasibilityReport report = feasibilityAnalyzer.analyzeFeasibility(periodId);
+        return ResponseEntity.ok(ApiResponse.success(report));
     }
 
     @GetMapping("/metrics/period/{periodId}")

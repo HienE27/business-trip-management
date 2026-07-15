@@ -152,6 +152,9 @@ function ToastItem({
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  // Cap the number of visible toasts so an API loop (e.g. 403 spam) can't
+  // pile up hundreds of cards. Older toasts get evicted first.
+  const MAX_TOASTS = 5;
 
   const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -163,7 +166,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const addToast = useCallback((message: string, type: ToastType, duration?: number) => {
     const id = createId();
-    setToasts((prev) => [...prev, { id, message, type }]);
+    setToasts((prev) => {
+      const next = [...prev, { id, message, type }];
+      // Evict oldest toasts past the cap (5). Prevents the page from filling
+      // with hundreds of identical errors when an API keeps failing in a loop.
+      if (next.length > MAX_TOASTS) {
+        return next.slice(next.length - MAX_TOASTS);
+      }
+      return next;
+    });
     return id;
   }, []);
 

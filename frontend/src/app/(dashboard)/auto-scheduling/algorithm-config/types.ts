@@ -10,6 +10,8 @@ export type ConfigEntry = {
 
 export type EditingConfig = Partial<Pick<ConfigEntry, "paramValue" | "description">>;
 
+export type BalanceStrategy = "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
+
 export type RuntimeConfig = {
   weekendWeight: number;
   overnightRecoveryHours: number;
@@ -26,10 +28,26 @@ export type RuntimeConfig = {
   l01MaxPerWeek?: number; l02MaxPerWeek?: number; l03MaxPerWeek?: number; l04MaxPerWeek?: number;
   holidayMode?: string;
   removedShiftTypes?: string[];
+  // Cross-specialty cho L01
+  l01CrossSpecialty?: boolean;
+  l01CrossSpecialtyRatio?: number;
+  l01AllowedSpecialties?: string[];
+  l01BalanceStrategy?: BalanceStrategy;
+  // Cross-specialty cho L02
+  l02CrossSpecialty?: boolean;
+  l02CrossSpecialtyRatio?: number;
+  l02AllowedSpecialties?: string[];
+  l02BalanceStrategy?: BalanceStrategy;
+  // Cross-specialty cho L03
+  l03CrossSpecialty?: boolean;
+  l03CrossSpecialtyRatio?: number;
+  l03AllowedSpecialties?: string[];
+  l03BalanceStrategy?: BalanceStrategy;
+  // Cross-specialty cho L04
   l04CrossSpecialty?: boolean;
   l04CrossSpecialtyRatio?: number;
   l04AllowedSpecialties?: string[];
-  l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
+  l04BalanceStrategy?: BalanceStrategy;
 };
 
 export type AlgorithmMetrics = {
@@ -53,10 +71,26 @@ export type AutoGenConfigPayload = {
   l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
   l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
   removedShiftTypes: string[];
+  // Cross-specialty cho L01
+  l01CrossSpecialty?: boolean;
+  l01CrossSpecialtyRatio?: number;
+  l01AllowedSpecialties?: string[];
+  l01BalanceStrategy?: BalanceStrategy;
+  // Cross-specialty cho L02
+  l02CrossSpecialty?: boolean;
+  l02CrossSpecialtyRatio?: number;
+  l02AllowedSpecialties?: string[];
+  l02BalanceStrategy?: BalanceStrategy;
+  // Cross-specialty cho L03
+  l03CrossSpecialty?: boolean;
+  l03CrossSpecialtyRatio?: number;
+  l03AllowedSpecialties?: string[];
+  l03BalanceStrategy?: BalanceStrategy;
+  // Cross-specialty cho L04
   l04CrossSpecialty?: boolean;
   l04CrossSpecialtyRatio?: number;
   l04AllowedSpecialties?: string[];
-  l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
+  l04BalanceStrategy?: BalanceStrategy;
 };
 
 export type TabKey = "config" | "history" | "audit" | "reference";
@@ -69,6 +103,22 @@ export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([
   "l02MinPerDay", "l02MaxPerDay", "l02MinPerWeek", "l02MaxPerWeek",
   "l03MinPerDay", "l03MaxPerDay", "l03MinPerWeek", "l03MaxPerWeek",
   "l04MinPerDay", "l04MaxPerDay", "l04MinPerWeek", "l04MaxPerWeek",
+  // L01 cross-specialty
+  "l01CrossSpecialty",
+  "l01CrossSpecialtyRatio",
+  "l01AllowedSpecialties",
+  "l01BalanceStrategy",
+  // L02 cross-specialty
+  "l02CrossSpecialty",
+  "l02CrossSpecialtyRatio",
+  "l02AllowedSpecialties",
+  "l02BalanceStrategy",
+  // L03 cross-specialty
+  "l03CrossSpecialty",
+  "l03CrossSpecialtyRatio",
+  "l03AllowedSpecialties",
+  "l03BalanceStrategy",
+  // L04 cross-specialty
   "l04CrossSpecialty",
   "l04CrossSpecialtyRatio",
   "l04AllowedSpecialties",

@@ -8,6 +8,8 @@ import com.hospital.scheduler.entity.AppRole;
 import com.hospital.scheduler.repository.RefreshTokenRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.JwtService;
+import com.hospital.scheduler.security.PermissionService;
+import com.hospital.scheduler.security.PermissionVersionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,9 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.withSettings;
 import static org.mockito.Mockito.when;
 
 /**
@@ -42,6 +47,7 @@ class RefreshTokenServiceTest {
 
     @Mock private RefreshTokenRepository refreshTokenRepository;
     @Mock private StaffRepository staffRepository;
+    @Mock private PermissionService permissionService;
 
     /** Use a real JwtService but stub the long-lived expiration to a small value. */
     private JwtService jwtService;
@@ -52,7 +58,17 @@ class RefreshTokenServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        jwtService = new JwtService();
+        // BUGFIX (was COOKIE-FALLBACK): JwtService now requires a
+        // PermissionVersionService in its constructor so it can stamp the permVer
+        // claim on every token. The version doesn't matter for the tests below
+        // (they only assert structural things), so any non-null stub works.
+        // PermissionVersionService.currentVersion() now returns a long (epoch ms),
+        // not a LocalDateTime — see the AtomicLong refactor in
+        // PermissionVersionService for context.
+        PermissionVersionService versionService = mock(PermissionVersionService.class, withSettings().lenient());
+        lenient().when(versionService.currentVersion()).thenReturn(java.time.LocalDateTime.now()
+                .atZone(java.time.ZoneOffset.UTC).toInstant().toEpochMilli());
+        jwtService = new JwtService(versionService);
         // Inject @Value fields via reflection.
         setField(jwtService, "secretKey", java.util.Base64.getEncoder().encodeToString(
                 "test-secret-32-bytes-of-data-AAAA".getBytes(java.nio.charset.StandardCharsets.UTF_8)));

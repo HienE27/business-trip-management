@@ -55,8 +55,9 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
   const [showTips, setShowTips] = useState(true);
   
   const [autoState, autoActions] = useAutoSchedule();
-  const { runPreview, applyPreview } = autoActions;
-  const { previewResult: autoPreview, running } = autoState;
+  const { runPreview, applyPreview, setMaxShiftsPerMonthOverride } = autoActions;
+  const { previewResult: autoPreview, running, maxShiftsPerMonthOverride } = autoState;
+  const [capDraft, setCapDraft] = useState<string>("");
   const progress = useAlgorithmProgress(selectedPeriodId, running);
 
   // Random tip
@@ -375,6 +376,63 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
               <p className="text-[11px] text-on-surface-variant mb-6">
                 Những người này sẽ không được xếp ca trong kỳ này
               </p>
+
+              {/* Override Cap Slider */}
+              <div className="mb-6 p-4 rounded-xl bg-surface-container-low border border-outline-variant">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[12px] font-medium text-on-surface">
+                    Giới hạn ca/tháng (override)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {maxShiftsPerMonthOverride !== null && (
+                      <button
+                        onClick={() => { setMaxShiftsPerMonthOverride(null); setCapDraft(""); }}
+                        className="text-[11px] text-primary hover:underline"
+                      >
+                        Dùng DB
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={capDraft}
+                    onChange={(e) => setCapDraft(e.target.value)}
+                    onBlur={() => {
+                      const v = capDraft.trim() === "" ? null : parseInt(capDraft, 10);
+                      if (v !== null && isNaN(v)) {
+                        setCapDraft(maxShiftsPerMonthOverride === null ? "" : String(maxShiftsPerMonthOverride));
+                        return;
+                      }
+                      setMaxShiftsPerMonthOverride(v);
+                    }}
+                    placeholder="VD: 8, 25, 40 hoặc 0"
+                    className="flex-1 h-10 px-3 border border-outline-variant bg-surface-container-lowest rounded-lg text-body-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                  <div className="flex gap-1">
+                    {[8, 25, 35, 40].map((preset) => (
+                      <button
+                        key={preset}
+                        onClick={() => { setMaxShiftsPerMonthOverride(preset); setCapDraft(String(preset)); }}
+                        className="px-3 py-2 text-[11px] font-medium rounded-md bg-surface-container-low hover:bg-surface-container border border-outline-variant text-on-surface"
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-2 text-[11px] text-on-surface-variant">
+                  {maxShiftsPerMonthOverride === null && "Hiện đang dùng cap trong DB cho mỗi nhân viên."}
+                  {maxShiftsPerMonthOverride === 0 && "⚠ Cap = 0 = vô hiệu hóa giới hạn (mọi nhân viên nhận ca tự do)."}
+                  {maxShiftsPerMonthOverride !== null && maxShiftsPerMonthOverride > 0 && (
+                    <span>Mọi nhân viên sẽ bị giới hạn {maxShiftsPerMonthOverride} ca/tháng cho lần chạy này (DB không bị thay đổi).</span>
+                  )}
+                </div>
+              </div>
 
               <div className="flex items-center justify-between mb-3 px-1">
                 <span className="text-[11px] text-on-surface-variant">

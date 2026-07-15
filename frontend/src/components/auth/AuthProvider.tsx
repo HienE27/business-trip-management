@@ -232,7 +232,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!response.ok) {
-      throw new Error("Đăng nhập thất bại. Kiểm tra backend hoặc tài khoản.");
+      let msg = "Đăng nhập thất bại. Kiểm tra backend hoặc tài khoản.";
+      try {
+        const errPayload = (await response.json()) as { message?: string };
+        if (errPayload?.message) msg = errPayload.message;
+      } catch {
+        // response body wasn't JSON — keep default message
+      }
+      throw new Error(msg);
     }
 
     // Parse body ONCE to extract token and user data

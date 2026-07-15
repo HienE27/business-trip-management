@@ -21,7 +21,7 @@ export function DashboardShell({
   children,
 }: DashboardShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { canAny } = usePermissions();
+  const { can, canAny } = usePermissions();
 
   // BUGFIX: usePermissions does not expose isLoading — fall back to the full
   // nav when permissions haven't been computed yet (same defensive default
@@ -32,7 +32,11 @@ export function DashboardShell({
         if (!section.requiredPermissions || section.requiredPermissions.length === 0) {
           return true;
         }
-        return canAny(section.requiredPermissions);
+        // Yêu cầu TẤT CẢ permissions trong `requiredPermissions` (AND). Một trang
+        // lịch theo kỳ có thể cần cả SCHEDULE_VIEW (xem được) + PERIOD_VIEW
+        // (cần danh sách kỳ lịch). Nếu dùng `canAny` (OR) thì STAFF có
+        // SCHEDULE_VIEW sẽ thấy menu và click vào sẽ 403.
+        return section.requiredPermissions.every((perm) => can(perm));
       }).map((section) => section.href),
     );
     return getNavigationItems(activeSection).filter((item) => visibleHrefs.has(item.href));

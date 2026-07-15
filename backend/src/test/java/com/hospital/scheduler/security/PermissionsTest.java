@@ -16,13 +16,42 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <ul>
  *   <li>Every public constant resolves to a non-empty name in the catalog.</li>
  *   <li>ADMIN == all permissions.</li>
- *   <li>MANAGER == ALL \ adminOnly.</li>
- *   <li>STAFF ⊆ MANAGER.</li>
- *   <li>adminOnly ⊆ ALL.</li>
- *   <li>STAFF never includes any adminOnly permission.</li>
+ *   <li>MANAGER ⊆ ALL and STAFF ⊆ MANAGER.</li>
+ *   <li>MANAGER không có quyền chỉ-dành-cho-ADMIN (định nghĩa trong {@link #managerReservedForAdmin()}).</li>
+ *   <li>STAFF không có quyền chỉ-dành-cho-MANAGER/ADMIN.</li>
+ *   <li>STAFF không có STAFF_VIEW_ALL (chỉ xem chính mình).</li>
+ *   <li>MANAGER có STAFF_VIEW_ALL.</li>
  * </ul>
  */
 class PermissionsTest {
+
+    /** Permissions chỉ ADMIN mới được phép có (theo tài liệu M01-F05). */
+    private static java.util.Set<String> managerReservedForAdmin() {
+        return java.util.Set.of(
+                Permissions.ROLE_EDIT,
+                Permissions.AUDIT_DELETE,
+                Permissions.DATA_INTEGRITY_RUN,
+                Permissions.AUTO_SCHEDULE_CONFIG_EDIT,
+                Permissions.APP_CONFIG_EDIT,
+                Permissions.STAFF_CREATE,
+                Permissions.STAFF_UPDATE,
+                Permissions.STAFF_DELETE,
+                Permissions.STAFF_IMPORT,
+                Permissions.PERIOD_CREATE,
+                Permissions.PERIOD_UPDATE,
+                Permissions.PERIOD_DELETE,
+                Permissions.PERIOD_PUBLISH,
+                Permissions.PERIOD_ARCHIVE,
+                Permissions.HOLIDAY_CREATE,
+                Permissions.HOLIDAY_UPDATE,
+                Permissions.HOLIDAY_DELETE,
+                Permissions.NOTIFICATION_CREATE,
+                Permissions.NOTIFICATION_BROADCAST,
+                Permissions.SPECIALTY_MANAGE,
+                Permissions.SHIFT_TYPE_MANAGE,
+                Permissions.SCHEDULE_TEMPLATE_MANAGE
+        );
+    }
 
     @Test
     void everyConstantIsInCatalog() {
@@ -50,14 +79,22 @@ class PermissionsTest {
     }
 
     @Test
-    void managerIsAllMinusAdminOnly() {
+    void managerIsSubsetOfAllAndNotAdminOnly() {
         Set<String> all = Permissions.allPermissions();
-        Set<String> adminOnly = Permissions.adminOnlyPermissions();
         Set<String> manager = Permissions.managerPermissions();
-        assertTrue(all.containsAll(adminOnly), "adminOnly must be a subset of all permissions");
-        assertTrue(manager.containsAll(all.stream().filter(p -> !adminOnly.contains(p)).toList()));
-        assertFalse(manager.contains(Permissions.ROLE_EDIT));
-        assertFalse(manager.contains(Permissions.AUDIT_DELETE));
+        assertTrue(all.containsAll(manager),
+                "MANAGER permissions must be a subset of ALL permissions");
+
+        for (String p : managerReservedForAdmin()) {
+            assertFalse(manager.contains(p),
+                    "MANAGER must not have ADMIN-only permission " + p);
+        }
+    }
+
+    @Test
+    void managerHasStaffViewAll() {
+        assertTrue(Permissions.managerPermissions().contains(Permissions.STAFF_VIEW_ALL),
+                "MANAGER must have STAFF_VIEW_ALL to see the staff directory");
     }
 
     @Test
@@ -67,11 +104,22 @@ class PermissionsTest {
     }
 
     @Test
-    void staffNeverIncludesAdminOnlyPermissions() {
-        Set<String> adminOnly = Permissions.adminOnlyPermissions();
+    void staffCannotSeeFullStaffDirectory() {
+        // Tài liệu M01-F05: "Nhân viên (xem lịch cá nhân)".
+        // STAFF không được xem danh sách nhân sự toàn phòng.
+        assertFalse(Permissions.staffPermissions().contains(Permissions.STAFF_VIEW_ALL),
+                "STAFF must not have STAFF_VIEW_ALL");
+        assertFalse(Permissions.staffPermissions().contains(Permissions.STAFF_VIEW),
+                "STAFF must not have the legacy STAFF_VIEW alias (only SELF is allowed)");
+        assertTrue(Permissions.staffPermissions().contains(Permissions.STAFF_VIEW_SELF),
+                "STAFF must have STAFF_VIEW_SELF to view their own profile");
+    }
+
+    @Test
+    void staffNeverIncludesManagerReservedPermissions() {
         for (String p : Permissions.staffPermissions()) {
-            assertFalse(adminOnly.contains(p),
-                    "STAFF must not include admin-only permission " + p);
+            assertFalse(managerReservedForAdmin().contains(p),
+                    "STAFF must not include ADMIN/MANAGER-reserved permission " + p);
         }
     }
 

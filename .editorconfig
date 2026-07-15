@@ -1,0 +1,49 @@
+# EditorConfig — Hospital Scheduler
+# https://editorconfig.org
+# Prevents BOM/encoding drift that breaks backend compilation (UTF-8 BOM in
+# ScheduleService.java broke Maven compile in July 2026). Keep this file in
+# sync across root, frontend/, backend/ if you add overrides.
+
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+# charset = utf-8 explicitly forbids BOM (use utf-8-bom to opt-in). Saves
+# from "package <blank>…" compile errors in Java and "Unexpected token" in
+# TS/JS when editors default to UTF-8 BOM.
+
+[*.{json,yml,yaml,md}]
+trim_trailing_whitespace = false
+
+# ── Frontend (Next.js / TS / TSX) ──────────────────────────────────────────
+[*.{ts,tsx,js,jsx,mjs,cjs}]
+indent_size = 2
+quote_type = double
+max_line_length = 100
+
+[*.{css,scss}]
+indent_size = 2
+
+# ── Backend (Java / Spring) ───────────────────────────────────────────────
+[*.java]
+indent_size = 4
+max_line_length = 120
+
+[*.{xml,pom}]
+indent_size = 2
+
+# ── SQL ───────────────────────────────────────────────────────────────────
+[*.sql]
+indent_size = 2
+
+# ── Makefile / shell ──────────────────────────────────────────────────────
+[Makefile]
+indent_style = tab
+
+[*.{sh,bash}]
+indent_size = 2

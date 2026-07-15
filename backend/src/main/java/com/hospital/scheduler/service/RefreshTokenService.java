@@ -5,6 +5,7 @@ import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.RefreshTokenRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.JwtService;
+import com.hospital.scheduler.security.PermissionService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,12 @@ public class RefreshTokenService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final StaffRepository staffRepository;
     private final JwtService jwtService;
+    // BUGFIX (was COOKIE-FALLBACK): refresh-issued access tokens previously
+    // had no permissions claim because rotate() called the 2-arg
+    // generateToken(username, roles) overload. We need the staff's real
+    // permission set so subsequent @PreAuthorize guards accept the
+    // rotated token. Inject PermissionService and use the 3-arg overload.
+    private final PermissionService permissionService;
 
     /**
      * Generate + persist a fresh refresh token for the given staff.
@@ -113,12 +120,18 @@ public class RefreshTokenService {
         existing.setReplacedBy(newEntity);
         refreshTokenRepository.save(existing);
 
-        // Issue new access token
+        // Issue new access token. BUGFIX (was COOKIE-FALLBACK): the 2-arg
+        // generateToken(username, roles) overload hard-codes permissions
+        // to List.of() in the JWT, which means @PreAuthorize guards on the
+        // very next request 403 the user back to /login even though
+        // /auth/refresh "succeeded". Stamp the staff's real permissions
+        // by calling the 3-arg overload.
         List<String> roles = staff.getStaffRoles().stream()
                 .map(sr -> sr.getRole() != null ? sr.getRole().getName().name() : null)
                 .filter(r -> r != null)
                 .toList();
-        String newAccessToken = jwtService.generateToken(staff.getUsername(), roles);
+        List<String> permissions = permissionService.permissionsOf(staff);
+        String newAccessToken = jwtService.generateToken(staff.getUsername(), roles, permissions);
 
         return java.util.Optional.of(new RotatedTokens(newAccessToken,
                 jwtService.getExpirationTime(),

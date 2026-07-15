@@ -84,6 +84,33 @@ public class ScheduleController {
         return ResponseEntity.ok(ApiResponse.success(compensationDayService.getCompensationDaysByPeriod(periodId)));
     }
 
+    @PostMapping("/compensation-days")
+    @Operation(summary = "Tạo thủ công ngày nghỉ bù cho một ca trực L01")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_CREATE + "')")
+    public ResponseEntity<ApiResponse<?>> createCompensationDay(
+            @RequestBody CompensationDayService.CreateCompensationDayRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(compensationDayService.createManual(req)));
+    }
+
+    @PutMapping("/compensation-days/{id}")
+    @Operation(summary = "Cập nhật ngày nghỉ bù (đổi ngày bù hoặc ghi chú)")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_UPDATE + "')")
+    public ResponseEntity<ApiResponse<?>> updateCompensationDay(
+            @PathVariable Integer id,
+            @RequestBody CompensationDayService.UpdateCompensationDayRequest req) {
+        return ResponseEntity.ok(ApiResponse.success(
+                compensationDayService.updateCompensationDate(id, req)));
+    }
+
+    @DeleteMapping("/compensation-days/{id}")
+    @Operation(summary = "Xóa ngày nghỉ bù thủ công")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_DELETE + "')")
+    public ResponseEntity<ApiResponse<?>> deleteCompensationDay(@PathVariable Integer id) {
+        compensationDayService.delete(id);
+        return ResponseEntity.ok(ApiResponse.success("Đã xóa ngày nghỉ bù."));
+    }
+
     @GetMapping("/period/{periodId}/date/{date}")
     @Operation(summary = "Lấy danh sách lịch theo kỳ và ngày")
     @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
@@ -98,6 +125,28 @@ public class ScheduleController {
     @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "') or @authContextService.isCurrentStaff(#staffId)")
     public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getSchedulesByStaff(@PathVariable Integer staffId) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByStaff(staffId)));
+    }
+
+    /**
+     * Endpoint cá nhân hoá cho STAFF: chỉ cần {@code SCHEDULE_VIEW}, không cần
+     * {@code PERIOD_VIEW} hay {@code STAFF_VIEW_ALL}. Trả về toàn bộ lịch của
+     * currentUser theo kỳ + ca — dùng cho các trang Lịch trực 24/24, Lịch
+     * thông tầm, Lịch PK dịch vụ, Lịch PK chuyên gia, Tóm tắt lịch khi user
+     * chỉ có quyền xem cá nhân.
+     *
+     * <p>Theo M01-F05, nhân viên chỉ được "xem lịch cá nhân". Endpoint này
+     * tự ràng buộc staffId = currentUser nên không thể xem lịch người khác.
+     */
+    @GetMapping("/me")
+    @Operation(summary = "Lấy lịch cá nhân của currentUser (M01-F05 — dành cho STAFF)")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getMySchedule() {
+        Integer me = authContextService.getCurrentStaffId();
+        if (me == null) {
+            throw new com.hospital.scheduler.exception.ResourceNotFoundException(
+                "Không xác định được nhân sự hiện tại cho tài khoản này.");
+        }
+        return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByStaff(me)));
     }
 
     @GetMapping("/expert-clinic")

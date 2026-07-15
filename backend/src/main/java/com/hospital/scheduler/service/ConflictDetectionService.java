@@ -43,7 +43,6 @@ public class ConflictDetectionService {
     private final EmailService emailService;
     @Lazy
     private final ConflictBroadcastService conflictBroadcastService;
-    private final SystemLogService systemLogService;
 
     public List<String> detectAllConflicts(Integer staffId, LocalDate workDate, String shiftTypeId, Integer excludeScheduleId) {
         return detectAllConflicts(staffId, workDate, shiftTypeId, excludeScheduleId, false, false);
@@ -173,6 +172,26 @@ public class ConflictDetectionService {
         }
     }
 
+    // ── ConflictCheckRequest overloads (typed entry points) ─────────────────────
+
+    public List<String> detectAllConflicts(ConflictCheckRequest req) {
+        return detectAllConflicts(
+                req.staffId(), req.workDate(), req.shiftTypeId(),
+                req.excludeScheduleId(), req.periodId(),
+                req.skipCompensationDay(), req.skipShiftTypeConflict());
+    }
+
+    public boolean hasAnyConflict(ConflictCheckRequest req) {
+        return !detectAllConflicts(req).isEmpty();
+    }
+
+    public void validateAndThrow(ConflictCheckRequest req) {
+        List<String> conflicts = detectAllConflicts(req);
+        if (!conflicts.isEmpty()) {
+            throw new ConflictException("Phát hiện xung đột: " + String.join("; ", conflicts));
+        }
+    }
+
     /**
      * Validate conflicts and send email alert to the staff member if conflicts are found.
      * Used in CRUD operations to provide immediate notification on schedule create/update.
@@ -188,15 +207,8 @@ public class ConflictDetectionService {
                 } catch (Exception e) {
                     org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
                             .warn("Failed to send conflict email for staff {}: {}", staffId, e.getMessage());
-                    try {
-                        systemLogService.logSystem("EMAIL_FAILURE",
-                                "Failed to send conflict alert email for staff ID=" + staffId +
-                                ", staff=" + staff.getFullName() + ", reason: " + e.getMessage(),
-                                authContextService.getCurrentStaff().getId(), null, null);
-                    } catch (Exception logEx) {
-                        org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
-                                .error("Failed to log email failure for staff {}: {}", staffId, logEx.getMessage());
-                    }
+                    log.warn("Failed to send conflict email for staff {} ({}): {}",
+                            staff.getId(), staff.getFullName(), e.getMessage());
                 }
             });
             throw new ConflictException("Phát hiện xung đột: " + description);
@@ -383,17 +395,8 @@ public class ConflictDetectionService {
                 } catch (Exception e) {
                     org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
                             .warn("Failed to send conflict email for schedule {}: {}", schedule.getId(), e.getMessage());
-                    // Log failure to system log for manual follow-up
-                    try {
-                        systemLogService.logSystem("EMAIL_FAILURE",
-                                "Failed to send conflict alert email for schedule ID=" + schedule.getId() +
-                                ", staff=" + staff.getFullName() + " (" + staff.getId() + ")" +
-                                ", reason: " + e.getMessage(),
-                                authContextService.getCurrentStaff().getId(), null, null);
-                    } catch (Exception logEx) {
-                        org.slf4j.LoggerFactory.getLogger(ConflictDetectionService.class)
-                                .error("Failed to log email failure for schedule {}: {}", schedule.getId(), logEx.getMessage());
-                    }
+                    log.warn("EMAIL_FAILURE: failed to send conflict email for schedule {} (staff {} - {}): {}",
+                            schedule.getId(), staff.getId(), staff.getFullName(), e.getMessage());
                 }
 
                 // Only broadcast when the conflict is genuinely new — re-running the

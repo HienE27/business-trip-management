@@ -23,7 +23,7 @@ import {
 import { ShiftTypeGroupCard } from "./ShiftTypeGroupCard";
 import { HolidayModeField } from "./HolidayModeField";
 import { RemovedShiftTypesField } from "./RemovedShiftTypesField";
-import { L04SpecialtyConfig } from "./L04CrossSpecialtyCard";
+import { ShiftTypeCrossSpecialtyCard } from "./ShiftTypeCrossSpecialtyCard";
 import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
@@ -196,8 +196,25 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l03MaxPerWeek: form.l03MaxPerWeek ?? 0,
         l04MaxPerWeek: form.l04MaxPerWeek ?? 0,
         removedShiftTypes: form.removedShiftTypes ?? [],
+        // L01 cross-specialty
+        l01CrossSpecialty: form.l01CrossSpecialty ?? false,
+        l01CrossSpecialtyRatio: form.l01CrossSpecialtyRatio ?? 0.3,
+        l01AllowedSpecialties: form.l01AllowedSpecialties ?? [],
+        l01BalanceStrategy: form.l01BalanceStrategy ?? "FAIR_DISTRIBUTE",
+        // L02 cross-specialty
+        l02CrossSpecialty: form.l02CrossSpecialty ?? false,
+        l02CrossSpecialtyRatio: form.l02CrossSpecialtyRatio ?? 0.3,
+        l02AllowedSpecialties: form.l02AllowedSpecialties ?? [],
+        l02BalanceStrategy: form.l02BalanceStrategy ?? "FAIR_DISTRIBUTE",
+        // L03 cross-specialty
+        l03CrossSpecialty: form.l03CrossSpecialty ?? false,
+        l03CrossSpecialtyRatio: form.l03CrossSpecialtyRatio ?? 0.3,
+        l03AllowedSpecialties: form.l03AllowedSpecialties ?? [],
+        l03BalanceStrategy: form.l03BalanceStrategy ?? "FAIR_DISTRIBUTE",
+        // L04 cross-specialty
         l04CrossSpecialty: form.l04CrossSpecialty ?? false,
         l04CrossSpecialtyRatio: form.l04CrossSpecialtyRatio ?? 0.3,
+        l04AllowedSpecialties: form.l04AllowedSpecialties ?? [],
         l04BalanceStrategy: form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
       };
       // Sequential: save runtime-config then auto-gen-config to avoid
@@ -412,7 +429,49 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           />
         ))}
         <AutoCompensationCard form={form} editing={editing} onChange={setField} />
-        <L04SpecialtyConfig
+        {/* Cross-specialty cards for all shift types */}
+        <ShiftTypeCrossSpecialtyCard
+          shiftType="L01"
+          shiftTypeName="Trực 24/24"
+          enabled={form.l01CrossSpecialty ?? false}
+          ratio={form.l01CrossSpecialtyRatio ?? 0.3}
+          allowedSpecialties={form.l01AllowedSpecialties ?? []}
+          allSpecialties={allSpecialties}
+          editing={editing}
+          balanceStrategy={form.l01BalanceStrategy ?? "FAIR_DISTRIBUTE"}
+          onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
+            setForm(prev => prev ? { ...prev, l01CrossSpecialty: enabled, l01CrossSpecialtyRatio: ratio, l01AllowedSpecialties: allowedSpecialties, l01BalanceStrategy: balanceStrategy } : prev);
+          }}
+        />
+        <ShiftTypeCrossSpecialtyCard
+          shiftType="L02"
+          shiftTypeName="Thông tầm"
+          enabled={form.l02CrossSpecialty ?? false}
+          ratio={form.l02CrossSpecialtyRatio ?? 0.3}
+          allowedSpecialties={form.l02AllowedSpecialties ?? []}
+          allSpecialties={allSpecialties}
+          editing={editing}
+          balanceStrategy={form.l02BalanceStrategy ?? "FAIR_DISTRIBUTE"}
+          onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
+            setForm(prev => prev ? { ...prev, l02CrossSpecialty: enabled, l02CrossSpecialtyRatio: ratio, l02AllowedSpecialties: allowedSpecialties, l02BalanceStrategy: balanceStrategy } : prev);
+          }}
+        />
+        <ShiftTypeCrossSpecialtyCard
+          shiftType="L03"
+          shiftTypeName="PK Dịch vụ"
+          enabled={form.l03CrossSpecialty ?? false}
+          ratio={form.l03CrossSpecialtyRatio ?? 0.3}
+          allowedSpecialties={form.l03AllowedSpecialties ?? []}
+          allSpecialties={allSpecialties}
+          editing={editing}
+          balanceStrategy={form.l03BalanceStrategy ?? "FAIR_DISTRIBUTE"}
+          onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
+            setForm(prev => prev ? { ...prev, l03CrossSpecialty: enabled, l03CrossSpecialtyRatio: ratio, l03AllowedSpecialties: allowedSpecialties, l03BalanceStrategy: balanceStrategy } : prev);
+          }}
+        />
+        <ShiftTypeCrossSpecialtyCard
+          shiftType="L04"
+          shiftTypeName="PK Chuyên gia"
           enabled={form.l04CrossSpecialty ?? false}
           ratio={form.l04CrossSpecialtyRatio ?? 0.3}
           allowedSpecialties={form.l04AllowedSpecialties ?? []}

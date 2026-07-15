@@ -34,6 +34,45 @@ public class JwtService {
     @Value("${jwt.refresh-expiration:604800000}")
     private long refreshExpiration;
 
+    /**
+     * Claims key for the {@code permVer} (permission-matrix version) integer.
+     * Stamped on every token so {@link PermissionInvalidationFilter} can
+     * reject stale JWTs after an ADMIN toggles a permission.
+     */
+    public static final String CLAIM_PERMISSION_VERSION = "permVer";
+
+    private final PermissionVersionService permissionVersionService;
+
+    public JwtService(PermissionVersionService permissionVersionService) {
+        this.permissionVersionService = permissionVersionService;
+    }
+
+    /**
+     * Read the {@code permVer} claim from a token as a {@link Long}. Returns
+     * {@code null} when the claim is absent (e.g. legacy tokens issued
+     * before RBAC v2 stamped it) so callers can fall back to "force re-auth"
+     * rather than silently treating the token as fresh.
+     */
+    public Long extractPermissionVersion(String token) {
+        Claims claims = extractAllClaims(token);
+        Object raw = claims.get(CLAIM_PERMISSION_VERSION);
+        if (raw instanceof Number n) return n.longValue();
+        if (raw instanceof String s) {
+            try { return Long.parseLong(s); } catch (NumberFormatException ignored) { return null; }
+        }
+        return null;
+    }
+
+    /**
+     * Stamp {@code permVer} with the current {@code permissions.version}
+     * value from {@link PermissionVersionService}. Mutates the supplied map
+     * in place so callers can keep their builder fluent.
+     */
+    private void stampPermissionVersion(Map<String, Object> extraClaims) {
+        long version = permissionVersionService.currentVersion();
+        extraClaims.put(CLAIM_PERMISSION_VERSION, version);
+    }
+
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
@@ -48,6 +87,7 @@ public class JwtService {
         extraClaims.put("roles", roles);
         extraClaims.put("permissions", List.of());
         extraClaims.put("tokenType", "access");
+        stampPermissionVersion(extraClaims);
         return generateToken(extraClaims, username);
     }
 
@@ -61,6 +101,7 @@ public class JwtService {
         extraClaims.put("roles", roles != null ? roles : List.of());
         extraClaims.put("permissions", permissions != null ? permissions : List.of());
         extraClaims.put("tokenType", "access");
+        stampPermissionVersion(extraClaims);
         return generateToken(extraClaims, username);
     }
 
@@ -74,6 +115,7 @@ public class JwtService {
         extraClaims.put("roles", roles != null ? roles : List.of());
         extraClaims.put("permissions", permissions != null ? permissions : List.of());
         extraClaims.put("tokenType", "refresh");
+        stampPermissionVersion(extraClaims);
         return buildToken(extraClaims, username, refreshExpiration);
     }
 

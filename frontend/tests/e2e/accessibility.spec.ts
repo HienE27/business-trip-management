@@ -12,7 +12,7 @@ import { scanPage, PAGES } from './accessibility';
 test.describe('Accessibility (axe-core)', { tag: '@a11y' }, () => {
   for (const { path, label, auth } of PAGES) {
     test(`${label} (${path}) — axe-core scan`, async ({ page, loginAs }) => {
-      await scanPage(page, path, label, auth ? loginAs : null);
+      await scanPage(page, path, label, auth ? () => loginAs(page) : null);
     });
   }
 
