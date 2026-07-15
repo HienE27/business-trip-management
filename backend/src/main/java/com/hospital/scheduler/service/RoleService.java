@@ -5,6 +5,7 @@ import com.hospital.scheduler.dto.response.RolePermissionMatrixResponse.*;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.security.AuthContextService;
+import com.hospital.scheduler.security.PermissionVersionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,10 @@ public class RoleService {
     // so every grant/revoke gets logged with the actor that performed the change.
     private final AuditHistoryService auditHistoryService;
     private final AuthContextService authContextService;
+    // Bumps the JWT permission-version stamp so every outstanding access token
+    // (which carries the old permVer claim) becomes invalid for protected routes.
+    // The next login or refresh re-issues a JWT stamped with the new version.
+    private final PermissionVersionService permissionVersionService;
 
     /**
      * Returns the full role-permission matrix for the admin UI.
@@ -39,16 +44,19 @@ public class RoleService {
         List<AppRole> roles = roleRepository.findAll();
         List<AppPermission> permissions = permissionRepository.findAll();
 
-        List<RolePermission> granted = rolePermissionRepository.findAll();
-
-        Set<String> grantedKeys = granted.stream()
-                .map(rp -> rp.getRoleId() + "|" + rp.getPermissionId())
-                .collect(Collectors.toSet());
+        // Build granted set with roleId|permissionName keys
+        Set<String> grantedKeys = new HashSet<>();
+        for (RolePermission rp : rolePermissionRepository.findAll()) {
+            AppPermission perm = permissionRepository.findById(rp.getPermissionId()).orElse(null);
+            if (perm != null) {
+                grantedKeys.add(rp.getRoleId() + "|" + perm.getName());
+            }
+        }
 
         List<RolePermissionEntry> matrix = new ArrayList<>();
         for (AppRole role : roles) {
             for (AppPermission permission : permissions) {
-                String key = role.getId() + "|" + permission.getId();
+                String key = role.getId() + "|" + permission.getName();
                 matrix.add(RolePermissionEntry.builder()
                         .roleId(role.getId())
                         .roleName(role.getName().name())
@@ -117,6 +125,13 @@ public class RoleService {
 
         auditHistoryService.logAction("role_permission",
                 roleId, action, oldValue, newValue, actorId);
+
+        // Invalidate every outstanding JWT — the granted/revoked cell is now
+        // materialised in the permission matrix but the token still carries the
+        // old permVer stamp. Bumping forces a re-auth on the next request so the
+        // security context catches up immediately (instead of waiting up to 30
+        // minutes for the access-token expiry).
+        permissionVersionService.bump();
     }
 
     private Integer resolveActorSafely() {

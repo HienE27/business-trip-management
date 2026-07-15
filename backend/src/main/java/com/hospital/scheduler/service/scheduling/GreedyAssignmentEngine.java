@@ -37,21 +37,51 @@ public final class GreedyAssignmentEngine {
     }
 
     /**
-     * Sort requirements L01 → L02 → L03 → L04 so the algorithm reserves
-     * compensation days before assigning non-overnight shifts.
+     * Sort requirements for a single day using round-robin across shift types
+     * to avoid the L01-first starvation bug. Previously this method always
+     * ranked L01 before L02/L03/L04, which caused L01 to claim the entire
+     * eligible pool for any given day and then made L02/L03/L04 impossible
+     * to fill (BUSINESS-SHIFT-CONFLICT) because of the L01↔L02 and L03↔L04
+     * same-day rules.
+     *
+     * <p>Round-robin order per date: L01, L03, L04, L02, then loop back to
+     * L01 if any requirement still has unprocessed slots. L01 stays first
+     * so the compensation-day reservation can still lead, but it no longer
+     * monopolises the pool before the other types get a chance.
      */
     public static List<ShiftRequirement> sortRequirementsByPriority(List<ShiftRequirement> reqs) {
         if (reqs == null || reqs.isEmpty()) return reqs;
-        return reqs.stream()
-                .sorted(Comparator.comparingInt((ShiftRequirement r) -> {
-                    String id = r.getShiftType().getId();
-                    if (ConflictDetectionService.SHIFT_TYPE_L01.equals(id)) return 0;
-                    if (ConflictDetectionService.SHIFT_TYPE_L02.equals(id)) return 1;
-                    if (ConflictDetectionService.SHIFT_TYPE_L03.equals(id)) return 2;
-                    if (ConflictDetectionService.SHIFT_TYPE_L04.equals(id)) return 3;
-                    return 4;
-                }))
-                .collect(Collectors.toList());
+        String[] rotation = {
+                ConflictDetectionService.SHIFT_TYPE_L01,
+                ConflictDetectionService.SHIFT_TYPE_L03,
+                ConflictDetectionService.SHIFT_TYPE_L04,
+                ConflictDetectionService.SHIFT_TYPE_L02
+        };
+        Map<String, List<ShiftRequirement>> byType = new LinkedHashMap<>();
+        for (String typeId : rotation) byType.put(typeId, new ArrayList<>());
+        for (ShiftRequirement r : reqs) {
+            String id = r.getShiftType() == null ? "" : r.getShiftType().getId();
+            byType.computeIfAbsent(id, k -> new ArrayList<>()).add(r);
+        }
+        List<ShiftRequirement> ordered = new ArrayList<>(reqs.size());
+        boolean added;
+        do {
+            added = false;
+            for (String typeId : rotation) {
+                List<ShiftRequirement> bucket = byType.get(typeId);
+                if (bucket != null && !bucket.isEmpty()) {
+                    ordered.add(bucket.remove(0));
+                    added = true;
+                }
+            }
+        } while (added);
+        // Any unknown shift types (safety net) appended at the end so we never lose data.
+        for (Map.Entry<String, List<ShiftRequirement>> entry : byType.entrySet()) {
+            if (entry.getValue() != null && !entry.getValue().isEmpty()) {
+                ordered.addAll(entry.getValue());
+            }
+        }
+        return ordered;
     }
 
     /**

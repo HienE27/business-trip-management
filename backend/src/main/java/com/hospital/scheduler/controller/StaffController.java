@@ -3,8 +3,10 @@ package com.hospital.scheduler.controller;
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.StaffRequest;
 import com.hospital.scheduler.dto.request.StaffSearchRequest;
+import com.hospital.scheduler.dto.response.ResetPasswordResponse;
 import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.security.Permissions;
+import com.hospital.scheduler.service.AuthService;
 import com.hospital.scheduler.service.StaffService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,6 +32,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class StaffController {
 
     private final StaffService staffService;
+    private final AuthService authService;
 
     @GetMapping
     @Operation(summary = "Lấy danh sách nhân sự")
@@ -54,7 +57,7 @@ public class StaffController {
 
     @GetMapping("/search")
     @Operation(summary = "Tìm kiếm và lọc nhân sự")
-    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW_ALL + "')")
     public ResponseEntity<ApiResponse<List<StaffResponse>>> searchStaffs(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer specialtyId,
@@ -73,7 +76,7 @@ public class StaffController {
 
     @GetMapping("/search-page")
     @Operation(summary = "Tìm kiếm nhân sự có phân trang")
-    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW_ALL + "')")
     public ResponseEntity<ApiResponse<Page<StaffResponse>>> searchStaffsPage(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer specialtyId,
@@ -93,7 +96,7 @@ public class StaffController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết nhân sự")
-    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "') or @authContextService.isCurrentStaff(#id)")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW_ALL + "') or @authContextService.isCurrentStaff(#id)")
     public ResponseEntity<ApiResponse<StaffResponse>> getStaffById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(staffService.getStaffById(id)));
     }
@@ -135,6 +138,25 @@ public class StaffController {
     public ResponseEntity<ApiResponse<Void>> deleteStaff(@PathVariable Integer id) {
         staffService.deleteStaff(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa nhân sự thành công"));
+    }
+
+    /**
+     * Admin-only password reset. Generates a temporary password, hashes + persists
+     * it, returns the plaintext ONCE so the admin can deliver it to the staff
+     * member. The endpoint refuses to reset the caller's own password — admins
+     * must use /auth/change-password for their own credentials so the current
+     * password is verified.
+     */
+    @PostMapping("/{id}/reset-password")
+    @Operation(
+            summary = "Đặt lại mật khẩu nhân sự (admin)",
+            description = "Tạo mật khẩu tạm thời và trả về mật khẩu dạng plaintext cho admin chuyển cho nhân sự. " +
+                    "Audit-logged với actor là admin đang thao tác."
+    )
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_UPDATE + "')")
+    public ResponseEntity<ApiResponse<ResetPasswordResponse>> resetPassword(@PathVariable Integer id) {
+        ResetPasswordResponse response = authService.resetPassword(id);
+        return ResponseEntity.ok(ApiResponse.success(response, "Đặt lại mật khẩu thành công"));
     }
 
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

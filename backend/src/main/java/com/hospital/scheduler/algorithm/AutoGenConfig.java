@@ -10,10 +10,28 @@ public record AutoGenConfig(
     int l01MaxPerWeek, int l02MaxPerWeek, int l03MaxPerWeek, int l04MaxPerWeek,
     String holidayMode,  // "SKIP" or "PARTIAL"
     List<String> removedShiftTypes,  // e.g. ["L03", "L04"] to skip when generating
-    boolean l04CrossSpecialty,  // Allow cross-specialty assignment for L04
-    float l04CrossSpecialtyRatio,  // Max ratio (0.0-1.0) of cross-specialty staff per requirement
-    List<String> l04AllowedSpecialties,  // Danh sách specialties được gán L04 (null/empty = tất cả)
-    List<String> l01AllowedSpecialties,  // Danh sách specialties được gán L01 (null/empty = CORE = Ngoại,Nội)
-    List<String> l02AllowedSpecialties,  // Danh sách specialties được gán L02 (null/empty = CORE = Ngoại,Nội)
-    List<String> l03AllowedSpecialties   // Danh sách specialties được gán L03 (null/empty = CORE = Ngoại,Nội)
+    
+    // L01 cross-specialty
+    boolean l01CrossSpecialty,
+    float l01CrossSpecialtyRatio,
+    List<String> l01AllowedSpecialties,
+    String l01BalanceStrategy,  // "STRICT_MATCH_ONLY", "FAIR_DISTRIBUTE", "WEIGHTED_FAIR"
+    
+    // L02 cross-specialty
+    boolean l02CrossSpecialty,
+    float l02CrossSpecialtyRatio,
+    List<String> l02AllowedSpecialties,
+    String l02BalanceStrategy,
+    
+    // L03 cross-specialty
+    boolean l03CrossSpecialty,
+    float l03CrossSpecialtyRatio,
+    List<String> l03AllowedSpecialties,
+    String l03BalanceStrategy,
+    
+    // L04 cross-specialty
+    boolean l04CrossSpecialty,
+    float l04CrossSpecialtyRatio,
+    List<String> l04AllowedSpecialties,
+    String l04BalanceStrategy
 ) {}

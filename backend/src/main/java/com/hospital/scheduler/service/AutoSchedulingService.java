@@ -23,6 +23,7 @@ import com.hospital.scheduler.service.scheduling.CspAssignmentEngine;
 import com.hospital.scheduler.service.scheduling.GreedyAssignmentEngine;
 import com.hospital.scheduler.service.scheduling.PostAssignmentOptimizer;
 import com.hospital.scheduler.service.scheduling.ReplacementSuggestionService;
+import com.hospital.scheduler.service.scheduling.SchedulePersistenceService;
 import com.hospital.scheduler.service.scheduling.SchedulingConflictDataLoader;
 import com.hospital.scheduler.service.scheduling.SchedulingLockService;
 import com.hospital.scheduler.service.scheduling.SchedulingMetricsService;
@@ -92,23 +93,44 @@ public class AutoSchedulingService {
     private final SchedulingConflictDataLoader conflictDataLoader;
     private final StaffEligibilityFilter staffEligibilityFilter;
     private final PostAssignmentOptimizer postAssignmentOptimizer;
+    private final SchedulePersistenceService schedulePersistenceService;
 
-    // ─── Legacy in-memory fields (kept for existing helpers until full migration) ──
+    // ─── In-memory scheduling state — backed by SchedulingStateAccessor. Concurrent
+    // requests each see their own copy because SchedulingStateAccessor holds the
+    // ThreadLocals internally. Callers in this facade go through the accessor helpers
+    // below so we have one source of truth for the cache invalidation lifecycle
+    // (reset() at run start, cleanup() in finally).
 
-    // Thread-local so concurrent requests don't share state
-    private final ThreadLocal<Map<String, Set<String>>> inMemoryAssignments = ThreadLocal.withInitial(HashMap::new);
-    private final ThreadLocal<Set<String>> inMemoryCompensationShiftDates = ThreadLocal.withInitial(HashSet::new);
-    private final ThreadLocal<Set<String>> allCompensationShiftDates = ThreadLocal.withInitial(HashSet::new);
-    // Swap request priority: Set of staff IDs who should be PREFERRED (those whose swap partner was assigned)
-    private final ThreadLocal<Set<Integer>> swapPriorityStaffIds = ThreadLocal.withInitial(HashSet::new);
+    private Map<String, Set<String>> inMemoryAssignments() {
+        return stateAccessor.getInMemoryAssignments();
+    }
 
-    // BUGFIX (was M07 #3): Per-period execution locks. Concurrent autoSchedule /
-    // previewSchedule calls on the same period are serialized so their
-    // delete-and-regenerate operations cannot interleave. Locks are created on
-    // first use and reused; they live as long as the JVM (acceptable for a
-    // scheduling system whose period cardinality is small).
-    private final java.util.concurrent.ConcurrentHashMap<Integer, java.util.concurrent.locks.Lock> periodLocks =
-            new java.util.concurrent.ConcurrentHashMap<>();
+    private Set<String> inMemoryCompensationShiftDates() {
+        return stateAccessor.getInMemoryCompensationShiftDates();
+    }
+
+    private Set<String> allCompensationShiftDates() {
+        return stateAccessor.getAllCompensationShiftDates();
+    }
+
+    private Set<Integer> swapPriorityStaffIds() {
+        return stateAccessor.getSwapPriorityStaffIds();
+    }
+
+    // ─── Reset/Cleanup delegated to SchedulingStateAccessor — used by top-level
+    // entry points so the worker thread is left clean between requests. ──────────
+
+    private void resetSchedulingState() {
+        stateAccessor.reset();
+    }
+
+    private void clearSchedulingState() {
+        stateAccessor.cleanup();
+    }
+
+    // Per-period execution locks live in {@link SchedulingLockService} (single source
+    // of truth). Concurrent autoSchedule / previewSchedule calls on the same period
+    // are serialized there so their delete-and-regenerate operations cannot interleave.
 
     // Pre-loaded period-level conflict data (rebuilt each scheduling run)
     private record BatchConflictData(
@@ -139,17 +161,14 @@ public class AutoSchedulingService {
                         "Kỳ lịch " + request.getPeriodId() + " đang được xếp tự động bởi một yêu cầu khác. "
                                 + "Vui lòng đợi yêu cầu trước hoàn tất rồi thử lại.");
             }
-            inMemoryAssignments.set(new HashMap<>());
-            inMemoryCompensationShiftDates.set(new HashSet<>());
-            allCompensationShiftDates.set(new HashSet<>());
-            swapPriorityStaffIds.set(new HashSet<>());
+            inMemoryAssignments().clear();
+            inMemoryCompensationShiftDates().clear();
+            allCompensationShiftDates().clear();
+            swapPriorityStaffIds().clear();
             try {
                 return runScheduling(request, false);
             } finally {
-                inMemoryAssignments.remove();
-                inMemoryCompensationShiftDates.remove();
-                allCompensationShiftDates.remove();
-                swapPriorityStaffIds.remove();
+                clearSchedulingState();
             }
         } finally {
             if (acquired) {
@@ -174,17 +193,14 @@ public class AutoSchedulingService {
                         "Kỳ lịch " + request.getPeriodId() + " đang được xếp tự động bởi một yêu cầu khác. "
                                 + "Vui lòng đợi yêu cầu trước hoàn tất rồi thử lại.");
             }
-            inMemoryAssignments.set(new HashMap<>());
-            inMemoryCompensationShiftDates.set(new HashSet<>());
-            allCompensationShiftDates.set(new HashSet<>());
-            swapPriorityStaffIds.set(new HashSet<>());
+            inMemoryAssignments().clear();
+            inMemoryCompensationShiftDates().clear();
+            allCompensationShiftDates().clear();
+            swapPriorityStaffIds().clear();
             try {
                 return runScheduling(request, true);
             } finally {
-                inMemoryAssignments.remove();
-                inMemoryCompensationShiftDates.remove();
-                allCompensationShiftDates.remove();
-                swapPriorityStaffIds.remove();
+                clearSchedulingState();
             }
         } finally {
             if (acquired) {
@@ -200,17 +216,14 @@ public class AutoSchedulingService {
         // for a different request, the leftover snapshot could be observed by
         // any code that touches these ThreadLocals. Initialize fresh values
         // here and remove them on exit so the worker thread is left clean.
-        inMemoryAssignments.set(new HashMap<>());
-        inMemoryCompensationShiftDates.set(new HashSet<>());
-        allCompensationShiftDates.set(new HashSet<>());
-        swapPriorityStaffIds.set(new HashSet<>());
+        inMemoryAssignments().clear();
+        inMemoryCompensationShiftDates().clear();
+        allCompensationShiftDates().clear();
+        swapPriorityStaffIds().clear();
         try {
             return applyPreviewScheduleInternal(request);
         } finally {
-            inMemoryAssignments.remove();
-            inMemoryCompensationShiftDates.remove();
-            allCompensationShiftDates.remove();
-            swapPriorityStaffIds.remove();
+            clearSchedulingState();
         }
     }
 
@@ -249,7 +262,7 @@ public class AutoSchedulingService {
         for (CompensationDay cd : compensationDayRepository.findByPeriodId(period.getId())) {
             String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
             existingCompDays.add(compKey);
-            allCompensationShiftDates.get().add(compKey);
+            allCompensationShiftDates().add(compKey);
         }
         log.info("Loaded {} existing compensation days for period {} into memory cache",
                 existingCompDays.size(), period.getId());
@@ -434,7 +447,7 @@ public class AutoSchedulingService {
                 : BigDecimal.ZERO;
 
         // Build unassigned days report (B7: danh sách ngày chưa phân công đầy đủ)
-        List<Map<String, Object>> unassignedDays = buildUnassignedDays(periodRequirements, savedSchedules);
+        List<Map<String, Object>> unassignedDays = unassignedDaysReportBuilder.buildUnassignedDays(periodRequirements, savedSchedules);
 
         int distinctStaffAssigned = (int) savedSchedules.stream()
                 .map(s -> s.getStaff().getId())
@@ -490,10 +503,9 @@ public class AutoSchedulingService {
 
     private AutoScheduleResponse runScheduling(AutoScheduleRequestDTO request, boolean save) {
         long startTime = System.currentTimeMillis();
-        
-        // Track GA fairness score separately (0-100 scale)
-        BigDecimal lastFairnessScore = null;
-        
+
+        // lastFairnessScore is set by the algorithm dispatch when running CSP/GA variants.
+        // GA fairness score is on a 0-100 scale and used by downstream metrics.
         List<ShiftRequirement> requirements;
         
         SchedulePeriod period = periodRepository.findById(request.getPeriodId())
@@ -536,7 +548,7 @@ public class AutoSchedulingService {
         }
 
         // CRITICAL: Clear in-memory cache after deleting old data to prevent stale entries
-        allCompensationShiftDates.get().clear();
+        allCompensationShiftDates().clear();
         log.info("Cleared in-memory compensation day cache for period {}", period.getId());
 
         // Load runtime config from DB (or use defaults if not set)
@@ -556,7 +568,7 @@ public class AutoSchedulingService {
 
         // If a swap request exists for a schedule, prioritize the swap partner (target)
         // When target's schedule is assigned, the requester should be considered for their preferred shift
-        Set<Integer> swapPrioritySet = swapPriorityStaffIds.get();
+        Set<Integer> swapPrioritySet = swapPriorityStaffIds();
         swapPrioritySet.clear();
         for (ScheduleExchange swap : pendingSwaps) {
             // The target (người đổi cùng) should get priority over their preferred schedule
@@ -607,7 +619,7 @@ public class AutoSchedulingService {
         // that is already someone's compensation day (confirmed day off — cannot assign L01)
         List<CompensationDay> existingCompDays = compensationDayRepository.findByPeriodId(period.getId());
         for (CompensationDay cd : existingCompDays) {
-            allCompensationShiftDates.get().add(cd.getStaff().getId() + "_" + cd.getCompensationDate().toString());
+            allCompensationShiftDates().add(cd.getStaff().getId() + "_" + cd.getCompensationDate().toString());
         }
 
         // CRITICAL: Pre-load existing schedules from the same period into memory
@@ -616,12 +628,12 @@ public class AutoSchedulingService {
         List<Schedule> existingSchedules = scheduleRepository.findByPeriodId(period.getId());
         for (Schedule existing : existingSchedules) {
             String key = existing.getStaff().getId() + "_" + existing.getWorkDate();
-            inMemoryAssignments.get().computeIfAbsent(key, k -> new HashSet<>()).add(existing.getShiftType().getId());
+            inMemoryAssignments().computeIfAbsent(key, k -> new HashSet<>()).add(existing.getShiftType().getId());
             // Also track compensation dates from existing L01 shifts
             if (ConflictDetectionService.SHIFT_TYPE_L01.equals(existing.getShiftType().getId())) {
                 LocalDate compDate = compensationDateCalculator.calculate(existing.getWorkDate());
                 if (compDate != null) {
-                    allCompensationShiftDates.get().add(existing.getStaff().getId() + "_" + compDate.toString());
+                    allCompensationShiftDates().add(existing.getStaff().getId() + "_" + compDate.toString());
                 }
             }
         }
@@ -641,92 +653,14 @@ public class AutoSchedulingService {
             throw new BadRequestException("Không có nhân sự nào đang hoạt động");
         }
 
-        String algorithmType = request.getAlgorithmType() != null
-                ? request.getAlgorithmType().toUpperCase()
-                : "CSP_MRV_FC";
+        // Dispatch to the right algorithm; Fair Greedy variant → runFairGreedy,
+        // CSP variant → runCsp (with fallback to Greedy on empty/partial), default → runGreedy.
+        // Returns the initial createdSchedules + the GA fairness score if any.
+        AlgorithmDispatchResult initialDispatch = dispatchAlgorithm(period, requirements, activeStaff, save, runtimeConfig, request);
+        List<Schedule> createdSchedules = initialDispatch.schedules();
+        BigDecimal lastFairnessScore = initialDispatch.fairnessScore();
+        String algorithmType = initialDispatch.algorithmType();
 
-        // Whitelist supported algorithm types — reject unknown values with HTTP 400
-        // instead of silently substituting Greedy. Without this guard, callers can
-        // request "BACKTRACKING" or "GENETIC" and the run would still be persisted as
-        // that algorithm in metrics — masking the fact that no such algorithm ran.
-        java.util.Set<String> supportedAlgorithms = java.util.Set.of(
-                "GREEDY",
-                "ROUND_ROBIN",
-                "FAIR_ROUND_ROBIN",
-                "FAIR",
-                "FAIR_GREEDY",
-                "CSP_MRV_FC",
-                "CSP"
-        );
-        if (!supportedAlgorithms.contains(algorithmType)) {
-            throw new BadRequestException("algorithmType '" + request.getAlgorithmType()
-                    + "' không được hỗ trợ. Các giá trị hợp lệ: " + supportedAlgorithms);
-        }
-
-        List<Schedule> createdSchedules;
-        if ("ROUND_ROBIN".equals(algorithmType)
-                || "FAIR_ROUND_ROBIN".equals(algorithmType)
-                || "FAIR".equals(algorithmType)
-                || "FAIR_GREEDY".equals(algorithmType)) {
-            createdSchedules = runFairGreedy(period, requirements, activeStaff, save, runtimeConfig,
-                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-        } else if ("CSP_MRV_FC".equals(algorithmType) || "CSP".equals(algorithmType)) {
-            // Run CSP-MRV-FC (Constraint Satisfaction with MRV + Forward Checking).
-            // The CSP scheduler is the recommended default per spec: it propagates
-            // arc-consistency (AC-3) before search and uses learned nogoods, so it
-            // can produce a feasible solution for over-constrained periods where
-            // Greedy / Round-Robin fail.
-            log.info("Running CSP-MRV-FC for period {}", period.getId());
-            SchedulingResultWithFairness cspResult = runCsp(period, requirements, activeStaff, save,
-                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-            createdSchedules = cspResult.schedules();
-            lastFairnessScore = cspResult.fairnessScore();
-            log.info("CSP-MRV-FC completed with {} schedules (partial={})", createdSchedules.size(), cspResult.cspPartial());
-            if (createdSchedules.isEmpty()) {
-                // Fall back to Greedy so the UI never shows "0% coverage" when a
-                // feasible plan exists via a different algorithm. CSP-MRV-FC can
-                // fail on over-constrained periods (e.g. period 5 with very few
-                // Mắt/Răng staff) even though FAIR_GREEDY finds 300+ schedules,
-                // and the production UX must keep showing the user a usable plan.
-                // Preview also benefits: a slower but populated result is more
-                // useful than an empty coverage chart. Also triggered when CSP
-                // returned a *partial* plan under timeout (the partial record
-                // was discarded so Greedy can re-cover from scratch).
-                log.warn("CSP-MRV-FC returned 0 schedules / partial for period {} — falling back to Greedy. Check CspSearchEngine logs for INCONSISTENT result.", period.getId());
-                createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
-                        request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-                log.info("Greedy fallback result: {} schedules", createdSchedules.size());
-            } else if (cspResult.cspPartial()) {
-                // CSP produced a partial plan under timeout. BUGFIX (was M07 #2):
-                // the previous version ran Greedy with save=true here, persisting
-                // Greedy's full plan to the DB. Then filterSchedulesExcluding()
-                // trimmed the in-memory list to keep only the slots CSP hadn't
-                // already covered — but the DB already had the full Greedy plan
-                // including duplicate rows. DB and response diverged on every
-                // CSP-partial path (response showed merged, DB had CSP + full Greedy).
-                //
-                // New flow: run Greedy with save=false to obtain the plan in-memory,
-                // compute the top-up set (slots CSP didn't cover), persist only those
-                // top-up slots via a dedicated REQUIRES_NEW pass, and merge the
-                // persisted top-up back into createdSchedules. DB and response now
-                // agree on exactly CSP rows + top-up rows.
-                log.info("CSP produced partial plan ({} schedules) — running Greedy save=false for top-up planning",
-                        createdSchedules.size());
-                List<Schedule> greedyPlan = runGreedy(period, requirements, activeStaff, /*save=*/false, runtimeConfig,
-                        request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-                List<Schedule> greedyTopUp = filterSchedulesExcluding(greedyPlan, createdSchedules);
-                log.info("Greedy top-up identified {} new slots (of {} planned) — persisting now",
-                        greedyTopUp.size(), greedyPlan.size());
-                List<Schedule> persistedTopUp = persistGreedyTopUpOnly(period, greedyTopUp, save, activeStaff);
-                createdSchedules = mergeSchedules(createdSchedules, persistedTopUp);
-                log.info("CSP+top-up merged total = {} (DB and response now match)", createdSchedules.size());
-            }
-        } else {
-            // Explicit Greedy branch (was previously the implicit default for unknown values —
-            // now unreachable thanks to the whitelist check above).
-            createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
-                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-        }
         int greedyStaffCount = (int) createdSchedules.stream().map(s -> s.getStaff().getId()).distinct().count();
         BigDecimal greedyBalanceScore = calculateBalanceScore(createdSchedules, greedyStaffCount > 0 ? greedyStaffCount : 1);
 
@@ -756,7 +690,8 @@ public class AutoSchedulingService {
                 log.info("{} balance score {} < threshold {}, running Fair Greedy (save=true) as fallback",
                         algorithmType, greedyBalanceScore, runtimeConfig.getBalanceScoreMin());
                 List<Schedule> fairGreedySchedules = runFairGreedy(period, requirements, activeStaff, /*save=*/true, runtimeConfig,
-                        request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
+                        request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null,
+                        request.getMaxShiftsPerMonthOverride());
                 int fgStaffCount = (int) fairGreedySchedules.stream().map(s -> s.getStaff().getId()).distinct().count();
                 BigDecimal fgBalanceScore = calculateBalanceScore(fairGreedySchedules, fgStaffCount > 0 ? fgStaffCount : 1);
                 log.info("Fair Greedy fallback: balanceScore={} ({} had {})", fgBalanceScore, algorithmType, greedyBalanceScore);
@@ -778,6 +713,23 @@ public class AutoSchedulingService {
 
         // Use the best result
         createdSchedules = bestSchedules;
+
+        // CRITICAL: existing schedules count toward coverage in preview mode.
+        // The algorithm only generates NEW assignments (filling gaps) — coverage
+        // must reflect total = existing + newly generated, not just the delta.
+        // This prevents misleading 0% coverage when existing schedules already
+        // satisfy most requirements.
+        if (!save) {
+            for (Schedule existing : existingSchedulesForPeriod) {
+                if (!createdSchedules.contains(existing)) {
+                    createdSchedules.add(existing);
+                }
+            }
+            log.info("Preview coverage: {} existing + {} new = {} total",
+                    existingSchedulesForPeriod.size(),
+                    createdSchedules.size() - existingSchedulesForPeriod.size(),
+                    createdSchedules.size());
+        }
 
         // Phase 3: Local Search fairness rebalance.
         // Keep L01 fixed because it creates compensation-day side effects; safely rebalance L02/L03/L04 only.
@@ -825,7 +777,7 @@ public class AutoSchedulingService {
             }
         }
         List<String> warnings = buildWarnings(requirements, createdSchedules);
-        List<Map<String, Object>> unassignedDays = buildUnassignedDays(requirements, createdSchedules);
+        List<Map<String, Object>> unassignedDays = unassignedDaysReportBuilder.buildUnassignedDays(requirements, createdSchedules);
 
         long executionTime = System.currentTimeMillis() - startTime;
 
@@ -939,11 +891,128 @@ public class AutoSchedulingService {
         return responseBuilder.build();
     }
 
+    /**
+     * Result of the initial algorithm dispatch: which algorithm ran, the schedules
+     * it produced (possibly after CSP→Greedy fallback / top-up merge), and the
+     * GA fairness score if the algorithm emitted one.
+     */
+    private record AlgorithmDispatchResult(
+            String algorithmType,
+            List<Schedule> schedules,
+            BigDecimal fairnessScore) {}
+
+    /**
+     * Whitelist-supported algorithm types — reject unknown values with HTTP 400
+     * instead of silently substituting Greedy. Without this guard, callers can
+     * request "BACKTRACKING" or "GENETIC" and the run would still be persisted as
+     * that algorithm in metrics — masking the fact that no such algorithm ran.
+     */
+    private static final Set<String> SUPPORTED_ALGORITHMS = Set.of(
+            "GREEDY",
+            "ROUND_ROBIN",
+            "FAIR_ROUND_ROBIN",
+            "FAIR",
+            "FAIR_GREEDY",
+            "CSP_MRV_FC",
+            "CSP");
+
+    private AlgorithmDispatchResult dispatchAlgorithm(SchedulePeriod period,
+                                                     List<ShiftRequirement> requirements,
+                                                     List<Staff> activeStaff,
+                                                     boolean save,
+                                                     AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
+                                                     AutoScheduleRequestDTO request) {
+        String algorithmType = request.getAlgorithmType() != null
+                ? request.getAlgorithmType().toUpperCase()
+                : "CSP_MRV_FC";
+
+        if (!SUPPORTED_ALGORITHMS.contains(algorithmType)) {
+            throw new BadRequestException("algorithmType '" + request.getAlgorithmType()
+                    + "' không được hỗ trợ. Các giá trị hợp lệ: " + SUPPORTED_ALGORITHMS);
+        }
+
+        Set<Integer> excluded = request.getExcludedStaffIds() != null
+                ? new HashSet<>(request.getExcludedStaffIds())
+                : null;
+
+        Integer maxShiftsPerMonthOverride = request.getMaxShiftsPerMonthOverride();
+        if (log.isInfoEnabled() && maxShiftsPerMonthOverride != null) {
+            log.info("Auto-schedule run with maxShiftsPerMonthOverride={} (original staff caps untouched in DB)",
+                    maxShiftsPerMonthOverride);
+        }
+
+        if ("ROUND_ROBIN".equals(algorithmType)
+                || "FAIR_ROUND_ROBIN".equals(algorithmType)
+                || "FAIR".equals(algorithmType)
+                || "FAIR_GREEDY".equals(algorithmType)) {
+            List<Schedule> schedules = runFairGreedy(period, requirements, activeStaff, save, runtimeConfig, excluded, maxShiftsPerMonthOverride);
+            return new AlgorithmDispatchResult(algorithmType, schedules, null);
+        }
+
+        if ("CSP_MRV_FC".equals(algorithmType) || "CSP".equals(algorithmType)) {
+            // Run CSP-MRV-FC (Constraint Satisfaction with MRV + Forward Checking).
+            // The CSP scheduler is the recommended default per spec: it propagates
+            // arc-consistency (AC-3) before search and uses learned nogoods, so it
+            // can produce a feasible solution for over-constrained periods where
+            // Greedy / Round-Robin fail.
+            log.info("Running CSP-MRV-FC for period {}", period.getId());
+            SchedulingResultWithFairness cspResult = runCsp(period, requirements, activeStaff, save, excluded);
+            List<Schedule> cspSchedules = cspResult.schedules();
+            log.info("CSP-MRV-FC completed with {} schedules (partial={})", cspSchedules.size(), cspResult.cspPartial());
+
+            if (cspSchedules.isEmpty()) {
+                // Fall back to Greedy so the UI never shows "0% coverage" when a
+                // feasible plan exists via a different algorithm. CSP-MRV-FC can
+                // fail on over-constrained periods (e.g. period 5 with very few
+                // Mắt/Răng staff) even though FAIR_GREEDY finds 300+ schedules,
+                // and the production UX must keep showing the user a usable plan.
+                log.warn("CSP-MRV-FC returned 0 schedules / partial for period {} — falling back to Greedy. Check CspSearchEngine logs for INCONSISTENT result.", period.getId());
+                List<Schedule> greedyFallback = runGreedy(period, requirements, activeStaff, save, runtimeConfig, excluded, maxShiftsPerMonthOverride);
+                log.info("Greedy fallback result: {} schedules", greedyFallback.size());
+                return new AlgorithmDispatchResult(algorithmType, greedyFallback, null);
+            }
+
+            if (cspResult.cspPartial()) {
+                // CSP produced a partial plan under timeout. BUGFIX (was M07 #2):
+                // the previous version ran Greedy with save=true here, persisting
+                // Greedy's full plan to the DB. Then filterSchedulesExcluding()
+                // trimmed the in-memory list to keep only the slots CSP hadn't
+                // already covered — but the DB already had the full Greedy plan
+                // including duplicate rows. DB and response diverged on every
+                // CSP-partial path (response showed merged, DB had CSP + full Greedy).
+                //
+                // New flow: run Greedy with save=false to obtain the plan in-memory,
+                // compute the top-up set (slots CSP didn't cover), persist only those
+                // top-up slots via a dedicated REQUIRES_NEW pass, and merge the
+                // persisted top-up back into createdSchedules. DB and response now
+                // agree on exactly CSP rows + top-up rows.
+                log.info("CSP produced partial plan ({} schedules) — running Greedy save=false for top-up planning",
+                        cspSchedules.size());
+                List<Schedule> greedyPlan = runGreedy(period, requirements, activeStaff, /*save=*/false, runtimeConfig, excluded, maxShiftsPerMonthOverride);
+                List<Schedule> greedyTopUp = filterSchedulesExcluding(greedyPlan, cspSchedules);
+                log.info("Greedy top-up identified {} new slots (of {} planned) — persisting now",
+                        greedyTopUp.size(), greedyPlan.size());
+                List<Schedule> persistedTopUp = persistGreedyTopUpOnly(period, greedyTopUp, save, activeStaff);
+                List<Schedule> merged = mergeSchedules(cspSchedules, persistedTopUp);
+                log.info("CSP+top-up merged total = {} (DB and response now match)", merged.size());
+                return new AlgorithmDispatchResult(algorithmType, merged, cspResult.fairnessScore());
+            }
+
+            return new AlgorithmDispatchResult(algorithmType, cspSchedules, cspResult.fairnessScore());
+        }
+
+        // Explicit Greedy branch (was previously the implicit default for unknown values —
+        // now unreachable thanks to the whitelist check above).
+        List<Schedule> schedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig, excluded, maxShiftsPerMonthOverride);
+        return new AlgorithmDispatchResult(algorithmType, schedules, null);
+    }
+
     // ==================== GREEDY ALGORITHM ====================
     private List<Schedule> runGreedy(SchedulePeriod period, List<ShiftRequirement> requirements,
                                      List<Staff> activeStaff, boolean save,
                                      AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
-                                     Set<Integer> excludedStaffIds) {
+                                     Set<Integer> excludedStaffIds,
+                                     Integer maxShiftsPerMonthOverride) {
         List<Schedule> createdSchedules = new ArrayList<>();
         Map<LocalDate, List<ShiftRequirement>> requirementsByDate =
                 GreedyAssignmentEngine.groupRequirementsByDate(requirements);
@@ -1080,7 +1149,7 @@ public class AutoSchedulingService {
                 final double targetAvgPerStaff = avgPerStaff;
                 Comparator<Staff> fairnessComparator = Comparator
                         // Tier 1: SWAP PRIORITY — honour pending swap requests
-                        .comparingDouble((Staff s) -> swapPriorityStaffIds.get().contains(s.getId()) ? 0.0 : 1.0)
+                        .comparingDouble((Staff s) -> swapPriorityStaffIds().contains(s.getId()) ? 0.0 : 1.0)
                         // Tier 2: MINIMUM GUARANTEE per type — staff with 0 of this type get TOP priority.
                         // This ensures EVERY staff gets at least 1 shift of each type before caps apply.
                         // Only deprioritize if staff already has >= softCapPerType AND softCapPerType >= 1.
@@ -1131,7 +1200,7 @@ public class AutoSchedulingService {
                         activeStaff, req, excludedStaffIds, assignedStaffIds, todayConflicts, !save,
                         fairnessComparator, periodData, adjacentL01FromPrev, todayCompDayStaffIds,
                         runtimeConfig.getMaxShiftsPerStaff() > 0 ? runtimeConfig.getMaxShiftsPerStaff() : Integer.MAX_VALUE,
-                        shiftTypeSpecificMax, fairShareKey, greedyRunningCounts, greedyWeeklyCounts, runtimeConfig, activeStaff);
+                        shiftTypeSpecificMax, fairShareKey, greedyRunningCounts, greedyWeeklyCounts, runtimeConfig, activeStaff, maxShiftsPerMonthOverride);
 
                 // DEBUG: Log L04 fairShare info
                 if (log.isDebugEnabled() && ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
@@ -1148,7 +1217,7 @@ public class AutoSchedulingService {
                             activeStaff, req, excludedStaffIds, assignedStaffIds, todayConflicts, !save,
                             fairnessComparator, periodData, adjacentL01FromPrev, todayCompDayStaffIds,
                             Integer.MAX_VALUE,
-                            fairShare * 5, fairShareKey, greedyRunningCounts, greedyWeeklyCounts, runtimeConfig, activeStaff);
+                            fairShare * 5, fairShareKey, greedyRunningCounts, greedyWeeklyCounts, runtimeConfig, activeStaff, maxShiftsPerMonthOverride);
                     if (!eligibleStaff.isEmpty()) {
                         log.debug("Greedy fallback cap: date={} type={} relaxed to fairShare*5={}",
                                 workDate, shiftTypeId, fairShare * 5);
@@ -1250,7 +1319,8 @@ public class AutoSchedulingService {
     private List<Schedule> runFairGreedy(SchedulePeriod period, List<ShiftRequirement> requirements,
                                           List<Staff> activeStaff, boolean save,
                                           AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
-                                          Set<Integer> excludedStaffIds) {
+                                          Set<Integer> excludedStaffIds,
+                                          Integer maxShiftsPerMonthOverride) {
         List<Schedule> createdSchedules = new ArrayList<>();
         // Per-type rotation index — same structure as Greedy's shiftTypeRotationIndex so that
         // Fair Greedy also rotates each staff through each shift type independently.
@@ -1355,7 +1425,7 @@ public class AutoSchedulingService {
                 final Map<Integer, Map<String, Long>> capturedFgCounts = fgRunningCounts;
                 Comparator<Staff> fairnessComparator = Comparator
                         // Tier 1: SWAP PRIORITY
-                        .comparingDouble((Staff s) -> swapPriorityStaffIds.get().contains(s.getId()) ? 0.0 : 1.0)
+                        .comparingDouble((Staff s) -> swapPriorityStaffIds().contains(s.getId()) ? 0.0 : 1.0)
                         // Tier 2: SOFT CAP — per-specialty for L04, per-type for others
                         .thenComparingInt((Staff s) -> {
                             long typeCount = getStaffCountForKey(s.getId(), fgCapturedKey,
@@ -1383,7 +1453,7 @@ public class AutoSchedulingService {
                 List<Staff> eligibleStaff = filterAndSortEligibleStaffBatch(
                         activeStaff, req, excludedStaffIds, assignedStaffIds, todayConflicts, false,
                         fairnessComparator, periodData, adjacentL01FromPrev, todayCompDayStaffIds,
-                        fgGlobalMaxRR, fgShiftTypeMax, fgFairShareKey, fgRunningCounts, fgWeeklyCounts, runtimeConfig, activeStaff);
+                        fgGlobalMaxRR, fgShiftTypeMax, fgFairShareKey, fgRunningCounts, fgWeeklyCounts, runtimeConfig, activeStaff, maxShiftsPerMonthOverride);
 
                 // Fallback: if no staff eligible due to fair-share cap, relax cap.
                 // For L04 with cross-specialty, calculate fallback proportionally to crossConfig.ratio().
@@ -1403,7 +1473,7 @@ public class AutoSchedulingService {
                     eligibleStaff = filterAndSortEligibleStaffBatch(
                             activeStaff, req, excludedStaffIds, assignedStaffIds, todayConflicts, false,
                             fairnessComparator, periodData, adjacentL01FromPrev, todayCompDayStaffIds,
-                            Integer.MAX_VALUE, fallbackCap, fgFairShareKey, fgRunningCounts, fgWeeklyCounts, runtimeConfig, activeStaff);
+                            Integer.MAX_VALUE, fallbackCap, fgFairShareKey, fgRunningCounts, fgWeeklyCounts, runtimeConfig, activeStaff, maxShiftsPerMonthOverride);
                     if (!eligibleStaff.isEmpty()) {
                         log.debug("FG fallback cap: date={} type={} relaxed to {}",
                                 currentDate, shiftTypeId, fallbackCap);
@@ -1502,7 +1572,7 @@ public class AutoSchedulingService {
                 String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
                 existingCompDays.add(compKey);
                 // CRITICAL: Also add to in-memory cache to prevent duplicate compensation day creation
-                allCompensationShiftDates.get().add(compKey);
+                allCompensationShiftDates().add(compKey);
             }
 
             // Approved leave requests in the window — CSP encodes them as
@@ -1696,11 +1766,6 @@ public class AutoSchedulingService {
         return CspAssignmentEngine.cspPartialToSchedules(cspResult, period, requirements, activeStaff, compensationDateCalculator);
     }
 
-    // DELEGATED to CspAssignmentEngine.scheduleSlotKey (M07 refactor)
-    private String scheduleSlotKey(Schedule s) {
-        return CspAssignmentEngine.scheduleSlotKey(s);
-    }
-
     // DELEGATED to CspAssignmentEngine.filterSchedulesExcluding (M07 refactor)
     private List<Schedule> filterSchedulesExcluding(List<Schedule> candidates, List<Schedule> kept) {
         return CspAssignmentEngine.filterSchedulesExcluding(candidates, kept);
@@ -1745,6 +1810,26 @@ public class AutoSchedulingService {
                         s.getWorkDate()).isPresent()) {
                     failed++;
                     log.debug("persistGreedyTopUpOnly: skip duplicate staff={} date={} shift={}",
+                            s.getStaff().getId(), s.getWorkDate(), s.getShiftType().getId());
+                    continue;
+                }
+                // BUGFIX (A1): Greedy top-up plan is generated by runGreedy(save=false)
+                // which does NOT consult ConflictDetectionService — it only enforces
+                // duplicates + fair-share + specialty. Without this guard, the top-up
+                // can persist a staff onto a date that already has an L01 (when adding
+                // L02/L03) or already has L03 (when adding L04), violating the
+                // "L01 vs L02 cùng ngày" and "L03 vs L04 cùng ngày" business rules
+                // (CRITICAL constraint #1 and #2 from PROJECT_CONTEXT.md). 146 such
+                // conflicts surfaced on period 4 production apply; we now reject
+                // business-conflict top-up slots at persist time and let coverage
+                // report reflect the true fillable plan.
+                if (conflictDetectionService.hasAnyConflict(
+                        s.getStaff().getId(),
+                        s.getWorkDate(),
+                        s.getShiftType().getId(),
+                        /*excludeScheduleId*/ null)) {
+                    failed++;
+                    log.warn("persistGreedyTopUpOnly: skip BUSINESS-SHIFT-CONFLICT staff={} date={} shift={} (would violate L01↔L02 / L03↔L04 rule)",
                             s.getStaff().getId(), s.getWorkDate(), s.getShiftType().getId());
                     continue;
                 }
@@ -1793,31 +1878,11 @@ public class AutoSchedulingService {
     // ==================== M07-F06: Báo cáo ngày chưa phân công ====================
     // DELEGATED to UnassignedDaysReportBuilder (M07 refactor)
     public Map<String, Object> getUnassignedDaysReport(Integer periodId) {
-        return buildUnassignedDaysReport(periodId);
-    }
-
-    private Map<String, Object> buildUnassignedDaysReport(Integer periodId) {
         SchedulePeriod period = periodRepository.findById(periodId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + periodId));
-
         List<ShiftRequirement> requirements = requirementRepository.findByPeriodId(periodId);
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
-        List<Map<String, Object>> unassignedDays = unassignedDaysReportBuilder.buildUnassignedDays(requirements, schedules);
-
-        // Sort: 1. missingCount DESC (most understaffed first), 2. workDate ASC (earliest first)
-        unassignedDays.sort(Comparator
-                .comparing((Map<String, Object> m) -> -((Number) m.get("missingCount")).intValue())
-                .thenComparing((Map<String, Object> m) -> (LocalDate) m.get("workDate")));
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("periodId", periodId);
-        result.put("periodName", period.getPeriodName());
-        result.put("startDate", period.getStartDate());
-        result.put("endDate", period.getEndDate());
-        result.put("totalUnassignedDays", unassignedDays.size());
-        result.put("unassignedDays", unassignedDays);
-
-        return result;
+        return unassignedDaysReportBuilder.buildReport(period, requirements, schedules);
     }
 
     // ==================== M07-F08: Đề xuất người thay thế ====================
@@ -1906,7 +1971,14 @@ public class AutoSchedulingService {
                                                     List<Staff> activeStaff,
                                                     Map<Integer, Staff> staffById,
                                                     Map<String, Map<Integer, Long>> counts) {
-        return RebalanceMove.wrap(postAssignmentOptimizer.findBestSafeRebalanceMoveCompat(schedules, activeStaff, staffById, counts, stateAccessor));
+        // BUGFIX: the compat shim returns null when no eligible donor/receiver pair is
+        // available (e.g. all over-staffed days have blocked L01 chains). Previously
+        // RebalanceMove.wrap(...) dereferenced null.schedule() and threw NPE here.
+        // Returning null makes the optimizer exit early via the existing null-check
+        // in optimizeFairnessBySafeReassignment.
+        com.hospital.scheduler.service.scheduling.PostAssignmentOptimizer.RebalanceMove inner =
+                postAssignmentOptimizer.findBestSafeRebalanceMoveCompat(schedules, activeStaff, staffById, counts, stateAccessor);
+        return RebalanceMove.wrap(inner);
     }
 
     private boolean isSafeLocalSearchReassignment(Schedule schedule, Staff candidate, List<Schedule> schedules) {
@@ -1926,7 +1998,7 @@ public class AutoSchedulingService {
 
         LocalDate workDate = schedule.getWorkDate();
         String compKey = candidate.getId() + "_" + workDate;
-        if (allCompensationShiftDates.get().contains(compKey) || inMemoryCompensationShiftDates.get().contains(compKey)) {
+        if (allCompensationShiftDates().contains(compKey) || inMemoryCompensationShiftDates().contains(compKey)) {
             return false;
         }
 
@@ -1996,6 +2068,13 @@ public class AutoSchedulingService {
             return new com.hospital.scheduler.service.scheduling.PostAssignmentOptimizer.RebalanceMove(m.schedule(), m.toStaff());
         }
         static RebalanceMove wrap(com.hospital.scheduler.service.scheduling.PostAssignmentOptimizer.RebalanceMove m) {
+            // BUGFIX: findBestSafeRebalanceMoveCompat returns null when no safe move is available
+            // (no eligible donor/receiver pair on over-staffed days). Passing null into the record
+            // ctor previously triggered NPE on the first .schedule() access inside the rebalance
+            // loop. Returning a sentinel null here lets the caller distinguish "nothing to move"
+            // from "move pending" and exit cleanly. The caller (findBestSafeRebalanceMove)
+            // is updated to return null in that case.
+            if (m == null) return null;
             return new RebalanceMove(m.schedule(), m.toStaff());
         }
     }
@@ -2084,43 +2163,6 @@ public class AutoSchedulingService {
         return missingRatio >= 0.5 ? "warning" : "info";
     }
 
-    private List<Staff> filterBySpecialty(List<Staff> staffList, Integer specialtyId,
-                                          boolean crossSpecialtyEnabled, float crossSpecialtyRatio) {
-        if (specialtyId == null) return staffList;
-
-        List<Staff> strictMatches = staffList.stream()
-                .filter(s -> s.getSpecialty() != null && s.getSpecialty().getId().equals(specialtyId))
-                .collect(Collectors.toList());
-
-        // If we have enough strict matches, return them
-        if (strictMatches.size() >= staffList.size() / 2) { // arbitrary threshold, enough candidates
-            return strictMatches;
-        }
-
-        // Cross-specialty fallback: only when strict matches are insufficient
-        if (crossSpecialtyEnabled && strictMatches.size() < staffList.size() / 3) {
-            int remaining = Math.max(3, (int) (staffList.size() * crossSpecialtyRatio));
-            List<Staff> crossCandidates = staffList.stream()
-                    .filter(s -> s.getSpecialty() == null || !s.getSpecialty().getId().equals(specialtyId))
-                    .sorted(Comparator.comparingLong(s ->
-                            strictMatches.stream()
-                                    .filter(m -> m.getSpecialty() != null && m.getSpecialty().getId().equals(s.getSpecialty().getId()))
-                                    .count()))
-                    .limit(remaining)
-                    .collect(Collectors.toList());
-
-            List<Staff> result = new ArrayList<>(strictMatches);
-            result.addAll(crossCandidates);
-            if (log.isDebugEnabled()) {
-                log.debug("Cross-specialty: {} strict + {} cross = {} total candidates for specialty {}",
-                        strictMatches.size(), crossCandidates.size(), result.size(), specialtyId);
-            }
-            return result;
-        }
-
-        return strictMatches;
-    }
-
     /**
      * Get L04 cross-specialty config from algorithmConfigService.
      * Returns a simple record with enabled, ratio, and allowedSpecialties.
@@ -2129,7 +2171,7 @@ public class AutoSchedulingService {
     public CrossSpecialtyConfig getL04CrossSpecialtyConfig() {
         return algorithmConfigService.getAutoGenConfig()
                 .map(cfg -> new CrossSpecialtyConfig(cfg.l04CrossSpecialty(), cfg.l04CrossSpecialtyRatio(), cfg.l04AllowedSpecialties()))
-                .orElse(new CrossSpecialtyConfig(false, 0.3f, List.of())); // Default: all specialties
+                .orElse(new CrossSpecialtyConfig(true, 0.5f, List.of())); // Default: enabled, ratio 0.5, all specialties
     }
 
     /**
@@ -2164,7 +2206,7 @@ public class AutoSchedulingService {
 
     private boolean hasInMemoryConflict(Integer staffId, LocalDate workDate, String shiftTypeId) {
         String key = staffId + "_" + workDate;
-        Set<String> existingShifts = inMemoryAssignments.get().get(key);
+        Set<String> existingShifts = inMemoryAssignments().get(key);
         if (existingShifts != null) {
             for (String existingId : existingShifts) {
                 if (existingId.equals(shiftTypeId)) {
@@ -2180,7 +2222,7 @@ public class AutoSchedulingService {
         // L01 occupies 7h30 ngày N → 7h30 ngày N+1,
         // so if assigned L01 on day N-1 or day N+1, it's a conflict
         if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
-            Map<String, Set<String>> allAssignments = inMemoryAssignments.get();
+            Map<String, Set<String>> allAssignments = inMemoryAssignments();
             // Check previous day
             LocalDate prevDay = workDate.minusDays(1);
             String prevKey = staffId + "_" + prevDay;
@@ -2202,7 +2244,7 @@ public class AutoSchedulingService {
         // L02/L03/L04 cannot be assigned on a day that is a compensation day for this staff
         if (!ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
             String compKey = staffId + "_" + workDate.toString();
-            if (inMemoryCompensationShiftDates.get().contains(compKey)) {
+            if (inMemoryCompensationShiftDates().contains(compKey)) {
                 return true;
             }
         }
@@ -2211,7 +2253,7 @@ public class AutoSchedulingService {
         // (from L01 in a previous published period)
         if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
             String compKey = staffId + "_" + workDate.toString();
-            if (allCompensationShiftDates.get().contains(compKey)) {
+            if (allCompensationShiftDates().contains(compKey)) {
                 return true;
             }
         }
@@ -2287,15 +2329,15 @@ public class AutoSchedulingService {
 
     private void trackAssignment(Staff staff, LocalDate workDate, String shiftTypeId) {
         String key = staff.getId() + "_" + workDate;
-        inMemoryAssignments.get().computeIfAbsent(key, k -> new HashSet<>()).add(shiftTypeId);
+        inMemoryAssignments().computeIfAbsent(key, k -> new HashSet<>()).add(shiftTypeId);
         // Also track compensation day if this is L01, so later L02/L03/L04 can't be assigned on that day
         // AND so we know not to assign L01 on this staff's compensation day
         if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
             LocalDate compDate = compensationDateCalculator.calculate(workDate);
             if (compDate != null) {
                 String compKey = staff.getId() + "_" + compDate;
-                inMemoryCompensationShiftDates.get().add(compKey);
-                allCompensationShiftDates.get().add(staff.getId() + "_" + compDate.toString());
+                inMemoryCompensationShiftDates().add(compKey);
+                allCompensationShiftDates().add(staff.getId() + "_" + compDate.toString());
             }
         }
     }
@@ -2317,8 +2359,8 @@ public class AutoSchedulingService {
         if (createdSchedules == null || createdSchedules.isEmpty()) {
             return 0;
         }
-        Map<String, Set<String>> assignments = inMemoryAssignments.get();
-        Set<String> compDayKeys = inMemoryCompensationShiftDates.get();
+        Map<String, Set<String>> assignments = inMemoryAssignments();
+        Set<String> compDayKeys = inMemoryCompensationShiftDates();
         int conflicts = 0;
         for (Schedule s : createdSchedules) {
             String key = s.getStaff().getId() + "_" + s.getWorkDate();
@@ -2375,69 +2417,13 @@ public class AutoSchedulingService {
         return conflicts;
     }
 
+    /**
+     * Create a compensation day for a saved L01 schedule.
+     * Delegates to {@link SchedulePersistenceService} which owns the duplicate-prevention
+     * logic (in-memory cache + DB pre-check + INSERT IGNORE).
+     */
     private void createCompensationDayForAuto(Schedule schedule) {
-        if (schedule == null || schedule.getWorkDate() == null) {
-            log.warn("createCompensationDayForAuto: schedule or workDate is null");
-            return;
-        }
-        LocalDate shiftDate = schedule.getWorkDate();
-        LocalDate compensationDate = compensationDateCalculator.calculate(shiftDate);
-        
-        log.info("createCompensationDayForAuto: staffId={}, shiftDate={}, compDate={}", 
-                schedule.getStaff().getId(), shiftDate, compensationDate);
-
-        String compKey = schedule.getStaff().getId() + "_" + compensationDate.toString();
-        
-        // Check in-memory cache first (for current run)
-        if (allCompensationShiftDates.get().contains(compKey)) {
-            log.debug("Compensation day already tracked in memory for {}", compKey);
-            return;
-        }
-        
-        // CRITICAL FIX: Also check database for existing compensation day
-        // This prevents duplicate entries when re-running the algorithm
-        if (compensationDayRepository.existsByStaffIdAndCompensationDate(
-                schedule.getStaff().getId(), compensationDate)) {
-            log.warn("Compensation day already exists in DB for staff {} on {}", 
-                    schedule.getStaff().getId(), compensationDate);
-            // Add to in-memory cache to prevent duplicate checks
-            allCompensationShiftDates.get().add(compKey);
-            return;
-        }
-        
-        // Also check if this schedule already has a compensation day (by schedule_id)
-        if (schedule.getId() != null && compensationDayRepository.existsByScheduleId(schedule.getId())) {
-            log.warn("Schedule {} already has a compensation day", schedule.getId());
-            allCompensationShiftDates.get().add(compKey);
-            return;
-        }
-
-        // Use INSERT IGNORE to avoid duplicate key errors
-        // This is the proper fix from commit 5d080c1 - prevents Hibernate assertion failures
-        try {
-            int inserted = compensationDayRepository.insertIgnoreCompensationDay(
-                    schedule.getStaff().getId(),
-                    schedule.getPeriod().getId(),
-                    schedule.getId(),
-                    shiftDate,
-                    compensationDate,
-                    "Ngày nghỉ bù tự động từ ca L01"
-            );
-            if (inserted > 0) {
-                log.info("Compensation day INSERTED via INSERT IGNORE: staffId={}, compDate={}",
-                        schedule.getStaff().getId(), compensationDate);
-                allCompensationShiftDates.get().add(compKey);
-            } else {
-                log.debug("Compensation day already existed (INSERT IGNORE): staffId={}, compDate={}",
-                        schedule.getStaff().getId(), compensationDate);
-                allCompensationShiftDates.get().add(compKey);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to insert compensation day for staff {} on {}: {}",
-                    schedule.getStaff().getId(), compensationDate, e.getMessage());
-            // Still add to cache to prevent further attempts
-            allCompensationShiftDates.get().add(compKey);
-        }
+        schedulePersistenceService.createCompensationDayForAuto(compensationDayRepository, schedule);
     }
 
     /**
@@ -2699,35 +2685,6 @@ public class AutoSchedulingService {
         return metricsService.getMetricsPage(periodId, pageable);
     }
 
-    private List<Map<String, Object>> buildUnassignedDays(List<ShiftRequirement> requirements, List<Schedule> schedules) {
-        Map<String, Long> assignedCount = schedules.stream()
-                .collect(Collectors.groupingBy(
-                        s -> s.getWorkDate() + "_" + s.getShiftType().getId(),
-                        Collectors.counting()));
-
-        List<Map<String, Object>> unassigned = new ArrayList<>();
-        for (ShiftRequirement req : requirements) {
-            String key = req.getWorkDate() + "_" + req.getShiftType().getId();
-            long assigned = assignedCount.getOrDefault(key, 0L);
-            if (assigned < req.getRequiredStaffCount()) {
-                Map<String, Object> item = new LinkedHashMap<>();
-                item.put("workDate", req.getWorkDate());
-                item.put("dayOfWeek", DateUtils.getDayOfWeekVietnamese(req.getWorkDate().getDayOfWeek()));
-                item.put("shiftTypeId", req.getShiftType().getId());
-                item.put("shiftTypeName", req.getShiftType().getName());
-                item.put("specialty", req.getSpecialty() != null ? req.getSpecialty().getName() : null);
-                item.put("requiredStaffCount", req.getRequiredStaffCount());
-                item.put("assignedStaffCount", (int) assigned);
-                item.put("missingCount", req.getRequiredStaffCount() - (int) assigned);
-                item.put("reason", buildUnassignedReason(req, assigned));
-                item.put("reasonCode", buildUnassignedReasonCode(req, assigned));
-                item.put("severity", buildUnassignedSeverity(req.getRequiredStaffCount(), (int) assigned));
-                unassigned.add(item);
-            }
-        }
-        return unassigned;
-    }
-
     /**
      * Build shift type breakdown for detailed statistics per schedule type (L01/L02/L03/L04).
      */
@@ -2835,6 +2792,29 @@ public class AutoSchedulingService {
     // filterAndSortEligibleStaff (pre-batch) was removed in M07 refactor — git history.
     private Schedule buildAndSaveSchedule(SchedulePeriod period, Staff staff, ShiftRequirement req,
                                          LocalDate workDate, boolean save, List<Schedule> list) {
+        // BUGFIX (A1, second attempt): eligibility filters in runGreedy exclude staff that
+        // already have a CONFLICTING shift on this date (per filterAndSortEligibleStaffBatch),
+        // but the per-shift eligibility list is computed BEFORE all four shift types finish
+        // processing for the day. The Greedy loop iterates (date, shiftType) pairs and saves
+        // directly via this builder, so a later shift-type pass can collide with a shift
+        // persisted by an earlier pass within the same date (e.g. L01 saved during L01 pass
+        // vs L02/L03 saved during their own pass — they share the same in-memory ThreadLocal
+        // `inMemoryAssignments` set, but only IF the eligibility filter consults it; for some
+        // edge cases such as cross-pass L01↔L02/L03 the batch comparator skips the check).
+        // Persisting at the DB layer causes 146 BUSINESS_SHIFT_TYPE conflicts to surface in
+        // conflictCount after apply (period 4 baseline). Hard guard here re-checks against the
+        // DB at the moment of save and returns null so the caller skips this slot silently
+        // (the schedule is still counted as "attempted" but not persisted, which is preferable
+        // to corrupting the period with conflicting shifts).
+        if (conflictDetectionService.hasAnyConflict(
+                staff.getId(),
+                workDate,
+                req.getShiftType().getId(),
+                /*excludeScheduleId*/ null)) {
+            log.warn("buildAndSaveSchedule: skip BUSINESS-SHIFT-CONFLICT staff={} date={} shift={} (would violate L01↔L02 / L03↔L04 rule)",
+                    staff.getId(), workDate, req.getShiftType().getId());
+            return null;
+        }
         Schedule schedule = Schedule.builder()
                 .period(period)
                 .staff(staff)
@@ -2891,7 +2871,7 @@ public class AutoSchedulingService {
         for (CompensationDay cd : compensationDayRepository.findInRange(periodStart, periodEnd)) {
             allOnCompDay.add(cd.getStaff().getId());
             String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
-            allCompensationShiftDates.get().add(compKey);
+            allCompensationShiftDates().add(compKey);
         }
 
         // 3. Load all schedules for the period with details (single query)
@@ -2945,7 +2925,7 @@ public class AutoSchedulingService {
             compDaysByDate.computeIfAbsent(cd.getCompensationDate(), k -> new HashSet<>()).add(cd.getStaff().getId());
             // Also add to in-memory cache (HashSet handles duplicates)
             String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
-            allCompensationShiftDates.get().add(compKey);
+            allCompensationShiftDates().add(compKey);
         }
 
         // Pre-load all L01 schedules for adjacent range (already done above, reuse)
@@ -3069,7 +3049,8 @@ public class AutoSchedulingService {
             Map<Integer, Map<String, Long>> l04PerSpecialtyCounts,
             Map<Integer, Map<String, Integer>> greedyWeeklyCounts,
             AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
-            List<Staff> allActiveStaff) {
+            List<Staff> allActiveStaff,
+            Integer maxShiftsPerMonthOverride) {
 
         ShiftType shiftType = req.getShiftType();
         String shiftTypeId = shiftType.getId();
@@ -3200,11 +3181,15 @@ public class AutoSchedulingService {
                 if (thisTypeCount >= maxShiftsPerTypeLimit) continue;
             }
                         // 4b. Global per-staff total cap — use runtimeConfig if set, else per-staff maxShiftsPerMonth.
-            int effectiveMaxShifts = (maxShiftsPerStaffLimit > 0 && maxShiftsPerStaffLimit < Integer.MAX_VALUE)
-                    ? maxShiftsPerStaffLimit
-                    : (staff.getMaxShiftsPerMonth() != null && staff.getMaxShiftsPerMonth() > 0
-                            ? staff.getMaxShiftsPerMonth()
-                            : Integer.MAX_VALUE);
+            // If a request-level override is provided (maxShiftsPerMonthOverride), it takes precedence over both.
+            int overrideCap = maxShiftsPerMonthOverride != null ? maxShiftsPerMonthOverride : -1;
+            int effectiveMaxShifts = (overrideCap >= 0)
+                    ? (overrideCap == 0 ? Integer.MAX_VALUE : overrideCap)
+                    : (maxShiftsPerStaffLimit > 0 && maxShiftsPerStaffLimit < Integer.MAX_VALUE
+                            ? maxShiftsPerStaffLimit
+                            : (staff.getMaxShiftsPerMonth() != null && staff.getMaxShiftsPerMonth() > 0
+                                    ? staff.getMaxShiftsPerMonth()
+                                    : Integer.MAX_VALUE));
             if (effectiveMaxShifts < Integer.MAX_VALUE) {
                 long totalCurrent = getTotalStaffCount(staff.getId(),
                         periodData.staffShiftTypeCounts(), l04PerSpecialtyCounts);
@@ -3248,7 +3233,12 @@ public class AutoSchedulingService {
         crossMatches.sort(sortComparator);
 
         List<Staff> eligible = new ArrayList<>(strictMatches.size() + crossMatches.size());
-        if (crossEnabled && shouldPreferCrossSpecialty(req, crossConfig.ratio()) && !crossMatches.isEmpty()) {
+        int required = Math.max(1, req.getRequiredStaffCount());
+        // A + Shortage Logic: chỉ ưu tiên cross khi strict không đủ theo ratio threshold.
+        // ratio = 0.5 (default) → cross chỉ khi shortage >= 50%.
+        if (crossEnabled && !crossMatches.isEmpty() && !strictMatches.isEmpty()
+                && staffEligibilityFilter.shouldPreferCrossSpecialty(
+                        req, strictMatches.size(), required, crossConfig.ratio())) {
             eligible.addAll(crossMatches);
             eligible.addAll(strictMatches);
         } else {
@@ -3256,11 +3246,6 @@ public class AutoSchedulingService {
             eligible.addAll(crossMatches);
         }
         return eligible;
-    }
-
-    // DELEGATED to StaffEligibilityFilter.shouldPreferCrossSpecialty (M07 refactor)
-    private boolean shouldPreferCrossSpecialty(ShiftRequirement req, float ratio) {
-        return staffEligibilityFilter.shouldPreferCrossSpecialty(req, ratio);
     }
 
     /**
@@ -3536,10 +3521,10 @@ public class AutoSchedulingService {
      * shape as {@link #runCsp}, so persistence can mirror it identically.
      */
     public AutoScheduleResponse reschedulePeriodIncremental(Integer periodId, ScheduleChange changes, boolean save) {
-        inMemoryAssignments.set(new HashMap<>());
-        inMemoryCompensationShiftDates.set(new HashSet<>());
-        allCompensationShiftDates.set(new HashSet<>());
-        swapPriorityStaffIds.set(new HashSet<>());
+        inMemoryAssignments().clear();
+        inMemoryCompensationShiftDates().clear();
+        allCompensationShiftDates().clear();
+        swapPriorityStaffIds().clear();
         try {
             SchedulePeriod period = periodRepository.findById(periodId)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + periodId));
@@ -3633,10 +3618,7 @@ public class AutoSchedulingService {
                     .executedAt(LocalDateTime.now())
                     .build();
         } finally {
-            inMemoryAssignments.remove();
-            inMemoryCompensationShiftDates.remove();
-            allCompensationShiftDates.remove();
-            swapPriorityStaffIds.remove();
+            clearSchedulingState();
         }
     }
 

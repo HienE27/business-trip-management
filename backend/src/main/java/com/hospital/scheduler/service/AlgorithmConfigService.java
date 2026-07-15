@@ -53,11 +53,26 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_L03_MAX_PER_WEEK = "auto_gen_l03_max_per_week";
     public static final String AUTO_GEN_L04_MAX_PER_WEEK = "auto_gen_l04_max_per_week";
     public static final String AUTO_GEN_HOLIDAY_MODE = "auto_gen_holiday_mode";
+    // L01 cross-specialty
+    public static final String AUTO_GEN_L01_CROSS_SPECIALTY = "auto_gen_l01_cross_specialty";
+    public static final String AUTO_GEN_L01_CROSS_SPECIALTY_RATIO = "auto_gen_l01_cross_specialty_ratio";
+    public static final String AUTO_GEN_L01_ALLOWED_SPECIALTIES = "auto_gen_l01_allowed_specialties";
+    public static final String AUTO_GEN_L01_BALANCE_STRATEGY = "auto_gen_l01_balance_strategy";
+    // L02 cross-specialty
+    public static final String AUTO_GEN_L02_CROSS_SPECIALTY = "auto_gen_l02_cross_specialty";
+    public static final String AUTO_GEN_L02_CROSS_SPECIALTY_RATIO = "auto_gen_l02_cross_specialty_ratio";
+    public static final String AUTO_GEN_L02_ALLOWED_SPECIALTIES = "auto_gen_l02_allowed_specialties";
+    public static final String AUTO_GEN_L02_BALANCE_STRATEGY = "auto_gen_l02_balance_strategy";
+    // L03 cross-specialty
+    public static final String AUTO_GEN_L03_CROSS_SPECIALTY = "auto_gen_l03_cross_specialty";
+    public static final String AUTO_GEN_L03_CROSS_SPECIALTY_RATIO = "auto_gen_l03_cross_specialty_ratio";
+    public static final String AUTO_GEN_L03_ALLOWED_SPECIALTIES = "auto_gen_l03_allowed_specialties";
+    public static final String AUTO_GEN_L03_BALANCE_STRATEGY = "auto_gen_l03_balance_strategy";
+    // L04 cross-specialty
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY = "auto_gen_l04_cross_specialty";
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY_RATIO = "auto_gen_l04_cross_specialty_ratio";
-    public static final String AUTO_GEN_L01_ALLOWED_SPECIALTIES = "auto_gen_l01_allowed_specialties";
-    public static final String AUTO_GEN_L02_ALLOWED_SPECIALTIES = "auto_gen_l02_allowed_specialties";
-    public static final String AUTO_GEN_L03_ALLOWED_SPECIALTIES = "auto_gen_l03_allowed_specialties";
+    public static final String AUTO_GEN_L04_ALLOWED_SPECIALTIES = "auto_gen_l04_allowed_specialties";
+    public static final String AUTO_GEN_L04_BALANCE_STRATEGY = "auto_gen_l04_balance_strategy";
 
     // Algorithm runtime config param keys
     public static final String WEEKEND_WEIGHT = "weekend_weight";
@@ -265,7 +280,7 @@ public class AlgorithmConfigService {
                 getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP", cache),
                 getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES", cache),
                 getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false, cache),
-                getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.3f, cache),
+                getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.5f, cache),
                 getStringListValue("AUTO_GEN_L04_ALLOWED_SPECIALTIES", cache), // null/empty = all specialties
                 // L01/L02/L03: null/empty → fallback to CORE_ELIGIBLE_SPECIALTIES (Ngoại, Nội) trong StaffShiftTypeEligibility
                 getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES, cache),
@@ -307,7 +322,7 @@ public class AlgorithmConfigService {
         upsert(AUTO_GEN_L04_CROSS_SPECIALTY, String.valueOf(config.l04CrossSpecialty()), AlgorithmConfig.ValueType.BOOLEAN,
                 "Cho phép gán nhân sự từ chuyên khoa khác vào L04 khi chuyên khoa gốc thiếu nhân sự.");
         upsert(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, String.valueOf(config.l04CrossSpecialtyRatio()), AlgorithmConfig.ValueType.NUMBER,
-                "Tỷ lệ tối đa nhân sự cross-specialty cho L04 (0.0-1.0). Ví dụ: 0.3 = tối đa 30% nhân sự được gán từ chuyên khoa khác.");
+                "Ngưỡng shortage L04 (0.0-1.0) để kích hoạt cross-specialty. Ví dụ: 0.5 = chỉ dùng cross khi strict thiếu ≥ 50%. 0.0 = không bao giờ. 1.0 = dùng cross khi thiếu bất kỳ.");
         // Lưu danh sách specialties được phép gán L04 (comma-separated)
         String allowedSpecs = config.l04AllowedSpecialties() == null || config.l04AllowedSpecialties().isEmpty()
                 ? "" : String.join(",", config.l04AllowedSpecialties());
@@ -710,7 +725,7 @@ public class AlgorithmConfigService {
      * Runtime configuration record for algorithm execution.
      */
     @lombok.Data
-    @lombok.Builder(access = lombok.AccessLevel.PRIVATE)
+    @lombok.Builder
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     public static class AlgorithmRuntimeConfig {

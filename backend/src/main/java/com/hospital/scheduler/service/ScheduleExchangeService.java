@@ -214,9 +214,33 @@ public class ScheduleExchangeService {
         // constraint is violated. Returns the inputs needed for the swap.
         SwapContext ctx = validateSwapConstraints(exchange, requesterSchedule, targetSchedule);
 
+        // Detach the exchange's FK references to the soon-to-be-deleted schedule rows.
+        // The helper's flush() will trigger Hibernate to dirty-check the entire
+        // persistence context, including the managed ScheduleExchange. If we
+        // leave exchange.requesterSchedule pointing at a deleted Schedule, the
+        // flush will fail with TransientPropertyValueException. Setting them to
+        // null here is safe — they're reassigned to the freshly-persisted rows
+        // in the SwapResult below.
+        exchange.setRequesterSchedule(null);
+        exchange.setTargetSchedule(null);
+
         // P8: extracted execution phase — deletes old comp days, swaps staff,
-        // creates new comp days, persists atomically.
-        executeSwap(ctx, reviewerId);
+        // creates new comp days, persists atomically. Returns the freshly-
+        // persisted swapped schedule rows so we can re-point the exchange's
+        // FK references below (the originals were deleted by the helper).
+        SwapResult swapResult;
+        try {
+            swapResult = executeSwap(ctx, reviewerId);
+        } catch (Exception ex) {
+            Throwable root = ex;
+            while (root.getCause() != null && root.getCause() != root) { root = root.getCause(); }
+            log.error("DEBUG Bug#5: executeSwap failed (rootCause={}): {}", root.getMessage(), ex);
+            throw ex;
+        }
+
+        // Point the exchange at the freshly-persisted swapped rows.
+        exchange.setRequesterSchedule(swapResult.requesterAfterSwap());
+        exchange.setTargetSchedule(swapResult.targetAfterSwap());
 
         // P8: validate NEW compensation days do not conflict with existing schedules.
         validateCompensationConflicts(ctx);
@@ -309,70 +333,114 @@ public class ScheduleExchangeService {
      *  2. Copy schedule rows to new staff (preserving FK + audit trail).
      *  3. Create new comp days for the new L01 assignments (audit each).
      */
-    private void executeSwap(SwapContext ctx, Integer reviewerId) {
-        // Delete existing compensation days for affected staff + date combinations
-        if (ctx.requesterIsL01()) {
-            compensationDayRepository.findByStaffIdAndCompensationDate(
-                    ctx.requesterOldStaff().getId(), ctx.requesterWorkDate())
-                    .ifPresent(cd -> {
-                        auditHistoryService.logAction("compensation_day", cd.getId(), AuditHistory.ActionType.DELETE,
-                                cd, null, reviewerId);
-                        compensationDayRepository.delete(cd);
-                    });
-        }
-        if (ctx.targetIsL01()) {
-            compensationDayRepository.findByStaffIdAndCompensationDate(
-                    ctx.targetOldStaff().getId(), ctx.targetWorkDate())
-                    .ifPresent(cd -> {
-                        auditHistoryService.logAction("compensation_day", cd.getId(), AuditHistory.ActionType.DELETE,
-                                cd, null, reviewerId);
-                        compensationDayRepository.delete(cd);
-                    });
-        }
+    private SwapResult executeSwap(SwapContext ctx, Integer reviewerId) {
+        // The helper now owns comp-day lifecycle for each swapped schedule
+        // (delete-orphan-then-recreate via the caller). We only handle
+        // schedule-row swapping here.
 
-        // Swap staff on schedules (in-memory)
-        ctx.requesterSchedule().setStaff(ctx.targetOldStaff());
-        ctx.targetSchedule().setStaff(ctx.requesterOldStaff());
-
-        // Create new compensation days for the new L01 assignments
         SchedulePeriod period = ctx.period();
-        if (ctx.targetIsL01()) {
-            CompensationDay newCompForRequester = CompensationDay.builder()
-                    .schedule(ctx.requesterSchedule())
-                    .staff(ctx.requesterOldStaff())
-                    .period(period)
-                    .shiftDate(ctx.targetWorkDate())
-                    .compensationDate(compensationDateCalculator.calculate(ctx.targetWorkDate()))
-                    .note("Ngày nghỉ bù từ đổi ca: " + ctx.targetOldStaff().getFullName() + " -> " + ctx.requesterOldStaff().getFullName())
-                    .build();
-            CompensationDay savedCompForRequester = compensationDayRepository.save(newCompForRequester);
-            auditHistoryService.logAction("compensation_day", savedCompForRequester.getId(), AuditHistory.ActionType.INSERT,
-                    null, savedCompForRequester, reviewerId);
-        }
-        if (ctx.requesterIsL01()) {
-            CompensationDay newCompForTarget = CompensationDay.builder()
-                    .schedule(ctx.targetSchedule())
-                    .staff(ctx.targetOldStaff())
-                    .period(period)
-                    .shiftDate(ctx.requesterWorkDate())
-                    .compensationDate(compensationDateCalculator.calculate(ctx.requesterWorkDate()))
-                    .note("Ngày nghỉ bù từ đổi ca: " + ctx.requesterOldStaff().getFullName() + " -> " + ctx.targetOldStaff().getFullName())
-                    .build();
-            CompensationDay savedCompForTarget = compensationDayRepository.save(newCompForTarget);
-            auditHistoryService.logAction("compensation_day", savedCompForTarget.getId(), AuditHistory.ActionType.INSERT,
-                    null, savedCompForTarget, reviewerId);
-        }
-
-        // BUGFIX (was #5): Plain setStaff + save tripped the unique constraint when
-        // both schedules land on the same slot post-swap. Strategy: copy row into
-        // fresh entity, delete old, save new. CompensationDay.schedule FK is
-        // rewired to the new schedule id before the old row is deleted.
+        // Bug #5d: rewrite both schedule rows. The helper now does
+        // DELETE-then-INSERT per row (with comp-day orphans deleted first to
+        // satisfy the non-nullable FK). Both helpers flush between phases so
+        // each one sees a clean slate. The order doesn't matter because each
+        // helper touches its own PK row only.
         copyCompensationFkAndDelete(ctx.requesterSchedule(), ctx.targetOldStaff(), ctx.requesterWorkDate(),
                 period, reviewerId);
         copyCompensationFkAndDelete(ctx.targetSchedule(), ctx.requesterOldStaff(), ctx.targetWorkDate(),
                 period, reviewerId);
+
+        // Re-fetch the swapped schedules so the new comp days FK-reference the
+        // freshly-persisted staff ids (the rows are the same PK, just with
+        // updated staff_id).
+        Schedule requesterAfterSwap = scheduleRepository
+                .findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                        period.getId(),
+                        ctx.targetOldStaff().getId(),
+                        ctx.requesterSchedule().getShiftType().getId(),
+                        ctx.requesterWorkDate())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Swap persisted but new requester schedule row not found for staff="
+                                + ctx.targetOldStaff().getId() + " date=" + ctx.requesterWorkDate()));
+        Schedule targetAfterSwap = scheduleRepository
+                .findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                        period.getId(),
+                        ctx.requesterOldStaff().getId(),
+                        ctx.targetSchedule().getShiftType().getId(),
+                        ctx.targetWorkDate())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Swap persisted but new target schedule row not found for staff="
+                                + ctx.requesterOldStaff().getId() + " date=" + ctx.targetWorkDate()));
+
+        // Create new compensation days for the new L01 assignments.
+        // Bug #5c: if a comp day already exists for (staff, compensation_date)
+        // it was just rewired to the new schedule by copyCompensationFkAndDelete
+        // (FK update only, row preserved). Re-inserting would violate
+        // uk_compensation_staff_date. So we check first and only insert when
+        // the (staff, comp_date) pair is genuinely new — otherwise we update
+        // the existing row's note and FK to reflect the swap.
+        if (ctx.targetIsL01()) {
+            LocalDate newCompDate = compensationDateCalculator.calculate(ctx.targetWorkDate());
+            var existingForRequester = compensationDayRepository
+                    .findByStaffIdAndCompensationDate(ctx.requesterOldStaff().getId(), newCompDate);
+            if (existingForRequester.isPresent()) {
+                CompensationDay cd = existingForRequester.get();
+                cd.setSchedule(requesterAfterSwap);
+                cd.setShiftDate(ctx.targetWorkDate());
+                cd.setNote("Ngày nghỉ bù từ đổi ca: " + ctx.targetOldStaff().getFullName() + " -> " + ctx.requesterOldStaff().getFullName());
+                CompensationDay updated = compensationDayRepository.save(cd);
+                auditHistoryService.logAction("compensation_day", updated.getId(), AuditHistory.ActionType.UPDATE,
+                        cd, updated, reviewerId);
+            } else {
+                CompensationDay newCompForRequester = CompensationDay.builder()
+                        .schedule(requesterAfterSwap)
+                        .staff(ctx.requesterOldStaff())
+                        .period(period)
+                        .shiftDate(ctx.targetWorkDate())
+                        .compensationDate(newCompDate)
+                        .note("Ngày nghỉ bù từ đổi ca: " + ctx.targetOldStaff().getFullName() + " -> " + ctx.requesterOldStaff().getFullName())
+                        .build();
+                CompensationDay savedCompForRequester = compensationDayRepository.save(newCompForRequester);
+                auditHistoryService.logAction("compensation_day", savedCompForRequester.getId(), AuditHistory.ActionType.INSERT,
+                        null, savedCompForRequester, reviewerId);
+            }
+        }
+        if (ctx.requesterIsL01()) {
+            LocalDate newCompDate = compensationDateCalculator.calculate(ctx.requesterWorkDate());
+            var existingForTarget = compensationDayRepository
+                    .findByStaffIdAndCompensationDate(ctx.targetOldStaff().getId(), newCompDate);
+            if (existingForTarget.isPresent()) {
+                CompensationDay cd = existingForTarget.get();
+                cd.setSchedule(targetAfterSwap);
+                cd.setShiftDate(ctx.requesterWorkDate());
+                cd.setNote("Ngày nghỉ bù từ đổi ca: " + ctx.requesterOldStaff().getFullName() + " -> " + ctx.targetOldStaff().getFullName());
+                CompensationDay updated = compensationDayRepository.save(cd);
+                auditHistoryService.logAction("compensation_day", updated.getId(), AuditHistory.ActionType.UPDATE,
+                        cd, updated, reviewerId);
+            } else {
+                CompensationDay newCompForTarget = CompensationDay.builder()
+                        .schedule(targetAfterSwap)
+                        .staff(ctx.targetOldStaff())
+                        .period(period)
+                        .shiftDate(ctx.requesterWorkDate())
+                        .compensationDate(newCompDate)
+                        .note("Ngày nghỉ bù từ đổi ca: " + ctx.requesterOldStaff().getFullName() + " -> " + ctx.targetOldStaff().getFullName())
+                        .build();
+                CompensationDay savedCompForTarget = compensationDayRepository.save(newCompForTarget);
+                auditHistoryService.logAction("compensation_day", savedCompForTarget.getId(), AuditHistory.ActionType.INSERT,
+                        null, savedCompForTarget, reviewerId);
+            }
+        }
+
         log.debug("Schedule swap persisted atomically for exchange");
+        return new SwapResult(requesterAfterSwap, targetAfterSwap);
     }
+
+    /**
+     * Holds the freshly-persisted schedules returned by {@link #executeSwap}
+     * so the caller can update other entities (e.g. ScheduleExchange) that
+     * referenced the originals via FK.
+     */
+    private record SwapResult(Schedule requesterAfterSwap, Schedule targetAfterSwap) {}
 
     /**
      * P8: phase 3 — validate the NEW compensation days don't collide with
@@ -579,10 +647,52 @@ public class ScheduleExchangeService {
      * the surrounding {@code @Transactional}. A failure on the second delete (after
      * the first insert) rolls back the first insert automatically.
      */
+    /**
+     * Swap a schedule's staff. Both sides of the swap target the same slot
+     * (date + shift_type) when this helper runs in pairs, so any direct UPDATE
+     * collides with the OTHER side of the swap because that side hasn't moved
+     * yet. The fix is to do all DELETEs first, flush, then do all INSERTs —
+     * but the {@code compensation_day.schedule} FK (non-nullable) blocks the
+     * DELETE.
+     *
+     * <p>Strategy used here:
+     * <ol>
+     *   <li>Delete the compensation-day rows that reference this schedule
+     *       (they will be re-created from {@code executeSwap} based on the
+     *       NEW schedule id).</li>
+     *   <li>Delete the original schedule row.</li>
+     *   <li>Insert the replacement schedule row with the new staff.</li>
+     * </ol>
+     *
+     * <p>The caller is responsible for re-creating comp-day rows tied to the
+     * freshly-persisted schedule id (it reads {@code saved.getId()} afterwards).
+     *
+     * @param original the loaded Schedule entity (its row will be deleted and recreated)
+     * @param newStaff the staff to assign on the recreated row
+     * @param workDate the work date (typically {@code original.workDate})
+     * @param period the period (unused but kept for signature symmetry)
+     * @param reviewerId for audit logging
+     */
     private void copyCompensationFkAndDelete(Schedule original, Staff newStaff,
                                              LocalDate workDate, SchedulePeriod period,
                                              Integer reviewerId) {
-        // Build the swapped row preserving all immutable fields (id is intentionally omitted).
+        Schedule before = cloneForAudit(original);
+        Integer originalId = original.getId();
+
+        // Delete comp-day rows that reference this schedule. The FK is
+        // non-nullable so we can't just null it; the caller will recreate
+        // comp-day rows tied to the new schedule id.
+        List<CompensationDay> orphanComps = compensationDayRepository.findByScheduleId(originalId);
+        for (CompensationDay cd : orphanComps) {
+            compensationDayRepository.delete(cd);
+        }
+        compensationDayRepository.flush();
+
+        // Now delete the original schedule row.
+        scheduleRepository.delete(original);
+        scheduleRepository.flush();
+
+        // Insert the replacement schedule row.
         Schedule replacement = Schedule.builder()
                 .period(original.getPeriod())
                 .staff(newStaff)
@@ -593,28 +703,30 @@ public class ScheduleExchangeService {
                 .isPreview(original.getIsPreview())
                 .build();
         Schedule saved = scheduleRepository.save(replacement);
+        scheduleRepository.flush();
 
-        // Rewire any compensation_day rows that referenced the old schedule id so
-        // the FK doesn't block the delete. findByScheduleId returns a List (0..n).
-        List<CompensationDay> compDays = compensationDayRepository.findByScheduleId(original.getId());
-        for (CompensationDay cd : compDays) {
-            cd.setSchedule(saved);
-            compensationDayRepository.save(cd);
-        }
-
-        scheduleRepository.delete(original);
         // Best-effort audit — never fail the swap for an audit miss.
-        // Use original.getId() for the log key so the message is always safe to build
-        // even if saved is null (which can happen if save() returns null for a
-        // transient entity in some JPA implementations).
-        int logKey = original.getId();
         try {
-            if (saved != null) {
-                auditHistoryService.logAction("schedule", saved.getId(),
-                        AuditHistory.ActionType.UPDATE, original, saved, reviewerId);
-            }
+            auditHistoryService.logAction("schedule", saved.getId(),
+                    AuditHistory.ActionType.UPDATE, before, saved, reviewerId);
         } catch (Exception auditEx) {
-            log.warn("Audit for schedule swap (id={}) skipped: {}", logKey, auditEx.getMessage());
+            log.warn("Audit for schedule swap (id={}) skipped: {}", originalId, auditEx.getMessage());
         }
+    }
+
+    /**
+     * Build a shallow, detached copy of a Schedule for audit diffs.
+     */
+    private Schedule cloneForAudit(Schedule source) {
+        return Schedule.builder()
+                .id(source.getId())
+                .period(source.getPeriod())
+                .staff(source.getStaff())
+                .shiftType(source.getShiftType())
+                .workDate(source.getWorkDate())
+                .requirement(source.getRequirement())
+                .hasConflict(source.getHasConflict())
+                .isPreview(source.getIsPreview())
+                .build();
     }
 }

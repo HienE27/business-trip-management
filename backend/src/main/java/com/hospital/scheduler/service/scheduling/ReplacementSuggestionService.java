@@ -1,7 +1,6 @@
 package com.hospital.scheduler.service.scheduling;
 
 import com.hospital.scheduler.entity.Schedule;
-import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.ScheduleRepository;
@@ -9,8 +8,14 @@ import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.service.ConflictDetectionService;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Suggests replacement staff for a given schedule.
@@ -23,12 +28,68 @@ public class ReplacementSuggestionService {
     private final StaffRepository staffRepository;
     private final ConflictDetectionService conflictDetectionService;
 
+    /**
+     * Typed result for {@link #suggestTopCandidates} — includes workload so callers
+     * can sort and limit without re-querying.
+     */
+    public record CandidateWithWorkload(
+            Integer staffId,
+            String fullName,
+            String specialty,
+            long currentShiftCount
+    ) {}
+
     public ReplacementSuggestionService(ScheduleRepository scheduleRepository,
-                                       StaffRepository staffRepository,
-                                       ConflictDetectionService conflictDetectionService) {
+                                      StaffRepository staffRepository,
+                                      ConflictDetectionService conflictDetectionService) {
         this.scheduleRepository = scheduleRepository;
         this.staffRepository = staffRepository;
         this.conflictDetectionService = conflictDetectionService;
+    }
+
+    /**
+     * Lightweight top-N candidate lookup for auto-scheduling and leave-approval.
+     * Delegates to {@link ConflictDetectionService#findReplacements} (batch query)
+     * and enriches results with per-candidate workload from
+     * {@link ScheduleRepository#countByStaffIdAndPeriodId}.
+     *
+     * @param schedule         original schedule being replaced
+     * @param limit            max candidates to return (&le; 0 returns empty list)
+     * @param excludedStaffIds staff IDs to skip (pass {@link Set#of()} if none)
+     * @return list sorted ascending by current workload, capped at {@code limit}
+     */
+    public List<CandidateWithWorkload> suggestTopCandidates(
+            Schedule schedule, int limit, Set<Integer> excludedStaffIds) {
+        if (schedule == null) {
+            throw new IllegalArgumentException("schedule must not be null");
+        }
+        if (limit <= 0) {
+            return List.of();
+        }
+
+        Integer periodId = schedule.getPeriod() != null ? schedule.getPeriod().getId() : null;
+        Integer originalStaffId = schedule.getStaff() != null ? schedule.getStaff().getId() : null;
+        LocalDate workDate = schedule.getWorkDate();
+        String shiftTypeId = schedule.getShiftType() != null ? schedule.getShiftType().getId() : null;
+
+        List<Staff> candidates = conflictDetectionService.findReplacements(
+                periodId, workDate, shiftTypeId, originalStaffId,
+                limit, excludedStaffIds, true);
+
+        List<CandidateWithWorkload> result = new ArrayList<>();
+        for (Staff s : candidates) {
+            long workload = periodId != null
+                    ? scheduleRepository.countByStaffIdAndPeriodId(s.getId(), periodId)
+                    : 0L;
+            result.add(new CandidateWithWorkload(
+                    s.getId(),
+                    s.getFullName(),
+                    s.getSpecialty() != null ? s.getSpecialty().getName() : null,
+                    workload));
+        }
+
+        result.sort(Comparator.comparingLong(CandidateWithWorkload::currentShiftCount));
+        return result.size() <= limit ? result : result.subList(0, limit);
     }
 
     public Map<String, Object> suggestReplacements(Integer scheduleId, Set<Integer> excludedStaffIds) {

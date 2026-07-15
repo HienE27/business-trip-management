@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service.scheduling;
 
 import com.hospital.scheduler.entity.Schedule;
+import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.ShiftRequirement;
 import com.hospital.scheduler.util.DateUtils;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,22 @@ import java.util.stream.Collectors;
  */
 @Service
 public class UnassignedDaysReportBuilder {
+
+    /**
+     * Builds the full unassigned-days report for a scheduling period.
+     * Returns the total count and the per-requirement breakdown.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> buildReport(
+            SchedulePeriod period,
+            List<ShiftRequirement> requirements,
+            List<Schedule> schedules) {
+        List<Map<String, Object>> unassigned = buildUnassignedDays(requirements, schedules);
+        Map<String, Object> report = new LinkedHashMap<>();
+        report.put("totalUnassignedDays", unassigned.size());
+        report.put("unassignedDays", unassigned);
+        return report;
+    }
 
     public List<Map<String, Object>> buildUnassignedDays(List<ShiftRequirement> requirements, List<Schedule> schedules) {
         Map<String, Long> assignedCount = schedules.stream()

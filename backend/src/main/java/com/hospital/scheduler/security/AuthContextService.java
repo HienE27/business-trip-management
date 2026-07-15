@@ -42,6 +42,19 @@ public class AuthContextService {
         }
     }
 
+    /**
+     * Trả về staffId của user hiện tại, hoặc null nếu không xác định được.
+     * Dùng cho các endpoint "lấy của tôi" — không throw để caller quyết định
+     * trả lỗi 404 vs 403.
+     */
+    public Integer getCurrentStaffId() {
+        try {
+            return getCurrentStaff().getId();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public boolean isCurrentStaffOwnerOfLeaveRequest(Integer leaveRequestId) {
         try {
             Staff current = getCurrentStaff();

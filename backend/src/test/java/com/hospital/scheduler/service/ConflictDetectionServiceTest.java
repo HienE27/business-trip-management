@@ -47,8 +47,6 @@ class ConflictDetectionServiceTest {
     private EmailService emailService;
     @Mock
     private AuthContextService authContextService;
-    @Mock
-    private SystemLogService systemLogService;
 
     @InjectMocks
     private ConflictDetectionService conflictDetectionService;

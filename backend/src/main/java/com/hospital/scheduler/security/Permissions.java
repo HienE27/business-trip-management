@@ -21,12 +21,14 @@ public final class Permissions {
     public static final String DASHBOARD_VIEW = "DASHBOARD_VIEW";
     public static final String DASHBOARD_AGGREGATE = "DASHBOARD_AGGREGATE";
 
-    // ── Staff ───────────────────────────────────────────────────────────
-    public static final String STAFF_VIEW = "STAFF_VIEW";
-    public static final String STAFF_CREATE = "STAFF_CREATE";
-    public static final String STAFF_UPDATE = "STAFF_UPDATE";
-    public static final String STAFF_DELETE = "STAFF_DELETE";
-    public static final String STAFF_IMPORT = "STAFF_IMPORT";
+  // ── Staff ───────────────────────────────────────────────────────────
+  public static final String STAFF_VIEW = "STAFF_VIEW";
+  public static final String STAFF_VIEW_ALL = "STAFF_VIEW_ALL";
+  public static final String STAFF_VIEW_SELF = "STAFF_VIEW_SELF";
+  public static final String STAFF_CREATE = "STAFF_CREATE";
+  public static final String STAFF_UPDATE = "STAFF_UPDATE";
+  public static final String STAFF_DELETE = "STAFF_DELETE";
+  public static final String STAFF_IMPORT = "STAFF_IMPORT";
 
     // ── Role / Permission matrix ────────────────────────────────────────
     public static final String ROLE_VIEW = "ROLE_VIEW";
@@ -83,10 +85,9 @@ public final class Permissions {
     public static final String NOTIFICATION_BROADCAST = "NOTIFICATION_BROADCAST";
     public static final String NOTIFICATION_MANAGE_SELF = "NOTIFICATION_MANAGE_SELF";
 
-    // ── Audit / System log / Config / Integrity ─────────────────────────
+    // ── Audit / Config / Integrity ─────────────────────────────────────
     public static final String AUDIT_VIEW = "AUDIT_VIEW";
     public static final String AUDIT_DELETE = "AUDIT_DELETE";
-    public static final String SYSTEM_LOG_VIEW = "SYSTEM_LOG_VIEW";
     public static final String APP_CONFIG_VIEW = "APP_CONFIG_VIEW";
     public static final String APP_CONFIG_EDIT = "APP_CONFIG_EDIT";
     public static final String DATA_INTEGRITY_RUN = "DATA_INTEGRITY_RUN";
@@ -108,7 +109,9 @@ public final class Permissions {
         m.put(DASHBOARD_VIEW,          "Xem dashboard tổng quan");
         m.put(DASHBOARD_AGGREGATE,     "Xem chỉ số tổng hợp toàn hệ thống");
 
-        m.put(STAFF_VIEW,              "Xem thông tin nhân sự");
+        m.put(STAFF_VIEW,              "Xem thông tin nhân sự (alias cũ - dùng STAFF_VIEW_ALL/SELF)");
+        m.put(STAFF_VIEW_ALL,          "Xem danh sách nhân sự toàn phòng");
+        m.put(STAFF_VIEW_SELF,         "Xem thông tin cá nhân của chính mình");
         m.put(STAFF_CREATE,            "Tạo nhân sự mới");
         m.put(STAFF_UPDATE,            "Cập nhật thông tin nhân sự");
         m.put(STAFF_DELETE,            "Xóa / vô hiệu hóa nhân sự");
@@ -162,7 +165,6 @@ public final class Permissions {
 
         m.put(AUDIT_VIEW,              "Xem lịch sử thao tác");
         m.put(AUDIT_DELETE,            "Xóa lịch sử thao tác");
-        m.put(SYSTEM_LOG_VIEW,         "Xem system log");
         m.put(APP_CONFIG_VIEW,         "Xem cấu hình hệ thống");
         m.put(APP_CONFIG_EDIT,         "Sửa cấu hình hệ thống");
         m.put(DATA_INTEGRITY_RUN,      "Chạy kiểm tra tính toàn vẹn dữ liệu");
@@ -182,36 +184,100 @@ public final class Permissions {
     }
 
     /**
-     * Permissions reserved for ADMIN only — MANAGER is denied even though it
-     * has nearly everything else.
+     * Permissions granted to MANAGER (Quản lý lịch).
+     *
+     * <p>Theo tài liệu {@code QuanLyLichCongTac_v5.md} mục M01-F05, MANAGER chỉ có
+     * 3 nhóm quyền:
+     * <ol>
+     *   <li><b>Xem</b> dashboard, lịch, báo cáo, nhân sự, ngày lễ, thông báo, audit</li>
+     *   <li><b>Phê duyệt</b> yêu cầu nghỉ phép, đổi ca</li>
+     *   <li><b>Xếp lịch thủ công / tự động</b> 4 module M02 (trực 24/24),
+     *       M03 (thông tầm), M04 (phòng khám dịch vụ), M05 (phòng khám chuyên gia),
+     *       M07 (auto-scheduling)</li>
+     * </ol>
+     *
+     * <p>MANAGER <b>không được</b>:
+     * <ul>
+     *   <li>Quản lý nhân sự (STAFF_CREATE/UPDATE/DELETE/IMPORT)</li>
+     *   <li>Tạo kỳ lịch (PERIOD_CREATE/UPDATE/DELETE/PUBLISH/ARCHIVE)</li>
+     *   <li>Quản lý ngày lễ, danh mục chuyên khoa, loại ca, mẫu lịch</li>
+     *   <li>Gửi broadcast notification</li>
+     *   <li>Sửa cấu hình hệ thống / auto-schedule config</li>
+     *   <li>Sửa ma trận phân quyền, xoá audit, chạy data integrity</li>
+     * </ul>
      */
-    public static Set<String> adminOnlyPermissions() {
+    public static Set<String> managerPermissions() {
         return Set.of(
-                ROLE_EDIT,
-                AUDIT_DELETE,
-                SYSTEM_LOG_VIEW,
-                DATA_INTEGRITY_RUN,
-                AUTO_SCHEDULE_CONFIG_EDIT,
-                APP_CONFIG_EDIT
+                // ── Dashboard: xem ──────────────────────────────────────
+                DASHBOARD_VIEW,
+                DASHBOARD_AGGREGATE,
+
+                // ── Nhân sự: xem toàn phòng (không thêm/sửa/xoá/import) ─
+                STAFF_VIEW,
+                STAFF_VIEW_ALL,
+                STAFF_VIEW_SELF,
+
+                // ── Ma trận phân quyền: xem ───────────────────────────
+                ROLE_VIEW,
+
+                // ── Kỳ lịch công tác: xem (admin tạo/sửa/xoá) ────────
+                PERIOD_VIEW,
+
+                // ── Lịch trực L01–L04: xem + xếp thủ công + công bố ─
+                SCHEDULE_VIEW,
+                SCHEDULE_CREATE,
+                SCHEDULE_UPDATE,
+                SCHEDULE_DELETE,
+                SCHEDULE_PUBLISH,
+                SCHEDULE_EXPORT,
+
+                // ── Auto-schedule M07: xem + chạy + áp dụng ───────────
+                //    (admin mới được sửa config)
+                AUTO_SCHEDULE_VIEW,
+                AUTO_SCHEDULE_RUN,
+                AUTO_SCHEDULE_APPLY,
+                AUTO_SCHEDULE_CONFIG_VIEW,
+
+                // ── Nghỉ phép: xem + phê duyệt (M01/M02-F04) ────────
+                LEAVE_VIEW,
+                LEAVE_CREATE,
+                LEAVE_APPROVE,
+                LEAVE_CANCEL_SELF,
+
+                // ── Đổi ca: xem + phê duyệt (M02-F04) ────────────────
+                EXCHANGE_VIEW,
+                EXCHANGE_CREATE,
+                EXCHANGE_APPROVE,
+                EXCHANGE_CANCEL_SELF,
+
+                // ── Báo cáo: xem + xuất (M06-F04, M07-F09) ───────────
+                REPORT_VIEW,
+                REPORT_EXPORT,
+
+                // ── Ngày lễ: xem (admin mới được sửa) ─────────────────
+                HOLIDAY_VIEW,
+
+                // ── Thông báo: xem (admin mới gửi broadcast) ──────────
+                NOTIFICATION_VIEW,
+                NOTIFICATION_MANAGE_SELF,
+
+                // ── Audit: xem (admin mới xoá được) ───────────────────
+                AUDIT_VIEW,
+                APP_CONFIG_VIEW
         );
     }
 
     /**
-     * Permissions granted to MANAGER (everything except {@link #adminOnlyPermissions()}).
-     */
-    public static Set<String> managerPermissions() {
-        java.util.Set<String> all = new java.util.LinkedHashSet<>(allPermissions());
-        all.removeAll(adminOnlyPermissions());
-        return all;
-    }
-
-    /**
-     * Permissions granted to STAFF — self-service only.
+     * Permissions granted to STAFF (Nhân viên) — self-service only.
+     *
+     * <p>Theo tài liệu {@code QuanLyLichCongTac_v5.md} mục M01-F05: "Nhân viên
+     * (xem lịch cá nhân)". Mở rộng hợp lý cho phép nhân viên tự đăng ký nghỉ
+     * phép, gửi yêu cầu đổi ca, xem thông báo và xem ngày lễ để biết lịch nghỉ.
      */
     public static Set<String> staffPermissions() {
         return Set.of(
                 DASHBOARD_VIEW,
-                STAFF_VIEW,
+                STAFF_VIEW_SELF,
                 SCHEDULE_VIEW,
                 HOLIDAY_VIEW,
                 LEAVE_VIEW,

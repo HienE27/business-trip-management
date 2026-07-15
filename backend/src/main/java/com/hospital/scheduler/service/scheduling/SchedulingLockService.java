@@ -37,11 +37,7 @@ public class SchedulingLockService {
     public void unlock(Integer periodId) {
         Lock lock = periodLocks.get(periodId);
         if (lock != null && lock.tryLock()) {
-            try {
-                lock.unlock();
-            } finally {
-                lock.unlock();
-            }
+            lock.unlock();
         }
     }
 }
