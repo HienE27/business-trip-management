@@ -17,6 +17,7 @@ export type AppSectionKey =
   | "holidays"
   | "notifications"
   | "audit-history"
+  | "compensation-days"
   | "settings";
 
 export type AppSectionDefinition = {
@@ -43,7 +44,7 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/monthly-schedule",
     icon: "calendar_month",
     description: "Điều phối kỳ lịch theo workflow.",
-    requiredPermissions: ["SCHEDULE_VIEW"],
+    requiredPermissions: ["SCHEDULE_VIEW", "PERIOD_VIEW"],
   },
   {
     key: "periods",
@@ -91,7 +92,7 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/auto-scheduling",
     icon: "auto_mode",
     description: "Thuật toán tạo phương án phân công.",
-    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
+    requiredPermissions: ["AUTO_SCHEDULE_VIEW", "SCHEDULE_VIEW"],
   },
   {
     key: "staff",
@@ -99,7 +100,7 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/staff",
     icon: "groups",
     description: "Quản lý hồ sơ nhân sự.",
-    requiredPermissions: ["STAFF_VIEW"],
+    requiredPermissions: ["STAFF_VIEW_ALL"],
   },
   {
     key: "leave-requests",
@@ -150,6 +151,14 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     requiredPermissions: ["AUDIT_VIEW"],
   },
   {
+    key: "compensation-days",
+    label: "Ngày nghỉ bù",
+    href: "/compensation-days",
+    icon: "event_available",
+    description: "Tra cứu lịch sử ngày nghỉ bù.",
+    requiredPermissions: ["SCHEDULE_VIEW", "PERIOD_VIEW"],
+  },
+  {
     key: "settings",
     label: "Cài đặt",
     href: "/settings",
@@ -197,6 +206,7 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/notifications": "notifications",
   "/audit-history": "audit-history",
   "/audit-logs": "audit-history",
+  "/compensation-days": "compensation-days",
   "/settings": "settings",
   "/settings/roles": "settings",
 };

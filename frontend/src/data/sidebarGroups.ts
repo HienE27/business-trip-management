@@ -49,7 +49,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     key: "insights",
     label: "Theo dõi",
     icon: "monitoring",
-    sections: ["reports", "notifications", "audit-history"],
+    sections: ["reports", "notifications", "audit-history", "compensation-days"],
   },
 ];
 

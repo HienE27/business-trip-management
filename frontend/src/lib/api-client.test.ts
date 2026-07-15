@@ -26,6 +26,7 @@ Object.defineProperty(global, 'window', {
     ...global.window,
     location: locationMock,
     localStorage: localStorageMock,
+    dispatchEvent: vi.fn((_event: Event) => true),
   },
   writable: true,
 });
@@ -144,7 +145,7 @@ describe('ApiClient API singleton', () => {
 
     it('should remove user from localStorage on 401', async () => {
       const { api } = await import('@/lib/api');
-      
+
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -156,8 +157,86 @@ describe('ApiClient API singleton', () => {
       } catch {
         // Expected to throw
       }
-      
+
       expect(localStorageMock.removeItem).toHaveBeenCalledWith('medschedule.user');
+    });
+
+    // BUGFIX (was PERM-VER-LOOP): when the backend rejects a JWT with
+    // { code: "PERMISSION_VERSION_STALE" }, the interceptor must NOT try
+    // to refresh — the refresh token carries the same stale permVer claim
+    // and would just produce another stale JWT. Instead it must clear
+    // localStorage and bounce the user to /login.
+    it('clears auth immediately on PERMISSION_VERSION_STALE 401 (no refresh attempt)', async () => {
+      localStorageMock.getItem.mockImplementation((key: string) => {
+        if (key === 'medschedule.token') return 'old-access';
+        if (key === 'medschedule.refreshToken') return 'old-refresh';
+        return null;
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: () =>
+          Promise.resolve({
+            success: false,
+            code: 'PERMISSION_VERSION_STALE',
+            message: 'Permission matrix has changed — please log in again.',
+          }),
+      });
+
+      const { api } = await import('@/lib/api');
+
+      await expect(api.get('/staff')).rejects.toThrow(/Permission matrix/);
+
+      // Only one fetch should have happened — the refresh endpoint must NOT be called.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      // Tokens + cached user must be cleared.
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('medschedule.user');
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('medschedule.token');
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('medschedule.refreshToken');
+      // Should redirect to /login.
+      expect(locationMock.replace).toHaveBeenCalledWith('/login');
+    });
+
+    it('still attempts refresh on regular 401 (no PERMISSION_VERSION_STALE code)', async () => {
+      // The interceptor's refresh-on-401 path must keep working for plain
+      // expired access tokens — only the permVer stale case should bypass it.
+      localStorageMock.getItem.mockImplementation((key: string) => {
+        if (key === 'medschedule.token') return 'old-access';
+        if (key === 'medschedule.refreshToken') return 'old-refresh';
+        return null;
+      });
+
+      // First call: 401 with plain message (no PERMISSION_VERSION_STALE code).
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ message: 'Access token expired' }),
+      });
+      // Refresh succeeds and returns a new pair.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            data: { token: 'new-access', refreshToken: 'new-refresh' },
+          }),
+      });
+      // Replayed original request succeeds.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, data: [] }),
+      });
+
+      const { api } = await import('@/lib/api');
+
+      await api.get('/staff');
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(mockFetch.mock.calls[1][0]).toContain('/auth/refresh');
+      // New tokens persisted.
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('medschedule.token', 'new-access');
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('medschedule.refreshToken', 'new-refresh');
     });
   });
 

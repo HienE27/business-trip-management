@@ -330,6 +330,12 @@ export interface AutoScheduleRequest {
   autoAssign?: boolean;
   excludedStaffIds?: number[];
   holidayMode?: "SKIP" | "PARTIAL";
+  /**
+   * Runtime override for max_shifts_per_month cap.
+   * null = use DB per-staff caps; positive int = force all staff to this cap; 0 = disable cap.
+   * Tip: start with 8 (realistic hospital workload), 25-40 (relaxed sim), 0 (disable).
+   */
+  maxShiftsPerMonthOverride?: number | null;
 }
 
 export interface AutoScheduleSummary {
@@ -598,8 +604,11 @@ export interface CompensationDay {
   id: number;
   staffId: number;
   staffName: string;
+  staffCode?: string;
+  scheduleId?: number;
   shiftDate: string;
   compensationDate: string;
+  note?: string;
 }
 
 // ============================================================

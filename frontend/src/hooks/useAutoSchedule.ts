@@ -25,6 +25,8 @@ export type AutoScheduleState = {
   message: string | null;
   algorithmType: "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC";
   holidayMode: "SKIP" | "PARTIAL" | null;
+  /** Runtime override for max_shifts_per_month. null = use DB cap per staff. */
+  maxShiftsPerMonthOverride: number | null;
 };
 
 export type AutoScheduleActions = {
@@ -51,6 +53,7 @@ export type AutoScheduleActions = {
   setMessage: (msg: string) => void;
   setAlgorithmType: (type: "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC") => void;
   setHolidayMode: (mode: "SKIP" | "PARTIAL" | null) => void;
+  setMaxShiftsPerMonthOverride: (cap: number | null) => void;
 };
 
 function parseScheduleKey(key: string): PreviewScheduleEdit | null {
@@ -70,6 +73,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [message, setMessage] = useState<string | null>(null);
   const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC">("CSP_MRV_FC");
   const [holidayMode, setHolidayMode] = useState<"SKIP" | "PARTIAL" | null>(null);
+  const [maxShiftsPerMonthOverride, setMaxShiftsPerMonthOverride] = useState<number | null>(null);
 
   const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[]) => {
     if (!periodId) return;
@@ -82,6 +86,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         algorithmType,
         excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
         holidayMode: holidayMode ?? undefined,
+        maxShiftsPerMonthOverride,
       }, { timeout: 600000 }); // 10 minute ceiling for the CSP partial path
 
       setPreviewResult(result.data);
@@ -94,7 +99,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
     } finally {
       setRunning(false);
     }
-  }, [algorithmType, holidayMode]);
+  }, [algorithmType, holidayMode, maxShiftsPerMonthOverride]);
 
   const applyPreview = useCallback(
     async (
@@ -281,7 +286,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   }, [setAlgorithmType]);
 
   return [
-    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType, holidayMode },
-    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType, setHolidayMode: setHolidayMode },
+    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType, holidayMode, maxShiftsPerMonthOverride },
+    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType, setHolidayMode: setHolidayMode, setMaxShiftsPerMonthOverride },
   ];
 }

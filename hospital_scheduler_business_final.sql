@@ -20,7 +20,6 @@ DROP TABLE IF EXISTS audit_history;
 DROP TABLE IF EXISTS file_attachment;
 DROP TABLE IF EXISTS schedule_conflict;
 DROP TABLE IF EXISTS notification;
-DROP TABLE IF EXISTS system_log;
 DROP TABLE IF EXISTS algorithm_config;
 DROP TABLE IF EXISTS schedule_exchange;
 DROP TABLE IF EXISTS compensation_day;
@@ -318,23 +317,6 @@ CREATE TABLE algorithm_config (
 ) ENGINE=InnoDB;
 
 -- =====================================================
--- 14. SYSTEM_LOG
--- Log hành động hệ thống ở mức tổng quát.
--- =====================================================
-CREATE TABLE system_log (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    staff_id INT NULL,
-    action_type VARCHAR(50) NOT NULL,
-    description TEXT,
-    ip_address VARCHAR(45),
-    user_agent VARCHAR(255),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_system_log_staff
-        FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE SET NULL
-) ENGINE=InnoDB;
-
--- =====================================================
 -- 16. NOTIFICATION
 -- Thông báo cho nhân sự.
 -- read_at lưu thời điểm đọc.
@@ -544,10 +526,6 @@ CREATE INDEX idx_algorithm_config_updated_by ON algorithm_config(updated_by);
 CREATE INDEX idx_template_active ON schedule_template(is_active);
 CREATE INDEX idx_template_day ON schedule_template(day_of_week);
 CREATE INDEX idx_template_specialty ON schedule_template(specialty_id);
-
-CREATE INDEX idx_system_log_staff ON system_log(staff_id);
-CREATE INDEX idx_system_log_created ON system_log(created_at);
-CREATE INDEX idx_system_log_action ON system_log(action_type);
 
 CREATE INDEX idx_notification_staff_read ON notification(staff_id, is_read);
 CREATE INDEX idx_notification_created ON notification(created_at);

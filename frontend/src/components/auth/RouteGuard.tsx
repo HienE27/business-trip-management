@@ -22,7 +22,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
  */
 export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // Nhân sự & phân quyền
-  "/staff": [Permission.STAFF_VIEW],
+  "/staff": [Permission.STAFF_VIEW_ALL],
   "/staff/create": [Permission.STAFF_CREATE],
   "/periods": [Permission.PERIOD_VIEW],
   "/periods/create": [Permission.PERIOD_CREATE],
@@ -42,9 +42,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   "/settings": [Permission.APP_CONFIG_VIEW],
   "/settings/roles": [Permission.ROLE_VIEW],
 
-  // Audit + System log
+  // Audit + Config
   "/audit-history": [Permission.AUDIT_VIEW],
-  "/system-logs": [Permission.SYSTEM_LOG_VIEW],
 
   // Ngày lễ
   "/holidays": [Permission.HOLIDAY_VIEW],
@@ -55,12 +54,16 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // Notifications — cho phép STAFF xem của mình
   "/notifications": [Permission.NOTIFICATION_VIEW],
 
-  // Monthly schedule (theo từng loại ca) — STAFF chỉ xem của mình, ADMIN/MANAGER đầy đủ
+  // Lịch theo kỳ (M02/M03/M04/M05) — chỉ cần SCHEDULE_VIEW. Component
+  // ScheduleByTypePage tự phân nhánh theo role:
+  //   - ADMIN/MANAGER: fetch /periods, /staff/active, /schedules/period/{id} đầy đủ
+  //   - STAFF: fetch /schedules/me (lịch cá nhân), ẩn hết nút tạo/sửa
   "/duty-24": [Permission.SCHEDULE_VIEW],
   "/all-day": [Permission.SCHEDULE_VIEW],
   "/service-clinic": [Permission.SCHEDULE_VIEW],
   "/expert-clinic": [Permission.SCHEDULE_VIEW],
   "/schedule-summary": [Permission.SCHEDULE_VIEW],
+  "/monthly-schedule": [Permission.SCHEDULE_VIEW, Permission.PERIOD_VIEW],
 
   // Data integrity (admin only)
   "/data-integrity": [Permission.DATA_INTEGRITY_RUN],

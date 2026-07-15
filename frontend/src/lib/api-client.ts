@@ -35,6 +35,7 @@ import type {
   PublishDryRunResponse,
   StaffShiftStatistics,
   Page,
+  CompensationDay,
 } from "@/types/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
@@ -190,7 +191,36 @@ class ApiClient {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({} as { message?: string }));
+      const errorData = await response.json().catch(() => ({} as { message?: string; code?: string }));
+
+      // BUGFIX (was PERM-VER-LOOP): the backend stamps every JWT with a
+      // `permVer` claim that matches the current permission-matrix version.
+      // When an admin toggles a permission the version is bumped and every
+      // outstanding JWT becomes stale; the backend then returns 401 with
+      // { code: "PERMISSION_VERSION_STALE", ... }.
+      //
+      // We MUST skip the /auth/refresh path here: the refresh token carries
+      // the SAME stale permVer claim, so issuing a new access token from it
+      // would just produce another stale JWT and we'd loop forever hitting
+      // the refresh endpoint. Instead, force a full re-login so the user
+      // re-authenticates with a freshly-stamped token.
+      if (
+        response.status === 401 &&
+        (errorData as { code?: string } | undefined)?.code === "PERMISSION_VERSION_STALE"
+      ) {
+        emit(API_EVENTS.AuthError, {
+          status: 401,
+          message:
+            (errorData as { message?: string } | undefined)?.message ||
+            "Phiên làm việc đã hết hạn do thay đổi quyền. Vui lòng đăng nhập lại.",
+          path: endpoint,
+        });
+        this.clearAuthAndRedirect();
+        throw new Error(
+          (errorData as { message?: string } | undefined)?.message ||
+            "Phiên làm việc đã hết hạn do thay đổi quyền. Vui lòng đăng nhập lại."
+        );
+      }
 
       // 401 + we have a refresh token + haven't retried yet → try to refresh
       // once. If refresh succeeds, replay the request; otherwise force a
@@ -1414,6 +1444,47 @@ class ApiClient {
     });
     const response = res as unknown as { data: number };
     return response.data ?? 0;
+  }
+
+  // Compensation Days (manual CRUD for L01 schedules)
+  /** GET /schedules/compensation-days/{periodId} — list all comp days in a period. */
+  async getCompensationDaysByPeriod(periodId: number): Promise<CompensationDay[]> {
+    const res = await this.request<CompensationDay[]>(`/schedules/compensation-days/${periodId}`);
+    const raw = res.data;
+    if (Array.isArray(raw)) return raw as unknown as CompensationDay[];
+    // Some endpoints return the array directly
+    if (Array.isArray(res)) return res as unknown as CompensationDay[];
+    return [];
+  }
+
+  /** POST /schedules/compensation-days — create a manual comp day for an L01 schedule. */
+  async createCompensationDay(payload: {
+    scheduleId: number;
+    compensationDate: string;
+    note?: string;
+  }): Promise<CompensationDay> {
+    const res = await this.request<CompensationDay>(`/schedules/compensation-days`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return res.data as unknown as CompensationDay;
+  }
+
+  /** PUT /schedules/compensation-days/{id} — update comp day date / note. */
+  async updateCompensationDay(id: number, payload: {
+    compensationDate?: string;
+    note?: string;
+  }): Promise<CompensationDay> {
+    const res = await this.request<CompensationDay>(`/schedules/compensation-days/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    return res.data as unknown as CompensationDay;
+  }
+
+  /** DELETE /schedules/compensation-days/{id} — delete a comp day. */
+  async deleteCompensationDay(id: number): Promise<void> {
+    await this.request<void>(`/schedules/compensation-days/${id}`, { method: "DELETE" });
   }
 
   // Statistics (M02-F05, M04-F05, M05-F05)
