@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/exhaustive-deps */
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
@@ -148,13 +148,14 @@ export function StaffCrudPanel() {
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
   const { can } = usePermissions();
 
-  // Sync global search ?q= URL param to local search state
+  // Sync global search ?q= URL param to local search state (only on initial load)
   useEffect(() => {
     const q = searchParams.get("q");
-    if (q && q !== searchKeyword) {
+    if (q) {
       setSearchKeyword(q);
     }
-  }, [searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchSpecialties = useCallback(async () => {
     try {

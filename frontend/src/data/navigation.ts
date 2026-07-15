@@ -60,7 +60,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/duty-24",
     icon: "emergency",
     description: "M02 — Lịch trực 24/24.",
-    requiredPermissions: ["SCHEDULE_VIEW"],
   },
   {
     key: "all-day",
@@ -68,7 +67,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/all-day",
     icon: "schedule",
     description: "M03 — Lịch thông tầm.",
-    requiredPermissions: ["SCHEDULE_VIEW"],
   },
   {
     key: "service-clinic",
@@ -76,7 +74,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/service-clinic",
     icon: "medical_services",
     description: "M04 — Lịch phòng khám dịch vụ.",
-    requiredPermissions: ["SCHEDULE_VIEW"],
   },
   {
     key: "expert-clinic",
@@ -84,7 +81,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/expert-clinic",
     icon: "stethoscope",
     description: "M05 — Lịch phòng khám chuyên gia.",
-    requiredPermissions: ["SCHEDULE_VIEW"],
   },
   {
     key: "requirements",
@@ -164,7 +160,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/settings",
     icon: "settings",
     description: "Cấu hình hệ thống.",
-    requiredPermissions: ["APP_CONFIG_VIEW"],
   },
 ];
 

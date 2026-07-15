@@ -24,6 +24,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // Nhân sự & phân quyền
   "/staff": [Permission.STAFF_VIEW],
   "/staff/create": [Permission.STAFF_CREATE],
+  "/staff/profile": [],
   "/periods": [Permission.PERIOD_VIEW],
   "/periods/create": [Permission.PERIOD_CREATE],
 
@@ -38,8 +39,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // Báo cáo
   "/reports": [Permission.REPORT_VIEW],
 
-  // Cài đặt
-  "/settings": [Permission.APP_CONFIG_VIEW],
+  // Cài đặt — cho phép all authenticated user xem settings cá nhân
+  "/settings": [],
   "/settings/roles": [Permission.ROLE_VIEW],
 
   // Audit + System log
@@ -56,7 +57,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   "/notifications": [Permission.NOTIFICATION_VIEW],
 
   // Monthly schedule (theo từng loại ca) — STAFF chỉ xem của mình, ADMIN/MANAGER đầy đủ
-  "/duty-24": [Permission.SCHEDULE_VIEW],
+  "/monthly-schedule": [],
+  "/duty-24": [],
   "/all-day": [Permission.SCHEDULE_VIEW],
   "/service-clinic": [Permission.SCHEDULE_VIEW],
   "/expert-clinic": [Permission.SCHEDULE_VIEW],

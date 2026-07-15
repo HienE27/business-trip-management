@@ -34,6 +34,10 @@ export function buildScheduleMatrix(
   weekEnd?: Date,
 ): ScheduleMatrix {
   const isWeekMode = weekStart !== undefined && weekEnd !== undefined;
+  const isDayMode = isWeekMode &&
+    weekStart!.getFullYear() === weekEnd!.getFullYear() &&
+    weekStart!.getMonth() === weekEnd!.getMonth() &&
+    weekStart!.getDate() === weekEnd!.getDate();
   const monthLastDay = new Date(year, month + 1, 0).getDate();
   const startDay = isWeekMode ? weekStart!.getDate() : 1;
   const endDay = isWeekMode ? weekEnd!.getDate() : monthLastDay;
@@ -69,7 +73,7 @@ export function buildScheduleMatrix(
 
   // Build rows: one per day
   const rows: MatrixRow[] = [];
-  const dayCount = isWeekMode ? 7 : endDay - startDay + 1;
+  const dayCount = isDayMode ? 1 : isWeekMode ? 7 : endDay - startDay + 1;
   for (let i = 0; i < dayCount; i++) {
     const date = isWeekMode
       ? new Date(weekStart!.getTime() + i * 86400000)
