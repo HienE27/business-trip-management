@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import type { Permission } from "@/lib/permissions";
 import { resolvePermissions } from "@/lib/permissions";
 import { useAuth } from "@/components/auth/AuthProvider";

@@ -50,7 +50,7 @@ export const FairnessHeatmap = memo(function FairnessHeatmap({
   activeStaff,
   warningThreshold = 0.20,
 }: FairnessHeatmapProps) {
-  const { fairnessByType, totalShiftsByStaff, shiftsByStaffAndType } = qualityReport;
+  const { fairnessByType, totalShiftsByStaff } = qualityReport;
 
   // Group by shift type (strip specialty suffix for L04)
   const groupedByType: Record<string, FairnessDetail[]> = {};
@@ -138,7 +138,6 @@ export const FairnessHeatmap = memo(function FairnessHeatmap({
                   {worstDetail && (
                     <div className="space-y-1">
                       {details.map((d) => {
-                        const dColors = getCvColor(d.coefficientOfVariation);
                         return (
                           <div key={d.shiftType} className="flex items-center justify-between gap-2">
                             <span className="text-label-xs text-on-surface-variant truncate">

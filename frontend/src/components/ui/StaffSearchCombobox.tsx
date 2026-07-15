@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LeaveRequest, Staff } from "@/types/api";
 
 type GroupedStaff = {
@@ -110,37 +110,38 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
 
   const grouped = groupStaff(staffList, workDate, existingSet, compDates, conflictSet, onLeaveStaffIds);
 
-  const filtered = query.trim()
-    ? {
-        available: grouped.available.filter(
-          (s) =>
-            s.fullName.toLowerCase().includes(query.toLowerCase()) ||
-            s.username.toLowerCase().includes(query.toLowerCase()) ||
-            s.specialty?.name.toLowerCase().includes(query.toLowerCase()) ||
-            s.position?.toLowerCase().includes(query.toLowerCase()),
-        ),
-        unavailableCompDay: grouped.unavailableCompDay.filter(
-          (s) =>
-            s.fullName.toLowerCase().includes(query.toLowerCase()) ||
-            s.username.toLowerCase().includes(query.toLowerCase()),
-        ),
-        unavailableExisting: grouped.unavailableExisting.filter(
-          (s) =>
-            s.fullName.toLowerCase().includes(query.toLowerCase()) ||
-            s.username.toLowerCase().includes(query.toLowerCase()),
-        ),
-        unavailableConflict: grouped.unavailableConflict.filter(
-          (s) =>
-            s.fullName.toLowerCase().includes(query.toLowerCase()) ||
-            s.username.toLowerCase().includes(query.toLowerCase()),
-        ),
-        unavailableOnLeave: grouped.unavailableOnLeave.filter(
-          (s) =>
-            s.fullName.toLowerCase().includes(query.toLowerCase()) ||
-            s.username.toLowerCase().includes(query.toLowerCase()),
-        ),
-      }
-    : grouped;
+  const filtered = useMemo(() => {
+    if (!query.trim()) return grouped;
+    return {
+      available: grouped.available.filter(
+        (s) =>
+          s.fullName.toLowerCase().includes(query.toLowerCase()) ||
+          s.username.toLowerCase().includes(query.toLowerCase()) ||
+          s.specialty?.name.toLowerCase().includes(query.toLowerCase()) ||
+          s.position?.toLowerCase().includes(query.toLowerCase()),
+      ),
+      unavailableCompDay: grouped.unavailableCompDay.filter(
+        (s) =>
+          s.fullName.toLowerCase().includes(query.toLowerCase()) ||
+          s.username.toLowerCase().includes(query.toLowerCase()),
+      ),
+      unavailableExisting: grouped.unavailableExisting.filter(
+        (s) =>
+          s.fullName.toLowerCase().includes(query.toLowerCase()) ||
+          s.username.toLowerCase().includes(query.toLowerCase()),
+      ),
+      unavailableConflict: grouped.unavailableConflict.filter(
+        (s) =>
+          s.fullName.toLowerCase().includes(query.toLowerCase()) ||
+          s.username.toLowerCase().includes(query.toLowerCase()),
+      ),
+      unavailableOnLeave: grouped.unavailableOnLeave.filter(
+        (s) =>
+          s.fullName.toLowerCase().includes(query.toLowerCase()) ||
+          s.username.toLowerCase().includes(query.toLowerCase()),
+      ),
+    };
+  }, [query, grouped]);
 
   const totalAvailable = filtered.available.length;
   const totalUnavailable =
@@ -342,7 +343,6 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
         {/* Accessible hidden input */}
         <input
           type="text"
-          role="option"
           disabled={disabled}
           required={required}
           value={selectedStaff ? `${selectedStaff.id}` : ""}

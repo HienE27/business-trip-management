@@ -1,4 +1,5 @@
 import { test as base, type Page } from '@playwright/test';
+/* eslint-disable react-hooks/rules-of-hooks -- Playwright fixtures use 'use' which ≠ React hook */
 
 /**
  * Auth fixture for the Hospital Scheduler E2E test suite.
@@ -28,7 +29,8 @@ export async function waitForAuthReady(page: Page, timeout = 20_000): Promise<vo
 }
 
 export async function loginAsTestUser(page: Page): Promise<boolean> {
-  await page.goto(LOGIN_PATH);
+  // Navigate to login page directly (this establishes the origin for localStorage)
+  await page.goto(LOGIN_PATH, { waitUntil: 'load', timeout: 20000 });
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(1000);
 
@@ -64,6 +66,7 @@ export async function loginAs(page: Page): Promise<boolean> {
 }
 
 export const test = base.extend<{ loginAs: (page: Page) => Promise<boolean> }>({
+   
   loginAs: async ({}, use) => {
     await use(loginAs);
   },

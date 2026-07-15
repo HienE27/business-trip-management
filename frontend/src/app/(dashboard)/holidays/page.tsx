@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Pagination } from "@/components/ui/Pagination";
@@ -42,7 +42,6 @@ function getYearOptions() {
 }
 
 const DEFAULT_PAGE_SIZE = 10;
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 function HolidaysContent() {
   const { can } = usePermissions();
@@ -50,7 +49,6 @@ function HolidaysContent() {
   const canUpdate = can(Permission.HOLIDAY_UPDATE);
   const canDelete = can(Permission.HOLIDAY_DELETE);
   const toast = useToast();
-  const ignoreRef = useRef(false);
 
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);

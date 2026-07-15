@@ -172,7 +172,7 @@ export function useSchedulePeriodData(
         window.removeEventListener("schedules-changed", handleSchedulesChanged);
       }
     };
-  }, [selectedPeriodId, invalidateEndpoint]);
+  }, [selectedPeriodId]);
 
   useEffect(() => {
     let active = true;

@@ -36,7 +36,7 @@ function ReportsMonthlyContent() {
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<SchedulePeriod | null>(null);
   const [stats, setStats] = useState<ShiftStatistics | null>(null);
-  const [scheduleCount, setScheduleCount] = useState(0);
+  const [, setScheduleCount] = useState(0);
   const [staffCount, setStaffCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);

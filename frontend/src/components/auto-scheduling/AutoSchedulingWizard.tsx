@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button, Badge } from "@/components/ui";
 import { useAutoSchedule } from "@/hooks/useAutoSchedule";
 import { useAlgorithmProgress } from "@/hooks/useAlgorithmProgress";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { SchedulePeriod, Staff, AutoScheduleResult } from "@/types/api";
+import type { SchedulePeriod, Staff } from "@/types/api";
 
 type WizardStep = "welcome" | "period" | "config-check" | "exclusions" | "running" | "results" | "apply";
 
@@ -46,7 +46,6 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
   const [currentStep, setCurrentStep] = useState<WizardStep>("welcome");
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
   const [excludedStaffIds, setExcludedStaffIds] = useState<number[]>([]);
-  const [previewResult, setPreviewResult] = useState<AutoScheduleResult | null>(null);
   const [autoGenEnabled, setAutoGenEnabled] = useState<boolean | null>(null);
   const [configIssues, setConfigIssues] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,7 +54,7 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
   const [showTips, setShowTips] = useState(true);
   
   const [autoState, autoActions] = useAutoSchedule();
-  const { runPreview, applyPreview } = autoActions;
+  const { applyPreview } = autoActions;
   const { previewResult: autoPreview, running } = autoState;
   const progress = useAlgorithmProgress(selectedPeriodId, running);
 
@@ -106,25 +105,11 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
     }
   }, [currentStep]);
 
-  const handleRunAlgorithm = useCallback(async () => {
-    if (!selectedPeriodId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await runPreview(selectedPeriodId, excludedStaffIds);
-      setCurrentStep("results");
-    } catch (err) {
-      setError(getErrorMessage(err, "Không thể chạy thuật toán"));
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedPeriodId, excludedStaffIds, runPreview]);
-
   const handleApply = useCallback(async () => {
-    if (!previewResult || !selectedPeriodId) return;
+    if (!autoPreview || !selectedPeriodId) return;
     setLoading(true);
     try {
-      const schedules = previewResult.schedules.map(s => ({
+      const schedules = autoPreview.schedules.map(s => ({
         workDate: s.workDate,
         shiftTypeId: s.shiftTypeId,
         staffId: s.staffId,
@@ -135,7 +120,7 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
     } finally {
       setLoading(false);
     }
-  }, [previewResult, selectedPeriodId, applyPreview, onComplete]);
+  }, [autoPreview, selectedPeriodId, applyPreview, onComplete]);
 
   const currentStepIndex = WIZARD_STEPS.findIndex(s => s.id === currentStep);
 

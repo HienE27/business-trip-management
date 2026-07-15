@@ -9,7 +9,6 @@ import { getErrorMessage } from "@/lib/errors";
 import { getRoleLabel, ROLE_LABELS } from "@/lib/roleLabels";
 import { useToast } from "@/hooks/useToast";
 import { FormInput, FormSelect, Button, ConfirmDialog } from "@/components/ui";
-import { PermissionGate } from "@/components/auth/PermissionGate";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Permission } from "@/lib/permissions";
 import { Pagination } from "@/components/ui/Pagination";

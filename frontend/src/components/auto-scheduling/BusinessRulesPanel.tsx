@@ -53,7 +53,7 @@ export function BusinessRulesPanel({ onAddRule }: { onAddRule?: () => void }) {
   const [newType, setNewType] = useState<RuleType>("preference");
   const [saving, setSaving] = useState(false);
   const [titleError, setTitleError] = useState("");
-  const { error: showError, success: showSuccess } = useToast();
+  const { error: showError } = useToast();
 
   const handleAddRule = async () => {
     if (!newTitle.trim()) {
@@ -85,7 +85,7 @@ export function BusinessRulesPanel({ onAddRule }: { onAddRule?: () => void }) {
       setNewType("preference");
       setShowAddForm(false);
       onAddRule?.();
-    } catch (err) {
+    } catch {
       showError("Không thể lưu quy tắc. Vui lòng thử lại.");
     } finally {
       setSaving(false);

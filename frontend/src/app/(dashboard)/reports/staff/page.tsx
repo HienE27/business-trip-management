@@ -10,7 +10,6 @@ import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { Staff, SchedulePeriod, StaffWorkloadStatistics } from "@/types/api";
-import type { Page } from "@/types/api";
 import {
   computeSummary,
   pickCap,

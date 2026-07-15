@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: 'html',
   timeout: process.env.CI ? 60_000 : 60_000,
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:3001',
     trace: 'on-first-retry',
   },
   projects: [
@@ -22,7 +22,7 @@ export default defineConfig({
   // On CI (no existing server) we boot it ourselves.
   webServer: process.env.CI ? {
     command: 'pnpm start',
-    url: 'http://localhost:3000',
+    url: 'http://localhost:3001',
     reuseExistingServer: false,
     timeout: 120_000,
   } : undefined,

@@ -5,7 +5,6 @@ export type { ShiftColorSet } from "@/lib/shift-colors";
 // shift object — used by dashboard/page.tsx
 // All colors now reference CSS custom properties from globals.css @theme block.
 // This is the ONLY place that should define shift color utilities.
-import { SHIFT_COLORS } from "@/lib/shift-colors";
 
 export const shift = {
   L01: {

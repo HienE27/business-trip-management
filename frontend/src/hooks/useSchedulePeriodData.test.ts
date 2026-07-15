@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { useSchedulePeriodData } from "@/hooks/useSchedulePeriodData";
 import { api } from "@/lib/api";
-import type { SchedulePeriod, Staff, Schedule, ConflictCheckResponse } from "@/types/api";
+import type { SchedulePeriod, Schedule, ConflictCheckResponse } from "@/types/api";
 
 vi.mock("@/lib/api", () => ({
   api: {

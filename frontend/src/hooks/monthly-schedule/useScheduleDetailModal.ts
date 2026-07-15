@@ -27,7 +27,7 @@ export function useScheduleDetailModal(scheduleId: number | null, onCloseRoute: 
         if (ignore.current) return;
         setDetailSchedule(res.data);
       })
-      .catch((err) => {
+      .catch(() => {
         if (ignore.current) return;
         setDetailError("Không thể tải chi tiết ca trực.");
       })

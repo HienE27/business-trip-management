@@ -1,4 +1,4 @@
-import type { ConflictCheckResponse, ConflictDetail, CompensationDay, Schedule, SchedulePeriod, Staff } from "@/types/api";
+import type { ConflictDetail, CompensationDay, Schedule, SchedulePeriod, Staff } from "@/types/api";
 import { getRoleBadge, getRoleLabel } from "@/lib/roleLabels";
 import { formatDate } from "@/lib/date";
 import { SHIFT_COLORS, SHIFT_TYPE_LABELS, WEEKDAYS } from "./constants";

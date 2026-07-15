@@ -19,7 +19,7 @@
  * stays in sync with the table filter (ALL / L01 / L02 / L03 / L04).
  */
 
-import { useId, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   pickCap,
   pickShiftCount,
@@ -63,7 +63,6 @@ export function WorkloadBalanceChart({
   limit = 12,
   emptyLabel = 'Chưa có dữ liệu tải cho kỳ này.',
 }: WorkloadBalanceChartProps) {
-  const uid = useId();
 
   const sorted = useMemo(() => {
     const rows: StaffWorkloadRow[] = data.map((d) => ({

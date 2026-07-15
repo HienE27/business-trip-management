@@ -91,11 +91,6 @@ function StatisticsReportContent() {
     return { totalShifts, totalHours, avgShifts, maxShifts, minShifts, staffCount: stats.length };
   }, [stats]);
 
-  const maxShiftsInList = useMemo(
-    () => Math.max(...stats.map((s) => s.totalShifts), 1),
-    [stats]
-  );
-
   return (
     <div className="space-y-4">
       <BackButton href="/reports" variant="full" label="Quay lại" className="mb-4" />

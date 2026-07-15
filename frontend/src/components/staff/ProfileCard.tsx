@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { translateRoleListToDisplay } from "@/lib/roleLabels";
 
@@ -45,7 +46,7 @@ export function ProfileCard({
         <div className="relative group">
           <div className="size-24 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-3xl font-bold shadow-xl ring-4 ring-white/30 transition-transform group-hover:scale-105">
             {avatarUrl ? (
-              <img alt={fullName} className="w-full h-full object-cover rounded-2xl" src={avatarUrl} />
+              <Image alt={fullName} className="w-full h-full object-cover rounded-2xl" src={avatarUrl} width={96} height={96} />
             ) : (
               getInitials(fullName)
             )}
@@ -60,7 +61,7 @@ export function ProfileCard({
           <h2 className="text-xl font-bold">{fullName}</h2>
           <p className="text-white/70 text-label-sm mt-0.5">@{username}</p>
           <div className="flex flex-wrap justify-center gap-2 mt-3">
-            {translateRoleListToDisplay(roles).map((role, idx) => (
+            {translateRoleListToDisplay(roles).map((role) => (
               <span key={role} className="px-2.5 py-1 rounded-full text-label-sm font-medium bg-white/20 backdrop-blur-sm border border-white/20">
                 {role}
               </span>

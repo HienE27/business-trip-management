@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { KPICard } from "@/components/ui/KPICard";
 import type { AutoScheduleResult, SchedulePeriod, Staff } from "@/types/api";
-import { parseNumber, formatCoverageRate, formatPercent } from "@/lib/number-utils";
+import { parseNumber } from "@/lib/number-utils";
 import { useAlgorithmProgress } from "@/hooks/useAlgorithmProgress";
 
 type AlgorithmType = "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC";

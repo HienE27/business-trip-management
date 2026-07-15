@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef } from "react";
 import { Modal } from "./Modal";
 import { Button } from "./Button";
 
@@ -34,7 +34,6 @@ export function ConfirmDialog({
   description,
   confirmLabel = "Xác nhận",
   cancelLabel = "Hủy",
-  variant = "danger",
   loading = false,
   closeOnBackdrop = true,
 }: ConfirmDialogProps) {

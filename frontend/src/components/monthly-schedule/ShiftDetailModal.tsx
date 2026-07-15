@@ -31,7 +31,6 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
   onClose,
   onSave,
   onDelete,
-  onRefresh,
 }: ShiftDetailModalProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);

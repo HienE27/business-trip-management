@@ -51,7 +51,6 @@ function LeaveRequestsContent() {
   const { user } = useAuth();
   const { can } = usePermissions();
   const canApprove = can(Permission.LEAVE_APPROVE);
-  const canCancelSelf = can(Permission.LEAVE_CANCEL_SELF);
   const hasApproveRole = user?.roles?.some((r) => r === "ADMIN" || r === "MANAGER") ?? false;
   const isManager = hasApproveRole || canApprove;
 
@@ -284,7 +283,7 @@ function LeaveRequestsContent() {
       setConfirmOpen(false);
       setDeleteTargetId(null);
     }
-  }, [fetchRequests]);
+  }, [fetchRequests, deleteTargetId]);
 
   const handleOpenDetail = useCallback((req: LeaveRequest) => {
     setDetailRequest(req);

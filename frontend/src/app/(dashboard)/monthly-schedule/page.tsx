@@ -42,7 +42,6 @@ import { useScheduleWorkspace } from "@/hooks/useScheduleWorkspace";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { ConflictDetail, Holiday } from "@/types/api";
-import type { ConflictItem } from "@/types/schedule";
 import type { MonthlyPanel, WorkflowStepId } from "@/components/monthly-schedule/types";
 import { downloadBlob, getInitialCalendar } from "@/components/monthly-schedule/utils";
 
@@ -121,7 +120,6 @@ export default function MonthlySchedulePage() {
     activeStaff,
     conflictData,
     compensationDays,
-    specialties,
     loading,
     refreshing,
     message,
@@ -136,7 +134,6 @@ export default function MonthlySchedulePage() {
   const [notifying, setNotifying] = useState(false);
   const [notified, setNotified] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [dryRunData, setDryRunData] = useState<import("@/types/api").PublishDryRunResponse | null>(null);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
@@ -159,8 +156,6 @@ export default function MonthlySchedulePage() {
   const {
     filteredSchedules,
     conflictList,
-    calendarAnnotations,
-    computedCoverages,
     coverageGapsByTab,
     kpis,
     focusSchedules,
@@ -253,7 +248,7 @@ export default function MonthlySchedulePage() {
     } finally {
       setNotifying(false);
     }
-  }, [selectedPeriodId, wsActions]);
+  }, [selectedPeriodId, wsActions, role]);
 
   const handleExport = useCallback(async () => {
     if (!selectedPeriodId) return;
@@ -344,7 +339,7 @@ export default function MonthlySchedulePage() {
             selectedPeriod={selectedPeriod}
             schedules={schedules}
             conflictData={conflictData}
-            dryRunData={dryRunData}
+            dryRunData={null}
             checkingConflicts={checkingConflicts}
             publishing={publishing}
             exporting={exporting}

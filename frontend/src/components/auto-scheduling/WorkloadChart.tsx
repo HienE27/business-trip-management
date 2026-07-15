@@ -56,6 +56,9 @@ interface WorkloadChartData {
 
 type ViewMode = "bar" | "stacked" | "balance";
 
+// Eligible specialties for filtering
+const ELIGIBLE_SPECIALTIES = ["Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"];
+
 const CHART_COLOR_CLASS: Record<ShiftTypeId, string> = {
   L01: "bg-chart-24",
   L02: "bg-chart-tt",
@@ -547,9 +550,6 @@ export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: Work
   const [viewMode, setViewMode] = useState<ViewMode>("bar");
   const [showOnlyEligible, setShowOnlyEligible] = useState(false);
   const toast = useToast();
-
-  // Eligible specialties: Ngoại, Nội, Sản, Nhi, Mắt, Răng
-  const ELIGIBLE_SPECIALTIES = ["Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"];
 
   const hasPreview = !!previewSchedules && previewSchedules.length > 0;
   const balanceData = useMemo(

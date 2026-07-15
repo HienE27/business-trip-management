@@ -2,7 +2,7 @@
 
 import { memo, useMemo } from "react";
 import { Button } from "@/components/ui/Button";
-import type { QualityReport, Staff } from "@/types/api";
+import type { QualityReport } from "@/types/api";
 
 type SwapSuggestion = {
   shiftTypeId: string;

@@ -5,7 +5,7 @@ import { FormInput, FormTextarea, Button, ConfirmDialog, Pagination } from "@/co
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
-import type { ApiResponse, Page, Specialty } from "@/types/api";
+import type { ApiResponse, Specialty } from "@/types/api";
 
 const DEFAULT_PAGE_SIZE = 10;
 

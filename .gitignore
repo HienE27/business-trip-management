@@ -392,3 +392,18 @@ frontend/frontend_run.err
 frontend/smoke-test-result.json
 frontend/puppeteer-test-report.json
 frontend/puppeteer-quickadd-report.json
+
+# ============================================
+# Cleanup 2026-07-14: tool caches & credentials
+# ============================================
+
+# Local tool caches (machine-specific)
+.m2/
+.codegraph/
+
+# Standalone credentials / security artifacts
+login.txt
+
+# Corrupted copy artifacts (Windows filesystem)
+.m2;C/
+backend;C/

@@ -27,6 +27,7 @@ test.describe('Real-time conflict badge', () => {
         send = () => {};
         close = () => { this.readyState = 3; };
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         constructor(_url: string) {
           registry.push(this);
           queueMicrotask(() => {

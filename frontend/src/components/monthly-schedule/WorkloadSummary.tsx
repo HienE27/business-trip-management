@@ -164,7 +164,7 @@ export function WorkloadSummary({ periodId, shiftTypeId, groupBySpecialty }: Wor
 
       {/* Per-staff bars */}
       <div className="space-y-2">
-        {rows.map((r, idx) => {
+        {rows.map((r) => {
           const pct = Math.min(100, Math.round((r.total / maxTotal) * 100));
           if ("_type" in r && r._type === "specialty") {
             // Specialty group

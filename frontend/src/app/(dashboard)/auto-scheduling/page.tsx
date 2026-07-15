@@ -58,7 +58,7 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { RuntimeParamsChips } from "@/components/auto-scheduling/RuntimeParamsChips";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
-import type { SchedulePeriod, Staff, ReplacementSuggestion, AutoScheduleSummary, ScheduleTemplate, TemplatePreviewItem } from "@/types/api";
+import type { SchedulePeriod, Staff, ReplacementSuggestion, ScheduleTemplate, TemplatePreviewItem } from "@/types/api";
 
 function PageHeaderSkeleton() {
   return (
@@ -86,7 +86,6 @@ export default function AutoSchedulingPage() {
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [suggestionsModalOpen, setSuggestionsModalOpen] = useState(false);
   const [suggestionsData, setSuggestionsData] = useState<ReplacementSuggestion | null>(null);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
   const [autoState, autoActions] = useAutoSchedule();
   const { previewResult, editedPreview, removedShiftTypes, applying, running, message, algorithmType } = autoState;
@@ -105,7 +104,6 @@ export default function AutoSchedulingPage() {
   const [editingStaffIds, setEditingStaffIds] = useState<Map<string | number, number>>(new Map());
   const [previewEditItem, setPreviewEditItem] = useState<import("@/types/api").AutoScheduleSummary | null>(null);
   const [showWizard, setShowWizard] = useState(false);
-  const [wizardCompleted, setWizardCompleted] = useState(false);
 
   const loadWorkspace = useCallback(async () => {
     try {
@@ -512,7 +510,6 @@ export default function AutoSchedulingPage() {
       <ApplyConfirmationModal
         open={applyModalOpen}
         onClose={() => setApplyModalOpen(false)}
-        selectedPeriod={selectedPeriod}
         previewResult={previewResult}
         editedPreview={editedPreview}
         removedShiftTypes={removedShiftTypes}
@@ -546,7 +543,7 @@ export default function AutoSchedulingPage() {
         open={suggestionsModalOpen}
         onClose={() => { setSuggestionsModalOpen(false); setSuggestionsData(null); }}
         suggestionsData={suggestionsData}
-        loading={suggestionsLoading}
+        loading={false}
       />
 
       <ApplyTemplateModal
@@ -597,9 +594,8 @@ export default function AutoSchedulingPage() {
         <AutoSchedulingWizard
           periods={periods}
           activeStaff={activeStaff}
-          onComplete={() => {
+            onComplete={() => {
             setShowWizard(false);
-            setWizardCompleted(true);
             void loadWorkspace();
           }}
           onSkip={() => setShowWizard(false)}

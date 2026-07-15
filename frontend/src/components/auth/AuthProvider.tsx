@@ -204,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Re-throw the error is unnecessary; the finally{} below still
           // flips isLoading off so the UI renders. Surface to console for
           // ops debugging but don't pollute the user-facing toast queue.
-          // eslint-disable-next-line no-console
+           
           console.warn("[AuthProvider] /staff/me returned 5xx during bootstrap:", error);
         }
         // For non-401 / non-5xx (network drop, CORS, etc.), keep localStorage
@@ -221,7 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [router]);
 
   const login = useCallback(async (username: string, password: string) => {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {

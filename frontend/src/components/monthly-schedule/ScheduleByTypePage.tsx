@@ -89,7 +89,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   );
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [compensationDays, setCompensationDays] = useState<CompensationDay[]>([]);
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [, setHolidays] = useState<Holiday[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [activeStaff, setActiveStaff] = useState<Staff[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
@@ -120,42 +120,6 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
   // Quick single-date picker (reuses BulkDatePickerModal)
   const [quickPickerOpen, setQuickPickerOpen] = useState(false);
-
-  const loadBaseData = useCallback(async (options?: { keepCurrentPeriod?: boolean }) => {
-    try {
-      setLoading(true);
-      const requests: [
-        Promise<SchedulePeriod[]>,
-        Promise<Staff[]>,
-        Promise<LeaveRequest[]>,
-        Promise<Specialty[]> | null,
-      ] = [
-        api.get<SchedulePeriod[]>("/periods"),
-        api.get<Staff[]>("/staff/active"),
-        api.get<LeaveRequest[]>("/leave-requests/status/approved"),
-        isExpertMode ? api.get<Specialty[]>("/specialties/active") : null,
-      ];
-      const [periodData, staffData, leaveData, specialtyData] = await Promise.all(requests);
-      const pList = periodData ?? [];
-      setPeriods(pList);
-      setActiveStaff(staffData ?? []);
-      setLeaveRequests(leaveData ?? []);
-      setSpecialties(specialtyData ?? []);
-
-      // Only auto-select period on first load if no period is selected yet
-      if (!options?.keepCurrentPeriod) {
-        const current = selectedPeriodId;
-        if (!current || !pList.find((p) => p.id === current)) {
-          const draft = pList.find((p) => p.status === "DRAFT") ?? pList[0] ?? null;
-          setSelectedPeriodId(draft?.id ?? null);
-        }
-      }
-    } catch {
-      setMessage("Không thể tải dữ liệu. Vui lòng thử lại.");
-    } finally {
-      setLoading(false);
-    }
-  }, [isExpertMode, selectedPeriodId]);
 
   /**
    * Optimistic insert helpers. We add the temp schedule straight
@@ -390,7 +354,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
     void loadBase();
     return () => { cancelled = true; };
-  }, []); // Run once only
+  }, [isExpertMode, selectedPeriodId]); // Run once only — deps are stable config values
 
   // Effect 1b: Set loading=false when no period is selected (after base data loads)
   useEffect(() => {
@@ -451,9 +415,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         setSelectedPeriodId(newId);
       }
     }
-  }, [urlPeriodId]); // Intentionally NOT including selectedPeriodId to avoid infinite loop
+  }, [urlPeriodId, selectedPeriodId]); // Intentionally NOT including selectedPeriodId to avoid infinite loop
 
-  const handleRefresh = useCallback((_id?: number) => {
+  const handleRefresh = useCallback(() => {
     // Force re-fetch schedules from server
     void reloadSchedules();
   }, [reloadSchedules]);

@@ -31,11 +31,6 @@ const mockConflict: ConflictItem = {
   originalStaffId: 2,
 };
 
-const mockReplacements = [
-  { id: 2, fullName: "Bs. Trần Thị B", specialty: { name: "Nội" } },
-  { id: 3, fullName: "Bs. Lê Văn C", specialty: { name: "Ngoại" } },
-];
-
 describe("Conflict Resolution Flow - Integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -44,7 +39,6 @@ describe("Conflict Resolution Flow - Integration", () => {
   describe("ConflictPanel → ConflictResolutionModal → API", () => {
     it("renders conflict in panel and opens resolution modal", async () => {
       const user = userEvent.setup();
-      let resolveCall: ConflictItem | null = null;
 
       const TestWrapper = () => {
         const [selected, setSelected] = useState<ConflictItem | null>(null);
@@ -53,7 +47,7 @@ describe("Conflict Resolution Flow - Integration", () => {
           <div>
             <ConflictPanel
               conflicts={[mockConflict]}
-              onResolve={(c) => { resolveCall = c; setSelected(c); }}
+              onResolve={(c) => { setSelected(c); }}
             />
             {selected && (
               <ConflictResolutionModal

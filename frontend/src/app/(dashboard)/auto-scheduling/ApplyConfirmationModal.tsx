@@ -1,12 +1,10 @@
 "use client";
 
 import { Modal } from "@/components/ui/Modal";
-import type { AutoScheduleSummary, SchedulePeriod } from "@/types/api";
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  selectedPeriod?: SchedulePeriod | null;
   previewResult?: { totalSchedulesCreated: number; coverageRate: number; conflictCount: number } | null;
   editedPreview: unknown[];
   removedShiftTypes: Set<string>;
@@ -17,7 +15,6 @@ interface Props {
 export function ApplyConfirmationModal({
   open,
   onClose,
-  selectedPeriod,
   previewResult,
   editedPreview,
   removedShiftTypes,
