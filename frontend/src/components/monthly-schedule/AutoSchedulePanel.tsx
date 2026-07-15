@@ -4,6 +4,7 @@ import { memo, useEffect, useState } from "react";
 import { AutoScheduleMatrixGrid } from "./AutoScheduleMatrixGrid";
 import { ShiftTypeBreakdownCard } from "./ShiftTypeBreakdownCard";
 import { TemplateActionsSplitButton } from "./TemplateActionsSplitButton";
+import { FeasibilityReportCard } from "./FeasibilityReportCard";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
@@ -198,6 +199,16 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
           </div>
         )}
       </div>
+
+      {/* ── Feasibility Check (before running) ───────────────────── */}
+      {!previewResult && selectedPeriodId && isDraft && (
+        <div className="p-4">
+          <FeasibilityReportCard
+            periodId={selectedPeriodId}
+            onRunScheduling={onPreview}
+          />
+        </div>
+      )}
 
       {/* ── Preview results ──────────────────────────────────── */}
       {previewResult ? (

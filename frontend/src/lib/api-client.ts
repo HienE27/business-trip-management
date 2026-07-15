@@ -927,6 +927,41 @@ class ApiClient {
     return this.get(`/auto-schedule/progress/${periodId}`);
   }
 
+  async checkFeasibility(periodId: number): Promise<{
+    feasible: boolean;
+    totalDays: number;
+    feasibleDays: number;
+    understaffedDays: number;
+    coverageRate: number;
+    dailyAnalysis: Array<{
+      date: string;
+      shiftTypes: Record<string, {
+        shiftTypeId: string;
+        required: number;
+        eligibleStaff: number;
+        activeStaff: number;
+        onLeave: number;
+        onCompensation: number;
+        coverageRate: number;
+        isUnderstaffed: boolean;
+        issue: string | null;
+      }>;
+    }>;
+    availabilityByShiftType: Record<string, {
+      shiftTypeId: string;
+      totalActiveStaff: number;
+      eligibleStaff: number;
+      averageDailyEligible: number;
+      minDailyEligible: number;
+      maxDailyEligible: number;
+      utilizationRate: number;
+    }>;
+    warnings: string[];
+    recommendations: string[];
+  }> {
+    return this.get(`/auto-schedule/feasibility/${periodId}`);
+  }
+
   // AlgorithmConfig
   async getAllAlgorithmConfigs(): Promise<ApiResponse<Array<{
     paramKey: string;
