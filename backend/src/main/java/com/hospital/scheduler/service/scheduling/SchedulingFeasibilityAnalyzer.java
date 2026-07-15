@@ -221,9 +221,9 @@ public class SchedulingFeasibilityAnalyzer {
                 (double) feasibleDays / dailyAnalysis.size() * 100;
 
         if (coverageRate < 50) {
-            warnings.add(String.format("⚠️ Chỉ %.0f%% ngày có đủ nhân sự - hệ thống sẽ xếp thiếu nhiều", coverageRate));
+            warnings.add(String.format("[CANH-BAO] Chỉ %.0f%% ngày có đủ nhân sự - hệ thống sẽ xếp thiếu nhiều", coverageRate));
         } else if (coverageRate < 80) {
-            warnings.add(String.format("⚠️ %.0f%% ngày có đủ nhân sự - một số ca sẽ thiếu", coverageRate));
+            warnings.add(String.format("[CANH-BAO] %.0f%% ngày có đủ nhân sự - một số ca sẽ thiếu", coverageRate));
         }
 
         // Check for specific issues
@@ -231,15 +231,17 @@ public class SchedulingFeasibilityAnalyzer {
             for (ShiftTypeAnalysis sta : day.shiftTypes().values()) {
                 if (sta.isUnderstaffed() && sta.eligibleStaff() == 0) {
                     recommendations.add(String.format(
-                            "📋 Ngày %s [%s]: Bật cross-specialty hoặc thêm nhân sự",
+                            "[NGAY] Ngày %s [%s]: Bật cross-specialty hoặc thêm nhân sự",
                             day.date(), sta.shiftTypeId()));
                 }
             }
         }
 
-        // Add cross-specialty recommendations
-        recommendations.add("💡 Bật cross-specialty trong Cấu hình thuật toán để tăng pool nhân sự eligible");
-        recommendations.add("💡 Giảm required count nếu không đủ nhân sự thực tế");
+        // Add cross-specialty recommendations (use plain-text tags instead of
+        // emoji to avoid font-rendering issues; the frontend maps the tag to a
+        // Material Symbol icon).
+        recommendations.add("[GOI-Y] Bật cross-specialty trong Cấu hình thuật toán để tăng pool nhân sự eligible");
+        recommendations.add("[GOI-Y] Giảm required count nếu không đủ nhân sự thực tế");
 
         return FeasibilityReport.builder()
                 .feasible(coverageRate >= 80)
