@@ -2,31 +2,27 @@
 
 import type { TabKey } from "./types";
 
-type TabDef = { key: TabKey; label: string; icon: string; count?: number };
+type TabDef = { key: TabKey; label: string; icon: string };
 
 type Props = {
   active: TabKey;
-  counts?: Partial<Record<TabKey, number>>;
   onChange: (tab: TabKey) => void;
 };
 
 const BASE_TABS: TabDef[] = [
-  { key: "config", label: "Cấu hình", icon: "tune" },
-  { key: "history", label: "Lịch sử chạy", icon: "history" },
-  { key: "audit", label: "Nhật ký thay đổi", icon: "manage_history" },
-  { key: "reference", label: "Tham khảo", icon: "info" },
+  { key: "config", label: "Cau hinh", icon: "tune" },
+  { key: "history", label: "Lich su", icon: "history" },
 ];
 
-export function TabBar({ active, counts, onChange }: Props) {
+export function TabBar({ active, onChange }: Props) {
   return (
     <div
       className="inline-flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant"
       role="tablist"
-      aria-label="Tabs cấu hình thuật toán"
+      aria-label="Tabs cau hinh thuat toan"
     >
       {BASE_TABS.map(tab => {
         const isActive = active === tab.key;
-        const count = counts?.[tab.key];
         return (
           <button
             key={tab.key}
@@ -42,13 +38,6 @@ export function TabBar({ active, counts, onChange }: Props) {
           >
             <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{tab.icon}</span>
             <span>{tab.label}</span>
-            {count !== undefined && count > 0 && (
-              <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
-                isActive ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant"
-              }`}>
-                {count > 99 ? "99+" : count}
-              </span>
-            )}
           </button>
         );
       })}
