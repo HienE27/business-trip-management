@@ -1,10 +1,11 @@
 "use client";
 
-import React from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { translateRoleToDisplay } from "@/lib/roleLabels";
 import { useNotifications } from "@/components/ui/NotificationContext";
+import { ConfirmDialog } from "@/components/ui";
 
 export function NotificationBell() {
   const { unreadCount } = useNotifications();
@@ -31,6 +32,7 @@ export function UserMenu() {
   const { user, logout } = useAuth();
   const displayName = user?.username || "Người dùng";
   const displayRole = translateRoleToDisplay(user?.roles?.[0] || "STAFF");
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   return (
     <div className="group relative">
@@ -90,7 +92,7 @@ export function UserMenu() {
         <div className="border-t border-outline-variant/60 py-1">
           <button
             className="flex w-full items-center gap-3 px-4 py-2.5 text-body-sm text-error transition-colors hover:bg-error-container/30 focus-visible:outline-none focus-visible:bg-error-container/30"
-            onClick={() => { void logout(); }}
+            onClick={() => setShowLogoutConfirm(true)}
             role="menuitem"
             type="button"
           >
@@ -99,6 +101,17 @@ export function UserMenu() {
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={() => { setShowLogoutConfirm(false); void logout(); }}
+        title="Xác nhận đăng xuất?"
+        description="Bạn sẽ được chuyển về trang đăng nhập."
+        confirmLabel="Đăng xuất"
+        cancelLabel="Hủy"
+        variant="danger"
+      />
     </div>
   );
 }

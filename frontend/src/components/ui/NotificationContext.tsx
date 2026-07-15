@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -139,6 +140,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       setInitialized(true);
     }
+  }, [userId]);
+
+  // Polling: refresh notifications every 30s
+  useEffect(() => {
+    if (!userId) return;
+    const interval = setInterval(() => {
+      api.get<Notification[]>(`/notifications/staff/${userId}`)
+        .then((res) => {
+          if (res) setNotifications(res);
+        })
+        .catch(() => {});
+    }, 30_000);
+    return () => clearInterval(interval);
   }, [userId]);
 
   const refreshCount = useCallback(async (count?: number) => {
