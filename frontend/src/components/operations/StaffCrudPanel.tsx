@@ -216,7 +216,7 @@ export function StaffCrudPanel() {
     } finally {
       setLoading(false);
     }
-  }, [searchKeyword, statusFilter, roleFilter, specialtyFilter, positionFilter, currentPage, pageSize, toast]);
+  }, [searchKeyword, statusFilter, roleFilter, specialtyFilter, positionFilter, currentPage, pageSize]);
 
   useEffect(() => {
     fetchSpecialties();
