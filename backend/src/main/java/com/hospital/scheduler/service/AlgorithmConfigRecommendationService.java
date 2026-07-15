@@ -108,10 +108,26 @@ public class AlgorithmConfigRecommendationService {
                 l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
                 current.holidayMode(),
                 current.removedShiftTypes() != null ? current.removedShiftTypes() : List.of(),
+                // L01
+                current.l01CrossSpecialty(),
+                current.l01CrossSpecialtyRatio(),
+                l01Spec,
+                "FAIR_DISTRIBUTE",
+                // L02
+                current.l02CrossSpecialty(),
+                current.l02CrossSpecialtyRatio(),
+                l02Spec,
+                "FAIR_DISTRIBUTE",
+                // L03
+                current.l03CrossSpecialty(),
+                current.l03CrossSpecialtyRatio(),
+                l03Spec,
+                "FAIR_DISTRIBUTE",
+                // L04
                 current.l04CrossSpecialty(),
                 current.l04CrossSpecialtyRatio(),
                 current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : List.of(),
-                l01Spec, l02Spec, l03Spec
+                "FAIR_DISTRIBUTE"
         );
 
         String rationale = String.format(

@@ -279,13 +279,26 @@ public class AlgorithmConfigService {
                 getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0, cache),
                 getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP", cache),
                 getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES", cache),
+                // L01 cross-specialty
+                getBooleanValue(AUTO_GEN_L01_CROSS_SPECIALTY, false, cache),
+                getFloatValue(AUTO_GEN_L01_CROSS_SPECIALTY_RATIO, 0.5f, cache),
+                getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES, cache),
+                "FAIR_DISTRIBUTE",  // l01BalanceStrategy (recommendation service computes its own; this hardcode keeps get-config working)
+                // L02 cross-specialty
+                getBooleanValue(AUTO_GEN_L02_CROSS_SPECIALTY, false, cache),
+                getFloatValue(AUTO_GEN_L02_CROSS_SPECIALTY_RATIO, 0.5f, cache),
+                getStringListValue(AUTO_GEN_L02_ALLOWED_SPECIALTIES, cache),
+                "FAIR_DISTRIBUTE",
+                // L03 cross-specialty
+                getBooleanValue(AUTO_GEN_L03_CROSS_SPECIALTY, false, cache),
+                getFloatValue(AUTO_GEN_L03_CROSS_SPECIALTY_RATIO, 0.5f, cache),
+                getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES, cache),
+                "FAIR_DISTRIBUTE",
+                // L04 cross-specialty
                 getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false, cache),
                 getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.5f, cache),
                 getStringListValue("AUTO_GEN_L04_ALLOWED_SPECIALTIES", cache), // null/empty = all specialties
-                // L01/L02/L03: null/empty → fallback to CORE_ELIGIBLE_SPECIALTIES (Ngoại, Nội) trong StaffShiftTypeEligibility
-                getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES, cache),
-                getStringListValue(AUTO_GEN_L02_ALLOWED_SPECIALTIES, cache),
-                getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES, cache)
+                "FAIR_DISTRIBUTE"
         ));
     }
 
@@ -690,10 +703,26 @@ public class AlgorithmConfigService {
                 l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
                 current.holidayMode(),
                 current.removedShiftTypes() != null ? current.removedShiftTypes() : java.util.List.of(),
+                // L01
+                current.l01CrossSpecialty(),
+                current.l01CrossSpecialtyRatio(),
+                l01Spec,
+                "FAIR_DISTRIBUTE",
+                // L02
+                current.l02CrossSpecialty(),
+                current.l02CrossSpecialtyRatio(),
+                l02Spec,
+                "FAIR_DISTRIBUTE",
+                // L03
+                current.l03CrossSpecialty(),
+                current.l03CrossSpecialtyRatio(),
+                l03Spec,
+                "FAIR_DISTRIBUTE",
+                // L04
                 current.l04CrossSpecialty(),
                 current.l04CrossSpecialtyRatio(),
                 current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : java.util.List.of(),
-                l01Spec, l02Spec, l03Spec
+                "FAIR_DISTRIBUTE"
         );
 
         String rationale = String.format(

@@ -123,8 +123,10 @@ class FairShareCalculatorTest {
                     new AutoGenConfig(
                             true, 1,1,1,1, 1,1,1,1, 0,0,0,0, 99,99,99,99,
                             "SKIP", List.of(),
-                            /*l04CrossSpecialty*/ false, 0.3f,
-                            List.of(), List.of(), List.of(), List.of()
+                            /*l01CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
+                            /*l02CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
+                            /*l03CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
+                            /*l04CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE"
                     )
             ));
             when(eligibilityFilter.getL04CrossSpecialtyConfig())
@@ -173,14 +175,15 @@ class FairShareCalculatorTest {
                     new AutoGenConfig(
                             true, 1,1,1,1, 1,1,1,1, 0,0,0,0, 99,99,99,99,
                             "SKIP", List.of(),
-                            /*l04CrossSpecialty*/ true, 0.3f,
-                            List.of("Nội", "Ngoại"),
-                            List.of(), List.of(), List.of()
+                            /*l01CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
+                            /*l02CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
+                            /*l03CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
+                            /*l04CrossSpecialty*/ true, 0.3f, List.of("Nội", "Ngoại"), "FAIR_DISTRIBUTE"
                     )
             ));
             when(eligibilityFilter.getL04CrossSpecialtyConfig())
                     .thenReturn(new StaffEligibilityFilter.CrossSpecialtyConfig(true, 0.3f,
-                            List.of("Nội", "Ngoại")));
+                            List.of("Nội", "Ngoại"), "FAIR_DISTRIBUTE"));
         }
 
         @Test
