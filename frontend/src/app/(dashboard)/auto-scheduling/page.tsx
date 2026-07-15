@@ -380,17 +380,6 @@ export default function AutoSchedulingPage() {
 
             {/* Right: Action links */}
             <div className="flex flex-wrap items-center gap-2">
-              {isManager && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowWizard(true)}
-                  icon={<span className="material-symbols-outlined text-[16px]">menu_book</span>}
-                  className="whitespace-nowrap"
-                >
-                  Hướng dẫn
-                </Button>
-              )}
               <Link href="/auto-scheduling/algorithm-config">
                 <Button variant="secondary" size="sm" icon={<span className="material-symbols-outlined text-[16px]">tune</span>} className="whitespace-nowrap">
                   Cấu hình

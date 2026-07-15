@@ -12,12 +12,13 @@ import type { Page } from "@/types/api";
 export async function previewAutoSchedule(
   client: ApiClient,
   data: AutoScheduleRequest,
-  options?: { timeout?: number },
+  options?: { timeout?: number; cancelSignal?: AbortSignal },
 ): Promise<ApiResponse<AutoScheduleResult>> {
   return client.request<AutoScheduleResult>("/auto-schedule/preview", {
     method: "POST",
     body: JSON.stringify(data),
     timeout: options?.timeout ?? 60000, // Default 60s, configurable for long-running algorithms
+    cancelSignal: options?.cancelSignal,
   });
 }
 

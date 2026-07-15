@@ -1,9 +1,6 @@
 package com.hospital.scheduler.service;
 
-import com.hospital.scheduler.algorithm.CSPScheduler;
 import com.hospital.scheduler.algorithm.ScheduleChange;
-import com.hospital.scheduler.algorithm.SchedulingResult;
-import com.hospital.scheduler.algorithm.ShiftRequirementInfo;
 import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.BadRequestException;
@@ -34,7 +31,6 @@ public class ScheduleDeleteService {
     private final AuditHistoryService auditHistoryService;
     private final NotificationService notificationService;
     private final AuthContextService authContextService;
-    private final CSPScheduler cspScheduler;
     private final SchedulingResultLoader schedulingResultLoader;
     private final JdbcTemplate jdbcTemplate;
 
@@ -128,35 +124,6 @@ public class ScheduleDeleteService {
      * undone.
      */
     private void reschedulePeriodIncrementalAfterDelete(Integer periodId, Schedule deleted) {
-        SchedulingResult previous = schedulingResultLoader.loadPreviousFromDb(periodId, scheduleRepository);
-        if (previous == null) {
-            // Period has no schedules left, or none ever existed — nothing to re-solve.
-            log.info("No previous assignments for periodId={} after delete; skipping re-solve", periodId);
-            return;
-        }
-
-        ScheduleChange.AssignmentDelta removeDelta = ScheduleChange.AssignmentDelta.builder()
-                .staffId(deleted.getStaff().getId())
-                .date(deleted.getWorkDate())
-                .shiftType(deleted.getShiftType().getId())
-                .build();
-
-        ScheduleChange changes = ScheduleChange.builder()
-                .removed(new ArrayList<>(List.of(removeDelta)))
-                .build();
-
-        List<ShiftRequirementInfo> requirements = AutoSchedulingService.toRequirementInfos(
-                shiftRequirementRepository.findByPeriodId(periodId));
-        List<LeaveRequest> leaves = leaveRequestRepository.findApprovedInRange(
-                deleted.getPeriod().getStartDate(), deleted.getPeriod().getEndDate());
-        List<Staff> activeStaff = new ArrayList<>(staffRepository.findByIsActiveTrue());
-
-        SchedulingResult result = cspScheduler.reSolve(previous, changes, activeStaff, requirements, leaves);
-        if (result == null || !result.isValid()) {
-            String reason = result == null ? "no result" : String.join("; ", result.getErrors());
-            throw new BadRequestException(
-                    "Không thể xóa lịch: Kỳ lịch DRAFT trở nên bất khả thi sau khi xóa lịch trực này (" + reason + ")");
-        }
-        log.debug("Post-delete re-solve valid for period {}", periodId);
+        log.info("Incremental rescheduling after delete not available (CSP removed). Period {} may need manual re-run.", periodId);
     }
 }

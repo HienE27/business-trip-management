@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { BackButton } from "@/components/ui/BackButton";
-import type { AlgorithmMetrics, ApiResponse, SchedulePeriod } from "@/types/api";
+import type { AlgorithmMetrics, SchedulePeriod } from "@/types/api";
 
 const CompareModal = dynamic(
   () => import("./CompareModal").then((m) => m.CompareModal),

@@ -36,7 +36,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/dashboard",
     icon: "dashboard",
     description: "Theo dõi KPI, cảnh báo vận hành và tác vụ quan trọng trong kỳ lịch hiện hành.",
-    requiredPermissions: ["DASHBOARD_VIEW"],
   },
   {
     key: "monthly-schedule",
@@ -44,7 +43,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/monthly-schedule",
     icon: "calendar_month",
     description: "Điều phối kỳ lịch theo workflow.",
-    requiredPermissions: ["SCHEDULE_VIEW"],
   },
   {
     key: "periods",
@@ -52,7 +50,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/periods",
     icon: "event_note",
     description: "M02 — Quản lý kỳ lịch.",
-    requiredPermissions: ["PERIOD_VIEW"],
   },
   {
     key: "duty-24",
@@ -88,7 +85,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/requirements",
     icon: "assignment",
     description: "M07-F01 — Cấu hình số nhân sự cần thiết cho từng ngày và loại ca.",
-    requiredPermissions: ["PERIOD_VIEW"],
   },
   {
     key: "auto-scheduling",
@@ -96,7 +92,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/auto-scheduling",
     icon: "auto_mode",
     description: "Thuật toán tạo phương án phân công.",
-    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
   },
   {
     key: "staff",
@@ -104,7 +99,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/staff",
     icon: "groups",
     description: "Quản lý hồ sơ nhân sự.",
-    requiredPermissions: ["STAFF_VIEW"],
   },
   {
     key: "leave-requests",
@@ -112,7 +106,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/leave-requests",
     icon: "event_busy",
     description: "Theo dõi yêu cầu nghỉ phép.",
-    requiredPermissions: ["LEAVE_VIEW"],
   },
   {
     key: "shift-swaps",
@@ -120,7 +113,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/swap-requests",
     icon: "swap_horiz",
     description: "Yêu cầu đổi trực.",
-    requiredPermissions: ["EXCHANGE_VIEW"],
   },
   {
     key: "reports",
@@ -128,7 +120,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/reports",
     icon: "assessment",
     description: "Xem báo cáo kỳ lịch.",
-    requiredPermissions: ["REPORT_VIEW"],
   },
   {
     key: "holidays",
@@ -136,7 +127,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/holidays",
     icon: "celebration",
     description: "Quản lý ngày lễ.",
-    requiredPermissions: ["HOLIDAY_VIEW"],
   },
   {
     key: "notifications",
@@ -144,7 +134,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/notifications",
     icon: "notifications",
     description: "Thông báo hệ thống.",
-    requiredPermissions: ["NOTIFICATION_VIEW"],
   },
   {
     key: "audit-history",
@@ -152,7 +141,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/audit-history",
     icon: "history",
     description: "Tra cứu vết thay đổi.",
-    requiredPermissions: ["AUDIT_VIEW"],
   },
   {
     key: "settings",

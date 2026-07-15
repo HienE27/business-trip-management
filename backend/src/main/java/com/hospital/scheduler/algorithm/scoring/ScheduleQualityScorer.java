@@ -87,7 +87,7 @@ public class ScheduleQualityScorer {
     // ─────────────────────────────────────────────────────────────
 
     private static final List<String> SHIFT_TYPES =
-            Arrays.asList(com.hospital.scheduler.algorithm.CspConstants.SHIFT_ORDER);
+            Arrays.asList("L01", "L02", "L03", "L04");
 
     // ─────────────────────────────────────────────────────────────
     // CONFIG SETTERS

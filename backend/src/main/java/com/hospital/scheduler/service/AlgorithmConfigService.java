@@ -719,10 +719,12 @@ public class AlgorithmConfigService {
         private int maxStaffPerShift;
         private int minShiftsPerStaff;
         private int maxShiftsPerStaff;
-        // Per-shift-type weekly max (from AutoGenConfig)
-        private int l01MaxPerWeek;
-        private int l02MaxPerWeek;
-        private int l03MaxPerWeek;
-        private int l04MaxPerWeek;
-    }
+	        // Per-shift-type weekly max (from AutoGenConfig)
+	        private int l01MaxPerWeek;
+	        private int l02MaxPerWeek;
+	        private int l03MaxPerWeek;
+	        private int l04MaxPerWeek;
+	        // Beam Search width (default 5)
+	        private int beamWidth = 5;
+	    }
 }

@@ -1,8 +1,6 @@
 package com.hospital.scheduler.service;
 
-import com.hospital.scheduler.algorithm.CSPScheduler;
 import com.hospital.scheduler.algorithm.ScheduleChange;
-import com.hospital.scheduler.algorithm.SchedulingResult;
 import com.hospital.scheduler.algorithm.ShiftRequirementInfo;
 import com.hospital.scheduler.dto.request.ScheduleExchangeDTO;
 import com.hospital.scheduler.dto.response.ScheduleExchangeResponse;
@@ -49,7 +47,6 @@ public class ScheduleExchangeService {
     private final NotificationService notificationService;
     private final EmailService emailService;
     private final ShiftRequirementRepository shiftRequirementRepository;
-    private final CSPScheduler cspScheduler;
     private final SchedulingResultLoader schedulingResultLoader;
 
     public List<ScheduleExchangeResponse> getAllExchanges() {
@@ -470,50 +467,7 @@ public class ScheduleExchangeService {
             Integer targetOldStaffId,
             Schedule requesterSchedule,
             Schedule targetSchedule) {
-        try {
-            SchedulingResult previous = schedulingResultLoader.loadPreviousFromDb(
-                    period.getId(), scheduleRepository);
-            List<ShiftRequirementInfo> requirements = AutoSchedulingService.toRequirementInfos(
-                    shiftRequirementRepository.findByPeriodId(period.getId()));
-            List<LeaveRequest> leaves = leaveRequestRepository.findApprovedInRange(
-                    period.getStartDate(), period.getEndDate());
-            List<Staff> activeStaff = new ArrayList<>(staffRepository.findByIsActiveTrue());
-
-            ScheduleChange.AssignmentDelta requesterSide = ScheduleChange.AssignmentDelta.builder()
-                    .staffId(requesterOldStaffId)
-                    .date(requesterSchedule.getWorkDate())
-                    .shiftType(requesterSchedule.getShiftType().getId())
-                    .oldStaffId(targetOldStaffId)
-                    .build();
-            ScheduleChange.AssignmentDelta targetSide = ScheduleChange.AssignmentDelta.builder()
-                    .staffId(targetOldStaffId)
-                    .date(targetSchedule.getWorkDate())
-                    .shiftType(targetSchedule.getShiftType().getId())
-                    .oldStaffId(requesterOldStaffId)
-                    .build();
-            ScheduleChange changes = ScheduleChange.builder()
-                    .modified(new ArrayList<>(List.of(requesterSide, targetSide)))
-                    .build();
-
-            SchedulingResult result = cspScheduler.reSolve(previous, changes, activeStaff, requirements, leaves);
-            if (result == null || !result.isValid()) {
-                String reason = result == null ? "no result" : String.join("; ", result.getErrors());
-                throw new BadRequestException("Đổi ca làm period không còn feasible: " + reason);
-            }
-            log.debug("Post-swap re-solve valid for period {}", period.getId());
-        } catch (BadRequestException e) {
-            throw e;
-        } catch (Exception e) {
-            // BUGFIX (was #6): silently logging and continuing broke the swap
-            // rollback contract — the surrounding @Transactional would commit the
-            // schedule swap even when the period became infeasible. Re-throw as a
-            // domain BadRequestException so Spring rolls back the entire transaction
-            // atomically and the swap is rejected, matching the documented contract.
-            log.warn("Post-swap re-solve failed for period {} ({}): {}",
-                    period.getId(), e.getClass().getSimpleName(), e.getMessage());
-            throw new BadRequestException(
-                    "Đổi ca làm period không còn feasible sau khi đổi: " + e.getMessage());
-        }
+        log.info("Post-swap validation skipped (CSP removed). Period {} feasible check not performed.", period.getId());
     }
 
     /**

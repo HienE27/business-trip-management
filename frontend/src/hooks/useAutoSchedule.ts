@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { AutoScheduleResult, TemplatePreviewItem } from "@/types/api";
@@ -23,7 +23,7 @@ export type AutoScheduleState = {
   applying: boolean;
   running: boolean;
   message: string | null;
-  algorithmType: "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC";
+  algorithmType: "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC";
   holidayMode: "SKIP" | "PARTIAL" | null;
 };
 
@@ -49,7 +49,7 @@ export type AutoScheduleActions = {
   clearPreview: () => void;
   clearMessage: () => void;
   setMessage: (msg: string) => void;
-  setAlgorithmType: (type: "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC") => void;
+  setAlgorithmType: (type: "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC") => void;
   setHolidayMode: (mode: "SKIP" | "PARTIAL" | null) => void;
 };
 
@@ -68,11 +68,23 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [applying, setApplying] = useState(false);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC">("CSP_MRV_FC");
+  const [algorithmType, setAlgorithmType] = useState<"BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC">("GREEDY");
   const [holidayMode, setHolidayMode] = useState<"SKIP" | "PARTIAL" | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Cancel any in-flight request on unmount (page refresh, navigation)
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
 
   const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[]) => {
     if (!periodId) return;
+
+    // Cancel previous in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       setRunning(true);
       setMessage(null);
@@ -82,13 +94,15 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         algorithmType,
         excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
         holidayMode: holidayMode ?? undefined,
-      }, { timeout: 600000 }); // 10 minute ceiling for the CSP partial path
+      }, { timeout: 600000, cancelSignal: controller.signal }); // 10 minute ceiling for the CSP partial path
 
       setPreviewResult(result.data);
       setEditedPreview([]);
       setRemovedShifts(new Set());
       setRemovedShiftTypes(new Set());
     } catch (error) {
+      // Silent abort on page refresh/navigation — don't surface toast
+      if (error instanceof Error && error.name === "AbortError") return;
       console.error("[AutoSchedule] Error:", error);
       setMessage(getErrorMessage(error, "Không thể chạy auto schedule."));
     } finally {
@@ -276,7 +290,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   }, []);
 
   const clearMessage = useCallback(() => setMessage(null), []);
-  const setAlgoType = useCallback((type: "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC") => {
+  const setAlgoType = useCallback((type: "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC") => {
     setAlgorithmType(type);
   }, [setAlgorithmType]);
 

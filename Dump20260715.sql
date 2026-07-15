@@ -26,7 +26,7 @@ DROP TABLE IF EXISTS `algorithm_config`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `algorithm_config` (
   `param_key` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `param_value` varchar(2000) COLLATE utf8mb4_unicode_ci NOT NULL,
   `updated_at` datetime(6) NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE `algorithm_config_audit` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `action` enum('BULK_SYNC','BULK_UPDATE','CREATE','DELETE','UPDATE') COLLATE utf8mb4_unicode_ci NOT NULL,
   `changed_by_username` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `new_value` varchar(2000) COLLATE utf8mb4_unicode_ci NOT NULL,
   `old_value` varchar(2000) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `param_key` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -94,7 +94,7 @@ CREATE TABLE `algorithm_metrics` (
   `balance_score` decimal(5,2) DEFAULT NULL,
   `conflict_count` int NOT NULL,
   `coverage_rate` decimal(5,2) DEFAULT NULL,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `execution_time_ms` int DEFAULT NULL,
   `total_schedules_created` int DEFAULT NULL,
   `period_id` int DEFAULT NULL,
@@ -182,7 +182,7 @@ DROP TABLE IF EXISTS `audit_history`;
 CREATE TABLE `audit_history` (
   `id` int NOT NULL AUTO_INCREMENT,
   `action_type` enum('APPROVE','BULK_DELETE','BULK_UPDATE','CANCEL','DELETE','INSERT','PUBLISH','REJECT','UPDATE') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `new_data` json DEFAULT NULL,
   `old_data` json DEFAULT NULL,
@@ -217,7 +217,7 @@ DROP TABLE IF EXISTS `compensation_day`;
 CREATE TABLE `compensation_day` (
   `id` int NOT NULL AUTO_INCREMENT,
   `compensation_date` date NOT NULL,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `note` text COLLATE utf8mb4_unicode_ci,
   `shift_date` date NOT NULL,
   `updated_at` datetime(6) NOT NULL,
@@ -256,7 +256,7 @@ DROP TABLE IF EXISTS `file_attachment`;
 CREATE TABLE `file_attachment` (
   `id` int NOT NULL AUTO_INCREMENT,
   `content_type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `file_size` bigint DEFAULT NULL,
   `filepath` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
   `original_filename` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -288,7 +288,7 @@ DROP TABLE IF EXISTS `holiday`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `holiday` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   `holiday_date` date NOT NULL,
   `is_active` bit(1) NOT NULL,
@@ -349,7 +349,7 @@ CREATE TABLE `leave_request` (
 
 LOCK TABLES `leave_request` WRITE;
 /*!40000 ALTER TABLE `leave_request` DISABLE KEYS */;
-INSERT INTO `leave_request` VALUES (1,5,'2026-06-15','2026-06-17','Du lịch gia đình','PENDING',NULL,NULL,NULL,'2026-07-09 16:04:06','2026-07-09 16:04:06',NULL,0),(2,7,'2026-06-08','2026-06-09','Ốm đau','APPROVED',2,'2026-07-04 16:04:06',NULL,'2026-07-09 16:04:06','2026-07-09 16:04:06',NULL,0),(3,9,'2026-06-20','2026-06-22','Việc riêng','REJECTED',2,'2026-07-07 16:04:06','Đang trong giai đoạn cao điểm, thiếu nhân sự thay thế.','2026-07-09 16:04:06','2026-07-09 16:04:06',NULL,0);
+INSERT INTO `leave_request` VALUES (1,5,'2026-06-15','2026-06-17','Du lịch gia đình','PENDING',NULL,NULL,NULL,'2026-07-09 16:04:06','2026-07-09 16:04:06',NULL,NULL),(2,7,'2026-06-08','2026-06-09','Ốm đau','APPROVED',2,'2026-07-04 16:04:06',NULL,'2026-07-09 16:04:06','2026-07-09 16:04:06',NULL,NULL),(3,9,'2026-06-20','2026-06-22','Việc riêng','REJECTED',2,'2026-07-07 16:04:06','Đang trong giai đoạn cao điểm, thiếu nhân sự thay thế.','2026-07-09 16:04:06','2026-07-09 16:04:06',NULL,NULL);
 /*!40000 ALTER TABLE `leave_request` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -362,7 +362,7 @@ DROP TABLE IF EXISTS `notification`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `notification` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `is_read` bit(1) NOT NULL,
   `message` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `read_at` datetime(6) DEFAULT NULL,
@@ -394,7 +394,7 @@ DROP TABLE IF EXISTS `refresh_token`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `refresh_token` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `expires_at` datetime(6) NOT NULL,
   `issued_ip` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `revoked_at` datetime(6) DEFAULT NULL,
@@ -497,7 +497,7 @@ DROP TABLE IF EXISTS `schedule_conflict`;
 CREATE TABLE `schedule_conflict` (
   `id` int NOT NULL AUTO_INCREMENT,
   `conflict_type` enum('COMPENSATION_CONFLICT','DUPLICATE_ASSIGNMENT','LEAVE_CONFLICT','MAX_SHIFT_EXCEEDED','OTHER','REQUIREMENT_NOT_MET','SPECIALTY_MISMATCH') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   `is_resolved` bit(1) NOT NULL,
   `resolved_at` datetime(6) DEFAULT NULL,
@@ -530,7 +530,7 @@ DROP TABLE IF EXISTS `schedule_exchange`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `schedule_exchange` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `reason` text COLLATE utf8mb4_unicode_ci,
   `review_note` text COLLATE utf8mb4_unicode_ci,
   `reviewed_at` datetime(6) DEFAULT NULL,
@@ -604,7 +604,7 @@ CREATE TABLE `schedule_template` (
   `id` int NOT NULL AUTO_INCREMENT,
   `algorithm_config` text COLLATE utf8mb4_unicode_ci,
   `algorithm_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `day_of_week` int DEFAULT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   `generated_schedule_ids` text COLLATE utf8mb4_unicode_ci,
@@ -643,7 +643,7 @@ DROP TABLE IF EXISTS `shift_requirement`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `shift_requirement` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   `note` text COLLATE utf8mb4_unicode_ci,
   `required_staff_count` int NOT NULL,
   `updated_at` datetime(6) NOT NULL,
@@ -786,7 +786,7 @@ DROP TABLE IF EXISTS `staff_role`;
 CREATE TABLE `staff_role` (
   `staff_id` int NOT NULL,
   `role_id` int NOT NULL,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `created_at` datetime(6) NOT NULL,
   PRIMARY KEY (`staff_id`,`role_id`),
   KEY `fk_staff_role_role` (`role_id`),
   CONSTRAINT `fk_staff_role_role` FOREIGN KEY (`role_id`) REFERENCES `app_role` (`id`) ON DELETE CASCADE,

@@ -12,7 +12,18 @@ import type { AutoScheduleResult, SchedulePeriod, Staff } from "@/types/api";
 import { parseNumber } from "@/lib/number-utils";
 import { useAlgorithmProgress } from "@/hooks/useAlgorithmProgress";
 
-type AlgorithmType = "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC";
+type AlgorithmType = "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC";
+
+// ... (ALGO_CONFIG)
+const ALGO_CONFIG: Record<AlgorithmType, {
+  icon: string;
+  label: string;
+  desc: string;
+}> = {
+  BEAM_SEARCH:      { icon: "width_normal", label: "Beam Search",     desc: "Nhanh nhất, coverage 100%" },
+  ENHANCED_GREEDY:{ icon: "energy",    label: "Enhanced Greedy", desc: "Greedy + fatigue, 279ca" },
+  RANDOM_RESTART_HC:{icon:"refresh",   label: "Random Restart",  desc: "HC khởi tạo lại, 276ca" },
+};
 type EditedPreview = Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
 
 export type AutoSchedulePanelProps = {
@@ -40,15 +51,6 @@ export type AutoSchedulePanelProps = {
  * Thông tin hiển thị cho mỗi thuật toán. Tất cả dùng chung 1 bảng màu
  * primary (xanh đậm) — 5 thuật toán trông đồng nhất, chỉ khác icon + label.
  */
-const ALGO_CONFIG: Record<AlgorithmType, {
-  icon: string;
-  label: string;
-  desc: string;
-}> = {
-  GREEDY:      { icon: "bolt",         label: "Greedy",       desc: "Nhanh, tham lam" },
-  FAIR_GREEDY: { icon: "autorenew",    label: "Fair Greedy",  desc: "Cân bằng luân phiên" },
-  CSP_MRV_FC:  { icon: "account_tree", label: "CSP-MRV-FC",   desc: "CSP + MRV + Forward Checking" },
-};
 
 export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   previewResult,

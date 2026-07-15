@@ -69,9 +69,10 @@ public class LeaveRequest {
      * {@link org.springframework.dao.OptimisticLockingFailureException} which
      * {@code GlobalExceptionHandler} maps to HTTP 409.
      */
-    @Version
-    @Column(name = "version")
-    private Long version;
+	    @Version
+	    @Column(name = "version")
+	    @Builder.Default
+	    private Long version = 0L;
 
     public enum LeaveStatus {
         PENDING, APPROVED, REJECTED, CANCELLED

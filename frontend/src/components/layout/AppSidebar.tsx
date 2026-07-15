@@ -280,15 +280,6 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
                           {group.label}
                         </span>
                         <span
-                          className="ml-auto inline-flex items-center justify-center
-                            min-w-[20px] h-4 px-1.5 rounded-full
-                            bg-primary-fixed text-on-primary-fixed-dim text-[10px] font-bold
-                            group-hover/header:bg-primary-fixed-dim
-                            transition-colors"
-                        >
-                          {group.items.length}
-                        </span>
-                        <span
                           aria-hidden="true"
                           className={`material-symbols-outlined text-[16px]
                             transition-transform duration-200 ${

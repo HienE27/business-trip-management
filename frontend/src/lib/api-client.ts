@@ -110,36 +110,46 @@ export class ApiClient {
     }
   }
 
-  async request<T>(
-    endpoint: string,
-    options: RequestInit & { timeout?: number; _retried?: boolean } = {},
-  ): Promise<ApiResponse<T>> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...(options.headers as Record<string, string>),
-    };
+	  async request<T>(
+	    endpoint: string,
+	    options: RequestInit & { timeout?: number; _retried?: boolean; cancelSignal?: AbortSignal } = {},
+	  ): Promise<ApiResponse<T>> {
+	    const headers: Record<string, string> = {
+	      "Content-Type": "application/json",
+	      ...(options.headers as Record<string, string>),
+	    };
 
-    const token = getStoredToken();
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+	    const token = getStoredToken();
+	    if (token) {
+	      headers["Authorization"] = `Bearer ${token}`;
+	    }
 
-    const timeout = options.timeout ?? 60000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+	    const timeout = options.timeout ?? 60000;
+	    const controller = new AbortController();
+	    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-    let response: Response;
-    try {
-      response = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers,
-        credentials: "include",
-        signal: controller.signal,
-      });
+	    // If caller provided an external cancel signal, abort when it fires
+	    const externalSignal = options.cancelSignal;
+	    if (externalSignal) {
+	      if (externalSignal.aborted) {
+	        controller.abort();
+	      } else {
+	        externalSignal.addEventListener("abort", () => controller.abort(), { once: true });
+	      }
+	    }
+
+	    let response: Response;
+	    try {
+	      response = await fetch(`${API_BASE}${endpoint}`, {
+	        ...options,
+	        headers,
+	        credentials: "include",
+	        signal: controller.signal,
+	      });
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === "AbortError") {
-        throw new Error(`Yêu cầu hết thời gian chờ (${Math.round(timeout / 1000)}s). Thuật toán có thể đang chạy quá lâu.`);
+        throw Object.assign(new Error(`Yêu cầu hết thời gian chờ (${Math.round(timeout / 1000)}s). Thuật toán có thể đang chạy quá lâu.`), { name: "AbortError" });
       }
       emit(API_EVENTS.NetworkError, { message: "Mất kết nối tới máy chủ. Vui lòng thử lại.", path: endpoint });
       throw error;
