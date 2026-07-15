@@ -6,8 +6,10 @@ import com.hospital.scheduler.dto.response.HolidayResponse;
 import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.Holiday;
 import com.hospital.scheduler.exception.BadRequestException;
+import com.hospital.scheduler.util.HtmlSanitizer;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.HolidayRepository;
+import com.hospital.scheduler.service.HolidayValidationService;
 import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -26,6 +28,7 @@ import java.util.stream.Collectors;
 public class HolidayService {
 
     private final HolidayRepository holidayRepository;
+    private final HolidayValidationService holidayValidationService;
     private final AuditHistoryService auditHistoryService;
     private final NotificationService notificationService;
     private final AuthContextService authContextService;
@@ -69,6 +72,10 @@ public class HolidayService {
     }
 
     public HolidayResponse createHoliday(HolidayRequest request) {
+        // Sanitize input to prevent XSS
+        request.setName(HtmlSanitizer.sanitizeAndTrim(request.getName()));
+        if (request.getDescription() != null) request.setDescription(HtmlSanitizer.sanitizeAndTrim(request.getDescription()));
+
         // BUGFIX (was BE#16): the previous check used existsByHolidayDate which
         // matched both active and inactive rows. After soft-delete
         // (isActive=false) re-creating the same date was blocked because the
@@ -79,7 +86,7 @@ public class HolidayService {
         //   2. Only inactive rows exist → reactivate the most recent one
         //      (upsert) so users can resurrect a soft-deleted holiday without
         //      hitting a UNIQUE constraint violation.
-        if (holidayRepository.existsByHolidayDateAndIsActiveTrue(request.getHolidayDate())) {
+        if (holidayValidationService.isHoliday(request.getHolidayDate())) {
             throw new BadRequestException("Ngày lễ '" + request.getHolidayDate() + "' đã tồn tại (đang hoạt động)");
         }
 
@@ -126,11 +133,15 @@ public class HolidayService {
     }
 
     public HolidayResponse updateHoliday(Integer id, HolidayRequest request) {
+        // Sanitize input to prevent XSS
+        request.setName(HtmlSanitizer.sanitizeAndTrim(request.getName()));
+        if (request.getDescription() != null) request.setDescription(HtmlSanitizer.sanitizeAndTrim(request.getDescription()));
+
         Holiday holiday = holidayRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ngày lễ với ID: " + id));
 
         if (!holiday.getHolidayDate().equals(request.getHolidayDate())
-                && holidayRepository.existsByHolidayDateAndIsActiveTrue(request.getHolidayDate())) {
+                && holidayValidationService.isHoliday(request.getHolidayDate())) {
             throw new BadRequestException("Ngày lễ '" + request.getHolidayDate() + "' đã tồn tại (đang hoạt động)");
         }
 

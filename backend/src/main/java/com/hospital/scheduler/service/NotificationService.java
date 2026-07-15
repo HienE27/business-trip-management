@@ -6,10 +6,12 @@ import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.Notification;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
+import com.hospital.scheduler.util.HtmlSanitizer;
 import com.hospital.scheduler.repository.NotificationRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.AuthContextService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -97,7 +100,7 @@ public class NotificationService {
 
         Notification saved = notificationRepository.save(notification);
         Integer currentId = null;
-        try { currentId = authContextService.getCurrentStaff().getId(); } catch (Exception ignored) {}
+        try { currentId = authContextService.getCurrentStaff().getId(); } catch (Exception e) { log.warn("Could not resolve current staff for notification audit: {}", e.getMessage()); }
         auditHistoryService.logAction("notification", notificationId, AuditHistory.ActionType.UPDATE, prev, saved, currentId);
         
         // Broadcast via WebSocket
@@ -110,7 +113,7 @@ public class NotificationService {
     public void markAllAsRead(Integer staffId) {
         int count = notificationRepository.markAllAsReadBulk(staffId);
         Integer currentId = null;
-        try { currentId = authContextService.getCurrentStaff().getId(); } catch (Exception ignored) {}
+        try { currentId = authContextService.getCurrentStaff().getId(); } catch (Exception e) { log.warn("Could not resolve current staff for notification audit: {}", e.getMessage()); }
         auditHistoryService.logAction("notification", null, AuditHistory.ActionType.UPDATE,
                 null, Map.of("markAllRead", true, "staffId", staffId, "count", count), currentId);
         
@@ -119,6 +122,10 @@ public class NotificationService {
     }
 
     public NotificationResponse createNotification(Integer staffId, NotificationDTO dto) {
+        // Sanitize input to prevent XSS
+        dto.setTitle(HtmlSanitizer.sanitizeAndTrim(dto.getTitle()));
+        if (dto.getMessage() != null) dto.setMessage(HtmlSanitizer.sanitizeAndTrim(dto.getMessage()));
+
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + staffId));
 
@@ -139,12 +146,16 @@ public class NotificationService {
     }
 
     public void createNotificationForAllStaff(String title, String message) {
+        // Sanitize input to prevent XSS
+        String safeTitle = HtmlSanitizer.sanitizeAndTrim(title);
+        String safeMessage = message != null ? HtmlSanitizer.sanitizeAndTrim(message) : null;
+
         List<Staff> allStaff = staffRepository.findAll();
         List<Notification> notifications = allStaff.stream()
                 .map(staff -> Notification.builder()
                         .staff(staff)
-                        .title(title)
-                        .message(message)
+                        .title(safeTitle)
+                        .message(safeMessage)
                         .isRead(false)
                         .build())
                 .collect(Collectors.toList());

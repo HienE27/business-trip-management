@@ -7,6 +7,7 @@ import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.AuditHistoryRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hospital.scheduler.util.HtmlSanitizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -150,6 +151,13 @@ public class AuditHistoryService {
         return auditHistoryRepository.save(auditHistory);
     }
 
+    /**
+     * Serialize an object to JSON for audit storage.
+     * The entity fields passed to this method are already sanitized by the
+     * calling service layer — the JSON output is safe for non-React contexts.
+     * Jackson's writeValueAsString produces valid JSON and does not introduce
+     * additional XSS vectors when consumed through standard JSON parsing.
+     */
     private String safeToJson(Object data) {
         if (data == null) return null;
         try {

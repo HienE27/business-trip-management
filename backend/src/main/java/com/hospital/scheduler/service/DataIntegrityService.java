@@ -134,9 +134,7 @@ public class DataIntegrityService {
                 adminId, cancelledIds.size(), cancelledIds);
 
         // Audit đã tạm disable vì gây rollback-only
-        // for (Integer id : cancelledIds) {
-        //     try { recordCleanupAudit(id, adminId); } catch (Exception ignore) {}
-        // }
+        // Xem TODO: tách recordCleanupAudit thành @Async riêng
 
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("cancelledCount", cancelledIds.size());

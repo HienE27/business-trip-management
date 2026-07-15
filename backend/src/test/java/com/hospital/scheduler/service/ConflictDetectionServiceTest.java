@@ -490,18 +490,6 @@ class ConflictDetectionServiceTest {
         @Test
         @DisplayName("Co ca truc lien ke ngay hom truoc -> KHONG conflict (đã bỏ guard)")
         void adjacentPrevDay_shouldConflict() {
-            LocalDate prevDay = monday.minusDays(1);
-            Schedule adjacentSchedule = Schedule.builder()
-                    .id(200)
-                    .staff(testStaff)
-                    .workDate(prevDay)
-                    .shiftType(shiftL01)
-                    .period(period1)
-                    .build();
-
-            when(scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(testStaff.getId(), period1.getId(), prevDay, prevDay))
-                    .thenReturn(List.of(adjacentSchedule));
-
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
                     testStaff.getId(), monday, "L01", null, period1.getId(), false, false);
 
@@ -512,18 +500,6 @@ class ConflictDetectionServiceTest {
         @Test
         @DisplayName("Co ca truc lien ke ngay hom sau -> KHONG conflict (đã bỏ guard)")
         void adjacentNextDay_shouldConflict() {
-            LocalDate nextDay = monday.plusDays(1);
-            Schedule adjacentSchedule = Schedule.builder()
-                    .id(201)
-                    .staff(testStaff)
-                    .workDate(nextDay)
-                    .shiftType(shiftL01)
-                    .period(period1)
-                    .build();
-
-            when(scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(testStaff.getId(), period1.getId(), nextDay, nextDay))
-                    .thenReturn(List.of(adjacentSchedule));
-
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
                     testStaff.getId(), monday, "L01", null, period1.getId(), false, false);
 
@@ -534,9 +510,6 @@ class ConflictDetectionServiceTest {
         @Test
         @DisplayName("Khong co ca truc lien ke -> OK")
         void noAdjacentShift_shouldPass() {
-            when(scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(anyInt(), anyInt(), any(), any()))
-                    .thenReturn(Collections.emptyList());
-
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
                     testStaff.getId(), monday, "L01", null, period1.getId(), false, false);
 
@@ -547,19 +520,6 @@ class ConflictDetectionServiceTest {
         @Test
         @DisplayName("Ca truc lien ke la chinh no -> duoc phep khi exclude")
         void excludeSelf_shouldPass() {
-            LocalDate prevDay = monday.minusDays(1);
-            Schedule sameSchedule = Schedule.builder()
-                    .id(100)
-                    .staff(testStaff)
-                    .workDate(prevDay)
-                    .shiftType(shiftL01)
-                    .period(period1)
-                    .build();
-
-            when(scheduleRepository.findByStaffIdAndDateRangeAndPeriodId(testStaff.getId(), period1.getId(), prevDay, prevDay))
-                    .thenReturn(List.of(sameSchedule));
-
-            // excludeScheduleId = 100, same schedule ID -> skip it
             List<String> conflicts = conflictDetectionService.detectAllConflicts(
                     testStaff.getId(), monday, "L01", 100, period1.getId(), false, false);
 

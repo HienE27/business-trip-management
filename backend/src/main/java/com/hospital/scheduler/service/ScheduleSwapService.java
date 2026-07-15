@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
  * separately and the intermediate duplicate state is visible to MySQL
  * only as a transient snapshot.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ScheduleSwapService {
@@ -79,7 +81,7 @@ public class ScheduleSwapService {
             try {
                 jdbcTemplate.execute("ALTER TABLE schedule ADD CONSTRAINT uk_schedule_unique "
                         + "UNIQUE (period_id, staff_id, shift_type_id, work_date)");
-            } catch (Exception e) {
+                            } catch (Exception alterEx) {
                 // Constraint may already exist if a previous attempt
                 // failed mid-way. Inspect and re-create as needed.
                 try {
@@ -88,10 +90,10 @@ public class ScheduleSwapService {
                           + "WHERE table_schema = DATABASE() AND table_name = 'schedule' "
                           + "AND index_name = 'uk_schedule_unique'", Integer.class);
                     if (count == null || count == 0) {
-                        throw e;
+                        throw alterEx;
                     }
-                } catch (Exception ignored) {
-                    // ignore
+                                } catch (Exception idxEx) {
+                    log.warn("Unique index check failed, falling back to original exception: {}", idxEx.getMessage());
                 }
             }
         }

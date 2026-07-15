@@ -8,6 +8,7 @@ import com.hospital.scheduler.service.AuditHistoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/audit-history")
 @RequiredArgsConstructor
@@ -106,7 +108,8 @@ public class AuditHistoryController {
             if (normalized.equals("CREATE")) normalized = "INSERT";
             try {
                 actionEnum = com.hospital.scheduler.entity.AuditHistory.ActionType.valueOf(normalized);
-            } catch (IllegalArgumentException ignored) {
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid action type filter: {}", action, e);
             }
         }
         return ResponseEntity.ok(ApiResponse.success(

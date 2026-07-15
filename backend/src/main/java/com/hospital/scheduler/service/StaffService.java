@@ -20,6 +20,7 @@ import com.hospital.scheduler.repository.SpecialtyRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.security.AuthContextService;
 import com.hospital.scheduler.config.CacheConfig;
+import com.hospital.scheduler.util.HtmlSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -234,6 +235,11 @@ public class StaffService {
             throw new ConflictException("Email '" + request.getEmail() + "' đã tồn tại");
         }
 
+        // Sanitize input to prevent XSS
+        request.setFullName(HtmlSanitizer.sanitizeAndTrim(request.getFullName()));
+        if (request.getPhone() != null) request.setPhone(HtmlSanitizer.sanitizeAndTrim(request.getPhone()));
+        if (request.getEmail() != null) request.setEmail(HtmlSanitizer.sanitizeAndTrim(request.getEmail()));
+
         Specialty specialty = null;
         if (request.getSpecialtyId() != null) {
             specialty = specialtyRepository.findById(request.getSpecialtyId()).orElse(null);
@@ -297,6 +303,11 @@ public class StaffService {
     public StaffResponse updateStaff(Integer id, StaffRequest request) {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
+
+        // Sanitize input to prevent XSS
+        if (request.getFullName() != null) request.setFullName(HtmlSanitizer.sanitizeAndTrim(request.getFullName()));
+        if (request.getPhone() != null) request.setPhone(HtmlSanitizer.sanitizeAndTrim(request.getPhone()));
+        if (request.getEmail() != null) request.setEmail(HtmlSanitizer.sanitizeAndTrim(request.getEmail()));
 
         // Block edits on inactive staff — the edit page is meant for active
         // accounts only; an INACTIVE staff should not be edit-able (re-activate

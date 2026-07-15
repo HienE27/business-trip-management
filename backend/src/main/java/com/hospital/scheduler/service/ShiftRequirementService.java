@@ -9,6 +9,7 @@ import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.HolidayRepository;
+import com.hospital.scheduler.service.HolidayValidationService;
 import com.hospital.scheduler.repository.ShiftRequirementRepository;
 import com.hospital.scheduler.repository.ShiftTypeRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
@@ -41,6 +42,7 @@ public class ShiftRequirementService {
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
     private final HolidayRepository holidayRepository;
+    private final HolidayValidationService holidayValidationService;
     private final AuditHistoryService auditHistoryService;
     private final AuthContextService authContextService;
 
@@ -193,14 +195,13 @@ public class ShiftRequirementService {
     }
 
     /**
-<<<<<<< Updated upstream
      * BUG-m6 fix: reject shift requirements that fall on a configured holiday.
      * Schedule generation skips holidays anyway, so silently accepting the
      * requirement creates the illusion of coverage that never materialises.
      */
     private void validateWorkDateNotHoliday(LocalDate workDate) {
         if (workDate == null) return;
-        if (holidayRepository.existsByHolidayDate(workDate)) {
+        if (holidayValidationService.isHoliday(workDate)) {
             throw new BadRequestException(
                 "Ngày " + workDate + " là ngày lễ, không thể tạo yêu cầu ca");
         }

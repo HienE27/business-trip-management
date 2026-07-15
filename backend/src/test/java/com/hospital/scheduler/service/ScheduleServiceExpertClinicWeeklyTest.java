@@ -93,7 +93,7 @@ class ScheduleServiceExpertClinicWeeklyTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(scheduleRepository.findExpertClinicByPeriodAndSpecialty(1, null))
                     .thenReturn(List.of(sched1, sched2));
-            when(compensationDayRepository.findByPeriodIdWithStaff(1)).thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByScheduleIds(anyList())).thenReturn(Collections.emptyList());
             when(conflictDetectionService.detectAllConflicts(anyInt(), any(), any(), any(), anyInt(), anyBoolean(), anyBoolean()))
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findByScheduleId(anyInt())).thenReturn(Collections.emptyList());
@@ -132,7 +132,7 @@ class ScheduleServiceExpertClinicWeeklyTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(scheduleRepository.findExpertClinicByPeriodAndSpecialty(1, null))
                     .thenReturn(Collections.emptyList());
-            when(compensationDayRepository.findByPeriodIdWithStaff(1)).thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByScheduleIds(anyList())).thenReturn(Collections.emptyList());
 
             ExpertClinicWeeklyResponse result = scheduleService.getExpertClinicWeeklyView(1, weekStart, null);
 
@@ -156,7 +156,7 @@ class ScheduleServiceExpertClinicWeeklyTest {
             when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(scheduleRepository.findExpertClinicByPeriodAndSpecialty(1, null))
                     .thenReturn(Collections.emptyList());
-            when(compensationDayRepository.findByPeriodIdWithStaff(1)).thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByScheduleIds(anyList())).thenReturn(Collections.emptyList());
 
             ExpertClinicWeeklyResponse result = scheduleService.getExpertClinicWeeklyView(1, null, null);
 
@@ -195,7 +195,7 @@ class ScheduleServiceExpertClinicWeeklyTest {
             // Filtered by specialtyId=1 (Cardiology)
             when(scheduleRepository.findExpertClinicByPeriodAndSpecialty(1, 1))
                     .thenReturn(List.of(cardioSched));
-            when(compensationDayRepository.findByPeriodIdWithStaff(1)).thenReturn(Collections.emptyList());
+            when(compensationDayRepository.findByScheduleIds(anyList())).thenReturn(Collections.emptyList());
             when(conflictDetectionService.detectAllConflicts(anyInt(), any(), any(), any(), anyInt(), anyBoolean(), anyBoolean()))
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findByScheduleId(anyInt())).thenReturn(Collections.emptyList());

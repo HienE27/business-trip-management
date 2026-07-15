@@ -54,6 +54,7 @@ class ScheduleServiceCoreTest {
     private CompensationDateCalculator compensationDateCalculator;
     private NotificationService notificationService;
     private ConflictBroadcastService conflictBroadcastService;
+    private HolidayValidationService holidayValidationService;
 
     private ScheduleService service;
 
@@ -72,6 +73,7 @@ class ScheduleServiceCoreTest {
         compensationDateCalculator = mock(CompensationDateCalculator.class);
         notificationService = mock(NotificationService.class);
         conflictBroadcastService = mock(ConflictBroadcastService.class);
+        holidayValidationService = mock(HolidayValidationService.class);
 
         service = new ScheduleService(
                 mock(JdbcTemplate.class),
@@ -82,6 +84,7 @@ class ScheduleServiceCoreTest {
                 compensationDayRepository,
                 scheduleConflictRepository,
                 holidayRepository,
+                holidayValidationService,
                 conflictDetectionService,
                 auditHistoryService,
                 authContextService,

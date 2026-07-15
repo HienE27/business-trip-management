@@ -45,8 +45,9 @@ public class ScheduleChromosome {
      * Prefer this over reflection in tests.
      */
     ScheduleChromosome(List<ShiftRequirementInfo> requirements, List<Staff> staffPool, int[] genes) {
-        this(requirements, staffPool);
-        if (genes.length != this.genes.length) {
+        this.requirements = requirements;
+        this.staffPool = staffPool;
+        if (genes.length != requirements.size()) {
             throw new IllegalArgumentException("genes length must match requirements size");
         }
         this.genes = genes.clone();

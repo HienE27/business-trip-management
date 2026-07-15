@@ -17,6 +17,7 @@ import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.config.CacheConfig;
 import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.HolidayRepository;
+import com.hospital.scheduler.service.HolidayValidationService;
 import com.hospital.scheduler.repository.ScheduleConflictRepository;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
@@ -58,6 +59,7 @@ public class ScheduleService {
     private final CompensationDayRepository compensationDayRepository;
     private final ScheduleConflictRepository scheduleConflictRepository;
     private final HolidayRepository holidayRepository;
+    private final HolidayValidationService holidayValidationService;
     private final ConflictDetectionService conflictDetectionService;
     private final AuditHistoryService auditHistoryService;
     private final AuthContextService authContextService;
@@ -139,7 +141,7 @@ public class ScheduleService {
             throw new BadRequestException("Chỉ có thể thêm lịch khi kỳ lịch ở trạng thái DRAFT");
         }
 
-        if (holidayRepository.existsByHolidayDateAndIsActiveTrue(request.getWorkDate())) {
+        if (holidayValidationService.isHoliday(request.getWorkDate())) {
             throw new BadRequestException("Ngày " + request.getWorkDate() + " là ngày nghỉ lễ. Không thể xếp lịch vào ngày nghỉ lễ.");
         }
 
@@ -221,7 +223,7 @@ public class ScheduleService {
             throw new BadRequestException("Ngày làm việc phải nằm trong kỳ lịch");
         }
 
-        if (holidayRepository.existsByHolidayDateAndIsActiveTrue(request.getWorkDate())) {
+        if (holidayValidationService.isHoliday(request.getWorkDate())) {
             throw new BadRequestException("Ngày " + request.getWorkDate() + " là ngày nghỉ lễ. Không thể xếp lịch vào ngày nghỉ lễ.");
         }
 
@@ -518,7 +520,7 @@ public class ScheduleService {
             }
 
             // Validate: do not schedule on holidays
-            if (holidayRepository.existsByHolidayDateAndIsActiveTrue(workDate)) {
+            if (holidayValidationService.isHoliday(workDate)) {
                 errors.add("Ngày " + workDate + " là ngày nghỉ lễ");
                 results.add(BulkL01Response.BulkL01ScheduleResult.builder()
                         .staffId(staffId)
@@ -736,7 +738,7 @@ public class ScheduleService {
                 continue;
             }
 
-            if (holidayRepository.existsByHolidayDateAndIsActiveTrue(workDate)) {
+            if (holidayValidationService.isHoliday(workDate)) {
                 results.add(BulkScheduleResponse.BulkResultEntry.builder()
                         .workDate(workDate.toString())
                         .staffId(staffId)
