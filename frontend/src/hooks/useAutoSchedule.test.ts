@@ -20,7 +20,7 @@ describe("useAutoSchedule — state defaults", () => {
     vi.clearAllMocks();
   });
 
-  it("starts with no preview, no edits, no message, CSP_MRV_FC algorithm", () => {
+  it("starts with no preview, no edits, no message, V10_LOCAL_SEARCH algorithm", () => {
     const { result } = renderHook(() => useAutoSchedule());
     const [state] = result.current;
     expect(state.previewResult).toBeNull();
@@ -29,7 +29,7 @@ describe("useAutoSchedule — state defaults", () => {
     expect(state.applying).toBe(false);
     expect(state.running).toBe(false);
     expect(state.message).toBeNull();
-    expect(state.algorithmType).toBe("CSP_MRV_FC");
+    expect(state.algorithmType).toBe("V10_LOCAL_SEARCH");
   });
 });
 
@@ -44,6 +44,8 @@ describe("useAutoSchedule — synchronous actions", () => {
     expect(result.current[0].algorithmType).toBe("CSP_MRV_FC");
     act(() => result.current[1].setAlgorithmType("FAIR_GREEDY"));
     expect(result.current[0].algorithmType).toBe("FAIR_GREEDY");
+    act(() => result.current[1].setAlgorithmType("V10_LOCAL_SEARCH"));
+    expect(result.current[0].algorithmType).toBe("V10_LOCAL_SEARCH");
   });
 
   it("setMessage writes a transient banner message", () => {

@@ -108,7 +108,8 @@ public class AutoSchedulingController {
     /** Whitelisted algorithm types — single source of truth for both /preview and POST. */
     private static final java.util.Set<String> SUPPORTED_ALGORITHMS = java.util.Set.of(
             "GREEDY", "ROUND_ROBIN", "FAIR_ROUND_ROBIN", "FAIR", "FAIR_GREEDY",
-            "CSP_MRV_FC", "CSP"
+            "CSP_MRV_FC", "CSP",
+            "V10_LOCAL_SEARCH", "V10"
     );
 
     /** Reject unknown algorithmType BEFORE any DB writes or scheduler entry so callers

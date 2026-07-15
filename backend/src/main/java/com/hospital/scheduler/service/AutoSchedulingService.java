@@ -78,6 +78,7 @@ public class AutoSchedulingService {
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
     private final CSPScheduler cspScheduler;
+    private final com.hospital.scheduler.scheduling.LocalSearchScheduler localSearchScheduler;
     private final EntityManager entityManager;
     private final ScheduleConflictRepository scheduleConflictRepository;
     private final AlgorithmProgressTracker progressTracker;
@@ -914,7 +915,9 @@ public class AutoSchedulingService {
             "FAIR",
             "FAIR_GREEDY",
             "CSP_MRV_FC",
-            "CSP");
+            "CSP",
+            "V10_LOCAL_SEARCH",
+            "V10");
 
     private AlgorithmDispatchResult dispatchAlgorithm(SchedulePeriod period,
                                                      List<ShiftRequirement> requirements,
@@ -999,6 +1002,15 @@ public class AutoSchedulingService {
             }
 
             return new AlgorithmDispatchResult(algorithmType, cspSchedules, cspResult.fairnessScore());
+        }
+
+        if ("V10_LOCAL_SEARCH".equals(algorithmType) || "V10".equals(algorithmType)) {
+            // v10 LocalSearch: incremental statistics + tabu acceptor + sampled
+            // neighborhood. Reuses runCspWithResult to rehydrate assignments into
+            // JPA entities so save=true persists the same way as CSP/Greedy.
+            SchedulingResultWithFairness v10Result = runV10LocalSearch(
+                    period, requirements, activeStaff, save, excluded);
+            return new AlgorithmDispatchResult(algorithmType, v10Result.schedules(), v10Result.fairnessScore());
         }
 
         // Explicit Greedy branch (was previously the implicit default for unknown values —
@@ -1316,6 +1328,49 @@ public class AutoSchedulingService {
     // it uses a per-shift-type rotation index (fgShiftTypeRotationIndex below) plus a demand-based
     // fair-share cap, not a cyclic permutation. The dispatch table in runScheduling accepts the
     // aliases "ROUND_ROBIN", "FAIR_ROUND_ROBIN", "FAIR", and "FAIR_GREEDY" for back-compat.
+    // ==================== V10 LOCAL SEARCH ALGORITHM ====================
+
+    /**
+     * v10 entry point: delegates to {@link com.hospital.scheduler.scheduling.LocalSearchScheduler}.
+     * Reuses {@link #runCspWithResult} to rehydrate assignments into JPA {@link Schedule}
+     * entities so the rest of the pipeline (audit, balance-score fallback, conflict save)
+     * can treat v10 the same as CSP.
+     */
+    private SchedulingResultWithFairness runV10LocalSearch(
+            SchedulePeriod period,
+            List<ShiftRequirement> requirements,
+            List<Staff> activeStaff,
+            boolean save,
+            Set<Integer> excludedStaffIds) {
+        log.info("Running v10-LocalSearch for period {}", period.getId());
+
+        List<ShiftRequirementInfo> algoReqs = toRequirementInfos(requirements);
+        SchedulingResult result = localSearchScheduler.solve(
+                activeStaff,
+                period.getStartDate(),
+                period.getEndDate(),
+                algoReqs,
+                new HashSet<>(),
+                leaveRequestRepository.findAll(),
+                excludedStaffIds != null ? excludedStaffIds : new HashSet<>());
+
+        // Rehydrate Map-based assignments → JPA entities, then persist if save=true.
+        SchedulingResultWithFairness rehydrated = runCspWithResult(result, period);
+        if (save) {
+            for (Schedule s : rehydrated.schedules()) {
+                Schedule saved = scheduleRepository.save(s);
+                if (saved != null) {
+                    auditHistoryService.logAction(
+                            "schedule", saved.getId(),
+                            AuditHistory.ActionType.INSERT, null, saved, null);
+                }
+            }
+        }
+        log.info("v10-LocalSearch completed: {} schedules (valid={}, partial={})",
+                rehydrated.schedules().size(), result.isValid(), result.isPartial());
+        return rehydrated;
+    }
+
     private List<Schedule> runFairGreedy(SchedulePeriod period, List<ShiftRequirement> requirements,
                                           List<Staff> activeStaff, boolean save,
                                           AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,

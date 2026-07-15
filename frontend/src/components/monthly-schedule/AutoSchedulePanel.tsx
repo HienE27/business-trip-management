@@ -13,7 +13,7 @@ import type { AutoScheduleResult, SchedulePeriod, Staff } from "@/types/api";
 import { parseNumber, formatCoverageRate, formatPercent } from "@/lib/number-utils";
 import { useAlgorithmProgress } from "@/hooks/useAlgorithmProgress";
 
-type AlgorithmType = "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC";
+type AlgorithmType = "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC" | "V10_LOCAL_SEARCH";
 type EditedPreview = Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
 
 export type AutoSchedulePanelProps = {
@@ -46,9 +46,10 @@ const ALGO_CONFIG: Record<AlgorithmType, {
   label: string;
   desc: string;
 }> = {
-  GREEDY:      { icon: "bolt",         label: "Greedy",       desc: "Nhanh, tham lam" },
-  FAIR_GREEDY: { icon: "autorenew",    label: "Fair Greedy",  desc: "Cân bằng luân phiên" },
-  CSP_MRV_FC:  { icon: "account_tree", label: "CSP-MRV-FC",   desc: "CSP + MRV + Forward Checking" },
+  GREEDY:        { icon: "bolt",         label: "Greedy",       desc: "Nhanh, tham lam" },
+  FAIR_GREEDY:   { icon: "autorenew",    label: "Fair Greedy",  desc: "Cân bằng luân phiên" },
+  CSP_MRV_FC:    { icon: "account_tree", label: "CSP-MRV-FC",   desc: "CSP + MRV + Forward Checking" },
+  V10_LOCAL_SEARCH: { icon: "psychology", label: "v10 Local Search", desc: "Tabu + mẫu hóa + thống kê tăng dần" },
 };
 
 export const AutoSchedulePanel = memo(function AutoSchedulePanel({
