@@ -17,7 +17,8 @@ export type AppSectionKey =
   | "holidays"
   | "notifications"
   | "audit-history"
-  | "settings";
+  | "settings"
+  | "requirements";
 
 export type AppSectionDefinition = {
   key: AppSectionKey;
@@ -84,6 +85,14 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     icon: "stethoscope",
     description: "M05 — Lịch phòng khám chuyên gia.",
     requiredPermissions: ["SCHEDULE_VIEW"],
+  },
+  {
+    key: "requirements",
+    label: "Yêu cầu nhân sự",
+    href: "/requirements",
+    icon: "assignment",
+    description: "M07-F01 — Cấu hình số nhân sự cần thiết cho từng ngày và loại ca.",
+    requiredPermissions: ["PERIOD_VIEW"],
   },
   {
     key: "auto-scheduling",
@@ -197,6 +206,7 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/notifications": "notifications",
   "/audit-history": "audit-history",
   "/audit-logs": "audit-history",
+  "/requirements": "requirements",
   "/settings": "settings",
   "/settings/roles": "settings",
 };

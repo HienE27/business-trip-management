@@ -6,7 +6,6 @@ import { FAB } from "@/components/ui/FAB";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { Button, FormSelect, FormInput, FormTextarea } from "@/components/ui";
 import { useRole, canEditSchedule } from "@/hooks/useRole";
-import { useToast } from "@/components/ui/ToastProvider";
 import { api } from "@/lib/api";
 import type { CompensationDay, ConflictDetail, Schedule } from "@/types/api";
 
@@ -40,7 +39,6 @@ export function QuickScheduleModal({
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
   const [workDate, setWorkDate] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
-  const toast = useToast();
 
   // Check if selected date is outside the period range
   const dateOutOfRange = Boolean(
@@ -220,20 +218,16 @@ export const ScheduleMatrixView = memo(function ScheduleMatrixView({
   onRefresh,
   onAddClick,
   selectedTab,
-  onFilterTypeChange,
   compensationDays,
   onViewDetail,
   onEdit,
   onDelete,
   onResolve,
-  hideFilters = false,
 }: ScheduleMatrixViewProps) {
-  const [matrixViewMode, setMatrixViewMode] = useState<"month" | "week">("month");
+  const [matrixViewMode, setMatrixViewMode] = useState<"month" | "week" | "day">("month");
   const [quickOpen, setQuickOpen] = useState(false);
   const role = useRole();
   const canEdit = canEditSchedule(role) && (!isReadOnly || canEditOverride);
-  const toast = useToast();
-
   const fabActions = canEdit ? [
     {
       id: "create-shift",
@@ -282,6 +276,18 @@ export const ScheduleMatrixView = memo(function ScheduleMatrixView({
             }`}
           >
             Tuần
+          </button>
+          <button
+            type="button"
+            onClick={() => setMatrixViewMode("day")}
+            aria-pressed={matrixViewMode === "day"}
+            className={`rounded-md px-3 py-1 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              matrixViewMode === "day"
+                ? "bg-surface-container-lowest text-primary shadow-sm"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            Ngày
           </button>
         </div>
       </div>

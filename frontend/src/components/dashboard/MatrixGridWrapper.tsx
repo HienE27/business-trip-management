@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { ScheduleMatrixGrid } from "@/components/dashboard/ScheduleMatrixGrid";
 import type { ConflictDetail, Schedule } from "@/types/api";
 
-export type MatrixViewMode = "month" | "week";
+export type MatrixViewMode = "month" | "week" | "day";
 
 export type MatrixGridWrapperProps = {
   schedules: Schedule[];
@@ -89,6 +89,7 @@ export const MatrixGridWrapper = memo(function MatrixGridWrapper({
   canEdit,
 }: MatrixGridWrapperProps) {
   const [weekOffset, setWeekOffset] = useState(0);
+  const [dayOffset, setDayOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [showConflictOnly, setShowConflictOnly] = useState(initialShowConflictOnly ?? false);
 
@@ -99,8 +100,10 @@ export const MatrixGridWrapper = memo(function MatrixGridWrapper({
   }, [schedules]);
 
   // Sync weekOffset to 0 when a new schedule period loads (schedules.length changes)
+  // Sync offsets to 0 when a new schedule period loads
   useEffect(() => {
     setWeekOffset(0);
+    setDayOffset(0);
   }, [schedules.length]);
 
   const currentWeek = useMemo(
@@ -110,11 +113,23 @@ export const MatrixGridWrapper = memo(function MatrixGridWrapper({
 
   const weekRange = viewMode === "week" ? currentWeek : undefined;
 
-  const gridYear = viewMode === "week" && weekRange ? weekRange.weekStart.getFullYear() : year;
-  const gridMonth = viewMode === "week" && weekRange ? weekRange.weekStart.getMonth() : month;
+  // Day view: derive a single day from schedules + offset
+  const currentDay = useMemo(() => {
+    const base = anchorMonday;
+    return new Date(base.getFullYear(), base.getMonth(), base.getDate() + dayOffset);
+  }, [anchorMonday, dayOffset]);
+
+  const dayRange = viewMode === "day" ? { weekStart: currentDay, weekEnd: currentDay } : undefined;
+
+  const activeRange = weekRange ?? dayRange;
+
+  const gridYear = activeRange ? activeRange.weekStart.getFullYear() : year;
+  const gridMonth = activeRange ? activeRange.weekStart.getMonth() : month;
 
   const handlePrevWeek = useCallback(() => setWeekOffset((o) => o - 1), []);
   const handleNextWeek = useCallback(() => setWeekOffset((o) => o + 1), []);
+  const handlePrevDay = useCallback(() => setDayOffset((o) => o - 1), []);
+  const handleNextDay = useCallback(() => setDayOffset((o) => o + 1), []);
 
   // Filter staff columns by search query
   const filteredStaffList = useMemo(() => {
@@ -208,13 +223,44 @@ export const MatrixGridWrapper = memo(function MatrixGridWrapper({
         </div>
       )}
 
+      {viewMode === "day" && (
+        <div className="flex items-center justify-between rounded-lg border border-outline-variant bg-surface-container-low px-4 py-2">
+          <button
+            type="button"
+            onClick={handlePrevDay}
+            className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-surface-container-high transition-colors text-on-surface"
+            title="Ngày trước"
+          >
+            <span className="material-symbols-outlined text-[22px]">chevron_left</span>
+          </button>
+
+          <span className="font-label-md text-label-md text-on-surface min-w-[200px] text-center">
+            {currentDay.toLocaleDateString("vi-VN", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </span>
+
+          <button
+            type="button"
+            onClick={handleNextDay}
+            className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-surface-container-high transition-colors text-on-surface"
+            title="Ngày sau"
+          >
+            <span className="material-symbols-outlined text-[22px]">chevron_right</span>
+          </button>
+        </div>
+      )}
+
       <ScheduleMatrixGrid
         schedules={schedules}
         staffList={filteredStaffList}
         year={gridYear}
         month={gridMonth}
-        weekStart={weekRange?.weekStart}
-        weekEnd={weekRange?.weekEnd}
+        weekStart={activeRange?.weekStart}
+        weekEnd={activeRange?.weekEnd}
         compensationDays={compensationDays}
         shiftTypeFilter={shiftTypeFilter}
         conflictDates={showConflictOnly ? conflictDates : undefined}

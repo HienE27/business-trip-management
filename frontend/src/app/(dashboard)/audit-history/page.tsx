@@ -13,421 +13,9 @@ import { getErrorMessage } from "@/lib/errors";
 import { ConfirmDialog } from "@/components/ui";
 import type { AuditHistory, AuditHistoryPage, AuditHistorySummary } from "@/types/api";
 
-type ActionFilter = "" | "CREATE" | "UPDATE" | "DELETE";
-type DateRange = "today" | "yesterday" | "7d" | "30d" | "custom";
-
-// ─── Style constants ───────────────────────────────────────────────────────────
-
-const ACTION_STYLE: Record<string, {
-  label: string;
-  icon: string;
-  iconBg: string;
-  chipBg: string;
-  chipColor: string;
-}> = {
-  CREATE: {
-    label: "Tạo mới",
-    icon: "add_circle",
-    iconBg: "bg-secondary-container text-secondary",
-    chipBg: "bg-secondary-container text-secondary",
-    chipColor: "text-secondary",
-  },
-  UPDATE: {
-    label: "Cập nhật",
-    icon: "edit",
-    iconBg: "bg-primary-fixed text-primary",
-    chipBg: "bg-primary-fixed text-primary",
-    chipColor: "text-primary",
-  },
-  DELETE: {
-    label: "Xóa",
-    icon: "delete",
-    iconBg: "bg-error-container text-error",
-    chipBg: "bg-error-container text-error",
-    chipColor: "text-error",
-  },
-};
-
-function getAction(action: string) {
-  return ACTION_STYLE[action] ?? {
-    label: action,
-    icon: "info",
-    iconBg: "bg-surface-container-high text-on-surface-variant",
-    chipBg: "bg-surface-container-high text-on-surface-variant",
-    chipColor: "text-on-surface-variant",
-  };
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtTime(dateStr: string) {
-  try {
-    return new Date(dateStr).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-  } catch { return dateStr; }
-}
-
-const VI_DAY_SHORT = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
-
-function fmtDateShort(dateKey: string) {
-  const d = new Date(dateKey + "T12:00:00");
-  return `${VI_DAY_SHORT[d.getDay()]}, ${d.toLocaleDateString("vi-VN")}`;
-}
-
-function getDateRange(range: DateRange): { from?: string; to?: string } {
-  // Use local date (not UTC) so it matches the backend's Asia/Ho_Chi_Minh timezone
-  // that audit_history.created_at is stored in.
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  const to = `${yyyy}-${mm}-${dd}`;
-  switch (range) {
-    case "today":    return { from: to, to };
-    case "yesterday": {
-      const y = new Date(now);
-      y.setDate(y.getDate() - 1);
-      const yy = y.getFullYear();
-      const ym = String(y.getMonth() + 1).padStart(2, "0");
-      const yd = String(y.getDate()).padStart(2, "0");
-      return { from: `${yy}-${ym}-${yd}`, to: `${yy}-${ym}-${yd}` };
-    }
-    case "7d":  {
-      const s = new Date(now);
-      s.setDate(s.getDate() - 7);
-      const sy = s.getFullYear();
-      const sm = String(s.getMonth() + 1).padStart(2, "0");
-      const sd = String(s.getDate()).padStart(2, "0");
-      return { from: `${sy}-${sm}-${sd}`, to };
-    }
-    case "30d": {
-      const s = new Date(now);
-      s.setDate(s.getDate() - 30);
-      const sy = s.getFullYear();
-      const sm = String(s.getMonth() + 1).padStart(2, "0");
-      const sd = String(s.getDate()).padStart(2, "0");
-      return { from: `${sy}-${sm}-${sd}`, to };
-    }
-    default: return {};
-  }
-}
-
-function subDateStr(days: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-const todayStr = (() => {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-})();
-
-function isToday(dateKey: string) {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const todayLocal = `${yyyy}-${mm}-${dd}`;
-  return dateKey === todayLocal;
-}
-
-function isYesterday(dateKey: string) {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const yesterdayLocal = `${yyyy}-${mm}-${dd}`;
-  return dateKey === yesterdayLocal;
-}
-
-// ─── JSON utils ───────────────────────────────────────────────────────────────
-
-const META_KEYS = new Set([
-  "id", "Id", "ID",
-  "createdAt", "created_at", "createAt", "create_at", "createDate", "createdDate",
-  "updatedAt", "updated_at", "modifiedAt", "modified_at",
-  "deletedAt", "deleted_at", "lastModified", "lastModifiedAt",
-  "createdBy", "created_by", "updatedBy", "updated_by",
-  "version", "uuid", "Uuid", "UID",
-  "notificationType", "isRead", "readAt",
-  "oldData", "newData",
-]);
-
-function isMetaKey(k: string): boolean {
-  return META_KEYS.has(k) ||
-    /^(id|_id|.*[Ii]d$|.*[Tt]imestamp$|.*[Dd]ate$|.*[Bb]y$|.*[Uu]ser|.*[Uu]serId|.*[Uu]ser_Id)/.test(k) ||
-    /(content|message|description|details|metadata|payload|params|data)$/i.test(k);
-}
-
-function parseJson(raw?: string): Record<string, unknown> | null {
-  if (!raw) return null;
-  try {
-    const p = JSON.parse(raw);
-    return typeof p === "object" && p !== null ? p as Record<string, unknown> : null;
-  } catch { return null; }
-}
-
-function prettyKey(k: string) {
-  return k.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^\w/, (c) => c.toUpperCase());
-}
-
-function fmtVal(v: unknown): string {
-  if (v == null) return "—";
-  if (typeof v === "boolean") return v ? "Có" : "Không";
-  if (typeof v === "number") return v.toLocaleString("vi");
-  if (typeof v === "object") {
-    const e = Object.entries(v as Record<string, unknown>);
-    if (!e.length) return "—";
-    const n = e.find(([k]) => /(name|title|label)/i.test(k));
-    return n ? fmtVal(n[1]) : `${e.length} trường`;
-  }
-  if (typeof v === "string") return v.length > 120 ? v.slice(0, 120) + "…" : v;
-  return String(v);
-}
-
-// Pretty-print JSON (ensure multi-line), then syntax-highlight
-function SyntaxHighlight({ json }: { json: string }) {
-  let formatted = json;
-  try {
-    formatted = JSON.stringify(JSON.parse(json), null, 2);
-  } catch { /* keep raw if invalid */ }
-  const lines = formatted.split("\n");
-  return (
-    <div className="rounded bg-[#0d1117] text-[12px] overflow-x-auto">
-      <table className="w-full" aria-label="Page Table">
-        <tbody>
-          {lines.map((line, i) => {
-            const highlighted = line
-              .replace(/("(?:[^"\\]|\\.)*")\s*:/g, '<span class="text-[#79c0ff]">$1</span>:')
-              .replace(/:\s*("(?:[^"\\]|\\.)*")/g, ': <span class="text-[#a5d6ff]">$1</span>')
-              .replace(/:\s*(true|false)/g, ': <span class="text-[#ff7b72]">$1</span>')
-              .replace(/:\s*(null)/g, ': <span class="text-[#ff7b72]">$1</span>')
-              .replace(/:\s*(-?\d+(?:\.\d+)?)/g, ': <span class="text-[#79c0ff]">$1</span>');
-            return (
-              <tr key={i} className="leading-5">
-                <td className="pr-3 text-right text-[#484f58] select-none w-7 shrink-0 pl-2">{i + 1}</td>
-                <td className="text-[#c9d1d9] whitespace-pre" dangerouslySetInnerHTML={{ __html: highlighted || "&nbsp;" }} />
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ─── JSON Diff Table ───────────────────────────────────────────────────────────
-
-function JsonDiffTable({ oldJson, newJson }: { oldJson?: string; newJson?: string }) {
-  const m1 = parseJson(oldJson ?? "") ?? {};
-  const m2 = parseJson(newJson ?? "") ?? {};
-  const allKeys = Array.from(new Set([...Object.keys(m1), ...Object.keys(m2)])).filter((k) => !isMetaKey(k));
-  const changed = allKeys.filter((k) => JSON.stringify(m1[k]) !== JSON.stringify(m2[k]));
-  const added = allKeys.filter((k) => !(k in m1) && k in m2);
-  const removed = allKeys.filter((k) => k in m1 && !(k in m2));
-
-  if (!changed.length && !added.length && !removed.length) {
-    return (
-      <div className="flex items-center gap-2 text-[13px] text-secondary py-3">
-        <span className="material-symbols-outlined text-[16px]">check_circle</span>
-        Không có thay đổi dữ liệu.
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-1.5">
-      {changed.length > 0 && (
-        <>
-          <p className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wide mb-1.5">
-            {changed.length} thay đổi
-          </p>
-          {changed.map((k) => (
-            <div key={k} className="grid grid-cols-2 rounded-lg overflow-hidden border border-outline-variant text-[12px]">
-              <div className="bg-surface-container-low border-r border-outline-variant px-3 py-2">
-                <p className="text-[10px] text-error font-medium mb-0.5 leading-none uppercase tracking-wide">{prettyKey(k)}</p>
-                <p className="text-on-surface font-medium leading-snug mt-0.5">{fmtVal(m1[k])}</p>
-              </div>
-              <div className="bg-surface-container-lowest px-3 py-2">
-                <p className="text-[10px] text-secondary font-medium mb-0.5 leading-none uppercase tracking-wide">{prettyKey(k)}</p>
-                <p className="text-on-surface font-medium leading-snug mt-0.5">{fmtVal(m2[k])}</p>
-              </div>
-            </div>
-          ))}
-        </>
-      )}
-      {added.length > 0 && (
-        <>
-          <p className="text-[11px] font-semibold text-secondary mt-3 mb-1.5 uppercase tracking-wide">{added.length} mới thêm</p>
-          {added.map((k) => (
-            <div key={k} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-secondary-container border border-secondary/20 text-[12px]">
-              <span className="material-symbols-outlined text-[14px] text-secondary shrink-0">add</span>
-              <span className="text-secondary font-medium w-36 shrink-0">{prettyKey(k)}</span>
-              <span className="text-on-surface font-medium">{fmtVal(m2[k])}</span>
-            </div>
-          ))}
-        </>
-      )}
-      {removed.length > 0 && (
-        <>
-          <p className="text-[11px] font-semibold text-error mt-3 mb-1.5 uppercase tracking-wide">{removed.length} đã xóa</p>
-          {removed.map((k) => (
-            <div key={k} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-error-container border border-error/20 text-[12px]">
-              <span className="material-symbols-outlined text-[14px] text-error shrink-0">remove</span>
-              <span className="text-error font-medium w-36 shrink-0">{prettyKey(k)}</span>
-              <span className="text-on-surface font-medium">{fmtVal(m1[k])}</span>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─── Detail Modal ──────────────────────────────────────────────────────────────
-
-type DetailTab = "diff" | "old" | "new" | "raw";
-
-function DetailModal({ record, onClose }: { record: AuditHistory; onClose: () => void }) {
-  const [tab, setDetailTab] = useState<DetailTab>("diff");
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  const st = getAction(record.action);
-
-  const TABS: { id: DetailTab; label: string }[] = [
-    { id: "diff", label: "So sánh" },
-    { id: "old",  label: "Dữ liệu cũ" },
-    { id: "new",  label: "Dữ liệu mới" },
-    { id: "raw",  label: "JSON" },
-  ];
-
-  const noData = !record.oldData && !record.newData;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
-      <div
-        className="relative bg-surface-container-lowest border-l border-outline-variant shadow-2xl flex flex-col overflow-hidden"
-        style={{ width: "min(520px, 100vw)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-outline-variant bg-surface shrink-0">
-          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${st.iconBg}`}>
-            <span className="material-symbols-outlined text-[16px]">{st.icon}</span>
-          </div>
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-[12px] font-bold ${st.chipColor}`}>{st.label}</span>
-              <span className="text-[13px] font-semibold text-on-surface truncate">{record.tableName}</span>
-              <span className="text-[12px] text-outline">#{record.recordId}</span>
-            </div>
-            <p className="text-[11px] text-on-surface-variant mt-0.5">
-              {fmtDateShort(record.createdAt.split("T")[0])} · {fmtTime(record.createdAt)}
-            </p>
-          </div>
-          <div className="flex-1" />
-          <IconButton
-            label="Đóng"
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="shrink-0 text-on-surface-variant"
-          >
-            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
-          </IconButton>
-        </div>
-
-        {/* Meta row */}
-        <div className="flex items-center gap-4 px-4 py-2.5 border-b border-outline-variant bg-surface shrink-0 text-[12px]">
-          <span className="text-on-surface-variant">
-            Người thực hiện:{" "}
-            <strong className="font-semibold text-on-surface">
-              {record.userName ?? (record.userId != null && record.userId > 0 ? `#${record.userId}` : <span className="text-outline italic">—</span>)}
-            </strong>
-          </span>
-          {record.ipAddress && (
-            <span className="text-on-surface-variant">
-              IP: <strong className="font-semibold text-on-surface">{record.ipAddress}</strong>
-            </span>
-          )}
-        </div>
-
-        {/* Tabs */}
-        <div className="flex items-end gap-1 px-4 pt-3 bg-surface border-b border-outline-variant shrink-0">
-          {TABS.map((t) => {
-            const disabled = noData && (t.id === "old" || t.id === "new" || t.id === "raw");
-            return (
-              <button
-                key={t.id}
-                className={`px-3 py-1.5 text-[12px] font-medium rounded-t-lg border transition-all ${
-                  tab === t.id
-                    ? "bg-surface-container-lowest border-outline-variant border-b-transparent text-on-surface"
-                    : disabled
-                    ? "border-transparent text-outline/30 cursor-not-allowed"
-                    : "border-transparent text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
-                }`}
-                onClick={() => !disabled && setDetailTab(t.id)}
-                disabled={disabled}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {tab === "diff" && (
-            <JsonDiffTable oldJson={record.oldData} newJson={record.newData} />
-          )}
-          {tab === "old" && (
-            record.oldData
-              ? <SyntaxHighlight json={record.oldData} />
-              : <p className="text-[13px] text-on-surface-variant italic py-4">Không có dữ liệu cũ.</p>
-          )}
-          {tab === "new" && (
-            record.newData
-              ? <SyntaxHighlight json={record.newData} />
-              : <p className="text-[13px] text-on-surface-variant italic py-4">Không có dữ liệu mới.</p>
-          )}
-          {tab === "raw" && (
-            <div className="space-y-4">
-              {record.oldData && (
-                <div>
-                  <p className="text-[11px] font-semibold text-error uppercase tracking-wide mb-2">Dữ liệu cũ</p>
-                  <SyntaxHighlight json={record.oldData} />
-                </div>
-              )}
-              {record.newData && (
-                <div>
-                  <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide mb-2">Dữ liệu mới</p>
-                  <SyntaxHighlight json={record.newData} />
-                </div>
-              )}
-              {noData && <p className="text-[13px] text-on-surface-variant italic">Không có dữ liệu chi tiết.</p>}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+import type { ActionFilter, DateRange } from "./components/auditUtils";
+import { getAction, fmtTime, fmtDateShort, getDateRange, subDateStr, todayStr, isToday, isYesterday } from "./components/auditUtils";
+import { AuditDetailModal } from "./components/AuditDetailModal";
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
@@ -553,7 +141,7 @@ export default function AuditHistoryPage() {
 
       const data = await api.getAuditHistorySummaryFiltered(params);
       setSummaryData(data);
-    } catch (err) {
+    } catch {
       // Don't toast — KPI is non-critical. Just zero out so the UI doesn't lie.
       setSummaryData(null);
     }
@@ -567,7 +155,7 @@ useEffect(() => {
     fetchSummary();
   }, [fetchSummary]);
 
-  const records = pageData?.content ?? [];
+  const records = useMemo(() => pageData?.content ?? [], [pageData?.content]);
   const filtered = useMemo(() => {
     const kw = search.trim().toLowerCase();
     return records.filter((r) => {
@@ -588,15 +176,6 @@ useEffect(() => {
     });
   }, [records, search, module, action, df]);
 
-  const grouped = useMemo(() => {
-    const g: Record<string, AuditHistory[]> = {};
-    for (const r of filtered) {
-      const dk = r.createdAt.split("T")[0];
-      (g[dk] ??= []).push(r);
-    }
-    return Object.entries(g).sort(([a], [b]) => b.localeCompare(a));
-  }, [filtered]);
-
   // Build a per-page date-grouped view from the *current* page only.
   // `records` is already paginated by the backend (page * size).
   // No need to slice again — backend returns exactly `size` items for this page.
@@ -611,7 +190,7 @@ useEffect(() => {
       .sort(([a], [b]) => b.localeCompare(a));
   }, [filtered]);
 
-  const totalPages = useMemo(() => pageData ? Math.max(1, pageData.totalPages) : 1, [pageData?.totalPages]);
+  const totalPages = useMemo(() => pageData ? Math.max(1, pageData.totalPages) : 1, [pageData]);
 
   // Summary reflects the entire DB (or active date range), not the current page slice.
   // Values come from the dedicated /audit-history/summary endpoint so that the
@@ -747,7 +326,7 @@ useEffect(() => {
         loading={deleting}
       />
 
-      {selected && <DetailModal record={selected} onClose={() => setSelected(null)} />}
+      {selected && <AuditDetailModal record={selected} onClose={() => setSelected(null)} />}
 
       {/* Custom date range picker modal */}
       {deleteDialogType === "date-range" && (

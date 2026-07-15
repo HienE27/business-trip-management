@@ -37,7 +37,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     key: "scheduling",
     label: "Lập lịch",
     icon: "edit_calendar",
-    sections: ["periods", "duty-24", "all-day", "service-clinic", "expert-clinic"],
+    sections: ["periods", "duty-24", "all-day", "service-clinic", "expert-clinic", "requirements"],
   },
   {
     key: "operations",

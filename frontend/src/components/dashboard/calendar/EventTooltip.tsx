@@ -13,7 +13,7 @@ export type TooltipData = {
 
 export type EventTooltipProps = {
   data: TooltipData;
-  onEdit: (s: Schedule) => void;
+  onEdit?: (s: Schedule) => void;
   onDelete: (s: Schedule) => void;
   onResolve: (s: Schedule) => void;
   onViewDetail: (s: Schedule) => void;
@@ -22,7 +22,7 @@ export type EventTooltipProps = {
   canEdit: boolean;
 };
 
-export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, onRefresh, onClose, canEdit }: EventTooltipProps) {
+export function EventTooltip({ data, onDelete, onResolve, onViewDetail, onRefresh, onClose, canEdit }: EventTooltipProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [editMode, setEditMode] = useState(false);
   const [editStaffId, setEditStaffId] = useState<number | null>(null);
@@ -51,7 +51,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
       }).catch(() => { /* silent */ })
         .finally(() => setLoadingDropdowns(false));
     }
-  }, [editMode]);
+  }, [editMode, data.item.schedule, staffList.length, shiftTypes.length]);
 
   const startEdit = useCallback(() => {
     setEditMode(true);
@@ -84,7 +84,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
     } finally {
       setSaving(false);
     }
-  }, [editStaffId, editShiftTypeId, saving, data.item.schedule, onRefresh, onClose]);
+  }, [editStaffId, editShiftTypeId, editNotes, saving, data.item.schedule, onRefresh, onClose]);
 
   const isDirty = data.item.schedule
     && (editStaffId !== data.item.schedule.staff?.id

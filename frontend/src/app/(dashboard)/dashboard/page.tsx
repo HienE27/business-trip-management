@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { ScheduleMatrixView } from "@/components/dashboard/ScheduleMatrixView";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -11,7 +10,6 @@ import { KPICard } from "@/components/ui/KPICard";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/date";
-import { buildCalendarAnnotations, buildCoverageMap } from "@/components/monthly-schedule/utils";
 import { useSchedulePeriodData } from "@/hooks/useSchedulePeriodData";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Permission } from "@/lib/permissions";
@@ -87,7 +85,6 @@ const QUICK_ACTIONS: WorkflowStep[] = [
 ];
 
 export default function DashboardPage() {
-  const router = useRouter();
   const data = useSchedulePeriodData({ conflictPollMs: 60000 });
   const { canAny } = usePermissions();
 
@@ -104,7 +101,7 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [exporting, setExporting] = useState(false);
   const filters = useScheduleFilters({ basePath: "/dashboard" });
-  const { selectedTab, selectedStaffId, setStaffId, setDate } = filters;
+  const { selectedTab, selectedStaffId, setStaffId } = filters;
 
   const {
     periods,
@@ -198,13 +195,6 @@ export default function DashboardPage() {
   const totalSchedules = dashboardData?.summary.totalSchedules ?? 0;
   const L01Count = dashboardData?.shiftStatistics?.L01Count ?? 0;
   const L02Count = dashboardData?.shiftStatistics?.L02Count ?? 0;
-
-  const calendarAnnotations = useMemo(
-    () => buildCalendarAnnotations(compensationDays, conflictData?.conflicts ?? []),
-    [compensationDays, conflictData]
-  );
-
-  const computedCoverages = useMemo(() => buildCoverageMap(schedules), [schedules]);
 
   const initialCalendarYear = useMemo(() => {
     if (selectedPeriod?.startDate) return new Date(selectedPeriod.startDate).getFullYear();
@@ -447,9 +437,6 @@ export default function DashboardPage() {
               compensationDays={compensationDays}
               isReadOnly={true}
               selectedTab={selectedTab}
-              onFilterTypeChange={(filter) =>
-                filters.setTab(filter as "L01" | "L02" | "L03" | "L04" | "ALL")
-              }
               onRefresh={() => void refresh()}
             />
           </div>

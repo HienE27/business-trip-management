@@ -24,10 +24,6 @@ export interface ScheduleMatrix {
 
 const DOW_VI = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"] as const;
 
-function formatDate(year: number, month: number, day: number): string {
-  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
 export function buildScheduleMatrix(
   schedules: Schedule[],
   staffList: { id: number; fullName: string }[],
