@@ -47,6 +47,11 @@ export default function RootLayout({
   return (
     <html lang="vi" className={`${inter.variable} h-full antialiased`} data-scroll-behavior="smooth">
       <head>
+        <meta charSet="utf-8" />
+        <meta
+          httpEquiv="Content-Type"
+          content="text/html; charset=utf-8"
+        />
         { }
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         { }

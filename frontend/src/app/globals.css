@@ -316,7 +316,12 @@ html.dark .dark\:border-outline-variant { border-color: var(--color-outline-vari
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: var(--font-inter), var(--font-sans);
+    /* Inter (subset=latin,vietnamese) is loaded with full glyph table; system
+     * UI fonts (Segoe UI / Roboto / SF Pro / Noto Sans) cover Latin Extended
+     * diacritics out of the box so characters like "ễ", "ă", "ử" never
+     * fall through to a font that does not understand Vietnamese. */
+    font-family: var(--font-inter), "Segoe UI", Roboto, "Helvetica Neue",
+      Arial, "Noto Sans", system-ui, -apple-system, sans-serif;
     font-weight: 400;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

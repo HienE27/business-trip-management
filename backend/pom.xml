@@ -30,6 +30,8 @@
 		<java.version>17</java.version>
 		<springdoc.version>3.0.3</springdoc.version>
 		<jjwt.version>0.12.3</jjwt.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 	</properties>
 	<dependencies>
 		<dependency>
