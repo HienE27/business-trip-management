@@ -91,6 +91,20 @@ public class GlobalExceptionHandler {
         return errorResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(com.hospital.scheduler.scheduling.config.ConfigValidationException.class)
+    public ResponseEntity<ApiResponse<?>> handleConfigValidation(
+            com.hospital.scheduler.scheduling.config.ConfigValidationException ex,
+            HttpServletRequest request) {
+        return ResponseEntity
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ApiResponse.<com.hospital.scheduler.scheduling.config.ConfigValidationException.ValidationResponse>builder()
+                        .success(false)
+                        .message(ex.getMessage())
+                        .data(ex.toResponse())
+                        .timestamp(java.time.LocalDateTime.now())
+                        .build());
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiResponse<?>> handleConflict(
             ConflictException ex, HttpServletRequest request) {

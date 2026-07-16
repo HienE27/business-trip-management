@@ -213,6 +213,16 @@ public class AlgorithmConfigCrudService {
         configRepository.save(config);
     }
 
+    /**
+     * Bulk upsert from ConfigMapper — all entries saved as STRING type.
+     * Used by ConfigService to persist full ConfigDomain.
+     */
+    public void upsertAll(Map<String, String> paramKeyToValue) {
+        for (Map.Entry<String, String> e : paramKeyToValue.entrySet()) {
+            upsert(e.getKey(), e.getValue(), AlgorithmConfig.ValueType.STRING, "");
+        }
+    }
+
     // ── Templates ────────────────────────────────────────────────────────────
 
     public AlgorithmConfigResponse saveAsTemplate(SaveAlgorithmTemplateRequest request) {
