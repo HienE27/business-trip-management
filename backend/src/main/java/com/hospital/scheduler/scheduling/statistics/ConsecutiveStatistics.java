@@ -21,7 +21,7 @@ public class ConsecutiveStatistics implements StatisticsModule {
 
     private final SolutionDescriptor descriptor;
 
-    /** staffIndex → sorted list of assigned dates (mutated incrementally) */
+    /** staffIndex → sorted set of assigned dates (mutated incrementally) */
     private final Map<Integer, java.util.TreeSet<LocalDate>> datesByStaff = new HashMap<>();
 
     public ConsecutiveStatistics(SolutionDescriptor descriptor) {
@@ -54,12 +54,21 @@ public class ConsecutiveStatistics implements StatisticsModule {
     public void apply(Move move, WorkingSolution solution) {
         int[] slots = move.affectedSlotIndices();
         int[] staff = move.affectedStaffIndices();
-        for (int i = 0; i < slots.length && i < staff.length; i++) {
-            int staffIdx = staff[i];
-            if (staffIdx < 0) continue;
+        for (int i = 0; i < slots.length; i++) {
             MutableAssignment a = solution.getAssignment(slots[i]);
-            if (a != null && a.staffId > 0 && a.date != null) {
-                datesByStaff.computeIfAbsent(staffIdx, k -> new java.util.TreeSet<>()).add(a.date);
+            if (a == null || a.staffId <= 0 || a.date == null) continue;
+            int idx = descriptor.staffIndex(a.staffId);
+            if (idx >= 0) datesByStaff.computeIfAbsent(idx, k -> new java.util.TreeSet<>()).add(a.date);
+        }
+        for (int i = slots.length; i < staff.length; i++) {
+            int oldStaffId = staff[i];
+            if (oldStaffId <= 0) continue;
+            int idx = descriptor.staffIndex(oldStaffId);
+            if (idx < 0) continue;
+            MutableAssignment a = solution.getAssignment(slots[0]);
+            if (a != null && a.date != null) {
+                java.util.TreeSet<LocalDate> set = datesByStaff.get(idx);
+                if (set != null) set.remove(a.date);
             }
         }
     }
@@ -68,13 +77,22 @@ public class ConsecutiveStatistics implements StatisticsModule {
     public void undo(Move move, WorkingSolution solution) {
         int[] slots = move.affectedSlotIndices();
         int[] staff = move.affectedStaffIndices();
-        for (int i = 0; i < slots.length && i < staff.length; i++) {
-            int staffIdx = staff[i];
-            if (staffIdx < 0) continue;
+        for (int i = 0; i < slots.length; i++) {
             MutableAssignment a = solution.getAssignment(slots[i]);
-            if (a != null && a.staffId > 0 && a.date != null) {
-                java.util.TreeSet<LocalDate> set = datesByStaff.get(staffIdx);
-                if (set != null) set.remove(a.date);
+            if (a == null || a.staffId <= 0 || a.date == null) continue;
+            int idx = descriptor.staffIndex(a.staffId);
+            if (idx < 0) continue;
+            java.util.TreeSet<LocalDate> set = datesByStaff.get(idx);
+            if (set != null) set.remove(a.date);
+        }
+        for (int i = slots.length; i < staff.length; i++) {
+            int prevStaffId = staff[i];
+            if (prevStaffId <= 0) continue;
+            int idx = descriptor.staffIndex(prevStaffId);
+            if (idx < 0) continue;
+            MutableAssignment a = solution.getAssignment(slots[0]);
+            if (a != null && a.date != null) {
+                datesByStaff.computeIfAbsent(idx, k -> new java.util.TreeSet<>()).add(a.date);
             }
         }
     }

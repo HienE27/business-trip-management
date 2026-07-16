@@ -120,7 +120,7 @@ class FairShareCalculatorTest {
         @BeforeEach
         void disableCrossSpecialty() {
             when(algoConfig.getAutoGenConfig()).thenReturn(Optional.of(
-                    new AutoGenConfig(
+                    AutoGenConfig.withDefaults(
                             true, 1,1,1,1, 1,1,1,1, 0,0,0,0, 99,99,99,99,
                             "SKIP", List.of(),
                             /*l01CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
@@ -172,7 +172,7 @@ class FairShareCalculatorTest {
         @BeforeEach
         void enableCrossSpecialty() {
             when(algoConfig.getAutoGenConfig()).thenReturn(Optional.of(
-                    new AutoGenConfig(
+                    AutoGenConfig.withDefaults(
                             true, 1,1,1,1, 1,1,1,1, 0,0,0,0, 99,99,99,99,
                             "SKIP", List.of(),
                             /*l01CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",

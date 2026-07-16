@@ -429,45 +429,15 @@ public class ScheduleQualityScorer {
                 .build();
         }
 
-        // Build per-shift-type eligibility map once so we compute fairness
-        // only on staff who COULD have been assigned (Bác sĩ / Điều dưỡng for
-        // L01/L02/L03, by-specialty for L04). This prevents Dược sĩ / KTV
-        // (who have 0 ca by design) from inflating the CV.
-        //
-        // Nếu có AutoGenConfig → dùng danh sách allowed specialties động
-        // (l01/l02/l03AllowedSpecialties). Nếu rỗng hoặc null → fallback CORE.
+        // Theo nghiệp vụ, L01/L02/L03 không bị giới hạn theo chuyên khoa.
+        // Eligibility = ALL_ELIGIBLE_SPECIALTIES (6 khoa: Ngoại, Nội, Sản, Nhi, Mắt, Răng).
+        // Chỉ L04 có cấu hình specialty động.
         final Set<Integer> nonL04Eligible;
         final Map<Integer, Set<Integer>> l04BySpec;
-        if (cfg != null) {
-            java.util.List<String> l01Specs = cfg.l01AllowedSpecialties() != null && !cfg.l01AllowedSpecialties().isEmpty()
-                ? cfg.l01AllowedSpecialties() : java.util.List.of();
-            java.util.List<String> l02Specs = cfg.l02AllowedSpecialties() != null && !cfg.l02AllowedSpecialties().isEmpty()
-                ? cfg.l02AllowedSpecialties() : java.util.List.of();
-            java.util.List<String> l03Specs = cfg.l03AllowedSpecialties() != null && !cfg.l03AllowedSpecialties().isEmpty()
-                ? cfg.l03AllowedSpecialties() : java.util.List.of();
-
-            // Gộp cả 3 danh sách (nếu có) → set union để fairness pool cho L01/L02/L03
-            Set<String> unionSpecs = new HashSet<>();
-            unionSpecs.addAll(l01Specs);
-            unionSpecs.addAll(l02Specs);
-            unionSpecs.addAll(l03Specs);
-
-            nonL04Eligible = activeStaff.stream()
-                .filter(s -> s != null && Boolean.TRUE.equals(s.getIsActive())
-                    && s.getSpecialty() != null
-                    && (unionSpecs.isEmpty()
-                        ? StaffShiftTypeEligibility.CORE_ELIGIBLE_SPECIALTIES.contains(s.getSpecialty().getName())
-                        : unionSpecs.contains(s.getSpecialty().getName())))
-                .map(Staff::getId)
-                .collect(Collectors.toSet());
-
-            l04BySpec = StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff, cfg.l04AllowedSpecialties());
-        } else {
-            nonL04Eligible =
-                StaffShiftTypeEligibility.eligibleStaffIdsForNonL04(activeStaff);
-            l04BySpec =
-                StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff);
-        }
+        nonL04Eligible = StaffShiftTypeEligibility.eligibleStaffIdsForNonL04(activeStaff);
+        l04BySpec = cfg != null
+                ? StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff, cfg.l04AllowedSpecialties())
+                : StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff);
 
         // Group schedules by (shiftType, [specialty])
         Map<String, Map<Integer, Integer>> countsByTypeAndStaff = new HashMap<>();

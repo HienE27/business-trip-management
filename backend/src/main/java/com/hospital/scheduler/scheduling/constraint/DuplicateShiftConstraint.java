@@ -5,6 +5,8 @@ import com.hospital.scheduler.scheduling.solution.MutableAssignment;
 import com.hospital.scheduler.scheduling.solution.WorkingSolution;
 
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * BR-07 — same staff cannot be assigned the same shift-type twice on the
@@ -29,19 +31,22 @@ public class DuplicateShiftConstraint implements Constraint {
 
     @Override
     public ScoreDelta evaluate(WorkingSolution solution) {
-        java.util.Map<Long, Integer> seen = new java.util.HashMap<>();
+        Map<Object, Integer> seen = new HashMap<>();
         int violations = 0;
         for (MutableAssignment a : solution.getAssignments()) {
             if (a.staffId <= 0 || a.date == null || a.shiftTypeId == null) continue;
-            long key = key(a.staffId, a.date, a.shiftTypeId);
+            Object key = new Key(a.staffId, a.date, a.shiftTypeId);
             int prior = seen.merge(key, 1, Integer::sum);
             if (prior > 1) violations++;
         }
         return new ScoreDelta(violations, 0, 0, 0, 0, 0, 0);
     }
 
-    private static long key(int staffId, LocalDate date, String shiftTypeId) {
-        long d = date.toEpochDay();
-        return ((long) staffId << 40) | (d << 8) | (long) shiftTypeId.hashCode();
-    }
+    /**
+     * Compound key for (staffId, date, shiftTypeId). Avoids bit-packing
+     * collisions seen when staffId × epochDay × hashCode overlap in a 64-bit
+     * word (the previous implementation produced false positives when two
+     * different dates yielded the same packed long).
+     */
+    private record Key(int staffId, LocalDate date, String shiftTypeId) {}
 }

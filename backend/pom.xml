@@ -216,4 +216,24 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<!-- Phase 1.5: benchmark profile runs the suite + regression gate. -->
+		<profile>
+			<id>benchmark</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-surefire-plugin</artifactId>
+						<configuration>
+							<systemPropertyVariables>
+								<benchmark>true</benchmark>
+							</systemPropertyVariables>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 </project>

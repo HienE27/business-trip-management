@@ -176,7 +176,7 @@ describe("useAutoSchedule — applyPreview", () => {
 
     expect(api.applyPreview).toHaveBeenCalledWith({
       periodId: 1,
-      algorithmType: "CSP_MRV_FC",
+      algorithmType: "V10_LOCAL_SEARCH",
       schedules: [{ workDate: "2026-06-15", shiftTypeId: "L02", staffId: 7 }],
       removedSchedules: [{ workDate: "2026-06-15", shiftTypeId: "L01", staffId: 7 }],
     });

@@ -4,6 +4,7 @@ import com.hospital.scheduler.scheduling.config.SchedulingConfig;
 import com.hospital.scheduler.scheduling.constraint.Constraint;
 import com.hospital.scheduler.scheduling.constraint.ConstraintRegistry;
 import com.hospital.scheduler.scheduling.move.Move;
+import com.hospital.scheduler.scheduling.replay.ReplayRecorder;
 import com.hospital.scheduler.scheduling.score.ScoreDelta;
 import com.hospital.scheduler.scheduling.score.ScoreDirector;
 import com.hospital.scheduler.scheduling.solution.WorkingSolution;
@@ -39,6 +40,7 @@ public class LocalSearchAlgorithm {
     private final ScoreDirector scoreDirector;
     private final ConstraintRegistry constraintRegistry;
     private final IncrementalStatisticsHub statisticsHub;
+    private final ReplayRecorder replayRecorder;
 
     public LocalSearchAlgorithm(SchedulingConfig config,
                                  MoveSelector moveSelector,
@@ -48,6 +50,19 @@ public class LocalSearchAlgorithm {
                                  ScoreDirector scoreDirector,
                                  ConstraintRegistry constraintRegistry,
                                  IncrementalStatisticsHub statisticsHub) {
+        this(config, moveSelector, moveAcceptor, termination, director,
+                scoreDirector, constraintRegistry, statisticsHub, null);
+    }
+
+    public LocalSearchAlgorithm(SchedulingConfig config,
+                                 MoveSelector moveSelector,
+                                 MoveAcceptor moveAcceptor,
+                                 Termination termination,
+                                 SearchDirector director,
+                                 ScoreDirector scoreDirector,
+                                 ConstraintRegistry constraintRegistry,
+                                 IncrementalStatisticsHub statisticsHub,
+                                 ReplayRecorder replayRecorder) {
         this.config = config;
         this.moveSelector = moveSelector;
         this.moveAcceptor = moveAcceptor;
@@ -56,6 +71,7 @@ public class LocalSearchAlgorithm {
         this.scoreDirector = scoreDirector;
         this.constraintRegistry = constraintRegistry;
         this.statisticsHub = statisticsHub;
+        this.replayRecorder = replayRecorder;
     }
 
     /**
@@ -131,14 +147,23 @@ public class LocalSearchAlgorithm {
                 || (postHard == preHard && postCoverage > preCoverage);
 
         boolean accept = improving;
-        if (!improving && moveAcceptor instanceof TabuAcceptor tabu) {
+        boolean tabu = false;
+        if (!improving && moveAcceptor instanceof TabuAcceptor tabuAcceptor) {
             // Tabu logic: non-improving moves are accepted unless they're tabu
-            accept = !tabu.isTabu(move, director.getState().getIteration());
+            accept = !tabuAcceptor.isTabu(move, director.getState().getIteration());
+            tabu = !accept;
+        }
+
+        int hardDelta = postHard - preHard;
+        double coverageDelta = postCoverage - preCoverage;
+        if (replayRecorder != null) {
+            replayRecorder.record(move, solution, director.getState(), scoreDirector,
+                    hardDelta, coverageDelta, accept);
         }
 
         if (accept) {
-            if (moveAcceptor instanceof TabuAcceptor tabu) {
-                tabu.rememberApplied(move, director.getState().getIteration());
+            if (moveAcceptor instanceof TabuAcceptor tabuAcceptor) {
+                tabuAcceptor.rememberApplied(move, director.getState().getIteration());
             }
             director.onAccepted();
             // Check if this is the new best
@@ -154,6 +179,9 @@ public class LocalSearchAlgorithm {
             statisticsHub.undo(move, solution);
             scoreDirector.undoDelta(delta);
             director.onRejected();
+            if (tabu) {
+                director.onTabuHit();
+            }
             return false;
         }
     }

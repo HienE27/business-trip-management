@@ -34,12 +34,22 @@ public class WeekendStatistics implements StatisticsModule {
     public void apply(Move move, WorkingSolution solution) {
         int[] slots = move.affectedSlotIndices();
         int[] staff = move.affectedStaffIndices();
-        for (int i = 0; i < slots.length && i < staff.length; i++) {
-            int staffIdx = staff[i];
-            if (staffIdx < 0) continue;
+        for (int i = 0; i < slots.length; i++) {
             MutableAssignment a = solution.getAssignment(slots[i]);
-            if (a != null && a.staffId > 0 && a.isWeekend) {
-                weekendCountByStaff.merge(staffIdx, 1, Integer::sum);
+            if (a == null || a.staffId <= 0 || !a.isWeekend) continue;
+            int idx = descriptor.staffIndex(a.staffId);
+            if (idx >= 0) weekendCountByStaff.merge(idx, 1, Integer::sum);
+        }
+        for (int i = slots.length; i < staff.length; i++) {
+            int oldStaffId = staff[i];
+            if (oldStaffId <= 0) continue;
+            int idx = descriptor.staffIndex(oldStaffId);
+            if (idx < 0) continue;
+            MutableAssignment a = solution.getAssignment(slots[0]);
+            if (a != null && a.isWeekend) {
+                weekendCountByStaff.merge(idx, -1, Integer::sum);
+                Integer v = weekendCountByStaff.get(idx);
+                if (v != null && v <= 0) weekendCountByStaff.remove(idx);
             }
         }
     }
@@ -48,14 +58,23 @@ public class WeekendStatistics implements StatisticsModule {
     public void undo(Move move, WorkingSolution solution) {
         int[] slots = move.affectedSlotIndices();
         int[] staff = move.affectedStaffIndices();
-        for (int i = 0; i < slots.length && i < staff.length; i++) {
-            int staffIdx = staff[i];
-            if (staffIdx < 0) continue;
+        for (int i = 0; i < slots.length; i++) {
             MutableAssignment a = solution.getAssignment(slots[i]);
-            if (a != null && a.staffId > 0 && a.isWeekend) {
-                weekendCountByStaff.merge(staffIdx, -1, Integer::sum);
-                Integer v = weekendCountByStaff.get(staffIdx);
-                if (v != null && v <= 0) weekendCountByStaff.remove(staffIdx);
+            if (a == null || a.staffId <= 0 || !a.isWeekend) continue;
+            int idx = descriptor.staffIndex(a.staffId);
+            if (idx < 0) continue;
+            weekendCountByStaff.merge(idx, -1, Integer::sum);
+            Integer v = weekendCountByStaff.get(idx);
+            if (v != null && v <= 0) weekendCountByStaff.remove(idx);
+        }
+        for (int i = slots.length; i < staff.length; i++) {
+            int prevStaffId = staff[i];
+            if (prevStaffId <= 0) continue;
+            int idx = descriptor.staffIndex(prevStaffId);
+            if (idx < 0) continue;
+            MutableAssignment a = solution.getAssignment(slots[0]);
+            if (a != null && a.isWeekend) {
+                weekendCountByStaff.merge(idx, 1, Integer::sum);
             }
         }
     }

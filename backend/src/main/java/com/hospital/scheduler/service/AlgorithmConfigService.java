@@ -53,22 +53,7 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_L03_MAX_PER_WEEK = "auto_gen_l03_max_per_week";
     public static final String AUTO_GEN_L04_MAX_PER_WEEK = "auto_gen_l04_max_per_week";
     public static final String AUTO_GEN_HOLIDAY_MODE = "auto_gen_holiday_mode";
-    // L01 cross-specialty
-    public static final String AUTO_GEN_L01_CROSS_SPECIALTY = "auto_gen_l01_cross_specialty";
-    public static final String AUTO_GEN_L01_CROSS_SPECIALTY_RATIO = "auto_gen_l01_cross_specialty_ratio";
-    public static final String AUTO_GEN_L01_ALLOWED_SPECIALTIES = "auto_gen_l01_allowed_specialties";
-    public static final String AUTO_GEN_L01_BALANCE_STRATEGY = "auto_gen_l01_balance_strategy";
-    // L02 cross-specialty
-    public static final String AUTO_GEN_L02_CROSS_SPECIALTY = "auto_gen_l02_cross_specialty";
-    public static final String AUTO_GEN_L02_CROSS_SPECIALTY_RATIO = "auto_gen_l02_cross_specialty_ratio";
-    public static final String AUTO_GEN_L02_ALLOWED_SPECIALTIES = "auto_gen_l02_allowed_specialties";
-    public static final String AUTO_GEN_L02_BALANCE_STRATEGY = "auto_gen_l02_balance_strategy";
-    // L03 cross-specialty
-    public static final String AUTO_GEN_L03_CROSS_SPECIALTY = "auto_gen_l03_cross_specialty";
-    public static final String AUTO_GEN_L03_CROSS_SPECIALTY_RATIO = "auto_gen_l03_cross_specialty_ratio";
-    public static final String AUTO_GEN_L03_ALLOWED_SPECIALTIES = "auto_gen_l03_allowed_specialties";
-    public static final String AUTO_GEN_L03_BALANCE_STRATEGY = "auto_gen_l03_balance_strategy";
-    // L04 cross-specialty
+    // L04 cross-specialty (chỉ L04 có specialty config; L01/L02/L03 không cần)
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY = "auto_gen_l04_cross_specialty";
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY_RATIO = "auto_gen_l04_cross_specialty_ratio";
     public static final String AUTO_GEN_L04_ALLOWED_SPECIALTIES = "auto_gen_l04_allowed_specialties";
@@ -279,26 +264,12 @@ public class AlgorithmConfigService {
                 getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0, cache),
                 getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP", cache),
                 getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES", cache),
-                // L01 cross-specialty
-                getBooleanValue(AUTO_GEN_L01_CROSS_SPECIALTY, false, cache),
-                getFloatValue(AUTO_GEN_L01_CROSS_SPECIALTY_RATIO, 0.5f, cache),
-                getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES, cache),
-                "FAIR_DISTRIBUTE",  // l01BalanceStrategy (recommendation service computes its own; this hardcode keeps get-config working)
-                // L02 cross-specialty
-                getBooleanValue(AUTO_GEN_L02_CROSS_SPECIALTY, false, cache),
-                getFloatValue(AUTO_GEN_L02_CROSS_SPECIALTY_RATIO, 0.5f, cache),
-                getStringListValue(AUTO_GEN_L02_ALLOWED_SPECIALTIES, cache),
-                "FAIR_DISTRIBUTE",
-                // L03 cross-specialty
-                getBooleanValue(AUTO_GEN_L03_CROSS_SPECIALTY, false, cache),
-                getFloatValue(AUTO_GEN_L03_CROSS_SPECIALTY_RATIO, 0.5f, cache),
-                getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES, cache),
-                "FAIR_DISTRIBUTE",
-                // L04 cross-specialty
-                getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false, cache),
-                getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.5f, cache),
-                getStringListValue("AUTO_GEN_L04_ALLOWED_SPECIALTIES", cache), // null/empty = all specialties
-                "FAIR_DISTRIBUTE"
+                // L01/L02/L03: không có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
+        // L04: có specialty config
+        getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false, cache),
+        getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.5f, cache),
+        getStringListValue(AUTO_GEN_L04_ALLOWED_SPECIALTIES, cache), // null/empty = all specialties
+        "FAIR_DISTRIBUTE"
         ));
     }
 
@@ -336,21 +307,25 @@ public class AlgorithmConfigService {
                 "Cho phép gán nhân sự từ chuyên khoa khác vào L04 khi chuyên khoa gốc thiếu nhân sự.");
         upsert(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, String.valueOf(config.l04CrossSpecialtyRatio()), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng shortage L04 (0.0-1.0) để kích hoạt cross-specialty. Ví dụ: 0.5 = chỉ dùng cross khi strict thiếu ≥ 50%. 0.0 = không bao giờ. 1.0 = dùng cross khi thiếu bất kỳ.");
-        // Lưu danh sách specialties được phép gán L04 (comma-separated)
         String allowedSpecs = config.l04AllowedSpecialties() == null || config.l04AllowedSpecialties().isEmpty()
                 ? "" : String.join(",", config.l04AllowedSpecialties());
         upsert("AUTO_GEN_L04_ALLOWED_SPECIALTIES", allowedSpecs, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L04. Rỗng = tất cả chuyên khoa. Ví dụ: Ngoại,Nội,Sản");
-        // L01/L02/L03 allowed specialties (CSV). Rỗng → dùng default CORE = Ngoại,Nội.
-        String l01Csv = config.l01AllowedSpecialties() == null ? "" : String.join(",", config.l01AllowedSpecialties());
-        upsert(AUTO_GEN_L01_ALLOWED_SPECIALTIES, l01Csv, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L01 (trực 24/24). Rỗng = mặc định Ngoại,Nội. Ví dụ: Ngoại,Nội,Sản,Nhi,Mắt,Răng");
-        String l02Csv = config.l02AllowedSpecialties() == null ? "" : String.join(",", config.l02AllowedSpecialties());
-        upsert(AUTO_GEN_L02_ALLOWED_SPECIALTIES, l02Csv, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L02 (thông tầm). Rỗng = mặc định Ngoại,Nội.");
-        String l03Csv = config.l03AllowedSpecialties() == null ? "" : String.join(",", config.l03AllowedSpecialties());
-        upsert(AUTO_GEN_L03_ALLOWED_SPECIALTIES, l03Csv, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L03 (phòng khám dịch vụ). Rỗng = mặc định Ngoại,Nội.");
+                "Danh sách chuyên khoa được gán L04 (PK Chuyên gia). Rỗng = tất cả 6 khoa. Ví dụ: Ngoại,Nội,Sản,Nhi,Mắt,Răng");
+        upsert(AUTO_GEN_L04_BALANCE_STRATEGY,
+                config.l04BalanceStrategy() != null ? config.l04BalanceStrategy() : "FAIR_DISTRIBUTE",
+                AlgorithmConfig.ValueType.STRING,
+                "Chiến lược cân bằng cross-specialty L04: STRICT_MATCH_ONLY, FAIR_DISTRIBUTE, WEIGHTED_FAIR.");
+        // L01/L02/L03: KHÔNG có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES (6 khoa)
+        // Xóa các param cũ nếu tồn tại trong DB
+        upsert("AUTO_GEN_L01_ALLOWED_SPECIALTIES", "",
+                AlgorithmConfig.ValueType.STRING,
+                "[DEPRECATED] Không còn dùng. L01 eligibility = ALL_ELIGIBLE_SPECIALTIES (6 khoa).");
+        upsert("AUTO_GEN_L02_ALLOWED_SPECIALTIES", "",
+                AlgorithmConfig.ValueType.STRING,
+                "[DEPRECATED] Không còn dùng. L02 eligibility = ALL_ELIGIBLE_SPECIALTIES (6 khoa).");
+        upsert("AUTO_GEN_L03_ALLOWED_SPECIALTIES", "",
+                AlgorithmConfig.ValueType.STRING,
+                "[DEPRECATED] Không còn dùng. L03 eligibility = ALL_ELIGIBLE_SPECIALTIES (6 khoa).");
     }
 
     /**
@@ -673,28 +648,11 @@ public class AlgorithmConfigService {
         int l03MaxPerDay = Math.max(l03MinPerDay, (int) Math.ceil(l03MaxPerWeek * 1.2));
         int l04MaxPerDay = Math.max(l04MinPerDay, (int) Math.ceil(l04MaxPerWeek * 1.2));
 
-        java.util.List<String> l01Spec = expandNonL04Eligibility
-                ? (expandedSpecialties != null && !expandedSpecialties.isEmpty()
-                    ? expandedSpecialties
-                    : java.util.List.of("Bác sĩ", "Điều dưỡng", "Kỹ thuật viên", "Dược sĩ",
-                        "Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"))
-                : (current.l01AllowedSpecialties() != null && !current.l01AllowedSpecialties().isEmpty()
-                    ? current.l01AllowedSpecialties()
-                    : java.util.List.of("Ngoại", "Nội"));
-        java.util.List<String> l02Spec = expandNonL04Eligibility
-                ? l01Spec
-                : (current.l02AllowedSpecialties() != null && !current.l02AllowedSpecialties().isEmpty()
-                    ? current.l02AllowedSpecialties()
-                    : java.util.List.of("Ngoại", "Nội"));
-        java.util.List<String> l03Spec = expandNonL04Eligibility
-                ? l01Spec
-                : (current.l03AllowedSpecialties() != null && !current.l03AllowedSpecialties().isEmpty()
-                    ? current.l03AllowedSpecialties()
-                    : java.util.List.of("Ngoại", "Nội"));
-
         int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
                 + (l03Target * l03Elig) + (l04Target * l04Elig);
 
+        // L01/L02/L03: không có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
+        // Chỉ L04 có specialty config
         AutoGenConfig recommended = new AutoGenConfig(
                 current.enabled(),
                 l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
@@ -703,39 +661,24 @@ public class AlgorithmConfigService {
                 l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
                 current.holidayMode(),
                 current.removedShiftTypes() != null ? current.removedShiftTypes() : java.util.List.of(),
-                // L01
-                current.l01CrossSpecialty(),
-                current.l01CrossSpecialtyRatio(),
-                l01Spec,
-                "FAIR_DISTRIBUTE",
-                // L02
-                current.l02CrossSpecialty(),
-                current.l02CrossSpecialtyRatio(),
-                l02Spec,
-                "FAIR_DISTRIBUTE",
-                // L03
-                current.l03CrossSpecialty(),
-                current.l03CrossSpecialtyRatio(),
-                l03Spec,
-                "FAIR_DISTRIBUTE",
-                // L04
+                // L04 only
                 current.l04CrossSpecialty(),
                 current.l04CrossSpecialtyRatio(),
                 current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : java.util.List.of(),
-                "FAIR_DISTRIBUTE"
+                current.l04BalanceStrategy() != null ? current.l04BalanceStrategy() : "FAIR_DISTRIBUTE"
         );
 
         String rationale = String.format(
                 "Đề xuất cho kỳ %d ngày/%d tuần với tổng ca dự kiến = %d. " +
-                "L01/L02/L03: %d/%d/%d ca/người × %d/%d/%d người eligible. " +
+                "L01/L02/L03: %d/%d/%d ca/người × %d/%d/%d người eligible (tất cả 6 khoa). " +
                 "L04: %d ca/người × %d người eligible. " +
-                "%s",
+                "Eligible pool: %s",
                 days, weeks, totalExpected,
                 l01Target, l02Target, l03Target, l01Elig, l02Elig, l03Elig,
                 l04Target, l04Elig,
                 expandNonL04Eligibility
-                    ? "Mở rộng eligibility L01/L02/L03 cho tất cả specialties để đạt mục tiêu."
-                    : "Giữ eligibility L01/L02/L03 cho Ngoại,Nội (8 người) — nếu không đủ, cân nhắc mở rộng."
+                    ? "Mở rộng cho tất cả specialties để đạt mục tiêu."
+                    : "StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES (Ngoại, Nội, Sản, Nhi, Mắt, Răng)."
         );
 
         return new AutoGenConfigRecommendation(recommended, totalExpected, rationale);

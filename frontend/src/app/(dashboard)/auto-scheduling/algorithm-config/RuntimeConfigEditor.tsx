@@ -439,6 +439,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           allSpecialties={allSpecialties}
           editing={editing}
           balanceStrategy={form.l01BalanceStrategy ?? "FAIR_DISTRIBUTE"}
+          showSpecialtyConfig={false}
           onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
             setForm(prev => prev ? { ...prev, l01CrossSpecialty: enabled, l01CrossSpecialtyRatio: ratio, l01AllowedSpecialties: allowedSpecialties, l01BalanceStrategy: balanceStrategy } : prev);
           }}
@@ -452,6 +453,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           allSpecialties={allSpecialties}
           editing={editing}
           balanceStrategy={form.l02BalanceStrategy ?? "FAIR_DISTRIBUTE"}
+          showSpecialtyConfig={false}
           onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
             setForm(prev => prev ? { ...prev, l02CrossSpecialty: enabled, l02CrossSpecialtyRatio: ratio, l02AllowedSpecialties: allowedSpecialties, l02BalanceStrategy: balanceStrategy } : prev);
           }}
@@ -465,6 +467,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           allSpecialties={allSpecialties}
           editing={editing}
           balanceStrategy={form.l03BalanceStrategy ?? "FAIR_DISTRIBUTE"}
+          showSpecialtyConfig={false}
           onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
             setForm(prev => prev ? { ...prev, l03CrossSpecialty: enabled, l03CrossSpecialtyRatio: ratio, l03AllowedSpecialties: allowedSpecialties, l03BalanceStrategy: balanceStrategy } : prev);
           }}
@@ -478,6 +481,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           allSpecialties={allSpecialties}
           editing={editing}
           balanceStrategy={form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE"}
+          showSpecialtyConfig={true}
           onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
             setForm(prev => prev ? { ...prev, l04CrossSpecialty: enabled, l04CrossSpecialtyRatio: ratio, l04AllowedSpecialties: allowedSpecialties, l04BalanceStrategy: balanceStrategy } : prev);
           }}

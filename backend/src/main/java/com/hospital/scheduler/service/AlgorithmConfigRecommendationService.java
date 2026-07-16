@@ -78,28 +78,9 @@ public class AlgorithmConfigRecommendationService {
         int l03MaxPerDay = Math.max(l03MinPerDay, (int) Math.ceil(l03MaxPerWeek * 1.2));
         int l04MaxPerDay = Math.max(l04MinPerDay, (int) Math.ceil(l04MaxPerWeek * 1.2));
 
-        List<String> l01Spec = expandNonL04Eligibility
-                ? (expandedSpecialties != null && !expandedSpecialties.isEmpty()
-                    ? expandedSpecialties
-                    : List.of("Bác sĩ", "Điều dưỡng", "Kỹ thuật viên", "Dược sĩ",
-                        "Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"))
-                : (current.l01AllowedSpecialties() != null && !current.l01AllowedSpecialties().isEmpty()
-                    ? current.l01AllowedSpecialties()
-                    : List.of("Ngoại", "Nội"));
-        List<String> l02Spec = expandNonL04Eligibility
-                ? l01Spec
-                : (current.l02AllowedSpecialties() != null && !current.l02AllowedSpecialties().isEmpty()
-                    ? current.l02AllowedSpecialties()
-                    : List.of("Ngoại", "Nội"));
-        List<String> l03Spec = expandNonL04Eligibility
-                ? l01Spec
-                : (current.l03AllowedSpecialties() != null && !current.l03AllowedSpecialties().isEmpty()
-                    ? current.l03AllowedSpecialties()
-                    : List.of("Ngoại", "Nội"));
-
         int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
                 + (l03Target * l03Elig) + (l04Target * l04Elig);
-
+        // Chỉ L04 có specialty config
         AutoGenConfig recommended = new AutoGenConfig(
                 current.enabled(),
                 l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
@@ -108,39 +89,24 @@ public class AlgorithmConfigRecommendationService {
                 l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
                 current.holidayMode(),
                 current.removedShiftTypes() != null ? current.removedShiftTypes() : List.of(),
-                // L01
-                current.l01CrossSpecialty(),
-                current.l01CrossSpecialtyRatio(),
-                l01Spec,
-                "FAIR_DISTRIBUTE",
-                // L02
-                current.l02CrossSpecialty(),
-                current.l02CrossSpecialtyRatio(),
-                l02Spec,
-                "FAIR_DISTRIBUTE",
-                // L03
-                current.l03CrossSpecialty(),
-                current.l03CrossSpecialtyRatio(),
-                l03Spec,
-                "FAIR_DISTRIBUTE",
-                // L04
+                // L04 only
                 current.l04CrossSpecialty(),
                 current.l04CrossSpecialtyRatio(),
                 current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : List.of(),
-                "FAIR_DISTRIBUTE"
+                current.l04BalanceStrategy() != null ? current.l04BalanceStrategy() : "FAIR_DISTRIBUTE"
         );
 
         String rationale = String.format(
                 "Đề xuất cho kỳ %d ngày/%d tuần với tổng ca dự kiến = %d. " +
-                "L01/L02/L03: %d/%d/%d ca/người × %d/%d/%d người eligible. " +
+                "L01/L02/L03: %d/%d/%d ca/người × %d/%d/%d người eligible (tất cả 6 khoa). " +
                 "L04: %d ca/người × %d người eligible. " +
-                "%s",
+                "Eligible pool: %s",
                 days, weeks, totalExpected,
                 l01Target, l02Target, l03Target, l01Elig, l02Elig, l03Elig,
                 l04Target, l04Elig,
                 expandNonL04Eligibility
-                    ? "Mở rộng eligibility L01/L02/L03 cho tất cả specialties để đạt mục tiêu."
-                    : "Giữ eligibility L01/L02/L03 cho Ngoại,Nội (8 người) — nếu không đủ, cân nhắc mở rộng."
+                    ? "Mở rộng cho tất cả specialties để đạt mục tiêu."
+                    : "StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES (Ngoại, Nội, Sản, Nhi, Mắt, Răng)."
         );
 
         return new AutoGenConfigRecommendation(recommended, totalExpected, rationale);

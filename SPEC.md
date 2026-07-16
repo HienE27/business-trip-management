@@ -53,6 +53,28 @@ Xây dựng website quản lý lịch công tác cho phòng gồm 20 nhân sự.
 
 3. **Lịch phòng khám dịch vụ và Lịch phòng khám chuyên gia**: Cùng nhân sự, cùng ngày => KHÔNG được đồng thời có cả 2 loại lịch.
 
+### 1.6 Ràng buộc chuyên khoa - Staff Eligibility
+
+**Nguyên tắc thiết kế (theo `QuanLyLichCongTac_v5.md`):**
+L01/L02/L03/L04 là 4 loại **ca trực**, phân biệt bởi thời gian/ca và chế độ nghỉ — **không phải bởi chuyên khoa**. Bất kỳ nhân sự active thuộc chuyên khoa nào trong hệ thống đều có thể được xếp bất kỳ loại ca nào.
+
+| Loại ca | Eligibility | Cross-specialty config |
+|---------|-----------|----------------------|
+| L01 (Trực 24/24) | Tất cả 6 khoa eligible | Không có (dùng baseline) |
+| L02 (Thông tầm) | Tất cả 6 khoa eligible | Không có |
+| L03 (PK Dịch vụ) | Tất cả 6 khoa eligible | Không có |
+| L04 (PK Chuyên gia) | Tất cả 6 khoa + requiredSpecialtyId | **Có** — `l04AllowedSpecialties` |
+
+**6 khoa eligible:** Ngoại, Nội, Sản, Nhi, Mắt, Răng.
+
+**Implementation:**
+- `StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES` — constant baseline (6 khoa)
+- `StaffShiftTypeEligibility.isEligible(staff, shiftTypeId, requiredSpecialtyId)` — kiểm tra eligibility
+- `AutoGenConfig` — chỉ có `l04AllowedSpecialties`, `l04CrossSpecialty`, `l04CrossSpecialtyRatio`, `l04BalanceStrategy`
+- `AlgorithmConfigService` — param `AUTO_GEN_L04_*` cho L04, các param `AUTO_GEN_L01/L02/L03_*` được mark DEPRECATED
+
+**v11 Direction:** Chuyển sang mô hình "required specialty per shift requirement" — mỗi `ShiftRequirement` có `specialty` field, thay vì config per shift type.
+
 ---
 
 ## 2. Các Module chức năng

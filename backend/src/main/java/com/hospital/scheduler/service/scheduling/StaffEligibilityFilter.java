@@ -76,13 +76,10 @@ public class StaffEligibilityFilter {
         String shiftTypeId = shiftType.getId();
         boolean isL04WithSpecialty = ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)
                 && req.getSpecialty() != null;
-        
-        // Get cross-specialty config for ALL shift types (L01-L04)
-        CrossSpecialtyConfig crossConfig = getCrossSpecialtyConfig(shiftTypeId);
-        boolean crossEnabled = crossConfig.enabled();
-        
-        // For L04 with specialty requirement, enable cross-specialty
-        // For L01, L02, L03 - cross is enabled if configured
+        boolean crossEnabled = isL04WithSpecialty;
+        CrossSpecialtyConfig crossConfig = crossEnabled
+                ? getCrossSpecialtyConfig(shiftTypeId)
+                : CrossSpecialtyConfig.disabled();
 
         List<Staff> strictMatches = new ArrayList<>();
         List<Staff> crossMatches = new ArrayList<>();
@@ -91,23 +88,10 @@ public class StaffEligibilityFilter {
             if (excludedStaffIds != null && excludedStaffIds.contains(staff.getId())) continue;
 
             // 0. Eligibility check via StaffShiftTypeEligibility
+            // L01/L02/L03: chỉ cần active + ALL_ELIGIBLE_SPECIALTIES (không cần config)
+            // L04: kiểm tra thêm requiredSpecialtyId nếu có
             Integer requiredSpecId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
-            List<String> nonL04Allowed = getNonL04AllowedSpecialties(shiftTypeId);
-            boolean isEligible = StaffShiftTypeEligibility
-                    .isEligible(staff, shiftTypeId, requiredSpecId, nonL04Allowed);
-
-            // For L04 with cross-specialty: staff from other eligible specialties allowed
-            if (!isEligible && crossEnabled && ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
-                if (staff.getSpecialty() != null && StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
-                        .contains(staff.getSpecialty().getName())) {
-                    isEligible = true;
-                }
-            }
-            // For L01, L02, L03 - check if cross-specialty is enabled and staff is eligible
-            if (!isEligible && crossEnabled && isCrossSpecialtyEligible(staff, shiftTypeId, crossConfig)) {
-                isEligible = true;
-            }
-            if (!isEligible) continue;
+            if (!StaffShiftTypeEligibility.isEligible(staff, shiftTypeId, requiredSpecId)) continue;
 
             // 1. Specialty check
             boolean isStrictMatch = req.getSpecialty() == null
@@ -310,14 +294,24 @@ public class StaffEligibilityFilter {
     }
 
     /**
-     * Overload cho backward compatibility với L04
+     * Overload cho backward compatibility với L04.
+     * Chỉ áp dụng cho L04 với specialty. L01/L02/L03 luôn trả false.
+     * L04 không có specialty (req.getSpecialty() == null) cũng trả false vì
+     * không có specialty gốc để cross-specialty.
      */
     public boolean shouldPreferCrossSpecialty(ShiftRequirement req,
                                               int strictAvailable,
                                               int required,
                                               float ratio) {
-        // Chỉ áp dụng cho L04 với specialty hoặc các loại khác khi cross được bật
         if (req == null || req.getShiftType() == null) {
+            return false;
+        }
+        // Cross-specialty chỉ dành cho L04 với specialty
+        if (!ConflictDetectionService.SHIFT_TYPE_L04.equals(req.getShiftType().getId())) {
+            return false;
+        }
+        // L04 không có specialty → không có "gốc" để cross, luôn false
+        if (req.getSpecialty() == null) {
             return false;
         }
         return shouldPreferCrossSpecialty(req.getShiftType().getId(), strictAvailable, required, ratio);
@@ -428,43 +422,27 @@ public class StaffEligibilityFilter {
     }
 
     /**
-     * Get cross-specialty config for a specific shift type (L01, L02, L03, L04)
+     * Get cross-specialty config for a specific shift type.
+     *
+     * <p><b>Chỉ L04</b> có cấu hình cross-specialty động. L01/L02/L03
+     * không có cấu hình chuyên khoa — eligibility được xác định bởi
+     * {@link StaffShiftTypeEligibility#ALL_ELIGIBLE_SPECIALTIES} duy nhất.
+     * Với L01/L02/L03, method này trả về {@link CrossSpecialtyConfig#disabled()}.
+     *
+     * @param shiftTypeId L01/L02/L03/L04
      */
     public CrossSpecialtyConfig getCrossSpecialtyConfig(String shiftTypeId) {
-        return algorithmConfigService.getAutoGenConfig()
-                .map(cfg -> {
-                    if ("L01".equals(shiftTypeId)) {
-                        return new CrossSpecialtyConfig(
-                                cfg.l01CrossSpecialty(),
-                                cfg.l01CrossSpecialtyRatio(),
-                                cfg.l01AllowedSpecialties(),
-                                cfg.l01BalanceStrategy() != null ? cfg.l01BalanceStrategy() : "FAIR_DISTRIBUTE"
-                        );
-                    } else if ("L02".equals(shiftTypeId)) {
-                        return new CrossSpecialtyConfig(
-                                cfg.l02CrossSpecialty(),
-                                cfg.l02CrossSpecialtyRatio(),
-                                cfg.l02AllowedSpecialties(),
-                                cfg.l02BalanceStrategy() != null ? cfg.l02BalanceStrategy() : "FAIR_DISTRIBUTE"
-                        );
-                    } else if ("L03".equals(shiftTypeId)) {
-                        return new CrossSpecialtyConfig(
-                                cfg.l03CrossSpecialty(),
-                                cfg.l03CrossSpecialtyRatio(),
-                                cfg.l03AllowedSpecialties(),
-                                cfg.l03BalanceStrategy() != null ? cfg.l03BalanceStrategy() : "FAIR_DISTRIBUTE"
-                        );
-                    } else if ("L04".equals(shiftTypeId)) {
-                        return new CrossSpecialtyConfig(
-                                cfg.l04CrossSpecialty(),
-                                cfg.l04CrossSpecialtyRatio(),
-                                cfg.l04AllowedSpecialties(),
-                                cfg.l04BalanceStrategy() != null ? cfg.l04BalanceStrategy() : "FAIR_DISTRIBUTE"
-                        );
-                    }
-                    return CrossSpecialtyConfig.disabled();
-                })
-                .orElse(CrossSpecialtyConfig.defaultEnabled());
+        if ("L04".equals(shiftTypeId)) {
+            return algorithmConfigService.getAutoGenConfig()
+                    .map(cfg -> new CrossSpecialtyConfig(
+                            cfg.l04CrossSpecialty(),
+                            cfg.l04CrossSpecialtyRatio(),
+                            cfg.l04AllowedSpecialties() != null ? cfg.l04AllowedSpecialties() : List.of(),
+                            cfg.l04BalanceStrategy() != null ? cfg.l04BalanceStrategy() : "FAIR_DISTRIBUTE"))
+                    .orElse(CrossSpecialtyConfig.defaultEnabled());
+        }
+        // L01/L02/L03: không có specialty config — dùng ALL_ELIGIBLE_SPECIALTIES
+        return CrossSpecialtyConfig.disabled();
     }
 
     /**
@@ -494,15 +472,13 @@ public class StaffEligibilityFilter {
         return allowed.contains(staffSpecialtyName);
     }
 
+    /**
+     * @deprecated L01/L02/L03 không còn có specialty config.
+     * Luôn trả về List.of() — dùng StaffShiftTypeEligibility.isEligible() trực tiếp.
+     */
+    @Deprecated
     public List<String> getNonL04AllowedSpecialties(String shiftTypeId) {
-        return algorithmConfigService.getAutoGenConfig()
-                .map(cfg -> {
-                    if ("L01".equals(shiftTypeId)) return cfg.l01AllowedSpecialties();
-                    if ("L02".equals(shiftTypeId)) return cfg.l02AllowedSpecialties();
-                    if ("L03".equals(shiftTypeId)) return cfg.l03AllowedSpecialties();
-                    return java.util.List.<String>of();
-                })
-                .orElse(java.util.List.of());
+        return List.of();
     }
 
     private int getWeeklyMax(String shiftTypeId, AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {

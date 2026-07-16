@@ -1,5 +1,10 @@
 package com.hospital.scheduler.scheduling.search;
 
+import com.hospital.scheduler.scheduling.event.InMemorySearchEventPublisher;
+import com.hospital.scheduler.scheduling.event.NullSearchEventPublisher;
+import com.hospital.scheduler.scheduling.event.SearchEvent;
+import com.hospital.scheduler.scheduling.event.SearchEventPublisher;
+import com.hospital.scheduler.scheduling.event.SearchEventType;
 import com.hospital.scheduler.scheduling.score.ScoreDirector;
 import com.hospital.scheduler.scheduling.score.ScoreSnapshot;
 import com.hospital.scheduler.scheduling.solution.WorkingSolution;
@@ -24,11 +29,25 @@ public class SearchDirector {
 
     private final ScoreDirector scoreDirector;
     private final IncrementalStatisticsHub statisticsHub;
+    private final SearchEventPublisher eventPublisher;
+    private String runId = "no-run";
 
     public SearchDirector(ScoreDirector scoreDirector,
                           IncrementalStatisticsHub statisticsHub) {
+        this(scoreDirector, statisticsHub, NullSearchEventPublisher.INSTANCE);
+    }
+
+    public SearchDirector(ScoreDirector scoreDirector,
+                          IncrementalStatisticsHub statisticsHub,
+                          SearchEventPublisher eventPublisher) {
         this.scoreDirector = scoreDirector;
         this.statisticsHub = statisticsHub;
+        this.eventPublisher = eventPublisher != null ? eventPublisher : NullSearchEventPublisher.INSTANCE;
+    }
+
+    /** Set the run id used to tag every published event. */
+    public void setRunId(String runId) {
+        this.runId = runId != null ? runId : "no-run";
     }
 
     /** Called by the algorithm when a new best score is found. */
@@ -36,28 +55,62 @@ public class SearchDirector {
         // Deep-copy via toImmutable on each assignment
         this.bestSolution = copySolution(solution);
         this.bestScore = scoreDirector.getCurrent().toImmutable();
+        ScoreSnapshot previousBest = state.getBestScore();
         state.setBestScore(bestScore);
         state.resetNoImprove();
+        if (previousBest != null) {
+            publish(SearchEventType.SCORE_IMPROVED, "improvement", 0, 0.0);
+        }
     }
 
     /** Update the current score (called every iteration). */
     public void onIteration(WorkingSolution solution) {
         state.setCurrentScore(scoreDirector.getCurrent().toImmutable());
+        publish(SearchEventType.ITERATION, "iteration", 0, 0.0);
     }
 
     /** Track a no-improvement iteration. */
     public void onNoImprove() {
         state.incrementNoImprove();
+        // Diversification signal — too many no-improve iterations
+        if (state.getNoImproveIterations() > 0
+                && state.getNoImproveIterations() % 50 == 0) {
+            publish(SearchEventType.DIVERSIFIED, "stagnation", 0, 0.0);
+        }
     }
 
     /** Track an accepted move. */
     public void onAccepted() {
         state.incrementAccepted();
+        publish(SearchEventType.MOVE_ACCEPTED, "move", 0, 0.0);
     }
 
     /** Track a rejected move. */
     public void onRejected() {
         state.incrementRejected();
+        publish(SearchEventType.MOVE_REJECTED, "move", 0, 0.0);
+    }
+
+    /** Track a tabu rejection — separate event for live tabu-hit rate chart. */
+    public void onTabuHit() {
+        publish(SearchEventType.TABU_HIT, "tabu", 0, 0.0);
+    }
+
+    private void publish(SearchEventType type, String moveType, int hardDelta, double coverageDelta) {
+        try {
+            eventPublisher.publish(new SearchEvent(
+                    runId,
+                    state.getIteration(),
+                    state.getElapsedMillis(),
+                    type,
+                    state.getCurrentScore(),
+                    state.getBestScore(),
+                    moveType,
+                    hardDelta,
+                    coverageDelta));
+        } catch (RuntimeException ignored) {
+            // Telemetry must never break the search loop
+        }
     }
 
     /** Deep-copy a {@link WorkingSolution} so we can keep the best one. */
@@ -70,5 +123,14 @@ public class SearchDirector {
             }
         }
         return copy;
+    }
+
+    /** Convenience — create a director with a unique run id. */
+    public static SearchDirector withRunId(ScoreDirector score,
+                                           IncrementalStatisticsHub hub,
+                                           SearchEventPublisher publisher) {
+        SearchDirector director = new SearchDirector(score, hub, publisher);
+        director.setRunId(InMemorySearchEventPublisher.newRunId());
+        return director;
     }
 }

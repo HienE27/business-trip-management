@@ -4,6 +4,7 @@ import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.stereotype.Component;
 
 /**
  * Registry of {@link Constraint} plugins.
@@ -13,6 +14,7 @@ import java.util.List;
  * individually enabled/disabled via configuration.
  */
 @Getter
+@Component
 public class ConstraintRegistry {
 
     private final List<Constraint> constraints = new ArrayList<>();

@@ -2231,17 +2231,12 @@ public class AutoSchedulingService {
 
     /**
      * Trả về danh sách specialties được phép gán cho L01/L02/L03.
-     * Đọc từ algorithm_config; null/empty → StaffShiftTypeEligibility sẽ fallback về CORE (Ngoại, Nội).
+     * DEPRECATED: L01/L02/L03 không còn có specialty config — dùng ALL_ELIGIBLE_SPECIALTIES.
+     * Giữ lại method này để tránh breaking change, nhưng luôn trả về List.of().
      */
+    @Deprecated
     private java.util.List<String> getNonL04AllowedSpecialties(String shiftTypeId) {
-        return algorithmConfigService.getAutoGenConfig()
-                .map(cfg -> {
-                    if ("L01".equals(shiftTypeId)) return cfg.l01AllowedSpecialties();
-                    if ("L02".equals(shiftTypeId)) return cfg.l02AllowedSpecialties();
-                    if ("L03".equals(shiftTypeId)) return cfg.l03AllowedSpecialties();
-                    return java.util.List.<String>of();
-                })
-                .orElse(java.util.List.of());
+        return java.util.List.of();
     }
 
     private Staff selectStaffByWorkload(List<Staff> availableStaff, Integer periodId, String shiftTypeId) {
@@ -3125,31 +3120,32 @@ public class AutoSchedulingService {
             // Business rules only forbid specific pairs (L01/L02 and L03/L04), duplicate same-type,
             // compensation days, and leave days; hasInMemoryConflict enforces those below.
 
-            // 0. ELIGIBILITY CHECK: staff phải thuộc chuyên khoa phù hợp với shift type.
-            //    L01/L02/L03: specialties lấy từ config (mặc định Ngoại,Nội; có thể mở rộng qua UI).
-            //    L04: staff có specialty khớp requirement HOẶC cross-specialty enabled.
-            //    Tập trung logic tại StaffShiftTypeEligibility để thống nhất giữa
-            //    scoring engine và thuật toán.
+            // 0. ELIGIBILITY CHECK: staff phải thuộc ALL_ELIGIBLE_SPECIALTIES (6 khoa).
+            //    Theo nghiệp vụ, L01/L02/L03 không bị giới hạn theo chuyên khoa.
+            //    L04: kiểm tra requiredSpecialtyId nếu có.
+            //    Cross-specialty cho L04 được kiểm tra riêng bên dưới.
             Integer requiredSpecId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
-            java.util.List<String> nonL04Allowed = getNonL04AllowedSpecialties(shiftTypeId);
-            boolean isEligible = StaffShiftTypeEligibility
-                    .isEligible(staff, shiftTypeId, requiredSpecId, nonL04Allowed);
-            // For L04 with cross-specialty enabled: staff from other eligible specialties are allowed
-            if (!isEligible && crossEnabled && ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
-                // Cross-specialty L04: staff must belong to at least ONE eligible specialty
-                // (CORE or extended). Use ALL_ELIGIBLE_SPECIALTIES so Nhi/Mắt/Răng/Sản
-                // staff can fill L04 when their own specialty's pool is exhausted.
-                if (staff.getSpecialty() != null && StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
-                        .contains(staff.getSpecialty().getName())) {
-                    isEligible = true;
+            if (!StaffShiftTypeEligibility.isEligible(staff, shiftTypeId, requiredSpecId)) {
+                // L04 cross-specialty: staff từ chuyên khoa khác vẫn eligible nếu cross enabled
+                if (crossEnabled && ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
+                    if (staff.getSpecialty() != null
+                            && StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
+                                    .contains(staff.getSpecialty().getName())) {
+                        // Eligible via cross-specialty — proceed
+                    } else {
+                        if (log.isTraceEnabled()) {
+                            log.trace("FILTER_ELIGIBILITY: staff={} type={} spec={} REJECTED (cross-specialty not allowed)",
+                                staff.getId(), shiftTypeId, staff.getSpecialty() != null ? staff.getSpecialty().getName() : "null");
+                        }
+                        continue;
+                    }
+                } else {
+                    if (log.isTraceEnabled()) {
+                        log.trace("FILTER_ELIGIBILITY: staff={} type={} spec={} REJECTED",
+                            staff.getId(), shiftTypeId, staff.getSpecialty() != null ? staff.getSpecialty().getName() : "null");
+                    }
+                    continue;
                 }
-            }
-            if (!isEligible) {
-                if (log.isTraceEnabled()) {
-                    log.trace("FILTER_ELIGIBILITY: staff={} type={} spec={} REJECTED",
-                        staff.getId(), shiftTypeId, staff.getSpecialty() != null ? staff.getSpecialty().getName() : "null");
-                }
-                continue;
             }
             if (log.isTraceEnabled()) {
                 log.trace("FILTER_ELIGIBILITY: staff={} type={} spec={} ACCEPTED",
