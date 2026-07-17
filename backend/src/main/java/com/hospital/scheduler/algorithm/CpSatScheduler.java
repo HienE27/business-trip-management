@@ -146,17 +146,27 @@ public class CpSatScheduler {
             }
         }
 
-        // Objective: maximize coverage + minimize fairness gap
-        // Penalize unfilled shifts (maximize total assigned)
-        LinearExprBuilder totalAssigned = LinearExpr.newBuilder();
+        // Objective: Balance fairness (minimize max-min gap) + maximize coverage
+        // Coverage already ensured by constraint 2 (min staff per shift)
+        // Fairness: minimize the gap between most-loaded and least-loaded staff
+        IntVar[] totalShiftsPerStaff = new IntVar[numStaff];
         for (int s = 0; s < numStaff; s++) {
+            LinearExprBuilder sum = LinearExpr.newBuilder();
             for (int d = 0; d < numDays; d++) {
                 for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
-                    totalAssigned.add(x[s][d][sh]);
+                    sum.add(x[s][d][sh]);
                 }
             }
+            totalShiftsPerStaff[s] = model.newIntVar(0, numDays, "total_" + staffIds.get(s));
+            model.addEquality(totalShiftsPerStaff[s], sum.build());
         }
-        model.maximize(totalAssigned.build());
+        IntVar minShifts = model.newIntVar(0, numDays, "min_shifts");
+        IntVar maxShifts = model.newIntVar(0, numDays, "max_shifts");
+        model.addMinEquality(minShifts, totalShiftsPerStaff);
+        model.addMaxEquality(maxShifts, totalShiftsPerStaff);
+        
+        // Objective: minimize max shifts per staff (balance) while satisfying coverage
+        model.minimize(maxShifts);
 
         // Solve
         CpSolver solver = new CpSolver();
