@@ -316,16 +316,6 @@ public class AlgorithmConfigService {
                 AlgorithmConfig.ValueType.STRING,
                 "Chiến lược cân bằng cross-specialty L04: STRICT_MATCH_ONLY, FAIR_DISTRIBUTE, WEIGHTED_FAIR.");
         // L01/L02/L03: KHÔNG có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES (6 khoa)
-        // Xóa các param cũ nếu tồn tại trong DB
-        upsert("AUTO_GEN_L01_ALLOWED_SPECIALTIES", "",
-                AlgorithmConfig.ValueType.STRING,
-                "[DEPRECATED] Không còn dùng. L01 eligibility = ALL_ELIGIBLE_SPECIALTIES (6 khoa).");
-        upsert("AUTO_GEN_L02_ALLOWED_SPECIALTIES", "",
-                AlgorithmConfig.ValueType.STRING,
-                "[DEPRECATED] Không còn dùng. L02 eligibility = ALL_ELIGIBLE_SPECIALTIES (6 khoa).");
-        upsert("AUTO_GEN_L03_ALLOWED_SPECIALTIES", "",
-                AlgorithmConfig.ValueType.STRING,
-                "[DEPRECATED] Không còn dùng. L03 eligibility = ALL_ELIGIBLE_SPECIALTIES (6 khoa).");
     }
 
     /**
@@ -394,16 +384,16 @@ public class AlgorithmConfigService {
                 "Hệ số phạt khi xếp lịch cho người vào thứ 7 / chủ nhật. Giá trị càng cao → thuật toán càng tránh xếp ca cuối tuần. Đặt 1 để tắt ưu tiên.");
         map.put(WEEKEND_WEIGHT, "OK");
         upsert(OVERNIGHT_RECOVERY_HOURS, getStringValue(OVERNIGHT_RECOVERY_HOURS, "24"), AlgorithmConfig.ValueType.NUMBER,
-                "Ngưỡng nghỉ ngơi tham chiếu cho L01. Ràng buộc thực tế vẫn theo ngày nghỉ bù và kiểm tra back-to-back.");
+                "[RESERVED v1.1] Giờ hồi phục sau trực đêm. Hiện tại không dùng — quy tắc nghỉ bù và back-to-back đã được xử lý.");
         map.put(OVERNIGHT_RECOVERY_HOURS, "OK");
         upsert(GREEDY_COVERAGE_THRESHOLD, getStringValue(GREEDY_COVERAGE_THRESHOLD, "0.85"), AlgorithmConfig.ValueType.NUMBER,
-                "Ngưỡng phủ lịch tối thiểu (0.0–1.0). Khi tỷ lệ lịch đã phủ đạt mức này, thuật toán greedy sẽ dừng sớm. Giảm → chạy nhanh hơn; tăng → phủ kỹ hơn.");
+                "[v1.0] Chỉ dùng để giám sát/logging. Scheduler luôn gán 100% slot khi có thể. Không ảnh hưởng đến kết quả.");
         map.put(GREEDY_COVERAGE_THRESHOLD, "OK");
         upsert(BALANCE_SCORE_MIN, getStringValue(BALANCE_SCORE_MIN, "0.75"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
         map.put(BALANCE_SCORE_MIN, "OK");
         upsert(AUTO_COMPENSATION_ENABLED, getStringValue(AUTO_COMPENSATION_ENABLED, "true"), AlgorithmConfig.ValueType.BOOLEAN,
-                "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
+                "[RESERVED v1.1] Tự động tạo ngày nghỉ bù sau ca L01. Hiện tại luôn bật — không dùng config này.");
         map.put(AUTO_COMPENSATION_ENABLED, "OK");
         upsert(MIN_STAFF_PER_SHIFT, getStringValue(MIN_STAFF_PER_SHIFT, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng theo dõi số nhân sự tối thiểu mỗi ca; dùng cho đánh giá/chất lượng, không ép thuật toán phá ràng buộc cứng.");
@@ -539,7 +529,7 @@ public class AlgorithmConfigService {
         upsert(BALANCE_SCORE_MIN, String.valueOf(config.getBalanceScoreMin()), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
         upsert(AUTO_COMPENSATION_ENABLED, String.valueOf(config.isAutoCompensationEnabled()), AlgorithmConfig.ValueType.BOOLEAN,
-                "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
+                "[RESERVED v1.1] Tự động tạo ngày nghỉ bù sau ca L01.");
         upsert(MIN_STAFF_PER_SHIFT, String.valueOf(config.getMinStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối thiểu mỗi ca. Đặt 0 để bỏ qua giới hạn này. Nếu không đủ nhân sự đạt ngưỡng, thuật toán sẽ cảnh báo nhưng vẫn xếp.");
         upsert(MAX_STAFF_PER_SHIFT, String.valueOf(config.getMaxStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
@@ -706,14 +696,46 @@ public class AlgorithmConfigService {
         private java.math.BigDecimal greedyCoverageThreshold;
         private java.math.BigDecimal balanceScoreMin;
         private boolean autoCompensationEnabled;
-        private int minStaffPerShift;
         private int maxStaffPerShift;
-        private int minShiftsPerStaff;
         private int maxShiftsPerStaff;
         // Per-shift-type weekly max (from AutoGenConfig)
         private int l01MaxPerWeek;
         private int l02MaxPerWeek;
         private int l03MaxPerWeek;
         private int l04MaxPerWeek;
+
+        /**
+         * @deprecated Not used in scheduler v1.0. Kept only for backward compatibility.
+         *
+         * <p>TODO(v1.1):
+         * <ul>
+         *   <li>Remove from {@link AlgorithmRuntimeConfig} record</li>
+         *   <li>Remove constants from {@link AlgorithmConfigService}</li>
+         *   <li>Remove from {@link com.hospital.scheduler.scheduling.config.ConfigMapper}</li>
+         *   <li>Remove from {@link com.hospital.scheduler.scheduling.config.ConfigMetadataRegistry}</li>
+         *   <li>Remove DB rows: {@code min_staff_per_shift}</li>
+         * </ul>
+         *
+         * @see <a href="https://github.com/tmHieu20-02/business-trip-management/issues">GitHub Issues</a>
+         */
+        @Deprecated
+        private int minStaffPerShift;
+
+        /**
+         * @deprecated Not used in scheduler v1.0. Kept only for backward compatibility.
+         *
+         * <p>TODO(v1.1):
+         * <ul>
+         *   <li>Remove from {@link AlgorithmRuntimeConfig} record</li>
+         *   <li>Remove constants from {@link AlgorithmConfigService}</li>
+         *   <li>Remove from {@link com.hospital.scheduler.scheduling.config.ConfigMapper}</li>
+         *   <li>Remove from {@link com.hospital.scheduler.scheduling.config.ConfigMetadataRegistry}</li>
+         *   <li>Remove DB rows: {@code min_shifts_per_staff}</li>
+         * </ul>
+         *
+         * @see <a href="https://github.com/tmHieu20-02/business-trip-management/issues">GitHub Issues</a>
+         */
+        @Deprecated
+        private int minShiftsPerStaff;
     }
 }
