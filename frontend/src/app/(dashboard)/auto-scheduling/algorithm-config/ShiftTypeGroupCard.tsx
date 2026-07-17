@@ -153,7 +153,7 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
                     <span className="text-[9px] text-on-surface-variant mt-0.5">{unit}</span>
                   )}
                   {isMinPerDay && (
-                    <span className="text-[9px] text-on-surface-variant/70 italic mt-0.5">Cố gắng đạt nếu nhân lực cho phép</span>
+                    <span className="text-[9px] text-on-surface-variant/70 italic mt-0.5">Sinh yêu cầu mỗi ngày nếu nhân lực cho phép</span>
                   )}
                 </div>
                 <div className="flex items-center shrink-0">

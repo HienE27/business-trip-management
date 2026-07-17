@@ -196,7 +196,7 @@ export const SHIFT_TYPE_GROUPS: readonly ShiftTypeGroup[] = [
 ] as const;
 
 const SHIFT_PARAM_LABELS: Record<string, { label: string; icon: string }> = {
-  MinPerDay: { label: "Mục tiêu/ngày", icon: "target" },
+  MinPerDay: { label: "Nhu cầu/ngày", icon: "target" },
   MaxPerDay: { label: "Trần ca/ngày", icon: "block" },
   MinPerWeek: { label: "Tối thiểu/người/tuần", icon: "trending_up" },
   MaxPerWeek: { label: "Tối đa/người/tuần", icon: "person_remove" },
@@ -204,7 +204,7 @@ const SHIFT_PARAM_LABELS: Record<string, { label: string; icon: string }> = {
 
 const SHIFT_PARAM_TOOLTIPS: Record<string, string> = {
   MinPerDay:
-    "Số ca L0X cần tạo mỗi ngày. Thuật toán cố gắng đạt mục tiêu này, không phá ràng buộc cứng.",
+    "Nhu cầu nhân sự L0X mỗi ngày. Scheduler dùng giá trị này để sinh yêu cầu — không phải ràng buộc cứng.",
   MaxPerDay:
     "Số ca tối đa mỗi ngày. Scheduler không tạo quá số lượng này. 0 = không giới hạn.",
   MinPerWeek:
