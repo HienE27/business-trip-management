@@ -142,6 +142,10 @@ V10 does NOT read:
 
 **Action**: Marked as Reserved for v1.1.
 
+> **Resolved in RC-001 (commit `d0712c9`)**: Field removed entirely. Compensation is always-on
+> per `PROJECT_CONTEXT.mdc`. Migration V19 cleans up `algorithm_config` row and
+> `config_profile.config_json` key.
+
 ### 6.4 `ScheduleScorer` — Stub
 
 **Problem**: Used by BenchmarkService but always returns score = 1000.

@@ -73,7 +73,6 @@ The following configs are read but not used in v1.0:
 | Config | Planned Use |
 |--------|-------------|
 | `overnightRecoveryHours` | L01 spacing enforcement |
-| `autoCompensationEnabled` | Control auto-compensation |
 | `l04BalanceStrategy` | L04 distribution strategy |
 | `l0XMinPerWeek` | Minimum shifts per week |
 
@@ -130,7 +129,6 @@ The following are planned for future release:
 - [ ] Align BR-04 behavior across all engines
 - [ ] Implement `ScheduleScorer` properly for benchmark
 - [ ] Add `overnightRecoveryHours` enforcement
-- [ ] Add `autoCompensationEnabled` toggle
 - [ ] Implement `l04BalanceStrategy`
 - [ ] Add `l0XMinPerWeek` enforcement
 - [ ] Implement V10 incremental re-solve
