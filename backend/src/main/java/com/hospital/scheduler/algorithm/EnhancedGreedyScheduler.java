@@ -105,7 +105,7 @@ public class EnhancedGreedyScheduler {
 		                        int typeCount = typeCountByStaff
 		                                .getOrDefault(s.getId(), Collections.emptyMap())
 		                                .getOrDefault(shiftTypeId, 0);
-		                        typeBalancePenalty = typeCount * 9.0; // 9 pts per existing shift of this type
+		                        typeBalancePenalty = typeCount * 12.0; // T?ng penalty: 12 pts per existing
 			                    }
 
 			                    double score = 100 - cnt * 6 + fatigueBonus + rotationBonus
@@ -301,7 +301,7 @@ public class EnhancedGreedyScheduler {
 	                    if (!"L04".equals(shiftTypeId)) {
 	                        int typeCnt = typeCountGap.getOrDefault(s.getId(), Collections.emptyMap())
 	                                .getOrDefault(shiftTypeId, 0);
-	                        typePenalty = typeCnt * 7.0; // Tăng: 7 thay vì 4
+		                        typePenalty = typeCnt * 10.0; // T?ng: 10 thay vì 7
                     }
 	                    double specPenalty = 0;
 	                    if (specId != null && "L04".equals(shiftTypeId)) {

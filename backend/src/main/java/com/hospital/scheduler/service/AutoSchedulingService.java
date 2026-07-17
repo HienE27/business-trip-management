@@ -803,7 +803,7 @@ public class AutoSchedulingService {
 
         // Phase 3: Local Search fairness rebalance.
         if (!createdSchedules.isEmpty()) {
-            int rebalanceRounds = save ? 200 : 100;
+            int rebalanceRounds = save ? 300 : 200;
             int optimizedMoves = optimizeFairnessBySafeReassignment(createdSchedules, activeStaff, requirements, rebalanceRounds);
             if (optimizedMoves > 0) {
                 log.info("Local Search fairness optimization applied {} safe reassignment moves (rounds={})", optimizedMoves, rebalanceRounds);
@@ -2236,26 +2236,7 @@ public class AutoSchedulingService {
 	            runtimeConfig.setMaxShiftsPerStaff(fairMax);
 	        }
 
-	        // L01-L03: ch? Ngo?i+N?i (dùng isEligible ?? tránh l?i encoding)
-	        long ngoaiNoi = activeStaff.stream()
-	                .filter(s -> StaffShiftTypeEligibility.isEligible(
-	                        s, ConflictDetectionService.SHIFT_TYPE_L01, null))
-	                .count();
-	        int fairNonL04 = Math.max(1, (int) Math.ceil(ngoaiNoi / 4.0));
-	        if (autoGenCfg.l01MaxPerDay() > fairNonL04) {
-	            log.warn("[AutoAdjust] L01 max: {} -> {} (eligible={})", autoGenCfg.l01MaxPerDay(), fairNonL04, ngoaiNoi);
-	            algorithmConfigService.updateAutoGenField("auto_gen_l01_max_per_day", String.valueOf(fairNonL04));
-	        }
-	        if (autoGenCfg.l02MaxPerDay() > fairNonL04) {
-	            log.warn("[AutoAdjust] L02 max: {} -> {} (eligible={})", autoGenCfg.l02MaxPerDay(), fairNonL04, ngoaiNoi);
-	            algorithmConfigService.updateAutoGenField("auto_gen_l02_max_per_day", String.valueOf(fairNonL04));
-	        }
-	        if (autoGenCfg.l03MaxPerDay() > fairNonL04) {
-	            log.warn("[AutoAdjust] L03 max: {} -> {} (eligible={})", autoGenCfg.l03MaxPerDay(), fairNonL04, ngoaiNoi);
-	            algorithmConfigService.updateAutoGenField("auto_gen_l03_max_per_day", String.valueOf(fairNonL04));
-	        }
-
-	        // L04: mỗi chuyên khoa cần 1 L04/ngày → l04MaxPerDay = 1
+	        // Bước 1: Tính L04 trước
 	        long specCount = activeStaff.stream().filter(s -> s.getSpecialty() != null).count();
 	        long activeSpecialtyCount = activeStaff.stream()
 	                .filter(s -> s.getSpecialty() != null)
@@ -2269,6 +2250,28 @@ public class AutoSchedulingService {
 	                    autoGenCfg.l04MaxPerDay(), fairL04, activeSpecialtyCount, poolPerSpec);
 	            algorithmConfigService.updateAutoGenField("auto_gen_l04_max_per_day", String.valueOf(fairL04));
 	        }
+	        
+		        // Bước 2: L01-L03 tính theo tỉ lệ % của L04
+		        // L01 = L02 = L03 = ceil(tổng L04/ngày / 2)
+		        // Mục tiêu: L01-L03 chiếm ~50% tổng capacity của L04
+		        int l04TotalPerDay = fairL04 * (int)activeSpecialtyCount;
+		        int fairNonL04 = Math.max(1, (int) Math.ceil(l04TotalPerDay / 2.0));
+		        // Cập nhật nếu config hiện tại khác biệt
+		        if (autoGenCfg.l01MaxPerDay() != fairNonL04) {
+		            log.warn("[AutoAdjust] L01 max: {} -> {} (L04={}/ngày, 50%)",
+		                    autoGenCfg.l01MaxPerDay(), fairNonL04, l04TotalPerDay);
+		            algorithmConfigService.updateAutoGenField("auto_gen_l01_max_per_day", String.valueOf(fairNonL04));
+		        }
+		        if (autoGenCfg.l02MaxPerDay() != fairNonL04) {
+		            log.warn("[AutoAdjust] L02 max: {} -> {} (L04={}/ngày, 50%)",
+		                    autoGenCfg.l02MaxPerDay(), fairNonL04, l04TotalPerDay);
+		            algorithmConfigService.updateAutoGenField("auto_gen_l02_max_per_day", String.valueOf(fairNonL04));
+		        }
+		        if (autoGenCfg.l03MaxPerDay() != fairNonL04) {
+		            log.warn("[AutoAdjust] L03 max: {} -> {} (L04={}/ngày, 50%)",
+		                    autoGenCfg.l03MaxPerDay(), fairNonL04, l04TotalPerDay);
+		            algorithmConfigService.updateAutoGenField("auto_gen_l03_max_per_day", String.valueOf(fairNonL04));
+		        }
 	
 	        // maxShiftsPerDay: không auto-adjust, để thuật toán tự quyết định
 	        // dựa trên conflict rules (L01+L02 cấm, L03+L04 cấm)
