@@ -228,8 +228,7 @@ export function L04SpecialtyConfig({
             {/* Cross-specialty ratio */}
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/50">
               <div>
-                <p className="text-label-sm text-on-surface font-medium">Tỷ lệ tối đa được phép</p>
-                <p className="text-[11px] text-on-surface-variant mt-0.5">Tối đa % requirement có thể dùng bác sĩ ngoài chuyên khoa</p>
+                <p className="text-label-sm text-on-surface font-medium">Tối đa {Math.round(ratio * 100)}% nhân sự ngoài chuyên khoa</p>
               </div>
               <span className="font-mono text-lg font-bold text-tertiary tabular-nums">
                 {Math.round(ratio * 100)}%
@@ -252,7 +251,7 @@ export function L04SpecialtyConfig({
               <div>
                 <p className="text-label-sm text-on-surface font-medium flex items-center gap-2">
                   Chiến lược cân bằng
-                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Future (v1.1)</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Chưa dùng</span>
                 </p>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">Cách phân bổ staff ngoài chuyên khoa — chưa dùng trong v1.0</p>
               </div>

@@ -825,9 +825,9 @@ function AutoCompensationCard() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <p className="text-label-md font-semibold text-on-surface tracking-tight">Nghỉ bù tự động</p>
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Future (v1.1)</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Chưa dùng</span>
           </div>
-          <p className="text-[11px] text-on-surface-variant leading-tight mt-0.5">Chưa dùng trong scheduler v1.0 — luôn tạo nghỉ bù</p>
+          <p className="text-[11px] text-on-surface-variant leading-tight mt-0.5">Chưa dùng trong v1.0 — luôn tạo nghỉ bù</p>
         </div>
       </div>
       <div className="p-5 flex items-center justify-between gap-4">

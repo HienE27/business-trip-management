@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { RuntimeConfig } from "./types";
 import type { ShiftTypeGroup } from "./paramConfig";
-import { getShiftRowLabel, getShiftRowTooltip, getShiftRowUnit } from "./paramConfig";
+import { getShiftRowLabel, getShiftRowIcon, getShiftRowTooltip, getShiftRowUnit } from "./paramConfig";
 import { getParamValidation, type ValidationResult } from "@/lib/validation/algorithmConfig";
 
 type Props = {
@@ -123,12 +123,14 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
             ? (isMaxParam ? "Không giới hạn" : "Tắt")
             : numVal.toString();
           const label = getShiftRowLabel(param);
+          const iconName = getShiftRowIcon(param);
           const tooltip = getShiftRowTooltip(param);
           const unit = getShiftRowUnit(param);
           const validation = getParamValidation(param, numVal);
           const crossValidation = getCrossFieldValidation(param, numVal, form);
           const effectiveValidation: ValidationResult | null =
             crossValidation ?? validation;
+          const isMinPerDay = param.endsWith("MinPerDay");
           return (
             <div
               key={param}
@@ -137,17 +139,15 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col min-w-0 leading-tight">
-                  <span className={`font-mono text-[10px] font-semibold px-1 py-0.5 rounded w-fit ${
-                    param.includes("MinPerDay")
-                      ? "bg-secondary-container/70 text-on-secondary-container"
-                      : param.includes("MaxPerDay")
-                      ? "bg-amber-100 text-amber-800"
-                      : "bg-error-container/70 text-on-error-container"
-                  }`}>
+                  <span className="flex items-center gap-1 font-mono text-[10px] font-semibold px-1 py-0.5 rounded w-fit">
+                    <span className="material-symbols-outlined text-[10px] shrink-0" aria-hidden="true">{iconName}</span>
                     {label}
                   </span>
                   {unit && (
                     <span className="text-[9px] text-on-surface-variant mt-0.5">{unit}</span>
+                  )}
+                  {isMinPerDay && (
+                    <span className="text-[9px] text-on-surface-variant/70 italic mt-0.5">Cố gắng đạt nếu nhân lực cho phép</span>
                   )}
                 </div>
                 <div className="flex items-center shrink-0">

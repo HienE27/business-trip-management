@@ -289,8 +289,7 @@ export function ShiftTypeCrossSpecialtyCard({
             {/* Cross-specialty ratio */}
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/50">
               <div>
-                <p className="text-label-sm text-on-surface font-medium">Tỷ lệ tối đa được phép</p>
-                <p className="text-[11px] text-on-surface-variant mt-0.5">Tối đa % requirement có thể dùng bác sĩ ngoài chuyên khoa</p>
+                <p className="text-label-sm text-on-surface font-medium">Tối đa {Math.round(ratio * 100)}% nhân sự ngoài chuyên khoa</p>
               </div>
               <span className={`font-mono text-lg font-bold ${config.color} tabular-nums`}>
                 {Math.round(ratio * 100)}%
@@ -313,7 +312,7 @@ export function ShiftTypeCrossSpecialtyCard({
               <div>
                 <p className="text-label-sm text-on-surface font-medium">
                   Balance strategy
-                  <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Future (v1.1)</span>
+                  <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Chưa dùng</span>
                 </p>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
                   Phân bổ staff ngoài chuyên khoa thế nào — chưa dùng trong scheduler v1.0

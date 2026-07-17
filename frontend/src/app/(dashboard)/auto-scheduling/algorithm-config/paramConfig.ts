@@ -35,7 +35,7 @@ export const PARAM_GROUPS: readonly ParamGroup[] = [
   // ── BUSINESS: Manager được phép chỉnh ────────────────────────────────
   {
     id: "shifts",
-    label: "Giới hạn phân công",
+    label: "Giới hạn xếp lịch",
     icon: "groups",
     color: "text-blue-600",
     bg: "bg-blue-50",
@@ -195,11 +195,11 @@ export const SHIFT_TYPE_GROUPS: readonly ShiftTypeGroup[] = [
   },
 ] as const;
 
-const SHIFT_PARAM_LABELS: Record<string, string> = {
-  MinPerDay: "Mục tiêu/ngày",
-  MaxPerDay: "Trần ca/ngày",
-  MinPerWeek: "Tối thiểu/người/tuần",
-  MaxPerWeek: "Trần ca/người/tuần",
+const SHIFT_PARAM_LABELS: Record<string, { label: string; icon: string }> = {
+  MinPerDay: { label: "Mục tiêu/ngày", icon: "target" },
+  MaxPerDay: { label: "Trần ca/ngày", icon: "block" },
+  MinPerWeek: { label: "Tối thiểu/người/tuần", icon: "trending_up" },
+  MaxPerWeek: { label: "Tối đa/người/tuần", icon: "person_remove" },
 };
 
 const SHIFT_PARAM_TOOLTIPS: Record<string, string> = {
@@ -222,7 +222,12 @@ const SHIFT_PARAM_UNITS: Record<string, string> = {
 
 export function getShiftRowLabel(param: string): string {
   const suffix = Object.keys(SHIFT_PARAM_LABELS).find(k => param.endsWith(k));
-  return suffix ? SHIFT_PARAM_LABELS[suffix] : param;
+  return suffix ? SHIFT_PARAM_LABELS[suffix].label : param;
+}
+
+export function getShiftRowIcon(param: string): string {
+  const suffix = Object.keys(SHIFT_PARAM_LABELS).find(k => param.endsWith(k));
+  return suffix ? SHIFT_PARAM_LABELS[suffix].icon : "";
 }
 
 export function getShiftRowTooltip(param: string): string {

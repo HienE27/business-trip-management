@@ -2,50 +2,17 @@
 
 import { useState } from "react";
 
-const BUSINESS_RULES = [
-  {
-    id: "BR01",
-    label: "BR-01",
-    text: "Không trực L01 (24/24) và L02 (Thông tầm) cùng ngày",
-    severity: "hard" as const,
-  },
-  {
-    id: "BR02",
-    label: "BR-02",
-    text: "Không trực L03 (PK Dịch vụ) và L04 (PK Chuyên gia) cùng ngày",
-    severity: "hard" as const,
-  },
-  {
-    id: "BR03",
-    label: "BR-03",
-    text: "Không trực quá 6 ngày liên tiếp",
-    severity: "soft" as const,
-  },
-  {
-    id: "BR04",
-    label: "BR-04",
-    text: "Không xếp trực L01 liền kề (vì mỗi L01 tạo 1 ngày nghỉ bù)",
-    severity: "soft" as const,
-  },
-  {
-    id: "BR05",
-    label: "BR-05",
-    text: "Không xếp lịch cho nhân sự đang nghỉ phép",
-    severity: "hard" as const,
-  },
-  {
-    id: "BR06",
-    label: "BR-06",
-    text: "Không vượt quá số ca tối đa mỗi nhân sự mỗi tháng",
-    severity: "soft" as const,
-  },
+const BUSINESS_RULES: { id: string; text: string; severity: "hard" | "soft" }[] = [
+  { id: "BR01", text: "Không xếp trùng ca cấm (L01+L02, L03+L04 cùng ngày)", severity: "hard" },
+  { id: "BR02", text: "Không xếp khi nhân sự đang nghỉ phép", severity: "hard" },
+  { id: "BR03", text: "Không vượt giới hạn ca mỗi tuần mỗi người", severity: "soft" },
+  { id: "BR04", text: "Không xếp trực L01 liền kề (mỗi L01 tạo 1 ngày nghỉ bù)", severity: "soft" },
+  { id: "BR05", text: "Không vượt quá 6 ngày liên tiếp", severity: "soft" },
+  { id: "BR06", text: "Không vượt số ca tối đa mỗi nhân sự mỗi tháng", severity: "soft" },
 ];
 
 export function BusinessRulesCard() {
   const [collapsed, setCollapsed] = useState(true);
-
-  const hardCount = BUSINESS_RULES.filter((r) => r.severity === "hard").length;
-  const softCount = BUSINESS_RULES.filter((r) => r.severity === "soft").length;
 
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden hover:shadow-sm transition-shadow duration-200 border-l-4 border-l-primary">
@@ -60,19 +27,9 @@ export function BusinessRulesCard() {
             <span className="material-symbols-outlined text-[18px]" aria-hidden="true">rule</span>
           </div>
           <div className="flex flex-col items-start gap-0.5 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="text-label-md font-semibold text-on-surface tracking-tight">Ràng buộc nghiệp vụ</p>
-              <div className="flex items-center gap-1">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-error-container text-on-error-container border border-on-error-container/20">
-                  {hardCount} HARD
-                </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-secondary-container text-on-secondary-container border border-on-secondary-container/20">
-                  {softCount} SOFT
-                </span>
-              </div>
-            </div>
+            <p className="text-label-md font-semibold text-on-surface tracking-tight">Quy tắc xếp lịch</p>
             <p className="text-[11px] text-on-surface-variant leading-tight">
-              Các quy tắc hệ thống tuân thủ khi xếp lịch tự động
+              Scheduler tuân thủ {BUSINESS_RULES.length} quy tắc nghiệp vụ
             </p>
           </div>
         </div>
@@ -93,17 +50,9 @@ export function BusinessRulesCard() {
           {BUSINESS_RULES.map((rule) => (
             <div
               key={rule.id}
-              className="flex items-start gap-3 px-3 py-2 rounded-lg hover:bg-surface-container-low transition-colors"
+              className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-surface-container-low transition-colors"
             >
-              <span
-                className={`mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 border ${
-                  rule.severity === "hard"
-                    ? "bg-error-container text-on-error-container border-on-error-container/20"
-                    : "bg-secondary-container text-on-secondary-container border-on-secondary-container/20"
-                }`}
-              >
-                {rule.label}
-              </span>
+              <span className="material-symbols-outlined text-[14px] shrink-0 text-secondary" aria-hidden="true">check_circle</span>
               <span className="text-[12px] text-on-surface leading-relaxed">{rule.text}</span>
             </div>
           ))}
