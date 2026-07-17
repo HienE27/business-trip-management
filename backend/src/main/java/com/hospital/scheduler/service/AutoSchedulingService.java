@@ -2252,10 +2252,10 @@ public class AutoSchedulingService {
 	        }
 	        
 		        // Bước 2: L01-L03 tính theo tỉ lệ % của L04
-		        // L01 = L02 = L03 = ceil(tổng L04/ngày / 2)
-		        // Mục tiêu: L01-L03 chiếm ~50% tổng capacity của L04
+		        // L01 = L02 = L03 = ceil(tổng L04/ngày / 2) tối thiểu 2
+		        // Mục tiêu: L01-L03 chiếm ~50% tổng capacity của L04, không bao giờ =1
 		        int l04TotalPerDay = fairL04 * (int)activeSpecialtyCount;
-		        int fairNonL04 = Math.max(1, (int) Math.ceil(l04TotalPerDay / 2.0));
+		        int fairNonL04 = Math.max(2, (int) Math.ceil(l04TotalPerDay / 2.0));
 		        // Cập nhật nếu config hiện tại khác biệt
 		        if (autoGenCfg.l01MaxPerDay() != fairNonL04) {
 		            log.warn("[AutoAdjust] L01 max: {} -> {} (L04={}/ngày, 50%)",
