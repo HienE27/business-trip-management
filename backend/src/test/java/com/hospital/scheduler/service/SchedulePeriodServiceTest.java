@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -294,7 +295,15 @@ class SchedulePeriodServiceTest {
 
             assertThat(result.getStatus()).isEqualTo("PUBLISHED");
             // The publish flow now sends notifications via batch path, not per-staff.
-            verify(notificationService).createNotificationBatch(any());
+            // Capture the argument and verify the list actually contains a notification
+            // addressed to adminStaff — this catches production bugs that would
+            // pass an empty list or target the wrong recipient.
+            ArgumentCaptor<List<Notification>> batchCaptor = ArgumentCaptor.forClass(List.class);
+            verify(notificationService).createNotificationBatch(batchCaptor.capture());
+            List<Notification> published = batchCaptor.getValue();
+            assertThat(published).isNotEmpty();
+            assertThat(published).extracting(Notification::getStaff)
+                    .containsExactly(adminStaff);
             verify(emailService).sendSchedulePublishedEmail(
                     eq(List.of(adminStaff)), anyString(), any(), any(), anyList(), anyList());
         }
