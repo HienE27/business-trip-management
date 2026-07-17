@@ -818,7 +818,7 @@ public class AutoSchedulingService {
 
         // Phase 3: Local Search fairness rebalance.
         if (!createdSchedules.isEmpty()) {
-            int rebalanceRounds = save ? 300 : 200;
+            int rebalanceRounds = save ? 500 : 300;
             int optimizedMoves = optimizeFairnessBySafeReassignment(createdSchedules, activeStaff, requirements, rebalanceRounds);
             if (optimizedMoves > 0) {
                 log.info("Local Search fairness optimization applied {} safe reassignment moves (rounds={})", optimizedMoves, rebalanceRounds);
@@ -2373,8 +2373,8 @@ public class AutoSchedulingService {
 		        return swaps;
 		    }
 		    
-		    /**
-		     * Gap-fill: bổ sung ca còn thiếu cho tất cả algorithms.
+	    /**
+	     * Gap-fill: bổ sung ca còn thiếu cho tất cả algorithms.
 		     * Quét từng requirement, tìm NS rảnh không conflict, ưu tiên NS ít ca.
 		     */
 		    private int applyGapFill(List<Schedule> schedules, List<ShiftRequirement> requirements,
