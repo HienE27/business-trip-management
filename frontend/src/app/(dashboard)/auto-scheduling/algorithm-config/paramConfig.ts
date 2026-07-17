@@ -35,14 +35,14 @@ export const PARAM_GROUPS: readonly ParamGroup[] = [
   // ── BUSINESS: Manager được phép chỉnh ────────────────────────────────
   {
     id: "shifts",
-    label: "Giới hạn ca / nhân sự",
+    label: "Giới hạn phân công",
     icon: "groups",
     color: "text-blue-600",
     bg: "bg-blue-50",
     progressColor: "bg-blue-500",
     accent: "border-l-4 border-l-blue-500",
     category: "business",
-    groupDesc: "Giới hạn tối đa mỗi nhân sự trong kỳ xếp lịch",
+    groupDesc: "Giới hạn nhân sự mỗi ca và số ca mỗi nhân sự trong kỳ",
     params: ["max_staff_per_shift", "max_shifts_per_staff"],
     descriptions: {
       max_staff_per_shift: {
@@ -255,7 +255,13 @@ export function formatParamDisplay(param: string, numVal: number): string {
   if (PERCENT_PARAMS.has(param)) return `${Math.round(numVal * 100)}%`;
   if (param === "weekend_weight") return `${numVal.toFixed(1)}×`;
   if (param === "overnight_recovery_hours") return `${numVal}h`;
-  if (numVal === 0) return "Tắt";
+  if (numVal === 0) {
+    // Params that mean "no limit" when 0
+    if (param === "max_staff_per_shift" || param === "max_shifts_per_staff") {
+      return "Không giới hạn";
+    }
+    return "Tắt";
+  }
   return numVal.toLocaleString();
 }
 

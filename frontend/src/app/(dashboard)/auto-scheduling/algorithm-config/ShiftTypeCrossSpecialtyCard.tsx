@@ -289,8 +289,8 @@ export function ShiftTypeCrossSpecialtyCard({
             {/* Cross-specialty ratio */}
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/50">
               <div>
-                <p className="text-label-sm text-on-surface font-medium">Tỷ lệ tối đa ngoài chuyên khoa</p>
-                <p className="text-[11px] text-on-surface-variant mt-0.5">Tối đa % nhân sự ngoài danh sách cho mỗi ca</p>
+                <p className="text-label-sm text-on-surface font-medium">Tỷ lệ tối đa được phép</p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">Tối đa % requirement có thể dùng bác sĩ ngoài chuyên khoa</p>
               </div>
               <span className={`font-mono text-lg font-bold ${config.color} tabular-nums`}>
                 {Math.round(ratio * 100)}%

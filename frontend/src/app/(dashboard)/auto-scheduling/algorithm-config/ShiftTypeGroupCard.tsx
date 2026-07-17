@@ -118,7 +118,10 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
       <div className="flex flex-col divide-y divide-outline-variant/40 flex-1">
         {group.params.map((param) => {
           const numVal = typeof form[param] === "number" ? (form[param] as number) : 0;
-          const display = numVal === 0 ? "Tắt" : numVal.toString();
+          const isMaxParam = param.includes("Max");
+          const display = numVal === 0
+            ? (isMaxParam ? "Không giới hạn" : "Tắt")
+            : numVal.toString();
           const label = getShiftRowLabel(param);
           const tooltip = getShiftRowTooltip(param);
           const unit = getShiftRowUnit(param);
@@ -134,7 +137,13 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col min-w-0 leading-tight">
-                  <span className="font-mono text-[10px] font-semibold text-primary bg-primary-fixed/50 px-1 py-0.5 rounded w-fit">
+                  <span className={`font-mono text-[10px] font-semibold px-1 py-0.5 rounded w-fit ${
+                    param.includes("MinPerDay")
+                      ? "bg-secondary-container/70 text-on-secondary-container"
+                      : param.includes("MaxPerDay")
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-error-container/70 text-on-error-container"
+                  }`}>
                     {label}
                   </span>
                   {unit && (
