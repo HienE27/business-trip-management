@@ -104,7 +104,7 @@ public class ScheduleDeleteService {
                 log.warn("No rows deleted for scheduleId={} - schedule may not exist", id);
             }
 
-            // Re-solve the DRAFT period via CspIncrementalResolver with the deleted assignment
+            // Re-solve the DRAFT period (simple fallback since CSP removed)
             // as a single REMOVE delta. Throws BadRequestException if the period becomes
             // infeasible, which rolls back the @Transactional.
             reschedulePeriodIncrementalAfterDelete(period.getId(), schedule);

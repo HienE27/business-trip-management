@@ -69,6 +69,7 @@ public class AlgorithmConfigService {
     public static final String MAX_STAFF_PER_SHIFT = "max_staff_per_shift";
     public static final String MIN_SHIFTS_PER_STAFF = "min_shifts_per_staff";
     public static final String MAX_SHIFTS_PER_STAFF = "max_shifts_per_staff";
+    public static final String MAX_SHIFTS_PER_DAY = "max_shifts_per_day";
 
     public List<AlgorithmConfigDTO> getAllConfigs() {
         // OPTIMIZATION: use JOIN FETCH to avoid N+1 on updatedBy lazy loading
@@ -414,12 +415,33 @@ public class AlgorithmConfigService {
         upsert(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "35"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca tối đa mỗi nhân sự trong kỳ lịch. Spec M07-F01 yêu cầu phân bổ đều không giới hạn cố định, nhưng đặt trần hợp lý để bảo vệ nhân sự khỏi bị quá tải. Default 35 (≈1 ca/ngày + buffer cho L04 đa chuyên khoa).");
         map.put(MAX_SHIFTS_PER_STAFF, "OK");
+	        upsert(MAX_SHIFTS_PER_DAY, getStringValue(MAX_SHIFTS_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
+	                "Số ca tối đa mỗi nhân sự trong 1 ngày. 0 = không giới hạn, thuật toán tự quyết định dựa trên ràng buộc conflict (L01+L02, L03+L04).");
+        map.put(MAX_SHIFTS_PER_DAY, "OK");
         return map;
     }
 
     private void upsert(String paramKey, String value, AlgorithmConfig.ValueType valueType, String description) {
         // Native upsert — avoids SELECT-then-INSERT race that caused 409 on concurrent PUTs.
         configRepository.upsertConfig(paramKey, value, valueType.name(), description);
+    }
+
+    /**
+     * Public helper for auto-scheduling to override auto-gen config fields
+     * when the DB contains unrealistic values.
+     */
+    public void updateAutoGenField(String paramKey, String value) {
+        upsert(paramKey, value, AlgorithmConfig.ValueType.NUMBER,
+                "Auto-adjusted by scheduler based on staff count");
+    }
+
+    /**
+     * Read a raw config value from DB, returning the given default if not found.
+     */
+    public String getConfigValue(String paramKey, String defaultValue) {
+        return configRepository.findById(paramKey)
+                .map(AlgorithmConfig::getParamValue)
+                .orElse(defaultValue);
     }
 
     private int getIntValue(String paramKey, int defaultValue) {
@@ -509,7 +531,8 @@ public class AlgorithmConfigService {
                 .minStaffPerShift(getIntValue(MIN_STAFF_PER_SHIFT, 1, cache))
                 .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0, cache))
                 .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0, cache))
-                .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 0, cache))
+	                .maxShiftsPerDay(getIntValue(MAX_SHIFTS_PER_DAY, 0, cache))
+                .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 12, cache))
                 // Per-type weekly max from AutoGenConfig
                 .l01MaxPerWeek(autoGenConfig.map(AutoGenConfig::l01MaxPerWeek).orElse(0))
                 .l02MaxPerWeek(autoGenConfig.map(AutoGenConfig::l02MaxPerWeek).orElse(0))
@@ -541,6 +564,8 @@ public class AlgorithmConfigService {
                 "Số ca trực tối thiểu mỗi nhân sự trong kỳ. Đặt 0 để bỏ qua. Giúp đảm bảo mỗi người đều có ít nhất N ca trong kỳ.");
         upsert(MAX_SHIFTS_PER_STAFF, String.valueOf(config.getMaxShiftsPerStaff()), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca trực tối đa mỗi nhân sự trong kỳ. Đặt 0 để dùng maxShiftsPerMonth của nhân sự. Giới hạn này ngược lại với min — ngăn không ai bị quá tải.");
+	        upsert(MAX_SHIFTS_PER_DAY, String.valueOf(config.getMaxShiftsPerDay()), AlgorithmConfig.ValueType.NUMBER,
+	                "Số ca tối đa mỗi nhân sự trong 1 ngày. 0 = không giới hạn, thuật toán tự quyết định.");
     }
 
     private boolean getBooleanValue(String paramKey, boolean defaultValue) {
@@ -719,12 +744,13 @@ public class AlgorithmConfigService {
         private int maxStaffPerShift;
         private int minShiftsPerStaff;
         private int maxShiftsPerStaff;
-	        // Per-shift-type weekly max (from AutoGenConfig)
-	        private int l01MaxPerWeek;
-	        private int l02MaxPerWeek;
-	        private int l03MaxPerWeek;
-	        private int l04MaxPerWeek;
-	        // Beam Search width (default 5)
-	        private int beamWidth = 5;
-	    }
+        private int maxShiftsPerDay;
+        // Per-shift-type weekly max (from AutoGenConfig)
+        private int l01MaxPerWeek;
+        private int l02MaxPerWeek;
+        private int l03MaxPerWeek;
+        private int l04MaxPerWeek;
+        // Beam Search width (default 5)
+        private int beamWidth = 5;
+    }
 }

@@ -17,13 +17,19 @@ const CompareModal = dynamic(
 );
 
 const ALGO_LABELS: Record<string, string> = {
+  BEAM_SEARCH: "Beam Search",
+  ENHANCED_GREEDY: "Enhanced Greedy",
+  RANDOM_RESTART_HC: "Random Restart",
   GREEDY: "Tham lam",
   FAIR_GREEDY: "Luân phiên",
   CSP_MRV_FC: "CSP-MRV-FC",
 };
 
 const ALGO_COLORS: Record<string, string> = {
-  GREEDY: "bg-primary-fixed text-primary border-primary/30",
+  BEAM_SEARCH: "bg-primary-fixed text-primary border-primary/30",
+  ENHANCED_GREEDY: "bg-secondary-container text-on-secondary-container border-secondary/30",
+  RANDOM_RESTART_HC: "bg-amber-100 text-amber-800 border-amber-300",
+  GREEDY: "bg-surface-container text-on-surface-variant border-outline",
   FAIR_GREEDY: "bg-secondary-container text-on-secondary-container border-secondary/30",
   CSP_MRV_FC: "bg-amber-100 text-amber-800 border-amber-300",
 };

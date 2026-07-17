@@ -156,8 +156,10 @@ public class RequirementAutoGenService {
                             ? generalPoolSize
                             : countActiveStaffBySpecialty(activeStaff, specialty.getId());
                     int target = resolveSoftDailyTarget(config.l04MinPerDay(), config.l04MaxPerDay(), specialtyPoolSize);
-                    generated.add(buildAutoRequirement(period, l04, date, specialty, target,
-                            "AUTO_SOFT_TARGET:L04:" + date + ":" + specialty.getName()));
+                    if (target > 0) {
+                        generated.add(buildAutoRequirement(period, l04, date, specialty, target,
+                                "AUTO_SOFT_TARGET:L04:" + date + ":" + specialty.getName()));
+                    }
                 }
             }
 

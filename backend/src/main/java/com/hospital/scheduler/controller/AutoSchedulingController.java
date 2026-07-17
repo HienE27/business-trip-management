@@ -93,7 +93,7 @@ public class AutoSchedulingController {
     }
 
     @PostMapping
-    @Operation(summary = "M07-F01-F05: Chạy thuật toán xếp lịch tự động (GREEDY / FAIR_GREEDY / CSP_MRV_FC). BACKTRACKING và GENETIC không còn được hỗ trợ — trả 400 nếu truyền vào.")
+    @Operation(summary = "M07-F01-F05: Chạy thuật toán xếp lịch tự động (BEAM_SEARCH / ENHANCED_GREEDY / RANDOM_RESTART_HC).")
     @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_RUN + "')")
     public ResponseEntity<ApiResponse<AutoScheduleResponse>> autoSchedule(
             @Valid @RequestBody AutoScheduleRequestDTO request) {
@@ -112,7 +112,7 @@ public class AutoSchedulingController {
      * get a fast 400 with a clear message rather than a heavy run that silently substitutes
      * Greedy (the previous behavior — see audit Bug #7). */
     private void validateAlgorithmType(com.hospital.scheduler.dto.request.AutoScheduleRequestDTO request) {
-        String requested = request.getAlgorithmType() == null ? "CSP_MRV_FC"
+        String requested = request.getAlgorithmType() == null ? "BEAM_SEARCH"
                 : request.getAlgorithmType().toUpperCase();
         if (!SUPPORTED_ALGORITHMS.contains(requested)) {
             throw new com.hospital.scheduler.exception.BadRequestException(

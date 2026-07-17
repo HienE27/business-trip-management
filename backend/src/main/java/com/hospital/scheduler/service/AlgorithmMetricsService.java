@@ -150,21 +150,21 @@ public class AlgorithmMetricsService {
     /**
      * Get the best performing algorithm based on coverage and balance.
      */
-    public String getBestAlgorithm() {
-        Map<String, Double> scores = new LinkedHashMap<>();
-        scores.put("GREEDY", calculatePerformanceScore("GREEDY"));
-        // FAIR_GREEDY is the renamed Round-Robin alias (lazy greedy with fair-share rotation).
-        // Both keys are scored so historical metrics under the old name keep showing up.
-        scores.put("FAIR_GREEDY", calculatePerformanceScore("FAIR_GREEDY"));
-        scores.put("ROUND_ROBIN", calculatePerformanceScore("ROUND_ROBIN"));
-        scores.put("CSP_MRV_FC", calculatePerformanceScore("CSP_MRV_FC"));
-        scores.put("CSP_MRV_FC", calculatePerformanceScore("CSP_MRV_FC"));
+	    public String getBestAlgorithm() {
+	        Map<String, Double> scores = new LinkedHashMap<>();
+	        scores.put("BEAM_SEARCH", calculatePerformanceScore("BEAM_SEARCH"));
+	        scores.put("ENHANCED_GREEDY", calculatePerformanceScore("ENHANCED_GREEDY"));
+	        scores.put("RANDOM_RESTART_HC", calculatePerformanceScore("RANDOM_RESTART_HC"));
+	        // Legacy algorithms — still scored so historical metrics remain visible
+	        scores.put("GREEDY", calculatePerformanceScore("GREEDY"));
+	        scores.put("FAIR_GREEDY", calculatePerformanceScore("FAIR_GREEDY"));
+	        scores.put("CSP_MRV_FC", calculatePerformanceScore("CSP_MRV_FC"));
 
-        return scores.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse("GREEDY");
-    }
+	        return scores.entrySet().stream()
+	                .max(Map.Entry.comparingByValue())
+	                .map(Map.Entry::getKey)
+	                .orElse("BEAM_SEARCH");
+	    }
 
     private AlgorithmMetricsDTO toDTO(AlgorithmMetrics metric) {
         return AlgorithmMetricsDTO.builder()

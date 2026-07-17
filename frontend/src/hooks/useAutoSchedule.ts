@@ -68,7 +68,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [applying, setApplying] = useState(false);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [algorithmType, setAlgorithmType] = useState<"BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC">("GREEDY");
+  const [algorithmType, setAlgorithmType] = useState<"BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC">("BEAM_SEARCH");
   const [holidayMode, setHolidayMode] = useState<"SKIP" | "PARTIAL" | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 

@@ -335,11 +335,12 @@ public class ScheduleQualityScorer {
         // Count assigned per requirement key
         Map<String, Integer> assignedByReq = new HashMap<>();
         for (Schedule s : schedules) {
-            Integer reqId = s.getRequirement() != null ? s.getRequirement().getId() : null;
-            if (reqId == null) continue;  // skip orphan assignments
-            ShiftRequirement r = s.getRequirement();
-            String key = reqKey(r.getWorkDate(), r.getShiftType().getId(),
-                                r.getSpecialty() != null ? r.getSpecialty().getId() : null);
+            // Use composite key from schedule (workDate + shiftTypeId + specialty)
+            // instead of requirement ID which may be null for transient requirements
+            if (s.getStaff() == null || s.getShiftType() == null) continue;
+            String key = reqKey(s.getWorkDate(), s.getShiftType().getId(),
+                                s.getRequirement() != null && s.getRequirement().getSpecialty() != null
+                                    ? s.getRequirement().getSpecialty().getId() : null);
             assignedByReq.merge(key, 1, Integer::sum);
         }
 
@@ -470,14 +471,19 @@ public class ScheduleQualityScorer {
         }
 
         // Group schedules by (shiftType, [specialty])
+        // L01/L02/L03: always global (no specialty splitting)
+        // L04: per-specialty (specialty-bound)
         Map<String, Map<Integer, Integer>> countsByTypeAndStaff = new HashMap<>();
         for (Schedule s : schedules) {
             String typeId = s.getShiftType().getId();
-            String specialtyKey = "";
-            if (s.getRequirement() != null && s.getRequirement().getSpecialty() != null) {
-                specialtyKey = ":" + s.getRequirement().getSpecialty().getId();
+            String typeKey;
+            if ("L04".equals(typeId)
+                    && s.getRequirement() != null && s.getRequirement().getSpecialty() != null) {
+                typeKey = typeId + ":" + s.getRequirement().getSpecialty().getId();
+            } else {
+                // L01/L02/L03: always global key (no specialty suffix)
+                typeKey = typeId;
             }
-            String typeKey = typeId + specialtyKey;
 
             int staffId = s.getStaff().getId();
             countsByTypeAndStaff
@@ -525,15 +531,15 @@ public class ScheduleQualityScorer {
             double stdDev = Math.sqrt(variance);
             double cv = mean > 0 ? stdDev / mean : 0.0;
 
-            // CV → fairness pct: piecewise linear
-            // CV ≤ targetCv → 100; CV ≥ worstCv → 0; otherwise linear
+            // Fairness: use max-min deviation instead of CV for more intuitive scoring
+            // CV penalizes low means which is misleading for fair distributions
+            double maxMinDev = maxCount - minCount;
             double fairnessPct;
-            if (cv <= targetCv) {
+            if (maxCount == 0 || poolSize == 0) {
                 fairnessPct = 100.0;
-            } else if (cv >= worstCv) {
-                fairnessPct = 0.0;
             } else {
-                double ratio = (cv - targetCv) / (worstCv - targetCv);
+                // Score = 100% when deviation ≤ 1, 0% when deviation ≥ 10
+                double ratio = Math.min(1.0, maxMinDev / 10.0);
                 fairnessPct = 100.0 * (1.0 - ratio);
             }
 

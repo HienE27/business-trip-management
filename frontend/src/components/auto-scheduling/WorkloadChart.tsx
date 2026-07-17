@@ -481,6 +481,13 @@ function KpiSummary({ data }: { data: WorkloadChartData }) {
 /* ── Build chart data ── */
 function buildFromPreview(schedules: AutoScheduleSummary[]): WorkloadChartData {
   const aggregates = aggregateByStaff(schedules);
+  // Build specialty lookup from schedules (staffId → specialty)
+  const specialtyMap = new Map<number, string | null>();
+  for (const s of schedules) {
+    if (!specialtyMap.has(s.staffId)) {
+      specialtyMap.set(s.staffId, s.staffSpecialtyName ?? null);
+    }
+  }
   const totalShifts = aggregates.reduce((sum, s) => sum + s.total, 0);
   const totalStaff = aggregates.length;
   const avg = totalStaff > 0 ? totalShifts / totalStaff : 0;
@@ -496,7 +503,7 @@ function buildFromPreview(schedules: AutoScheduleSummary[]): WorkloadChartData {
     staffWorkloadData: aggregates.map((s) => ({
       staffId: s.staffId,
       staffName: s.staffName,
-      specialty: null,
+      specialty: specialtyMap.get(s.staffId) ?? null,
       totalShifts: s.total,
       L01: s.L01,
       L02: s.L02,
