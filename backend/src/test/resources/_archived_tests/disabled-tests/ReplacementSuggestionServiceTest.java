@@ -10,6 +10,7 @@ import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.hospital.scheduler.service.ConflictDetectionService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +47,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("ReplacementSuggestionService - Shared replacement-suggestion path")
+@Disabled("Archived: the folder name 'disabled-tests' does not match a valid Java package, " +
+        "so Surefire cannot load the class without the rename below. Re-enable when " +
+        "the M07-F08 replacement-suggestion path is wired back into the runtime scheduler.")
 class ReplacementSuggestionServiceTest {
 
     @Mock private ScheduleRepository scheduleRepository;

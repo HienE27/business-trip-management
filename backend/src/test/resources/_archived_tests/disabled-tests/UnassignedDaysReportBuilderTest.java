@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service.scheduling;
 
 import com.hospital.scheduler.entity.*;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -14,6 +15,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Verifies that partially-covered requirements surface in the report and
  * that the wrapped report carries period metadata.
  */
+@Disabled("Archived: folder name 'disabled-tests' does not match a valid Java package, " +
+        "so Surefire cannot load the class. Re-enable when UnassignedDaysReportBuilder is " +
+        "wired back into the dashboard.")
 class UnassignedDaysReportBuilderTest {
 
     private final UnassignedDaysReportBuilder builder = new UnassignedDaysReportBuilder();
