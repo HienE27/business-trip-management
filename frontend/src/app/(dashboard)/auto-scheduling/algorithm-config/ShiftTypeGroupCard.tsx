@@ -139,7 +139,13 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col min-w-0 leading-tight">
-                  <span className="flex items-center gap-1 font-mono text-[10px] font-semibold px-1 py-0.5 rounded w-fit">
+                  <span className={`flex items-center gap-1 font-mono text-[10px] font-semibold px-1 py-0.5 rounded w-fit ${
+                    param.endsWith("MinPerDay")
+                      ? "bg-secondary-container/70 text-on-secondary-container"
+                      : param.endsWith("MaxPerDay")
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-error-container/70 text-on-error-container"
+                  }`}>
                     <span className="material-symbols-outlined text-[10px] shrink-0" aria-hidden="true">{iconName}</span>
                     {label}
                   </span>

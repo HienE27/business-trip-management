@@ -251,7 +251,7 @@ export function L04SpecialtyConfig({
               <div>
                 <p className="text-label-sm text-on-surface font-medium flex items-center gap-2">
                   Chiến lược cân bằng
-                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Chưa dùng</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Chưa áp dụng trong Scheduler v1.0</span>
                 </p>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">Cách phân bổ staff ngoài chuyên khoa — chưa dùng trong v1.0</p>
               </div>

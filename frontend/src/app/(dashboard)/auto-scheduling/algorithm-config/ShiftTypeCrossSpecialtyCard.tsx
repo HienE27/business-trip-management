@@ -312,7 +312,7 @@ export function ShiftTypeCrossSpecialtyCard({
               <div>
                 <p className="text-label-sm text-on-surface font-medium">
                   Balance strategy
-                  <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Chưa dùng</span>
+                  <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Chưa áp dụng trong Scheduler v1.0</span>
                 </p>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
                   Phân bổ staff ngoài chuyên khoa thế nào — chưa dùng trong scheduler v1.0

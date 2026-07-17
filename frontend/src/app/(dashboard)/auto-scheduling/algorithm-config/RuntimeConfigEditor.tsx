@@ -440,8 +440,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             setForm(prev => prev ? { ...prev, l04CrossSpecialty: enabled, l04CrossSpecialtyRatio: ratio, l04AllowedSpecialties: allowedSpecialties, l04BalanceStrategy: balanceStrategy } : prev);
           }}
         />
-        {/* Business Rules — tổng quan ràng buộc nghiệp vụ */}
-        <BusinessRulesCard />
       </div>
 
       <div>
@@ -472,6 +470,11 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             />
           ))}
         </div>
+      </div>
+
+      {/* Business Rules — đặt cuối trang */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <BusinessRulesCard />
       </div>
 
       <ConfigDiffModal
@@ -825,9 +828,9 @@ function AutoCompensationCard() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <p className="text-label-md font-semibold text-on-surface tracking-tight">Nghỉ bù tự động</p>
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Chưa dùng</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Chưa áp dụng trong Scheduler v1.0</span>
           </div>
-          <p className="text-[11px] text-on-surface-variant leading-tight mt-0.5">Chưa dùng trong v1.0 — luôn tạo nghỉ bù</p>
+          <p className="text-[11px] text-on-surface-variant leading-tight mt-0.5">Luôn bật trong Scheduler v1.0</p>
         </div>
       </div>
       <div className="p-5 flex items-center justify-between gap-4">
@@ -835,9 +838,9 @@ function AutoCompensationCard() {
           <p className="text-label-sm text-on-surface font-medium">Tạo ngày nghỉ bù</p>
           <p className="text-[11px] text-on-surface-variant mt-0.5">Scheduler v1.0 luôn tạo nghỉ bù sau ca L01</p>
         </div>
-        <span className="flex items-center gap-2 px-3 py-1.5 rounded-full text-label-sm font-semibold bg-surface-container text-outline">
-          <span className="h-2 w-2 rounded-full bg-outline" />
-          Tự động
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm font-semibold bg-secondary-container text-on-secondary-container border border-on-secondary-container/20">
+          <span className="h-2 w-2 rounded-full bg-secondary" />
+          Always On
         </span>
       </div>
     </div>
