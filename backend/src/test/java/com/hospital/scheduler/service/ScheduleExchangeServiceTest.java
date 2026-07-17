@@ -99,6 +99,30 @@ class ScheduleExchangeServiceTest {
                 .build();
 
         when(exchangeRepository.findByIdWithLock(1)).thenReturn(Optional.of(testExchange));
+
+        // Bug #5d refactor: executeSwap re-fetches the swapped schedules via this
+        // four-arg finder. Default-stub here so all approve-path tests get a
+        // non-empty Optional back; individual tests can override with `when(...)`
+        // when they need to assert re-fetch behavior.
+        //
+        // Lookup semantics after swap: the requester schedule (originally owned
+        // by staffA) is now owned by staffB (the target) — the production code
+        // looks it up by `(periodId, targetOldStaff.id, shiftType, workDate)`.
+        // We match by `(workDate, shiftTypeId)` against either of the two known
+        // schedules, which is enough for every approve-path test in this file.
+        lenient().when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                anyInt(), anyInt(), anyString(), any(LocalDate.class)))
+                .thenAnswer(inv -> {
+                    int periodId = inv.getArgument(0);
+                    String shiftTypeId = inv.getArgument(2);
+                    LocalDate workDate = inv.getArgument(3);
+                    if (periodId != testPeriod.getId() || !"L01".equals(shiftTypeId)) {
+                        return Optional.empty();
+                    }
+                    if (workDate.equals(scheduleA.getWorkDate())) return Optional.of(scheduleA);
+                    if (workDate.equals(scheduleB.getWorkDate())) return Optional.of(scheduleB);
+                    return Optional.empty();
+                });
     }
 
     // ==================== getAllExchanges ====================

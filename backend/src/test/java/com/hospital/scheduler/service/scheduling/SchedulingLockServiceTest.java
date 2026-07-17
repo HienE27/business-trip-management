@@ -57,6 +57,23 @@ class SchedulingLockServiceTest {
     }
 
     @Test
+    void unlock_releasesLockForSameThread() {
+        Integer periodId = 300;
+        assertTrue(lockService.tryLock(periodId));
+        lockService.unlock(periodId);
+        // After unlock, the lock must be acquirable again from this thread.
+        assertTrue(lockService.tryLock(periodId), "unlock must actually release the lock");
+        lockService.unlock(periodId);
+    }
+
+    @Test
+    void unlock_isNoOpWhenLockNotHeldByCurrentThread() {
+        Integer periodId = 301;
+        // Never acquired on this thread — must not throw or acquire.
+        assertDoesNotThrow(() -> lockService.unlock(periodId));
+    }
+
+    @Test
     void concurrentSamePeriod_serialized() throws InterruptedException {
         Integer periodId = 200;
         int threadCount = 4;

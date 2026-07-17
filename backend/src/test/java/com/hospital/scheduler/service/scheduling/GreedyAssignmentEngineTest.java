@@ -122,7 +122,10 @@ class GreedyAssignmentEngineTest {
     }
 
     @Test
-    void sortRequirementsByPriority_ordersL01ToL04() {
+    void sortRequirementsByPriority_ordersRoundRobinL01L03L04L02() {
+        // BUGFIX: GreedyAssignmentEngine.sortRequirementsByPriority uses round-robin
+        // order L01 → L03 → L04 → L02 to avoid L01-first starvation.
+        // Test name and assertions reflect the actual rotation in production.
         ShiftType l01 = buildShiftType("L01");
         ShiftType l02 = buildShiftType("L02");
         ShiftType l03 = buildShiftType("L03");
@@ -138,9 +141,9 @@ class GreedyAssignmentEngineTest {
         List<ShiftRequirement> sorted = GreedyAssignmentEngine.sortRequirementsByPriority(reqs);
 
         assertEquals("L01", sorted.get(0).getShiftType().getId());
-        assertEquals("L02", sorted.get(1).getShiftType().getId());
-        assertEquals("L03", sorted.get(2).getShiftType().getId());
-        assertEquals("L04", sorted.get(3).getShiftType().getId());
+        assertEquals("L03", sorted.get(1).getShiftType().getId());
+        assertEquals("L04", sorted.get(2).getShiftType().getId());
+        assertEquals("L02", sorted.get(3).getShiftType().getId());
     }
 
     @Test

@@ -281,7 +281,7 @@ class SchedulePeriodServiceTest {
         @Test
         @DisplayName("DRAFT, không conflict -> PUBLISHED + gửi thông báo cho staff")
         void draftWithoutConflicts_shouldPublish() {
-            when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
+            when(periodRepository.findByIdWithLock(1)).thenReturn(Optional.of(draftPeriod));
             when(conflictDetectionService.checkPeriodConflicts(1))
                     .thenReturn(ConflictCheckResponse.builder().hasConflicts(false).conflicts(List.of()).build());
             when(periodRepository.save(any(SchedulePeriod.class)))
@@ -293,9 +293,8 @@ class SchedulePeriodServiceTest {
             SchedulePeriodResponse result = periodService.publishPeriod(1, 1);
 
             assertThat(result.getStatus()).isEqualTo("PUBLISHED");
-            // The publish flow now sends per-staff notifications (with each staff's
-            // personal schedule) and a bulk email, not a generic createNotificationForAllStaff.
-            verify(notificationService).createNotification(eq(adminStaff.getId()), any());
+            // The publish flow now sends notifications via batch path, not per-staff.
+            verify(notificationService).createNotificationBatch(any());
             verify(emailService).sendSchedulePublishedEmail(
                     eq(List.of(adminStaff)), anyString(), any(), any(), anyList(), anyList());
         }
@@ -303,7 +302,7 @@ class SchedulePeriodServiceTest {
         @Test
         @DisplayName("PUBLISHED -> throw BadRequestException")
         void alreadyPublished_shouldThrow() {
-            when(periodRepository.findById(2)).thenReturn(Optional.of(publishedPeriod));
+            when(periodRepository.findByIdWithLock(2)).thenReturn(Optional.of(publishedPeriod));
 
             assertThatThrownBy(() -> periodService.publishPeriod(2, 1))
                     .isInstanceOf(BadRequestException.class)
@@ -313,7 +312,7 @@ class SchedulePeriodServiceTest {
         @Test
         @DisplayName("Có xung đột -> throw BadRequestException")
         void hasConflicts_shouldThrow() {
-            when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
+            when(periodRepository.findByIdWithLock(1)).thenReturn(Optional.of(draftPeriod));
             when(conflictDetectionService.checkPeriodConflicts(1))
                     .thenReturn(ConflictCheckResponse.builder().hasConflicts(true)
                             .conflicts(List.of(ConflictCheckResponse.ConflictDetail.builder()

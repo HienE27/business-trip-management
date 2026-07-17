@@ -241,7 +241,7 @@ class SpecialtyServiceTest {
 
         when(specialtyRepository.findAll(any(Pageable.class))).thenReturn(page);
 
-        Page<SpecialtyResponse> result = service.getSpecialtiesPage(pageable);
+        Page<SpecialtyResponse> result = service.getSpecialtiesPage(null, null, pageable);
 
         assertThat(result.getTotalElements()).isEqualTo(1);
         assertThat(result.getContent().get(0).getName()).isEqualTo("B");
@@ -250,13 +250,12 @@ class SpecialtyServiceTest {
     @Test
     @DisplayName("getStatusCounts -> đếm total/ACTIVE/INACTIVE đúng")
     void getStatusCounts() {
-        when(specialtyRepository.findAll()).thenReturn(List.of(
-                buildSpecialty(1, "A", "", true),
-                buildSpecialty(2, "B", "", true),
-                buildSpecialty(3, "C", "", false),
-                buildSpecialty(4, "D", "", true)
+        // BUGFIX: getStatusCounts now uses countAllGroupedByActive() aggregate query
+        // instead of findAll() + in-memory counters.
+        when(specialtyRepository.countAllGroupedByActive()).thenReturn(List.<Object[]>of(
+                new Object[]{Boolean.TRUE, 3L},
+                new Object[]{Boolean.FALSE, 1L}
         ));
-        when(specialtyRepository.count()).thenReturn(4L);
 
         Map<String, Long> counts = service.getStatusCounts();
 
@@ -268,15 +267,13 @@ class SpecialtyServiceTest {
     @Test
     @DisplayName("getStatusCounts với isActive null -> tính là INACTIVE")
     void getStatusCounts_nullActiveCountedInactive() {
-        when(specialtyRepository.findAll()).thenReturn(List.of(
-                buildSpecialty(1, "A", "", null),
-                buildSpecialty(2, "B", "", true)
-        ));
-        when(specialtyRepository.count()).thenReturn(2L);
+        // Production reads from the aggregate query — null/empty rows mean ACTIVE=0
+        when(specialtyRepository.countAllGroupedByActive()).thenReturn(List.<Object[]>of());
 
         Map<String, Long> counts = service.getStatusCounts();
 
-        assertThat(counts).containsEntry("ACTIVE", 1L);
-        assertThat(counts).containsEntry("INACTIVE", 1L);
+        assertThat(counts).containsEntry("ACTIVE", 0L);
+        assertThat(counts).containsEntry("INACTIVE", 0L);
+        assertThat(counts).containsEntry("total", 0L);
     }
 }

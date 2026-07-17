@@ -3,6 +3,7 @@ package com.hospital.scheduler.service;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.security.AuthContextService;
+import com.hospital.scheduler.security.PermissionVersionService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -21,6 +22,7 @@ class RoleServiceTest {
     @Mock private RolePermissionRepository rolePermissionRepository;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private AuthContextService authContextService;
+    @Mock private PermissionVersionService permissionVersionService;
 
     @InjectMocks private RoleService roleService;
 
@@ -49,7 +51,7 @@ class RoleServiceTest {
         void returnsAllRolesAndPermissions() {
             when(roleRepository.findAll()).thenReturn(List.of(adminRole, managerRole));
             when(permissionRepository.findAll()).thenReturn(List.of(permScheduleRead, permScheduleWrite));
-            when(rolePermissionRepository.findAll()).thenReturn(List.of());
+            when(rolePermissionRepository.findAllRolePermissionNames()).thenReturn(List.of());
 
             var matrix = roleService.getPermissionMatrix();
 
@@ -63,9 +65,10 @@ class RoleServiceTest {
             when(permissionRepository.findAll()).thenReturn(List.of(permScheduleRead, permScheduleWrite));
 
             // ADMIN has SCHEDULE_READ, MANAGER has neither
-            RolePermission granted = RolePermission.builder()
-                    .roleId(1).permissionId(1).build();
-            when(rolePermissionRepository.findAll()).thenReturn(List.of(granted));
+            // Production reads via findAllRolePermissionNames() returning Object[]{roleId, permissionName}
+            when(rolePermissionRepository.findAllRolePermissionNames()).thenReturn(List.<Object[]>of(
+                    new Object[]{1, "SCHEDULE_READ"}
+            ));
 
             var matrix = roleService.getPermissionMatrix();
 
@@ -92,7 +95,7 @@ class RoleServiceTest {
         void buildsFullCartesianProduct() {
             when(roleRepository.findAll()).thenReturn(List.of(adminRole, managerRole));
             when(permissionRepository.findAll()).thenReturn(List.of(permScheduleRead, permScheduleWrite));
-            when(rolePermissionRepository.findAll()).thenReturn(List.of());
+            when(rolePermissionRepository.findAllRolePermissionNames()).thenReturn(List.of());
 
             var matrix = roleService.getPermissionMatrix();
 

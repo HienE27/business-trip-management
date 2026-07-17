@@ -78,18 +78,16 @@ class DashboardServiceTest {
     @DisplayName("getDashboardSummary -> trả về DashboardSummary với counts")
     void summary() {
         when(staffRepository.countByIsActiveTrue()).thenReturn(10L);
-        when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(staff));
         when(scheduleRepository.count()).thenReturn(20L);
         when(periodRepository.count()).thenReturn(1L);
-        when(leaveRequestRepository.findPendingRequests()).thenReturn(List.of());
-        when(exchangeRepository.findByStatus(any())).thenReturn(List.of());
+        when(leaveRequestRepository.countByStatus(any())).thenReturn(0L);
+        when(exchangeRepository.countByStatus(any())).thenReturn(0L);
         when(scheduleRepository.findByPeriodId(1)).thenReturn(List.of(schedule));
-        when(leaveRequestRepository.findAll()).thenReturn(List.of());
 
         var result = dashboardService.getDashboardSummary(1);
 
         assertThat(result.getSummary().getTotalStaff()).isEqualTo(10);
-        assertThat(result.getSummary().getActiveStaff()).isEqualTo(1);
+        assertThat(result.getSummary().getActiveStaff()).isEqualTo(10);
         assertThat(result.getSummary().getTotalSchedules()).isEqualTo(1);
         assertThat(result.getShiftStatistics().getL01Count()).isEqualTo(1);
     }
@@ -97,9 +95,19 @@ class DashboardServiceTest {
     @Test
     @DisplayName("getShiftStatistics không filter period")
     void shiftStats() {
-        when(scheduleRepository.findAll()).thenReturn(List.of(schedule));
-
+        // BUGFIX: getShiftStatistics(null) returns zeros without querying (avoids findAll).
         var result = dashboardService.getShiftStatistics(null);
+
+        assertThat(result.getL01Count()).isZero();
+        assertThat(result.getL02Count()).isZero();
+    }
+
+    @Test
+    @DisplayName("getShiftStatistics with periodId -> uses findByPeriodId")
+    void shiftStatsWithPeriod() {
+        when(scheduleRepository.findByPeriodId(1)).thenReturn(List.of(schedule));
+
+        var result = dashboardService.getShiftStatistics(1);
 
         assertThat(result.getL01Count()).isEqualTo(1);
         assertThat(result.getL02Count()).isZero();
@@ -151,7 +159,9 @@ class DashboardServiceTest {
     @Test
     @DisplayName("aggregateByDateRange -> tổng hợp theo range có filter")
     void aggregateByRange() {
-        when(scheduleRepository.findAll()).thenReturn(List.of(schedule));
+        // BUGFIX: aggregateByDateRange uses findByDateRangeAndOptionalStaff, not findAll.
+        when(scheduleRepository.findByDateRangeAndOptionalStaff(any(), any(), any()))
+                .thenReturn(List.of(schedule));
         when(staffRepository.findById(1)).thenReturn(java.util.Optional.of(staff));
 
         var result = dashboardService.aggregateByDateRange(

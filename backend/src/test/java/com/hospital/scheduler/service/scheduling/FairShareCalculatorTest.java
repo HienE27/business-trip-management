@@ -120,14 +120,12 @@ class FairShareCalculatorTest {
         @BeforeEach
         void disableCrossSpecialty() {
             when(algoConfig.getAutoGenConfig()).thenReturn(Optional.of(
-                    AutoGenConfig.withDefaults(
-                            true, 1,1,1,1, 1,1,1,1, 0,0,0,0, 99,99,99,99,
-                            "SKIP", List.of(),
-                            /*l01CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
-                            /*l02CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
-                            /*l03CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
-                            /*l04CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE"
-                    )
+                    AutoGenConfig.builder()
+                            .l04CrossSpecialty(false)
+                            .l04CrossSpecialtyRatio(0.3f)
+                            .l04AllowedSpecialties(List.of())
+                            .l04BalanceStrategy("FAIR_DISTRIBUTE")
+                            .build()
             ));
             when(eligibilityFilter.getL04CrossSpecialtyConfig())
                     .thenReturn(StaffEligibilityFilter.CrossSpecialtyConfig.disabled());
@@ -172,14 +170,12 @@ class FairShareCalculatorTest {
         @BeforeEach
         void enableCrossSpecialty() {
             when(algoConfig.getAutoGenConfig()).thenReturn(Optional.of(
-                    AutoGenConfig.withDefaults(
-                            true, 1,1,1,1, 1,1,1,1, 0,0,0,0, 99,99,99,99,
-                            "SKIP", List.of(),
-                            /*l01CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
-                            /*l02CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
-                            /*l03CrossSpecialty*/ false, 0.3f, List.of(), "FAIR_DISTRIBUTE",
-                            /*l04CrossSpecialty*/ true, 0.3f, List.of("Nội", "Ngoại"), "FAIR_DISTRIBUTE"
-                    )
+                    AutoGenConfig.builder()
+                            .l04CrossSpecialty(true)
+                            .l04CrossSpecialtyRatio(0.3f)
+                            .l04AllowedSpecialties(List.of("Nội", "Ngoại"))
+                            .l04BalanceStrategy("FAIR_DISTRIBUTE")
+                            .build()
             ));
             when(eligibilityFilter.getL04CrossSpecialtyConfig())
                     .thenReturn(new StaffEligibilityFilter.CrossSpecialtyConfig(true, 0.3f,

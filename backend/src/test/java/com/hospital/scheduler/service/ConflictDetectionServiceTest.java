@@ -669,12 +669,10 @@ class ConflictDetectionServiceTest {
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findInRange(any(), any()))
                     .thenReturn(Collections.emptyList());
-            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 1)))
+            // BUGFIX: checkPeriodConflicts now uses a single date-range query
+            // (findByDateRangeWithDetails) instead of per-day findByWorkDateWithDetails.
+            when(scheduleRepository.findByDateRangeWithDetails(any(LocalDate.class), any(LocalDate.class)))
                     .thenReturn(List.of(scheduleL01, scheduleL02));
-            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 6, 30)))
-                    .thenReturn(Collections.emptyList());
-            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 2)))
-                    .thenReturn(Collections.emptyList());
             when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(any()))
                     .thenReturn(Collections.emptyList());
             when(scheduleConflictRepository.save(any(ScheduleConflict.class)))
@@ -719,12 +717,8 @@ class ConflictDetectionServiceTest {
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findInRange(any(), any()))
                     .thenReturn(Collections.emptyList());
-            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 6)))
+            when(scheduleRepository.findByDateRangeWithDetails(any(LocalDate.class), any(LocalDate.class)))
                     .thenReturn(List.of(scheduleL01Mon, sameDayL02));
-            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 5)))
-                    .thenReturn(Collections.emptyList());
-            when(scheduleRepository.findByWorkDateWithDetails(LocalDate.of(2026, 7, 7)))
-                    .thenReturn(Collections.emptyList());
             when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(any()))
                     .thenReturn(Collections.emptyList());
             when(scheduleConflictRepository.save(any(ScheduleConflict.class)))
@@ -776,12 +770,10 @@ class ConflictDetectionServiceTest {
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findInRange(any(), any()))
                     .thenReturn(Collections.emptyList());
-            when(scheduleRepository.findByWorkDateWithDetails(monday))
+            // BUGFIX: checkPeriodConflicts uses findByDateRangeWithDetails (date range)
+            // instead of per-day findByWorkDateWithDetails.
+            when(scheduleRepository.findByDateRangeWithDetails(any(LocalDate.class), any(LocalDate.class)))
                     .thenReturn(List.of(scheduleL01, sameDayL02));
-            when(scheduleRepository.findByWorkDateWithDetails(monday.minusDays(1)))
-                    .thenReturn(Collections.emptyList());
-            when(scheduleRepository.findByWorkDateWithDetails(monday.plusDays(1)))
-                    .thenReturn(Collections.emptyList());
             when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(scheduleL01.getId()))
                     .thenReturn(Collections.emptyList()); // no prior conflict -> new
             when(scheduleConflictRepository.save(any(ScheduleConflict.class)))
