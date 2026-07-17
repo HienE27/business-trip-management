@@ -2228,18 +2228,18 @@ public class AutoSchedulingService {
 	                + autoGenCfg.l03MaxPerDay() + autoGenCfg.l04MaxPerDay() * 6;
 	        int estimatedTotal = estimatedDaily * periodDays;
 
-	        // Fair max = t?ng yêu c?u / s? NS (không buffer, t?i ?u cân b?ng nh?t)
-	        int fairMax = (int) Math.ceil((double) estimatedTotal / staffCount);
+	        // Fair max = t?ng yêu c?u / s? NS +50% buffer ?? có capacity d?phòng
+	        int fairMax = (int) Math.ceil((double) estimatedTotal / staffCount * 1.5);
 	        if (runtimeConfig.getMaxShiftsPerStaff() <= 0 || runtimeConfig.getMaxShiftsPerStaff() != fairMax) {
 	            log.warn("[AutoAdjust] maxShiftsPerStaff: {} -> {} (est.{} ca, {} NS)",
 	                    runtimeConfig.getMaxShiftsPerStaff(), fairMax, estimatedTotal, staffCount);
 	            runtimeConfig.setMaxShiftsPerStaff(fairMax);
 	        }
 
-	        // L01-L03: ch? Ngo?i+N?i (≈60% staff)
+	        // L01-L03: ch? Ngo?i+N?i (dùng isEligible ?? tránh l?i encoding)
 	        long ngoaiNoi = activeStaff.stream()
-	                .filter(s -> s.getSpecialty() != null &&
-	                    (s.getSpecialty().getName().equals("Ngo?i") || s.getSpecialty().getName().equals("N?i")))
+	                .filter(s -> StaffShiftTypeEligibility.isEligible(
+	                        s, ConflictDetectionService.SHIFT_TYPE_L01, null))
 	                .count();
 	        int fairNonL04 = Math.max(1, (int) Math.ceil(ngoaiNoi / 4.0));
 	        if (autoGenCfg.l01MaxPerDay() > fairNonL04) {
