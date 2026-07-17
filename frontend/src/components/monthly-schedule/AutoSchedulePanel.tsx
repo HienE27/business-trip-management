@@ -96,6 +96,12 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   const crossSpecialtyCount = previewResult?.schedules.filter(s => s.crossSpecialty).length ?? 0;
   const coverageRate = previewResult ? Math.min(Math.round(parseNumber(previewResult.coverageRate)), 100) : 0;
   const balanceScore = previewResult ? parseNumber(previewResult.balanceScore) : 0;
+  // New metrics from quality report
+  const qr = previewResult?.qualityReport;
+  const eligibleGroupFairness = qr?.eligibleGroupFairnessScore ?? balanceScore;
+  const globalFairnessScore = qr?.globalFairnessScore;
+  const structuralWarnings = qr?.structuralLoadWarnings;
+  const [showDetail, setShowDetail] = useState(false);
   const statusMsgOk = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng");
   const statusMsgNeutral = message?.toLowerCase().includes("đã hủy");
 
@@ -105,6 +111,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   const coverageTone = coverageRate >= 90 ? "success" : coverageRate >= 70 ? "info" : "error";
   const balanceTone = balanceScore >= 75 ? "success" : balanceScore >= 50 ? "warning" : "error";
   const conflictTone = previewResult?.conflictCount === 0 ? "success" : "error";
+  const eligibleTone = eligibleGroupFairness >= 75 ? "success" : eligibleGroupFairness >= 50 ? "warning" : "error";
 
   return (
     <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
@@ -244,6 +251,12 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               tone={balanceTone}
             />
             <KPICard
+              icon="check_circle"
+              label="Cân bằng (nhóm)"
+              value={`${Math.round(eligibleGroupFairness)}%`}
+              tone={eligibleTone}
+            />
+            <KPICard
               icon={previewResult.conflictCount > 0 ? "warning" : "check_circle"}
               label="Xung đột"
               value={previewResult.conflictCount}
@@ -283,6 +296,61 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Fairness Detail Section (collapsible) */}
+          {previewResult && (globalFairnessScore != null || (structuralWarnings && structuralWarnings.length > 0)) && (
+            <div className="rounded-xl border border-outline-variant">
+              <button
+                onClick={() => setShowDetail(!showDetail)}
+                className="flex w-full items-center justify-between p-4 text-left hover:bg-surface-container-hover transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">info</span>
+                  <span className="text-label-sm font-semibold text-on-surface-variant">Phân tích công bằng - Chi tiết</span>
+                </div>
+                <span className={`material-symbols-outlined text-[18px] text-on-surface-variant transition-transform ${showDetail ? 'rotate-180' : ''}`}>
+                  expand_more
+                </span>
+              </button>
+              {showDetail && (
+                <div className="border-t border-outline-variant p-4 space-y-3">
+                  {/* Global Fairness */}
+                  {globalFairnessScore != null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-label-sm text-on-surface-variant">Global Fairness (toàn viện)</span>
+                      <span className={`text-label-sm font-semibold ${globalFairnessScore >= 50 ? 'text-success' : 'text-error'}`}>
+                        {Math.round(globalFairnessScore)}%
+                      </span>
+                    </div>
+                  )}
+                  {/* Structural Warnings */}
+                  {structuralWarnings && structuralWarnings.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-label-xs text-on-surface-variant font-semibold">Cảnh báo cấu trúc nhân sự:</p>
+                      {structuralWarnings.map((w, i) => (
+                        <div key={i} className="flex items-start gap-2 rounded-lg bg-error-container/10 p-2.5">
+                          <span className="material-symbols-outlined text-[16px] text-error shrink-0 mt-0.5" aria-hidden="true">warning</span>
+                          <p className="text-label-xs text-on-surface-variant">{w}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Why not 100% explanation */}
+                  {structuralWarnings && structuralWarnings.length > 0 && (
+                    <div className="rounded-lg bg-primary-container/10 p-3">
+                      <p className="text-label-xs text-on-surface-variant">
+                        <span className="font-semibold">Tại sao cân bằng không phải 100%?</span><br />
+                        Một số chuyên khoa chỉ có rất ít nhân sự (vd: Mắt 1 người). 
+                        Người này phải đảm nhận toàn bộ ca L04 của chuyên khoa đó. 
+                        Đây là hạn chế của nguồn nhân lực, không phải do thuật toán phân công.
+                        Các nhóm chỉ có 1 người được loại khỏi chỉ số "Cân bằng (nhóm)" để phản ánh đúng chất lượng thuật toán.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

@@ -377,6 +377,8 @@ export interface AutoScheduleResult {
   }>;
   /** Chi tiết phân bổ theo từng loại lịch (L01/L02/L03/L04) */
   byShiftType?: Record<string, ShiftTypeBreakdown>;
+  /** Báo cáo chất lượng lịch đầy đủ */
+  qualityReport?: QualityReport;
 }
 
 export interface ShiftTypeBreakdown {
@@ -725,5 +727,11 @@ export interface QualityReport {
   shiftsByStaffAndType?: Record<string, Record<string, number>>;
   overallCoefficientOfVariation: number;
   fairnessScore: number;
+  /** Eligible Group Fairness (trong nhóm eligibility, loại nhóm trivial) */
+  eligibleGroupFairnessScore?: number;
+  /** Global Fairness (toàn viện, chịu ảnh hưởng cấu trúc nhân sự) */
+  globalFairnessScore?: number;
+  /** Cảnh báo cấu trúc nhân sự (vd: Mắt 1 BS / 35 ca) */
+  structuralLoadWarnings?: string[];
   warnings: string[];
 }

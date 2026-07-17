@@ -2,6 +2,8 @@ package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
+import com.hospital.scheduler.util.CompensationDateCalculator;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +18,10 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class EnhancedGreedyScheduler {
+
+    private final CompensationDateCalculator compensationDateCalculator;
 
     public List<Schedule> solve(
             List<Staff> activeStaff,
@@ -35,8 +40,26 @@ public class EnhancedGreedyScheduler {
 	        Map<Integer, Map<Integer, Integer>> l04CountBySpec = new HashMap<>();
 		        // Per-type balance: staffId → {shiftTypeId → count} for L01/L02/L03 balance
 		        Map<Integer, Map<String, Integer>> typeCountByStaff = new HashMap<>();
-		        // Track shift types per staff per day để kiểm tra conflict (L01+L02, L03+L04)
-		        Map<String, Set<String>> assignedTypesPerDay = new HashMap<>(); // "staffId|date" → {L01, L02, ...}
+			        // Track shift types per staff per day (L01+L02 cấm, L03+L04 cấm, L01 cấm ALL)
+			        Map<String, Set<String>> assignedTypesPerDay = new HashMap<>(); // "staffId|date" → {L01, L02, ...}
+        // Compensation day tracking: sau khi gán L01, ngày hôm sau (hoặc sau T6/T7) là nghỉ bù
+        Map<Integer, Set<LocalDate>> staffCompDays = new HashMap<>(); // staffId → {compDates}
+        
+        // Adaptive penalty: tổng required và assigned cho từng loại/specialty
+        // Dùng để tính coverage gap → điều chỉnh penalty cho phù hợp
+        Map<String, Integer> totalRequiredByType = new HashMap<>(); // shiftTypeId → tổng required
+        Map<Integer, Integer> totalL04BySpec = new HashMap<>();     // specialtyId → tổng L04 required
+        Map<String, Integer> assignedByType = new HashMap<>();      // shiftTypeId → đã gán
+        Map<Integer, Integer> assignedL04BySpec = new HashMap<>();  // specialtyId → L04 đã gán
+        // Pre-compute totals
+        for (ShiftRequirement r : requirements) {
+            String tid = r.getShiftType().getId();
+            int req = r.getRequiredStaffCount();
+            totalRequiredByType.merge(tid, req, Integer::sum);
+            if ("L04".equals(tid) && r.getSpecialty() != null) {
+                totalL04BySpec.merge(r.getSpecialty().getId(), req, Integer::sum);
+            }
+        }
 
         // Group by date+shift
         Map<LocalDate, List<ShiftRequirement>> byDate = requirements.stream()
@@ -56,18 +79,32 @@ public class EnhancedGreedyScheduler {
 	                for (Staff s : activeStaff) {
 	                    if (excludedStaffIds != null && excludedStaffIds.contains(s.getId())) continue;
 	                    
-	                    // Conflict check: L01+L02 cấm, L03+L04 cấm
-	                    String dayKey = s.getId() + "|" + date;
-	                    Set<String> todayTypes = assignedTypesPerDay.getOrDefault(dayKey, Collections.emptySet());
-	                    if (("L01".equals(shiftTypeId) && todayTypes.contains("L02"))
-	                            || ("L02".equals(shiftTypeId) && todayTypes.contains("L01"))
-	                            || ("L03".equals(shiftTypeId) && todayTypes.contains("L04"))
-	                            || ("L04".equals(shiftTypeId) && todayTypes.contains("L03"))) {
-	                        continue;
-	                    }
-	                    
-	                    // Specialty check: chỉ cho đúng specialty
-	                    if (specId != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(specId))) continue;
+                    // Conflict check:
+                    // - L01 (trực 24/24) xung đột với L02 (thông tầm)
+                    // - L03 (PK Dịch vụ) xung đột với L04 (PK Chuyên gia)
+                    String dayKey = s.getId() + "|" + date;
+                    Set<String> todayTypes = assignedTypesPerDay.getOrDefault(dayKey, Collections.emptySet());
+                    // L01 ↔ L02 conflict
+                    if (("L01".equals(shiftTypeId) && todayTypes.contains("L02"))
+                            || ("L02".equals(shiftTypeId) && todayTypes.contains("L01"))) {
+                        continue;
+                    }
+                    // L03↔L04 conflict
+                    if (("L03".equals(shiftTypeId) && todayTypes.contains("L04"))
+                            || ("L04".equals(shiftTypeId) && todayTypes.contains("L03"))) {
+                        continue;
+                    }
+                    
+                    // Compensation day check: không được gán ca nào vào ngày nghỉ bù
+                    Set<LocalDate> compDays = staffCompDays.get(s.getId());
+                    if (compDays != null && compDays.contains(date)) continue;
+                    
+                    // Specialty check: chỉ gán đúng chuyên khoa (cho L04)
+                    if (specId != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(specId))) continue;
+                    
+                    // Eligibility check cho L01/L02/L03: staff KHÔNG có chuyên khoa (NULL) không được gán
+                    if (specId == null && !"L04".equals(shiftTypeId)
+                            && s.getSpecialty() == null) continue;
 
 		                    int cnt = staffCount.getOrDefault(s.getId(), 0);
 		                    int maxShifts = runtimeConfig != null && runtimeConfig.getMaxShiftsPerStaff() > 0
@@ -87,33 +124,45 @@ public class EnhancedGreedyScheduler {
 		                        if (gap >= 1) fatigueBonus = Math.min(gap * 5, 15.0);
 		                    }
 
-		                    // L04 per-specialty balance penalty: staff who already have many
-		                    // L04 shifts in this specialty get penalized to spread assignments
-		                    double specBalancePenalty = 0;
-		                    if (specId != null && "L04".equals(shiftTypeId)) {
-		                        int l04InSpec = l04CountBySpec
-		                                .getOrDefault(s.getId(), Collections.emptyMap())
-		                                .getOrDefault(specId, 0);
-		                        // Penalty scales with how many L04 they already have in this spec
-		                        specBalancePenalty = l04InSpec * 9.0; // 9 pts per existing L04 in spec
-		                    }
-
-		                    // Per-type balance penalty for L01/L02/L03: staff who already have
-		                    // many shifts of this type get penalized to spread assignments evenly
-		                    double typeBalancePenalty = 0;
-		                    if (!"L04".equals(shiftTypeId)) {
-		                        int typeCount = typeCountByStaff
-		                                .getOrDefault(s.getId(), Collections.emptyMap())
-		                                .getOrDefault(shiftTypeId, 0);
-		                        typeBalancePenalty = typeCount * 12.0; // T?ng penalty: 12 pts per existing
-			                    }
+	                    // L04 per-specialty balance penalty (ADAPTIVE)
+	                    double specBalancePenalty = 0;
+	                    if (specId != null && "L04".equals(shiftTypeId)) {
+	                        int l04InSpec = l04CountBySpec
+	                                .getOrDefault(s.getId(), Collections.emptyMap())
+	                                .getOrDefault(specId, 0);
+	                        // Adaptive factor: giảm penalty khi còn nhiều L04 chưa gán (ưu tiên coverage)
+	                        int specTotalReq = totalL04BySpec.getOrDefault(specId, 0);
+	                        int specAssigned = assignedL04BySpec.getOrDefault(specId, 0);
+	                        double specCoverageGap = specTotalReq > 0 ? (double)(specTotalReq - specAssigned) / specTotalReq : 0;
+	                        double specAdaptive = Math.max(0.3, 1.0 - specCoverageGap * 0.7);
+	                        specBalancePenalty = l04InSpec * 18.0 * specAdaptive;
+	                    }
+	                    
+	                    // Per-type balance penalty for L01/L02/L03 (ADAPTIVE)
+	                    double typeBalancePenalty = 0;
+	                    if (!"L04".equals(shiftTypeId)) {
+	                        int typeCount = typeCountByStaff
+	                                .getOrDefault(s.getId(), Collections.emptyMap())
+	                                .getOrDefault(shiftTypeId, 0);
+	                        // Adaptive factor: giảm penalty khi còn nhiều ca loại này chưa gán
+	                        int typeTotalReq = totalRequiredByType.getOrDefault(shiftTypeId, 0);
+	                        int typeAssigned = assignedByType.getOrDefault(shiftTypeId, 0);
+	                        double typeCoverageGap = typeTotalReq > 0 ? (double)(typeTotalReq - typeAssigned) / typeTotalReq : 0;
+	                        double typeAdaptive = Math.max(0.3, 1.0 - typeCoverageGap * 0.7);
+	                        typeBalancePenalty = typeCount * 18.0 * typeAdaptive;
+				                    }
 
 			                    double score = 100 - cnt * 6 + fatigueBonus + rotationBonus
 			                            - specBalancePenalty - typeBalancePenalty;
-			                    candidates.add(new ScoredStaff(s.getId(), score));
-		                }
-
-                candidates.sort((a, b) -> Double.compare(b.score, a.score));
+			                    int typeCnt = !"L04".equals(shiftTypeId)
+			                            ? typeCountByStaff.getOrDefault(s.getId(), Collections.emptyMap())
+			                                    .getOrDefault(shiftTypeId, 0)
+			                            : 0;
+			                    candidates.add(new ScoredStaff(s.getId(), score, typeCnt, cnt));
+			                }
+	
+	                // Score-based sorting cho tất cả loại
+	                candidates.sort((a, b) -> Double.compare(b.score, a.score));
                 int assign = Math.min(required, candidates.size());
 	                for (int i = 0; i < assign; i++) {
 	                    int sid = candidates.get(i).staffId;
@@ -125,11 +174,25 @@ public class EnhancedGreedyScheduler {
                     // Track per-type count for L01/L02/L03 balance
                     typeCountByStaff.computeIfAbsent(sid, k -> new HashMap<>())
                             .merge(shiftTypeId, 1, Integer::sum);
-                    // Track L04 per-specialty count for balance
-	                    if (specId != null && "L04".equals(shiftTypeId)) {
-	                        l04CountBySpec.computeIfAbsent(sid, k -> new HashMap<>())
-	                                .merge(specId, 1, Integer::sum);
-	                    }
+	                    // Track L04 per-specialty count for balance
+		                    if (specId != null && "L04".equals(shiftTypeId)) {
+		                        l04CountBySpec.computeIfAbsent(sid, k -> new HashMap<>())
+		                                .merge(specId, 1, Integer::sum);
+		                    }
+		                    
+		                    // Track assigned counts for adaptive penalty
+		                    assignedByType.merge(shiftTypeId, 1, Integer::sum);
+		                    if (specId != null && "L04".equals(shiftTypeId)) {
+		                        assignedL04BySpec.merge(specId, 1, Integer::sum);
+		                    }
+		                    
+		                    // Compensation day: nếu gán L01, tính ngày nghỉ bù
+		                    if ("L01".equals(shiftTypeId)) {
+		                        LocalDate compDate = compensationDateCalculator.calculate(date);
+		                        if (compDate != null) {
+		                            staffCompDays.computeIfAbsent(sid, k -> new HashSet<>()).add(compDate);
+		                        }
+		                    }
 
 	                    Schedule sch = new Schedule();
 	                    sch.setStaff(staffMap.get(sid));
@@ -276,11 +339,17 @@ public class EnhancedGreedyScheduler {
 		                    boolean alreadyHasSameType = result.stream()
 		                            .anyMatch(r -> r.getStaff().getId() == s.getId() && r.getWorkDate().equals(date)
 		                                    && r.getShiftType().getId().equals(shiftTypeId));
-		                    if (alreadyHasSameType) continue;
-	                    // Cross-specialty cho L04: không cho phép, chỉ đúng specialty
-	                    if (specId != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(specId))) continue;
-
-                    int cnt = totalCountGap.getOrDefault(s.getId(), 0);
+			                    if (alreadyHasSameType) continue;
+			                    // Compensation day: không gán ca vào ngày nghỉ bù
+			                    Set<LocalDate> compDays = staffCompDays.get(s.getId());
+			                    if (compDays != null && compDays.contains(date)) continue;
+			                    // Cross-specialty cho L04: chỉ gán đúng chuyên khoa
+			                    if (specId != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(specId))) continue;
+			                    // Eligibility check cho L01/L02/L03: staff KHÔNG có chuyên khoa không được gán
+			                    if (specId == null && !"L04".equals(shiftTypeId)
+			                            && s.getSpecialty() == null) continue;
+			                    
+			                    int cnt = totalCountGap.getOrDefault(s.getId(), 0);
                     int maxShifts = runtimeConfig != null && runtimeConfig.getMaxShiftsPerStaff() > 0
                             ? runtimeConfig.getMaxShiftsPerStaff() : Integer.MAX_VALUE;
 	                    // Gap-fill: penalties như main pass để giữ balance
@@ -296,25 +365,37 @@ public class EnhancedGreedyScheduler {
 	                        long gap = date.toEpochDay() - last.toEpochDay();
 	                        if (gap >= 1) fatigueBonus = Math.min(gap * 3, 10.0);
 	                    }
-	                    double totalPenalty = cnt * 5.0; // Tăng: 5 thay vì 3
-	                    double typePenalty = 0;
-	                    if (!"L04".equals(shiftTypeId)) {
-	                        int typeCnt = typeCountGap.getOrDefault(s.getId(), Collections.emptyMap())
-	                                .getOrDefault(shiftTypeId, 0);
-		                        typePenalty = typeCnt * 10.0; // T?ng: 10 thay vì 7
-                    }
-	                    double specPenalty = 0;
-	                    if (specId != null && "L04".equals(shiftTypeId)) {
-	                        int l04Spec = l04SpecGap.getOrDefault(s.getId(), Collections.emptyMap())
-	                                .getOrDefault(specId, 0);
-		                        specPenalty = l04Spec * 9.0; // Tăng: 9 thay vì 5
+		                    double totalPenalty = cnt * 6.0; // Tăng: 5→6
+		                    double typePenalty = 0;
+		                    if (!"L04".equals(shiftTypeId)) {
+		                        int typeCnt = typeCountGap.getOrDefault(s.getId(), Collections.emptyMap())
+		                                .getOrDefault(shiftTypeId, 0);
+		                        // Adaptive: giảm penalty khi còn nhiều ca chưa gán
+		                        int typeTotalReq = totalRequiredByType.getOrDefault(shiftTypeId, 0);
+		                        int typeAssigned = assignedByType.getOrDefault(shiftTypeId, 0) + (int)alreadyAssigned;
+		                        double typeGap = typeTotalReq > 0 ? (double)(typeTotalReq - typeAssigned) / typeTotalReq : 0;
+		                        double typeAdaptive = Math.max(0.3, 1.0 - typeGap * 0.7);
+		                        typePenalty = typeCnt * 15.0 * typeAdaptive;
 	                    }
+		                    double specPenalty = 0;
+		                    if (specId != null && "L04".equals(shiftTypeId)) {
+		                        int l04Spec = l04SpecGap.getOrDefault(s.getId(), Collections.emptyMap())
+		                                .getOrDefault(specId, 0);
+		                        // Adaptive: giảm penalty khi còn nhiều L04 chưa gán trong specialty này
+		                        int specTotalReq = totalL04BySpec.getOrDefault(specId, 0);
+		                        int specAssigned = assignedL04BySpec.getOrDefault(specId, 0) + (int)alreadyAssigned;
+		                        double specGap = specTotalReq > 0 ? (double)(specTotalReq - specAssigned) / specTotalReq : 0;
+		                        double specAdaptive = Math.max(0.3, 1.0 - specGap * 0.7);
+		                        specPenalty = l04Spec * 18.0 * specAdaptive;
+		                    }
 
-	                    double score = 100 - totalPenalty + fatigueBonus + rotationBonus - typePenalty - specPenalty;
-                    gapCandidates.add(new ScoredStaff(s.getId(), score));
-                }
-
-                gapCandidates.sort((a, b) -> Double.compare(b.score, a.score));
+		                    double score = 100 - totalPenalty + fatigueBonus + rotationBonus - typePenalty - specPenalty;
+		                    int typeCntGap = typeCountGap.getOrDefault(s.getId(), Collections.emptyMap())
+		                            .getOrDefault(shiftTypeId, 0);
+	                    gapCandidates.add(new ScoredStaff(s.getId(), score, typeCntGap, cnt));
+	                }
+	
+	                    gapCandidates.sort((a, b) -> Double.compare(b.score, a.score));
                 int assign = Math.min(stillNeeded, gapCandidates.size());
 	                for (int i = 0; i < assign; i++) {
 	                    int sid = gapCandidates.get(i).staffId;
@@ -347,7 +428,9 @@ public class EnhancedGreedyScheduler {
         return result;
     }
 
-    private record ScoredStaff(int staffId, double score) {}
+    private record ScoredStaff(int staffId, double score, int typeCount, int totalCount) {
+        ScoredStaff(int staffId, double score) { this(staffId, score, 0, 0); }
+    }
 
     /**
      * Check if swapping a schedule to newType on workDate for staffId would create a conflict.
@@ -360,7 +443,7 @@ public class EnhancedGreedyScheduler {
             if (s.getStaff().getId() != staffId) continue;
             if (s == excludeSchedule) continue; // Skip the schedule being swapped
 
-            // Same-day conflicts
+            // Same-day conflicts: L01↔L02, L03↔L04
             if (s.getWorkDate().equals(workDate)) {
                 String existingType = s.getShiftType().getId();
                 if (("L01".equals(newType) && "L02".equals(existingType))

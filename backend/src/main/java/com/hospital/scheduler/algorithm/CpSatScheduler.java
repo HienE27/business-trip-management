@@ -4,7 +4,9 @@ import com.google.ortools.Loader;
 import com.google.ortools.sat.*;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
+import com.hospital.scheduler.util.CompensationDateCalculator;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -19,7 +21,10 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class CpSatScheduler {
+
+    private final CompensationDateCalculator compensationDateCalculator;
 
     static {
         Loader.loadNativeLibraries();
@@ -27,10 +32,6 @@ public class CpSatScheduler {
 
     private static final String[] WORK_SHIFTS = {"L01", "L02", "L03", "L04"};
     private static final double TIME_LIMIT_SECONDS = 30.0;
-    
-    static {
-        Loader.loadNativeLibraries();
-    }
 
     public List<Schedule> solve(
             List<Staff> activeStaff,
@@ -112,7 +113,11 @@ public class CpSatScheduler {
             }
         }
 
-        // Constraint 2: Coverage - each shift type needs enough staff
+        // Constraint 2: Coverage — SOFT CONSTRAINT (nới lỏng, phạt khi thiếu)
+        // Thay vì hard constraint, dùng penalty variable cho mỗi slot thiếu
+        IntVar totalShortfall = model.newIntVar(0, numDays * numStaff * WORK_SHIFTS.length, "total_shortfall");
+        LinearExprBuilder shortfallSum = LinearExpr.newBuilder();
+        
         for (int d = 0; d < numDays; d++) {
             for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
                 String shiftType = WORK_SHIFTS[sh];
@@ -132,9 +137,16 @@ public class CpSatScheduler {
                         sum.add(x[s][d][sh]);
                     }
                 }
-                model.addGreaterOrEqual(sum.build(), minReq);
+                // assigned + shortfall >= minReq (shortfall = max(0, minReq - assigned))
+                IntVar shortfall = model.newIntVar(0, minReq, "shortfall_" + d + "_" + sh);
+                LinearExprBuilder covWithShortfall = LinearExpr.newBuilder();
+                covWithShortfall.add(sum.build());
+                covWithShortfall.add(shortfall);
+                model.addGreaterOrEqual(covWithShortfall.build(), minReq);
+                shortfallSum.add(shortfall);
             }
         }
+        model.addEquality(totalShortfall, shortfallSum.build());
 
         // Constraint 3: No consecutive L01
         for (int s = 0; s < numStaff; s++) {
@@ -146,9 +158,31 @@ public class CpSatScheduler {
             }
         }
 
-        // Objective: Balance fairness (minimize max-min gap) + maximize coverage
-        // Coverage already ensured by constraint 2 (min staff per shift)
-        // Fairness: minimize the gap between most-loaded and least-loaded staff
+        // Constraint 4: Compensation day after L01 — không gán ca nào vào ngày nghỉ bù
+        // Nếu staff có L01 ngày d, không được làm bất kỳ ca nào vào ngày nghỉ bù
+        for (int s = 0; s < numStaff; s++) {
+            for (int d = 0; d < numDays; d++) {
+                LocalDate shiftDate = dates.get(d);
+                LocalDate compDate = compensationDateCalculator.calculateWithoutHolidays(shiftDate);
+                if (compDate == null) continue;
+                // Find day index for compDate
+                int compDayIndex = -1;
+                for (int d2 = 0; d2 < numDays; d2++) {
+                    if (dates.get(d2).equals(compDate)) { compDayIndex = d2; break; }
+                }
+                if (compDayIndex < 0) continue; // compensation day outside period
+
+                // x[s][d][L01] + sum_{sh} x[s][compDayIndex][sh] <= 1
+                LinearExprBuilder sum = LinearExpr.newBuilder();
+                sum.add(x[s][d][0]); // L01 index
+                for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
+                    sum.add(x[s][compDayIndex][sh]);
+                }
+                model.addLessOrEqual(sum.build(), 1);
+            }
+        }
+
+        // Objective: minimize shortfall (coverage) + balance fairness
         IntVar[] totalShiftsPerStaff = new IntVar[numStaff];
         for (int s = 0; s < numStaff; s++) {
             LinearExprBuilder sum = LinearExpr.newBuilder();
@@ -165,8 +199,12 @@ public class CpSatScheduler {
         model.addMinEquality(minShifts, totalShiftsPerStaff);
         model.addMaxEquality(maxShifts, totalShiftsPerStaff);
         
-        // Objective: minimize max shifts per staff (balance) while satisfying coverage
-        model.minimize(maxShifts);
+        // Weighted objective: ưu tiên coverage trước, sau đó balance
+        // totalShortfall * WEIGHT + (maxShifts - minShifts)
+        LinearExprBuilder objective = LinearExpr.newBuilder();
+        objective.addTerm(totalShortfall, 100); // coverage weight = 100
+        objective.add(maxShifts);                // balance weight = 1
+        model.minimize(objective.build());
 
         // Solve
         CpSolver solver = new CpSolver();

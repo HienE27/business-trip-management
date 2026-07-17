@@ -21,7 +21,7 @@ import * as dashboardMethods from "./api/dashboardApi";
 import * as configMethods from "./api/configApi";
 
 // ── Constants ───────────────────────────────────────────────────────────
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+const API_BASE = "/api/v1"; // Dùng relative → qua Next.js rewrite → backend
 const LOGIN_PATH = "/login";
 const TOKEN_STORAGE_KEY = "medschedule.token";
 const REFRESH_TOKEN_STORAGE_KEY = "medschedule.refreshToken";

@@ -159,14 +159,15 @@ public class ScheduleQualityScorer {
 
         // 2. Fairness
         FairnessResult fair = computeFairness(schedules, activeStaff);
-        double fairnessScore = fair.overallFairnessPct;
+        double globalFairnessScore = fair.overallFairnessPct; // toàn viện (tham khảo)
+        double fairnessScore = fair.internalFairnessPct; // trong nhóm (KPI chính)
 
         // 3. Constraint
         ConstraintResult con = computeConstraints(
             schedules, activeStaff, compDays, leaveRequests);
         double constraintScore = con.score;
 
-        // 4. Tổng hợp
+        // 4. Tổng hợp — dùng fairnessScore (algorithm fairness) cho total
         double total = coverageWeight * coverageScore
                      + fairnessWeight * fairnessScore
                      + constraintWeight * constraintScore;
@@ -187,8 +188,8 @@ public class ScheduleQualityScorer {
         boolean passed = total >= passThreshold;
 
         long elapsed = System.currentTimeMillis() - t0;
-        log.debug("ScheduleQualityScorer: total={} coverage={} fairness={} constraint={} took={}ms",
-            total, coverageScore, fairnessScore, constraintScore, elapsed);
+        log.debug("ScheduleQualityScorer: total={} coverage={} global={} algo={} constraint={} took={}ms",
+            total, coverageScore, globalFairnessScore, fairnessScore, constraintScore, elapsed);
 
         return ScheduleQualityReport.builder()
             .totalScore(round(total))
@@ -200,6 +201,8 @@ public class ScheduleQualityScorer {
             .totalShortfall(cov.totalShortfall)
             .coverageByType(cov.byType)
             .fairnessScore(round(fairnessScore))
+            .globalFairnessScore(round(globalFairnessScore))
+            .structuralLoadWarnings(fair.structuralLoadWarnings != null ? fair.structuralLoadWarnings : List.of())
             .fairnessByType(fair.byType)
             .totalShiftsByStaff(fair.totalShiftsByStaff)
             .shiftsByStaffAndType(fair.shiftsByStaffAndType)
@@ -266,7 +269,8 @@ public class ScheduleQualityScorer {
 
         // 2. Fairness (with AutoGen config for dynamic eligibility)
         FairnessResult fair = computeFairness(schedules, activeStaff, cfg);
-        double fairnessScore = fair.overallFairnessPct;
+        double globalFairnessScore = fair.overallFairnessPct;
+        double fairnessScore = fair.internalFairnessPct;
 
         ConstraintResult con = computeConstraints(schedules, activeStaff, compDays, leaveRequests);
         double constraintScore = con.score;
@@ -281,6 +285,8 @@ public class ScheduleQualityScorer {
             .grade(grade(total, passThreshold))
             .coverageScore(round(coverageScore))
             .fairnessScore(round(fairnessScore))
+            .globalFairnessScore(round(globalFairnessScore))
+            .structuralLoadWarnings(fair.structuralLoadWarnings != null ? fair.structuralLoadWarnings : List.of())
             .constraintScore(round(constraintScore))
             .totalRequired(cov.totalRequired)
             .totalAssigned(cov.totalAssigned)
@@ -400,6 +406,8 @@ public class ScheduleQualityScorer {
     @Builder
     private static class FairnessResult {
         double overallFairnessPct;
+        double internalFairnessPct; // per-specialty average (không bị ảnh hưởng bởi quy mô)
+        List<String> structuralLoadWarnings; // chuyên khoa bị quá tải cấu trúc
         Map<String, ScheduleQualityReport.FairnessDetail> byType;
         Map<Integer, Integer> totalShiftsByStaff;
         Map<Integer, Map<String, Integer>> shiftsByStaffAndType;
@@ -560,6 +568,7 @@ public class ScheduleQualityScorer {
             fairnessByType.put(typeKey, ScheduleQualityReport.FairnessDetail.builder()
                 .shiftTypeId(typeId)
                 .specialtyName(specialtyName)
+                .poolSize(poolSize)
                 .mean(round(mean))
                 .stdDev(round(stdDev))
                 .cv(round(cv))
@@ -586,6 +595,29 @@ public class ScheduleQualityScorer {
             overallFairness = 100.0 * (1.0 - ratio);
         }
 
+        // ── Algorithm Fairness: trung bình có trọng số fairness của các nhóm eligibility
+        // Loại các nhóm chỉ có 1 người (eligible_size ≤ 1) vì không có quyết định phân bổ.
+        // Dùng trọng số theo pool size (số người trong nhóm) để phản ánh đúng tầm ảnh hưởng.
+        double internalFairness = 0;
+        int internalWeightSum = 0;
+        List<String> structuralWarnings = new ArrayList<>();
+        for (var entry : fairnessByType.entrySet()) {
+            String typeKey = entry.getKey();
+            var detail = entry.getValue();
+            int poolSize = detail.getPoolSize();
+            // Bỏ qua nhóm eligible_size ≤ 1 (vd: Mắt 1 người — không có cạnh tranh)
+            if (poolSize <= 1) {
+                if (typeKey.contains(":") && detail.getMaxCount() >= 20) {
+                    String specName = detail.getSpecialtyName() != null ? detail.getSpecialtyName() : typeKey;
+                    structuralWarnings.add(specName + ": " + detail.getMaxCount() + " ca L04 / " + poolSize + " BS (excluded from algo fairness -- trivial group)");
+                }
+                continue;
+            }
+            internalFairness += detail.getFairnessPct() * poolSize;
+            internalWeightSum += poolSize;
+        }
+        double internalFairnessPct = internalWeightSum > 0 ? internalFairness / internalWeightSum : 100.0;
+	
         // Per-staff totals & per-(staff, type) breakdown
         Map<Integer, Integer> totalByStaff = new HashMap<>();
         Map<Integer, Map<String, Integer>> byStaffAndType = new HashMap<>();
@@ -599,6 +631,8 @@ public class ScheduleQualityScorer {
 
         return FairnessResult.builder()
             .overallFairnessPct(overallFairness)
+            .internalFairnessPct(internalFairnessPct)
+            .structuralLoadWarnings(structuralWarnings)
             .byType(fairnessByType)
             .totalShiftsByStaff(totalByStaff)
             .shiftsByStaffAndType(byStaffAndType)

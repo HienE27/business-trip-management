@@ -72,9 +72,8 @@ const GLOBAL_TOPIC = '/topic/notifications';
 export function resolveNotificationWsUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_WS_URL;
   if (explicit) return explicit;
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1';
-  const wsBase = apiBase.replace(/^http/i, 'ws').replace(/\/api\/.*$/, '');
-  return `${wsBase}/ws/notifications`;
+  // WebSocket chạy trực tiếp từ browser → phải dùng localhost, không dùng backend (Docker internal)
+  return `${typeof window !== 'undefined' ? window.location.protocol === 'https:' ? 'wss:' : 'ws:' : 'ws:'}//localhost:8080/ws/notifications`;
 }
 
 export function createNotificationClient(options: NotificationClientOptions): NotificationClient {

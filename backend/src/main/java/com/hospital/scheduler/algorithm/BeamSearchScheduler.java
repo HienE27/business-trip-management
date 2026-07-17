@@ -2,6 +2,8 @@ package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
+import com.hospital.scheduler.util.CompensationDateCalculator;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -18,8 +20,10 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class BeamSearchScheduler {
 
+    private final CompensationDateCalculator compensationDateCalculator;
     private static final int DEFAULT_BEAM_WIDTH = 15; // Tăng từ 10→15
     private static final double COVERAGE_WEIGHT = 0.30;
     private static final double FAIRNESS_WEIGHT = 0.20;
@@ -139,7 +143,7 @@ public class BeamSearchScheduler {
         return result;
     }
 
-    /** Resolve L01+L02 and L03+L04 conflicts by swapping one shift to a non-conflicting type */
+    /** Resolve L01 vs ALL and L03↔L04 conflicts by swapping one shift to a non-conflicting type */
     private void resolveConflicts(List<Schedule> result, List<ShiftRequirement> reqs,
                                   Map<Integer, Staff> staffMap) {
         // Group by staffId|date
@@ -153,14 +157,14 @@ public class BeamSearchScheduler {
             List<Schedule> daySchedules = e.getValue();
             if (daySchedules.size() <= 1) continue;
 
-            // Check for L01+L02 or L03+L04 conflict
+            // Check for conflicts per business rules
             Set<String> types = new HashSet<>();
             for (Schedule s : daySchedules) types.add(s.getShiftType().getId());
 
-            boolean hasL01L02 = types.contains("L01") && types.contains("L02");
+            boolean hasL01 = types.contains("L01") && types.size() > 1; // L01 + anything else
             boolean hasL03L04 = types.contains("L03") && types.contains("L04");
 
-            if (hasL01L02 || hasL03L04) {
+            if (hasL01 || hasL03L04) {
                 // Swap one conflicting shift to a non-conflicting type
                 Schedule toSwap = null;
                 String[] availableTypes = {"L01", "L02", "L03", "L04"};
@@ -170,14 +174,21 @@ public class BeamSearchScheduler {
                     // Find a non-conflicting type
                     for (String t : availableTypes) {
                         if (currentTypes.contains(t)) continue; // would create same-type conflict
-                        if ("L01".equals(s.getShiftType().getId()) && "L02".equals(t)) continue;
-                        if ("L02".equals(s.getShiftType().getId()) && "L01".equals(t)) continue;
-                        if ("L03".equals(s.getShiftType().getId()) && "L04".equals(t)) continue;
-                        if ("L04".equals(s.getShiftType().getId()) && "L03".equals(t)) continue;
-                        // Found a valid swap
+                        // Check business rules for the new pair
+                        String originalType = s.getShiftType().getId();
+                        // If original is L01, new type must not conflict with L01 rule (doesn't matter since we're removing L01)
+                        // Check that new type doesn't conflict with remaining types
+                        boolean conflicts = false;
+                        for (String ct : currentTypes) {
+                            if ("L01".equals(t) && !"L01".equals(ct)) { conflicts = true; break; }
+                            if ("L01".equals(ct) && !"L01".equals(t)) { conflicts = true; break; }
+                            if (("L03".equals(t) && "L04".equals(ct)) || ("L04".equals(t) && "L03".equals(ct))) { conflicts = true; break; }
+                        }
+                        if (conflicts) continue;
                         toSwap = s;
                         break;
                     }
+                    if (toSwap != null) break;
                 }
                 if (toSwap != null) {
                     // Find the new type
@@ -186,12 +197,14 @@ public class BeamSearchScheduler {
                     String newType = null;
                     for (String t : availableTypes) {
                         if (currentTypes.contains(t)) continue;
-                        if ("L01".equals(toSwap.getShiftType().getId()) && "L02".equals(t)) continue;
-                        if ("L02".equals(toSwap.getShiftType().getId()) && "L01".equals(t)) continue;
-                        if ("L03".equals(toSwap.getShiftType().getId()) && "L04".equals(t)) continue;
-                        if ("L04".equals(toSwap.getShiftType().getId()) && "L03".equals(t)) continue;
-                        newType = t;
-                        break;
+                        boolean conflicts = false;
+                        for (String ct : currentTypes) {
+                            if (toSwap.getShiftType().getId().equals(ct)) continue; // skip self (will be removed)
+                            if ("L01".equals(t) && !"L01".equals(ct)) { conflicts = true; break; }
+                            if ("L01".equals(ct) && !"L01".equals(t)) { conflicts = true; break; }
+                            if (("L03".equals(t) && "L04".equals(ct)) || ("L04".equals(t) && "L03".equals(ct))) { conflicts = true; break; }
+                        }
+                        if (!conflicts) { newType = t; break; }
                     }
                     if (newType != null) {
                         toSwap.setShiftType(findShiftType(newType, reqs));
@@ -276,7 +289,7 @@ public class BeamSearchScheduler {
              + VARIETY_WEIGHT * variety + BALANCE_WEIGHT * balanceScore - conflictPenalty;
     }
 
-    /** Count L01+L02 and L03+L04 conflicts in the assignment */
+    /** Count L01+L02 and L03↔L04 conflicts in the assignment */
     private int countConflicts(Map<String, String> assignments) {
         int conflicts = 0;
         Map<String, String> byStaffDay = new HashMap<>();
@@ -318,7 +331,13 @@ public class BeamSearchScheduler {
                 .filter(s -> !current.containsKey(s.getId() + "|" + date))
                 .filter(s -> staffCount.getOrDefault(s.getId(), 0) < maxShifts)
                 .filter(s -> specId == null || (s.getSpecialty() != null && s.getSpecialty().getId().equals(specId)))
+                .filter(s -> {
+                    // Chặn staff không có chuyên khoa gán L01/L02/L03
+                    if (specId == null && !"L04".equals(shiftTypeId) && s.getSpecialty() == null) return false;
+                    return true;
+                })
                 .filter(s -> !hasConflictWithExisting(s.getId(), date, shiftTypeId, current))
+                .filter(s -> !isCompensationDay(s.getId(), date, current))
                 .sorted(Comparator
                         .comparingInt((Staff s) -> staffCount.getOrDefault(s.getId(), 0))
                         .thenComparingInt(s -> currentTypes.getOrDefault(s.getId(), Collections.emptySet()).contains(shiftTypeId) ? 1 : 0))
@@ -326,7 +345,7 @@ public class BeamSearchScheduler {
                 .collect(Collectors.toList());
     }
 
-    /** Kiểm tra ràng buộc: L01+L02 cùng ngày = conflict, L03+L04 cùng ngày = conflict */
+    /** Kiểm tra ràng buộc: L01↔L02 cùng ngày, L03↔L04 cùng ngày */
     private boolean hasConflictWithExisting(int staffId, LocalDate date, String newType,
                                            Map<String, String> current) {
         String targetKey = staffId + "|" + date;
@@ -341,6 +360,23 @@ public class BeamSearchScheduler {
         if (("L03".equals(newType) && "L04".equals(existingType)) ||
             ("L04".equals(newType) && "L03".equals(existingType))) {
             return true;
+        }
+        return false;
+    }
+
+    /**
+     * Kiểm tra xem staff có ngày nghỉ bù từ L01 trước đó không.
+     * Duyệt assignments của state hiện tại, nếu có L01 mà ngày nghỉ bù trùng date → block.
+     */
+    private boolean isCompensationDay(int staffId, LocalDate date, Map<String, String> current) {
+        for (var e : current.entrySet()) {
+            if (!"L01".equals(e.getValue())) continue;
+            String[] p = e.getKey().split("\\|");
+            int sid = Integer.parseInt(p[0]);
+            if (sid != staffId) continue;
+            LocalDate workDate = LocalDate.parse(p[1]);
+            LocalDate compDate = compensationDateCalculator.calculate(workDate);
+            if (compDate != null && compDate.equals(date)) return true;
         }
         return false;
     }

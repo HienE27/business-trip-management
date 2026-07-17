@@ -526,10 +526,6 @@ public class SchedulingAlgorithmRunner {
     public Map<String, Map<Integer, Long>> buildSafeRebalanceCounts(List<Schedule> schedules, List<Staff> activeStaff) {
         Map<String, Map<Integer, Long>> counts = new LinkedHashMap<>();
         for (Schedule schedule : schedules) {
-            String typeId = schedule.getShiftType().getId();
-            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(typeId)) {
-                continue;
-            }
             String key = rebalanceKey(schedule);
             counts.computeIfAbsent(key, k -> new HashMap<>())
                     .merge(schedule.getStaff().getId(), 1L, Long::sum);

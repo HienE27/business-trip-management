@@ -2,6 +2,8 @@ package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
+import com.hospital.scheduler.util.CompensationDateCalculator;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -15,8 +17,10 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class SimulatedAnnealingScheduler {
 
+    private final CompensationDateCalculator compensationDateCalculator;
     private static final String[] SHIFT_TYPES = {"L01", "L02", "L03", "L04"};
     private static final int MAX_ITER = 500;
     private static final double INITIAL_TEMP = 50.0;
@@ -89,6 +93,7 @@ public class SimulatedAnnealingScheduler {
         List<Schedule> result = new ArrayList<>();
         Set<String> assigned = new HashSet<>();
         Map<Integer, Integer> counts = new HashMap<>();
+        Map<Integer, Set<LocalDate>> staffCompDays = new HashMap<>();
         int maxShifts = config != null && config.getMaxShiftsPerStaff() > 0
                 ? config.getMaxShiftsPerStaff() : Integer.MAX_VALUE;
 
@@ -102,6 +107,14 @@ public class SimulatedAnnealingScheduler {
                     .filter(s -> !assigned.contains(s.getId() + "|" + req.getWorkDate()))
                     .filter(s -> counts.getOrDefault(s.getId(), 0) < maxShifts)
                     .filter(s -> specId == null || (s.getSpecialty() != null && s.getSpecialty().getId().equals(specId)))
+                    .filter(s -> {
+                        if (specId == null && !"L04".equals(shiftType) && s.getSpecialty() == null) return false;
+                        return true;
+                    })
+                    .filter(s -> {
+                        Set<LocalDate> compDays = staffCompDays.get(s.getId());
+                        return compDays == null || !compDays.contains(req.getWorkDate());
+                    })
                     .map(Staff::getId)
                     .collect(Collectors.toList());
 
@@ -112,6 +125,13 @@ public class SimulatedAnnealingScheduler {
                 if (!assigned.contains(key)) {
                     assigned.add(key);
                     counts.merge(sid, 1, Integer::sum);
+                    // Compensation day: nếu gán L01, tính ngày nghỉ bù
+                    if ("L01".equals(shiftType)) {
+                        LocalDate compDate = compensationDateCalculator.calculate(req.getWorkDate());
+                        if (compDate != null) {
+                            staffCompDays.computeIfAbsent(sid, k -> new HashSet<>()).add(compDate);
+                        }
+                    }
                     Schedule s = new Schedule();
                     s.setStaff(staffMap.get(sid));
                     s.setPeriod(period);
@@ -138,9 +158,15 @@ public class SimulatedAnnealingScheduler {
                         || ("L04".equals(newType) && "L03".equals(existingType)))
                     return true;
             }
+            // Consecutive L01 check
             if ("L01".equals(newType) && "L01".equals(s.getShiftType().getId())) {
                 if (Math.abs(s.getWorkDate().toEpochDay() - workDate.toEpochDay()) == 1)
                     return true;
+            }
+            // Compensation day check: nếu staff có L01 mà ngày nghỉ bù trùng workDate → block
+            if ("L01".equals(s.getShiftType().getId())) {
+                LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+                if (compDate != null && compDate.equals(workDate)) return true;
             }
         }
         return false;

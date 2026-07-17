@@ -86,11 +86,27 @@ public class ScheduleQualityReport {
     // ─────────────────────────────────────────────
 
     /**
-     * Score công bằng tổng thể [0-100].
-     * Tính từ CV (Coefficient of Variation) trung bình của các loại ca.
-     * fairnessScore = max(0, 100 - cvAvg * 100)
+     * Eligible Group Fairness [0-100] — KPI chính đánh giá mức độ công bằng
+     * trong các nhóm eligibility có thể phân công (pool_size ≥ 2).
+     * Không bị ảnh hưởng bởi các nhóm trivial (1 người) như Mắt.
+     * Giữ tên fairnessScore để tương thích ngược.
      */
     private final double fairnessScore;
+
+    /**
+     * Global Fairness [0-100] — chỉ số vận hành, phản ánh thực trạng toàn viện.
+     * Chịu ảnh hưởng của mất cân bằng cấu trúc nhân sự (vd: Mắt 1 BS / 35 ca).
+     * Chỉ để tham khảo, không dùng đánh giá thuật toán.
+     */
+    private final double globalFairnessScore;
+
+    /**
+     * Structural Load: danh sách chuyên khoa bị quá tải cấu trúc.
+     * Ví dụ: "Mắt: 31 L04 / 1 BS → structural overload"
+     * Metric này không phản ánh chất lượng thuật toán,
+     * mà báo cho quản lý về vấn đề nhân sự.
+     */
+    private final List<String> structuralLoadWarnings;
 
     /**
      * Fairness theo từng loại ca.
@@ -176,6 +192,8 @@ public class ScheduleQualityReport {
     public static class FairnessDetail {
         private final String shiftTypeId;
         private final String specialtyName;
+        /** Số nhân sự trong pool của nhóm này (dùng để phát hiện quá tải cấu trúc). */
+        private final int poolSize;
         /** Số ca trung bình mỗi nhân sự. */
         private final double mean;
         /** Độ lệch chuẩn. */
@@ -223,12 +241,15 @@ public class ScheduleQualityReport {
      */
     public String summary() {
         return String.format(
-            "[%s] totalScore=%.1f (coverage=%.1f, fairness=%.1f, constraint=%.1f) " +
-            "assigned=%d/%d violations=%d",
+            "[%s] totalScore=%.1f (coverage=%.1f, global=%.1f, eligible=%.1f, constraint=%.1f) " +
+            "assigned=%d/%d violations=%d%s",
             grade, totalScore,
-            coverageScore, fairnessScore, constraintScore,
+            coverageScore, globalFairnessScore, fairnessScore, constraintScore,
             totalAssigned, totalRequired,
-            hardViolationCount + softViolationCount
+            hardViolationCount + softViolationCount,
+            structuralLoadWarnings != null && !structuralLoadWarnings.isEmpty()
+                ? " | " + String.join("; ", structuralLoadWarnings)
+                : ""
         );
     }
 
