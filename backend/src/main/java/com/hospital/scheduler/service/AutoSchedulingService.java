@@ -16,6 +16,8 @@ import com.hospital.scheduler.algorithm.AutoGenConfig;
 import com.hospital.scheduler.algorithm.BeamSearchScheduler;
 import com.hospital.scheduler.algorithm.EnhancedGreedyScheduler;
 import com.hospital.scheduler.algorithm.RandomRestartHCScheduler;
+import com.hospital.scheduler.algorithm.SimulatedAnnealingScheduler;
+import com.hospital.scheduler.algorithm.CpSatScheduler;
 import com.hospital.scheduler.algorithm.ScheduleChange;
 import com.hospital.scheduler.algorithm.ShiftRequirementInfo;
 import com.hospital.scheduler.algorithm.SchedulingResult;
@@ -75,6 +77,8 @@ public class AutoSchedulingService {
     private final PreviewConflictCheckService previewConflictCheckService;
     private final EnhancedGreedyScheduler enhancedGreedyScheduler;
     private final RandomRestartHCScheduler randomRestartHCScheduler;
+    private final SimulatedAnnealingScheduler simulatedAnnealingScheduler;
+    private final CpSatScheduler cpSatScheduler;
 
     // Extracted runners (instantiated via @PostConstruct)
     private SchedulingAlgorithmRunner algorithmRunner;
@@ -739,7 +743,8 @@ public class AutoSchedulingService {
         // request "BACKTRACKING" or "GENETIC" and the run would still be persisted as
         // that algorithm in metrics — masking the fact that no such algorithm ran.
 	        java.util.Set<String> supportedAlgorithms = java.util.Set.of(
-	                "BEAM_SEARCH", "ENHANCED_GREEDY", "RANDOM_RESTART_HC"
+	                "BEAM_SEARCH", "ENHANCED_GREEDY", "RANDOM_RESTART_HC", 
+	                "SIMULATED_ANNEALING", "CP_SAT"
 	        );
         if (!supportedAlgorithms.contains(algorithmType)) {
             throw new BadRequestException("algorithmType '" + request.getAlgorithmType()
@@ -760,6 +765,16 @@ public class AutoSchedulingService {
 	        } else if ("RANDOM_RESTART_HC".equals(algorithmType)) {
 	            log.info("Running Random Restart HC for period {}", period.getId());
 	            createdSchedules = randomRestartHCScheduler.solve(
+	                    activeStaff, requirements, period, runtimeConfig,
+	                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
+	        } else if ("SIMULATED_ANNEALING".equals(algorithmType)) {
+	            log.info("Running Simulated Annealing for period {}", period.getId());
+	            createdSchedules = simulatedAnnealingScheduler.solve(
+	                    activeStaff, requirements, period, runtimeConfig,
+	                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
+	        } else if ("CP_SAT".equals(algorithmType)) {
+	            log.info("Running CP-SAT for period {}", period.getId());
+	            createdSchedules = cpSatScheduler.solve(
 	                    activeStaff, requirements, period, runtimeConfig,
 	                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
 	        } else {

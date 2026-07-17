@@ -23,7 +23,7 @@ export type AutoScheduleState = {
   applying: boolean;
   running: boolean;
   message: string | null;
-  algorithmType: "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC";
+  algorithmType: "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC" | "SIMULATED_ANNEALING" | "CP_SAT";
   holidayMode: "SKIP" | "PARTIAL" | null;
 };
 
@@ -49,7 +49,7 @@ export type AutoScheduleActions = {
   clearPreview: () => void;
   clearMessage: () => void;
   setMessage: (msg: string) => void;
-  setAlgorithmType: (type: "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC") => void;
+  setAlgorithmType: (type: "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC" | "SIMULATED_ANNEALING" | "CP_SAT") => void;
   setHolidayMode: (mode: "SKIP" | "PARTIAL" | null) => void;
 };
 
@@ -68,7 +68,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [applying, setApplying] = useState(false);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [algorithmType, setAlgorithmType] = useState<"BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC">("BEAM_SEARCH");
+  const [algorithmType, setAlgorithmType] = useState<"BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC" | "SIMULATED_ANNEALING" | "CP_SAT">("BEAM_SEARCH");
   const [holidayMode, setHolidayMode] = useState<"SKIP" | "PARTIAL" | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -290,7 +290,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   }, []);
 
   const clearMessage = useCallback(() => setMessage(null), []);
-  const setAlgoType = useCallback((type: "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC") => {
+  const setAlgoType = useCallback((type: "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC" | "SIMULATED_ANNEALING" | "CP_SAT") => {
     setAlgorithmType(type);
   }, [setAlgorithmType]);
 

@@ -12,7 +12,7 @@ import type { AutoScheduleResult, SchedulePeriod, Staff } from "@/types/api";
 import { parseNumber } from "@/lib/number-utils";
 import { useAlgorithmProgress } from "@/hooks/useAlgorithmProgress";
 
-type AlgorithmType = "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC";
+type AlgorithmType = "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC" | "SIMULATED_ANNEALING" | "CP_SAT";
 
 // ... (ALGO_CONFIG)
 const ALGO_CONFIG: Record<AlgorithmType, {
@@ -20,9 +20,11 @@ const ALGO_CONFIG: Record<AlgorithmType, {
   label: string;
   desc: string;
 }> = {
-  BEAM_SEARCH:      { icon: "width_normal", label: "Beam Search",     desc: "Nhanh nhất, coverage 100%" },
-  ENHANCED_GREEDY:{ icon: "energy",    label: "Enhanced Greedy", desc: "Greedy + fatigue, 279ca" },
-  RANDOM_RESTART_HC:{icon:"refresh",   label: "Random Restart",  desc: "HC khởi tạo lại, 276ca" },
+  BEAM_SEARCH:          { icon: "width_normal", label: "Beam Search",         desc: "Nhanh nhất, coverage 98%" },
+  ENHANCED_GREEDY:      { icon: "energy",       label: "Enhanced Greedy",    desc: "Cân bằng tốt, 465ca" },
+  RANDOM_RESTART_HC:    { icon: "refresh",      label: "Random Restart",     desc: "HC khởi tạo lại" },
+  SIMULATED_ANNEALING:  { icon: "psychology",   label: "Simulated Annealing", desc: "SA tối ưu, 533ca" },
+  CP_SAT:               { icon: "neurology",     label: "CP-SAT (OR-Tools)",  desc: "Tối ưu toàn cục, 744ca" },
 };
 type EditedPreview = Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
 

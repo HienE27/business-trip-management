@@ -1,5 +1,5 @@
 # Multi-stage build for Spring Boot backend
-FROM eclipse-temurin:17-jdk-alpine AS build
+FROM eclipse-temurin:17-jdk AS build
 
 # Set working directory
 WORKDIR /app
@@ -19,13 +19,13 @@ COPY src ./src
 RUN ./mvnw package -Dmaven.test.skip=true
 
 # Runtime stage
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
+RUN groupadd -r appgroup && \
+    useradd -r -g appgroup appuser
 
 # Copy the built JAR
 COPY --from=build /app/target/*.jar app.jar
