@@ -24,8 +24,8 @@ public interface AlgorithmConfigRepository extends JpaRepository<AlgorithmConfig
      * (or a {@code @Lock(PESSIMISTIC_WRITE)} findByParamKey + save) if dialect changes.
      */
     @Modifying
-    @Query(value = "INSERT INTO algorithm_config (param_key, param_value, value_type, description, updated_at) " +
-            "VALUES (:paramKey, :paramValue, :valueType, :description, CURRENT_TIMESTAMP) " +
+    @Query(value = "INSERT INTO algorithm_config (param_key, param_value, value_type, description, created_at, updated_at) " +
+            "VALUES (:paramKey, :paramValue, :valueType, :description, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) " +
             "ON DUPLICATE KEY UPDATE " +
             "param_value = VALUES(param_value), " +
             "value_type = VALUES(value_type), " +
