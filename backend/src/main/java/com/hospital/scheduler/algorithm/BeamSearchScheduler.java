@@ -20,11 +20,11 @@ import java.util.stream.Collectors;
 @Component
 public class BeamSearchScheduler {
 
-    private static final int DEFAULT_BEAM_WIDTH = 10; // Tăng từ 5→10
-    private static final double COVERAGE_WEIGHT = 0.35;
-    private static final double FAIRNESS_WEIGHT = 0.25;
-    private static final double VARIETY_WEIGHT = 0.25;
-    private static final double BALANCE_WEIGHT = 0.15; // Mới: thêm balance per-type
+    private static final int DEFAULT_BEAM_WIDTH = 15; // Tăng từ 10→15
+    private static final double COVERAGE_WEIGHT = 0.30;
+    private static final double FAIRNESS_WEIGHT = 0.20;
+    private static final double VARIETY_WEIGHT = 0.20;
+    private static final double BALANCE_WEIGHT = 0.30; // Tăng: ưu tiên balance hơn
     private static final String[] SHIFT_TYPES = {"L01", "L02", "L03", "L04"};
 
     public List<Schedule> solve(

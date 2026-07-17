@@ -17,8 +17,8 @@ import java.util.stream.Collectors;
 @Component
 public class RandomRestartHCScheduler {
 
-    private static final int NUM_RESTARTS = 8;   // Tăng từ 4→8
-    private static final int MAX_ITER = 300;       // Tăng từ 150→300
+    private static final int NUM_RESTARTS = 12;   // Tăng từ 8→12
+    private static final int MAX_ITER = 500;       // Tăng từ 300→500
     private static final String[] SHIFT_TYPES = {"L01", "L02", "L03", "L04"};
     private static final Random GLOBAL_RNG = new Random();
 
