@@ -15,6 +15,7 @@ import { ALGORITHM_PRESETS, detectPreset } from "./presets";
 import {
   PARAM_GROUPS,
   SHIFT_TYPE_GROUPS,
+  READ_ONLY_GROUP_IDS,
   calcProgressPct,
   formatParamDisplay,
   getParamBounds,
@@ -24,6 +25,7 @@ import { ShiftTypeGroupCard } from "./ShiftTypeGroupCard";
 import { HolidayModeField } from "./HolidayModeField";
 import { RemovedShiftTypesField } from "./RemovedShiftTypesField";
 import { ShiftTypeCrossSpecialtyCard } from "./ShiftTypeCrossSpecialtyCard";
+import { BusinessRulesCard } from "./BusinessRulesCard";
 import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
@@ -62,12 +64,16 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         api.getActiveSpecialties(),
         api.getDashboard(),
       ]);
-      const data = (res as unknown as { data: RuntimeConfig }).data;
-      const autoGen = (resAutoGen as unknown as { data: RuntimeConfig }).data;
-      const specialties = ((specialtiesRes as unknown as { data: { id: number; name: string }[] }).data ?? []).map(s => s.name);
-      const dashboard = dashboardRes as unknown as { data: DashboardData };
-      const summary = dashboard.data?.summary;
-      const shiftStats = dashboard.data?.shiftStatistics as ShiftStatistics | undefined;
+      // unwrapped by api-client interceptor
+      // The backend returns the full RuntimeConfig object; the api-client method
+      // is declared with only a subset of fields to avoid coupling to backend
+      // schema drift, but the runtime object actually carries the whole shape.
+      // Cast through unknown to bridge the two views safely.
+      const data = res as unknown as RuntimeConfig;
+      const autoGen = resAutoGen as unknown as RuntimeConfig;
+      const specialties = (specialtiesRes ?? []).map(s => s.name);
+      const summary = dashboardRes?.summary;
+      const shiftStats = dashboardRes?.shiftStatistics as ShiftStatistics | undefined;
 
       setAllSpecialties(specialties);
       const merged = mergeRuntimeAndAutoGen(data, autoGen);
@@ -196,22 +202,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l03MaxPerWeek: form.l03MaxPerWeek ?? 0,
         l04MaxPerWeek: form.l04MaxPerWeek ?? 0,
         removedShiftTypes: form.removedShiftTypes ?? [],
-        // L01 cross-specialty
-        l01CrossSpecialty: form.l01CrossSpecialty ?? false,
-        l01CrossSpecialtyRatio: form.l01CrossSpecialtyRatio ?? 0.3,
-        l01AllowedSpecialties: form.l01AllowedSpecialties ?? [],
-        l01BalanceStrategy: form.l01BalanceStrategy ?? "FAIR_DISTRIBUTE",
-        // L02 cross-specialty
-        l02CrossSpecialty: form.l02CrossSpecialty ?? false,
-        l02CrossSpecialtyRatio: form.l02CrossSpecialtyRatio ?? 0.3,
-        l02AllowedSpecialties: form.l02AllowedSpecialties ?? [],
-        l02BalanceStrategy: form.l02BalanceStrategy ?? "FAIR_DISTRIBUTE",
-        // L03 cross-specialty
-        l03CrossSpecialty: form.l03CrossSpecialty ?? false,
-        l03CrossSpecialtyRatio: form.l03CrossSpecialtyRatio ?? 0.3,
-        l03AllowedSpecialties: form.l03AllowedSpecialties ?? [],
-        l03BalanceStrategy: form.l03BalanceStrategy ?? "FAIR_DISTRIBUTE",
-        // L04 cross-specialty
+        // L04 cross-specialty (L01/L02/L03 reserved for future use — currently unused)
         l04CrossSpecialty: form.l04CrossSpecialty ?? false,
         l04CrossSpecialtyRatio: form.l04CrossSpecialtyRatio ?? 0.3,
         l04AllowedSpecialties: form.l04AllowedSpecialties ?? [],
@@ -419,59 +410,22 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {PARAM_GROUPS.map(group => (
-          <ParamGroupCard
-            key={group.id}
-            group={group}
-            form={form}
-            editing={editing}
-            onChange={setField}
-          />
-        ))}
-        <AutoCompensationCard form={form} editing={editing} onChange={setField} />
-        {/* Cross-specialty cards for all shift types */}
-        <ShiftTypeCrossSpecialtyCard
-          shiftType="L01"
-          shiftTypeName="Trực 24/24"
-          enabled={form.l01CrossSpecialty ?? false}
-          ratio={form.l01CrossSpecialtyRatio ?? 0.3}
-          allowedSpecialties={form.l01AllowedSpecialties ?? []}
-          allSpecialties={allSpecialties}
-          editing={editing}
-          balanceStrategy={form.l01BalanceStrategy ?? "FAIR_DISTRIBUTE"}
-          showSpecialtyConfig={false}
-          onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
-            setForm(prev => prev ? { ...prev, l01CrossSpecialty: enabled, l01CrossSpecialtyRatio: ratio, l01AllowedSpecialties: allowedSpecialties, l01BalanceStrategy: balanceStrategy } : prev);
-          }}
-        />
-        <ShiftTypeCrossSpecialtyCard
-          shiftType="L02"
-          shiftTypeName="Thông tầm"
-          enabled={form.l02CrossSpecialty ?? false}
-          ratio={form.l02CrossSpecialtyRatio ?? 0.3}
-          allowedSpecialties={form.l02AllowedSpecialties ?? []}
-          allSpecialties={allSpecialties}
-          editing={editing}
-          balanceStrategy={form.l02BalanceStrategy ?? "FAIR_DISTRIBUTE"}
-          showSpecialtyConfig={false}
-          onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
-            setForm(prev => prev ? { ...prev, l02CrossSpecialty: enabled, l02CrossSpecialtyRatio: ratio, l02AllowedSpecialties: allowedSpecialties, l02BalanceStrategy: balanceStrategy } : prev);
-          }}
-        />
-        <ShiftTypeCrossSpecialtyCard
-          shiftType="L03"
-          shiftTypeName="PK Dịch vụ"
-          enabled={form.l03CrossSpecialty ?? false}
-          ratio={form.l03CrossSpecialtyRatio ?? 0.3}
-          allowedSpecialties={form.l03AllowedSpecialties ?? []}
-          allSpecialties={allSpecialties}
-          editing={editing}
-          balanceStrategy={form.l03BalanceStrategy ?? "FAIR_DISTRIBUTE"}
-          showSpecialtyConfig={false}
-          onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
-            setForm(prev => prev ? { ...prev, l03CrossSpecialty: enabled, l03CrossSpecialtyRatio: ratio, l03AllowedSpecialties: allowedSpecialties, l03BalanceStrategy: balanceStrategy } : prev);
-          }}
-        />
+        {PARAM_GROUPS
+          .filter(g => !g.hidden)
+          .map(group => {
+            const effectiveEditing = group.readOnly ? false : editing;
+            return (
+              <ParamGroupCard
+                key={group.id}
+                group={group}
+                form={form}
+                editing={effectiveEditing}
+                onChange={setField}
+              />
+            );
+          })}
+        <AutoCompensationCard />
+        {/* L04 Cross-specialty — business config, giữ nguyên */}
         <ShiftTypeCrossSpecialtyCard
           shiftType="L04"
           shiftTypeName="PK Chuyên gia"
@@ -486,6 +440,8 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             setForm(prev => prev ? { ...prev, l04CrossSpecialty: enabled, l04CrossSpecialtyRatio: ratio, l04AllowedSpecialties: allowedSpecialties, l04BalanceStrategy: balanceStrategy } : prev);
           }}
         />
+        {/* Business Rules — tổng quan ràng buộc nghiệp vụ */}
+        <BusinessRulesCard />
       </div>
 
       <div>
@@ -598,6 +554,13 @@ type ParamGroupCardProps = {
   onChange: <K extends keyof RuntimeConfig>(key: K, value: RuntimeConfig[K]) => void;
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  business: "Nghiệp vụ",
+  advanced: "Nâng cao",
+  monitoring: "Theo dõi",
+  internal: "Nội bộ",
+};
+
 function ParamGroupCard({ group, form, editing, onChange }: ParamGroupCardProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -609,14 +572,24 @@ function ParamGroupCard({ group, form, editing, onChange }: ParamGroupCardProps)
         className="w-full px-5 py-4 bg-surface-container-low flex items-center justify-between gap-3 hover:bg-surface-container transition-colors"
         aria-expanded={!collapsed}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${group.bg} ${group.color}`}>
             <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{group.icon}</span>
           </div>
-          <p className="text-label-md font-semibold text-on-surface tracking-tight">{group.label}</p>
-          <span className="text-[11px] text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">
-            {group.params.length} thông số
-          </span>
+          <div className="flex flex-col items-start gap-0.5 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-label-md font-semibold text-on-surface tracking-tight">{group.label}</p>
+              {group.readOnly && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-surface-container border border-outline text-on-surface-variant">
+                  <span className="material-symbols-outlined text-[10px]" aria-hidden="true">lock</span>
+                  Chỉ đọc
+                </span>
+              )}
+            </div>
+            {group.groupDesc && (
+              <p className="text-[11px] text-on-surface-variant leading-tight line-clamp-2">{group.groupDesc}</p>
+            )}
+          </div>
         </div>
         <span className={`material-symbols-outlined text-[20px] text-on-surface-variant transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`} aria-hidden="true">
           expand_more
@@ -657,7 +630,7 @@ type ParamFieldProps = {
   onChange: <K extends keyof RuntimeConfig>(key: K, value: RuntimeConfig[K]) => void;
 };
 
-const TRACKING_ONLY_PARAMS = new Set(["min_staff_per_shift", "min_shifts_per_staff", "overnight_recovery_hours"]);
+const TRACKING_ONLY_PARAMS = new Set(["min_staff_per_shift", "min_shifts_per_staff", "overnight_recovery_hours", "l01_cross_specialty", "l02_cross_specialty", "l03_cross_specialty"]);
 
 // Number spinner input với +/- buttons cho nhập liệu nhanh
 function NumberSpinner({ value, min, max, step, onChange, disabled }: {
@@ -794,6 +767,12 @@ function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: P
                 Theo dõi
               </span>
             )}
+            {groupId === "internal" && (
+              <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[9px] font-semibold text-gray-400">
+                <span className="material-symbols-outlined text-[9px] mr-0.5" aria-hidden="true">lock</span>
+                Internal
+              </span>
+            )}
           </div>
           <p className="text-[11px] text-on-surface-variant leading-tight">{desc.desc}</p>
         </div>
@@ -836,44 +815,30 @@ function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: P
 
 /* ─── Auto Compensation Card ───────────────────────────────── */
 
-type AutoCompProps = {
-  form: RuntimeConfig;
-  editing: boolean;
-  onChange: <K extends keyof RuntimeConfig>(key: K, value: RuntimeConfig[K]) => void;
-};
-
-function AutoCompensationCard({ form, editing, onChange }: AutoCompProps) {
+function AutoCompensationCard() {
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden hover:shadow-sm transition-shadow duration-200 border-l-4 border-l-teal-500">
       <div className="px-5 py-4 bg-surface-container-low flex items-center gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
           <span className="material-symbols-outlined text-[18px]" aria-hidden="true">event_available</span>
         </div>
-        <p className="text-label-md font-semibold text-on-surface tracking-tight">Nghỉ bù tự động</p>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-label-md font-semibold text-on-surface tracking-tight">Nghỉ bù tự động</p>
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Future (v1.1)</span>
+          </div>
+          <p className="text-[11px] text-on-surface-variant leading-tight mt-0.5">Chưa dùng trong scheduler v1.0 — luôn tạo nghỉ bù</p>
+        </div>
       </div>
       <div className="p-5 flex items-center justify-between gap-4">
         <div className="flex-1">
           <p className="text-label-sm text-on-surface font-medium">Tạo ngày nghỉ bù</p>
-          <p className="text-[11px] text-on-surface-variant mt-0.5">Tự động tạo sau ca trực 24/24</p>
+          <p className="text-[11px] text-on-surface-variant mt-0.5">Scheduler v1.0 luôn tạo nghỉ bù sau ca L01</p>
         </div>
-        {editing ? (
-          <button
-            type="button"
-            role="switch"
-            aria-checked={form.autoCompensationEnabled}
-            onClick={() => onChange("autoCompensationEnabled", !form.autoCompensationEnabled)}
-            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-              form.autoCompensationEnabled ? "bg-teal-500 border-teal-500" : "bg-surface-container-high border-outline"
-            }`}
-          >
-            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${form.autoCompensationEnabled ? "translate-x-6" : "translate-x-1"}`} />
-          </button>
-        ) : (
-          <span className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-label-sm font-semibold ${form.autoCompensationEnabled ? "bg-teal-50 text-teal-700 border border-teal-200" : "bg-surface-container-high text-outline"}`}>
-            <span className={`h-2 w-2 rounded-full ${form.autoCompensationEnabled ? "bg-teal-500" : "bg-outline"}`} />
-            {form.autoCompensationEnabled ? "Bật" : "Tắt"}
-          </span>
-        )}
+        <span className="flex items-center gap-2 px-3 py-1.5 rounded-full text-label-sm font-semibold bg-surface-container text-outline">
+          <span className="h-2 w-2 rounded-full bg-outline" />
+          Tự động
+        </span>
       </div>
     </div>
   );

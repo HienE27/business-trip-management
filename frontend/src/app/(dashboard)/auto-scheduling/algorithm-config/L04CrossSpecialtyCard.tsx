@@ -228,8 +228,8 @@ export function L04SpecialtyConfig({
             {/* Cross-specialty ratio */}
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/50">
               <div>
-                <p className="text-label-sm text-on-surface font-medium">Cross-specialty ratio</p>
-                <p className="text-[11px] text-on-surface-variant mt-0.5">Tỷ lệ staff ngoài danh sách cho mỗi ca</p>
+                <p className="text-label-sm text-on-surface font-medium">Tỷ lệ tối đa ngoài chuyên khoa</p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">Tối đa % nhân sự ngoài danh sách cho mỗi ca</p>
               </div>
               <span className="font-mono text-lg font-bold text-tertiary tabular-nums">
                 {Math.round(ratio * 100)}%
@@ -250,8 +250,11 @@ export function L04SpecialtyConfig({
             {/* Balance strategy */}
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/50">
               <div>
-                <p className="text-label-sm text-on-surface font-medium">Balance strategy</p>
-                <p className="text-[11px] text-on-surface-variant mt-0.5">Phân bổ staff ngoài chuyên khoa thế nào</p>
+                <p className="text-label-sm text-on-surface font-medium flex items-center gap-2">
+                  Chiến lược cân bằng
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Future (v1.1)</span>
+                </p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">Cách phân bổ staff ngoài chuyên khoa — chưa dùng trong v1.0</p>
               </div>
             </div>
             {editing ? (

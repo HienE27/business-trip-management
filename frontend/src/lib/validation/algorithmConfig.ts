@@ -125,7 +125,10 @@ function perShiftTypeValidation(
         return { level: "warning", message: "Min > 7 ca/người/tuần vượt quá 1 ca/ngày — không khả thi." };
       }
       if (bound === "max" && num > 0 && num > 7) {
-        return { level: "warning", message: "Trần > 7 ca/người/tuần vượt quá 1 ca/ngày — không khả thi." };
+        const recommendation = num > 10
+          ? " Khuyến nghị ≤ 6 để đảm bảo feasibility."
+          : " Khuyến nghị ≤ 6.";
+        return { level: "warning", message: `Trần > 7 ca/người/tuần vượt quá 1 ca/ngày — không khả thi.${recommendation}` };
       }
     }
     return null;
