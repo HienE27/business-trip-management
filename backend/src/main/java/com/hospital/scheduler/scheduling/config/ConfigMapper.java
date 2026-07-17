@@ -108,7 +108,6 @@ public final class ConfigMapper {
 
             // CONSTRAINTS
             Map.entry("constraints.overnightRecoveryHours",  "overnight_recovery_hours"),
-            Map.entry("constraints.autoCompensationEnabled", "auto_compensation_enabled"),
             Map.entry("constraints.greedyCoverageThreshold","greedy_coverage_threshold"),
             Map.entry("constraints.minStaffPerShift",       "min_staff_per_shift"),
             Map.entry("constraints.maxStaffPerShift",       "max_staff_per_shift"),
@@ -203,7 +202,6 @@ public final class ConfigMapper {
 
         // CONSTRAINTS
         put(result, "constraints.overnightRecoveryHours",  String.valueOf(d.overnightRecoveryHours()));
-        put(result, "constraints.autoCompensationEnabled", String.valueOf(d.autoCompensationEnabled()));
         put(result, "constraints.greedyCoverageThreshold", String.valueOf(d.greedyCoverageThreshold()));
         put(result, "constraints.minStaffPerShift",       String.valueOf(d.minStaffPerShift()));
         put(result, "constraints.maxStaffPerShift",       String.valueOf(d.maxStaffPerShift()));
@@ -289,7 +287,6 @@ public final class ConfigMapper {
 
         // CONSTRAINTS
         b.overnightRecoveryHours(intOf(paramMap, "constraints.overnightRecoveryHours", 24));
-        b.autoCompensationEnabled(boolOf(paramMap, "constraints.autoCompensationEnabled", true));
         b.greedyCoverageThreshold(doubleOf(paramMap, "constraints.greedyCoverageThreshold", 0.85));
         b.minStaffPerShift(intOf(paramMap, "constraints.minStaffPerShift", 0));
         b.maxStaffPerShift(intOf(paramMap, "constraints.maxStaffPerShift", 0));

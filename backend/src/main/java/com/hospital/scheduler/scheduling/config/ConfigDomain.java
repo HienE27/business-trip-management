@@ -172,9 +172,6 @@ public record ConfigDomain(
         /** Hours between consecutive L01 shifts. Default: 24. */
         int overnightRecoveryHours,
 
-        /** Auto-create compensation days when assigning L01. Default: true. */
-        boolean autoCompensationEnabled,
-
         /** Greedy algorithm early-stop coverage threshold. Default: 0.85. */
         double greedyCoverageThreshold,
 
@@ -331,7 +328,6 @@ public record ConfigDomain(
         private String l04BalanceStrategy = "";
 
         private int overnightRecoveryHours = 0;
-        private boolean autoCompensationEnabled = false;
         private double greedyCoverageThreshold = 0;
         private int minStaffPerShift = 0, maxStaffPerShift = 0;
         private int minShiftsPerStaff = 0, maxShiftsPerStaff = 0;
@@ -382,7 +378,6 @@ public record ConfigDomain(
             this.l04AllowedSpecialties = other.l04AllowedSpecialties.clone();
             this.l04BalanceStrategy = other.l04BalanceStrategy;
             this.overnightRecoveryHours = other.overnightRecoveryHours;
-            this.autoCompensationEnabled = other.autoCompensationEnabled;
             this.greedyCoverageThreshold = other.greedyCoverageThreshold;
             this.minStaffPerShift = other.minStaffPerShift;
             this.maxStaffPerShift = other.maxStaffPerShift;
@@ -440,7 +435,6 @@ public record ConfigDomain(
         public Builder l04BalanceStrategy(String v) { this.l04BalanceStrategy = v; return this; }
 
         public Builder overnightRecoveryHours(int v) { this.overnightRecoveryHours = v; return this; }
-        public Builder autoCompensationEnabled(boolean v) { this.autoCompensationEnabled = v; return this; }
         public Builder greedyCoverageThreshold(double v) { this.greedyCoverageThreshold = v; return this; }
         public Builder minStaffPerShift(int v) { this.minStaffPerShift = v; return this; }
         public Builder maxStaffPerShift(int v) { this.maxStaffPerShift = v; return this; }
@@ -465,7 +459,7 @@ public record ConfigDomain(
                     l04MinPerDay, l04MaxPerDay, l04MinPerWeek, l04MaxPerWeek,
                     l04CrossSpecialtyEnabled, l04CrossSpecialtyRatio,
                     l04AllowedSpecialties, l04BalanceStrategy,
-                    overnightRecoveryHours, autoCompensationEnabled, greedyCoverageThreshold,
+                    overnightRecoveryHours, greedyCoverageThreshold,
                     minStaffPerShift, maxStaffPerShift, minShiftsPerStaff, maxShiftsPerStaff,
                     timeLimitSeconds, candidateListSize
             );

@@ -146,7 +146,6 @@ export interface ConfigDomain {
   l04AllowedSpecialties: string[];
   l04BalanceStrategy: string;
   overnightRecoveryHours: number;
-  autoCompensationEnabled: boolean;
   greedyCoverageThreshold: number;
   minStaffPerShift: number;
   maxStaffPerShift: number;

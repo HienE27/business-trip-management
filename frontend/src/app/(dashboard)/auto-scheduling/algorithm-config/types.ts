@@ -17,7 +17,6 @@ export type RuntimeConfig = {
   overnightRecoveryHours: number;
   greedyCoverageThreshold: number;
   balanceScoreMin: number;
-  autoCompensationEnabled: boolean;
   minStaffPerShift: number;
   maxStaffPerShift: number;
   minShiftsPerStaff: number;

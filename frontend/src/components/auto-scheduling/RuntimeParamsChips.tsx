@@ -8,7 +8,6 @@ interface RuntimeParamsSummary {
   overnightRecoveryHours: number;
   greedyCoverageThreshold: number;
   balanceScoreMin: number;
-  autoCompensationEnabled: boolean;
 }
 
 interface RuntimeParamsChipsProps {

@@ -301,8 +301,6 @@ public class ConfigService {
         if (override.l04AllowedSpecialties().length > 0) b.l04AllowedSpecialties(override.l04AllowedSpecialties());
         if (!override.l04BalanceStrategy().isBlank()) b.l04BalanceStrategy(override.l04BalanceStrategy());
         if (override.overnightRecoveryHours() > 0) b.overnightRecoveryHours(override.overnightRecoveryHours());
-        if (override.autoCompensationEnabled() != base.autoCompensationEnabled())
-            b.autoCompensationEnabled(override.autoCompensationEnabled());
         if (override.greedyCoverageThreshold() > 0) b.greedyCoverageThreshold(override.greedyCoverageThreshold());
         if (override.minStaffPerShift() >= 0) b.minStaffPerShift(override.minStaffPerShift());
         if (override.maxStaffPerShift() >= 0) b.maxStaffPerShift(override.maxStaffPerShift());
@@ -350,7 +348,6 @@ public class ConfigService {
             case "l04.allowedSpecialties" -> config.l04AllowedSpecialties();
             case "l04.balanceStrategy" -> config.l04BalanceStrategy();
             case "constraints.overnightRecoveryHours" -> config.overnightRecoveryHours();
-            case "constraints.autoCompensationEnabled" -> config.autoCompensationEnabled();
             case "constraints.greedyCoverageThreshold" -> config.greedyCoverageThreshold();
             case "constraints.minStaffPerShift" -> config.minStaffPerShift();
             case "constraints.maxStaffPerShift" -> config.maxStaffPerShift();
@@ -401,7 +398,6 @@ public class ConfigService {
             case "l04.allowedSpecialties" -> b.l04AllowedSpecialties(toStringArray(value));
             case "l04.balanceStrategy" -> b.l04BalanceStrategy(toString(value));
             case "constraints.overnightRecoveryHours" -> b.overnightRecoveryHours(toInt(value));
-            case "constraints.autoCompensationEnabled" -> b.autoCompensationEnabled(toBoolean(value));
             case "constraints.greedyCoverageThreshold" -> b.greedyCoverageThreshold(toDouble(value));
             case "constraints.minStaffPerShift" -> b.minStaffPerShift(toInt(value));
             case "constraints.maxStaffPerShift" -> b.maxStaffPerShift(toInt(value));

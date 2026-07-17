@@ -251,7 +251,6 @@ public class ConfigController {
                 config.l04AllowedSpecialties(),
                 config.l04BalanceStrategy(),
                 config.overnightRecoveryHours(),
-                config.autoCompensationEnabled(),
                 config.greedyCoverageThreshold(),
                 config.minStaffPerShift(),
                 config.maxStaffPerShift(),
@@ -294,7 +293,6 @@ public class ConfigController {
                 dto.l04AllowedSpecialties,
                 dto.l04BalanceStrategy,
                 dto.overnightRecoveryHours,
-                dto.autoCompensationEnabled,
                 dto.greedyCoverageThreshold,
                 dto.minStaffPerShift,
                 dto.maxStaffPerShift,
@@ -333,7 +331,6 @@ public class ConfigController {
             case "l04.allowedSpecialties" -> config.l04AllowedSpecialties();
             case "l04.balanceStrategy" -> config.l04BalanceStrategy();
             case "constraints.overnightRecoveryHours" -> config.overnightRecoveryHours();
-            case "constraints.autoCompensationEnabled" -> config.autoCompensationEnabled();
             case "constraints.greedyCoverageThreshold" -> config.greedyCoverageThreshold();
             case "constraints.minStaffPerShift" -> config.minStaffPerShift();
             case "constraints.maxStaffPerShift" -> config.maxStaffPerShift();
@@ -413,7 +410,6 @@ public class ConfigController {
             case "l04.allowedSpecialties" -> { b.l04AllowedSpecialties(toStringArray(value)); yield b.build(); }
             case "l04.balanceStrategy" -> { b.l04BalanceStrategy(value.toString()); yield b.build(); }
             case "constraints.overnightRecoveryHours" -> { b.overnightRecoveryHours(toInt(value)); yield b.build(); }
-            case "constraints.autoCompensationEnabled" -> { b.autoCompensationEnabled(toBoolean(value)); yield b.build(); }
             case "constraints.greedyCoverageThreshold" -> { b.greedyCoverageThreshold(toDouble(value)); yield b.build(); }
             case "constraints.minStaffPerShift" -> { b.minStaffPerShift(toInt(value)); yield b.build(); }
             case "constraints.maxStaffPerShift" -> { b.maxStaffPerShift(toInt(value)); yield b.build(); }
@@ -528,7 +524,6 @@ public class ConfigController {
             String[] l04AllowedSpecialties,
             String l04BalanceStrategy,
             int overnightRecoveryHours,
-            boolean autoCompensationEnabled,
             double greedyCoverageThreshold,
             int minStaffPerShift,
             int maxStaffPerShift,

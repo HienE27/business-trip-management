@@ -832,11 +832,7 @@ public class AutoSchedulingService {
         if (save) {
             saveMetrics(period, algorithmType, (int) executionTime, coverageRate, balanceScore,
                     actualConflictCount, createdSchedules.size());
-            if (algorithmConfigService.getRuntimeConfig().isAutoCompensationEnabled()) {
-                createCompensationDaysForL01InPeriod(period.getId());
-            } else {
-                log.info("Auto compensation disabled by config for period {}", period.getId());
-            }
+            createCompensationDaysForL01InPeriod(period.getId());
         }
 
         // ── Build schedule summaries (deduplicated) ───────────────────────────────
@@ -3626,10 +3622,7 @@ public class AutoSchedulingService {
                 entityManager.flush();
                 persisted = scheduleRepository.saveAll(persisted);
                 entityManager.flush();
-                if (algorithmConfigService.getRuntimeConfig() != null
-                        && algorithmConfigService.getRuntimeConfig().isAutoCompensationEnabled()) {
-                    createCompensationDaysForL01InPeriod(periodId);
-                }
+                createCompensationDaysForL01InPeriod(periodId);
                 log.info("Reschedule persisted {} schedules for period {}", persisted.size(), periodId);
             }
 

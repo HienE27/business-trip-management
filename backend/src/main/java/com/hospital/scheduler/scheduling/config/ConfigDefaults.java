@@ -69,7 +69,6 @@ public final class ConfigDefaults {
 
     // CONSTRAINTS
     public static final int     OVERNIGHT_RECOVERY_HOURS      = 24;
-    public static final boolean AUTO_COMPENSATION_ENABLED      = true;
     public static final double GREEDY_COVERAGE_THRESHOLD      = 0.85;
     public static final int     MIN_STAFF_PER_SHIFT           = 0;
     public static final int     MAX_STAFF_PER_SHIFT           = 0;
@@ -119,7 +118,6 @@ public final class ConfigDefaults {
                 .l04AllowedSpecialties(L04_ALLOWED_SPECIALTIES)
                 .l04BalanceStrategy(L04_BALANCE_STRATEGY)
                 .overnightRecoveryHours(OVERNIGHT_RECOVERY_HOURS)
-                .autoCompensationEnabled(AUTO_COMPENSATION_ENABLED)
                 .greedyCoverageThreshold(GREEDY_COVERAGE_THRESHOLD)
                 .minStaffPerShift(MIN_STAFF_PER_SHIFT)
                 .maxStaffPerShift(MAX_STAFF_PER_SHIFT)

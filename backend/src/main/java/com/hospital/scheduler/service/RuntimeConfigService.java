@@ -40,7 +40,6 @@ public class RuntimeConfigService {
                 .overnightRecoveryHours(crud.getIntValue(AlgorithmConfigService.OVERNIGHT_RECOVERY_HOURS, 24, cache))
                 .greedyCoverageThreshold(crud.getBigDecimalValue(AlgorithmConfigService.GREEDY_COVERAGE_THRESHOLD, 0.85, cache))
                 .balanceScoreMin(crud.getBigDecimalValue(AlgorithmConfigService.BALANCE_SCORE_MIN, 0.70, cache))
-                .autoCompensationEnabled(crud.getBooleanValue(AlgorithmConfigService.AUTO_COMPENSATION_ENABLED, true, cache))
                 .minStaffPerShift(crud.getIntValue(AlgorithmConfigService.MIN_STAFF_PER_SHIFT, 1, cache))
                 .maxStaffPerShift(crud.getIntValue(AlgorithmConfigService.MAX_STAFF_PER_SHIFT, 0, cache))
                 .minShiftsPerStaff(crud.getIntValue(AlgorithmConfigService.MIN_SHIFTS_PER_STAFF, 0, cache))
@@ -65,8 +64,6 @@ public class RuntimeConfigService {
                 "Ngưỡng phủ lịch tối thiểu (0.0–1.0). Khi tỷ lệ lịch đã phủ đạt mức này, thuật toán greedy sẽ dừng sớm. Giảm → chạy nhanh hơn; tăng → phủ kỹ hơn.");
         upsert(AlgorithmConfigService.BALANCE_SCORE_MIN, String.valueOf(config.getBalanceScoreMin()), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
-        upsert(AlgorithmConfigService.AUTO_COMPENSATION_ENABLED, String.valueOf(config.isAutoCompensationEnabled()), AlgorithmConfig.ValueType.BOOLEAN,
-                "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
         upsert(AlgorithmConfigService.MIN_STAFF_PER_SHIFT, String.valueOf(config.getMinStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối thiểu mỗi ca. Đặt 0 để bỏ qua giới hạn này. Nếu không đủ nhân sự đạt ngưỡng, thuật toán sẽ cảnh báo nhưng vẫn xếp.");
         upsert(AlgorithmConfigService.MAX_STAFF_PER_SHIFT, String.valueOf(config.getMaxStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,

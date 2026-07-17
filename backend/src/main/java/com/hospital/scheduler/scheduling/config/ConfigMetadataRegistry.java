@@ -369,14 +369,6 @@ public final class ConfigMetadataRegistry {
                 24, 12, 72
         ));
 
-        put(m, ConfigMetadata.toggle(
-                "constraints.autoCompensationEnabled",
-                "Tự động tạo ngày nghỉ bù",
-                "Tự động tạo lịch nghỉ bù khi phân ca trực 24/24.",
-                ConfigMetadata.ConfigCategory.CONSTRAINTS,
-                true
-        ));
-
         put(m, ConfigMetadata.percentage(
                 "constraints.greedyCoverageThreshold",
                 "Ngưỡng coverage cho Greedy",

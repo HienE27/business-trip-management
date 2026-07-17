@@ -64,7 +64,6 @@ public class AlgorithmConfigService {
     public static final String OVERNIGHT_RECOVERY_HOURS = "overnight_recovery_hours";
     public static final String GREEDY_COVERAGE_THRESHOLD = "greedy_coverage_threshold";
     public static final String BALANCE_SCORE_MIN = "balance_score_min";
-    public static final String AUTO_COMPENSATION_ENABLED = "auto_compensation_enabled";
     public static final String MIN_STAFF_PER_SHIFT = "min_staff_per_shift";
     public static final String MAX_STAFF_PER_SHIFT = "max_staff_per_shift";
     public static final String MIN_SHIFTS_PER_STAFF = "min_shifts_per_staff";
@@ -392,9 +391,6 @@ public class AlgorithmConfigService {
         upsert(BALANCE_SCORE_MIN, getStringValue(BALANCE_SCORE_MIN, "0.75"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
         map.put(BALANCE_SCORE_MIN, "OK");
-        upsert(AUTO_COMPENSATION_ENABLED, getStringValue(AUTO_COMPENSATION_ENABLED, "true"), AlgorithmConfig.ValueType.BOOLEAN,
-                "[RESERVED v1.1] Tự động tạo ngày nghỉ bù sau ca L01. Hiện tại luôn bật — không dùng config này.");
-        map.put(AUTO_COMPENSATION_ENABLED, "OK");
         upsert(MIN_STAFF_PER_SHIFT, getStringValue(MIN_STAFF_PER_SHIFT, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng theo dõi số nhân sự tối thiểu mỗi ca; dùng cho đánh giá/chất lượng, không ép thuật toán phá ràng buộc cứng.");
         map.put(MIN_STAFF_PER_SHIFT, "OK");
@@ -502,7 +498,6 @@ public class AlgorithmConfigService {
                 .overnightRecoveryHours(getIntValue(OVERNIGHT_RECOVERY_HOURS, 24, cache))
                 .greedyCoverageThreshold(getBigDecimalValue(GREEDY_COVERAGE_THRESHOLD, 0.85, cache))
                 .balanceScoreMin(getBigDecimalValue(BALANCE_SCORE_MIN, 0.70, cache))
-                .autoCompensationEnabled(getBooleanValue(AUTO_COMPENSATION_ENABLED, true, cache))
                 .minStaffPerShift(getIntValue(MIN_STAFF_PER_SHIFT, 1, cache))
                 .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0, cache))
                 .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0, cache))
@@ -528,8 +523,6 @@ public class AlgorithmConfigService {
                 "Ngưỡng phủ lịch tối thiểu (0.0–1.0). Khi tỷ lệ lịch đã phủ đạt mức này, thuật toán greedy sẽ dừng sớm. Giảm → chạy nhanh hơn; tăng → phủ kỹ hơn.");
         upsert(BALANCE_SCORE_MIN, String.valueOf(config.getBalanceScoreMin()), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
-        upsert(AUTO_COMPENSATION_ENABLED, String.valueOf(config.isAutoCompensationEnabled()), AlgorithmConfig.ValueType.BOOLEAN,
-                "[RESERVED v1.1] Tự động tạo ngày nghỉ bù sau ca L01.");
         upsert(MIN_STAFF_PER_SHIFT, String.valueOf(config.getMinStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối thiểu mỗi ca. Đặt 0 để bỏ qua giới hạn này. Nếu không đủ nhân sự đạt ngưỡng, thuật toán sẽ cảnh báo nhưng vẫn xếp.");
         upsert(MAX_STAFF_PER_SHIFT, String.valueOf(config.getMaxStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
@@ -695,7 +688,6 @@ public class AlgorithmConfigService {
         private int overnightRecoveryHours;
         private java.math.BigDecimal greedyCoverageThreshold;
         private java.math.BigDecimal balanceScoreMin;
-        private boolean autoCompensationEnabled;
         private int maxStaffPerShift;
         private int maxShiftsPerStaff;
         // Per-shift-type weekly max (from AutoGenConfig)
