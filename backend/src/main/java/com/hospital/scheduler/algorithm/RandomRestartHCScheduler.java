@@ -4,6 +4,7 @@ import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -22,6 +23,15 @@ public class RandomRestartHCScheduler {
     private static final String[] SHIFT_TYPES = {"L01", "L02", "L03", "L04"};
     private static final Random GLOBAL_RNG = new Random();
 
+    @Autowired
+    private com.hospital.scheduler.util.CompensationDateCalculator compensationDateCalculator;
+
+    @Autowired
+    private com.hospital.scheduler.repository.ScheduleRepository scheduleRepository;
+
+    @Autowired
+    private com.hospital.scheduler.repository.CompensationDayRepository compensationDayRepository;
+
     public List<Schedule> solve(
             List<Staff> activeStaff,
             List<ShiftRequirement> requirements,
@@ -37,9 +47,37 @@ public class RandomRestartHCScheduler {
         List<Schedule> bestSchedules = new ArrayList<>();
         int bestCount = 0;
 
+        // Load database pre-existing L01 schedules and compensation days
+        LocalDate periodStart = period.getStartDate();
+        LocalDate periodEnd = period.getEndDate();
+        
+        List<CompensationDay> compDays = compensationDayRepository.findInRange(periodStart, periodEnd);
+        List<Schedule> l01Schedules = scheduleRepository.findL01SchedulesInRange(periodStart.minusDays(7), periodStart.minusDays(1));
+        
+        Map<Integer, Set<LocalDate>> blockedDates = new HashMap<>();
+        for (CompensationDay cd : compDays) {
+            blockedDates.computeIfAbsent(cd.getStaff().getId(), k -> new HashSet<>())
+                    .add(cd.getCompensationDate());
+        }
+        for (Schedule s : l01Schedules) {
+            int staffId = s.getStaff().getId();
+            LocalDate workDate = s.getWorkDate();
+            blockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(workDate.plusDays(1));
+            LocalDate compDate = compensationDateCalculator.calculate(workDate);
+            if (compDate != null) {
+                blockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(compDate);
+            }
+        }
+
         for (int restart = 0; restart < NUM_RESTARTS; restart++) {
+            // Create a deep copy of blockedDates for this restart path
+            Map<Integer, Set<LocalDate>> runBlockedDates = new HashMap<>();
+            for (var entry : blockedDates.entrySet()) {
+                runBlockedDates.put(entry.getKey(), new HashSet<>(entry.getValue()));
+            }
+
             List<Schedule> current = randomGreedy(activeStaff, requirements, period,
-                    runtimeConfig, excludedStaffIds, staffMap, rng);
+                    runtimeConfig, excludedStaffIds, staffMap, rng, runBlockedDates);
             if (current.isEmpty()) continue;
 
             // Hill climbing: try to improve by finding better feasible swaps
@@ -76,16 +114,22 @@ public class RandomRestartHCScheduler {
                         Collections.shuffle(fromSchedules, rng);
                         
                         for (Schedule s : fromSchedules) {
-                            // Check if 'to' can take this shift
-                            boolean canTake = current.stream()
-                                    .noneMatch(ex -> ex.getStaff().getId() == to 
-                                            && ex.getWorkDate().equals(s.getWorkDate())
-                                            && (ex.getShiftType().getId().equals(s.getShiftType().getId())
-                                                || ("L01".equals(s.getShiftType().getId()) && "L02".equals(ex.getShiftType().getId()))
-                                                || ("L02".equals(s.getShiftType().getId()) && "L01".equals(ex.getShiftType().getId()))
-                                                || ("L03".equals(s.getShiftType().getId()) && "L04".equals(ex.getShiftType().getId()))
-                                                || ("L04".equals(s.getShiftType().getId()) && "L03".equals(ex.getShiftType().getId()))));
-                            if (canTake) {
+                            if (canSwapShift(current, to, s, runBlockedDates)) {
+                                String shiftTypeId = s.getShiftType().getId();
+                                LocalDate date = s.getWorkDate();
+
+                                // Update blocked dates for swap
+                                if ("L01".equals(shiftTypeId)) {
+                                    Set<LocalDate> fromBlocked = runBlockedDates.computeIfAbsent(from, k -> new HashSet<>());
+                                    fromBlocked.remove(date.plusDays(1));
+                                    LocalDate compDate = compensationDateCalculator.calculate(date);
+                                    if (compDate != null) fromBlocked.remove(compDate);
+
+                                    Set<LocalDate> toBlocked = runBlockedDates.computeIfAbsent(to, k -> new HashSet<>());
+                                    toBlocked.add(date.plusDays(1));
+                                    if (compDate != null) toBlocked.add(compDate);
+                                }
+
                                 s.setStaff(staffMap.get(to));
                                 s.setRequirement(findMatchingRequirement(
                                         staffMap.get(to), s.getWorkDate(), s.getShiftType().getId(), requirements));
@@ -115,7 +159,8 @@ public class RandomRestartHCScheduler {
 
     private List<Schedule> randomGreedy(List<Staff> staff, List<ShiftRequirement> reqs,
                                           SchedulePeriod period, AlgorithmConfigService.AlgorithmRuntimeConfig config,
-                                          Set<Integer> excluded, Map<Integer, Staff> staffMap, Random rng) {
+                                          Set<Integer> excluded, Map<Integer, Staff> staffMap, Random rng,
+                                          Map<Integer, Set<LocalDate>> blockedDates) {
         List<Schedule> result = new ArrayList<>();
         Set<String> assigned = new HashSet<>();
         Map<Integer, Integer> counts = new HashMap<>();
@@ -134,6 +179,10 @@ public class RandomRestartHCScheduler {
                     .filter(s -> excluded == null || !excluded.contains(s.getId()))
                     .filter(s -> !assigned.contains(s.getId() + "|" + req.getWorkDate()))
                     .filter(s -> counts.getOrDefault(s.getId(), 0) < maxShifts)
+                    .filter(s -> {
+                        Set<LocalDate> blocked = blockedDates.get(s.getId());
+                        return blocked == null || !blocked.contains(req.getWorkDate());
+                    })
                     .filter(s -> specId == null || (s.getSpecialty() != null && s.getSpecialty().getId().equals(specId)))
                     .filter(s -> !hasConflict(s.getId(), req.getWorkDate(), shiftType, shiftPerStaffDay))
                     .map(Staff::getId)
@@ -147,6 +196,16 @@ public class RandomRestartHCScheduler {
                     assigned.add(key);
                     counts.merge(sid, 1, Integer::sum);
                     shiftPerStaffDay.put(key, shiftType);
+                    
+                    // Dynamically propagate blocked dates for L01
+                    if ("L01".equals(shiftType)) {
+                        blockedDates.computeIfAbsent(sid, k -> new HashSet<>()).add(req.getWorkDate().plusDays(1));
+                        LocalDate compDate = compensationDateCalculator.calculate(req.getWorkDate());
+                        if (compDate != null) {
+                            blockedDates.computeIfAbsent(sid, k -> new HashSet<>()).add(compDate);
+                        }
+                    }
+
                     Schedule s = new Schedule();
                     s.setStaff(staffMap.get(sid));
                     s.setPeriod(period);
@@ -161,17 +220,55 @@ public class RandomRestartHCScheduler {
         return result;
     }
 
-    /** Kiểm tra ràng buộc: L01+L02 cùng ngày = conflict, L03+L04 cùng ngày = conflict */
+    private boolean isConflictPair(String t1, String t2) {
+        if ("L01".equals(t1) && !"L01".equals(t2)) return true;
+        if ("L01".equals(t2) && !"L01".equals(t1)) return true;
+        if (("L03".equals(t1) && "L04".equals(t2)) || ("L04".equals(t1) && "L03".equals(t2))) return true;
+        return false;
+    }
+
+    private boolean canSwapShift(List<Schedule> schedules, int to, Schedule s, Map<Integer, Set<LocalDate>> blockedDates) {
+        LocalDate date = s.getWorkDate();
+        String shiftTypeId = s.getShiftType().getId();
+
+        // 1. Check database-loaded blocked dates for 'to'
+        Set<LocalDate> blocked = blockedDates.get(to);
+        if (blocked != null && blocked.contains(date)) return false;
+
+        // 2. Check same-day conflict & adjacent L01 conflict for 'to'
+        for (Schedule ex : schedules) {
+            if (ex.getStaff().getId() != to) continue;
+
+            // Same day same type or conflict
+            if (ex.getWorkDate().equals(date)) {
+                if (ex.getShiftType().getId().equals(shiftTypeId) || isConflictPair(shiftTypeId, ex.getShiftType().getId())) {
+                    return false;
+                }
+            }
+
+            // If we are moving L01 to 'to': they cannot have L01 yesterday or tomorrow
+            if ("L01".equals(shiftTypeId)) {
+                long diff = Math.abs(ex.getWorkDate().toEpochDay() - date.toEpochDay());
+                if (diff == 1) return false;
+            }
+
+            // If 'to' already has L01 on some day: date cannot be day N+1 or compensation day
+            if ("L01".equals(ex.getShiftType().getId())) {
+                long diff = date.toEpochDay() - ex.getWorkDate().toEpochDay();
+                if (diff == 1) return false;
+                LocalDate compDate = compensationDateCalculator.calculate(ex.getWorkDate());
+                if (date.equals(compDate)) return false;
+            }
+        }
+        return true;
+    }
+
+    /** Kiểm tra ràng buộc: L01 vs all và L03+L04 cùng ngày = conflict */
     private boolean hasConflict(int staffId, LocalDate date, String newType,
                                 Map<String, String> shiftPerStaffDay) {
-        // Check if any existing assignment for this staff on this day has a conflicting type
-        for (var e : shiftPerStaffDay.entrySet()) {
-            if (!e.getKey().startsWith(staffId + "|")) continue;
-            String existingType = e.getValue();
-            if (("L01".equals(newType) && "L02".equals(existingType)) ||
-                ("L02".equals(newType) && "L01".equals(existingType)) ||
-                ("L03".equals(newType) && "L04".equals(existingType)) ||
-                ("L04".equals(newType) && "L03".equals(existingType))) {
+        String existingType = shiftPerStaffDay.get(staffId + "|" + date);
+        if (existingType != null) {
+            if (isConflictPair(newType, existingType)) {
                 return true;
             }
         }

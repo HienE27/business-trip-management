@@ -47,6 +47,7 @@ class ScheduleServiceBulkL01Test {
     @Mock private CompensationDateCalculator compensationDateCalculator;
     @Mock private NotificationService notificationService;
     @Mock private ConflictBroadcastService conflictBroadcastService;
+    @Mock private HolidayValidationService holidayValidationService;
 
     @InjectMocks
     private ScheduleService scheduleService;
@@ -80,6 +81,10 @@ class ScheduleServiceBulkL01Test {
 
         // Default stubbing for HolidayRepository and ScheduleConflictRepository
         when(holidayRepository.existsByHolidayDateAndIsActiveTrue(any(LocalDate.class))).thenReturn(false);
+        lenient().when(holidayValidationService.isHoliday(any())).thenAnswer(inv -> {
+            LocalDate date = inv.getArgument(0);
+            return holidayRepository.existsByHolidayDateAndIsActiveTrue(date);
+        });
         when(scheduleConflictRepository.findUnresolvedByScheduleIdsIn(anyList())).thenReturn(List.of());
     }
 

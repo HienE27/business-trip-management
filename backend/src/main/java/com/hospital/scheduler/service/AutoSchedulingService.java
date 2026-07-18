@@ -117,7 +117,8 @@ public class AutoSchedulingService {
             Map<LocalDate, BatchConflictData> byDate,
             Map<Integer, Map<String, Long>> staffShiftTypeCounts,
             Set<Integer> allL01StaffIdsInRange,
-            Map<Integer, Staff> staffMap  // For accessing maxShiftsPerMonth
+            Map<Integer, Staff> staffMap,  // For accessing maxShiftsPerMonth
+            Map<Integer, Set<LocalDate>> dbBlockedDates
     ) {}
 
     @PostConstruct
@@ -1801,7 +1802,23 @@ public class AutoSchedulingService {
             staffMap.put(s.getId(), s);
         }
 
-        return new PeriodConflictData(byDate, staffShiftTypeCounts, allL01StaffIds, staffMap);
+        // Calculate dbBlockedDates
+        Map<Integer, Set<LocalDate>> dbBlockedDates = new HashMap<>();
+        for (CompensationDay cd : compDays) {
+            dbBlockedDates.computeIfAbsent(cd.getStaff().getId(), k -> new HashSet<>())
+                    .add(cd.getCompensationDate());
+        }
+        for (Schedule s : l01Schedules) {
+            int staffId = s.getStaff().getId();
+            LocalDate workDate = s.getWorkDate();
+            dbBlockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(workDate.plusDays(1));
+            LocalDate compDate = compensationDateCalculator.calculate(workDate);
+            if (compDate != null) {
+                dbBlockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(compDate);
+            }
+        }
+
+        return new PeriodConflictData(byDate, staffShiftTypeCounts, allL01StaffIds, staffMap, dbBlockedDates);
     }
 
     /**
@@ -1959,9 +1976,30 @@ public class AutoSchedulingService {
             // 3. Use batch-loaded data instead of per-staff queries (leave, comp day, adjacents)
             if (batchData.onLeaveStaffIds().contains(staff.getId())) continue;
 
+            // Block based on database pre-loaded blocked dates (comp days & day-after-L01 rest)
+            if (periodData.dbBlockedDates() != null) {
+                Set<LocalDate> blocked = periodData.dbBlockedDates().get(staff.getId());
+                if (blocked != null && blocked.contains(req.getWorkDate())) {
+                    continue;
+                }
+            }
+
             if (!skipCompensationCheck) {
                 if (batchData.onCompDayStaffIds().contains(staff.getId())) continue;
                 if (additionalCompDayStaffIds != null && additionalCompDayStaffIds.contains(staff.getId())) continue;
+                String compKey = staff.getId() + "_" + req.getWorkDate();
+                if (inMemoryCompensationShiftDates.get().contains(compKey)) {
+                    continue;
+                }
+            }
+
+            // Block if they got L01 yesterday (in-memory)
+            Map<String, Set<String>> memAssigns = inMemoryAssignments.get();
+            if (memAssigns != null) {
+                Set<String> yesterdayTypes = memAssigns.get(staff.getId() + "|" + req.getWorkDate().minusDays(1));
+                if (yesterdayTypes != null && yesterdayTypes.contains(ConflictDetectionService.SHIFT_TYPE_L01)) {
+                    continue;
+                }
             }
 
             // Adjacent day restriction only applies to L01
@@ -2494,18 +2532,24 @@ public class AutoSchedulingService {
 		            // Conflict pairs
 		            if (s.getWorkDate().equals(date)) {
 		                String existingType = s.getShiftType().getId();
-		                if (("L01".equals(shiftTypeId) && "L02".equals(existingType))
-		                        || ("L02".equals(shiftTypeId) && "L01".equals(existingType))
+		                if (("L01".equals(shiftTypeId) && !"L01".equals(existingType))
+		                        || ("L01".equals(existingType) && !"L01".equals(shiftTypeId))
 		                        || ("L03".equals(shiftTypeId) && "L04".equals(existingType))
 		                        || ("L04".equals(shiftTypeId) && "L03".equals(existingType))) {
 		                    return true;
 		                }
 		            }
 		            
-		            // Consecutive L01
-		            if ("L01".equals(shiftTypeId) && "L01".equals(s.getShiftType().getId())) {
+		            // Consecutive L01 & Day-after rest / compensation day
+		            if ("L01".equals(shiftTypeId)) {
 		                long diff = Math.abs(s.getWorkDate().toEpochDay() - date.toEpochDay());
 		                if (diff == 1) return true;
+		            }
+		            if ("L01".equals(s.getShiftType().getId())) {
+		                long diff = date.toEpochDay() - s.getWorkDate().toEpochDay();
+		                if (diff == 1) return true;
+		                LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+		                if (date.equals(compDate)) return true;
 		            }
 		        }
 		        return false;
@@ -2518,16 +2562,22 @@ public class AutoSchedulingService {
 	            
 	            if (s.getWorkDate().equals(target.getWorkDate())) {
 	                String existingType = s.getShiftType().getId();
-	                if (("L01".equals(newType) && "L02".equals(existingType))
-	                        || ("L02".equals(newType) && "L01".equals(existingType))
+	                if (("L01".equals(newType) && !"L01".equals(existingType))
+	                        || ("L01".equals(existingType) && !"L01".equals(newType))
 	                        || ("L03".equals(newType) && "L04".equals(existingType))
 	                        || ("L04".equals(newType) && "L03".equals(existingType))) {
 	                    return true;
 	                }
 	            }
-	            if ("L01".equals(newType) && "L01".equals(s.getShiftType().getId())) {
+	            if ("L01".equals(newType)) {
 	                long diff = Math.abs(s.getWorkDate().toEpochDay() - target.getWorkDate().toEpochDay());
 	                if (diff == 1) return true;
+	            }
+	            if ("L01".equals(s.getShiftType().getId())) {
+	                long diff = target.getWorkDate().toEpochDay() - s.getWorkDate().toEpochDay();
+	                if (diff == 1) return true;
+	                LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+	                if (target.getWorkDate().equals(compDate)) return true;
 	            }
 	        }
 	        return false;

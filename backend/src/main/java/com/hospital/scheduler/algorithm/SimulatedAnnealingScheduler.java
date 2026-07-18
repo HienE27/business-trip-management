@@ -4,6 +4,7 @@ import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -22,6 +23,15 @@ public class SimulatedAnnealingScheduler {
     private static final double INITIAL_TEMP = 50.0;
     private static final double COOLING_RATE = 0.99;
 
+    @Autowired
+    private com.hospital.scheduler.util.CompensationDateCalculator compensationDateCalculator;
+
+    @Autowired
+    private com.hospital.scheduler.repository.ScheduleRepository scheduleRepository;
+
+    @Autowired
+    private com.hospital.scheduler.repository.CompensationDayRepository compensationDayRepository;
+
     public List<Schedule> solve(
             List<Staff> activeStaff,
             List<ShiftRequirement> requirements,
@@ -34,10 +44,48 @@ public class SimulatedAnnealingScheduler {
         Map<Integer, Staff> staffMap = activeStaff.stream()
                 .collect(Collectors.toMap(Staff::getId, s -> s));
 
+        // Load database pre-existing L01 schedules and compensation days
+        LocalDate periodStart = period.getStartDate();
+        LocalDate periodEnd = period.getEndDate();
+        
+        List<CompensationDay> compDays = compensationDayRepository.findInRange(periodStart, periodEnd);
+        List<Schedule> l01Schedules = scheduleRepository.findL01SchedulesInRange(periodStart.minusDays(7), periodStart.minusDays(1));
+        
+        Map<Integer, Set<LocalDate>> blockedDates = new HashMap<>();
+        for (CompensationDay cd : compDays) {
+            blockedDates.computeIfAbsent(cd.getStaff().getId(), k -> new HashSet<>())
+                    .add(cd.getCompensationDate());
+        }
+        for (Schedule s : l01Schedules) {
+            int staffId = s.getStaff().getId();
+            LocalDate workDate = s.getWorkDate();
+            blockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(workDate.plusDays(1));
+            LocalDate compDate = compensationDateCalculator.calculate(workDate);
+            if (compDate != null) {
+                blockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(compDate);
+            }
+        }
+
         // Phase 1: Initial greedy solution
         List<Schedule> current = greedyInitial(activeStaff, requirements, period,
                 runtimeConfig, excludedStaffIds, staffMap, rng);
         if (current.isEmpty()) return current;
+
+        // Initialize dynamic blockedDates from greedy initial schedules
+        Map<Integer, Set<LocalDate>> runBlockedDates = new HashMap<>();
+        for (var entry : blockedDates.entrySet()) {
+            runBlockedDates.put(entry.getKey(), new HashSet<>(entry.getValue()));
+        }
+        for (Schedule s : current) {
+            if ("L01".equals(s.getShiftType().getId())) {
+                int sid = s.getStaff().getId();
+                runBlockedDates.computeIfAbsent(sid, k -> new HashSet<>()).add(s.getWorkDate().plusDays(1));
+                LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+                if (compDate != null) {
+                    runBlockedDates.computeIfAbsent(sid, k -> new HashSet<>()).add(compDate);
+                }
+            }
+        }
 
         int currentScore = current.size();
         List<Schedule> bestSolution = new ArrayList<>(current);
@@ -52,7 +100,21 @@ public class SimulatedAnnealingScheduler {
             String newType = SHIFT_TYPES[rng.nextInt(SHIFT_TYPES.length)];
             if (newType.equals(oldType)) continue;
 
-            if (hasConflict(current, s.getStaff().getId(), s.getWorkDate(), newType)) continue;
+            if (hasConflict(current, s.getStaff().getId(), s.getWorkDate(), newType, runBlockedDates)) continue;
+
+            // Temp update to block list for evaluation
+            if ("L01".equals(oldType)) {
+                Set<LocalDate> blocked = runBlockedDates.computeIfAbsent(s.getStaff().getId(), k -> new HashSet<>());
+                blocked.remove(s.getWorkDate().plusDays(1));
+                LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+                if (compDate != null) blocked.remove(compDate);
+            }
+            if ("L01".equals(newType)) {
+                Set<LocalDate> blocked = runBlockedDates.computeIfAbsent(s.getStaff().getId(), k -> new HashSet<>());
+                blocked.add(s.getWorkDate().plusDays(1));
+                LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+                if (compDate != null) blocked.add(compDate);
+            }
 
             s.setShiftType(findShiftType(newType, requirements));
             ShiftRequirement newReq = findMatchingRequirement(
@@ -69,10 +131,25 @@ public class SimulatedAnnealingScheduler {
                     bestSolution = new ArrayList<>(current);
                 }
             } else {
+                // Revert type change
                 s.setShiftType(findShiftType(oldType, requirements));
                 ShiftRequirement oldReq = findMatchingRequirement(
                         s.getStaff(), s.getWorkDate(), oldType, requirements);
                 if (oldReq != null) s.setRequirement(oldReq);
+
+                // Revert block list change
+                if ("L01".equals(newType)) {
+                    Set<LocalDate> blocked = runBlockedDates.computeIfAbsent(s.getStaff().getId(), k -> new HashSet<>());
+                    blocked.remove(s.getWorkDate().plusDays(1));
+                    LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+                    if (compDate != null) blocked.remove(compDate);
+                }
+                if ("L01".equals(oldType)) {
+                    Set<LocalDate> blocked = runBlockedDates.computeIfAbsent(s.getStaff().getId(), k -> new HashSet<>());
+                    blocked.add(s.getWorkDate().plusDays(1));
+                    LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+                    if (compDate != null) blocked.add(compDate);
+                }
             }
 
             T *= COOLING_RATE;
@@ -126,21 +203,41 @@ public class SimulatedAnnealingScheduler {
         return result;
     }
 
+    private boolean isConflictPair(String t1, String t2) {
+        if ("L01".equals(t1) && !"L01".equals(t2)) return true;
+        if ("L01".equals(t2) && !"L01".equals(t1)) return true;
+        if (("L03".equals(t1) && "L04".equals(t2)) || ("L04".equals(t1) && "L03".equals(t2))) return true;
+        return false;
+    }
+
     private boolean hasConflict(List<Schedule> schedules, int staffId,
-            LocalDate workDate, String newType) {
+            LocalDate workDate, String newType, Map<Integer, Set<LocalDate>> blockedDates) {
+        if (blockedDates != null) {
+            Set<LocalDate> blocked = blockedDates.get(staffId);
+            if (blocked != null && blocked.contains(workDate)) return true;
+        }
+
         for (Schedule s : schedules) {
             if (s.getStaff().getId() != staffId) continue;
+            
+            // Same day same type or conflict
             if (s.getWorkDate().equals(workDate)) {
                 String existingType = s.getShiftType().getId();
-                if (("L01".equals(newType) && "L02".equals(existingType))
-                        || ("L02".equals(newType) && "L01".equals(existingType))
-                        || ("L03".equals(newType) && "L04".equals(existingType))
-                        || ("L04".equals(newType) && "L03".equals(existingType)))
+                if (isConflictPair(newType, existingType)) {
                     return true;
+                }
             }
-            if ("L01".equals(newType) && "L01".equals(s.getShiftType().getId())) {
-                if (Math.abs(s.getWorkDate().toEpochDay() - workDate.toEpochDay()) == 1)
-                    return true;
+
+            // Consecutive L01 & Day-after rest / compensation day
+            if ("L01".equals(newType)) {
+                long diff = Math.abs(s.getWorkDate().toEpochDay() - workDate.toEpochDay());
+                if (diff == 1) return true;
+            }
+            if ("L01".equals(s.getShiftType().getId())) {
+                long diff = workDate.toEpochDay() - s.getWorkDate().toEpochDay();
+                if (diff == 1) return true;
+                LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+                if (workDate.equals(compDate)) return true;
             }
         }
         return false;

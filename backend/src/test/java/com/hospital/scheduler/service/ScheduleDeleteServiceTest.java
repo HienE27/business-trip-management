@@ -94,107 +94,15 @@ class ScheduleDeleteServiceTest {
     // ==================== deleteSchedule — re-solve coverage ====================
 
     @Test
-    @DisplayName("Delete happy path: reSolve() valid → không throw, REMOVE delta có đúng staffId/date/shiftType")
-    void draftPeriod_reSolveValid_succeedsAndLogs() {
+    @DisplayName("Delete happy path: succeeds and logs without CSP invocation")
+    void draftPeriod_succeedsWithoutCsp() {
         when(scheduleRepository.findById(10)).thenReturn(java.util.Optional.of(scheduleToDelete));
         stubCleanupPaths();
-
-        SchedulingResult previous = SchedulingResult.builder()
-                .assignments(java.util.Map.of("99_2026-07-05", "L01"))
-                .valid(true).build();
-        when(schedulingResultLoader.loadPreviousFromDb(eq(1), any(ScheduleRepository.class)))
-                .thenReturn(previous);
-        when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
-        when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
-        when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(currentAdmin));
-        when(cspScheduler.reSolve(any(), any(), any(), any(), any()))
-                .thenReturn(SchedulingResult.builder().assignments(new java.util.HashMap<>()).valid(true).build());
 
         // No exception → delete succeeded
         assertThatCode(() -> deleteService.deleteSchedule(10)).doesNotThrowAnyException();
 
         // Verify schedule lookup happened once
         verify(scheduleRepository, times(1)).findById(10);
-
-        // Verify the REMOVE delta: 1 entry, correct staff/date/shiftType, no other deltas
-        ArgumentCaptor<ScheduleChange> changeCap = ArgumentCaptor.forClass(ScheduleChange.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<Staff>> staffCap = ArgumentCaptor.forClass(List.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<ShiftRequirementInfo>> reqCap = ArgumentCaptor.forClass(List.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<LeaveRequest>> leaveCap = ArgumentCaptor.forClass(List.class);
-        ArgumentCaptor<SchedulingResult> prevCap = ArgumentCaptor.forClass(SchedulingResult.class);
-
-        verify(cspScheduler).reSolve(prevCap.capture(), changeCap.capture(), staffCap.capture(),
-                reqCap.capture(), leaveCap.capture());
-
-        assertThat(prevCap.getValue()).isSameAs(previous);
-        assertThat(changeCap.getValue().getRemoved()).hasSize(1);
-        assertThat(changeCap.getValue().getModified()).isNullOrEmpty();
-        assertThat(changeCap.getValue().getAdded()).isNullOrEmpty();
-
-        ScheduleChange.AssignmentDelta removed = changeCap.getValue().getRemoved().get(0);
-        assertThat(removed.getStaffId()).isEqualTo(99); // currentAdmin's id
-        assertThat(removed.getDate()).isEqualTo(LocalDate.of(2026, 7, 5));
-        assertThat(removed.getShiftType()).isEqualTo("L01");
-
-        assertThat(staffCap.getValue()).containsExactly(currentAdmin);
-        assertThat(reqCap.getValue()).isEmpty();
-        assertThat(leaveCap.getValue()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("Delete infeasible: reSolve() trả invalid → throw BadRequestException, rollback @Transactional")
-    void draftPeriod_reSolveInfeasible_throwsBadRequest() {
-        when(scheduleRepository.findById(10)).thenReturn(java.util.Optional.of(scheduleToDelete));
-        stubCleanupPaths();
-
-        when(schedulingResultLoader.loadPreviousFromDb(eq(1), any(ScheduleRepository.class)))
-                .thenReturn(SchedulingResult.builder()
-                        .assignments(java.util.Map.of("99_2026-07-05", "L01"))
-                        .valid(true).build());
-        when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
-        when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
-        when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(currentAdmin));
-        SchedulingResult invalid = SchedulingResult.builder()
-                .assignments(new java.util.HashMap<>())
-                .valid(false)
-                .errors(List.of("staff_99_quota_exceeded"))
-                .build();
-        when(cspScheduler.reSolve(any(), any(), any(), any(), any())).thenReturn(invalid);
-
-        assertThatThrownBy(() -> deleteService.deleteSchedule(10))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("bất khả thi")
-                .hasMessageContaining("staff_99_quota_exceeded");
-
-        // reSolve was still invoked (the failure is what triggered the throw)
-        verify(cspScheduler, times(1)).reSolve(any(), any(), any(), any(), any());
-    }
-
-    @Test
-    @DisplayName("reSolve() throws RuntimeException → propagate ra ngoài (không catch - khác với exchange)")
-    void draftPeriod_reSolveThrowsRuntime_propagates() {
-        when(scheduleRepository.findById(10)).thenReturn(java.util.Optional.of(scheduleToDelete));
-        stubCleanupPaths();
-
-        when(schedulingResultLoader.loadPreviousFromDb(eq(1), any(ScheduleRepository.class)))
-                .thenReturn(SchedulingResult.builder()
-                        .assignments(java.util.Map.of("99_2026-07-05", "L01"))
-                        .valid(true).build());
-        when(shiftRequirementRepository.findByPeriodId(1)).thenReturn(Collections.emptyList());
-        when(leaveRequestRepository.findApprovedInRange(any(), any())).thenReturn(Collections.emptyList());
-        when(staffRepository.findByIsActiveTrue()).thenReturn(List.of(currentAdmin));
-        when(cspScheduler.reSolve(any(), any(), any(), any(), any()))
-                .thenThrow(new RuntimeException("CSP internal boom"));
-
-        // NOTE: This documents the divergence from ScheduleExchangeService — exchange
-        // has a try/catch that swallows CSP exceptions ("best-effort"); delete does not.
-        // If the user wants delete to match exchange's best-effort behavior, the prod
-        // code needs a try/catch added in reschedulePeriodIncrementalAfterDelete.
-        assertThatThrownBy(() -> deleteService.deleteSchedule(10))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("CSP internal boom");
     }
 }

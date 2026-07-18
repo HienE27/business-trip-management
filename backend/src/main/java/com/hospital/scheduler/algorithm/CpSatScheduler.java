@@ -7,6 +7,7 @@ import com.hospital.scheduler.service.AlgorithmConfigService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -28,9 +29,14 @@ public class CpSatScheduler {
     private static final String[] WORK_SHIFTS = {"L01", "L02", "L03", "L04"};
     private static final double TIME_LIMIT_SECONDS = 30.0;
     
-    static {
-        Loader.loadNativeLibraries();
-    }
+    @Autowired
+    private com.hospital.scheduler.util.CompensationDateCalculator compensationDateCalculator;
+
+    @Autowired
+    private com.hospital.scheduler.repository.ScheduleRepository scheduleRepository;
+
+    @Autowired
+    private com.hospital.scheduler.repository.CompensationDayRepository compensationDayRepository;
 
     public List<Schedule> solve(
             List<Staff> activeStaff,
@@ -87,6 +93,28 @@ public class CpSatScheduler {
         Map<Integer, Staff> staffMap = staffList.stream()
                 .collect(Collectors.toMap(Staff::getId, s -> s));
 
+        // Load database pre-existing L01 schedules and compensation days
+        LocalDate periodStart = period.getStartDate();
+        LocalDate periodEnd = period.getEndDate();
+        
+        List<CompensationDay> compDays = compensationDayRepository.findInRange(periodStart, periodEnd);
+        List<Schedule> l01Schedules = scheduleRepository.findL01SchedulesInRange(periodStart.minusDays(7), periodStart.minusDays(1));
+        
+        Map<Integer, Set<LocalDate>> dbBlockedDates = new HashMap<>();
+        for (CompensationDay cd : compDays) {
+            dbBlockedDates.computeIfAbsent(cd.getStaff().getId(), k -> new HashSet<>())
+                    .add(cd.getCompensationDate());
+        }
+        for (Schedule s : l01Schedules) {
+            int staffId = s.getStaff().getId();
+            LocalDate workDate = s.getWorkDate();
+            dbBlockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(workDate.plusDays(1));
+            LocalDate compDate = compensationDateCalculator.calculate(workDate);
+            if (compDate != null) {
+                dbBlockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(compDate);
+            }
+        }
+
         // Create the model
         CpModel model = new CpModel();
 
@@ -109,6 +137,21 @@ public class CpSatScheduler {
                     sum.add(x[s][d][sh]);
                 }
                 model.addLessOrEqual(sum.build(), 1);
+            }
+        }
+
+        // Constraint 1b: Database pre-loaded blocked dates (comp days & day-after-L01 rest)
+        for (int s = 0; s < numStaff; s++) {
+            int staffId = staffIds.get(s);
+            Set<LocalDate> blocked = dbBlockedDates.get(staffId);
+            if (blocked != null) {
+                for (int d = 0; d < numDays; d++) {
+                    if (blocked.contains(dates.get(d))) {
+                        for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
+                            model.addEquality(x[s][d][sh], 0);
+                        }
+                    }
+                }
             }
         }
 
@@ -143,6 +186,34 @@ public class CpSatScheduler {
                 sum.add(x[s][d][0]); // L01 index
                 sum.add(x[s][d + 1][0]);
                 model.addLessOrEqual(sum.build(), 1);
+            }
+        }
+
+        // Constraint 3b: Rest day N+1 after L01 (within scheduling period)
+        for (int s = 0; s < numStaff; s++) {
+            for (int d = 0; d < numDays - 1; d++) {
+                LinearExprBuilder sum = LinearExpr.newBuilder();
+                sum.add(x[s][d][0]); // L01 on day d
+                for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
+                    sum.add(x[s][d + 1][sh]); // any shift on day d+1
+                }
+                model.addLessOrEqual(sum.build(), 1);
+            }
+        }
+
+        // Constraint 3c: Compensation day rest (for L01 shifts within period)
+        for (int s = 0; s < numStaff; s++) {
+            for (int d = 0; d < numDays; d++) {
+                LocalDate compDate = compensationDateCalculator.calculate(dates.get(d));
+                if (compDate != null && dates.contains(compDate)) {
+                    int dComp = dates.indexOf(compDate);
+                    LinearExprBuilder sum = LinearExpr.newBuilder();
+                    sum.add(x[s][d][0]); // L01 on day d
+                    for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
+                        sum.add(x[s][dComp][sh]); // any shift on compensation day
+                    }
+                    model.addLessOrEqual(sum.build(), 1);
+                }
             }
         }
 

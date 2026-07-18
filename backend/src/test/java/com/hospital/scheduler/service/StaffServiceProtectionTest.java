@@ -90,6 +90,8 @@ class StaffServiceProtectionTest {
         when(authContextService.getCurrentStaff()).thenReturn(activeAdmin);
         // Stub NotificationService (returns NotificationResponse)
         when(notificationService.createNotification(anyInt(), any())).thenReturn(null);
+        lenient().when(staffRepository.hasAdminRole(1)).thenReturn(true);
+        lenient().when(staffRepository.hasAdminRole(2)).thenReturn(false);
     }
 
     // ══════════════════════════════════════════════════════════════════════════════

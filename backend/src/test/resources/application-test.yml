@@ -2,6 +2,7 @@ spring:
   datasource:
     # Dynamically overridden by TestcontainerConfig singleton
     url: ${TEST_DATASOURCE_URL:jdbc:tc:mysql:8.0:///}
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
   jpa:
     # Validate schema on startup so bad entity mappings fail fast
     hibernate:

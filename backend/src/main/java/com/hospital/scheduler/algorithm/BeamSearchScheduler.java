@@ -4,6 +4,7 @@ import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -27,6 +28,15 @@ public class BeamSearchScheduler {
     private static final double BALANCE_WEIGHT = 0.30; // Tăng: ưu tiên balance hơn
     private static final String[] SHIFT_TYPES = {"L01", "L02", "L03", "L04"};
 
+    @Autowired
+    private com.hospital.scheduler.util.CompensationDateCalculator compensationDateCalculator;
+
+    @Autowired
+    private com.hospital.scheduler.repository.ScheduleRepository scheduleRepository;
+
+    @Autowired
+    private com.hospital.scheduler.repository.CompensationDayRepository compensationDayRepository;
+
     public List<Schedule> solve(
             List<Staff> activeStaff,
             List<ShiftRequirement> requirements,
@@ -48,9 +58,31 @@ public class BeamSearchScheduler {
         Map<Integer, Staff> staffMap = activeStaff.stream()
                 .collect(Collectors.toMap(Staff::getId, s -> s));
 
+        // Load database pre-existing L01 schedules and compensation days
+        LocalDate periodStart = period.getStartDate();
+        LocalDate periodEnd = period.getEndDate();
+        
+        List<CompensationDay> compDays = compensationDayRepository.findInRange(periodStart, periodEnd);
+        List<Schedule> l01Schedules = scheduleRepository.findL01SchedulesInRange(periodStart.minusDays(7), periodStart.minusDays(1));
+        
+        Map<Integer, Set<LocalDate>> initialBlocked = new HashMap<>();
+        for (CompensationDay cd : compDays) {
+            initialBlocked.computeIfAbsent(cd.getStaff().getId(), k -> new HashSet<>())
+                    .add(cd.getCompensationDate());
+        }
+        for (Schedule s : l01Schedules) {
+            int staffId = s.getStaff().getId();
+            LocalDate workDate = s.getWorkDate();
+            initialBlocked.computeIfAbsent(staffId, k -> new HashSet<>()).add(workDate.plusDays(1));
+            LocalDate compDate = compensationDateCalculator.calculate(workDate);
+            if (compDate != null) {
+                initialBlocked.computeIfAbsent(staffId, k -> new HashSet<>()).add(compDate);
+            }
+        }
+
         // Initialize beam
         List<PartialState> beam = new ArrayList<>();
-        beam.add(new PartialState(new HashMap<>(), new HashMap<>()));
+        beam.add(new PartialState(new HashMap<>(), new HashMap<>(), initialBlocked));
 
         int totalReqs = requirements.size();
 
@@ -81,7 +113,7 @@ public class BeamSearchScheduler {
                         typeMap.computeIfAbsent(sid, k -> new HashSet<>()).add(st);
                     }
 
-                    List<Integer> eligible = findEligible(activeStaff, state.assignments,
+                    List<Integer> eligible = findEligible(activeStaff, state.assignments, state.blockedDates,
                             date, shiftTypeId, specId, count, excludedStaffIds, maxShifts);
 
                     for (int sid : eligible) {
@@ -94,22 +126,35 @@ public class BeamSearchScheduler {
                         newAssign.put(sid + "|" + date, shiftTypeId);
                         newTypes.computeIfAbsent(sid, k -> new HashSet<>()).add(shiftTypeId);
 
+                        // Copy & propagate blocked dates
+                        Map<Integer, Set<LocalDate>> newBlocked = new HashMap<>();
+                        for (var e : state.blockedDates.entrySet()) {
+                            newBlocked.put(e.getKey(), new HashSet<>(e.getValue()));
+                        }
+                        if ("L01".equals(shiftTypeId)) {
+                            newBlocked.computeIfAbsent(sid, k -> new HashSet<>()).add(date.plusDays(1));
+                            LocalDate compDate = compensationDateCalculator.calculate(date);
+                            if (compDate != null) {
+                                newBlocked.computeIfAbsent(sid, k -> new HashSet<>()).add(compDate);
+                            }
+                        }
+
                         // Score
                         double score = scoreState(newAssign, newTypes, count, totalReqs, activeStaff.size());
-                        candidates.add(new ScoredEntry(newAssign, newTypes, score));
+                        candidates.add(new ScoredEntry(newAssign, newTypes, newBlocked, score));
                     }
                 }
 
                 if (!candidates.isEmpty()) {
                     candidates.sort((a, b) -> Double.compare(b.score, a.score));
                     beam = candidates.subList(0, Math.min(beamWidth, candidates.size()))
-                            .stream().map(e -> new PartialState(e.assignments, e.types))
+                            .stream().map(e -> new PartialState(e.assignments, e.types, e.blocked))
                             .collect(Collectors.toList());
                 }
             }
         }
 
-        PartialState best = beam.isEmpty() ? new PartialState(new HashMap<>(), new HashMap<>()) : beam.get(0);
+        PartialState best = beam.isEmpty() ? new PartialState(new HashMap<>(), new HashMap<>(), initialBlocked) : beam.get(0);
 
         // Convert to Schedule entities
         List<Schedule> result = new ArrayList<>();
@@ -139,7 +184,14 @@ public class BeamSearchScheduler {
         return result;
     }
 
-    /** Resolve L01+L02 and L03+L04 conflicts by swapping one shift to a non-conflicting type */
+    private boolean isConflictPair(String t1, String t2) {
+        if ("L01".equals(t1) && !"L01".equals(t2)) return true;
+        if ("L01".equals(t2) && !"L01".equals(t1)) return true;
+        if (("L03".equals(t1) && "L04".equals(t2)) || ("L04".equals(t1) && "L03".equals(t2))) return true;
+        return false;
+    }
+
+    /** Resolve L01 vs all and L03+L04 conflicts by swapping one shift to a non-conflicting type */
     private void resolveConflicts(List<Schedule> result, List<ShiftRequirement> reqs,
                                   Map<Integer, Staff> staffMap) {
         // Group by staffId|date
@@ -153,14 +205,17 @@ public class BeamSearchScheduler {
             List<Schedule> daySchedules = e.getValue();
             if (daySchedules.size() <= 1) continue;
 
-            // Check for L01+L02 or L03+L04 conflict
-            Set<String> types = new HashSet<>();
-            for (Schedule s : daySchedules) types.add(s.getShiftType().getId());
+            boolean hasConflict = false;
+            for (int i = 0; i < daySchedules.size(); i++) {
+                for (int j = i + 1; j < daySchedules.size(); j++) {
+                    if (isConflictPair(daySchedules.get(i).getShiftType().getId(), daySchedules.get(j).getShiftType().getId())) {
+                        hasConflict = true;
+                        break;
+                    }
+                }
+            }
 
-            boolean hasL01L02 = types.contains("L01") && types.contains("L02");
-            boolean hasL03L04 = types.contains("L03") && types.contains("L04");
-
-            if (hasL01L02 || hasL03L04) {
+            if (hasConflict) {
                 // Swap one conflicting shift to a non-conflicting type
                 Schedule toSwap = null;
                 String[] availableTypes = {"L01", "L02", "L03", "L04"};
@@ -170,10 +225,7 @@ public class BeamSearchScheduler {
                     // Find a non-conflicting type
                     for (String t : availableTypes) {
                         if (currentTypes.contains(t)) continue; // would create same-type conflict
-                        if ("L01".equals(s.getShiftType().getId()) && "L02".equals(t)) continue;
-                        if ("L02".equals(s.getShiftType().getId()) && "L01".equals(t)) continue;
-                        if ("L03".equals(s.getShiftType().getId()) && "L04".equals(t)) continue;
-                        if ("L04".equals(s.getShiftType().getId()) && "L03".equals(t)) continue;
+                        if (isConflictPair(s.getShiftType().getId(), t)) continue;
                         // Found a valid swap
                         toSwap = s;
                         break;
@@ -186,10 +238,7 @@ public class BeamSearchScheduler {
                     String newType = null;
                     for (String t : availableTypes) {
                         if (currentTypes.contains(t)) continue;
-                        if ("L01".equals(toSwap.getShiftType().getId()) && "L02".equals(t)) continue;
-                        if ("L02".equals(toSwap.getShiftType().getId()) && "L01".equals(t)) continue;
-                        if ("L03".equals(toSwap.getShiftType().getId()) && "L04".equals(t)) continue;
-                        if ("L04".equals(toSwap.getShiftType().getId()) && "L03".equals(t)) continue;
+                        if (isConflictPair(toSwap.getShiftType().getId(), t)) continue;
                         newType = t;
                         break;
                     }
@@ -276,7 +325,7 @@ public class BeamSearchScheduler {
              + VARIETY_WEIGHT * variety + BALANCE_WEIGHT * balanceScore - conflictPenalty;
     }
 
-    /** Count L01+L02 and L03+L04 conflicts in the assignment */
+    /** Count L01 vs all and L03+L04 conflicts in the assignment */
     private int countConflicts(Map<String, String> assignments) {
         int conflicts = 0;
         Map<String, String> byStaffDay = new HashMap<>();
@@ -288,10 +337,7 @@ public class BeamSearchScheduler {
             String key = staffId + "|" + date;
             String existing = byStaffDay.get(key);
             if (existing != null) {
-                if (("L01".equals(shiftType) && "L02".equals(existing)) ||
-                    ("L02".equals(shiftType) && "L01".equals(existing)) ||
-                    ("L03".equals(shiftType) && "L04".equals(existing)) ||
-                    ("L04".equals(shiftType) && "L03".equals(existing))) {
+                if (isConflictPair(shiftType, existing)) {
                     conflicts++;
                 }
             }
@@ -302,6 +348,7 @@ public class BeamSearchScheduler {
 
     private List<Integer> findEligible(
             List<Staff> staffList, Map<String, String> current,
+            Map<Integer, Set<LocalDate>> blockedDates,
             LocalDate date, String shiftTypeId, Integer specId,
             Map<Integer, Integer> staffCount, Set<Integer> excludedIds,
             int maxShifts) {
@@ -317,6 +364,10 @@ public class BeamSearchScheduler {
                 .filter(s -> excludedIds == null || !excludedIds.contains(s.getId()))
                 .filter(s -> !current.containsKey(s.getId() + "|" + date))
                 .filter(s -> staffCount.getOrDefault(s.getId(), 0) < maxShifts)
+                .filter(s -> {
+                    Set<LocalDate> blocked = blockedDates.get(s.getId());
+                    return blocked == null || !blocked.contains(date);
+                })
                 .filter(s -> specId == null || (s.getSpecialty() != null && s.getSpecialty().getId().equals(specId)))
                 .filter(s -> !hasConflictWithExisting(s.getId(), date, shiftTypeId, current))
                 .sorted(Comparator
@@ -326,23 +377,14 @@ public class BeamSearchScheduler {
                 .collect(Collectors.toList());
     }
 
-    /** Kiểm tra ràng buộc: L01+L02 cùng ngày = conflict, L03+L04 cùng ngày = conflict */
+    /** Kiểm tra ràng buộc: L01 vs all và L03+L04 cùng ngày = conflict */
     private boolean hasConflictWithExisting(int staffId, LocalDate date, String newType,
                                            Map<String, String> current) {
         String targetKey = staffId + "|" + date;
         String existingType = current.get(targetKey);
         if (existingType == null) return false;
-        // L01+L02 conflict
-        if (("L01".equals(newType) && "L02".equals(existingType)) ||
-            ("L02".equals(newType) && "L01".equals(existingType))) {
-            return true;
-        }
-        // L03+L04 conflict
-        if (("L03".equals(newType) && "L04".equals(existingType)) ||
-            ("L04".equals(newType) && "L03".equals(existingType))) {
-            return true;
-        }
-        return false;
+        
+        return isConflictPair(newType, existingType);
     }
 
     /**
@@ -375,6 +417,6 @@ public class BeamSearchScheduler {
                 .findFirst().map(ShiftRequirement::getShiftType).orElse(null);
     }
 
-    private record PartialState(Map<String, String> assignments, Map<Integer, Set<String>> staffTypes) {}
-    private record ScoredEntry(Map<String, String> assignments, Map<Integer, Set<String>> types, double score) {}
+    private record PartialState(Map<String, String> assignments, Map<Integer, Set<String>> staffTypes, Map<Integer, Set<LocalDate>> blockedDates) {}
+    private record ScoredEntry(Map<String, String> assignments, Map<Integer, Set<String>> types, Map<Integer, Set<LocalDate>> blocked, double score) {}
 }

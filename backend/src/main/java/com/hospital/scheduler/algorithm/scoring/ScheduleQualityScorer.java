@@ -736,6 +736,20 @@ public class ScheduleQualityScorer {
                     }
                 }
             }
+
+            // BR-08: Lịch làm việc vào ngày hôm sau ca trực 24/24
+            if ("L01".equals(typeId)) {
+                LocalDate nextDay = date.plusDays(1);
+                String nextDayKey = staffId + "|" + nextDay;
+                List<Schedule> nextDaySchedules = byStaffDate.getOrDefault(nextDayKey, List.of());
+                boolean hasNonL01NextDay = nextDaySchedules.stream()
+                        .anyMatch(x -> !"L01".equals(x.getShiftType().getId()));
+                if (hasNonL01NextDay) {
+                    violations.add(violation("BR-08", "HARD", staffId, staffMap, date,
+                        "Lịch làm việc vào ngày hôm sau ca trực 24/24 (" + date + " và " + nextDay + ")"));
+                    hardCount++;
+                }
+            }
         }
 
         // ── BR-06: max shifts per month ──
@@ -771,9 +785,9 @@ public class ScheduleQualityScorer {
     }
 
     private static boolean isShiftTypeConflict(String t1, String t2) {
-        // BR-01: L01 ↔ L02
-        if (("L01".equals(t1) && "L02".equals(t2))
-         || ("L02".equals(t1) && "L01".equals(t2))) return true;
+        // BR-01: L01 ↔ L02, L01 ↔ L03, L01 ↔ L04
+        if ("L01".equals(t1) && ("L02".equals(t2) || "L03".equals(t2) || "L04".equals(t2))) return true;
+        if ("L01".equals(t2) && ("L02".equals(t1) || "L03".equals(t1) || "L04".equals(t1))) return true;
         // BR-02: L03 ↔ L04
         if (("L03".equals(t1) && "L04".equals(t2))
          || ("L04".equals(t1) && "L03".equals(t2))) return true;

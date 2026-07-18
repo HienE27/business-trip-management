@@ -672,9 +672,9 @@ public class SchedulingAlgorithmRunner {
     }
 
     public boolean isBusinessShiftConflict(String typeA, String typeB) {
-        return (ConflictDetectionService.SHIFT_TYPE_L01.equals(typeA) && ConflictDetectionService.SHIFT_TYPE_L02.equals(typeB))
-                || (ConflictDetectionService.SHIFT_TYPE_L02.equals(typeA) && ConflictDetectionService.SHIFT_TYPE_L01.equals(typeB))
-                || (ConflictDetectionService.SHIFT_TYPE_L03.equals(typeA) && ConflictDetectionService.SHIFT_TYPE_L04.equals(typeB))
+        if (ConflictDetectionService.SHIFT_TYPE_L01.equals(typeA) && !ConflictDetectionService.SHIFT_TYPE_L01.equals(typeB)) return true;
+        if (ConflictDetectionService.SHIFT_TYPE_L01.equals(typeB) && !ConflictDetectionService.SHIFT_TYPE_L01.equals(typeA)) return true;
+        return (ConflictDetectionService.SHIFT_TYPE_L03.equals(typeA) && ConflictDetectionService.SHIFT_TYPE_L04.equals(typeB))
                 || (ConflictDetectionService.SHIFT_TYPE_L04.equals(typeA) && ConflictDetectionService.SHIFT_TYPE_L03.equals(typeB));
     }
 

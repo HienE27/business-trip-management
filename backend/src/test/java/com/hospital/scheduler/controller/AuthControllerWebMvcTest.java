@@ -60,7 +60,6 @@ class AuthControllerWebMvcTest {
     @Autowired ObjectMapper objectMapper;
 
     @MockitoBean AuthService authService;
-    @MockitoBean FilterChainProxy filterChainProxy;
     @MockitoBean com.hospital.scheduler.config.RateLimitingFilter rateLimitingFilter;
     @MockitoBean com.hospital.scheduler.security.ClientIpResolver clientIpResolver;
     @MockitoBean com.hospital.scheduler.security.JwtAuthenticationFilter jwtAuthenticationFilter;

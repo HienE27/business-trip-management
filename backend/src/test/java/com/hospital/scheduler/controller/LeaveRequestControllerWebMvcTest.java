@@ -47,7 +47,6 @@ class LeaveRequestControllerWebMvcTest {
     @Autowired ObjectMapper objectMapper;
 
     @MockitoBean LeaveRequestService leaveRequestService;
-    @MockitoBean AuthContextService authContextService;
     @MockitoBean com.hospital.scheduler.config.RateLimitingFilter rateLimitingFilter;
     @MockitoBean com.hospital.scheduler.security.ClientIpResolver clientIpResolver;
     @MockitoBean com.hospital.scheduler.security.JwtAuthenticationFilter jwtAuthenticationFilter;

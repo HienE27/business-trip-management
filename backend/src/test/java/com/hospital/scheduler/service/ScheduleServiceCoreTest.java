@@ -93,6 +93,11 @@ class ScheduleServiceCoreTest {
                 conflictBroadcastService
         );
         // EntityManager field is @PersistenceContext; constructor doesn't take it.
+        lenient().when(holidayValidationService.isHoliday(any())).thenAnswer(inv -> {
+            LocalDate date = inv.getArgument(0);
+            return holidayRepository.existsByHolidayDateAndIsActiveTrue(date);
+        });
+
         // Inject via reflection to avoid pulling Spring into the test.
         try {
             var f = ScheduleService.class.getDeclaredField("entityManager");

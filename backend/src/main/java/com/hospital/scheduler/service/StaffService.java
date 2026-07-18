@@ -71,7 +71,7 @@ public class StaffService {
             return;
         }
         if (staffRepository.countActiveAdmins() <= 1) {
-            throw new BadRequestException(
+            throw new ForbiddenOperationException(
                 "Không thể xóa/vô hiệu hóa admin cuối cùng của hệ thống");
         }
     }

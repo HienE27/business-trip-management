@@ -51,6 +51,7 @@ class ShiftRequirementServiceHolidayTest {
     @Mock private HolidayRepository holidayRepository;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private AuthContextService authContextService;
+    @Mock private HolidayValidationService holidayValidationService;
 
     @InjectMocks private ShiftRequirementService service;
 
@@ -74,6 +75,10 @@ class ShiftRequirementServiceHolidayTest {
         lenient().when(periodRepository.findById(1)).thenReturn(Optional.of(period));
         lenient().when(shiftTypeRepository.findById("L01")).thenReturn(Optional.of(shiftType));
         lenient().when(holidayRepository.existsByHolidayDateAndIsActiveTrue(any())).thenReturn(false);
+        lenient().when(holidayValidationService.isHoliday(any())).thenAnswer(inv -> {
+            LocalDate date = inv.getArgument(0);
+            return holidayRepository.existsByHolidayDateAndIsActiveTrue(date);
+        });
         lenient().when(authContextService.getCurrentStaff()).thenReturn(null);
     }
 

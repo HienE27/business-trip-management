@@ -4,6 +4,7 @@ import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -18,6 +19,15 @@ import java.util.stream.Collectors;
 @Component
 public class EnhancedGreedyScheduler {
 
+    @Autowired
+    private com.hospital.scheduler.util.CompensationDateCalculator compensationDateCalculator;
+
+    @Autowired
+    private com.hospital.scheduler.repository.ScheduleRepository scheduleRepository;
+
+    @Autowired
+    private com.hospital.scheduler.repository.CompensationDayRepository compensationDayRepository;
+
     public List<Schedule> solve(
             List<Staff> activeStaff,
             List<ShiftRequirement> requirements,
@@ -26,21 +36,43 @@ public class EnhancedGreedyScheduler {
             Set<Integer> excludedStaffIds) {
 
         long start = System.currentTimeMillis();
-	        Map<Integer, Staff> staffMap = activeStaff.stream()
-	                .collect(Collectors.toMap(Staff::getId, s -> s));
-	        Map<Integer, List<LocalDate>> staffLastWork = new HashMap<>();
-	        Map<Integer, Integer> staffCount = new HashMap<>();
-	        Map<Integer, Set<String>> staffTypes = new HashMap<>(); // rotation tracking
-	        // L04 per-specialty balance: staffId → {specialtyId → l04Count}
-	        Map<Integer, Map<Integer, Integer>> l04CountBySpec = new HashMap<>();
-		        // Per-type balance: staffId → {shiftTypeId → count} for L01/L02/L03 balance
-		        Map<Integer, Map<String, Integer>> typeCountByStaff = new HashMap<>();
-		        // Track shift types per staff per day để kiểm tra conflict (L01+L02, L03+L04)
-		        Map<String, Set<String>> assignedTypesPerDay = new HashMap<>(); // "staffId|date" → {L01, L02, ...}
+        Map<Integer, Staff> staffMap = activeStaff.stream()
+                .collect(Collectors.toMap(Staff::getId, s -> s));
+        Map<Integer, List<LocalDate>> staffLastWork = new HashMap<>();
+        Map<Integer, Integer> staffCount = new HashMap<>();
+        Map<Integer, Set<String>> staffTypes = new HashMap<>(); // rotation tracking
+        // L04 per-specialty balance: staffId → {specialtyId → l04Count}
+        Map<Integer, Map<Integer, Integer>> l04CountBySpec = new HashMap<>();
+        // Per-type balance: staffId → {shiftTypeId → count} for L01/L02/L03 balance
+        Map<Integer, Map<String, Integer>> typeCountByStaff = new HashMap<>();
+        // Track shift types per staff per day để kiểm tra conflict (L01+L02, L03+L04)
+        Map<String, Set<String>> assignedTypesPerDay = new HashMap<>(); // "staffId|date" → {L01, L02, ...}
 
         // Group by date+shift
         Map<LocalDate, List<ShiftRequirement>> byDate = requirements.stream()
                 .collect(Collectors.groupingBy(ShiftRequirement::getWorkDate, TreeMap::new, Collectors.toList()));
+
+        // Load database pre-existing L01 schedules and compensation days
+        LocalDate periodStart = period.getStartDate();
+        LocalDate periodEnd = period.getEndDate();
+        
+        List<CompensationDay> compDays = compensationDayRepository.findInRange(periodStart, periodEnd);
+        List<Schedule> l01Schedules = scheduleRepository.findL01SchedulesInRange(periodStart.minusDays(7), periodStart.minusDays(1));
+        
+        Map<Integer, Set<LocalDate>> blockedDates = new HashMap<>();
+        for (CompensationDay cd : compDays) {
+            blockedDates.computeIfAbsent(cd.getStaff().getId(), k -> new HashSet<>())
+                    .add(cd.getCompensationDate());
+        }
+        for (Schedule s : l01Schedules) {
+            int staffId = s.getStaff().getId();
+            LocalDate workDate = s.getWorkDate();
+            blockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(workDate.plusDays(1));
+            LocalDate compDate = compensationDateCalculator.calculate(workDate);
+            if (compDate != null) {
+                blockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(compDate);
+            }
+        }
 
         List<Schedule> result = new ArrayList<>();
 
@@ -53,92 +85,108 @@ public class EnhancedGreedyScheduler {
 
                 // Score candidates: fatigue = gap since last work
                 List<ScoredStaff> candidates = new ArrayList<>();
-	                for (Staff s : activeStaff) {
-	                    if (excludedStaffIds != null && excludedStaffIds.contains(s.getId())) continue;
-	                    
-	                    // Conflict check: L01+L02 cấm, L03+L04 cấm
-	                    String dayKey = s.getId() + "|" + date;
-	                    Set<String> todayTypes = assignedTypesPerDay.getOrDefault(dayKey, Collections.emptySet());
-	                    if (("L01".equals(shiftTypeId) && todayTypes.contains("L02"))
-	                            || ("L02".equals(shiftTypeId) && todayTypes.contains("L01"))
-	                            || ("L03".equals(shiftTypeId) && todayTypes.contains("L04"))
-	                            || ("L04".equals(shiftTypeId) && todayTypes.contains("L03"))) {
-	                        continue;
-	                    }
-	                    
-	                    // Specialty check: chỉ cho đúng specialty
-	                    if (specId != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(specId))) continue;
+                for (Staff s : activeStaff) {
+                    if (excludedStaffIds != null && excludedStaffIds.contains(s.getId())) continue;
+                    
+                    // Blocked day check (comp days and rest after L01)
+                    if (blockedDates.getOrDefault(s.getId(), Collections.emptySet()).contains(date)) {
+                        continue;
+                    }
 
-		                    int cnt = staffCount.getOrDefault(s.getId(), 0);
-		                    int maxShifts = runtimeConfig != null && runtimeConfig.getMaxShiftsPerStaff() > 0
-		                            ? runtimeConfig.getMaxShiftsPerStaff() : Integer.MAX_VALUE;
-		                    if (cnt >= maxShifts) continue;
+                    // Conflict check: L01 vs all, L03+L04 cấm
+                    String dayKey = s.getId() + "|" + date;
+                    Set<String> todayTypes = assignedTypesPerDay.getOrDefault(dayKey, Collections.emptySet());
+                    boolean hasConflict = false;
+                    for (String t : todayTypes) {
+                        if (isConflictPair(shiftTypeId, t)) {
+                            hasConflict = true;
+                            break;
+                        }
+                    }
+                    if (hasConflict) continue;
+                    
+                    // Specialty check: chỉ cho đúng specialty
+                    if (specId != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(specId))) continue;
 
-		                    // Fatigue bonus: more gap = better
-		                    // Rotation bonus: prefer staff missing some shift types
-		                    Set<String> types = staffTypes.getOrDefault(s.getId(), Collections.emptySet());
-		                    int missingTypes = 4 - types.size();
-		                    double rotationBonus = missingTypes * 15.0; // 15 pts per missing type
-		                    double fatigueBonus = 0;
-		                    List<LocalDate> lastDates = staffLastWork.get(s.getId());
-		                    if (lastDates != null && !lastDates.isEmpty()) {
-		                        LocalDate last = lastDates.get(lastDates.size() - 1);
-		                        long gap = date.toEpochDay() - last.toEpochDay();
-		                        if (gap >= 1) fatigueBonus = Math.min(gap * 5, 15.0);
-		                    }
+                    int cnt = staffCount.getOrDefault(s.getId(), 0);
+                    int maxShifts = runtimeConfig != null && runtimeConfig.getMaxShiftsPerStaff() > 0
+                            ? runtimeConfig.getMaxShiftsPerStaff() : Integer.MAX_VALUE;
+                    if (cnt >= maxShifts) continue;
 
-		                    // L04 per-specialty balance penalty: staff who already have many
-		                    // L04 shifts in this specialty get penalized to spread assignments
-		                    double specBalancePenalty = 0;
-		                    if (specId != null && "L04".equals(shiftTypeId)) {
-		                        int l04InSpec = l04CountBySpec
-		                                .getOrDefault(s.getId(), Collections.emptyMap())
-		                                .getOrDefault(specId, 0);
-		                        // Penalty scales with how many L04 they already have in this spec
-		                        specBalancePenalty = l04InSpec * 9.0; // 9 pts per existing L04 in spec
-		                    }
+                    // Fatigue bonus: more gap = better
+                    // Rotation bonus: prefer staff missing some shift types
+                    Set<String> types = staffTypes.getOrDefault(s.getId(), Collections.emptySet());
+                    int missingTypes = 4 - types.size();
+                    double rotationBonus = missingTypes * 15.0; // 15 pts per missing type
+                    double fatigueBonus = 0;
+                    List<LocalDate> lastDates = staffLastWork.get(s.getId());
+                    if (lastDates != null && !lastDates.isEmpty()) {
+                        LocalDate last = lastDates.get(lastDates.size() - 1);
+                        long gap = date.toEpochDay() - last.toEpochDay();
+                        if (gap >= 1) fatigueBonus = Math.min(gap * 5, 15.0);
+                    }
 
-		                    // Per-type balance penalty for L01/L02/L03: staff who already have
-		                    // many shifts of this type get penalized to spread assignments evenly
-		                    double typeBalancePenalty = 0;
-		                    if (!"L04".equals(shiftTypeId)) {
-		                        int typeCount = typeCountByStaff
-		                                .getOrDefault(s.getId(), Collections.emptyMap())
-		                                .getOrDefault(shiftTypeId, 0);
-		                        typeBalancePenalty = typeCount * 12.0; // T?ng penalty: 12 pts per existing
-			                    }
+                    // L04 per-specialty balance penalty: staff who already have many
+                    // L04 shifts in this specialty get penalized to spread assignments
+                    double specBalancePenalty = 0;
+                    if (specId != null && "L04".equals(shiftTypeId)) {
+                        int l04InSpec = l04CountBySpec
+                                .getOrDefault(s.getId(), Collections.emptyMap())
+                                .getOrDefault(specId, 0);
+                        // Penalty scales with how many L04 they already have in this spec
+                        specBalancePenalty = l04InSpec * 9.0; // 9 pts per existing L04 in spec
+                    }
 
-			                    double score = 100 - cnt * 6 + fatigueBonus + rotationBonus
-			                            - specBalancePenalty - typeBalancePenalty;
-			                    candidates.add(new ScoredStaff(s.getId(), score));
-		                }
+                    // Per-type balance penalty for L01/L02/L03: staff who already have
+                    // many shifts of this type get penalized to spread assignments evenly
+                    double typeBalancePenalty = 0;
+                    if (!"L04".equals(shiftTypeId)) {
+                        int typeCount = typeCountByStaff
+                                .getOrDefault(s.getId(), Collections.emptyMap())
+                                .getOrDefault(shiftTypeId, 0);
+                        typeBalancePenalty = typeCount * 12.0; // Tăng penalty: 12 pts per existing
+                    }
+
+                    double score = 100 - cnt * 6 + fatigueBonus + rotationBonus
+                            - specBalancePenalty - typeBalancePenalty;
+                    candidates.add(new ScoredStaff(s.getId(), score));
+                }
 
                 candidates.sort((a, b) -> Double.compare(b.score, a.score));
                 int assign = Math.min(required, candidates.size());
-	                for (int i = 0; i < assign; i++) {
-	                    int sid = candidates.get(i).staffId;
-	                    String dayKey = sid + "|" + date;
-	                    assignedTypesPerDay.computeIfAbsent(dayKey, k -> new HashSet<>()).add(shiftTypeId);
-	                    staffCount.merge(sid, 1, Integer::sum);
+                for (int i = 0; i < assign; i++) {
+                    int sid = candidates.get(i).staffId;
+                    String dayKey = sid + "|" + date;
+                    assignedTypesPerDay.computeIfAbsent(dayKey, k -> new HashSet<>()).add(shiftTypeId);
+                    staffCount.merge(sid, 1, Integer::sum);
                     staffTypes.computeIfAbsent(sid, k -> new HashSet<>()).add(shiftTypeId);
                     staffLastWork.computeIfAbsent(sid, k -> new ArrayList<>()).add(date);
                     // Track per-type count for L01/L02/L03 balance
                     typeCountByStaff.computeIfAbsent(sid, k -> new HashMap<>())
                             .merge(shiftTypeId, 1, Integer::sum);
                     // Track L04 per-specialty count for balance
-	                    if (specId != null && "L04".equals(shiftTypeId)) {
-	                        l04CountBySpec.computeIfAbsent(sid, k -> new HashMap<>())
-	                                .merge(specId, 1, Integer::sum);
-	                    }
+                    if (specId != null && "L04".equals(shiftTypeId)) {
+                        l04CountBySpec.computeIfAbsent(sid, k -> new HashMap<>())
+                                .merge(specId, 1, Integer::sum);
+                    }
 
-	                    Schedule sch = new Schedule();
-	                    sch.setStaff(staffMap.get(sid));
-	                    sch.setPeriod(period);
-	                    sch.setWorkDate(date);
-	                    sch.setShiftType(req.getShiftType());
-	                    sch.setRequirement(req);
-	                    sch.setHasConflict(false);
-	                    result.add(sch);
+                    // Dynamically propagate blocked dates for L01
+                    if ("L01".equals(shiftTypeId)) {
+                        blockedDates.computeIfAbsent(sid, k -> new HashSet<>()).add(date.plusDays(1));
+                        LocalDate compDate = compensationDateCalculator.calculate(date);
+                        if (compDate != null) {
+                            blockedDates.computeIfAbsent(sid, k -> new HashSet<>()).add(compDate);
+                        }
+                    }
+
+                    Schedule sch = new Schedule();
+                    sch.setStaff(staffMap.get(sid));
+                    sch.setPeriod(period);
+                    sch.setWorkDate(date);
+                    sch.setShiftType(req.getShiftType());
+                    sch.setRequirement(req);
+                    sch.setHasConflict(false);
+                    result.add(sch);
                 }
             }
         }
@@ -163,7 +211,7 @@ public class EnhancedGreedyScheduler {
                 // Find a schedule for this staff that we can swap to the missing type
                 for (String swapFrom : new String[]{"L04", "L01", "L02", "L03"}) {
                     if (!types.contains(swapFrom)) continue;
-                    // Don't swap if staff only has1 of this type
+                    // Don't swap if staff only has 1 of this type
                     long count = result.stream()
                             .filter(s2 -> s2.getStaff().getId() == sid
                                     && swapFrom.equals(s2.getShiftType().getId()))
@@ -173,7 +221,7 @@ public class EnhancedGreedyScheduler {
                     for (Schedule s : result) {
                         if (s.getStaff().getId() == sid && swapFrom.equals(s.getShiftType().getId())) {
                             // Check if swap would create conflict (exclude this schedule from check)
-                            if (wouldCreateConflict(result, sid, s.getWorkDate(), need, s)) continue;
+                            if (wouldCreateConflict(result, sid, s.getWorkDate(), need, s, blockedDates)) continue;
 
                             // Swap this schedule to the missing type
                             s.setShiftType(findShiftType(need, requirements));
@@ -182,7 +230,7 @@ public class EnhancedGreedyScheduler {
                                     s.getWorkDate(), need, s.getStaff().getSpecialty(), requirements);
                             if (newReq != null) s.setRequirement(newReq);
                             types.add(need);
-                            // Remove one from the old type (if count drops to0, remove from set)
+                            // Remove one from the old type (if count drops to 0, remove from set)
                             long newCount = result.stream()
                                     .filter(s2 -> s2.getStaff().getId() == sid
                                             && swapFrom.equals(s2.getShiftType().getId()))
@@ -265,60 +313,59 @@ public class EnhancedGreedyScheduler {
                 String shiftTypeId = req.getShiftType().getId();
                 Integer specId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
 
-		                // Score candidates with relaxed penalty (half of main pass)
-		                List<ScoredStaff> gapCandidates = new ArrayList<>();
-		                for (Staff s : activeStaff) {
-		                    if (excludedStaffIds != null && excludedStaffIds.contains(s.getId())) continue;
-		                    // Không block nếu đã có ca ngày đó, chỉ block nếu conflict
-		                    // (L01+L02, L03+L04, hoặc cùng 2 lần 1 loại ca)
-		                    if (wouldCreateConflict(result, s.getId(), date, shiftTypeId, null)) continue;
-		                    // Check duplicate: không gán 2 ca cùng loại cho 1 NS trong 1 ngày
-		                    boolean alreadyHasSameType = result.stream()
-		                            .anyMatch(r -> r.getStaff().getId() == s.getId() && r.getWorkDate().equals(date)
-		                                    && r.getShiftType().getId().equals(shiftTypeId));
-		                    if (alreadyHasSameType) continue;
-	                    // Cross-specialty cho L04: không cho phép, chỉ đúng specialty
-	                    if (specId != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(specId))) continue;
+                // Score candidates with relaxed penalty (half of main pass)
+                List<ScoredStaff> gapCandidates = new ArrayList<>();
+                for (Staff s : activeStaff) {
+                    if (excludedStaffIds != null && excludedStaffIds.contains(s.getId())) continue;
+                    // Không block nếu đã có ca ngày đó, chỉ block nếu conflict
+                    if (wouldCreateConflict(result, s.getId(), date, shiftTypeId, null, blockedDates)) continue;
+                    // Check duplicate: không gán 2 ca cùng loại cho 1 NS trong 1 ngày
+                    boolean alreadyHasSameType = result.stream()
+                            .anyMatch(r -> r.getStaff().getId() == s.getId() && r.getWorkDate().equals(date)
+                                    && r.getShiftType().getId().equals(shiftTypeId));
+                    if (alreadyHasSameType) continue;
+                    // Cross-specialty cho L04: không cho phép, chỉ đúng specialty
+                    if (specId != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(specId))) continue;
 
                     int cnt = totalCountGap.getOrDefault(s.getId(), 0);
                     int maxShifts = runtimeConfig != null && runtimeConfig.getMaxShiftsPerStaff() > 0
                             ? runtimeConfig.getMaxShiftsPerStaff() : Integer.MAX_VALUE;
-	                    // Gap-fill: penalties như main pass để giữ balance
-	                    if (cnt >= maxShifts + 1) continue;
+                    // Gap-fill: penalties như main pass để giữ balance
+                    if (cnt >= maxShifts + 1) continue;
 
-	                    Set<String> types = staffTypes.getOrDefault(s.getId(), Collections.emptySet());
-	                    int missingTypes = 4 - types.size();
-	                    double rotationBonus = missingTypes * 10.0;
-	                    double fatigueBonus = 0;
-	                    List<LocalDate> lastDates = staffLastWork.get(s.getId());
-	                    if (lastDates != null && !lastDates.isEmpty()) {
-	                        LocalDate last = lastDates.get(lastDates.size() - 1);
-	                        long gap = date.toEpochDay() - last.toEpochDay();
-	                        if (gap >= 1) fatigueBonus = Math.min(gap * 3, 10.0);
-	                    }
-	                    double totalPenalty = cnt * 5.0; // Tăng: 5 thay vì 3
-	                    double typePenalty = 0;
-	                    if (!"L04".equals(shiftTypeId)) {
-	                        int typeCnt = typeCountGap.getOrDefault(s.getId(), Collections.emptyMap())
-	                                .getOrDefault(shiftTypeId, 0);
-		                        typePenalty = typeCnt * 10.0; // T?ng: 10 thay vì 7
+                    Set<String> types = staffTypes.getOrDefault(s.getId(), Collections.emptySet());
+                    int missingTypes = 4 - types.size();
+                    double rotationBonus = missingTypes * 10.0;
+                    double fatigueBonus = 0;
+                    List<LocalDate> lastDates = staffLastWork.get(s.getId());
+                    if (lastDates != null && !lastDates.isEmpty()) {
+                        LocalDate last = lastDates.get(lastDates.size() - 1);
+                        long gap = date.toEpochDay() - last.toEpochDay();
+                        if (gap >= 1) fatigueBonus = Math.min(gap * 3, 10.0);
                     }
-	                    double specPenalty = 0;
-	                    if (specId != null && "L04".equals(shiftTypeId)) {
-	                        int l04Spec = l04SpecGap.getOrDefault(s.getId(), Collections.emptyMap())
-	                                .getOrDefault(specId, 0);
-		                        specPenalty = l04Spec * 9.0; // Tăng: 9 thay vì 5
-	                    }
+                    double totalPenalty = cnt * 5.0; // Tăng: 5 thay vì 3
+                    double typePenalty = 0;
+                    if (!"L04".equals(shiftTypeId)) {
+                        int typeCnt = typeCountGap.getOrDefault(s.getId(), Collections.emptyMap())
+                                .getOrDefault(shiftTypeId, 0);
+                        typePenalty = typeCnt * 10.0; // Tăng: 10 thay vì 7
+                    }
+                    double specPenalty = 0;
+                    if (specId != null && "L04".equals(shiftTypeId)) {
+                        int l04Spec = l04SpecGap.getOrDefault(s.getId(), Collections.emptyMap())
+                                .getOrDefault(specId, 0);
+                        specPenalty = l04Spec * 9.0; // Tăng: 9 thay vì 5
+                    }
 
-	                    double score = 100 - totalPenalty + fatigueBonus + rotationBonus - typePenalty - specPenalty;
+                    double score = 100 - totalPenalty + fatigueBonus + rotationBonus - typePenalty - specPenalty;
                     gapCandidates.add(new ScoredStaff(s.getId(), score));
                 }
 
                 gapCandidates.sort((a, b) -> Double.compare(b.score, a.score));
                 int assign = Math.min(stillNeeded, gapCandidates.size());
-	                for (int i = 0; i < assign; i++) {
-	                    int sid = gapCandidates.get(i).staffId;
-	                    totalCountGap.merge(sid, 1, Integer::sum);
+                for (int i = 0; i < assign; i++) {
+                    int sid = gapCandidates.get(i).staffId;
+                    totalCountGap.merge(sid, 1, Integer::sum);
                     typeCountGap.computeIfAbsent(sid, k -> new HashMap<>()).merge(shiftTypeId, 1, Integer::sum);
                     staffTypes.computeIfAbsent(sid, k -> new HashSet<>()).add(shiftTypeId);
                     staffLastWork.computeIfAbsent(sid, k -> new ArrayList<>()).add(date);
@@ -326,15 +373,24 @@ public class EnhancedGreedyScheduler {
                         l04SpecGap.computeIfAbsent(sid, k -> new HashMap<>()).merge(specId, 1, Integer::sum);
                     }
 
-	                    Schedule sch = new Schedule();
-	                    sch.setStaff(staffMap.get(sid));
-	                    sch.setPeriod(period);
-	                    sch.setWorkDate(date);
-	                    sch.setShiftType(req.getShiftType());
-	                    sch.setRequirement(req);
-	                    sch.setHasConflict(false);
-	                    result.add(sch);
-	                    gapFilled++;
+                    // Dynamically propagate blocked dates for L01
+                    if ("L01".equals(shiftTypeId)) {
+                        blockedDates.computeIfAbsent(sid, k -> new HashSet<>()).add(date.plusDays(1));
+                        LocalDate compDate = compensationDateCalculator.calculate(date);
+                        if (compDate != null) {
+                            blockedDates.computeIfAbsent(sid, k -> new HashSet<>()).add(compDate);
+                        }
+                    }
+
+                    Schedule sch = new Schedule();
+                    sch.setStaff(staffMap.get(sid));
+                    sch.setPeriod(period);
+                    sch.setWorkDate(date);
+                    sch.setShiftType(req.getShiftType());
+                    sch.setRequirement(req);
+                    sch.setHasConflict(false);
+                    result.add(sch);
+                    gapFilled++;
                 }
             }
         }
@@ -347,15 +403,30 @@ public class EnhancedGreedyScheduler {
         return result;
     }
 
+    private boolean isConflictPair(String t1, String t2) {
+        if ("L01".equals(t1) && !"L01".equals(t2)) return true;
+        if ("L01".equals(t2) && !"L01".equals(t1)) return true;
+        if (("L03".equals(t1) && "L04".equals(t2)) || ("L04".equals(t1) && "L03".equals(t2))) return true;
+        return false;
+    }
+
     private record ScoredStaff(int staffId, double score) {}
 
     /**
      * Check if swapping a schedule to newType on workDate for staffId would create a conflict.
-     * Conflicts: L01+L02 same day, L03+L04 same day, consecutive L01.
+     * Conflicts: L01 vs all same day, L03+L04 same day, consecutive L01, day-after-L01 rest, and compensation day.
      * @param excludeSchedule the schedule being swapped (excluded from check)
      */
     private boolean wouldCreateConflict(List<Schedule> schedules, int staffId,
-            LocalDate workDate, String newType, Schedule excludeSchedule) {
+            LocalDate workDate, String newType, Schedule excludeSchedule,
+            Map<Integer, Set<LocalDate>> blockedDates) {
+        if (blockedDates != null) {
+            Set<LocalDate> blocked = blockedDates.get(staffId);
+            if (blocked != null && blocked.contains(workDate)) {
+                return true;
+            }
+        }
+
         for (Schedule s : schedules) {
             if (s.getStaff().getId() != staffId) continue;
             if (s == excludeSchedule) continue; // Skip the schedule being swapped
@@ -363,18 +434,21 @@ public class EnhancedGreedyScheduler {
             // Same-day conflicts
             if (s.getWorkDate().equals(workDate)) {
                 String existingType = s.getShiftType().getId();
-                if (("L01".equals(newType) && "L02".equals(existingType))
-                        || ("L02".equals(newType) && "L01".equals(existingType))
-                        || ("L03".equals(newType) && "L04".equals(existingType))
-                        || ("L04".equals(newType) && "L03".equals(existingType))) {
+                if (isConflictPair(newType, existingType)) {
                     return true;
                 }
             }
 
-            // Consecutive L01 check
-            if ("L01".equals(newType) && "L01".equals(s.getShiftType().getId())) {
+            // Consecutive L01 & Day-after rest / compensation day
+            if ("L01".equals(newType)) {
                 long diff = Math.abs(s.getWorkDate().toEpochDay() - workDate.toEpochDay());
                 if (diff == 1) return true;
+            }
+            if ("L01".equals(s.getShiftType().getId())) {
+                long diff = workDate.toEpochDay() - s.getWorkDate().toEpochDay();
+                if (diff == 1) return true;
+                LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+                if (workDate.equals(compDate)) return true;
             }
         }
         return false;

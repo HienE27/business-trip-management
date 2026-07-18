@@ -39,7 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Skeleton — extend by endpoint.
  */
 @WebMvcTest(controllers = SchedulePeriodController.class)
-@Import({GlobalExceptionHandler.class, JacksonConfig.class, PaginationConfig.class})
+@Import({GlobalExceptionHandler.class, JacksonConfig.class, PaginationConfig.class, MethodSecurityTestConfig.class})
 @DisplayName("SchedulePeriodController - HTTP wiring slice")
 class SchedulePeriodControllerWebMvcTest {
 

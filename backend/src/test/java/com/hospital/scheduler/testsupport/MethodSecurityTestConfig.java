@@ -38,4 +38,14 @@ public class MethodSecurityTestConfig {
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         return http.build();
     }
+
+    @Bean
+    com.hospital.scheduler.security.AuthContextService authContextService() {
+        com.hospital.scheduler.security.AuthContextService mock = org.mockito.Mockito.mock(com.hospital.scheduler.security.AuthContextService.class);
+        org.mockito.Mockito.lenient().when(mock.isCurrentStaff(org.mockito.Mockito.any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(mock.isCurrentStaffOwnerOfLeaveRequest(org.mockito.Mockito.any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(mock.isCurrentStaffOwnerOfExchange(org.mockito.Mockito.any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(mock.isCurrentStaffOwner(org.mockito.Mockito.any())).thenReturn(true);
+        return mock;
+    }
 }
