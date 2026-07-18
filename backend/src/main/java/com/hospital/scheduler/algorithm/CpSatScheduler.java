@@ -38,6 +38,9 @@ public class CpSatScheduler {
     @Autowired
     private com.hospital.scheduler.repository.CompensationDayRepository compensationDayRepository;
 
+    @Autowired
+    private com.hospital.scheduler.repository.LeaveRequestRepository leaveRequestRepository;
+
     public List<Schedule> solve(
             List<Staff> activeStaff,
             List<ShiftRequirement> requirements,
@@ -112,6 +115,19 @@ public class CpSatScheduler {
             LocalDate compDate = compensationDateCalculator.calculate(workDate);
             if (compDate != null) {
                 dbBlockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(compDate);
+            }
+        }
+
+        // Add approved leave requests to blocked dates
+        List<LeaveRequest> approvedLeaves = leaveRequestRepository.findApprovedInRange(periodStart, periodEnd);
+        for (LeaveRequest lr : approvedLeaves) {
+            int staffId = lr.getStaff().getId();
+            LocalDate start = lr.getStartDate().isBefore(periodStart) ? periodStart : lr.getStartDate();
+            LocalDate end = lr.getEndDate().isAfter(periodEnd) ? periodEnd : lr.getEndDate();
+            LocalDate cursor = start;
+            while (!cursor.isAfter(end)) {
+                dbBlockedDates.computeIfAbsent(staffId, k -> new HashSet<>()).add(cursor);
+                cursor = cursor.plusDays(1);
             }
         }
 
@@ -233,8 +249,10 @@ public class CpSatScheduler {
         }
         IntVar minShifts = model.newIntVar(0, numDays, "min_shifts");
         IntVar maxShifts = model.newIntVar(0, numDays, "max_shifts");
-        model.addMinEquality(minShifts, totalShiftsPerStaff);
-        model.addMaxEquality(maxShifts, totalShiftsPerStaff);
+        for (int s = 0; s < numStaff; s++) {
+            model.addLessOrEqual(minShifts, totalShiftsPerStaff[s]);
+            model.addGreaterOrEqual(maxShifts, totalShiftsPerStaff[s]);
+        }
         
         // Objective: minimize max shifts per staff (balance) while satisfying coverage
         model.minimize(maxShifts);
