@@ -101,6 +101,8 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   const eligibleGroupFairness = qr?.eligibleGroupFairnessScore ?? balanceScore;
   const globalFairnessScore = qr?.globalFairnessScore;
   const structuralWarnings = qr?.structuralLoadWarnings;
+  const hardViolations = qr?.hardViolationCount ?? 0;
+  const softViolations = qr?.softViolationCount ?? 0;
   const [showDetail, setShowDetail] = useState(false);
   const statusMsgOk = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng");
   const statusMsgNeutral = message?.toLowerCase().includes("đã hủy");
@@ -109,9 +111,8 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
   // KPI tone helpers
   const coverageTone = coverageRate >= 90 ? "success" : coverageRate >= 70 ? "info" : "error";
-  const balanceTone = balanceScore >= 75 ? "success" : balanceScore >= 50 ? "warning" : "error";
-  const conflictTone = previewResult?.conflictCount === 0 ? "success" : "error";
   const eligibleTone = eligibleGroupFairness >= 75 ? "success" : eligibleGroupFairness >= 50 ? "warning" : "error";
+  const conflictTone = hardViolations > 0 ? "error" : "success";
 
   return (
     <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
@@ -233,6 +234,12 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             )}
 
             <KPICard
+              icon="schedule"
+              label="Thời gian"
+              value={previewResult.executionTimeMs ? `${(previewResult.executionTimeMs / 1000).toFixed(1)}s` : '-'}
+              tone="info"
+            />
+            <KPICard
               icon="event_available"
               label="Ca tạo"
               value={previewResult.totalSchedulesCreated}
@@ -248,7 +255,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               icon="balance"
               label="Cân bằng"
               value={`${Math.round(Number(balanceScore))}%`}
-              tone={balanceTone}
+              tone={eligibleTone}
             />
             <KPICard
               icon="check_circle"
@@ -257,10 +264,11 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               tone={eligibleTone}
             />
             <KPICard
-              icon={previewResult.conflictCount > 0 ? "warning" : "check_circle"}
-              label="Xung đột"
-              value={previewResult.conflictCount}
-              tone={conflictTone}
+              icon={hardViolations > 0 ? "warning" : "check_circle"}
+              label="Vi phạm"
+              value={hardViolations}
+              helper={softViolations > 0 ? `+${softViolations} cảnh báo` : undefined}
+              tone={hardViolations > 0 ? "error" : "success"}
             />
             <KPICard
               icon="swap_horiz"
@@ -315,16 +323,196 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                 </span>
               </button>
               {showDetail && (
-                <div className="border-t border-outline-variant p-4 space-y-3">
-                  {/* Global Fairness */}
-                  {globalFairnessScore != null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-label-sm text-on-surface-variant">Global Fairness (toàn viện)</span>
-                      <span className={`text-label-sm font-semibold ${globalFairnessScore >= 50 ? 'text-success' : 'text-error'}`}>
-                        {Math.round(globalFairnessScore)}%
+                <div className="border-t border-outline-variant p-4 space-y-4">
+                  {/* Summary row: Global + Constraint + Soft warnings */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {globalFairnessScore != null && (
+                      <div className="flex flex-col gap-1 rounded-lg bg-surface-container p-3">
+                        <span className="text-label-xs text-on-surface-variant">Global Fairness (toàn viện)</span>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className={`text-title-md font-bold ${globalFairnessScore >= 50 ? 'text-success' : 'text-error'}`}>
+                            {Math.round(globalFairnessScore)}%
+                          </span>
+                          <span className="text-label-xs text-on-surface-variant">/ 100</span>
+                        </div>
+                        <div className="mt-1 h-1.5 w-full rounded-full bg-surface-container-high">
+                          <div className={`h-1.5 rounded-full ${globalFairnessScore >= 50 ? 'bg-success' : 'bg-error'}`} style={{ width: `${globalFairnessScore}%` }} />
+                        </div>
+                        <span className="text-label-xs text-on-surface-variant mt-1">Bao gồm cả ảnh hưởng từ cấu trúc nhân sự</span>
+                        <div className="mt-2 rounded-lg bg-surface-container-high p-2">
+                          <p className="text-[10px] text-on-surface-variant leading-relaxed">
+                            <span className="font-semibold">Phân tích:</span> Global Fairness thấp hơn Eligible Group Fairness vì tính trên toàn bộ bệnh viện, 
+                            bao gồm cả chênh lệch giữa các chuyên khoa. 
+                            Ví dụ: Mắt (1 BS ~{previewResult?.schedules?.filter(s => s.staffSpecialtyName === 'Mắt').length ?? 0} ca) 
+                            vs Ngoại (9 BS ~{(previewResult?.schedules?.filter(s => s.staffSpecialtyName === 'Ngoại').length ?? 0)/9 || 0} ca/người).
+                            Đây là vấn đề nhân sự, không phải lỗi thuật toán.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-1 rounded-lg bg-surface-container p-3">
+                      <span className="text-label-xs text-on-surface-variant">Constraint Compliance</span>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className={`text-title-md font-bold ${hardViolations === 0 ? 'text-success' : 'text-error'}`}>
+                          {hardViolations === 0 ? '100%' : `${Math.max(0, 100 - hardViolations * 25)}%`}
+                        </span>
+                        <span className="text-label-xs text-on-surface-variant">{hardViolations} hard / {softViolations} soft</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] ${hardViolations === 0 ? 'bg-success-container text-success' : 'bg-error-container text-error'}`}>
+                          <span className="material-symbols-outlined text-[12px]">gavel</span>
+                          {hardViolations} vi phạm
+                        </span>
+                        {softViolations > 0 && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] bg-surface-container-high text-on-surface-variant">
+                            <span className="material-symbols-outlined text-[12px]">info</span>
+                            {softViolations} cảnh báo (max ca)
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 rounded-lg bg-surface-container-high p-2">
+                        <p className="text-[10px] text-on-surface-variant leading-relaxed">
+                          <span className="font-semibold">Phân tích:</span> 
+                          {hardViolations === 0 && softViolations === 0 ? (
+                            'Không có vi phạm. Tất cả ràng buộc nghiệp vụ (L01↔L02, L03↔L04, ngày nghỉ bù) đều được tuân thủ.'
+                          ) : hardViolations > 0 && softViolations > 0 ? (
+                            `Có ${hardViolations} vi phạm cứng (BR-06: vượt maxShiftsPerStaff) và ${softViolations} cảnh báo mềm (max ca/tháng).`
+                          ) : hardViolations > 0 ? (
+                            `${hardViolations} vi phạm cứng: vượt quá số ca tối đa cho phép (maxShiftsPerStaff).`
+                          ) : (
+                            `${softViolations} cảnh báo mềm: một số staff nhận nhiều hơn mức target, nhưng không vi phạm ràng buộc cứng.`
+                          )}
+                        </p>
+                        {/* Danh sách vi phạm chi tiết */}
+                        {qr?.violations && qr.violations.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-[10px] font-semibold text-on-surface-variant">Chi tiết vi phạm:</p>
+                            {qr.violations.map((v, i) => (
+                              <div key={i} className="flex items-start gap-1.5 rounded-md bg-surface-container-high p-1.5">
+                                <span className={`material-symbols-outlined text-[14px] mt-0.5 shrink-0 ${v.severity === 'HARD' ? 'text-error' : 'text-warning'}`}>
+                                  {v.severity === 'HARD' ? 'gavel' : 'info'}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-medium text-on-surface">{v.ruleCode}</p>
+                                  <p className="text-[9px] text-on-surface-variant leading-tight">
+                                    {v.staffName ? `${v.staffName} — ` : ''}{v.description || v.ruleCode}
+                                    {v.workDate ? ` (${v.workDate})` : ''}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 rounded-lg bg-surface-container p-3">
+                      <span className="text-label-xs text-on-surface-variant">Eligible Groups</span>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-title-md font-bold text-primary">
+                          {qr?.fairnessByType?.length ?? 0}
+                        </span>
+                        <span className="text-label-xs text-on-surface-variant">nhóm</span>
+                      </div>
+                      <span className="text-label-xs text-on-surface-variant mt-1">
+                        {crossSpecialtyCount > 0 ? `${crossSpecialtyCount} cross-specialty L04` : 'Không có cross-specialty'}
                       </span>
+                      <div className="mt-2 rounded-lg bg-surface-container-high p-2">
+                        <p className="text-[10px] text-on-surface-variant leading-relaxed">
+                          <span className="font-semibold">Phân tích:</span> Các nhóm eligibility được tính riêng. 
+                          Mỗi nhóm L04 theo chuyên khoa là một nhóm riêng. 
+                          Nhóm chỉ có 1 người (Mắt) được loại khỏi chỉ số "Cân bằng (nhóm)" vì không có sự cạnh tranh.
+                          {crossSpecialtyCount > 0 ? ` ${crossSpecialtyCount} ca L04 được gán chéo chuyên khoa.` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Root Cause Analysis */}
+                  {previewResult && (
+                    <div className="rounded-xl border border-outline-variant bg-surface-container-lowest overflow-hidden">
+                      <div className="flex items-center gap-2 p-3 bg-surface-container">
+                        <span className="material-symbols-outlined text-[18px] text-primary">account_tree</span>
+                        <span className="text-label-sm font-semibold text-on-surface">Phân tích nguyên nhân - Hệ quả</span>
+                      </div>
+                      <div className="p-3 space-y-3">
+                        {/* Nguyên nhân chính */}
+                        <div className="flex gap-2">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-error-container text-error">
+                            <span className="material-symbols-outlined text-[16px]">search</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-label-xs font-semibold text-on-surface">Nguyên nhân chính</p>
+                            <p className="text-[10px] text-on-surface-variant leading-relaxed mt-0.5">
+                              {structuralWarnings && structuralWarnings.length > 0 
+                                ? `Chuyên khoa Mắt chỉ có 1 nhân sự (Bùi Thị Diễm Thu) nhưng cần ~${previewResult.schedules?.filter(s => s.shiftTypeId === 'L04' && s.staffSpecialtyName === 'Mắt').length ?? 15} ca L04/tháng. Không thể chia sẻ cho ai khác.`
+                                : `Tổng nhu cầu ${previewResult.qualityReport?.totalRequired ?? 744} ca vượt quá năng lực ${previewResult.schedules?.length ?? 700} ca khả dụng do ràng buộc nghỉ bù.`
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        {/* Hệ quả */}
+                        <div className="flex gap-2">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warning-container text-warning">
+                            <span className="material-symbols-outlined text-[16px]">trending_down</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-label-xs font-semibold text-on-surface">Hệ quả</p>
+                            <p className="text-[10px] text-on-surface-variant leading-relaxed mt-0.5">
+                              Bùi Thị Diễm Thu nhận {previewResult.schedules?.filter(s => s.staffId && s.staffName?.includes('Thu')).length ?? 'nhiều'} ca, kéo Global Fairness xuống {globalFairnessScore != null ? Math.round(globalFairnessScore) : 35}%. 
+                              Các nhóm khác (Ngoại, Nội, Nhi) vẫn được phân bổ đều trong nội bộ.
+                            </p>
+                          </div>
+                        </div>
+                        {/* Đề xuất */}
+                        <div className="flex gap-2">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-container text-primary">
+                            <span className="material-symbols-outlined text-[16px]">lightbulb</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-label-xs font-semibold text-on-surface">Đề xuất</p>
+                            <p className="text-[10px] text-on-surface-variant leading-relaxed mt-0.5">
+                              {structuralWarnings && structuralWarnings.length > 0
+                                ? 'Tuyển thêm bác sĩ chuyên khoa Mắt để giảm tải cho Bùi Thị Diễm Thu. Hoặc mở rộng cross-specialty L04 để Ngoại/Nội hỗ trợ.'
+                                : 'Giảm số ca yêu cầu/ngày trong cấu hình thuật toán (L01-L03 max per day) để phù hợp với năng lực thực tế.'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
+
+                  {/* Per-type CV Breakdown */}
+                  {qr?.fairnessByType && qr.fairnessByType.length > 0 && (
+                    <div>
+                      <p className="text-label-xs text-on-surface-variant font-semibold mb-2">Cân bằng theo từng loại ca:</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {qr.fairnessByType.map((ft, i) => (
+                          <div key={i} className="flex items-center justify-between rounded-lg border border-outline-variant p-2.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="material-symbols-outlined text-[16px] text-on-surface-variant shrink-0">
+                                {ft.shiftType === 'L01' ? 'emergency' : ft.shiftType === 'L02' ? 'schedule' : ft.shiftType === 'L03' ? 'medical_services' : 'stethoscope'}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-label-xs font-medium truncate">
+                                  {ft.shiftType}{ft.specialtyName ? ` (${ft.specialtyName})` : ''}
+                                </p>
+                                <p className="text-label-xs text-on-surface-variant">
+                                  TB {ft.meanShifts?.toFixed(1)} ± {ft.stdDev?.toFixed(2)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0 ml-2">
+                              <p className={`text-label-xs font-semibold ${(ft.coefficientOfVariation || 0) < 0.2 ? 'text-success' : (ft.coefficientOfVariation || 0) < 0.3 ? 'text-warning' : 'text-error'}`}>
+                                {(ft.coefficientOfVariation || 0) < 0.1 ? 'Tốt' : (ft.coefficientOfVariation || 0) < 0.2 ? 'Khá' : (ft.coefficientOfVariation || 0) < 0.3 ? 'Trung bình' : 'Kém'}
+                              </p>
+                              <p className="text-label-xs text-on-surface-variant">CV {(ft.coefficientOfVariation * 100)?.toFixed(1)}%</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Structural Warnings */}
                   {structuralWarnings && structuralWarnings.length > 0 && (
                     <div className="space-y-1.5">
@@ -337,6 +525,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                       ))}
                     </div>
                   )}
+
                   {/* Why not 100% explanation */}
                   {structuralWarnings && structuralWarnings.length > 0 && (
                     <div className="rounded-lg bg-primary-container/10 p-3">

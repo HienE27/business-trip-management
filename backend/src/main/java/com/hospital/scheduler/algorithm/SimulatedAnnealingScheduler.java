@@ -14,6 +14,11 @@ import java.util.stream.Collectors;
 /**
  * Simulated Annealing scheduler — ported from algorithm_comparison.ipynb.
  * Uses greedy initial solution then SA refinement.
+ *
+ * <p>Score = 0.7 × coverage + 0.3 × fairness − 0.2 × conflicts.
+ * Coverage is per-requirement (date+shiftType+specialty), not total count.
+ * SA mutation swaps a shift between two staff on the same date+type to
+ * preserve coverage while improving fairness.
  */
 @Slf4j
 @Component
@@ -21,10 +26,12 @@ import java.util.stream.Collectors;
 public class SimulatedAnnealingScheduler {
 
     private final CompensationDateCalculator compensationDateCalculator;
-    private static final String[] SHIFT_TYPES = {"L01", "L02", "L03", "L04"};
-    private static final int MAX_ITER = 500;
-    private static final double INITIAL_TEMP = 50.0;
-    private static final double COOLING_RATE = 0.99;
+    private static final int DEFAULT_MAX_ITER = 500;
+    private static final double INITIAL_TEMP = 0.05;
+    private static final double COOLING_RATE = 0.97;
+    private static final double COVERAGE_WEIGHT = 0.7;
+    private static final double FAIRNESS_WEIGHT = 0.3;
+    private static final double CONFLICT_PENALTY = 0.2;
 
     public List<Schedule> solve(
             List<Staff> activeStaff,
@@ -37,63 +44,86 @@ public class SimulatedAnnealingScheduler {
         Random rng = new Random();
         Map<Integer, Staff> staffMap = activeStaff.stream()
                 .collect(Collectors.toMap(Staff::getId, s -> s));
+        int maxIter = runtimeConfig != null && runtimeConfig.getBeamWidth() > 0
+                ? runtimeConfig.getBeamWidth() * 100 : DEFAULT_MAX_ITER;
+        int totalRequired = requirements.stream()
+                .mapToInt(ShiftRequirement::getRequiredStaffCount).sum();
 
         // Phase 1: Initial greedy solution
         List<Schedule> current = greedyInitial(activeStaff, requirements, period,
                 runtimeConfig, excludedStaffIds, staffMap, rng);
         if (current.isEmpty()) return current;
 
-        int currentScore = current.size();
+        double currentScore = score(current, requirements, staffMap, totalRequired);
         List<Schedule> bestSolution = new ArrayList<>(current);
-        int bestScore = currentScore;
+        double bestScore = currentScore;
 
         double T = INITIAL_TEMP;
 
-        // Phase 2: Simulated Annealing
-        for (int iter = 0; iter < MAX_ITER && !current.isEmpty(); iter++) {
-            Schedule s = current.get(rng.nextInt(current.size()));
-            String oldType = s.getShiftType().getId();
-            String newType = SHIFT_TYPES[rng.nextInt(SHIFT_TYPES.length)];
-            if (newType.equals(oldType)) continue;
+        // Phase 2: Simulated Annealing — swap shifts between staff to improve fairness
+        for (int iter = 0; iter < maxIter && current.size() >= 2; iter++) {
+            // Pick two random schedule entries with different staff on same date+type
+            Schedule a = current.get(rng.nextInt(current.size()));
+            // Find candidates with same date+shiftType but different staff
+            List<Schedule> candidates = current.stream()
+                    .filter(b -> b != a && !b.getStaff().getId().equals(a.getStaff().getId())
+                            && b.getWorkDate().equals(a.getWorkDate())
+                            && b.getShiftType().getId().equals(a.getShiftType().getId()))
+                    .collect(Collectors.toList());
+            if (candidates.isEmpty()) continue;
 
-            if (hasConflict(current, s.getStaff().getId(), s.getWorkDate(), newType)) continue;
+            Schedule b = candidates.get(rng.nextInt(candidates.size()));
 
-            s.setShiftType(findShiftType(newType, requirements));
-            ShiftRequirement newReq = findMatchingRequirement(
-                    s.getStaff(), s.getWorkDate(), newType, requirements);
-            if (newReq != null) s.setRequirement(newReq);
+            // Swap staff assignments: a gets b's staff, b gets a's staff
+            Staff staffA = a.getStaff();
+            Staff staffB = b.getStaff();
 
-            int newScore = current.size();
+            // Check conflicts after swap
+            if (hasConflict(current, staffA.getId(), b.getWorkDate(), b.getShiftType().getId()))
+                continue;
+            if (hasConflict(current, staffB.getId(), a.getWorkDate(), a.getShiftType().getId()))
+                continue;
+
+            // Also check: same staff might end up with duplicate on same day if
+            // swapping different dates — but we already filter same date, so swaps
+            // are same-date and duplicate shiftType would be caught by conflict check.
+
+            a.setStaff(staffB);
+            b.setStaff(staffA);
+
+            double newScore = score(current, requirements, staffMap, totalRequired);
             double delta = newScore - currentScore;
 
-            if (delta > 0 || rng.nextDouble() < Math.exp(delta / Math.max(T, 0.01))) {
+            if (delta > 0 || rng.nextDouble() < Math.exp(delta / Math.max(T, 1e-9))) {
                 currentScore = newScore;
                 if (newScore > bestScore) {
                     bestScore = newScore;
                     bestSolution = new ArrayList<>(current);
                 }
             } else {
-                s.setShiftType(findShiftType(oldType, requirements));
-                ShiftRequirement oldReq = findMatchingRequirement(
-                        s.getStaff(), s.getWorkDate(), oldType, requirements);
-                if (oldReq != null) s.setRequirement(oldReq);
+                // Revert
+                a.setStaff(staffA);
+                b.setStaff(staffB);
             }
 
             T *= COOLING_RATE;
         }
 
-        log.info("SimulatedAnnealing: {} schedules (best={}) in {}ms",
-                bestSolution.size(), bestScore, System.currentTimeMillis() - start);
+        log.info("SimulatedAnnealing: {} schedules (best={}) in {}ms (maxIter={})",
+                bestSolution.size(), String.format("%.3f", bestScore),
+                System.currentTimeMillis() - start, maxIter);
         return bestSolution;
     }
 
     private List<Schedule> greedyInitial(List<Staff> staff, List<ShiftRequirement> reqs,
-            SchedulePeriod period, AlgorithmConfigService.AlgorithmRuntimeConfig config,
-            Set<Integer> excluded, Map<Integer, Staff> staffMap, Random rng) {
+                                          SchedulePeriod period, AlgorithmConfigService.AlgorithmRuntimeConfig config,
+                                          Set<Integer> excluded, Map<Integer, Staff> staffMap, Random rng) {
         List<Schedule> result = new ArrayList<>();
         Set<String> assigned = new HashSet<>();
         Map<Integer, Integer> counts = new HashMap<>();
+        Map<Integer, Map<LocalDate, String>> shiftPerStaff = new HashMap<>();
         Map<Integer, Set<LocalDate>> staffCompDays = new HashMap<>();
+
         int maxShifts = config != null && config.getMaxShiftsPerStaff() > 0
                 ? config.getMaxShiftsPerStaff() : Integer.MAX_VALUE;
 
@@ -111,6 +141,7 @@ public class SimulatedAnnealingScheduler {
                         if (specId == null && !"L04".equals(shiftType) && s.getSpecialty() == null) return false;
                         return true;
                     })
+                    .filter(s -> !hasConflict(s.getId(), req.getWorkDate(), shiftType, shiftPerStaff))
                     .filter(s -> {
                         Set<LocalDate> compDays = staffCompDays.get(s.getId());
                         return compDays == null || !compDays.contains(req.getWorkDate());
@@ -125,7 +156,8 @@ public class SimulatedAnnealingScheduler {
                 if (!assigned.contains(key)) {
                     assigned.add(key);
                     counts.merge(sid, 1, Integer::sum);
-                    // Compensation day: nếu gán L01, tính ngày nghỉ bù
+                    shiftPerStaff.computeIfAbsent(sid, k -> new HashMap<>())
+                            .put(req.getWorkDate(), shiftType);
                     if ("L01".equals(shiftType)) {
                         LocalDate compDate = compensationDateCalculator.calculate(req.getWorkDate());
                         if (compDate != null) {
@@ -146,24 +178,92 @@ public class SimulatedAnnealingScheduler {
         return result;
     }
 
+    /** Score = coverage × 0.7 + fairness × 0.3 − conflict_penalty. */
+    private double score(List<Schedule> schedules, List<ShiftRequirement> reqs,
+                         Map<Integer, Staff> staffMap, int totalRequired) {
+        // Per-requirement coverage
+        Map<String, Integer> requiredCount = new HashMap<>();
+        for (ShiftRequirement r : reqs) {
+            String key = r.getWorkDate() + "|" + r.getShiftType().getId()
+                       + "|" + (r.getSpecialty() != null ? r.getSpecialty().getId() : 0);
+            requiredCount.merge(key, r.getRequiredStaffCount(), Integer::sum);
+        }
+        Map<String, Integer> assignedCount = new HashMap<>();
+        for (Schedule s : schedules) {
+            if (s.getStaff() == null) continue;
+            String key = s.getWorkDate() + "|" + s.getShiftType().getId()
+                       + "|" + (s.getRequirement() != null && s.getRequirement().getSpecialty() != null
+                                 ? s.getRequirement().getSpecialty().getId() : 0);
+            assignedCount.merge(key, 1, Integer::sum);
+        }
+        int fulfilled = 0, totalReqSlots = 0;
+        for (var e : requiredCount.entrySet()) {
+            int req = e.getValue();
+            int asn = assignedCount.getOrDefault(e.getKey(), 0);
+            fulfilled += Math.min(req, asn);
+            totalReqSlots += req;
+        }
+        double coverage = totalReqSlots > 0 ? (double) fulfilled / totalReqSlots : 0;
+
+        Set<Integer> assignedIds = new HashSet<>();
+        Map<Integer, Integer> counts = new HashMap<>();
+        for (Schedule s : schedules) {
+            assignedIds.add(s.getStaff().getId());
+            counts.merge(s.getStaff().getId(), 1, Integer::sum);
+        }
+        double fairness = 1.0;
+        if (!assignedIds.isEmpty()) {
+            double mean = (double) schedules.size() / assignedIds.size();
+            if (mean > 0) {
+                double variance = assignedIds.stream()
+                        .mapToDouble(id -> Math.pow(counts.getOrDefault(id, 0) - mean, 2))
+                        .average().orElse(0);
+                fairness = Math.max(0, 1 - Math.sqrt(variance) / mean);
+            }
+        }
+        int conflicts = countConflicts(schedules);
+        return COVERAGE_WEIGHT * coverage + FAIRNESS_WEIGHT * fairness - conflicts * CONFLICT_PENALTY;
+    }
+
+    private int countConflicts(List<Schedule> schedules) {
+        int conflicts = 0;
+        Map<Integer, Map<LocalDate, String>> byStaffDay = new HashMap<>();
+        for (Schedule s : schedules) {
+            Map<LocalDate, String> days = byStaffDay.computeIfAbsent(s.getStaff().getId(), k -> new HashMap<>());
+            String existing = days.get(s.getWorkDate());
+            if (existing != null && ScheduleConflictUtils.isBusinessConflict(s.getShiftType().getId(), existing)) {
+                conflicts++;
+            }
+            days.put(s.getWorkDate(), s.getShiftType().getId());
+        }
+        Map<Integer, List<LocalDate>> l01ByStaff = new HashMap<>();
+        for (Schedule s : schedules) {
+            if ("L01".equals(s.getShiftType().getId())) {
+                l01ByStaff.computeIfAbsent(s.getStaff().getId(), k -> new ArrayList<>())
+                        .add(s.getWorkDate());
+            }
+        }
+        for (List<LocalDate> dates : l01ByStaff.values()) {
+            Collections.sort(dates);
+            for (int i = 1; i < dates.size(); i++) {
+                if (dates.get(i).toEpochDay() - dates.get(i - 1).toEpochDay() == 1) conflicts++;
+            }
+        }
+        return conflicts;
+    }
+
+    /** Same-day L01↔L02 / L03↔L04, consecutive L01, and L01 → compensation-day guards. */
     private boolean hasConflict(List<Schedule> schedules, int staffId,
-            LocalDate workDate, String newType) {
+                                LocalDate workDate, String newType) {
         for (Schedule s : schedules) {
             if (s.getStaff().getId() != staffId) continue;
             if (s.getWorkDate().equals(workDate)) {
                 String existingType = s.getShiftType().getId();
-                if (("L01".equals(newType) && "L02".equals(existingType))
-                        || ("L02".equals(newType) && "L01".equals(existingType))
-                        || ("L03".equals(newType) && "L04".equals(existingType))
-                        || ("L04".equals(newType) && "L03".equals(existingType)))
-                    return true;
+                if (ScheduleConflictUtils.isBusinessConflict(newType, existingType)) return true;
             }
-            // Consecutive L01 check
             if ("L01".equals(newType) && "L01".equals(s.getShiftType().getId())) {
-                if (Math.abs(s.getWorkDate().toEpochDay() - workDate.toEpochDay()) == 1)
-                    return true;
+                if (Math.abs(s.getWorkDate().toEpochDay() - workDate.toEpochDay()) == 1) return true;
             }
-            // Compensation day check: nếu staff có L01 mà ngày nghỉ bù trùng workDate → block
             if ("L01".equals(s.getShiftType().getId())) {
                 LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
                 if (compDate != null && compDate.equals(workDate)) return true;
@@ -172,24 +272,12 @@ public class SimulatedAnnealingScheduler {
         return false;
     }
 
-    private com.hospital.scheduler.entity.ShiftType findShiftType(
-            String id, List<ShiftRequirement> reqs) {
-        return reqs.stream().filter(r -> r.getShiftType().getId().equals(id))
-                .findFirst().map(ShiftRequirement::getShiftType).orElse(null);
-    }
-
-    private ShiftRequirement findMatchingRequirement(Staff staff, LocalDate workDate,
-            String shiftTypeId, List<ShiftRequirement> reqs) {
-        List<ShiftRequirement> candidates = reqs.stream()
-                .filter(r -> r.getShiftType().getId().equals(shiftTypeId) && r.getWorkDate().equals(workDate))
-                .toList();
-        if (candidates.isEmpty()) return null;
-        if (candidates.size() == 1) return candidates.get(0);
-        if (staff.getSpecialty() != null) {
-            for (ShiftRequirement r : candidates)
-                if (r.getSpecialty() != null && r.getSpecialty().getId().equals(staff.getSpecialty().getId()))
-                    return r;
-        }
-        return candidates.get(0);
+    /** Indexed-lookup variant for greedyInitial (O(1) per check vs O(N) scan). */
+    private boolean hasConflict(int staffId, LocalDate date, String newType,
+                                Map<Integer, Map<LocalDate, String>> shiftPerStaff) {
+        Map<LocalDate, String> days = shiftPerStaff.get(staffId);
+        if (days == null) return false;
+        String existing = days.get(date);
+        return existing != null && ScheduleConflictUtils.isBusinessConflict(newType, existing);
     }
 }

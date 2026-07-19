@@ -98,8 +98,11 @@ public class BeamSearchScheduler {
                         newAssign.put(sid + "|" + date, shiftTypeId);
                         newTypes.computeIfAbsent(sid, k -> new HashSet<>()).add(shiftTypeId);
 
-                        // Score
-                        double score = scoreState(newAssign, newTypes, count, totalReqs, activeStaff.size());
+                        // P0-2: include the candidate in count so fairness/variety
+                        // reflect the new state, not the previous partial state.
+                        Map<Integer, Integer> newCount = new HashMap<>(count);
+                        newCount.merge(sid, 1, Integer::sum);
+                        double score = scoreState(newAssign, newTypes, newCount, totalReqs, activeStaff.size());
                         candidates.add(new ScoredEntry(newAssign, newTypes, score));
                     }
                 }
@@ -124,12 +127,12 @@ public class BeamSearchScheduler {
             LocalDate workDate = LocalDate.parse(p[1]);
             String shiftTypeId = e.getValue();
             // Find matching requirement (by shiftType + date + specialty if applicable)
-            ShiftRequirement matchedReq = findMatchingRequirement(s, workDate, shiftTypeId, requirements);
+            ShiftRequirement matchedReq = ScheduleConflictUtils.findMatchingRequirement(s, workDate, shiftTypeId, requirements);
             Schedule sch = new Schedule();
             sch.setStaff(s);
             sch.setPeriod(period);
             sch.setWorkDate(workDate);
-            sch.setShiftType(findShiftType(shiftTypeId, requirements));
+            sch.setShiftType(ScheduleConflictUtils.findShiftType(shiftTypeId, requirements));
             sch.setRequirement(matchedReq);
             sch.setHasConflict(false);
             result.add(sch);
@@ -143,71 +146,42 @@ public class BeamSearchScheduler {
         return result;
     }
 
-    /** Resolve L01 vs ALL and L03↔L04 conflicts by swapping one shift to a non-conflicting type */
+    /**
+     * Resolve L01+L02 and L03↔L04 same-day conflicts by swapping one shift
+     * to a non-conflicting type. P0-3: only these pairs conflict (consistent
+     * with hasConflictWithExisting); L01+L03/L04 is allowed and must not be swapped.
+     */
     private void resolveConflicts(List<Schedule> result, List<ShiftRequirement> reqs,
                                   Map<Integer, Staff> staffMap) {
-        // Group by staffId|date
         Map<String, List<Schedule>> byStaffDate = new HashMap<>();
         for (Schedule s : result) {
             String key = s.getStaff().getId() + "|" + s.getWorkDate();
             byStaffDate.computeIfAbsent(key, k -> new ArrayList<>()).add(s);
         }
 
+        String[] availableTypes = {"L01", "L02", "L03", "L04"};
         for (var e : byStaffDate.entrySet()) {
             List<Schedule> daySchedules = e.getValue();
             if (daySchedules.size() <= 1) continue;
 
-            // Check for conflicts per business rules
-            Set<String> types = new HashSet<>();
-            for (Schedule s : daySchedules) types.add(s.getShiftType().getId());
-
-            boolean hasL01 = types.contains("L01") && types.size() > 1; // L01 + anything else
-            boolean hasL03L04 = types.contains("L03") && types.contains("L04");
-
-            if (hasL01 || hasL03L04) {
-                // Swap one conflicting shift to a non-conflicting type
-                Schedule toSwap = null;
-                String[] availableTypes = {"L01", "L02", "L03", "L04"};
-                for (Schedule s : daySchedules) {
-                    Set<String> currentTypes = new HashSet<>();
-                    for (Schedule other : daySchedules) if (other != s) currentTypes.add(other.getShiftType().getId());
-                    // Find a non-conflicting type
-                    for (String t : availableTypes) {
-                        if (currentTypes.contains(t)) continue; // would create same-type conflict
-                        // Check business rules for the new pair
-                        String originalType = s.getShiftType().getId();
-                        // If original is L01, new type must not conflict with L01 rule (doesn't matter since we're removing L01)
-                        // Check that new type doesn't conflict with remaining types
-                        boolean conflicts = false;
-                        for (String ct : currentTypes) {
-                            if ("L01".equals(t) && !"L01".equals(ct)) { conflicts = true; break; }
-                            if ("L01".equals(ct) && !"L01".equals(t)) { conflicts = true; break; }
-                            if (("L03".equals(t) && "L04".equals(ct)) || ("L04".equals(t) && "L03".equals(ct))) { conflicts = true; break; }
-                        }
-                        if (conflicts) continue;
-                        toSwap = s;
-                        break;
-                    }
-                    if (toSwap != null) break;
+            // Try swapping each schedule to a non-conflicting type
+            outer:
+            for (Schedule s : daySchedules) {
+                Set<String> otherTypes = new HashSet<>();
+                for (Schedule other : daySchedules) {
+                    if (other != s) otherTypes.add(other.getShiftType().getId());
                 }
-                if (toSwap != null) {
-                    // Find the new type
-                    Set<String> currentTypes = new HashSet<>();
-                    for (Schedule s : daySchedules) currentTypes.add(s.getShiftType().getId());
-                    String newType = null;
-                    for (String t : availableTypes) {
-                        if (currentTypes.contains(t)) continue;
-                        boolean conflicts = false;
-                        for (String ct : currentTypes) {
-                            if (toSwap.getShiftType().getId().equals(ct)) continue; // skip self (will be removed)
-                            if ("L01".equals(t) && !"L01".equals(ct)) { conflicts = true; break; }
-                            if ("L01".equals(ct) && !"L01".equals(t)) { conflicts = true; break; }
-                            if (("L03".equals(t) && "L04".equals(ct)) || ("L04".equals(t) && "L03".equals(ct))) { conflicts = true; break; }
-                        }
-                        if (!conflicts) { newType = t; break; }
-                    }
-                    if (newType != null) {
-                        toSwap.setShiftType(findShiftType(newType, reqs));
+                String original = s.getShiftType().getId();
+                for (String t : availableTypes) {
+                    if (t.equals(original)) continue; // no-op swap
+                    if (otherTypes.contains(t)) continue; // same-type conflict
+                    boolean ok = true;
+for (String ct : otherTypes) {
+                                if (ScheduleConflictUtils.isBusinessConflict(t, ct)) { ok = false; break; }
+                            }
+                    if (ok) {
+                        s.setShiftType(ScheduleConflictUtils.findShiftType(t, reqs));
+                        break outer;
                     }
                 }
             }
@@ -379,36 +353,6 @@ public class BeamSearchScheduler {
             if (compDate != null && compDate.equals(date)) return true;
         }
         return false;
-    }
-
-    /**
-     * Find the matching requirement for a staff assignment.
-     * Matches by shiftType + date, and prefers the requirement whose specialty
-     * matches the staff's specialty (for L04 specialty-bound assignments).
-     */
-    private ShiftRequirement findMatchingRequirement(Staff staff, LocalDate workDate,
-            String shiftTypeId, List<ShiftRequirement> reqs) {
-        List<ShiftRequirement> candidates = reqs.stream()
-                .filter(r -> r.getShiftType().getId().equals(shiftTypeId)
-                        && r.getWorkDate().equals(workDate))
-                .toList();
-        if (candidates.isEmpty()) return null;
-        if (candidates.size() == 1) return candidates.get(0);
-        // Prefer requirement whose specialty matches the staff's specialty
-        if (staff.getSpecialty() != null) {
-            for (ShiftRequirement r : candidates) {
-                if (r.getSpecialty() != null && r.getSpecialty().getId().equals(staff.getSpecialty().getId())) {
-                    return r;
-                }
-            }
-        }
-        // Fallback: first requirement (may have null specialty)
-        return candidates.get(0);
-    }
-
-    private com.hospital.scheduler.entity.ShiftType findShiftType(String id, List<ShiftRequirement> reqs) {
-        return reqs.stream().filter(r -> r.getShiftType().getId().equals(id))
-                .findFirst().map(ShiftRequirement::getShiftType).orElse(null);
     }
 
     private record PartialState(Map<String, String> assignments, Map<Integer, Set<String>> staffTypes) {}

@@ -668,10 +668,7 @@ public class SchedulingAlgorithmRunner {
     }
 
     public boolean isBusinessShiftConflict(String typeA, String typeB) {
-        return (ConflictDetectionService.SHIFT_TYPE_L01.equals(typeA) && ConflictDetectionService.SHIFT_TYPE_L02.equals(typeB))
-                || (ConflictDetectionService.SHIFT_TYPE_L02.equals(typeA) && ConflictDetectionService.SHIFT_TYPE_L01.equals(typeB))
-                || (ConflictDetectionService.SHIFT_TYPE_L03.equals(typeA) && ConflictDetectionService.SHIFT_TYPE_L04.equals(typeB))
-                || (ConflictDetectionService.SHIFT_TYPE_L04.equals(typeA) && ConflictDetectionService.SHIFT_TYPE_L03.equals(typeB));
+        return com.hospital.scheduler.algorithm.ScheduleConflictUtils.isBusinessConflict(typeA, typeB);
     }
 
     public List<ShiftRequirement> sortRequirementsByPriority(List<ShiftRequirement> requirements) {

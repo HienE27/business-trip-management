@@ -31,7 +31,12 @@ public class CpSatScheduler {
     }
 
     private static final String[] WORK_SHIFTS = {"L01", "L02", "L03", "L04"};
-    private static final double TIME_LIMIT_SECONDS = 30.0;
+    // CP-SAT solver wall-clock cap (seconds). Scales with problem size: 5s base
+    // + 0.5s per day, capped at 60s. OR-Tools returns the best feasible solution
+    // found when this fires. Tune up for larger periods / more staff.
+    private static final double TIME_LIMIT_BASE_SECONDS = 5.0;
+    private static final double TIME_LIMIT_PER_DAY_SECONDS = 0.5;
+    private static final double TIME_LIMIT_MAX_SECONDS = 60.0;
 
     public List<Schedule> solve(
             List<Staff> activeStaff,
@@ -182,7 +187,7 @@ public class CpSatScheduler {
             }
         }
 
-        // Objective: minimize shortfall (coverage) + balance fairness
+        // Objective: minimize shortfall (coverage) + balance fairness + per-type balance
         IntVar[] totalShiftsPerStaff = new IntVar[numStaff];
         for (int s = 0; s < numStaff; s++) {
             LinearExprBuilder sum = LinearExpr.newBuilder();
@@ -199,16 +204,38 @@ public class CpSatScheduler {
         model.addMinEquality(minShifts, totalShiftsPerStaff);
         model.addMaxEquality(maxShifts, totalShiftsPerStaff);
         
-        // Weighted objective: ưu tiên coverage trước, sau đó balance
-        // totalShortfall * WEIGHT + (maxShifts - minShifts)
+        // Per-type balance: tạo max-per-type variables
+        // L01 index=0, L02=1, L03=2, L04=3
+        IntVar[] maxPerType = new IntVar[WORK_SHIFTS.length];
+        for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
+            IntVar[] perStaff = new IntVar[numStaff];
+            for (int s = 0; s < numStaff; s++) {
+                perStaff[s] = model.newIntVar(0, numDays, "type_" + WORK_SHIFTS[sh] + "_" + staffIds.get(s));
+                LinearExprBuilder sum = LinearExpr.newBuilder();
+                for (int d = 0; d < numDays; d++) {
+                    sum.add(x[s][d][sh]);
+                }
+                model.addEquality(perStaff[s], sum.build());
+            }
+            maxPerType[sh] = model.newIntVar(0, numDays, "max_type_" + WORK_SHIFTS[sh]);
+            model.addMaxEquality(maxPerType[sh], perStaff);
+        }
+        
+        // Objective: coverage + total balance + per-type balance
         LinearExprBuilder objective = LinearExpr.newBuilder();
-        objective.addTerm(totalShortfall, 100); // coverage weight = 100
-        objective.add(maxShifts);                // balance weight = 1
+        objective.addTerm(totalShortfall, 20);       // coverage: 20pt per missing slot
+        objective.addTerm(maxShifts, 5);              // total max: 5pt per shift
+        objective.addTerm(minShifts, -5);             // total min: -5pt → maximize min
+        for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
+            objective.addTerm(maxPerType[sh], 2);     // per-type max: 2pt per shift
+        }
         model.minimize(objective.build());
 
         // Solve
         CpSolver solver = new CpSolver();
-        solver.getParameters().setMaxTimeInSeconds(TIME_LIMIT_SECONDS);
+        double timeLimit = Math.min(TIME_LIMIT_MAX_SECONDS,
+                TIME_LIMIT_BASE_SECONDS + numDays * TIME_LIMIT_PER_DAY_SECONDS);
+        solver.getParameters().setMaxTimeInSeconds(timeLimit);
         solver.getParameters().setLogSearchProgress(false);
 
         CpSolverStatus status = solver.solve(model);

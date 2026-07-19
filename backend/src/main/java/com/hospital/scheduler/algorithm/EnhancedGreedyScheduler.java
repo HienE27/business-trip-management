@@ -33,7 +33,8 @@ public class EnhancedGreedyScheduler {
         long start = System.currentTimeMillis();
 	        Map<Integer, Staff> staffMap = activeStaff.stream()
 	                .collect(Collectors.toMap(Staff::getId, s -> s));
-	        Map<Integer, List<LocalDate>> staffLastWork = new HashMap<>();
+	        // P2-7: single-date map (only the latest date is consulted; previous List<LocalDate> grew unbounded)
+	        Map<Integer, LocalDate> staffLastWork = new HashMap<>();
 	        Map<Integer, Integer> staffCount = new HashMap<>();
 	        Map<Integer, Set<String>> staffTypes = new HashMap<>(); // rotation tracking
 	        // L04 per-specialty balance: staffId → {specialtyId → l04Count}
@@ -67,12 +68,19 @@ public class EnhancedGreedyScheduler {
 
         List<Schedule> result = new ArrayList<>();
 
-        for (Map.Entry<LocalDate, List<ShiftRequirement>> e : byDate.entrySet()) {
-            LocalDate date = e.getKey();
-            for (ShiftRequirement req : e.getValue()) {
-                String shiftTypeId = req.getShiftType().getId();
-                int required = req.getRequiredStaffCount();
-                Integer specId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
+        // Xử lý theo thứ tự ưu tiên: L01 → L02 → L03 → L04 (M07 B3)
+        // Mỗi loại được xử lý TOÀN BỘ trước khi chuyển sang loại tiếp theo
+        String[] priorityOrder = {"L01", "L02", "L03", "L04"};
+        for (String priorityType : priorityOrder) {
+            for (Map.Entry<LocalDate, List<ShiftRequirement>> e : byDate.entrySet()) {
+                LocalDate date = e.getKey();
+                for (ShiftRequirement req : e.getValue()) {
+                    // Chỉ xử lý requirement thuộc loại ưu tiên hiện tại
+                    if (!priorityType.equals(req.getShiftType().getId())) continue;
+                    
+                    String shiftTypeId = req.getShiftType().getId();
+                    int required = req.getRequiredStaffCount();
+                    Integer specId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
 
                 // Score candidates: fatigue = gap since last work
                 List<ScoredStaff> candidates = new ArrayList<>();
@@ -117,9 +125,8 @@ public class EnhancedGreedyScheduler {
 		                    int missingTypes = 4 - types.size();
 		                    double rotationBonus = missingTypes * 15.0; // 15 pts per missing type
 		                    double fatigueBonus = 0;
-		                    List<LocalDate> lastDates = staffLastWork.get(s.getId());
-		                    if (lastDates != null && !lastDates.isEmpty()) {
-		                        LocalDate last = lastDates.get(lastDates.size() - 1);
+		                    LocalDate last = staffLastWork.get(s.getId());
+		                    if (last != null) {
 		                        long gap = date.toEpochDay() - last.toEpochDay();
 		                        if (gap >= 1) fatigueBonus = Math.min(gap * 5, 15.0);
 		                    }
@@ -170,7 +177,7 @@ public class EnhancedGreedyScheduler {
 	                    assignedTypesPerDay.computeIfAbsent(dayKey, k -> new HashSet<>()).add(shiftTypeId);
 	                    staffCount.merge(sid, 1, Integer::sum);
                     staffTypes.computeIfAbsent(sid, k -> new HashSet<>()).add(shiftTypeId);
-                    staffLastWork.computeIfAbsent(sid, k -> new ArrayList<>()).add(date);
+                    staffLastWork.put(sid, date);
                     // Track per-type count for L01/L02/L03 balance
                     typeCountByStaff.computeIfAbsent(sid, k -> new HashMap<>())
                             .merge(shiftTypeId, 1, Integer::sum);
@@ -200,25 +207,32 @@ public class EnhancedGreedyScheduler {
 	                    sch.setWorkDate(date);
 	                    sch.setShiftType(req.getShiftType());
 	                    sch.setRequirement(req);
-	                    sch.setHasConflict(false);
-	                    result.add(sch);
+sch.setHasConflict(false);
+                    result.add(sch);
                 }
             }
         }
+        }
 
-        // POST-PROCESSING: Ensure every staff has ALL 4 shift types
+// POST-PROCESSING: Ensure every staff has ALL 4 shift types
         // If a staff is missing a type, swap from another type to fill the gap
         // Skip swaps that would create conflicts (consecutive L01, L01+L02 same day, L03+L04 same day)
         Map<Integer, Set<String>> staffTypesFinal = new HashMap<>();
+        // P2-8: precompute byStaffType to avoid O(N) result.stream() per swap candidate
+        Map<Integer, Map<String, List<Schedule>>> byStaffType = new HashMap<>();
         for (Schedule s : result) {
-            staffTypesFinal.computeIfAbsent(s.getStaff().getId(), k -> new HashSet<>())
-                    .add(s.getShiftType().getId());
+            int sid = s.getStaff().getId();
+            String tid = s.getShiftType().getId();
+            staffTypesFinal.computeIfAbsent(sid, k -> new HashSet<>()).add(tid);
+            byStaffType.computeIfAbsent(sid, k -> new HashMap<>())
+                    .computeIfAbsent(tid, k -> new ArrayList<>()).add(s);
         }
         for (Map.Entry<Integer, Set<String>> entry : staffTypesFinal.entrySet()) {
             if (entry.getValue().size() >= 4) continue; // Already has all types
 
             int sid = entry.getKey();
             Set<String> types = entry.getValue();
+            Map<String, List<Schedule>> staffSchedules = byStaffType.getOrDefault(sid, Map.of());
             String[] needed = {"L01", "L02", "L03", "L04"};
             for (String need : needed) {
                 if (types.contains(need)) continue;
@@ -226,63 +240,65 @@ public class EnhancedGreedyScheduler {
                 // Find a schedule for this staff that we can swap to the missing type
                 for (String swapFrom : new String[]{"L04", "L01", "L02", "L03"}) {
                     if (!types.contains(swapFrom)) continue;
-                    // Don't swap if staff only has1 of this type
-                    long count = result.stream()
-                            .filter(s2 -> s2.getStaff().getId() == sid
-                                    && swapFrom.equals(s2.getShiftType().getId()))
-                            .count();
-                    if (count <= 1) continue;
+                    List<Schedule> fromList = staffSchedules.get(swapFrom);
+                    // Don't swap if staff only has 1 of this type
+                    if (fromList == null || fromList.size() <= 1) continue;
 
-                    for (Schedule s : result) {
-                        if (s.getStaff().getId() == sid && swapFrom.equals(s.getShiftType().getId())) {
-                            // Check if swap would create conflict (exclude this schedule from check)
-                            if (wouldCreateConflict(result, sid, s.getWorkDate(), need, s)) continue;
+                    boolean swapped = false;
+                    for (Schedule s : fromList) {
+                        // Check if swap would create conflict (exclude this schedule from check)
+                        if (wouldCreateConflict(result, sid, s.getWorkDate(), need, s)) continue;
 
-                            // Swap this schedule to the missing type
-                            s.setShiftType(findShiftType(need, requirements));
-                            // Update requirement to match new shift type
-                            ShiftRequirement newReq = findMatchingRequirement(
-                                    s.getWorkDate(), need, s.getStaff().getSpecialty(), requirements);
-                            if (newReq != null) s.setRequirement(newReq);
-                            types.add(need);
-                            // Remove one from the old type (if count drops to0, remove from set)
-                            long newCount = result.stream()
-                                    .filter(s2 -> s2.getStaff().getId() == sid
-                                            && swapFrom.equals(s2.getShiftType().getId()))
-                                    .count();
-                            if (newCount <= 0) types.remove(swapFrom);
-                            break;
-                        }
+                        // Swap this schedule to the missing type
+                        s.setShiftType(ScheduleConflictUtils.findShiftType(need, requirements));
+                        // Update requirement to match new shift type
+ShiftRequirement newReq = ScheduleConflictUtils.findMatchingRequirement(
+                                    s.getStaff(), s.getWorkDate(), need, requirements);
+                        if (newReq != null) s.setRequirement(newReq);
+                        types.add(need);
+                        // Move schedule between buckets
+                        fromList.remove(s);
+                        staffSchedules.computeIfAbsent(need, k -> new ArrayList<>()).add(s);
+                        if (fromList.isEmpty()) types.remove(swapFrom);
+                        swapped = true;
+                        break;
                     }
-                    if (types.contains(need)) break; // Successfully swapped
+                    if (swapped) break; // Successfully swapped
                 }
             }
         }
 
         // POST-ROTATION: Fix any consecutive L01 violations created by rotation
         // If staff has L01 on adjacent days, swap the newer one back to L04
+        // P2-8: precompute L01 dates by staff → O(1) per schedule instead of O(N) inner loop
+        Map<Integer, Set<LocalDate>> l01DatesByStaff = new HashMap<>();
+        for (Schedule s : result) {
+            if ("L01".equals(s.getShiftType().getId())) {
+                l01DatesByStaff.computeIfAbsent(s.getStaff().getId(), k -> new HashSet<>())
+                        .add(s.getWorkDate());
+            }
+        }
         for (int i = result.size() - 1; i >= 0; i--) {
             Schedule s = result.get(i);
             if (!"L01".equals(s.getShiftType().getId())) continue;
             int sid = s.getStaff().getId();
             LocalDate date = s.getWorkDate();
-            // Check for L01 on adjacent days
-            for (Schedule other : result) {
-                if (other == s || other.getStaff().getId() != sid) continue;
-                if (!"L01".equals(other.getShiftType().getId())) continue;
-                long diff = Math.abs(other.getWorkDate().toEpochDay() - date.toEpochDay());
-                if (diff == 1) {
-                    // Found consecutive L01 - swap this one back to L04
-                    s.setShiftType(findShiftType("L04", requirements));
-                    ShiftRequirement l04Req = findMatchingRequirement(
-                            date, "L04", s.getStaff().getSpecialty(), requirements);
-                    if (l04Req != null) s.setRequirement(l04Req);
-                    // Update type tracking
-                    Set<String> st = staffTypesFinal.getOrDefault(sid, new HashSet<>());
-                    st.remove("L01");
-                    st.add("L04");
-                    break;
-                }
+            Set<LocalDate> l01Dates = l01DatesByStaff.get(sid);
+            if (l01Dates == null) continue;
+            if (l01Dates.contains(date.minusDays(1)) || l01Dates.contains(date.plusDays(1))) {
+                // Found consecutive L01 - swap this one back to L04
+                // P1-4: null-check findShiftType — no L04 req on this date → skip swap
+                com.hospital.scheduler.entity.ShiftType l04Type = ScheduleConflictUtils.findShiftType("L04", requirements);
+                if (l04Type == null) continue;
+                s.setShiftType(l04Type);
+ShiftRequirement l04Req = ScheduleConflictUtils.findMatchingRequirement(
+                            s.getStaff(), date, "L04", requirements);
+                if (l04Req != null) s.setRequirement(l04Req);
+                // Update type tracking
+                Set<String> st = staffTypesFinal.getOrDefault(sid, new HashSet<>());
+                st.remove("L01");
+                st.add("L04");
+                l01Dates.remove(date);
             }
         }
 
@@ -306,27 +322,25 @@ public class EnhancedGreedyScheduler {
         }
 
         int gapFilled = 0;
+        // P2-8: precompute assigned-by-req-key count → O(1) per req instead of O(N) stream scan
+        Map<String, Integer> assignedByReqKey = new HashMap<>();
+        for (Schedule s : result) {
+            Integer sid = s.getRequirement() != null && s.getRequirement().getSpecialty() != null
+                    ? s.getRequirement().getSpecialty().getId() : null;
+            assignedByReqKey.merge(reqKey(s.getShiftType().getId(), s.getWorkDate(), sid),
+                    1, Integer::sum);
+        }
         for (Map.Entry<LocalDate, List<ShiftRequirement>> e : byDate.entrySet()) {
             LocalDate date = e.getKey();
             for (ShiftRequirement req : e.getValue()) {
-                // Count how many are already assigned for this requirement
-                String rKey = req.getShiftType().getId() + "|" + date
-                        + (req.getSpecialty() != null ? ":" + req.getSpecialty().getId() : "");
-                long alreadyAssigned = result.stream()
-                        .filter(s -> s.getWorkDate().equals(date)
-                                && s.getShiftType().getId().equals(req.getShiftType().getId()))
-                        .filter(s -> {
-                            if (req.getSpecialty() == null) return true;
-                            return s.getRequirement() != null
-                                    && s.getRequirement().getSpecialty() != null
-                                    && s.getRequirement().getSpecialty().getId().equals(req.getSpecialty().getId());
-                        })
-                        .count();
+                // O(1) lookup of how many are already assigned for this requirement
+                Integer specId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
+                int alreadyAssigned = assignedByReqKey.getOrDefault(
+                        reqKey(req.getShiftType().getId(), date, specId), 0);
                 if (alreadyAssigned >= req.getRequiredStaffCount()) continue;
 
-                int stillNeeded = req.getRequiredStaffCount() - (int) alreadyAssigned;
+                int stillNeeded = req.getRequiredStaffCount() - alreadyAssigned;
                 String shiftTypeId = req.getShiftType().getId();
-                Integer specId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
 
 		                // Score candidates with relaxed penalty (half of main pass)
 		                List<ScoredStaff> gapCandidates = new ArrayList<>();
@@ -349,22 +363,21 @@ public class EnhancedGreedyScheduler {
 			                    if (specId == null && !"L04".equals(shiftTypeId)
 			                            && s.getSpecialty() == null) continue;
 			                    
-			                    int cnt = totalCountGap.getOrDefault(s.getId(), 0);
+int cnt = totalCountGap.getOrDefault(s.getId(), 0);
                     int maxShifts = runtimeConfig != null && runtimeConfig.getMaxShiftsPerStaff() > 0
                             ? runtimeConfig.getMaxShiftsPerStaff() : Integer.MAX_VALUE;
-	                    // Gap-fill: penalties như main pass để giữ balance
-	                    if (cnt >= maxShifts + 1) continue;
+		                    // P1-5: sync gap-fill cap with main pass (>= maxShifts) — gap-fill used to allow +1 overshoot
+		                    if (cnt >= maxShifts) continue;
 
 	                    Set<String> types = staffTypes.getOrDefault(s.getId(), Collections.emptySet());
 	                    int missingTypes = 4 - types.size();
 	                    double rotationBonus = missingTypes * 10.0;
-	                    double fatigueBonus = 0;
-	                    List<LocalDate> lastDates = staffLastWork.get(s.getId());
-	                    if (lastDates != null && !lastDates.isEmpty()) {
-	                        LocalDate last = lastDates.get(lastDates.size() - 1);
-	                        long gap = date.toEpochDay() - last.toEpochDay();
-	                        if (gap >= 1) fatigueBonus = Math.min(gap * 3, 10.0);
-	                    }
+double fatigueBonus = 0;
+		                    LocalDate last = staffLastWork.get(s.getId());
+		                    if (last != null) {
+		                        long gap = date.toEpochDay() - last.toEpochDay();
+		                        if (gap >= 1) fatigueBonus = Math.min(gap * 3, 10.0);
+		                    }
 		                    double totalPenalty = cnt * 6.0; // Tăng: 5→6
 		                    double typePenalty = 0;
 		                    if (!"L04".equals(shiftTypeId)) {
@@ -372,7 +385,7 @@ public class EnhancedGreedyScheduler {
 		                                .getOrDefault(shiftTypeId, 0);
 		                        // Adaptive: giảm penalty khi còn nhiều ca chưa gán
 		                        int typeTotalReq = totalRequiredByType.getOrDefault(shiftTypeId, 0);
-		                        int typeAssigned = assignedByType.getOrDefault(shiftTypeId, 0) + (int)alreadyAssigned;
+		                        int typeAssigned = assignedByType.getOrDefault(shiftTypeId, 0) + alreadyAssigned;
 		                        double typeGap = typeTotalReq > 0 ? (double)(typeTotalReq - typeAssigned) / typeTotalReq : 0;
 		                        double typeAdaptive = Math.max(0.3, 1.0 - typeGap * 0.7);
 		                        typePenalty = typeCnt * 15.0 * typeAdaptive;
@@ -383,7 +396,7 @@ public class EnhancedGreedyScheduler {
 		                                .getOrDefault(specId, 0);
 		                        // Adaptive: giảm penalty khi còn nhiều L04 chưa gán trong specialty này
 		                        int specTotalReq = totalL04BySpec.getOrDefault(specId, 0);
-		                        int specAssigned = assignedL04BySpec.getOrDefault(specId, 0) + (int)alreadyAssigned;
+		                        int specAssigned = assignedL04BySpec.getOrDefault(specId, 0) + alreadyAssigned;
 		                        double specGap = specTotalReq > 0 ? (double)(specTotalReq - specAssigned) / specTotalReq : 0;
 		                        double specAdaptive = Math.max(0.3, 1.0 - specGap * 0.7);
 		                        specPenalty = l04Spec * 18.0 * specAdaptive;
@@ -402,7 +415,7 @@ public class EnhancedGreedyScheduler {
 	                    totalCountGap.merge(sid, 1, Integer::sum);
                     typeCountGap.computeIfAbsent(sid, k -> new HashMap<>()).merge(shiftTypeId, 1, Integer::sum);
                     staffTypes.computeIfAbsent(sid, k -> new HashSet<>()).add(shiftTypeId);
-                    staffLastWork.computeIfAbsent(sid, k -> new ArrayList<>()).add(date);
+                    staffLastWork.put(sid, date);
                     if (specId != null && "L04".equals(shiftTypeId)) {
                         l04SpecGap.computeIfAbsent(sid, k -> new HashMap<>()).merge(specId, 1, Integer::sum);
                     }
@@ -428,8 +441,19 @@ public class EnhancedGreedyScheduler {
         return result;
     }
 
-    private record ScoredStaff(int staffId, double score, int typeCount, int totalCount) {
+    // Records can't declare non-canonical constructors in Java; use a static class instead.
+    private static final class ScoredStaff {
+        final int staffId;
+        final double score;
+        final int typeCount;
+        final int totalCount;
         ScoredStaff(int staffId, double score) { this(staffId, score, 0, 0); }
+        ScoredStaff(int staffId, double score, int typeCount, int totalCount) {
+            this.staffId = staffId;
+            this.score = score;
+            this.typeCount = typeCount;
+            this.totalCount = totalCount;
+        }
     }
 
     /**
@@ -463,31 +487,8 @@ public class EnhancedGreedyScheduler {
         return false;
     }
 
-    private com.hospital.scheduler.entity.ShiftType findShiftType(String id, List<ShiftRequirement> reqs) {
-        return reqs.stream().filter(r -> r.getShiftType().getId().equals(id))
-                .findFirst().map(ShiftRequirement::getShiftType).orElse(null);
-    }
-
-    /**
-     * Find matching requirement for a given date, shiftType, and optional specialty.
-     * Prefers the requirement whose specialty matches the staff's specialty.
-     */
-    private ShiftRequirement findMatchingRequirement(LocalDate workDate, String shiftTypeId,
-            Specialty specialty, List<ShiftRequirement> reqs) {
-        List<ShiftRequirement> candidates = reqs.stream()
-                .filter(r -> r.getShiftType().getId().equals(shiftTypeId)
-                        && r.getWorkDate().equals(workDate))
-                .toList();
-        if (candidates.isEmpty()) return null;
-        if (candidates.size() == 1) return candidates.get(0);
-        // Prefer requirement whose specialty matches
-        if (specialty != null) {
-            for (ShiftRequirement r : candidates) {
-                if (r.getSpecialty() != null && r.getSpecialty().getId().equals(specialty.getId())) {
-                    return r;
-                }
-            }
-        }
-        return candidates.get(0);
+    /** Composite key for grouping assignments by requirement slot: typeId|date[:specId]. */
+    private static String reqKey(String typeId, LocalDate date, Integer specId) {
+        return typeId + "|" + date + (specId != null ? ":" + specId : "");
     }
 }

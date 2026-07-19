@@ -727,11 +727,23 @@ export interface QualityReport {
   shiftsByStaffAndType?: Record<string, Record<string, number>>;
   overallCoefficientOfVariation: number;
   fairnessScore: number;
+  totalRequired?: number;
+  totalAssigned?: number;
   /** Eligible Group Fairness (trong nhóm eligibility, loại nhóm trivial) */
   eligibleGroupFairnessScore?: number;
   /** Global Fairness (toàn viện, chịu ảnh hưởng cấu trúc nhân sự) */
   globalFairnessScore?: number;
   /** Cảnh báo cấu trúc nhân sự (vd: Mắt 1 BS / 35 ca) */
   structuralLoadWarnings?: string[];
+  hardViolationCount?: number;
+  softViolationCount?: number;
+  violations?: Array<{
+    ruleCode: string;
+    severity: string;
+    staffId: number;
+    staffName?: string;
+    workDate?: string;
+    description: string;
+  }>;
   warnings: string[];
 }

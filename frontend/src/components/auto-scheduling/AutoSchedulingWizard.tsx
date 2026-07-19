@@ -451,10 +451,16 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
                 Kiểm tra kết quả trước khi áp dụng
               </p>
 
-              <div className="grid grid-cols-4 gap-3 max-w-xl mb-6">
-                <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-center">
-                  <p className="text-[24px] font-bold text-green-700">{autoPreview.totalSchedulesCreated}</p>
-                  <p className="text-[10px] text-green-600">Ca tạo</p>
+              {(() => {
+                const wizardEligibleFairness = autoPreview.qualityReport?.eligibleGroupFairnessScore != null
+                  ? Math.round(autoPreview.qualityReport.eligibleGroupFairnessScore)
+                  : Math.round(parseFloat(String(autoPreview.balanceScore)) || 0);
+                
+                return (
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 max-w-2xl mb-6">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                  <p className="text-[24px] font-bold text-slate-700">{autoPreview.totalSchedulesCreated}</p>
+                  <p className="text-[10px] text-slate-600">Ca tạo</p>
                 </div>
                 <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-center">
                   <p className="text-[24px] font-bold text-blue-700">
@@ -468,11 +474,39 @@ export function AutoSchedulingWizard({ periods, activeStaff, onComplete, onSkip 
                   </p>
                   <p className="text-[10px] text-purple-600">Cân bằng</p>
                 </div>
+                <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 text-center">
+                  <p className="text-[24px] font-bold text-indigo-700">
+                    {Math.round(wizardEligibleFairness)}%
+                  </p>
+                  <p className="text-[10px] text-indigo-600">Cân bằng (nhóm)</p>
+                </div>
+                <div className={`p-4 rounded-xl text-center ${
+                  autoPreview.conflictCount > 0
+                    ? 'bg-red-50 border border-red-200'
+                    : 'bg-green-50 border border-green-200'
+                }`}>
+                  <p className={`text-[24px] font-bold ${
+                    autoPreview.conflictCount > 0 ? 'text-red-700' : 'text-green-700'
+                  }`}>
+                    {autoPreview.qualityReport?.hardViolationCount ?? autoPreview.conflictCount}
+                  </p>
+                  <p className={`text-[10px] ${
+                    autoPreview.conflictCount > 0 ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    Vi phạm
+                    {autoPreview.qualityReport?.softViolationCount != null && autoPreview.qualityReport.softViolationCount > 0
+                      ? ` (+${autoPreview.qualityReport.softViolationCount} cb)`
+                      : ''}
+                  </p>
+                </div>
                 <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-center">
-                  <p className="text-[24px] font-bold text-amber-700">{autoPreview.conflictCount}</p>
-                  <p className="text-[10px] text-amber-600">Xung đột</p>
+                  <p className="text-[24px] font-bold text-amber-700">
+                    {autoPreview.executionTimeMs ? `${(autoPreview.executionTimeMs / 1000).toFixed(1)}s` : '-'}
+                  </p>
+                  <p className="text-[10px] text-amber-600">Thời gian</p>
                 </div>
               </div>
+              )})()}
 
               {autoPreview.conflictCount > 0 && (
                 <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 mb-4">

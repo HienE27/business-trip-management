@@ -806,9 +806,8 @@ public class AutoSchedulingService {
             }
         }
 
-        // Phase 2c: Gap-fill - fill remaining unassigned requirements
-        // EnhancedGreedy does this internally, but BeamSearch/RandomRestart need it
-        if (!createdSchedules.isEmpty()) {
+        // Phase 2c: Gap-fill - CP-SAT đã là complete solver
+        if (!"CP_SAT".equals(algorithmType) && !createdSchedules.isEmpty()) {
             int gapFilled = applyGapFill(createdSchedules, requirements, activeStaff, period, runtimeConfig, 
                     request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
             if (gapFilled > 0) {
@@ -818,7 +817,7 @@ public class AutoSchedulingService {
 
         // Phase 3: Local Search fairness rebalance.
         if (!createdSchedules.isEmpty()) {
-            int rebalanceRounds = save ? 1500 : 800; // Tăng: 500→1500
+            int rebalanceRounds = save ? 100 : 50;
             int optimizedMoves = optimizeFairnessBySafeReassignment(createdSchedules, activeStaff, requirements, rebalanceRounds);
             if (optimizedMoves > 0) {
                 log.info("Local Search fairness optimization applied {} safe reassignment moves (rounds={})", optimizedMoves, rebalanceRounds);
@@ -2237,62 +2236,62 @@ public class AutoSchedulingService {
 
 	        // ?c tính t?ng yêu c?u t? config hi?n t?i
 	        var autoGenCfg = algorithmConfigService.getAutoGenConfig().orElse(null);
-	        if (autoGenCfg == null) return;
+        if (autoGenCfg == null) return;
 
-	        int estimatedDaily = autoGenCfg.l01MaxPerDay() + autoGenCfg.l02MaxPerDay()
-	                + autoGenCfg.l03MaxPerDay() + autoGenCfg.l04MaxPerDay() * 6;
-	        int estimatedTotal = estimatedDaily * periodDays;
+        // Bước 1: Tính L04 trước — dùng staff thực tế (trừ Test Staff)
+        long specCount = activeStaff.stream()
+                .filter(s -> s.getSpecialty() != null && StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES.contains(s.getSpecialty().getName()))
+                .count();
+        long activeSpecialtyCount = activeStaff.stream()
+                .filter(s -> s.getSpecialty() != null)
+                .map(s -> s.getSpecialty().getId())
+                .distinct()
+                .count();
+        int poolPerSpec = (int) Math.max(1, specCount / Math.max(1, activeSpecialtyCount));
+        int fairL04 = poolPerSpec > 5 ? 2 : 1;
+        if (autoGenCfg.l04MaxPerDay() > fairL04) {
+            log.warn("[AutoAdjust] L04 max: {} -> {} (specialties={}, pool/spec={})",
+                    autoGenCfg.l04MaxPerDay(), fairL04, activeSpecialtyCount, poolPerSpec);
+            algorithmConfigService.updateAutoGenField("auto_gen_l04_max_per_day", String.valueOf(fairL04));
+        }
 
-	        // Fair max = t?ng yêu c?u / s? NS +50% buffer ?? có capacity d?phòng
-	        int fairMax = (int) Math.ceil((double) estimatedTotal / staffCount * 1.5);
-	        if (runtimeConfig.getMaxShiftsPerStaff() <= 0 || runtimeConfig.getMaxShiftsPerStaff() != fairMax) {
-	            log.warn("[AutoAdjust] maxShiftsPerStaff: {} -> {} (est.{} ca, {} NS)",
-	                    runtimeConfig.getMaxShiftsPerStaff(), fairMax, estimatedTotal, staffCount);
-	            runtimeConfig.setMaxShiftsPerStaff(fairMax);
-	        }
+        // Bước 2: L01-L03 tính dựa trên tổng số nhân sự (config cho phép cả 6 chuyên khoa)
+        int fairNonL04 = Math.max(3, (int) Math.ceil(staffCount * 0.25));
+        
+        // Cập nhật cấu hình TRƯỚC khi tính estimatedTotal
+        if (autoGenCfg.l01MaxPerDay() != fairNonL04) {
+            log.warn("[AutoAdjust] L01 max: {} -> {} (staff={}, 25%)",
+                    autoGenCfg.l01MaxPerDay(), fairNonL04, staffCount);
+            algorithmConfigService.updateAutoGenField("auto_gen_l01_max_per_day", String.valueOf(fairNonL04));
+        }
+        if (autoGenCfg.l02MaxPerDay() != fairNonL04) {
+            log.warn("[AutoAdjust] L02 max: {} -> {} (staff={}, 25%)",
+                    autoGenCfg.l02MaxPerDay(), fairNonL04, staffCount);
+            algorithmConfigService.updateAutoGenField("auto_gen_l02_max_per_day", String.valueOf(fairNonL04));
+        }
+        if (autoGenCfg.l03MaxPerDay() != fairNonL04) {
+            log.warn("[AutoAdjust] L03 max: {} -> {} (staff={}, 25%)",
+                    autoGenCfg.l03MaxPerDay(), fairNonL04, staffCount);
+            algorithmConfigService.updateAutoGenField("auto_gen_l03_max_per_day", String.valueOf(fairNonL04));
+        }
 
-	        // Bước 1: Tính L04 trước
-	        long specCount = activeStaff.stream().filter(s -> s.getSpecialty() != null).count();
-	        long activeSpecialtyCount = activeStaff.stream()
-	                .filter(s -> s.getSpecialty() != null)
-	                .map(s -> s.getSpecialty().getId())
-	                .distinct()
-	                .count();
-	        int poolPerSpec = (int) Math.max(1, specCount / Math.max(1, activeSpecialtyCount));
-	        int fairL04 = poolPerSpec > 5 ? 2 : 1;
-	        if (autoGenCfg.l04MaxPerDay() > fairL04) {
-	            log.warn("[AutoAdjust] L04 max: {} -> {} (specialties={}, pool/spec={})",
-	                    autoGenCfg.l04MaxPerDay(), fairL04, activeSpecialtyCount, poolPerSpec);
-	            algorithmConfigService.updateAutoGenField("auto_gen_l04_max_per_day", String.valueOf(fairL04));
-	        }
-	        
-	        // Bước 2: L01-L03 tính dựa trên số nhân sự (không phụ thuộc L04)
-	        // Mỗi L01, L02, L03 = 25% staff, tối thiểu 3/ngày
-	        // Lý do: 1 NS có thể làm L01+L03 hoặc L02+L03 trong 1 ngày
-	        // Nên capacity thực tế cao hơn số lượng NS
-		        int fairNonL04 = Math.max(3, (int) Math.ceil(staffCount * 0.25));
-		        // Cập nhật nếu config hiện tại khác biệt
-		        if (autoGenCfg.l01MaxPerDay() != fairNonL04) {
-		            log.warn("[AutoAdjust] L01 max: {} -> {} (staff={}, 25%)",
-		                    autoGenCfg.l01MaxPerDay(), fairNonL04, staffCount);
-		            algorithmConfigService.updateAutoGenField("auto_gen_l01_max_per_day", String.valueOf(fairNonL04));
-		        }
-		        if (autoGenCfg.l02MaxPerDay() != fairNonL04) {
-		            log.warn("[AutoAdjust] L02 max: {} -> {} (staff={}, 25%)",
-		                    autoGenCfg.l02MaxPerDay(), fairNonL04, staffCount);
-		            algorithmConfigService.updateAutoGenField("auto_gen_l02_max_per_day", String.valueOf(fairNonL04));
-		        }
-		        if (autoGenCfg.l03MaxPerDay() != fairNonL04) {
-		            log.warn("[AutoAdjust] L03 max: {} -> {} (staff={}, 25%)",
-		                    autoGenCfg.l03MaxPerDay(), fairNonL04, staffCount);
-		            algorithmConfigService.updateAutoGenField("auto_gen_l03_max_per_day", String.valueOf(fairNonL04));
-		        }
-	
-	        // maxShiftsPerDay: không auto-adjust, để thuật toán tự quyết định
-	        // dựa trên conflict rules (L01+L02 cấm, L03+L04 cấm)
-	
-	        log.info("[AutoAdjust] Hoàn t?t: maxShifts={}, L01-L03={}/ngày, L04={}/ngày",
-	                runtimeConfig.getMaxShiftsPerStaff(), fairNonL04, fairL04);
+        // Re-read config sau khi update
+        autoGenCfg = algorithmConfigService.getAutoGenConfig().orElse(null);
+        if (autoGenCfg == null) return;
+        
+        // Tính estimatedTotal với config đã update
+        int estimatedDaily = autoGenCfg.l01MaxPerDay() + autoGenCfg.l02MaxPerDay()
+                + autoGenCfg.l03MaxPerDay() + autoGenCfg.l04MaxPerDay() * (int)activeSpecialtyCount;
+        int estimatedTotal = estimatedDaily * periodDays;
+        int fairMax = (int) Math.ceil((double) estimatedTotal / staffCount * 1.5);
+        if (runtimeConfig.getMaxShiftsPerStaff() <= 0 || runtimeConfig.getMaxShiftsPerStaff() != fairMax) {
+            log.warn("[AutoAdjust] maxShiftsPerStaff: {} -> {} (est.{} ca, {} NS)",
+                    runtimeConfig.getMaxShiftsPerStaff(), fairMax, estimatedTotal, staffCount);
+            runtimeConfig.setMaxShiftsPerStaff(fairMax);
+        }
+
+        log.info("[AutoAdjust] Hoàn t?t: maxShifts={}, L01-L03={}/ngày, L04={}/ngày",
+                runtimeConfig.getMaxShiftsPerStaff(), fairNonL04, fairL04);
 		    }
 
 	    /**
@@ -2414,36 +2413,36 @@ public class AutoSchedulingService {
 		                .collect(Collectors.groupingBy(ShiftRequirement::getWorkDate, 
 		                        () -> new java.util.TreeMap<>(), Collectors.toList()));
 		        
-		        for (Map.Entry<LocalDate, List<ShiftRequirement>> e : byDate.entrySet()) {
-		            LocalDate date = e.getKey();
-		            for (ShiftRequirement req : e.getValue()) {
-		                String shiftTypeId = req.getShiftType().getId();
-		                Integer specId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
-		                
-		                // Count already assigned
-		                long assigned = schedules.stream()
-		                        .filter(s -> s.getWorkDate().equals(date) && s.getShiftType().getId().equals(shiftTypeId))
-		                        .filter(s -> {
-		                            if (specId == null) return true;
-		                            return s.getRequirement() != null && s.getRequirement().getSpecialty() != null
-		                                    && s.getRequirement().getSpecialty().getId().equals(specId);
-		                        })
-		                        .count();
-		                
-		                int stillNeeded = req.getRequiredStaffCount() - (int) assigned;
-		                if (stillNeeded <= 0) continue;
-		                
-		                // Build per-type counts and per-staff type sets from existing schedules
-		                Map<Integer, Map<String, Integer>> typeCounts = new HashMap<>();
-		                Map<Integer, Set<String>> staffTypeSets = new HashMap<>();
-		                for (Schedule s : schedules) {
-		                    int sid = s.getStaff().getId();
-		                    String tid = s.getShiftType().getId();
-		                    typeCounts.computeIfAbsent(sid, k -> new HashMap<>()).merge(tid, 1, Integer::sum);
-		                    staffTypeSets.computeIfAbsent(sid, k -> new HashSet<>()).add(tid);
-		                }
-		                
-		                // Score candidates with balance awareness
+        for (Map.Entry<LocalDate, List<ShiftRequirement>> e : byDate.entrySet()) {
+            LocalDate date = e.getKey();
+            for (ShiftRequirement req : e.getValue()) {
+                String shiftTypeId = req.getShiftType().getId();
+                Integer specId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
+
+                // Count already assigned
+                long assigned = schedules.stream()
+                        .filter(s -> s.getWorkDate().equals(date) && s.getShiftType().getId().equals(shiftTypeId))
+                        .filter(s -> {
+                            if (specId == null) return true;
+                            return s.getRequirement() != null && s.getRequirement().getSpecialty() != null
+                                    && s.getRequirement().getSpecialty().getId().equals(specId);
+                        })
+                        .count();
+
+                int stillNeeded = req.getRequiredStaffCount() - (int) assigned;
+                if (stillNeeded <= 0) continue;
+
+                // Build per-type counts and per-staff type sets from existing schedules
+                Map<Integer, Map<String, Integer>> typeCounts = new HashMap<>();
+                Map<Integer, Set<String>> staffTypeSets = new HashMap<>();
+                for (Schedule s : schedules) {
+                    int sid = s.getStaff().getId();
+                    String tid = s.getShiftType().getId();
+                    typeCounts.computeIfAbsent(sid, k -> new HashMap<>()).merge(tid, 1, Integer::sum);
+                    staffTypeSets.computeIfAbsent(sid, k -> new HashSet<>()).add(tid);
+                }
+
+                // Score candidates with balance awareness
 		                List<Object[]> scored = activeStaff.stream()
 		                        .filter(s -> excludedStaffIds == null || !excludedStaffIds.contains(s.getId()))
 		                        .filter(s -> staffCount.getOrDefault(s.getId(), 0) < maxShifts)
@@ -2462,15 +2461,15 @@ public class AutoSchedulingService {
                             int cnt = staffCount.getOrDefault(sid, 0);
                             // Total shift penalty
                             double score = 100.0 - cnt * 6.0;
-                            // Per-type balance (ADAPTIVE: giảm khi còn nhiều ca chưa gán)
-                            int typeCnt = typeCounts.getOrDefault(sid, new HashMap<>()).getOrDefault(shiftTypeId, 0);
+			                            // Per-type balance 
+			                            int typeCnt = typeCounts.getOrDefault(sid, new HashMap<>()).getOrDefault(shiftTypeId, 0);
                             int typeTotalReq = totalReqByType.getOrDefault(shiftTypeId, 0);
                             int typeAssigned = assignedByType.getOrDefault(shiftTypeId, 0) + (int) assigned;
                             double typeGap = typeTotalReq > 0 ? (double)(typeTotalReq - typeAssigned) / typeTotalReq : 0;
                             double typeAdaptive = Math.max(0.3, 1.0 - typeGap * 0.7);
                             score -= typeCnt * 12.0 * typeAdaptive;
-                            // Rotation bonus for missing types
-                            int missingTypes = 4 - staffTypeSets.getOrDefault(sid, new HashSet<>()).size();
+			                            // Rotation bonus 
+			                            int missingTypes = 4 - staffTypeSets.getOrDefault(sid, new HashSet<>()).size();
                             score += missingTypes * 10.0;
                             // L04 specialty balance (ADAPTIVE)
                             if (specId != null && "L04".equals(shiftTypeId)) {

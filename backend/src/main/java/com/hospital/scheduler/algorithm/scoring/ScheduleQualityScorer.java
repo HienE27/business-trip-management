@@ -607,7 +607,7 @@ public class ScheduleQualityScorer {
             int poolSize = detail.getPoolSize();
             // Bỏ qua nhóm eligible_size ≤ 1 (vd: Mắt 1 người — không có cạnh tranh)
             if (poolSize <= 1) {
-                if (typeKey.contains(":") && detail.getMaxCount() >= 20) {
+                if (typeKey.contains(":") && detail.getMaxCount() >= 10) {
                     String specName = detail.getSpecialtyName() != null ? detail.getSpecialtyName() : typeKey;
                     structuralWarnings.add(specName + ": " + detail.getMaxCount() + " ca L04 / " + poolSize + " BS (excluded from algo fairness -- trivial group)");
                 }
