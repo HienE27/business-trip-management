@@ -40,7 +40,7 @@ public class RandomRestartHCScheduler {
     private static final int DEFAULT_MAX_ITER = 500;
     private static final double COVERAGE_WEIGHT = 0.7;
     private static final double FAIRNESS_WEIGHT = 0.3;
-    private static final double CONFLICT_PENALTY = 0.2;
+    private static final double CONFLICT_PENALTY = 2.0;
 
     public List<Schedule> solve(
             List<Staff> activeStaff,
@@ -76,7 +76,7 @@ public class RandomRestartHCScheduler {
             for (int iter = 0; iter < maxIter; iter++) {
                 boolean accepted = false;
                 // Try up to maxTries random neighbors before giving up (local optimum)
-                int maxTries = Math.min(10, current.size() * activeStaff.size());
+                int maxTries = Math.min(20, current.size() * activeStaff.size());
                 for (int t = 0; t < maxTries; t++) {
                     if (rng.nextBoolean()) {
                         accepted = tryRandomMove(current, activeStaff, excludedStaffIds, staffMap, requirements, rng);
@@ -284,13 +284,19 @@ public class RandomRestartHCScheduler {
         return staff.getSpecialty().getId().equals(req.getSpecialty().getId());
     }
 
-    /** Indexed-lookup variant for randomSolution (O(1) vs O(N) scan). */
+    /** Indexed-lookup variant for randomSolution — checks same-day conflict + consecutive L01. */
     private boolean hasConflict(int staffId, LocalDate date, String newType,
                                 Map<Integer, Map<LocalDate, String>> shiftPerStaff) {
         Map<LocalDate, String> days = shiftPerStaff.get(staffId);
         if (days == null) return false;
         String existing = days.get(date);
-        return existing != null && ScheduleConflictUtils.isBusinessConflict(newType, existing);
+        if (existing != null && ScheduleConflictUtils.isBusinessConflict(newType, existing)) return true;
+        if ("L01".equals(newType)) {
+            String prev = days.get(date.minusDays(1));
+            String next = days.get(date.plusDays(1));
+            if ("L01".equals(prev) || "L01".equals(next)) return true;
+        }
+        return false;
     }
 
     /** Full-scan variant: checks if staffId would have a conflict with newType on date

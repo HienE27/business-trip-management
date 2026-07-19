@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 public class BeamSearchScheduler {
 
     private final CompensationDateCalculator compensationDateCalculator;
-    private static final int DEFAULT_BEAM_WIDTH = 15;
+    private static final int DEFAULT_BEAM_WIDTH = 5;
     private static final double COVERAGE_WEIGHT = 0.30;
     private static final double FAIRNESS_WEIGHT = 0.20;
     private static final double VARIETY_WEIGHT = 0.20;

@@ -31,7 +31,7 @@ public class SimulatedAnnealingScheduler {
     private static final double COOLING_RATE = 0.97;
     private static final double COVERAGE_WEIGHT = 0.7;
     private static final double FAIRNESS_WEIGHT = 0.3;
-    private static final double CONFLICT_PENALTY = 0.2;
+    private static final double CONFLICT_PENALTY = 2.0;
 
     public List<Schedule> solve(
             List<Staff> activeStaff,
@@ -279,12 +279,20 @@ public class SimulatedAnnealingScheduler {
         return false;
     }
 
-    /** Indexed-lookup variant for greedyInitial (O(1) per check vs O(N) scan). */
+    /** Indexed-lookup variant for greedyInitial — checks same-day conflict + consecutive L01. */
     private boolean hasConflict(int staffId, LocalDate date, String newType,
                                 Map<Integer, Map<LocalDate, String>> shiftPerStaff) {
         Map<LocalDate, String> days = shiftPerStaff.get(staffId);
         if (days == null) return false;
+        // Same-day business conflict
         String existing = days.get(date);
-        return existing != null && ScheduleConflictUtils.isBusinessConflict(newType, existing);
+        if (existing != null && ScheduleConflictUtils.isBusinessConflict(newType, existing)) return true;
+        // Consecutive L01
+        if ("L01".equals(newType)) {
+            String prev = days.get(date.minusDays(1));
+            String next = days.get(date.plusDays(1));
+            if ("L01".equals(prev) || "L01".equals(next)) return true;
+        }
+        return false;
     }
 }
