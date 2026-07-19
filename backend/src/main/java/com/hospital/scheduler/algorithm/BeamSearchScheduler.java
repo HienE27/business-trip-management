@@ -24,11 +24,11 @@ import java.util.stream.Collectors;
 public class BeamSearchScheduler {
 
     private final CompensationDateCalculator compensationDateCalculator;
-    private static final int DEFAULT_BEAM_WIDTH = 15; // Tăng từ 10→15
+    private static final int DEFAULT_BEAM_WIDTH = 15;
     private static final double COVERAGE_WEIGHT = 0.30;
     private static final double FAIRNESS_WEIGHT = 0.20;
     private static final double VARIETY_WEIGHT = 0.20;
-    private static final double BALANCE_WEIGHT = 0.30; // Tăng: ưu tiên balance hơn
+    private static final double BALANCE_WEIGHT = 0.30;
     private static final String[] SHIFT_TYPES = {"L01", "L02", "L03", "L04"};
 
     public List<Schedule> solve(
@@ -54,9 +54,10 @@ public class BeamSearchScheduler {
 
         // Initialize beam
         List<PartialState> beam = new ArrayList<>();
-        beam.add(new PartialState(new HashMap<>(), new HashMap<>()));
+        beam.add(new PartialState(new HashMap<>()));
 
-        int totalReqs = requirements.size();
+        int totalSlots = requirements.stream()
+                .mapToInt(ShiftRequirement::getRequiredStaffCount).sum();
 
         for (Map.Entry<LocalDate, List<ShiftRequirement>> dateEntry : byDate.entrySet()) {
             LocalDate date = dateEntry.getKey();
@@ -72,51 +73,51 @@ public class BeamSearchScheduler {
                 int required = req.getRequiredStaffCount();
                 Integer specId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
 
-                List<ScoredEntry> candidates = new ArrayList<>();
+                // Expand beam by 1 slot at a time (required times)
+                for (int slot = 0; slot < required; slot++) {
+                    List<ScoredEntry> candidates = new ArrayList<>();
 
-                for (PartialState state : beam) {
-                    Map<Integer, Integer> count = new HashMap<>();
-                    Map<Integer, Set<String>> typeMap = new HashMap<>();
-                    for (String key : state.assignments.keySet()) {
-                        String[] p = key.split("\\|");
-                        int sid = Integer.parseInt(p[0]);
-                        String st = state.assignments.get(key);
-                        count.merge(sid, 1, Integer::sum);
-                        typeMap.computeIfAbsent(sid, k -> new HashSet<>()).add(st);
-                    }
-
-                    List<Integer> eligible = findEligible(activeStaff, state.assignments,
-                            date, shiftTypeId, specId, count, excludedStaffIds, maxShifts);
-
-                    for (int sid : eligible) {
-                        // Copy & assign
-                        Map<String, String> newAssign = new HashMap<>(state.assignments);
-                        Map<Integer, Set<String>> newTypes = new HashMap<>();
-                        for (var e : typeMap.entrySet()) {
-                            newTypes.put(e.getKey(), new HashSet<>(e.getValue()));
+                    for (PartialState state : beam) {
+                        Map<Integer, Integer> count = new HashMap<>();
+                        Map<Integer, Set<String>> typeMap = new HashMap<>();
+                        for (String key : state.assignments.keySet()) {
+                            String[] p = key.split("\\|");
+                            int sid = Integer.parseInt(p[0]);
+                            String st = state.assignments.get(key);
+                            count.merge(sid, 1, Integer::sum);
+                            typeMap.computeIfAbsent(sid, k -> new HashSet<>()).add(st);
                         }
-                        newAssign.put(sid + "|" + date, shiftTypeId);
-                        newTypes.computeIfAbsent(sid, k -> new HashSet<>()).add(shiftTypeId);
 
-                        // P0-2: include the candidate in count so fairness/variety
-                        // reflect the new state, not the previous partial state.
-                        Map<Integer, Integer> newCount = new HashMap<>(count);
-                        newCount.merge(sid, 1, Integer::sum);
-                        double score = scoreState(newAssign, newTypes, newCount, totalReqs, activeStaff.size());
-                        candidates.add(new ScoredEntry(newAssign, newTypes, score));
+                        List<Integer> eligible = findEligible(activeStaff, state.assignments,
+                                date, shiftTypeId, specId, count, excludedStaffIds, maxShifts);
+
+                        for (int sid : eligible) {
+                            Map<String, String> newAssign = new HashMap<>(state.assignments);
+                            Map<Integer, Set<String>> newTypes = new HashMap<>();
+                            for (var e : typeMap.entrySet()) {
+                                newTypes.put(e.getKey(), new HashSet<>(e.getValue()));
+                            }
+                            newAssign.put(sid + "|" + date, shiftTypeId);
+                            newTypes.computeIfAbsent(sid, k -> new HashSet<>()).add(shiftTypeId);
+
+                            Map<Integer, Integer> newCount = new HashMap<>(count);
+                            newCount.merge(sid, 1, Integer::sum);
+                            double score = scoreState(newAssign, newTypes, newCount, totalSlots, activeStaff.size());
+                            candidates.add(new ScoredEntry(newAssign, newTypes, score));
+                        }
                     }
-                }
 
-                if (!candidates.isEmpty()) {
-                    candidates.sort((a, b) -> Double.compare(b.score, a.score));
-                    beam = candidates.subList(0, Math.min(beamWidth, candidates.size()))
-                            .stream().map(e -> new PartialState(e.assignments, e.types))
-                            .collect(Collectors.toList());
+                    if (!candidates.isEmpty()) {
+                        candidates.sort((a, b) -> Double.compare(b.score, a.score));
+                        beam = candidates.subList(0, Math.min(beamWidth, candidates.size()))
+                                .stream().map(e -> new PartialState(e.assignments))
+                                .collect(Collectors.toList());
+                    }
                 }
             }
         }
 
-        PartialState best = beam.isEmpty() ? new PartialState(new HashMap<>(), new HashMap<>()) : beam.get(0);
+        PartialState best = beam.isEmpty() ? new PartialState(new HashMap<>()) : beam.get(0);
 
         // Convert to Schedule entities
         List<Schedule> result = new ArrayList<>();
@@ -355,6 +356,6 @@ for (String ct : otherTypes) {
         return false;
     }
 
-    private record PartialState(Map<String, String> assignments, Map<Integer, Set<String>> staffTypes) {}
+    private record PartialState(Map<String, String> assignments) {}
     private record ScoredEntry(Map<String, String> assignments, Map<Integer, Set<String>> types, double score) {}
 }

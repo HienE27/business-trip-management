@@ -121,7 +121,8 @@ public class RandomRestartHCScheduler {
                                            SchedulePeriod period, AlgorithmConfigService.AlgorithmRuntimeConfig config,
                                            Set<Integer> excluded, Map<Integer, Staff> staffMap, Random rng) {
         List<Schedule> result = new ArrayList<>();
-        Set<String> assigned = new HashSet<>();
+        // Track (staffId|date → set of shiftType ids) — allow non-conflicting same-day combos
+        Map<String, Set<String>> assignedTypesPerDay = new HashMap<>();
         Map<Integer, Integer> counts = new HashMap<>();
         Map<Integer, Map<LocalDate, String>> shiftPerStaff = new HashMap<>();
         Map<Integer, Set<LocalDate>> staffCompDays = new HashMap<>();
@@ -136,10 +137,17 @@ public class RandomRestartHCScheduler {
 
             List<Integer> eligible = staff.stream()
                     .filter(s -> excluded == null || !excluded.contains(s.getId()))
-                    .filter(s -> !assigned.contains(s.getId() + "|" + req.getWorkDate()))
                     .filter(s -> counts.getOrDefault(s.getId(), 0) < maxShifts)
                     .filter(s -> specId == null || (s.getSpecialty() != null && s.getSpecialty().getId().equals(specId)))
                     .filter(s -> !hasConflict(s.getId(), req.getWorkDate(), shiftType, shiftPerStaff))
+                    .filter(s -> {
+                        // Block if same day already has conflicting shift type
+                        String dayKey = s.getId() + "|" + req.getWorkDate();
+                        Set<String> todayTypes = assignedTypesPerDay.getOrDefault(dayKey, Collections.emptySet());
+                        if (ScheduleConflictUtils.isBusinessConflict(shiftType,
+                                todayTypes.stream().findFirst().orElse(null))) return false;
+                        return !todayTypes.contains(shiftType);
+                    })
                     .filter(s -> {
                         Set<LocalDate> compDays = staffCompDays.get(s.getId());
                         return compDays == null || !compDays.contains(req.getWorkDate());
@@ -150,27 +158,25 @@ public class RandomRestartHCScheduler {
             Collections.shuffle(eligible, rng);
             for (int i = 0; i < Math.min(required, eligible.size()); i++) {
                 int sid = eligible.get(i);
-                String key = sid + "|" + req.getWorkDate();
-                if (!assigned.contains(key)) {
-                    assigned.add(key);
-                    counts.merge(sid, 1, Integer::sum);
-                    shiftPerStaff.computeIfAbsent(sid, k -> new HashMap<>())
-                            .put(req.getWorkDate(), shiftType);
-                    if ("L01".equals(shiftType)) {
-                        LocalDate compDate = compensationDateCalculator.calculate(req.getWorkDate());
-                        if (compDate != null) {
-                            staffCompDays.computeIfAbsent(sid, k -> new HashSet<>()).add(compDate);
-                        }
+                assignedTypesPerDay.computeIfAbsent(sid + "|" + req.getWorkDate(), k -> new HashSet<>())
+                        .add(shiftType);
+                counts.merge(sid, 1, Integer::sum);
+                shiftPerStaff.computeIfAbsent(sid, k -> new HashMap<>())
+                        .put(req.getWorkDate(), shiftType);
+                if ("L01".equals(shiftType)) {
+                    LocalDate compDate = compensationDateCalculator.calculate(req.getWorkDate());
+                    if (compDate != null) {
+                        staffCompDays.computeIfAbsent(sid, k -> new HashSet<>()).add(compDate);
                     }
-                    Schedule s = new Schedule();
-                    s.setStaff(staffMap.get(sid));
-                    s.setPeriod(period);
-                    s.setWorkDate(req.getWorkDate());
-                    s.setShiftType(req.getShiftType());
-                    s.setRequirement(req);
-                    s.setHasConflict(false);
-                    result.add(s);
                 }
+                Schedule s = new Schedule();
+                s.setStaff(staffMap.get(sid));
+                s.setPeriod(period);
+                s.setWorkDate(req.getWorkDate());
+                s.setShiftType(req.getShiftType());
+                s.setRequirement(req);
+                s.setHasConflict(false);
+                result.add(s);
             }
         }
         return result;
