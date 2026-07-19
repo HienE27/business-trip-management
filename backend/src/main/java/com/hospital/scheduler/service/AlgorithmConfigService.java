@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.algorithm.AutoGenConfig;
+import com.hospital.scheduler.algorithm.AutoGenConstants;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.scheduler.dto.request.AlgoConfigRequest;
@@ -230,10 +231,29 @@ public class AlgorithmConfigService {
     }
 
     /**
-     * Get auto-generation configuration.
-     * Returns Optional.empty() if auto-gen is disabled.
+     * Returns the auto-generation configuration.
+     *
+     * <p>The {@code Optional} itself is always present. When
+     * {@code AUTO_GEN_ENABLED} is missing from the DB the returned config
+     * defaults to {@code enabled=true} so auto-scheduling works out-of-the-box;
+     * when the flag is explicitly set to {@code false} the returned config
+     * carries {@code enabled=false}. Consumers must inspect
+     * {@link AutoGenConfig#enabled()} to decide whether to proceed.
+     *
+     * <p><b>Do not</b> branch on {@code Optional#isEmpty()} to detect a
+     * disabled state — that pattern was misleadingly documented in an older
+     * version of this method and has never been the actual contract.
      */
     public java.util.Optional<AutoGenConfig> getAutoGenConfig() {
+        // HISTORY: An earlier javadoc claimed this method returned
+        // Optional.empty() when auto-gen was disabled. The implementation has
+        // always returned a present Optional with cfg.enabled() reflecting the
+        // persisted flag, so all 12 production callers (RequirementPreparation,
+        // AutoScheduling, StaffEligibilityFilter, SchedulingFeasibilityAnalyzer,
+        // RuntimeConfigService, DataSeeder, AutoSchedulingController, …) read
+        // cfg.enabled() rather than isEmpty(). Keep the contract documented
+        // above in sync with the implementation if behavior ever changes.
+        //
         // Bulk-load once, then read every key from the in-memory map — replaces
         // the 25 separate findByParamKey SELECTs that were making the
         // algorithm-config page take 5+ seconds to load.
@@ -261,14 +281,17 @@ public class AlgorithmConfigService {
                 getIntValue(AUTO_GEN_L02_MAX_PER_WEEK, 0, cache),
                 getIntValue(AUTO_GEN_L03_MAX_PER_WEEK, 0, cache),
                 getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0, cache),
-                getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP", cache),
+                getStringValue(AUTO_GEN_HOLIDAY_MODE, AutoGenConstants.HOLIDAY_MODE_SKIP, cache),
                 getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES", cache),
                 // L01/L02/L03: không có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
         // L04: có specialty config
-        getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false, cache),
+        getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, true, cache),
         getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.5f, cache),
         getStringListValue(AUTO_GEN_L04_ALLOWED_SPECIALTIES, cache), // null/empty = all specialties
-        "FAIR_DISTRIBUTE"
+        // BUGFIX (2026-07-19): read l04BalanceStrategy from cache instead of hardcoding
+        // the default. Previously the value persisted via PUT was always overridden by
+        // BALANCE_STRATEGY_FAIR_DISTRIBUTE on subsequent GETs.
+        getStringValue(AUTO_GEN_L04_BALANCE_STRATEGY, AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE, cache)
         ));
     }
 
@@ -311,7 +334,7 @@ public class AlgorithmConfigService {
         upsert("AUTO_GEN_L04_ALLOWED_SPECIALTIES", allowedSpecs, AlgorithmConfig.ValueType.STRING,
                 "Danh sách chuyên khoa được gán L04 (PK Chuyên gia). Rỗng = tất cả 6 khoa. Ví dụ: Ngoại,Nội,Sản,Nhi,Mắt,Răng");
         upsert(AUTO_GEN_L04_BALANCE_STRATEGY,
-                config.l04BalanceStrategy() != null ? config.l04BalanceStrategy() : "FAIR_DISTRIBUTE",
+                config.l04BalanceStrategy() != null ? config.l04BalanceStrategy() : AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE,
                 AlgorithmConfig.ValueType.STRING,
                 "Chiến lược cân bằng cross-specialty L04: STRICT_MATCH_ONLY, FAIR_DISTRIBUTE, WEIGHTED_FAIR.");
         // L01/L02/L03: KHÔNG có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES (6 khoa)
@@ -376,7 +399,7 @@ public class AlgorithmConfigService {
         upsert(AUTO_GEN_L04_MAX_PER_WEEK, getStringValue(AUTO_GEN_L04_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca L04 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
         map.put(AUTO_GEN_L04_MAX_PER_WEEK, "OK");
-        upsert(AUTO_GEN_HOLIDAY_MODE, getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"), AlgorithmConfig.ValueType.STRING,
+                upsert(AUTO_GEN_HOLIDAY_MODE, getStringValue(AUTO_GEN_HOLIDAY_MODE, AutoGenConstants.HOLIDAY_MODE_SKIP), AlgorithmConfig.ValueType.STRING,
                 "Xử lý khi gặp ngày lễ: SKIP = bỏ qua ngày lễ (không xếp lịch), PARTIAL = vẫn xếp lịch nhưng giảm cường độ.");
         map.put(AUTO_GEN_HOLIDAY_MODE, "OK");
         upsert(WEEKEND_WEIGHT, getStringValue(WEEKEND_WEIGHT, "2"), AlgorithmConfig.ValueType.NUMBER,
@@ -648,7 +671,7 @@ public class AlgorithmConfigService {
                 current.l04CrossSpecialty(),
                 current.l04CrossSpecialtyRatio(),
                 current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : java.util.List.of(),
-                current.l04BalanceStrategy() != null ? current.l04BalanceStrategy() : "FAIR_DISTRIBUTE"
+                current.l04BalanceStrategy() != null ? current.l04BalanceStrategy() : AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE
         );
 
         String rationale = String.format(
