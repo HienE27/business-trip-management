@@ -106,7 +106,16 @@ public class EnhancedGreedyScheduler {
                     // Compensation day check: không được gán ca nào vào ngày nghỉ bù
                     Set<LocalDate> compDays = staffCompDays.get(s.getId());
                     if (compDays != null && compDays.contains(date)) continue;
-                    
+
+                    // Consecutive L01 hard block (main pass)
+                    if ("L01".equals(shiftTypeId)) {
+                        LocalDate prev = date.minusDays(1);
+                        LocalDate next = date.plusDays(1);
+                        Set<String> prevTypes = assignedTypesPerDay.getOrDefault(s.getId() + "|" + prev, Collections.emptySet());
+                        Set<String> nextTypes = assignedTypesPerDay.getOrDefault(s.getId() + "|" + next, Collections.emptySet());
+                        if (prevTypes.contains("L01") || nextTypes.contains("L01")) continue;
+                    }
+
                     // Specialty check: chỉ gán đúng chuyên khoa (cho L04)
                     if (specId != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(specId))) continue;
                     
@@ -420,15 +429,24 @@ double fatigueBonus = 0;
                         l04SpecGap.computeIfAbsent(sid, k -> new HashMap<>()).merge(specId, 1, Integer::sum);
                     }
 
-	                    Schedule sch = new Schedule();
-	                    sch.setStaff(staffMap.get(sid));
-	                    sch.setPeriod(period);
-	                    sch.setWorkDate(date);
-	                    sch.setShiftType(req.getShiftType());
-	                    sch.setRequirement(req);
-	                    sch.setHasConflict(false);
-	                    result.add(sch);
-	                    gapFilled++;
+Schedule sch = new Schedule();
+                    sch.setStaff(staffMap.get(sid));
+                    sch.setPeriod(period);
+                    sch.setWorkDate(date);
+                    sch.setShiftType(req.getShiftType());
+                    sch.setRequirement(req);
+                    sch.setHasConflict(false);
+                    result.add(sch);
+                    // Keep assignedTypesPerDay + gap counters + req counts in sync
+                    assignedTypesPerDay.computeIfAbsent(sid + "|" + date, k -> new HashSet<>()).add(shiftTypeId);
+                    assignedByReqKey.merge(reqKey(shiftTypeId, date, specId), 1, Integer::sum);
+                    if ("L01".equals(shiftTypeId)) {
+                        LocalDate compDate = compensationDateCalculator.calculate(date);
+                        if (compDate != null) {
+                            staffCompDays.computeIfAbsent(sid, k -> new HashSet<>()).add(compDate);
+                        }
+                    }
+                    gapFilled++;
                 }
             }
         }

@@ -44,6 +44,9 @@ const nextConfig: NextConfig = {
     optimizePackageImports: [
       "@/components/ui",         // barrel at src/components/ui/index.ts
     ],
+    // Long-running auto-schedule algos (RRHC/CP-SAT/Beam) need >60s.
+    // Default rewrite proxy aborts early → browser HTTP 500 / Broken pipe.
+    proxyTimeout: 600_000,
   },
 };
 

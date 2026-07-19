@@ -60,22 +60,13 @@ public class CpSatScheduler {
         int numDays = dates.size();
         int numStaff = staffList.size();
 
-        // Build min staff per day per shift
-        Map<String, Integer> minStaffPerDay = new HashMap<>();
-        for (String shift : WORK_SHIFTS) {
-            int max = 0;
-            for (ShiftRequirement r : requirements) {
-                if (r.getShiftType().getId().equals(shift)) {
-                    max = Math.max(max, r.getRequiredStaffCount());
-                }
-            }
-            minStaffPerDay.put(shift, max);
-        }
-
+        // Per (day, shift[, specialty]) required count — not max-over-days
+        Map<String, Integer> requiredByDayShift = new HashMap<>();
         // Build shift requirements lookup: (day, shift) -> set of specialty_ids
         Map<String, Set<Integer>> shiftReqs = new HashMap<>();
         for (ShiftRequirement r : requirements) {
             String key = r.getWorkDate() + "|" + r.getShiftType().getId();
+            requiredByDayShift.merge(key, r.getRequiredStaffCount(), Integer::sum);
             shiftReqs.computeIfAbsent(key, k -> new HashSet<>());
             if (r.getSpecialty() != null) {
                 shiftReqs.get(key).add(r.getSpecialty().getId());
@@ -107,51 +98,59 @@ public class CpSatScheduler {
             }
         }
 
-        // Constraint 1: Each staff at most 1 shift per day
+        // Constraint 1: pairwise same-day conflicts only (L01↔L02, L03↔L04).
+        // Non-conflicting combos (L01+L03, L01+L04, L02+L03, L02+L04) allowed.
+        // L01=0, L02=1, L03=2, L04=3
         for (int s = 0; s < numStaff; s++) {
             for (int d = 0; d < numDays; d++) {
-                LinearExprBuilder sum = LinearExpr.newBuilder();
-                for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
-                    sum.add(x[s][d][sh]);
-                }
-                model.addLessOrEqual(sum.build(), 1);
+                model.addLessOrEqual(LinearExpr.newBuilder().add(x[s][d][0]).add(x[s][d][1]).build(), 1); // L01↔L02
+                model.addLessOrEqual(LinearExpr.newBuilder().add(x[s][d][2]).add(x[s][d][3]).build(), 1); // L03↔L04
             }
         }
 
-        // Constraint 2: Coverage — SOFT CONSTRAINT (nới lỏng, phạt khi thiếu)
-        // Thay vì hard constraint, dùng penalty variable cho mỗi slot thiếu
+        // Constraint 2: Coverage — SOFT shortfall + HARD cap (no over-assign)
         IntVar totalShortfall = model.newIntVar(0, numDays * numStaff * WORK_SHIFTS.length, "total_shortfall");
         LinearExprBuilder shortfallSum = LinearExpr.newBuilder();
-        
+        // Per-type shortfall (L01 weighted higher in objective)
+        IntVar[] shortfallByType = new IntVar[WORK_SHIFTS.length];
+        LinearExprBuilder[] typeShortSums = new LinearExprBuilder[WORK_SHIFTS.length];
+        for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
+            typeShortSums[sh] = LinearExpr.newBuilder();
+        }
+
         for (int d = 0; d < numDays; d++) {
             for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
                 String shiftType = WORK_SHIFTS[sh];
-                int minReq = minStaffPerDay.getOrDefault(shiftType, 1);
+                String key = dates.get(d) + "|" + shiftType;
+                int minReq = requiredByDayShift.getOrDefault(key, 0);
+                if (minReq <= 0) continue;
 
                 LinearExprBuilder sum = LinearExpr.newBuilder();
                 for (int s = 0; s < numStaff; s++) {
-                    // Check specialty match for L04
-                    String key = dates.get(d) + "|" + shiftType;
-                    Set<Integer> requiredSpecs = shiftReqs.getOrDefault(key, new HashSet<>());
+                    Set<Integer> requiredSpecs = shiftReqs.getOrDefault(key, Collections.emptySet());
                     if (!requiredSpecs.isEmpty()) {
                         Integer specId = staffSpecialty.get(staffIds.get(s));
                         if (specId != null && requiredSpecs.contains(specId)) {
                             sum.add(x[s][d][sh]);
                         }
-                    } else {
+                    } else if (staffSpecialty.containsKey(staffIds.get(s))) {
                         sum.add(x[s][d][sh]);
                     }
                 }
-                // assigned + shortfall >= minReq (shortfall = max(0, minReq - assigned))
+                LinearExpr assigned = sum.build();
+                // Cap: never assign more than required for this (day, type)
+                model.addLessOrEqual(assigned, minReq);
                 IntVar shortfall = model.newIntVar(0, minReq, "shortfall_" + d + "_" + sh);
-                LinearExprBuilder covWithShortfall = LinearExpr.newBuilder();
-                covWithShortfall.add(sum.build());
-                covWithShortfall.add(shortfall);
-                model.addGreaterOrEqual(covWithShortfall.build(), minReq);
+                model.addGreaterOrEqual(LinearExpr.newBuilder().add(assigned).add(shortfall).build(), minReq);
                 shortfallSum.add(shortfall);
+                typeShortSums[sh].add(shortfall);
             }
         }
         model.addEquality(totalShortfall, shortfallSum.build());
+        for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
+            shortfallByType[sh] = model.newIntVar(0, numDays * numStaff, "sf_type_" + WORK_SHIFTS[sh]);
+            model.addEquality(shortfallByType[sh], typeShortSums[sh].build());
+        }
 
         // Constraint 3: No consecutive L01
         for (int s = 0; s < numStaff; s++) {
@@ -187,7 +186,9 @@ public class CpSatScheduler {
             }
         }
 
-        // Objective: minimize shortfall (coverage) + balance fairness + per-type balance
+// Multi-shift/day allowed → upper bound is numDays * max types/day (2 pairs)
+        int maxLoad = numDays * 2;
+
         IntVar[] totalShiftsPerStaff = new IntVar[numStaff];
         for (int s = 0; s < numStaff; s++) {
             LinearExprBuilder sum = LinearExpr.newBuilder();
@@ -196,16 +197,15 @@ public class CpSatScheduler {
                     sum.add(x[s][d][sh]);
                 }
             }
-            totalShiftsPerStaff[s] = model.newIntVar(0, numDays, "total_" + staffIds.get(s));
+            totalShiftsPerStaff[s] = model.newIntVar(0, maxLoad, "total_" + staffIds.get(s));
             model.addEquality(totalShiftsPerStaff[s], sum.build());
         }
-        IntVar minShifts = model.newIntVar(0, numDays, "min_shifts");
-        IntVar maxShifts = model.newIntVar(0, numDays, "max_shifts");
+        IntVar minShifts = model.newIntVar(0, maxLoad, "min_shifts");
+        IntVar maxShiftsVar = model.newIntVar(0, maxLoad, "max_shifts");
         model.addMinEquality(minShifts, totalShiftsPerStaff);
-        model.addMaxEquality(maxShifts, totalShiftsPerStaff);
-        
-        // Per-type balance: tạo max-per-type variables
-        // L01 index=0, L02=1, L03=2, L04=3
+        model.addMaxEquality(maxShiftsVar, totalShiftsPerStaff);
+
+        // Per-type max (light fairness pressure)
         IntVar[] maxPerType = new IntVar[WORK_SHIFTS.length];
         for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
             IntVar[] perStaff = new IntVar[numStaff];
@@ -220,23 +220,26 @@ public class CpSatScheduler {
             maxPerType[sh] = model.newIntVar(0, numDays, "max_type_" + WORK_SHIFTS[sh]);
             model.addMaxEquality(maxPerType[sh], perStaff);
         }
-        
-        // Objective: coverage + total balance + per-type balance
+
+        // Coverage first: L01 shortfall * 100, other types * 40, fairness light
         LinearExprBuilder objective = LinearExpr.newBuilder();
-        objective.addTerm(totalShortfall, 20);       // coverage: 20pt per missing slot
-        objective.addTerm(maxShifts, 5);              // total max: 5pt per shift
-        objective.addTerm(minShifts, -5);             // total min: -5pt → maximize min
+        objective.addTerm(shortfallByType[0], 100); // L01
+        objective.addTerm(shortfallByType[1], 40);  // L02
+        objective.addTerm(shortfallByType[2], 40);  // L03
+        objective.addTerm(shortfallByType[3], 40);  // L04
+        objective.addTerm(maxShiftsVar, 2);
+        objective.addTerm(minShifts, -2);
         for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
-            objective.addTerm(maxPerType[sh], 2);     // per-type max: 2pt per shift
+            objective.addTerm(maxPerType[sh], 1);
         }
         model.minimize(objective.build());
 
-        // Solve
         CpSolver solver = new CpSolver();
         double timeLimit = Math.min(TIME_LIMIT_MAX_SECONDS,
                 TIME_LIMIT_BASE_SECONDS + numDays * TIME_LIMIT_PER_DAY_SECONDS);
         solver.getParameters().setMaxTimeInSeconds(timeLimit);
         solver.getParameters().setLogSearchProgress(false);
+        solver.getParameters().setNumSearchWorkers(4);
 
         CpSolverStatus status = solver.solve(model);
 
@@ -272,15 +275,11 @@ public class CpSatScheduler {
 
     private com.hospital.scheduler.entity.ShiftType findShiftType(
             String id, List<ShiftRequirement> reqs) {
-        return reqs.stream().filter(r -> r.getShiftType().getId().equals(id))
-                .findFirst().map(ShiftRequirement::getShiftType).orElse(null);
+        return ScheduleConflictUtils.findShiftType(id, reqs);
     }
 
     private ShiftRequirement findRequirement(Staff staff, LocalDate date,
             String shiftTypeId, List<ShiftRequirement> reqs) {
-        return reqs.stream()
-                .filter(r -> r.getShiftType().getId().equals(shiftTypeId)
-                        && r.getWorkDate().equals(date))
-                .findFirst().orElse(null);
+        return ScheduleConflictUtils.findMatchingRequirement(staff, date, shiftTypeId, reqs);
     }
 }

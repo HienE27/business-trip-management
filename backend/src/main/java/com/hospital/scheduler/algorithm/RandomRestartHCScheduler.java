@@ -66,10 +66,10 @@ public class RandomRestartHCScheduler {
                     runtimeConfig, excludedStaffIds, staffMap, rng);
             if (current.isEmpty()) continue;
 
-            double currentScore = score(current, requirements);
+            double currentScore = score(current, requirements, staffMap);
             if (currentScore > bestScore) {
                 bestScore = currentScore;
-                bestSchedules = new ArrayList<>(current);
+                bestSchedules = deepCopy(current);
             }
 
             // Phase 2: first-choice hill climbing — random neighbor, accept first improving
@@ -81,16 +81,16 @@ public class RandomRestartHCScheduler {
                     if (rng.nextBoolean()) {
                         accepted = tryRandomMove(current, activeStaff, excludedStaffIds, staffMap, requirements, rng);
                     } else {
-                        accepted = tryRandomSwap(current, requirements, rng);
+                        accepted = tryRandomSwap(current, requirements, staffMap, rng);
                     }
                     if (accepted) break;
                 }
                 if (!accepted) break; // local optimum — restart
 
-                double newScore = score(current, requirements);
+                double newScore = score(current, requirements, staffMap);
                 if (newScore > bestScore) {
                     bestScore = newScore;
-                    bestSchedules = new ArrayList<>(current);
+                    bestSchedules = deepCopy(current);
                 }
             }
         }
@@ -106,6 +106,22 @@ public class RandomRestartHCScheduler {
         return bestSchedules;
     }
 
+    /** Deep-copy so later HC mutations don't corrupt the stored best. */
+    private List<Schedule> deepCopy(List<Schedule> src) {
+        List<Schedule> copy = new ArrayList<>(src.size());
+        for (Schedule s : src) {
+            Schedule c = new Schedule();
+            c.setStaff(s.getStaff());
+            c.setPeriod(s.getPeriod());
+            c.setWorkDate(s.getWorkDate());
+            c.setShiftType(s.getShiftType());
+            c.setRequirement(s.getRequirement());
+            c.setHasConflict(s.getHasConflict());
+            copy.add(c);
+        }
+        return copy;
+    }
+
     /**
      * Repeatedly move a shift from the most overloaded staff to the most underloaded.
      * Accepts only if it doesn't create conflicts and improves fairness.
@@ -113,8 +129,13 @@ public class RandomRestartHCScheduler {
     private void fairnessRebalance(List<Schedule> schedules, List<Staff> activeStaff,
                                     Set<Integer> excludedIds, Map<Integer, Staff> staffMap,
                                     List<ShiftRequirement> reqs, Random rng) {
-        for (int round = 0; round < 50; round++) {
+        for (int round = 0; round < 80; round++) {
             Map<Integer, Integer> counts = new HashMap<>();
+            // Include zero-load staff so rebalance fills empty people
+            for (Staff st : activeStaff) {
+                if (excludedIds != null && excludedIds.contains(st.getId())) continue;
+                counts.put(st.getId(), 0);
+            }
             for (Schedule s : schedules) counts.merge(s.getStaff().getId(), 1, Integer::sum);
             if (counts.isEmpty()) break;
 
@@ -126,7 +147,7 @@ public class RandomRestartHCScheduler {
             int overloaded = counts.entrySet().stream()
                     .max(Comparator.comparingInt(Map.Entry::getValue))
                     .get().getKey();
-            // Find most underloaded staff
+            // Find most underloaded staff (may have 0 assignments)
             int underloaded = counts.entrySet().stream()
                     .min(Comparator.comparingInt(Map.Entry::getValue))
                     .get().getKey();
@@ -144,12 +165,12 @@ public class RandomRestartHCScheduler {
                 if (!matchesSpecialtyL04(staffMap.get(underloaded), s.getShiftType().getId(), s.getWorkDate(), reqs))
                     continue;
 
-                double oldScore = score(schedules, reqs);
+                double oldScore = score(schedules, reqs, staffMap);
                 Staff origStaff = s.getStaff();
                 s.setStaff(staffMap.get(underloaded));
                 updateReq(s, reqs);
 
-                double newScore = score(schedules, reqs);
+                double newScore = score(schedules, reqs, staffMap);
                 if (newScore > oldScore) {
                     moved = true;
                     break;
@@ -185,7 +206,7 @@ public class RandomRestartHCScheduler {
         // Track (staffId|date → set of shiftType ids) — allow non-conflicting same-day combos
         Map<String, Set<String>> assignedTypesPerDay = new HashMap<>();
         Map<Integer, Integer> counts = new HashMap<>();
-        Map<Integer, Map<LocalDate, String>> shiftPerStaff = new HashMap<>();
+        Map<Integer, Map<LocalDate, Set<String>>> shiftPerStaff = new HashMap<>();
         Map<Integer, Set<LocalDate>> staffCompDays = new HashMap<>();
 
         int maxShifts = config != null && config.getMaxShiftsPerStaff() > 0
@@ -202,17 +223,21 @@ public class RandomRestartHCScheduler {
                     .filter(s -> specId == null || (s.getSpecialty() != null && s.getSpecialty().getId().equals(specId)))
                     .filter(s -> !hasConflict(s.getId(), req.getWorkDate(), shiftType, shiftPerStaff))
                     .filter(s -> {
-                        // Block if same day already has conflicting shift type
+                        // Block if same day already has conflicting/duplicate shift type
                         String dayKey = s.getId() + "|" + req.getWorkDate();
                         Set<String> todayTypes = assignedTypesPerDay.getOrDefault(dayKey, Collections.emptySet());
-                        if (ScheduleConflictUtils.isBusinessConflict(shiftType,
-                                todayTypes.stream().findFirst().orElse(null))) return false;
-                        return !todayTypes.contains(shiftType);
+                        if (todayTypes.contains(shiftType)) return false;
+                        for (String t : todayTypes) {
+                            if (ScheduleConflictUtils.isBusinessConflict(shiftType, t)) return false;
+                        }
+                        return true;
                     })
                     .filter(s -> {
                         Set<LocalDate> compDays = staffCompDays.get(s.getId());
                         return compDays == null || !compDays.contains(req.getWorkDate());
                     })
+                    // null-specialty staff blocked from L01/L02/L03
+                    .filter(s -> !(specId == null && !"L04".equals(shiftType) && s.getSpecialty() == null))
                     .map(Staff::getId)
                     .collect(Collectors.toList());
 
@@ -223,7 +248,7 @@ public class RandomRestartHCScheduler {
                         .add(shiftType);
                 counts.merge(sid, 1, Integer::sum);
                 shiftPerStaff.computeIfAbsent(sid, k -> new HashMap<>())
-                        .put(req.getWorkDate(), shiftType);
+                        .computeIfAbsent(req.getWorkDate(), k -> new HashSet<>()).add(shiftType);
                 if ("L01".equals(shiftType)) {
                     LocalDate compDate = compensationDateCalculator.calculate(req.getWorkDate());
                     if (compDate != null) {
@@ -244,7 +269,8 @@ public class RandomRestartHCScheduler {
     }
 
     /** Per-requirement coverage + fairness − conflict penalty. */
-    private double score(List<Schedule> schedules, List<ShiftRequirement> reqs) {
+    private double score(List<Schedule> schedules, List<ShiftRequirement> reqs,
+                         Map<Integer, Staff> staffMap) {
         Map<String, Integer> requiredCount = new HashMap<>();
         for (ShiftRequirement r : reqs) {
             String key = r.getWorkDate() + "|" + r.getShiftType().getId()
@@ -268,18 +294,21 @@ public class RandomRestartHCScheduler {
         }
         double coverage = totalReqSlots > 0 ? (double) fulfilled / totalReqSlots : 0;
 
-        Set<Integer> assignedIds = new HashSet<>();
+        // Fairness over full eligible pool (zero-load staff count as 0)
         Map<Integer, Integer> counts = new HashMap<>();
+        if (staffMap != null) {
+            for (Integer id : staffMap.keySet()) counts.put(id, 0);
+        }
         for (Schedule s : schedules) {
-            assignedIds.add(s.getStaff().getId());
+            if (s.getStaff() == null) continue;
             counts.merge(s.getStaff().getId(), 1, Integer::sum);
         }
         double fairness = 1.0;
-        if (!assignedIds.isEmpty()) {
-            double mean = (double) schedules.size() / assignedIds.size();
+        if (!counts.isEmpty() && !schedules.isEmpty()) {
+            double mean = (double) schedules.size() / counts.size();
             if (mean > 0) {
-                double variance = assignedIds.stream()
-                        .mapToDouble(id -> Math.pow(counts.getOrDefault(id, 0) - mean, 2))
+                double variance = counts.values().stream()
+                        .mapToDouble(c -> Math.pow(c - mean, 2))
                         .average().orElse(0);
                 fairness = Math.max(0, 1 - Math.sqrt(variance) / mean);
             }
@@ -290,14 +319,19 @@ public class RandomRestartHCScheduler {
 
     private int countConflicts(List<Schedule> schedules) {
         int conflicts = 0;
-        Map<Integer, Map<LocalDate, String>> byStaffDay = new HashMap<>();
+        Map<Integer, Map<LocalDate, Set<String>>> byStaffDay = new HashMap<>();
         for (Schedule s : schedules) {
-            Map<LocalDate, String> days = byStaffDay.computeIfAbsent(s.getStaff().getId(), k -> new HashMap<>());
-            String existing = days.get(s.getWorkDate());
-            if (existing != null && ScheduleConflictUtils.isBusinessConflict(s.getShiftType().getId(), existing)) {
+            Map<LocalDate, Set<String>> days = byStaffDay.computeIfAbsent(s.getStaff().getId(), k -> new HashMap<>());
+            Set<String> existing = days.computeIfAbsent(s.getWorkDate(), k -> new HashSet<>());
+            String type = s.getShiftType().getId();
+            if (existing.contains(type)) {
                 conflicts++;
+            } else {
+                for (String t : existing) {
+                    if (ScheduleConflictUtils.isBusinessConflict(type, t)) { conflicts++; break; }
+                }
             }
-            days.put(s.getWorkDate(), s.getShiftType().getId());
+            existing.add(type);
         }
         Map<Integer, List<LocalDate>> l01ByStaff = new HashMap<>();
         for (Schedule s : schedules) {
@@ -345,17 +379,19 @@ public class RandomRestartHCScheduler {
         return staff.getSpecialty().getId().equals(req.getSpecialty().getId());
     }
 
-    /** Indexed-lookup variant for randomSolution — checks same-day conflict + consecutive L01. */
+    /** Indexed-lookup variant for randomSolution — same-day conflict + consecutive L01. */
     private boolean hasConflict(int staffId, LocalDate date, String newType,
-                                Map<Integer, Map<LocalDate, String>> shiftPerStaff) {
-        Map<LocalDate, String> days = shiftPerStaff.get(staffId);
+                                Map<Integer, Map<LocalDate, Set<String>>> shiftPerStaff) {
+        Map<LocalDate, Set<String>> days = shiftPerStaff.get(staffId);
         if (days == null) return false;
-        String existing = days.get(date);
-        if (existing != null && ScheduleConflictUtils.isBusinessConflict(newType, existing)) return true;
+        Set<String> existing = days.getOrDefault(date, Collections.emptySet());
+        if (existing.contains(newType)) return true;
+        for (String t : existing) {
+            if (ScheduleConflictUtils.isBusinessConflict(newType, t)) return true;
+        }
         if ("L01".equals(newType)) {
-            String prev = days.get(date.minusDays(1));
-            String next = days.get(date.plusDays(1));
-            if ("L01".equals(prev) || "L01".equals(next)) return true;
+            if (days.getOrDefault(date.minusDays(1), Collections.emptySet()).contains("L01")) return true;
+            if (days.getOrDefault(date.plusDays(1), Collections.emptySet()).contains("L01")) return true;
         }
         return false;
     }
@@ -422,11 +458,11 @@ public class RandomRestartHCScheduler {
         }
         if (target == null) return false;
 
-        double oldScore = score(current, reqs);
+        double oldScore = score(current, reqs, staffMap);
         s.setStaff(target);
         updateReq(s, reqs);
 
-        if (score(current, reqs) > oldScore) return true;
+        if (score(current, reqs, staffMap) > oldScore) return true;
 
         // Revert
         s.setStaff(originalStaff);
@@ -438,7 +474,8 @@ public class RandomRestartHCScheduler {
      * First-choice swap: pick two random schedules same-date different-staff different-type,
      * accept if strictly improves score. O(N) per call.
      */
-    private boolean tryRandomSwap(List<Schedule> current, List<ShiftRequirement> reqs, Random rng) {
+    private boolean tryRandomSwap(List<Schedule> current, List<ShiftRequirement> reqs,
+                                  Map<Integer, Staff> staffMap, Random rng) {
         if (current.size() < 2) return false;
 
         // Build index: date → list of schedules
@@ -472,7 +509,7 @@ public class RandomRestartHCScheduler {
                     if (!matchesSpecialtyL04(b.getStaff(), a.getShiftType().getId(), a.getWorkDate(), reqs))
                         continue;
 
-                    double oldScore = score(current, reqs);
+                    double oldScore = score(current, reqs, staffMap);
                     var typeA = a.getShiftType();
                     var typeB = b.getShiftType();
                     a.setShiftType(typeB);
@@ -480,7 +517,7 @@ public class RandomRestartHCScheduler {
                     updateReq(a, reqs);
                     updateReq(b, reqs);
 
-                    if (score(current, reqs) > oldScore) return true;
+                    if (score(current, reqs, staffMap) > oldScore) return true;
 
                     // Revert
                     a.setShiftType(typeA);

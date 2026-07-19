@@ -322,11 +322,37 @@ public class GlobalExceptionHandler {
                 "Bản ghi đang bị khoá bởi thao tác khác, vui lòng thử lại sau vài giây");
     }
 
+    /**
+     * Client closed the connection while we were still writing (browser/proxy
+     * timeout). Not a server failure — algo often finished successfully.
+     * Swallow so it is not surfaced as HTTP 500 "lỗi nội bộ".
+     */
+    @ExceptionHandler({
+            org.springframework.web.context.request.async.AsyncRequestNotUsableException.class,
+            org.springframework.http.converter.HttpMessageNotWritableException.class
+    })
+    public ResponseEntity<Void> handleClientAbort(Exception ex, HttpServletRequest request) {
+        if (isClientAbort(ex)) {
+            log.warn("Client aborted response on {} {} (likely proxy/browser timeout): {}",
+                    request.getMethod(), request.getRequestURI(), rootMessage(ex));
+            return ResponseEntity.noContent().build();
+        }
+        // Real write failures still go through catch-all path via rethrow pattern:
+        log.error("Response write failure on {} {}: {}",
+                request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+
     // ── Catch-all (SECURITY: never echo ex.getMessage() to client) ─────────────
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleGeneral(
             Exception ex, HttpServletRequest request) {
+        if (isClientAbort(ex)) {
+            log.warn("Client aborted on {} {}: {}",
+                    request.getMethod(), request.getRequestURI(), rootMessage(ex));
+            return ResponseEntity.noContent().build();
+        }
         log.error("Unhandled exception on {} {}: {}",
                 request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
 
@@ -334,6 +360,30 @@ public class GlobalExceptionHandler {
         // fragments, stack traces, or internal paths that must not reach the client.
         return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Đã xảy ra lỗi nội bộ. Vui lòng thử lại sau hoặc liên hệ quản trị viên");
+    }
+
+    private static boolean isClientAbort(Throwable ex) {
+        Throwable t = ex;
+        int depth = 0;
+        while (t != null && depth++ < 8) {
+            String name = t.getClass().getName();
+            String msg = t.getMessage() != null ? t.getMessage() : "";
+            if (name.contains("ClientAbortException")
+                    || name.contains("AsyncRequestNotUsableException")
+                    || msg.contains("Broken pipe")
+                    || msg.contains("Connection reset by peer")) {
+                return true;
+            }
+            if (t.getCause() == t) break;
+            t = t.getCause();
+        }
+        return false;
+    }
+
+    private static String rootMessage(Throwable ex) {
+        Throwable t = ex;
+        while (t.getCause() != null && t.getCause() != t) t = t.getCause();
+        return t.getMessage();
     }
 
     // ── Helper ───────────────────────────────────────────────────────────────

@@ -806,13 +806,20 @@ public class AutoSchedulingService {
             }
         }
 
-        // Phase 2c: Gap-fill - CP-SAT đã là complete solver
-        if (!"CP_SAT".equals(algorithmType) && !createdSchedules.isEmpty()) {
+        // Phase 2c: Gap-fill for residual shortfalls (all algos including CP-SAT)
+        if (!createdSchedules.isEmpty()) {
             int gapFilled = applyGapFill(createdSchedules, requirements, activeStaff, period, runtimeConfig, 
                     request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
             if (gapFilled > 0) {
                 log.info("Gap-fill added {} schedules for {}", gapFilled, algorithmType);
             }
+        }
+
+        // Hard cap after all type-changing/fill passes: never exceed any requirement slot.
+        // Slot identity includes specialty; critical for L04's per-specialty demand.
+        int trimmed = trimExcessAssignments(createdSchedules, requirements);
+        if (trimmed > 0) {
+            log.info("Trimmed {} excess assignments after post-processing for {}", trimmed, algorithmType);
         }
 
         // Phase 3: Local Search fairness rebalance.
@@ -2301,76 +2308,111 @@ public class AutoSchedulingService {
 	    private int applyRotationPostProcessing(List<Schedule> schedules,
 	            List<ShiftRequirement> requirements, List<Staff> activeStaff) {
 	        if (schedules.isEmpty()) return 0;
-	        
+
+	        // Required slots per (date|type) — block type-invention beyond demand
+	        Map<String, Integer> requiredByDateType = new HashMap<>();
+	        for (ShiftRequirement r : requirements) {
+	            requiredByDateType.merge(r.getWorkDate() + "|" + r.getShiftType().getId(),
+	                    r.getRequiredStaffCount(), Integer::sum);
+	        }
+	        Map<String, Integer> assignedByDateType = new HashMap<>();
+	        for (Schedule s : schedules) {
+	            assignedByDateType.merge(s.getWorkDate() + "|" + s.getShiftType().getId(), 1, Integer::sum);
+	        }
+
 	        Map<Integer, Set<String>> staffTypes = new HashMap<>();
 	        for (Schedule s : schedules) {
 	            staffTypes.computeIfAbsent(s.getStaff().getId(), k -> new HashSet<>())
 	                    .add(s.getShiftType().getId());
 	        }
-	        
+
 	        int swaps = 0;
 	        for (Map.Entry<Integer, Set<String>> entry : staffTypes.entrySet()) {
 	            if (entry.getValue().size() >= 4) continue;
-	            
+
 	            int sid = entry.getKey();
 	            Set<String> types = entry.getValue();
 	            String[] needed = {"L01", "L02", "L03", "L04"};
-	            
+
 	            for (String need : needed) {
 	                if (types.contains(need)) continue;
-	                
+
 	                for (String swapFrom : new String[]{"L04", "L01", "L02", "L03"}) {
 	                    if (!types.contains(swapFrom)) continue;
-	                    
+
 	                    long count = schedules.stream()
 	                            .filter(s -> s.getStaff().getId() == sid && swapFrom.equals(s.getShiftType().getId()))
 	                            .count();
 	                    if (count <= 1) continue;
-	                    
+
 	                    for (Schedule s : schedules) {
-	                        if (s.getStaff().getId() == sid && swapFrom.equals(s.getShiftType().getId())) {
-	                            // Check conflict
-	                            if (hasRotationConflict(s, schedules, need)) continue;
-	                            
-	                            // Swap
-	                            s.setShiftType(findShiftTypeById(need, requirements));
-	                            ShiftRequirement req = findRequirementForDate(s, need, requirements);
-	                            if (req != null) s.setRequirement(req);
-	                            types.add(need);
-	                            
-	                            long newCount = schedules.stream()
-	                                    .filter(s2 -> s2.getStaff().getId() == sid && swapFrom.equals(s2.getShiftType().getId()))
-	                                    .count();
-	                            if (newCount <= 0) types.remove(swapFrom);
-	                            swaps++;
-	                            break;
-	                        }
+	                        if (s.getStaff().getId() != sid || !swapFrom.equals(s.getShiftType().getId())) continue;
+	                        if (hasRotationConflict(s, schedules, need)) continue;
+
+	                        // Only swap if target type still short on that date AND source not under-filled
+	                        String needKey = s.getWorkDate() + "|" + need;
+	                        String fromKey = s.getWorkDate() + "|" + swapFrom;
+	                        int needReq = requiredByDateType.getOrDefault(needKey, 0);
+	                        int needAsn = assignedByDateType.getOrDefault(needKey, 0);
+	                        int fromReq = requiredByDateType.getOrDefault(fromKey, 0);
+	                        int fromAsn = assignedByDateType.getOrDefault(fromKey, 0);
+	                        if (needReq <= 0 || needAsn >= needReq) continue;
+	                        if (fromAsn <= fromReq) continue; // don't create shortfall on source
+
+	                        s.setShiftType(findShiftTypeById(need, requirements));
+	                        ShiftRequirement req = findRequirementForDate(s, need, requirements);
+	                        if (req != null) s.setRequirement(req);
+	                        types.add(need);
+	                        assignedByDateType.merge(needKey, 1, Integer::sum);
+	                        assignedByDateType.merge(fromKey, -1, Integer::sum);
+
+	                        long newCount = schedules.stream()
+	                                .filter(s2 -> s2.getStaff().getId() == sid && swapFrom.equals(s2.getShiftType().getId()))
+	                                .count();
+	                        if (newCount <= 0) types.remove(swapFrom);
+	                        swaps++;
+	                        break;
 	                    }
 	                    if (types.contains(need)) break;
 	                }
 	            }
 	        }
-	        
-	        // Fix consecutive L01 violations created by rotation
+
+	        // Fix consecutive L01: retype to a short type that day (not always L04)
 	        for (int i = schedules.size() - 1; i >= 0; i--) {
 	            Schedule s = schedules.get(i);
 	            if (!"L01".equals(s.getShiftType().getId())) continue;
 	            int sid = s.getStaff().getId();
+	            boolean consecutive = false;
 	            for (Schedule other : schedules) {
 	                if (other == s || other.getStaff().getId() != sid) continue;
 	                if (!"L01".equals(other.getShiftType().getId())) continue;
-	                long diff = Math.abs(other.getWorkDate().toEpochDay() - s.getWorkDate().toEpochDay());
-	                if (diff == 1) {
-	                    s.setShiftType(findShiftTypeById("L04", requirements));
-	                    ShiftRequirement l04Req = findRequirementForDate(s, "L04", requirements);
-	                    if (l04Req != null) s.setRequirement(l04Req);
-	                    break;
+	                if (Math.abs(other.getWorkDate().toEpochDay() - s.getWorkDate().toEpochDay()) == 1) {
+	                    consecutive = true; break;
 	                }
 	            }
+	            if (!consecutive) continue;
+
+	            String pick = null;
+	            for (String t : new String[]{"L02", "L03", "L04"}) {
+	                if (hasRotationConflict(s, schedules, t)) continue;
+	                String k = s.getWorkDate() + "|" + t;
+	                if (assignedByDateType.getOrDefault(k, 0) < requiredByDateType.getOrDefault(k, 0)) {
+	                    pick = t; break;
+	                }
+	            }
+	            if (pick == null) continue; // leave L01 rather than invent demand
+	            String fromKey = s.getWorkDate() + "|L01";
+	            String toKey = s.getWorkDate() + "|" + pick;
+	            s.setShiftType(findShiftTypeById(pick, requirements));
+	            ShiftRequirement r = findRequirementForDate(s, pick, requirements);
+	            if (r != null) s.setRequirement(r);
+	            assignedByDateType.merge(fromKey, -1, Integer::sum);
+	            assignedByDateType.merge(toKey, 1, Integer::sum);
 	        }
-	        
-		        return swaps;
-		    }
+
+	        return swaps;
+	    }
 		    
 	    /**
 	     * Gap-fill: bổ sung ca còn thiếu cho tất cả algorithms.
@@ -2512,6 +2554,47 @@ public class AutoSchedulingService {
 		        return gapFilled;
 		    }
 		    
+    /** Remove assignments beyond exact (date, type, specialty) demand; keep lighter staff. */
+    private int trimExcessAssignments(List<Schedule> schedules, List<ShiftRequirement> requirements) {
+        Map<String, Integer> required = new HashMap<>();
+        for (ShiftRequirement r : requirements) {
+            Integer specId = r.getSpecialty() != null ? r.getSpecialty().getId() : null;
+            required.merge(requirementSlotKey(r.getWorkDate(), r.getShiftType().getId(), specId),
+                    r.getRequiredStaffCount(), Integer::sum);
+        }
+
+        Map<Integer, Integer> staffLoad = new HashMap<>();
+        for (Schedule s : schedules) staffLoad.merge(s.getStaff().getId(), 1, Integer::sum);
+
+        Map<String, List<Schedule>> bySlot = new HashMap<>();
+        for (Schedule s : schedules) {
+            Integer specId = s.getRequirement() != null && s.getRequirement().getSpecialty() != null
+                    ? s.getRequirement().getSpecialty().getId() : null;
+            bySlot.computeIfAbsent(requirementSlotKey(s.getWorkDate(), s.getShiftType().getId(), specId),
+                    k -> new ArrayList<>()).add(s);
+        }
+
+        Set<Schedule> remove = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (var e : bySlot.entrySet()) {
+            int excess = e.getValue().size() - required.getOrDefault(e.getKey(), 0);
+            if (excess <= 0) continue;
+            // Remove from most-loaded staff first; improves fairness while trimming.
+            e.getValue().sort(Comparator.comparingInt(
+                    (Schedule s) -> staffLoad.getOrDefault(s.getStaff().getId(), 0)).reversed());
+            for (int i = 0; i < excess; i++) {
+                Schedule s = e.getValue().get(i);
+                remove.add(s);
+                staffLoad.merge(s.getStaff().getId(), -1, Integer::sum);
+            }
+        }
+        schedules.removeIf(remove::contains);
+        return remove.size();
+    }
+
+    private static String requirementSlotKey(LocalDate date, String typeId, Integer specId) {
+        return date + "|" + typeId + "|" + (specId == null ? 0 : specId);
+    }
+
     private boolean hasGapConflict(List<Schedule> schedules, int staffId, 
             LocalDate date, String shiftTypeId, Integer specId) {
         for (Schedule s : schedules) {
