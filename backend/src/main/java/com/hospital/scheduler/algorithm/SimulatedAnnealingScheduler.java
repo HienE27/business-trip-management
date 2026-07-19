@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class SimulatedAnnealingScheduler {
 
     private final CompensationDateCalculator compensationDateCalculator;
-    private static final int DEFAULT_MAX_ITER = 2000;
+    private static final int DEFAULT_MAX_ITER = 1000;
     private static final double INITIAL_TEMP = 0.05;
     private static final double COOLING_RATE = 0.97;
     private static final double COVERAGE_WEIGHT = 0.7;
@@ -60,50 +60,71 @@ public class SimulatedAnnealingScheduler {
 
         double T = INITIAL_TEMP;
 
-        // Phase 2: Simulated Annealing — swap shifts between staff to improve fairness
+        // Phase 2: Simulated Annealing — move or swap to improve fairness
         for (int iter = 0; iter < maxIter && current.size() >= 2; iter++) {
-            // Pick two random schedule entries with different staff on same date+type
-            Schedule a = current.get(rng.nextInt(current.size()));
-            // Find candidates with same date+shiftType but different staff
-            List<Schedule> candidates = current.stream()
-                    .filter(b -> b != a && !b.getStaff().getId().equals(a.getStaff().getId())
-                            && b.getWorkDate().equals(a.getWorkDate())
-                            && b.getShiftType().getId().equals(a.getShiftType().getId()))
-                    .collect(Collectors.toList());
-            if (candidates.isEmpty()) continue;
+            boolean accepted = false;
 
-            Schedule b = candidates.get(rng.nextInt(candidates.size()));
+            if (rng.nextBoolean()) {
+                // Move mutation: move a schedule to a different eligible staff
+                Schedule s = current.get(rng.nextInt(current.size()));
+                Staff origStaff = s.getStaff();
+                // Find random eligible target
+                List<Staff> shuffledStaff = new ArrayList<>(activeStaff);
+                Collections.shuffle(shuffledStaff, rng);
+                for (Staff target : shuffledStaff) {
+                    if (target.getId().equals(origStaff.getId())) continue;
+                    if (excludedStaffIds != null && excludedStaffIds.contains(target.getId())) continue;
+                    if (!canTake(current, target.getId(), s)) continue;
+                    if (hasCompensationDay(current, target.getId(), s.getWorkDate())) continue;
+                    if (!matchesSpecialtyL04(target, s.getShiftType().getId(), s.getWorkDate(), requirements))
+                        continue;
 
-            // Swap staff assignments: a gets b's staff, b gets a's staff
-            Staff staffA = a.getStaff();
-            Staff staffB = b.getStaff();
+                    double oldScore = score(current, requirements, staffMap, totalRequired);
+                    s.setStaff(target);
+                    updateReq(s, requirements);
 
-            // Check conflicts after swap
-            if (hasConflict(current, staffA.getId(), b.getWorkDate(), b.getShiftType().getId()))
-                continue;
-            if (hasConflict(current, staffB.getId(), a.getWorkDate(), a.getShiftType().getId()))
-                continue;
-
-            // Also check: same staff might end up with duplicate on same day if
-            // swapping different dates — but we already filter same date, so swaps
-            // are same-date and duplicate shiftType would be caught by conflict check.
-
-            a.setStaff(staffB);
-            b.setStaff(staffA);
-
-            double newScore = score(current, requirements, staffMap, totalRequired);
-            double delta = newScore - currentScore;
-
-            if (delta > 0 || rng.nextDouble() < Math.exp(delta / Math.max(T, 1e-9))) {
-                currentScore = newScore;
-                if (newScore > bestScore) {
-                    bestScore = newScore;
-                    bestSolution = new ArrayList<>(current);
+                    double newScore = score(current, requirements, staffMap, totalRequired);
+                    double delta = newScore - oldScore;
+                    if (delta > 0 || rng.nextDouble() < Math.exp(delta / Math.max(T, 1e-9))) {
+                        currentScore = newScore;
+                        accepted = true;
+                        break;
+                    }
+                    // Revert
+                    s.setStaff(origStaff);
+                    updateReq(s, requirements);
+                    break;
                 }
             } else {
-                // Revert
-                a.setStaff(staffA);
-                b.setStaff(staffB);
+                // Swap mutation: swap staff between two schedules same date+type
+                Schedule a = current.get(rng.nextInt(current.size()));
+                List<Schedule> candidates = current.stream()
+                        .filter(b -> b != a && !b.getStaff().getId().equals(a.getStaff().getId())
+                                && b.getWorkDate().equals(a.getWorkDate())
+                                && b.getShiftType().getId().equals(a.getShiftType().getId()))
+                        .collect(Collectors.toList());
+                if (!candidates.isEmpty()) {
+                    Schedule b = candidates.get(rng.nextInt(candidates.size()));
+                    Staff staffA = a.getStaff();
+                    Staff staffB = b.getStaff();
+
+                    if (!hasConflict(current, staffA.getId(), b.getWorkDate(), b.getShiftType().getId())
+                            && !hasConflict(current, staffB.getId(), a.getWorkDate(), a.getShiftType().getId())) {
+                        double oldScore = score(current, requirements, staffMap, totalRequired);
+                        a.setStaff(staffB);
+                        b.setStaff(staffA);
+
+                        double newScore = score(current, requirements, staffMap, totalRequired);
+                        double delta = newScore - oldScore;
+                        if (delta > 0 || rng.nextDouble() < Math.exp(delta / Math.max(T, 1e-9))) {
+                            currentScore = newScore;
+                            accepted = true;
+                        } else {
+                            a.setStaff(staffA);
+                            b.setStaff(staffB);
+                        }
+                    }
+                }
             }
 
             T *= COOLING_RATE;
@@ -294,5 +315,51 @@ public class SimulatedAnnealingScheduler {
             if ("L01".equals(prev) || "L01".equals(next)) return true;
         }
         return false;
+    }
+
+    /** Check if staffId can take this schedule (no conflict, no duplicate type). */
+    private boolean canTake(List<Schedule> current, int staffId, Schedule candidate) {
+        LocalDate date = candidate.getWorkDate();
+        String type = candidate.getShiftType().getId();
+        for (Schedule ex : current) {
+            if (ex.getStaff().getId() != staffId) continue;
+            if (ex == candidate) continue;
+            if (ex.getWorkDate().equals(date)) {
+                String exType = ex.getShiftType().getId();
+                if (exType.equals(type)) return false;
+                if (ScheduleConflictUtils.isBusinessConflict(type, exType)) return false;
+            }
+            if ("L01".equals(type) && "L01".equals(ex.getShiftType().getId())) {
+                long diff = Math.abs(ex.getWorkDate().toEpochDay() - date.toEpochDay());
+                if (diff == 1) return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean hasCompensationDay(List<Schedule> schedules, int staffId, LocalDate date) {
+        for (Schedule s : schedules) {
+            if (s.getStaff().getId() != staffId) continue;
+            if (!"L01".equals(s.getShiftType().getId())) continue;
+            LocalDate compDate = compensationDateCalculator.calculate(s.getWorkDate());
+            if (compDate != null && compDate.equals(date)) return true;
+        }
+        return false;
+    }
+
+    private boolean matchesSpecialtyL04(Staff staff, String shiftType, LocalDate date,
+                                         List<ShiftRequirement> reqs) {
+        if (!"L04".equals(shiftType)) return true;
+        ShiftRequirement req = ScheduleConflictUtils.findMatchingRequirement(staff, date, shiftType, reqs);
+        if (req == null || req.getSpecialty() == null) return true;
+        if (staff.getSpecialty() == null) return false;
+        return staff.getSpecialty().getId().equals(req.getSpecialty().getId());
+    }
+
+    private void updateReq(Schedule s, List<ShiftRequirement> reqs) {
+        if (s.getStaff() == null) return;
+        ShiftRequirement r = ScheduleConflictUtils.findMatchingRequirement(
+                s.getStaff(), s.getWorkDate(), s.getShiftType().getId(), reqs);
+        if (r != null) s.setRequirement(r);
     }
 }
