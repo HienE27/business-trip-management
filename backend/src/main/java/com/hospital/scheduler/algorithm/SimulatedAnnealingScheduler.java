@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class SimulatedAnnealingScheduler {
 
     private final CompensationDateCalculator compensationDateCalculator;
-    private static final int DEFAULT_MAX_ITER = 500;
+    private static final int DEFAULT_MAX_ITER = 2000;
     private static final double INITIAL_TEMP = 0.05;
     private static final double COOLING_RATE = 0.97;
     private static final double COVERAGE_WEIGHT = 0.7;

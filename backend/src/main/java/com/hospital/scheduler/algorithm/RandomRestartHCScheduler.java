@@ -95,10 +95,71 @@ public class RandomRestartHCScheduler {
             }
         }
 
+        // Phase 3: Fairness rebalance — move shifts from overloaded to underloaded staff
+        if (!bestSchedules.isEmpty()) {
+            fairnessRebalance(bestSchedules, activeStaff, excludedStaffIds, staffMap, requirements, rng);
+        }
+
         log.info("RandomRestartHC: {} schedules in {}ms (restarts={}, score={})",
                 bestSchedules.size(), System.currentTimeMillis() - start, numRestarts,
                 String.format("%.3f", bestScore));
         return bestSchedules;
+    }
+
+    /**
+     * Repeatedly move a shift from the most overloaded staff to the most underloaded.
+     * Accepts only if it doesn't create conflicts and improves fairness.
+     */
+    private void fairnessRebalance(List<Schedule> schedules, List<Staff> activeStaff,
+                                    Set<Integer> excludedIds, Map<Integer, Staff> staffMap,
+                                    List<ShiftRequirement> reqs, Random rng) {
+        for (int round = 0; round < 50; round++) {
+            Map<Integer, Integer> counts = new HashMap<>();
+            for (Schedule s : schedules) counts.merge(s.getStaff().getId(), 1, Integer::sum);
+            if (counts.isEmpty()) break;
+
+            int maxCnt = counts.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+            int minCnt = counts.values().stream().mapToInt(Integer::intValue).min().orElse(0);
+            if (maxCnt - minCnt <= 1) break;
+
+            // Find most overloaded staff
+            int overloaded = counts.entrySet().stream()
+                    .max(Comparator.comparingInt(Map.Entry::getValue))
+                    .get().getKey();
+            // Find most underloaded staff
+            int underloaded = counts.entrySet().stream()
+                    .min(Comparator.comparingInt(Map.Entry::getValue))
+                    .get().getKey();
+
+            // Try moving a random shift from overloaded to underloaded
+            List<Schedule> overShifts = schedules.stream()
+                    .filter(s -> s.getStaff().getId() == overloaded)
+                    .collect(Collectors.toList());
+            Collections.shuffle(overShifts, rng);
+
+            boolean moved = false;
+            for (Schedule s : overShifts) {
+                if (!canTake(schedules, underloaded, s)) continue;
+                if (hasCompensationDay(schedules, underloaded, s.getWorkDate())) continue;
+                if (!matchesSpecialtyL04(staffMap.get(underloaded), s.getShiftType().getId(), s.getWorkDate(), reqs))
+                    continue;
+
+                double oldScore = score(schedules, reqs);
+                Staff origStaff = s.getStaff();
+                s.setStaff(staffMap.get(underloaded));
+                updateReq(s, reqs);
+
+                double newScore = score(schedules, reqs);
+                if (newScore > oldScore) {
+                    moved = true;
+                    break;
+                }
+                // Revert
+                s.setStaff(origStaff);
+                updateReq(s, reqs);
+            }
+            if (!moved) break;
+        }
     }
 
     /** Find eligible staff to move a schedule to (excluding current staff). */

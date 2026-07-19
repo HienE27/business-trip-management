@@ -25,10 +25,10 @@ public class BeamSearchScheduler {
 
     private final CompensationDateCalculator compensationDateCalculator;
     private static final int DEFAULT_BEAM_WIDTH = 5;
-    private static final double COVERAGE_WEIGHT = 0.30;
-    private static final double FAIRNESS_WEIGHT = 0.20;
-    private static final double VARIETY_WEIGHT = 0.20;
-    private static final double BALANCE_WEIGHT = 0.30;
+    private static final double COVERAGE_WEIGHT = 0.25;
+    private static final double FAIRNESS_WEIGHT = 0.40;
+    private static final double VARIETY_WEIGHT = 0.10;
+    private static final double BALANCE_WEIGHT = 0.25;
     private static final String[] SHIFT_TYPES = {"L01", "L02", "L03", "L04"};
 
     public List<Schedule> solve(
@@ -195,7 +195,7 @@ for (String ct : otherTypes) {
                                int totalRequired, int numStaff) {
         double coverage = totalRequired > 0 ? (double) assignments.size() / totalRequired : 0;
 
-        // Fairness (tổng)
+        // Fairness (tổng) — includes max-min penalty for heavily imbalanced load
         double fairness = 0;
         if (numStaff > 0 && !staffCount.isEmpty()) {
             double mean = staffCount.values().stream().mapToInt(Integer::intValue).average().orElse(0);
@@ -203,6 +203,11 @@ for (String ct : otherTypes) {
                 double var = staffCount.values().stream()
                         .mapToDouble(c -> Math.pow(c - mean, 2)).sum() / numStaff;
                 fairness = Math.max(0, 1 - Math.sqrt(var) / mean);
+                // Max-min penalty: if someone has >2x mean, penalize
+                int maxCount = staffCount.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+                if (maxCount > mean * 1.5) {
+                    fairness *= Math.max(0, 1 - (maxCount - mean * 1.5) / mean);
+                }
             } else { fairness = 1; }
         }
 

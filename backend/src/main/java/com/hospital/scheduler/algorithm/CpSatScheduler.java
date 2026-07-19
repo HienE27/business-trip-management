@@ -34,8 +34,8 @@ public class CpSatScheduler {
     // CP-SAT solver wall-clock cap (seconds). Scales with problem size: 5s base
     // + 0.5s per day, capped at 60s. OR-Tools returns the best feasible solution
     // found when this fires. Tune up for larger periods / more staff.
-    private static final double TIME_LIMIT_BASE_SECONDS = 5.0;
-    private static final double TIME_LIMIT_PER_DAY_SECONDS = 0.5;
+    private static final double TIME_LIMIT_BASE_SECONDS = 10.0;
+    private static final double TIME_LIMIT_PER_DAY_SECONDS = 1.5;
     private static final double TIME_LIMIT_MAX_SECONDS = 60.0;
 
     public List<Schedule> solve(
