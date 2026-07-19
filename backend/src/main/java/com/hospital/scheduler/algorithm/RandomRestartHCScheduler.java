@@ -72,91 +72,24 @@ public class RandomRestartHCScheduler {
                 bestSchedules = new ArrayList<>(current);
             }
 
-            // Phase 2: hill climb until local optimum
-            boolean improved = true;
-            for (int iter = 0; iter < maxIter && improved; iter++) {
-                improved = false;
-
-                // Try move neighbors: reassign a schedule to a different eligible staff
-                List<Schedule> shuffled = new ArrayList<>(current);
-                Collections.shuffle(shuffled, rng);
-                for (Schedule s : shuffled) {
-                    List<Integer> candidates = findMoveTargets(current, s, activeStaff, excludedStaffIds, requirements, rng);
-                    for (int newStaffId : candidates) {
-                        // Try the move
-                        Staff originalStaff = s.getStaff();
-                        s.setStaff(staffMap.get(newStaffId));
-                        s.setRequirement(ScheduleConflictUtils.findMatchingRequirement(
-                                staffMap.get(newStaffId), s.getWorkDate(), s.getShiftType().getId(), requirements));
-
-                        double newScore = score(current, requirements);
-                        if (newScore > currentScore) {
-                            currentScore = newScore;
-                            improved = true;
-                            break;
-                        }
-                        // Revert
-                        s.setStaff(originalStaff);
-                        s.setRequirement(ScheduleConflictUtils.findMatchingRequirement(
-                                originalStaff, s.getWorkDate(), s.getShiftType().getId(), requirements));
+            // Phase 2: first-choice hill climbing — random neighbor, accept first improving
+            for (int iter = 0; iter < maxIter; iter++) {
+                boolean accepted = false;
+                // Try up to maxTries random neighbors before giving up (local optimum)
+                int maxTries = Math.min(10, current.size() * activeStaff.size());
+                for (int t = 0; t < maxTries; t++) {
+                    if (rng.nextBoolean()) {
+                        accepted = tryRandomMove(current, activeStaff, excludedStaffIds, staffMap, requirements, rng);
+                    } else {
+                        accepted = tryRandomSwap(current, requirements, rng);
                     }
-                    if (improved) break;
+                    if (accepted) break;
                 }
+                if (!accepted) break; // local optimum — restart
 
-                if (improved) {
-                    if (currentScore > bestScore) {
-                        bestScore = currentScore;
-                        bestSchedules = new ArrayList<>(current);
-                    }
-                    continue;
-                }
-
-                // Try swap neighbors: swap shift types between two schedules on same date
-                List<Schedule> shuffled2 = new ArrayList<>(current);
-                Collections.shuffle(shuffled2, rng);
-                outer:
-                for (Schedule a : shuffled2) {
-                    for (Schedule b : current) {
-                        if (a == b) continue;
-                        if (a.getStaff().getId().equals(b.getStaff().getId())) continue;
-                        if (!a.getWorkDate().equals(b.getWorkDate())) continue;
-                        if (a.getShiftType().getId().equals(b.getShiftType().getId())) continue;
-
-                        // Check conflict after swap
-                        if (hasConflict(current, a.getStaff().getId(), a.getWorkDate(), b.getShiftType().getId()))
-                            continue;
-                        if (hasConflict(current, b.getStaff().getId(), b.getWorkDate(), a.getShiftType().getId()))
-                            continue;
-                        // L04 specialty check after swap
-                        if (!matchesSpecialtyL04(a.getStaff(), b.getShiftType().getId(), b.getWorkDate(), requirements))
-                            continue;
-                        if (!matchesSpecialtyL04(b.getStaff(), a.getShiftType().getId(), a.getWorkDate(), requirements))
-                            continue;
-
-                        // Try the swap
-                        var typeA = a.getShiftType();
-                        var typeB = b.getShiftType();
-                        a.setShiftType(typeB);
-                        b.setShiftType(typeA);
-                        updateReq(a, requirements);
-                        updateReq(b, requirements);
-
-                        double newScore = score(current, requirements);
-                        if (newScore > currentScore) {
-                            currentScore = newScore;
-                            improved = true;
-                            break outer;
-                        }
-                        // Revert
-                        a.setShiftType(typeA);
-                        b.setShiftType(typeB);
-                        updateReq(a, requirements);
-                        updateReq(b, requirements);
-                    }
-                }
-
-                if (improved && currentScore > bestScore) {
-                    bestScore = currentScore;
+                double newScore = score(current, requirements);
+                if (newScore > bestScore) {
+                    bestScore = newScore;
                     bestSchedules = new ArrayList<>(current);
                 }
             }
@@ -389,5 +322,102 @@ public class RandomRestartHCScheduler {
         ShiftRequirement r = ScheduleConflictUtils.findMatchingRequirement(
                 s.getStaff(), s.getWorkDate(), s.getShiftType().getId(), reqs);
         if (r != null) s.setRequirement(r);
+    }
+
+    /**
+     * First-choice hill climbing: pick random schedule + random target staff.
+     * Accept move if it strictly improves score. O(S) per call.
+     */
+    private boolean tryRandomMove(List<Schedule> current, List<Staff> activeStaff,
+                                   Set<Integer> excludedIds, Map<Integer, Staff> staffMap,
+                                   List<ShiftRequirement> reqs, Random rng) {
+        Schedule s = current.get(rng.nextInt(current.size()));
+        Staff originalStaff = s.getStaff();
+
+        // Pick random eligible target staff
+        Staff target = null;
+        List<Staff> shuffled = new ArrayList<>(activeStaff);
+        Collections.shuffle(shuffled, rng);
+        for (Staff st : shuffled) {
+            if (st.getId().equals(originalStaff.getId())) continue;
+            if (excludedIds != null && excludedIds.contains(st.getId())) continue;
+            if (!canTake(current, st.getId(), s)) continue;
+            if (hasCompensationDay(current, st.getId(), s.getWorkDate())) continue;
+            if (!matchesSpecialtyL04(st, s.getShiftType().getId(), s.getWorkDate(), reqs)) continue;
+            target = st;
+            break;
+        }
+        if (target == null) return false;
+
+        double oldScore = score(current, reqs);
+        s.setStaff(target);
+        updateReq(s, reqs);
+
+        if (score(current, reqs) > oldScore) return true;
+
+        // Revert
+        s.setStaff(originalStaff);
+        updateReq(s, reqs);
+        return false;
+    }
+
+    /**
+     * First-choice swap: pick two random schedules same-date different-staff different-type,
+     * accept if strictly improves score. O(N) per call.
+     */
+    private boolean tryRandomSwap(List<Schedule> current, List<ShiftRequirement> reqs, Random rng) {
+        if (current.size() < 2) return false;
+
+        // Build index: date → list of schedules
+        Map<LocalDate, List<Schedule>> byDate = new HashMap<>();
+        for (Schedule s : current) {
+            byDate.computeIfAbsent(s.getWorkDate(), k -> new ArrayList<>()).add(s);
+        }
+
+        // Pick a random date that has at least 2 schedules with different types
+        List<LocalDate> dates = new ArrayList<>(byDate.keySet());
+        Collections.shuffle(dates, rng);
+        for (LocalDate d : dates) {
+            List<Schedule> daySchedules = byDate.get(d);
+            if (daySchedules == null || daySchedules.size() < 2) continue;
+
+            // Find a pair with different staff AND different shift type
+            for (int i = 0; i < daySchedules.size(); i++) {
+                Schedule a = daySchedules.get(i);
+                for (int j = i + 1; j < daySchedules.size(); j++) {
+                    Schedule b = daySchedules.get(j);
+                    if (a.getStaff().getId().equals(b.getStaff().getId())) continue;
+                    if (a.getShiftType().getId().equals(b.getShiftType().getId())) continue;
+
+                    // Check conflict after swap
+                    if (hasConflict(current, a.getStaff().getId(), a.getWorkDate(), b.getShiftType().getId()))
+                        continue;
+                    if (hasConflict(current, b.getStaff().getId(), b.getWorkDate(), a.getShiftType().getId()))
+                        continue;
+                    if (!matchesSpecialtyL04(a.getStaff(), b.getShiftType().getId(), b.getWorkDate(), reqs))
+                        continue;
+                    if (!matchesSpecialtyL04(b.getStaff(), a.getShiftType().getId(), a.getWorkDate(), reqs))
+                        continue;
+
+                    double oldScore = score(current, reqs);
+                    var typeA = a.getShiftType();
+                    var typeB = b.getShiftType();
+                    a.setShiftType(typeB);
+                    b.setShiftType(typeA);
+                    updateReq(a, reqs);
+                    updateReq(b, reqs);
+
+                    if (score(current, reqs) > oldScore) return true;
+
+                    // Revert
+                    a.setShiftType(typeA);
+                    b.setShiftType(typeB);
+                    updateReq(a, reqs);
+                    updateReq(b, reqs);
+                    return false; // first pair found → stop
+                }
+            }
+        }
+        return false;
     }
 }
