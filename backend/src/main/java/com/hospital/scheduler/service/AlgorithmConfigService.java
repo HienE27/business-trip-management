@@ -34,6 +34,12 @@ public class AlgorithmConfigService {
     private final AlgorithmConfigRepository configRepository;
     private final AlgorithmConfigAuditRepository auditRepository;
     private final ObjectMapper objectMapper;
+    // PR-002A: delegate-only injection. AutoGenConfigService owns the
+    // authoritative get/save implementation; this service keeps the
+    // public API stable for the 12 production callers that still
+    // depend on it. The PR-002C decision is intentionally deferred —
+    // if the facade stays thin and cheap, removal is not required.
+    private final AutoGenConfigService autoGenConfigService;
 
     // Auto-generate config param keys
     public static final String AUTO_GEN_ENABLED = "auto_gen_enabled";
@@ -59,6 +65,10 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY_RATIO = "auto_gen_l04_cross_specialty_ratio";
     public static final String AUTO_GEN_L04_ALLOWED_SPECIALTIES = "auto_gen_l04_allowed_specialties";
     public static final String AUTO_GEN_L04_BALANCE_STRATEGY = "auto_gen_l04_balance_strategy";
+    // PR-002A: kept uppercase to match existing DB rows seeded by the legacy
+    // upsert path. Migrating this row to lowercase is intentionally deferred —
+    // it would change behavior outside the scope of the delegation refactor.
+    public static final String AUTO_GEN_REMOVED_SHIFT_TYPES = "AUTO_GEN_REMOVED_SHIFT_TYPES";
 
     // Algorithm runtime config param keys
     public static final String WEEKEND_WEIGHT = "weekend_weight";
@@ -244,55 +254,16 @@ public class AlgorithmConfigService {
      * disabled state — that pattern was misleadingly documented in an older
      * version of this method and has never been the actual contract.
      */
+    @Transactional(readOnly = true)
     public java.util.Optional<AutoGenConfig> getAutoGenConfig() {
-        // HISTORY: An earlier javadoc claimed this method returned
-        // Optional.empty() when auto-gen was disabled. The implementation has
-        // always returned a present Optional with cfg.enabled() reflecting the
-        // persisted flag, so all 12 production callers (RequirementPreparation,
-        // AutoScheduling, StaffEligibilityFilter, SchedulingFeasibilityAnalyzer,
-        // RuntimeConfigService, DataSeeder, AutoSchedulingController, …) read
-        // cfg.enabled() rather than isEmpty(). Keep the contract documented
-        // above in sync with the implementation if behavior ever changes.
-        //
-        // Bulk-load once, then read every key from the in-memory map — replaces
-        // the 25 separate findByParamKey SELECTs that were making the
-        // algorithm-config page take 5+ seconds to load.
-        java.util.Map<String, String> cache = loadConfigCache();
-        String enabledRaw = cache.get(AUTO_GEN_ENABLED);
-        // Default to true so auto-scheduling works out-of-the-box.
-        boolean enabled = enabledRaw == null || Boolean.parseBoolean(enabledRaw);
-        // Always return a config with defaults — even if AUTO_GEN_ENABLED is missing from DB,
-        // fall back to defaults so auto-scheduling works out-of-the-box without manual config setup.
-        return java.util.Optional.of(new AutoGenConfig(
-                enabled,
-                getIntValue(AUTO_GEN_L01_MIN_PER_DAY, 1, cache),
-                getIntValue(AUTO_GEN_L02_MIN_PER_DAY, 1, cache),
-                getIntValue(AUTO_GEN_L03_MIN_PER_DAY, 1, cache),
-                getIntValue(AUTO_GEN_L04_MIN_PER_DAY, 1, cache),
-                getIntValue(AUTO_GEN_L01_MAX_PER_DAY, 0, cache),
-                getIntValue(AUTO_GEN_L02_MAX_PER_DAY, 0, cache),
-                getIntValue(AUTO_GEN_L03_MAX_PER_DAY, 0, cache),
-                getIntValue(AUTO_GEN_L04_MAX_PER_DAY, 0, cache),
-                getIntValue(AUTO_GEN_L01_MIN_PER_WEEK, 1, cache),
-                getIntValue(AUTO_GEN_L02_MIN_PER_WEEK, 2, cache),
-                getIntValue(AUTO_GEN_L03_MIN_PER_WEEK, 1, cache),
-                getIntValue(AUTO_GEN_L04_MIN_PER_WEEK, 1, cache),
-                getIntValue(AUTO_GEN_L01_MAX_PER_WEEK, 0, cache),
-                getIntValue(AUTO_GEN_L02_MAX_PER_WEEK, 0, cache),
-                getIntValue(AUTO_GEN_L03_MAX_PER_WEEK, 0, cache),
-                getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0, cache),
-                getStringValue(AUTO_GEN_HOLIDAY_MODE, AutoGenConstants.HOLIDAY_MODE_SKIP, cache),
-                getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES", cache),
-                // L01/L02/L03: không có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
-        // L04: có specialty config
-        getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, true, cache),
-        getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.5f, cache),
-        getStringListValue(AUTO_GEN_L04_ALLOWED_SPECIALTIES, cache), // null/empty = all specialties
-        // BUGFIX (2026-07-19): read l04BalanceStrategy from cache instead of hardcoding
-        // the default. Previously the value persisted via PUT was always overridden by
-        // BALANCE_STRATEGY_FAIR_DISTRIBUTE on subsequent GETs.
-        getStringValue(AUTO_GEN_L04_BALANCE_STRATEGY, AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE, cache)
-        ));
+        // PR-002A: delegate. The authoritative implementation lives in
+        // AutoGenConfigService#getAutoGenConfig (uses the shared
+        // AlgorithmConfigCrudService for bulk-load + cache parsing).
+        // The contract documented above is preserved — this method still
+        // returns a present Optional whose cfg.enabled() reflects the
+        // persisted flag. Internal callers (getRuntimeConfig,
+        // recommendAutoGenConfig) keep using this delegation.
+        return autoGenConfigService.getAutoGenConfig();
     }
 
     /**
@@ -300,44 +271,12 @@ public class AlgorithmConfigService {
      */
     @Transactional
     public void saveAutoGenConfig(AutoGenConfig config) {
-        upsert(AUTO_GEN_ENABLED, String.valueOf(config.enabled()), AlgorithmConfig.ValueType.BOOLEAN,
-                "Tự động tạo yêu cầu nhân sự khi mở kỳ lịch mới.");
-        upsert(AUTO_GEN_L01_MIN_PER_DAY, String.valueOf(config.l01MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L01 mỗi ngày; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
-        upsert(AUTO_GEN_L02_MIN_PER_DAY, String.valueOf(config.l02MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L02 mỗi ngày; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
-        upsert(AUTO_GEN_L03_MIN_PER_DAY, String.valueOf(config.l03MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L03 mỗi ngày; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
-        upsert(AUTO_GEN_L04_MIN_PER_DAY, String.valueOf(config.l04MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L04 mỗi ngày/chuyên khoa; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
-        upsert(AUTO_GEN_L01_MAX_PER_DAY, String.valueOf(config.l01MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L01 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
-        upsert(AUTO_GEN_L02_MAX_PER_DAY, String.valueOf(config.l02MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L02 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
-        upsert(AUTO_GEN_L03_MAX_PER_DAY, String.valueOf(config.l03MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L03 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
-        upsert(AUTO_GEN_L04_MAX_PER_DAY, String.valueOf(config.l04MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L04 mỗi ngày/chuyên khoa khi sinh mục tiêu. 0 = không đặt trần.");
-        upsert(AUTO_GEN_L01_MIN_PER_WEEK, String.valueOf(config.l01MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L01 tối thiểu mỗi người mỗi tuần.");
-        upsert(AUTO_GEN_L02_MIN_PER_WEEK, String.valueOf(config.l02MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L02 tối thiểu mỗi người mỗi tuần.");
-        upsert(AUTO_GEN_L03_MIN_PER_WEEK, String.valueOf(config.l03MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L03 tối thiểu mỗi người mỗi tuần.");
-        upsert(AUTO_GEN_L04_MIN_PER_WEEK, String.valueOf(config.l04MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L04 tối thiểu mỗi người mỗi tuần.");
-        upsert(AUTO_GEN_L01_MAX_PER_WEEK, String.valueOf(config.l01MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L01 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L02_MAX_PER_WEEK, String.valueOf(config.l02MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L02 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L03_MAX_PER_WEEK, String.valueOf(config.l03MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L03 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L04_MAX_PER_WEEK, String.valueOf(config.l04MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L04 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        upsert(AUTO_GEN_HOLIDAY_MODE, config.holidayMode(), AlgorithmConfig.ValueType.STRING,
-                "Xử lý ngày lễ: SKIP = bỏ qua, PARTIAL = giảm cường độ.");
-        String removedCsv = config.removedShiftTypes() == null
-                ? ""
-                : String.join(",", config.removedShiftTypes());
-        upsert("AUTO_GEN_REMOVED_SHIFT_TYPES", removedCsv, AlgorithmConfig.ValueType.STRING,
-                "Danh sách mã loại lịch (L01..L04) bị bỏ qua khi tự động tạo yêu cầu. Phân tách bằng dấu phẩy. Rỗng = không bỏ.");
-        upsert(AUTO_GEN_L04_CROSS_SPECIALTY, String.valueOf(config.l04CrossSpecialty()), AlgorithmConfig.ValueType.BOOLEAN,
-                "Cho phép gán nhân sự từ chuyên khoa khác vào L04 khi chuyên khoa gốc thiếu nhân sự.");
-        upsert(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, String.valueOf(config.l04CrossSpecialtyRatio()), AlgorithmConfig.ValueType.NUMBER,
-                "Ngưỡng shortage L04 (0.0-1.0) để kích hoạt cross-specialty. Ví dụ: 0.5 = chỉ dùng cross khi strict thiếu ≥ 50%. 0.0 = không bao giờ. 1.0 = dùng cross khi thiếu bất kỳ.");
-        String allowedSpecs = config.l04AllowedSpecialties() == null || config.l04AllowedSpecialties().isEmpty()
-                ? "" : String.join(",", config.l04AllowedSpecialties());
-        upsert("AUTO_GEN_L04_ALLOWED_SPECIALTIES", allowedSpecs, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L04 (PK Chuyên gia). Rỗng = tất cả 6 khoa. Ví dụ: Ngoại,Nội,Sản,Nhi,Mắt,Răng");
-        upsert(AUTO_GEN_L04_BALANCE_STRATEGY,
-                config.l04BalanceStrategy() != null ? config.l04BalanceStrategy() : AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE,
-                AlgorithmConfig.ValueType.STRING,
-                "Chiến lược cân bằng cross-specialty L04: STRICT_MATCH_ONLY, FAIR_DISTRIBUTE, WEIGHTED_FAIR.");
-        // L01/L02/L03: KHÔNG có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES (6 khoa)
+        // PR-002A: delegate to AutoGenConfigService#saveAutoGenConfig.
+        // All field-level upserts (paramKey, value, type, description)
+        // are owned by AutoGenConfigService to keep the persistence layer
+        // in one place. This thin wrapper preserves the public API for
+        // the 2 production callers (DataSeeder, AutoSchedulingController).
+        autoGenConfigService.saveAutoGenConfig(config);
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.algorithm.AutoGenConfig;
+import com.hospital.scheduler.algorithm.AutoGenConstants;
 import com.hospital.scheduler.entity.AlgorithmConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -57,27 +58,8 @@ public class AutoGenConfigService {
         String removedCsv = config.removedShiftTypes() == null
                 ? ""
                 : String.join(",", config.removedShiftTypes());
-        crud.upsert("AUTO_GEN_REMOVED_SHIFT_TYPES", removedCsv, AlgorithmConfig.ValueType.STRING,
+        crud.upsert(AlgorithmConfigService.AUTO_GEN_REMOVED_SHIFT_TYPES, removedCsv, AlgorithmConfig.ValueType.STRING,
                 "Danh sách mã loại lịch (L01..L04) bị bỏ qua khi tự động tạo yêu cầu. Phân tách bằng dấu phẩy. Rỗng = không bỏ.");
-        // Theo nghiệp vụ, L01/L02/L03 không có cấu hình chuyên khoa.
-        // Chỉ L04 có cross-specialty config. Các param L01/L02/L03 trong DB
-        // được set về "" khi save và ignored khi đọc.
-        // L01/L02/L03 cross-specialty params (DEPRECATED)
-        crud.upsert("AUTO_GEN_L01_ALLOWED_SPECIALTIES", "",
-                AlgorithmConfig.ValueType.STRING,
-                "[DEPRECATED] Không còn dùng. L01 eligibility = ALL_ELIGIBLE_SPECIALTIES (6 khoa).");
-        crud.upsert("AUTO_GEN_L02_ALLOWED_SPECIALTIES", "",
-                AlgorithmConfig.ValueType.STRING,
-                "[DEPRECATED] Không còn dùng. L02 eligibility = ALL_ELIGIBLE_SPECIALTIES (6 khoa).");
-        crud.upsert("AUTO_GEN_L03_ALLOWED_SPECIALTIES", "",
-                AlgorithmConfig.ValueType.STRING,
-                "[DEPRECATED] Không còn dùng. L03 eligibility = ALL_ELIGIBLE_SPECIALTIES (6 khoa).");
-        crud.upsert("AUTO_GEN_L01_CROSS_SPECIALTY", "false", AlgorithmConfig.ValueType.BOOLEAN,
-                "[DEPRECATED] Không còn dùng. L01 không có cross-specialty.");
-        crud.upsert("AUTO_GEN_L02_CROSS_SPECIALTY", "false", AlgorithmConfig.ValueType.BOOLEAN,
-                "[DEPRECATED] Không còn dùng. L02 không có cross-specialty.");
-        crud.upsert("AUTO_GEN_L03_CROSS_SPECIALTY", "false", AlgorithmConfig.ValueType.BOOLEAN,
-                "[DEPRECATED] Không còn dùng. L03 không có cross-specialty.");
 
         // L04 cross-specialty
         crud.upsert(AlgorithmConfigService.AUTO_GEN_L04_CROSS_SPECIALTY, String.valueOf(config.l04CrossSpecialty()), AlgorithmConfig.ValueType.BOOLEAN,
@@ -86,10 +68,10 @@ public class AutoGenConfigService {
                 "Ngưỡng shortage L04 (0.0-1.0) để kích hoạt cross-specialty.");
         String allowedSpecs = config.l04AllowedSpecialties() == null || config.l04AllowedSpecialties().isEmpty()
                 ? "" : String.join(",", config.l04AllowedSpecialties());
-        crud.upsert("AUTO_GEN_L04_ALLOWED_SPECIALTIES", allowedSpecs, AlgorithmConfig.ValueType.STRING,
+        crud.upsert(AlgorithmConfigService.AUTO_GEN_L04_ALLOWED_SPECIALTIES, allowedSpecs, AlgorithmConfig.ValueType.STRING,
                 "Danh sách chuyên khoa được gán L04. Rỗng = tất cả 6 khoa.");
         crud.upsert(AlgorithmConfigService.AUTO_GEN_L04_BALANCE_STRATEGY,
-                config.l04BalanceStrategy() != null ? config.l04BalanceStrategy() : "FAIR_DISTRIBUTE",
+                config.l04BalanceStrategy() != null ? config.l04BalanceStrategy() : AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE,
                 AlgorithmConfig.ValueType.STRING,
                 "Chiến lược cân bằng cross-specialty L04: STRICT_MATCH_ONLY, FAIR_DISTRIBUTE, WEIGHTED_FAIR.");
     }
@@ -113,14 +95,14 @@ public class AutoGenConfigService {
                 crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L02_MAX_PER_WEEK, 0, cache),
                 crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L03_MAX_PER_WEEK, 0, cache),
                 crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L04_MAX_PER_WEEK, 0, cache),
-                crud.getStringValue(AlgorithmConfigService.AUTO_GEN_HOLIDAY_MODE, "SKIP", cache),
-                crud.getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES", cache),
+                crud.getStringValue(AlgorithmConfigService.AUTO_GEN_HOLIDAY_MODE, AutoGenConstants.HOLIDAY_MODE_SKIP, cache),
+                crud.getStringListValue(AlgorithmConfigService.AUTO_GEN_REMOVED_SHIFT_TYPES, cache),
                 // L01/L02/L03: không có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
                 // L04: có specialty config
-                crud.getBooleanValue(AlgorithmConfigService.AUTO_GEN_L04_CROSS_SPECIALTY, false, cache),
+                crud.getBooleanValue(AlgorithmConfigService.AUTO_GEN_L04_CROSS_SPECIALTY, true, cache),
                 crud.getFloatValue(AlgorithmConfigService.AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.5f, cache),
-                crud.getStringListValue("AUTO_GEN_L04_ALLOWED_SPECIALTIES", cache),
-                crud.getStringValue(AlgorithmConfigService.AUTO_GEN_L04_BALANCE_STRATEGY, "FAIR_DISTRIBUTE", cache)
+                crud.getStringListValue(AlgorithmConfigService.AUTO_GEN_L04_ALLOWED_SPECIALTIES, cache),
+                crud.getStringValue(AlgorithmConfigService.AUTO_GEN_L04_BALANCE_STRATEGY, AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE, cache)
         );
     }
 }
