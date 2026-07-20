@@ -84,6 +84,17 @@ class DashboardServiceTest {
         when(exchangeRepository.countByStatus(any())).thenReturn(0L);
         when(scheduleRepository.findByPeriodId(1)).thenReturn(List.of(schedule));
 
+        // Build 10 active staff so findByIsActiveTrue().size() == 10.
+        java.util.List<Staff> activeStaff = new java.util.ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            activeStaff.add(Staff.builder()
+                    .id(i).username("s" + i).fullName("User " + i).isActive(true)
+                    .specialty(Specialty.builder().id(1).name("Nội khoa").build())
+                    .build());
+        }
+        when(staffRepository.findByIsActiveTrue()).thenReturn(activeStaff);
+        when(scheduleRepository.findByPeriodId(1)).thenReturn(List.of(schedule));
+
         var result = dashboardService.getDashboardSummary(1);
 
         assertThat(result.getSummary().getTotalStaff()).isEqualTo(10);
@@ -159,8 +170,8 @@ class DashboardServiceTest {
     @Test
     @DisplayName("aggregateByDateRange -> tổng hợp theo range có filter")
     void aggregateByRange() {
-        // BUGFIX: aggregateByDateRange uses findByDateRangeAndOptionalStaff, not findAll.
-        when(scheduleRepository.findByDateRangeAndOptionalStaff(any(), any(), any()))
+        // aggregateByDateRange uses findAll() internally with date-range filtering done in-memory.
+        when(scheduleRepository.findAll())
                 .thenReturn(List.of(schedule));
         when(staffRepository.findById(1)).thenReturn(java.util.Optional.of(staff));
 

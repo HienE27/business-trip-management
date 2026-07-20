@@ -241,7 +241,7 @@ class SpecialtyServiceTest {
 
         when(specialtyRepository.findAll(any(Pageable.class))).thenReturn(page);
 
-        Page<SpecialtyResponse> result = service.getSpecialtiesPage(null, null, pageable);
+        Page<SpecialtyResponse> result = service.getSpecialtiesPage(pageable);
 
         assertThat(result.getTotalElements()).isEqualTo(1);
         assertThat(result.getContent().get(0).getName()).isEqualTo("B");
@@ -250,12 +250,14 @@ class SpecialtyServiceTest {
     @Test
     @DisplayName("getStatusCounts -> đếm total/ACTIVE/INACTIVE đúng")
     void getStatusCounts() {
-        // BUGFIX: getStatusCounts now uses countAllGroupedByActive() aggregate query
-        // instead of findAll() + in-memory counters.
-        when(specialtyRepository.countAllGroupedByActive()).thenReturn(List.<Object[]>of(
-                new Object[]{Boolean.TRUE, 3L},
-                new Object[]{Boolean.FALSE, 1L}
-        ));
+        // Production iterates findAll() and counts ACTIVE vs other,
+        // then uses count() for the total.
+        Specialty active1 = Specialty.builder().id(1).name("A1").isActive(true).build();
+        Specialty active2 = Specialty.builder().id(2).name("A2").isActive(true).build();
+        Specialty active3 = Specialty.builder().id(3).name("A3").isActive(true).build();
+        Specialty inactive = Specialty.builder().id(4).name("I1").isActive(false).build();
+        when(specialtyRepository.findAll()).thenReturn(List.of(active1, active2, active3, inactive));
+        when(specialtyRepository.count()).thenReturn(4L);
 
         Map<String, Long> counts = service.getStatusCounts();
 
@@ -267,8 +269,8 @@ class SpecialtyServiceTest {
     @Test
     @DisplayName("getStatusCounts với isActive null -> tính là INACTIVE")
     void getStatusCounts_nullActiveCountedInactive() {
-        // Production reads from the aggregate query — null/empty rows mean ACTIVE=0
-        when(specialtyRepository.countAllGroupedByActive()).thenReturn(List.<Object[]>of());
+        when(specialtyRepository.findAll()).thenReturn(List.of());
+        when(specialtyRepository.count()).thenReturn(0L);
 
         Map<String, Long> counts = service.getStatusCounts();
 

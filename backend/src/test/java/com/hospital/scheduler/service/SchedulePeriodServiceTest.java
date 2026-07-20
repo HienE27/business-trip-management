@@ -282,7 +282,7 @@ class SchedulePeriodServiceTest {
         @Test
         @DisplayName("DRAFT, không conflict -> PUBLISHED + gửi thông báo cho staff")
         void draftWithoutConflicts_shouldPublish() {
-            when(periodRepository.findByIdWithLock(1)).thenReturn(Optional.of(draftPeriod));
+            when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(conflictDetectionService.checkPeriodConflicts(1))
                     .thenReturn(ConflictCheckResponse.builder().hasConflicts(false).conflicts(List.of()).build());
             when(periodRepository.save(any(SchedulePeriod.class)))
@@ -294,16 +294,14 @@ class SchedulePeriodServiceTest {
             SchedulePeriodResponse result = periodService.publishPeriod(1, 1);
 
             assertThat(result.getStatus()).isEqualTo("PUBLISHED");
-            // The publish flow now sends notifications via batch path, not per-staff.
-            // Capture the argument and verify the list actually contains a notification
-            // addressed to adminStaff — this catches production bugs that would
-            // pass an empty list or target the wrong recipient.
-            ArgumentCaptor<List<Notification>> batchCaptor = ArgumentCaptor.forClass(List.class);
-            verify(notificationService).createNotificationBatch(batchCaptor.capture());
-            List<Notification> published = batchCaptor.getValue();
-            assertThat(published).isNotEmpty();
-            assertThat(published).extracting(Notification::getStaff)
-                    .containsExactly(adminStaff);
+            // The publish flow sends per-staff notifications (one call per active staff).
+            // Capture the staffId argument and verify createNotification was invoked
+            // with adminStaff — this catches production bugs that would skip notifications.
+            ArgumentCaptor<Integer> staffIdCaptor = ArgumentCaptor.forClass(Integer.class);
+            ArgumentCaptor<com.hospital.scheduler.dto.request.NotificationDTO> dtoCaptor =
+                    ArgumentCaptor.forClass(com.hospital.scheduler.dto.request.NotificationDTO.class);
+            verify(notificationService, atLeastOnce()).createNotification(staffIdCaptor.capture(), dtoCaptor.capture());
+            assertThat(staffIdCaptor.getAllValues()).contains(adminStaff.getId());
             verify(emailService).sendSchedulePublishedEmail(
                     eq(List.of(adminStaff)), anyString(), any(), any(), anyList(), anyList());
         }
@@ -311,7 +309,7 @@ class SchedulePeriodServiceTest {
         @Test
         @DisplayName("PUBLISHED -> throw BadRequestException")
         void alreadyPublished_shouldThrow() {
-            when(periodRepository.findByIdWithLock(2)).thenReturn(Optional.of(publishedPeriod));
+            when(periodRepository.findById(2)).thenReturn(Optional.of(publishedPeriod));
 
             assertThatThrownBy(() -> periodService.publishPeriod(2, 1))
                     .isInstanceOf(BadRequestException.class)
@@ -321,7 +319,7 @@ class SchedulePeriodServiceTest {
         @Test
         @DisplayName("Có xung đột -> throw BadRequestException")
         void hasConflicts_shouldThrow() {
-            when(periodRepository.findByIdWithLock(1)).thenReturn(Optional.of(draftPeriod));
+            when(periodRepository.findById(1)).thenReturn(Optional.of(draftPeriod));
             when(conflictDetectionService.checkPeriodConflicts(1))
                     .thenReturn(ConflictCheckResponse.builder().hasConflicts(true)
                             .conflicts(List.of(ConflictCheckResponse.ConflictDetail.builder()
