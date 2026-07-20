@@ -407,19 +407,6 @@ public class AlgorithmConfigService {
         return raw != null ? raw : defaultValue;
     }
 
-    private java.util.List<String> getStringListValue(String paramKey) {
-        return getStringListValue(paramKey, null);
-    }
-
-    private java.util.List<String> getStringListValue(String paramKey, java.util.Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
-        if (raw == null || raw.isBlank()) return java.util.List.of();
-        return java.util.Arrays.stream(raw.split(","))
-                .map(String::trim)
-                .filter(t -> !t.isEmpty())
-                .toList();
-    }
-
     /**
      * Single-row SELECT kept around for callers that do NOT preload the cache
      * (e.g. one-off lookups during save/upsert, audit queries).
@@ -493,29 +480,6 @@ public class AlgorithmConfigService {
                 "Số ca trực tối thiểu mỗi nhân sự trong kỳ. Đặt 0 để bỏ qua. Giúp đảm bảo mỗi người đều có ít nhất N ca trong kỳ.");
         upsert(MAX_SHIFTS_PER_STAFF, String.valueOf(config.getMaxShiftsPerStaff()), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca trực tối đa mỗi nhân sự trong kỳ. Đặt 0 để dùng maxShiftsPerMonth của nhân sự. Giới hạn này ngược lại với min — ngăn không ai bị quá tải.");
-    }
-
-    private boolean getBooleanValue(String paramKey, boolean defaultValue) {
-        return getBooleanValue(paramKey, defaultValue, null);
-    }
-
-    private boolean getBooleanValue(String paramKey, boolean defaultValue, java.util.Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
-        return raw != null && Boolean.parseBoolean(raw);
-    }
-
-    private float getFloatValue(String paramKey, float defaultValue) {
-        return getFloatValue(paramKey, defaultValue, null);
-    }
-
-    private float getFloatValue(String paramKey, float defaultValue, java.util.Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
-        if (raw == null) return defaultValue;
-        try {
-            return Float.parseFloat(raw);
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
     }
 
     private java.math.BigDecimal getBigDecimalValue(String paramKey, double defaultValue) {
