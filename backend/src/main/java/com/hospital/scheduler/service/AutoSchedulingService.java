@@ -701,16 +701,20 @@ public class AutoSchedulingService {
 
         // CRITICAL: Pre-load existing schedules from the same period into memory
         // This ensures the algorithm sees all already-assigned shifts and avoids conflicts
-        // that would fail at apply-preview time (e.g., back-to-back L01 checks)
-        List<Schedule> existingSchedules = scheduleRepository.findByPeriodId(period.getId());
-        for (Schedule existing : existingSchedules) {
-            String key = existing.getStaff().getId() + "_" + existing.getWorkDate();
-            inMemoryAssignments.get().computeIfAbsent(key, k -> new HashSet<>()).add(existing.getShiftType().getId());
-            // Also track compensation dates from existing L01 shifts
-            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(existing.getShiftType().getId())) {
-                LocalDate compDate = compensationDateCalculator.calculate(existing.getWorkDate());
-                if (compDate != null) {
-                    compensationDayAutoService.addToCache(existing.getStaff().getId() + "_" + compDate.toString());
+        // that would fail at apply-preview time (e.g., back-to-back L01 checks).
+        // Preview mode: skip — user expects a fresh run with new config; old schedules
+        // are deleted by applyPreviewScheduleInternal before the new ones are persisted.
+        if (save) {
+            List<Schedule> existingSchedules = scheduleRepository.findByPeriodId(period.getId());
+            for (Schedule existing : existingSchedules) {
+                String key = existing.getStaff().getId() + "_" + existing.getWorkDate();
+                inMemoryAssignments.get().computeIfAbsent(key, k -> new HashSet<>()).add(existing.getShiftType().getId());
+                // Also track compensation dates from existing L01 shifts
+                if (ConflictDetectionService.SHIFT_TYPE_L01.equals(existing.getShiftType().getId())) {
+                    LocalDate compDate = compensationDateCalculator.calculate(existing.getWorkDate());
+                    if (compDate != null) {
+                        compensationDayAutoService.addToCache(existing.getStaff().getId() + "_" + compDate.toString());
+                    }
                 }
             }
         }
