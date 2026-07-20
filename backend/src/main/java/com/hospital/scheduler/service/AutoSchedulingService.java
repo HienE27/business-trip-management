@@ -604,24 +604,36 @@ public class AutoSchedulingService {
 
 		        // Tính tổng yêu cầu từ config
 		        var autoGenCfg = algorithmConfigService.getAutoGenConfig();
-		        if (autoAdjust && autoGenCfg.isPresent()) {
-		            var cfg = autoGenCfg.get();
-		            int estimatedDaily = cfg.l01MaxPerDay() + cfg.l02MaxPerDay() + cfg.l03MaxPerDay()
-		                    + cfg.l04MaxPerDay() * 6;
+		        com.hospital.scheduler.algorithm.AutoGenConfig effectiveConfig = autoGenCfg.orElse(null);
+		        if (autoAdjust && effectiveConfig != null) {
+		            int estimatedDaily = effectiveConfig.l01MaxPerDay() + effectiveConfig.l02MaxPerDay() + effectiveConfig.l03MaxPerDay()
+		                    + effectiveConfig.l04MaxPerDay() * 6;
 		            int estimatedTotal = estimatedDaily * periodDays;
 		            int capacity = staffCount * runtimeConfig.getMaxShiftsPerStaff();
-
-		            // Nếu yêu cầu > năng lực → tự động giảm L04 max
+	
+		            // Nếu yêu cầu > năng lực → tự động giảm L04 max (in-memory, KHÔNG ghi DB)
 		            if (estimatedTotal > capacity && estimatedTotal > 0) {
 		                double ratio = (double) capacity / estimatedTotal;
-		                int newL04Max = Math.max(1, (int)(cfg.l04MaxPerDay() * ratio));
-	                log.warn("[AutoAdjust] Config không phù hợp: yêu cầu={} > năng lực={}, tự giảm L04 max từ {} → {}",
-	                        estimatedTotal, capacity, cfg.l04MaxPerDay(), newL04Max);
-	                algorithmConfigService.updateAutoGenField("auto_gen_l04_max_per_day", String.valueOf(newL04Max));
-	                // Reload config after update
-	                autoGenCfg = algorithmConfigService.getAutoGenConfig();
-	            }
-	        }
+		                int newL04Max = Math.max(1, (int)(effectiveConfig.l04MaxPerDay() * ratio));
+	                log.warn("[AutoAdjust] Config không phù hợp: yêu cầu={} > năng lực={}, tự giảm L04 max từ {} → {} (in-memory, không ghi DB)",
+	                        estimatedTotal, capacity, effectiveConfig.l04MaxPerDay(), newL04Max);
+		                effectiveConfig = new com.hospital.scheduler.algorithm.AutoGenConfig(
+		                        effectiveConfig.enabled(),
+		                        effectiveConfig.l01MinPerDay(), effectiveConfig.l02MinPerDay(), effectiveConfig.l03MinPerDay(), effectiveConfig.l04MinPerDay(),
+		                        effectiveConfig.l01MaxPerDay(), effectiveConfig.l02MaxPerDay(), effectiveConfig.l03MaxPerDay(), newL04Max,
+		                        effectiveConfig.l01MinPerWeek(), effectiveConfig.l02MinPerWeek(), effectiveConfig.l03MinPerWeek(), effectiveConfig.l04MinPerWeek(),
+		                        effectiveConfig.l01MaxPerWeek(), effectiveConfig.l02MaxPerWeek(), effectiveConfig.l03MaxPerWeek(), effectiveConfig.l04MaxPerWeek(),
+		                        effectiveConfig.holidayMode(),
+		                        effectiveConfig.removedShiftTypes() != null ? effectiveConfig.removedShiftTypes() : java.util.List.of(),
+		                        effectiveConfig.l04CrossSpecialty(),
+		                        effectiveConfig.l04CrossSpecialtyRatio(),
+		                        effectiveConfig.l04AllowedSpecialties() != null ? effectiveConfig.l04AllowedSpecialties() : java.util.List.of(),
+		                        effectiveConfig.l01AllowedSpecialties() != null ? effectiveConfig.l01AllowedSpecialties() : java.util.List.of(),
+		                        effectiveConfig.l02AllowedSpecialties() != null ? effectiveConfig.l02AllowedSpecialties() : java.util.List.of(),
+		                        effectiveConfig.l03AllowedSpecialties() != null ? effectiveConfig.l03AllowedSpecialties() : java.util.List.of()
+		                );
+		            }
+		        }
 
 	        // Override maxShiftsPerStaff nếu = 0
 	        if (runtimeConfig.getMaxShiftsPerStaff() <= 0) {
@@ -666,31 +678,20 @@ public class AutoSchedulingService {
 	            autoScheduleConfigPreCheck(period, activeStaff, runtimeConfig);
 	        }
 
-        // Always generate requirements from algorithm config (no manual requirements page)
-        var autoGenConfig = algorithmConfigService.getAutoGenConfig();
-        if (autoGenConfig.isEmpty() || !autoGenConfig.get().enabled()) {
-            throw new BadRequestException(
-                    "Cấu hình auto-gen chưa được bật. Vui lòng bật auto_generate_requirements trong cấu hình thuật toán.");
-        }
-        // CRITICAL: Re-sync existing requirements with current config so changes to min/max per day
-        // take effect on the next preview run. Without this, the scheduler would re-use stale
-        // requiredCount values persisted by a previous run with older config.
-        // BUGFIX (was M07 #6): Preview runs must NOT delete-and-regenerate requirements.
-        // The user expects preview to be read-only — touching persisted state would
-        // silently mutate the draft period on every preview. Only run the destructive
-        // sync + persist path when the caller is committing the result (save=true).
-        if (save) {
-            syncExistingRequirementsWithConfig(period, autoGenConfig.get(), activeStaff);
-            requirements = generateRequirementsFromConfig(period, autoGenConfig.get(), activeStaff);
-            requirements = persistRequirementsIfTransient(requirements);
-            log.info("Generated {} requirements from config for period {}", requirements.size(), period.getId());
-        } else {
-            // Preview mode: always generate fresh in-memory requirements from current config.
-            // Do NOT reuse stale DB requirements — user expects preview to reflect the config they just saved.
-            // The generated objects are transient and never persisted (read-only).
-            requirements = generateRequirementsFromConfig(period, autoGenConfig.get(), activeStaff);
-            log.info("Preview-only generated {} requirements (transient) for period {}", requirements.size(), period.getId());
-        }
+	        // Always generate requirements from algorithm config (no manual requirements page)
+	        if (effectiveConfig == null || !effectiveConfig.enabled()) {
+	            throw new BadRequestException(
+	                    "Cấu hình auto-gen chưa được bật. Vui lòng bật auto_generate_requirements trong cấu hình thuật toán.");
+	        }
+	        if (save) {
+	            syncExistingRequirementsWithConfig(period, effectiveConfig, activeStaff);
+	            requirements = generateRequirementsFromConfig(period, effectiveConfig, activeStaff);
+	            requirements = persistRequirementsIfTransient(requirements);
+	            log.info("Generated {} requirements from config for period {}", requirements.size(), period.getId());
+	        } else {
+	            requirements = generateRequirementsFromConfig(period, effectiveConfig, activeStaff);
+	            log.info("Preview-only generated {} requirements (transient) for period {}", requirements.size(), period.getId());
+	        }
 
         // Pre-load existing compensation days from the same period so greedy doesn't assign L01 on a day
         // that is already someone's compensation day (confirmed day off — cannot assign L01)
