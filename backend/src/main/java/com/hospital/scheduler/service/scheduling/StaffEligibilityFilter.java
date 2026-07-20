@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service.scheduling;
 
 import com.hospital.scheduler.algorithm.AutoGenConfig;
+import com.hospital.scheduler.algorithm.AutoGenConstants;
 import com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.BadRequestException;
@@ -36,7 +37,7 @@ public class StaffEligibilityFilter {
 
     public record CrossSpecialtyConfig(boolean enabled, float ratio, List<String> allowedSpecialties, String balanceStrategy) {
         public static CrossSpecialtyConfig disabled() {
-            return new CrossSpecialtyConfig(false, 0.3f, List.of(), "FAIR_DISTRIBUTE");
+            return new CrossSpecialtyConfig(false, 0.3f, List.of(), AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE);
         }
 
         /**
@@ -46,12 +47,29 @@ public class StaffEligibilityFilter {
          * (e.g. Mắt = 1 staff, Sản = 2 staff).
          */
         public static CrossSpecialtyConfig defaultEnabled() {
-            return new CrossSpecialtyConfig(true, 0.5f, List.of(), "FAIR_DISTRIBUTE");
+            return new CrossSpecialtyConfig(true, 0.5f, List.of(), AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE);
         }
     }
 
     public record WeeklyCountTracker(Map<Integer, Map<String, Integer>> weeklyCounts) {}
 
+    /**
+     * @deprecated Not used by production scheduler.
+     *             Production scheduling uses
+     *             {@link com.hospital.scheduler.service.AutoSchedulingService#filterAndSortEligibleStaffBatch(
+     *                 List, ShiftRequirement, Set, Set,
+     *                 SchedulingConflictDataLoader.BatchConflictData, boolean,
+     *                 Comparator, SchedulingConflictDataLoader.PeriodConflictData,
+     *                 Set, Set, int, int, String, Map, Map,
+     *                 AlgorithmConfigService.AlgorithmRuntimeConfig, List, Integer)}.
+     *             <p>
+     *             This method contains a bug in the crossEnabled logic
+     *             (uses {@code isL04WithSpecialty} instead of {@code crossConfig.enabled()}),
+     *             but is kept here only for reference and will be removed in a future release.
+     *             <p>
+     *             Scheduled for removal.
+     */
+    @Deprecated(forRemoval = true)
     public List<Staff> filterAndSortEligibleStaffBatch(
             List<Staff> pool,
             ShiftRequirement req,
@@ -396,9 +414,11 @@ public class StaffEligibilityFilter {
      *   rg -n 'shouldPreferCrossSpecialty\s*\(\s*req\s*,\s*[a-zA-Z_]+\s*\)' backend/src
      * </pre>
      *
-     * @deprecated Use {@link #shouldPreferCrossSpecialty(ShiftRequirement, int, int, float)}
+     * @deprecated Use {@link #shouldPreferCrossSpecialty(ShiftRequirement, int, int, float)}.
+     *     This overload is dead — no callers in the codebase (verified by grep).
+     *     Marked forRemoval=true so it will be removed in v1.1.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public boolean shouldPreferCrossSpecialty(ShiftRequirement req, float ratio) {
         // Best-effort fallback: không biết strict count → dùng random bucket như logic cũ
         if (req == null
@@ -438,7 +458,7 @@ public class StaffEligibilityFilter {
                             cfg.l04CrossSpecialty(),
                             cfg.l04CrossSpecialtyRatio(),
                             cfg.l04AllowedSpecialties() != null ? cfg.l04AllowedSpecialties() : List.of(),
-                            cfg.l04BalanceStrategy() != null ? cfg.l04BalanceStrategy() : "FAIR_DISTRIBUTE"))
+                            cfg.l04BalanceStrategy() != null ? cfg.l04BalanceStrategy() : AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE))
                     .orElse(CrossSpecialtyConfig.defaultEnabled());
         }
         // L01/L02/L03: không có specialty config — dùng ALL_ELIGIBLE_SPECIALTIES

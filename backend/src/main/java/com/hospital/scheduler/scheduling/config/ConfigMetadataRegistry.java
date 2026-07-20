@@ -1,5 +1,7 @@
 package com.hospital.scheduler.scheduling.config;
 
+import com.hospital.scheduler.algorithm.AutoGenConstants;
+
 import java.util.*;
 
 /**
@@ -67,8 +69,8 @@ public final class ConfigMetadataRegistry {
 
     private static ConfigMetadata.Option[] holidayModeOptions() {
         return new ConfigMetadata.Option[]{
-                new ConfigMetadata.Option("SKIP", "Bỏ qua ngày nghỉ"),
-                new ConfigMetadata.Option("PARTIAL", "Phủ một phần")
+                new ConfigMetadata.Option(AutoGenConstants.HOLIDAY_MODE_SKIP, "Bỏ qua ngày nghỉ"),
+                new ConfigMetadata.Option(AutoGenConstants.HOLIDAY_MODE_PARTIAL, "Phủ một phần")
         };
     }
 
@@ -84,9 +86,9 @@ public final class ConfigMetadataRegistry {
 
     private static ConfigMetadata.Option[] balanceStrategyOptions() {
         return new ConfigMetadata.Option[]{
-                new ConfigMetadata.Option("STRICT_MATCH_ONLY", "Đúng chuyên khoa"),
-                new ConfigMetadata.Option("FAIR_DISTRIBUTE", "Phân phối công bằng"),
-                new ConfigMetadata.Option("WEIGHTED_FAIR", "Công bằng có trọng số")
+                new ConfigMetadata.Option(AutoGenConstants.BALANCE_STRATEGY_STRICT_MATCH_ONLY, "Đúng chuyên khoa"),
+                new ConfigMetadata.Option(AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE, "Phân phối công bằng"),
+                // WEIGHTED_FAIR removed: @Deprecated in AutoGenConstants, no algorithm branch
         };
     }
 
@@ -111,7 +113,7 @@ public final class ConfigMetadataRegistry {
                 "Chế độ ngày nghỉ lễ",
                 "Cách xử lý khi gặp ngày nghỉ lễ trong kỳ xếp lịch.",
                 ConfigMetadata.ConfigCategory.GENERAL,
-                "SKIP",
+                AutoGenConstants.HOLIDAY_MODE_SKIP,
                 holidayModeOptions()
         ));
 
@@ -286,8 +288,6 @@ public final class ConfigMetadataRegistry {
                 "Số ca trực 24/24 tối thiểu được phân mỗi ngày.", 1, 20));
         put(m, l01Bounds("maxPerDay", "L01 - Tối đa/ngày",
                 "Số ca trực 24/24 tối đa được phân mỗi ngày.", 1, 50));
-        put(m, l01Bounds("minPerWeek", "L01 - Tối thiểu/tuần",
-                "Số ca trực 24/24 tối thiểu mỗi nhân sự mỗi tuần.", 1, 7));
         put(m, l01Bounds("maxPerWeek", "L01 - Tối đa/tuần",
                 "Số ca trực 24/24 tối đa mỗi nhân sự mỗi tuần.", 1, 7));
 
@@ -296,8 +296,6 @@ public final class ConfigMetadataRegistry {
                 "Số ca thông tầm tối thiểu được phân mỗi ngày.", 1, 20));
         put(m, l02Bounds("maxPerDay", "L02 - Tối đa/ngày",
                 "Số ca thông tầm tối đa được phân mỗi ngày.", 1, 50));
-        put(m, l02Bounds("minPerWeek", "L02 - Tối thiểu/tuần",
-                "Số ca thông tầm tối thiểu mỗi nhân sự mỗi tuần.", 1, 7));
         put(m, l02Bounds("maxPerWeek", "L02 - Tối đa/tuần",
                 "Số ca thông tầm tối đa mỗi nhân sự mỗi tuần.", 1, 7));
 
@@ -306,8 +304,6 @@ public final class ConfigMetadataRegistry {
                 "Số ca dịch vụ tối thiểu được phân mỗi ngày.", 1, 20));
         put(m, l03Bounds("maxPerDay", "L03 - Tối đa/ngày",
                 "Số ca dịch vụ tối đa được phân mỗi ngày.", 1, 50));
-        put(m, l03Bounds("minPerWeek", "L03 - Tối thiểu/tuần",
-                "Số ca dịch vụ tối thiểu mỗi nhân sự mỗi tuần.", 1, 7));
         put(m, l03Bounds("maxPerWeek", "L03 - Tối đa/tuần",
                 "Số ca dịch vụ tối đa mỗi nhân sự mỗi tuần.", 1, 7));
 
@@ -316,8 +312,6 @@ public final class ConfigMetadataRegistry {
                 "Số ca chuyên gia tối thiểu được phân mỗi ngày.", 1, 20));
         put(m, l04Bounds("maxPerDay", "L04 - Tối đa/ngày",
                 "Số ca chuyên gia tối đa được phân mỗi ngày.", 1, 50));
-        put(m, l04Bounds("minPerWeek", "L04 - Tối thiểu/tuần",
-                "Số ca chuyên gia tối thiểu mỗi nhân sự mỗi tuần.", 1, 7));
         put(m, l04Bounds("maxPerWeek", "L04 - Tối đa/tuần",
                 "Số ca chuyên gia tối đa mỗi nhân sự mỗi tuần.", 1, 7));
 
@@ -354,7 +348,7 @@ public final class ConfigMetadataRegistry {
                 "Chiến lược cân bằng L04",
                 "Cách phân phối ca L04 cho nhân sự cùng chuyên khoa.",
                 ConfigMetadata.ConfigCategory.L04,
-                "FAIR_DISTRIBUTE",
+                AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE,
                 balanceStrategyOptions()
         ));
 
@@ -369,13 +363,6 @@ public final class ConfigMetadataRegistry {
                 24, 12, 72
         ));
 
-        put(m, ConfigMetadata.percentage(
-                "constraints.greedyCoverageThreshold",
-                "Ngưỡng coverage cho Greedy",
-                "Thuật toán Greedy dừng sớm khi đạt ngưỡng coverage này.",
-                ConfigMetadata.ConfigCategory.CONSTRAINTS,
-                0.85, 0.5, 1.0
-        ));
 
         put(m, ConfigMetadata.integer(
                 "constraints.minStaffPerShift",
