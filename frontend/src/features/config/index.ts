@@ -1,9 +1,9 @@
 /**
- * Config Engine — v11.0.2
+ * Config Engine — v11.0.4
  *
  * Unified configuration management:
  * - Backend: ConfigDomain + ConfigMetadata + ConfigMapper + ConfigValidator + ConfigService
- * - Frontend: ConfigContext + FieldRenderer + MetadataConfigEditor
+ * - Frontend: ConfigContext + FieldRenderer + ProfileManagerDrawer
  *
  * Usage:
  *
@@ -16,22 +16,34 @@
  *
  * Within components:
  * ```tsx
- * import { useConfig, MetadataConfigEditor } from "@/features/config";
+ * import { useConfig, ProfileSelector, ProfileManagerDrawer } from "@/features/config";
  *
  * // Hook
  * const { metadata, config, validation, updateField, save } = useConfig();
  *
- * // Or use the full metadata-driven editor
- * <MetadataConfigEditor />
+ * // Profile selector for auto-scheduling page
+ * <ProfileSelector onProfileChange={handleProfileChange} />
+ *
+ * // Profile manager drawer for full CRUD
+ * <ProfileManagerDrawer open={show} onClose={() => setShow(false)} />
  * ```
  *
  * TypeScript:
  * ```ts
- * import type { ConfigDomain, FieldMetadata, ValidationResponse } from "@/features/config";
+ * import type { ConfigDomain, FieldMetadata, ValidationResponse, ConfigProfile } from "@/features/config";
  * ```
  */
 export { ConfigProvider, useConfig } from "./context/ConfigContext";
-export { MetadataConfigEditor } from "../MetadataConfigEditor";
+export { ProfileSelector } from "./selector/ProfileSelector";
+export { ProfileDiffDialog } from "./diff/ProfileDiffDialog";
+export { ProfileHealthBadge, getHealthStatus, getHealthDescription } from "./components/ProfileHealthBadge";
+export { CreateProfileDialog } from "./components/CreateProfileDialog";
+export { ImportExportDialog } from "./components/ImportExportDialog";
+export { ProfileManagerDrawer } from "./components/ProfileManagerDrawer";
+export { ApplyPreviewDialog } from "./components/ApplyPreviewDialog";
 
 export * from "./types/ConfigMetadata";
 export * from "./renderer";
+
+// Re-export ConfigProfile from api types
+export type { ConfigProfile, ConfigProfileCategory, CreateProfileRequest, UpdateProfileRequest, ProfileComparison, ProfileDiffEntry } from "@/types/api";

@@ -710,29 +710,3 @@ export interface StaffShiftStatistics {
   totalHours: number;
   workloadPercentage: number;
 }
-
-// ============================================================
-// Algorithm quality / fairness (used by FairnessHeatmap)
-// ============================================================
-export interface FairnessDetail {
-  shiftType: string;
-  specialtyName?: string | null;
-  meanShifts: number;
-  stdDev: number;
-  coefficientOfVariation: number;
-  minShifts: number;
-  maxShifts: number;
-  spread: number;
-  fair: boolean;
-}
-
-export interface QualityReport {
-  periodId: number;
-  staffId?: number;
-  fairnessByType: FairnessDetail[];
-  totalShiftsByStaff?: Record<number, number>;
-  shiftsByStaffAndType?: Record<string, Record<string, number>>;
-  overallCoefficientOfVariation: number;
-  fairnessScore: number;
-  warnings: string[];
-}
