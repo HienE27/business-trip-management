@@ -70,6 +70,7 @@ public class AlgorithmConfigService {
     public static final String MIN_SHIFTS_PER_STAFF = "min_shifts_per_staff";
     public static final String MAX_SHIFTS_PER_STAFF = "max_shifts_per_staff";
     public static final String MAX_SHIFTS_PER_DAY = "max_shifts_per_day";
+    public static final String AUTO_ADJUST_CONFIG = "auto_adjust_config";
 
     public List<AlgorithmConfigDTO> getAllConfigs() {
         // OPTIMIZATION: use JOIN FETCH to avoid N+1 on updatedBy lazy loading
@@ -538,6 +539,7 @@ public class AlgorithmConfigService {
                 .l02MaxPerWeek(autoGenConfig.map(AutoGenConfig::l02MaxPerWeek).orElse(0))
                 .l03MaxPerWeek(autoGenConfig.map(AutoGenConfig::l03MaxPerWeek).orElse(0))
                 .l04MaxPerWeek(autoGenConfig.map(AutoGenConfig::l04MaxPerWeek).orElse(0))
+                .autoAdjustConfig(getBooleanValue(AUTO_ADJUST_CONFIG, true, cache))
                 .build();
     }
 
@@ -564,8 +566,10 @@ public class AlgorithmConfigService {
                 "Số ca trực tối thiểu mỗi nhân sự trong kỳ. Đặt 0 để bỏ qua. Giúp đảm bảo mỗi người đều có ít nhất N ca trong kỳ.");
         upsert(MAX_SHIFTS_PER_STAFF, String.valueOf(config.getMaxShiftsPerStaff()), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca trực tối đa mỗi nhân sự trong kỳ. Đặt 0 để dùng maxShiftsPerMonth của nhân sự. Giới hạn này ngược lại với min — ngăn không ai bị quá tải.");
-	        upsert(MAX_SHIFTS_PER_DAY, String.valueOf(config.getMaxShiftsPerDay()), AlgorithmConfig.ValueType.NUMBER,
-	                "Số ca tối đa mỗi nhân sự trong 1 ngày. 0 = không giới hạn, thuật toán tự quyết định.");
+        upsert(MAX_SHIFTS_PER_DAY, String.valueOf(config.getMaxShiftsPerDay()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca tối đa mỗi nhân sự trong 1 ngày. 0 = không giới hạn, thuật toán tự quyết định.");
+        upsert(AUTO_ADJUST_CONFIG, String.valueOf(config.isAutoAdjustConfig()), AlgorithmConfig.ValueType.BOOLEAN,
+                "Tự động điều chỉnh cấu hình (giảm L04) nếu tổng yêu cầu vượt năng lực nhân sự. Tắt nếu muốn dùng config thủ công.");
     }
 
     private boolean getBooleanValue(String paramKey, boolean defaultValue) {
@@ -751,6 +755,10 @@ public class AlgorithmConfigService {
         private int l03MaxPerWeek;
         private int l04MaxPerWeek;
         // Beam Search width (default 5)
+        @lombok.Builder.Default
         private int beamWidth = 5;
+        // Auto-adjust config before scheduler run
+        @lombok.Builder.Default
+        private boolean autoAdjustConfig = true;
     }
 }

@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -120,6 +121,17 @@ public class RequirementAutoGenService {
         }
 
         int generalPoolSize = Math.max(1, activeStaff.size());
+        int daysInPeriod = (int) ChronoUnit.DAYS.between(period.getStartDate(), period.getEndDate()) + 1;
+        int periodWeeks = Math.max(1, daysInPeriod / 7);
+
+        // Pre-analyze staff count per specialty for fair L04 distribution
+        Map<Integer, Integer> staffPerSpecialty = new HashMap<>();
+        for (Staff s : activeStaff) {
+            if (s.getSpecialty() != null) {
+                staffPerSpecialty.merge(s.getSpecialty().getId(), 1, Integer::sum);
+            }
+        }
+
         List<Specialty> activeSpecialties = specialtyRepository.findByIsActiveTrue();
         LocalDate current = period.getStartDate();
         while (!current.isAfter(period.getEndDate())) {
@@ -152,11 +164,36 @@ public class RequirementAutoGenService {
 
             if (shouldGenerateFullDay && !removedShiftTypes.contains("L04")) {
                 for (Specialty specialty : activeSpecialties) {
-                    int specialtyPoolSize = config.l04CrossSpecialty()
-                            ? generalPoolSize
-                            : countActiveStaffBySpecialty(activeStaff, specialty.getId());
-                    int target = resolveSoftDailyTarget(config.l04MinPerDay(), config.l04MaxPerDay(), specialtyPoolSize);
-                    if (target > 0) {
+                    int staffInSpec = staffPerSpecialty.getOrDefault(specialty.getId(), 0);
+
+                    // Fair L04 per person per period: at most ~8-10 L04/month per person
+                    int maxL04PerPerson = Math.min(
+                            config.l04MaxPerWeek() * periodWeeks,
+                            Math.min(10, daysInPeriod / 2));
+
+                    // Total L04 needed for this specialty based on its own staff count.
+                    // When cross-specialty is enabled, the algorithm can fill remaining
+                    // slots from the general pool — but we generate requirements based
+                    // on the specialty's own capacity to avoid overloading solo specialties.
+                    int totalL04Needed = Math.max(1, staffInSpec * maxL04PerPerson);
+
+                    // Smart interval-based distribution: spread requirements across period
+                    // so small specialties don't get 1-per-day = 31 requirements.
+                    // When cross-specialty on and specialty has < 3 staff, cap at 50% of days
+                    // (general pool fills the rest).
+                    double effectiveDays = daysInPeriod;
+                    if (config.l04CrossSpecialty() && staffInSpec < 3) {
+                        effectiveDays = Math.ceil(daysInPeriod * 0.5);
+                    }
+                    int interval = Math.max(1, (int) Math.ceil(effectiveDays / Math.max(1, totalL04Needed)));
+                    int dayOfPeriod = (int) ChronoUnit.DAYS.between(period.getStartDate(), date);
+                    boolean generateToday = (dayOfPeriod % interval == 0) && dayOfPeriod < effectiveDays;
+
+                    if (generateToday) {
+                        int target = Math.max(1, Math.min(
+                                config.l04MaxPerDay() > 0 ? config.l04MaxPerDay() : totalL04Needed,
+                                totalL04Needed));
+                        target = Math.max(target, config.l04MinPerDay());
                         generated.add(buildAutoRequirement(period, l04, date, specialty, target,
                                 "AUTO_SOFT_TARGET:L04:" + date + ":" + specialty.getName()));
                     }

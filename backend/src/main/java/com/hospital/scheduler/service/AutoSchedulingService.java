@@ -588,8 +588,7 @@ public class AutoSchedulingService {
 	        AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig = algorithmConfigService.getRuntimeConfig();
 
 		        // ── AUTO-ADJUST CONFIG: Algorithm reads dataset and adjusts config ──
-		        boolean autoAdjust = "true".equalsIgnoreCase(
-		                algorithmConfigService.getConfigValue("auto_adjust_config", "true"));
+		        boolean autoAdjust = runtimeConfig.isAutoAdjustConfig();
 
 		        // Load active staff count for capacity calculation
 		        List<Staff> activeStaffForAuto = staffRepository.findByIsActiveTrue();
@@ -686,14 +685,11 @@ public class AutoSchedulingService {
             requirements = persistRequirementsIfTransient(requirements);
             log.info("Generated {} requirements from config for period {}", requirements.size(), period.getId());
         } else {
-            // Preview mode: reuse whatever is already in the DB without touching it.
-            requirements = requirementRepository.findByPeriodId(period.getId());
-            if (requirements == null || requirements.isEmpty()) {
-                // First run against a fresh period — fall back to in-memory generation
-                // without persisting, so a preview still has data to schedule against.
-                requirements = generateRequirementsFromConfig(period, autoGenConfig.get(), activeStaff);
-                log.info("Preview-only generated {} requirements (transient) for period {}", requirements.size(), period.getId());
-            }
+            // Preview mode: always generate fresh in-memory requirements from current config.
+            // Do NOT reuse stale DB requirements — user expects preview to reflect the config they just saved.
+            // The generated objects are transient and never persisted (read-only).
+            requirements = generateRequirementsFromConfig(period, autoGenConfig.get(), activeStaff);
+            log.info("Preview-only generated {} requirements (transient) for period {}", requirements.size(), period.getId());
         }
 
         // Pre-load existing compensation days from the same period so greedy doesn't assign L01 on a day
@@ -2232,74 +2228,65 @@ public class AutoSchedulingService {
 	     * Ch? ch?y khi b?t c?u hình auto_adjust_config=true.
 	     * Không thay d?i yêu c?u khách hàng, mà tính toán giá tr? phù h?p.
 	     */
-	    private void autoScheduleConfigPreCheck(
-	            SchedulePeriod period,
-	            List<Staff> activeStaff,
-	            AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {
+    private void autoScheduleConfigPreCheck(
+            SchedulePeriod period,
+            List<Staff> activeStaff,
+            AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {
 
-	        int staffCount = Math.max(1, activeStaff.size());
-	        int periodDays = (int) java.time.temporal.ChronoUnit.DAYS.between(
-	                period.getStartDate(), period.getEndDate()) + 1;
+        int staffCount = Math.max(1, activeStaff.size());
+        int periodDays = (int) java.time.temporal.ChronoUnit.DAYS.between(
+                period.getStartDate(), period.getEndDate()) + 1;
 
-	        // ?c tính t?ng yêu c?u t? config hi?n t?i
-	        var autoGenCfg = algorithmConfigService.getAutoGenConfig().orElse(null);
+        var autoGenCfg = algorithmConfigService.getAutoGenConfig().orElse(null);
         if (autoGenCfg == null) return;
 
-        // Bước 1: Tính L04 trước — dùng staff thực tế (trừ Test Staff)
-        long specCount = activeStaff.stream()
+        // Phân tích phân bố nhân sự theo chuyên khoa
+        Map<String, Integer> staffPerSpecialty = new java.util.HashMap<>();
+        for (Staff s : activeStaff) {
+            if (s.getSpecialty() != null) {
+                staffPerSpecialty.merge(s.getSpecialty().getName(), 1, Integer::sum);
+            }
+        }
+        long activeSpecialtyCount = staffPerSpecialty.size();
+
+        log.info("[AutoAdjust] Phân bố nhân sự theo chuyên khoa:");
+        for (var e : staffPerSpecialty.entrySet()) {
+            log.info("[AutoAdjust]   {}: {} nhân sự", e.getKey(), e.getValue());
+        }
+
+        // Cảnh báo nếu có chuyên khoa chỉ có 1 người
+        for (var e : staffPerSpecialty.entrySet()) {
+            if (e.getValue() == 1) {
+                log.warn("[AutoAdjust] Chuyên khoa '{}' chỉ có 1 nhân sự — L04 sẽ tự động giảm để tránh quá tải", e.getKey());
+            }
+        }
+
+        // Tính toán đề xuất (read-only — không ghi đè config)
+        long eligibleCount = activeStaff.stream()
                 .filter(s -> s.getSpecialty() != null && StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES.contains(s.getSpecialty().getName()))
                 .count();
-        long activeSpecialtyCount = activeStaff.stream()
-                .filter(s -> s.getSpecialty() != null)
-                .map(s -> s.getSpecialty().getId())
-                .distinct()
-                .count();
-        int poolPerSpec = (int) Math.max(1, specCount / Math.max(1, activeSpecialtyCount));
-        int fairL04 = poolPerSpec > 5 ? 2 : 1;
-        if (autoGenCfg.l04MaxPerDay() > fairL04) {
-            log.warn("[AutoAdjust] L04 max: {} -> {} (specialties={}, pool/spec={})",
-                    autoGenCfg.l04MaxPerDay(), fairL04, activeSpecialtyCount, poolPerSpec);
-            algorithmConfigService.updateAutoGenField("auto_gen_l04_max_per_day", String.valueOf(fairL04));
-        }
-
-        // Bước 2: L01-L03 tính dựa trên tổng số nhân sự (config cho phép cả 6 chuyên khoa)
+        int poolPerSpec = (int) Math.max(1, eligibleCount / Math.max(1, activeSpecialtyCount));
+        int fairL04 = Math.max(1, (int) Math.ceil(poolPerSpec / 3.0));
         int fairNonL04 = Math.max(3, (int) Math.ceil(staffCount * 0.25));
-        
-        // Cập nhật cấu hình TRƯỚC khi tính estimatedTotal
-        if (autoGenCfg.l01MaxPerDay() != fairNonL04) {
-            log.warn("[AutoAdjust] L01 max: {} -> {} (staff={}, 25%)",
-                    autoGenCfg.l01MaxPerDay(), fairNonL04, staffCount);
-            algorithmConfigService.updateAutoGenField("auto_gen_l01_max_per_day", String.valueOf(fairNonL04));
-        }
-        if (autoGenCfg.l02MaxPerDay() != fairNonL04) {
-            log.warn("[AutoAdjust] L02 max: {} -> {} (staff={}, 25%)",
-                    autoGenCfg.l02MaxPerDay(), fairNonL04, staffCount);
-            algorithmConfigService.updateAutoGenField("auto_gen_l02_max_per_day", String.valueOf(fairNonL04));
-        }
-        if (autoGenCfg.l03MaxPerDay() != fairNonL04) {
-            log.warn("[AutoAdjust] L03 max: {} -> {} (staff={}, 25%)",
-                    autoGenCfg.l03MaxPerDay(), fairNonL04, staffCount);
-            algorithmConfigService.updateAutoGenField("auto_gen_l03_max_per_day", String.valueOf(fairNonL04));
-        }
 
-        // Re-read config sau khi update
-        autoGenCfg = algorithmConfigService.getAutoGenConfig().orElse(null);
-        if (autoGenCfg == null) return;
-        
-        // Tính estimatedTotal với config đã update
-        int estimatedDaily = autoGenCfg.l01MaxPerDay() + autoGenCfg.l02MaxPerDay()
-                + autoGenCfg.l03MaxPerDay() + autoGenCfg.l04MaxPerDay() * (int)activeSpecialtyCount;
-        int estimatedTotal = estimatedDaily * periodDays;
-        int fairMax = (int) Math.ceil((double) estimatedTotal / staffCount * 1.5);
-        if (runtimeConfig.getMaxShiftsPerStaff() <= 0 || runtimeConfig.getMaxShiftsPerStaff() != fairMax) {
-            log.warn("[AutoAdjust] maxShiftsPerStaff: {} -> {} (est.{} ca, {} NS)",
-                    runtimeConfig.getMaxShiftsPerStaff(), fairMax, estimatedTotal, staffCount);
-            runtimeConfig.setMaxShiftsPerStaff(fairMax);
-        }
+        log.warn("[AutoAdjust] Đề xuất: L01-L03 max/ngày={}, L04 max/ngày={} (pool/spec={}) — KHÔNG tự ghi đè, dùng config thủ công",
+                fairNonL04, fairL04, poolPerSpec);
 
-        log.info("[AutoAdjust] Hoàn t?t: maxShifts={}, L01-L03={}/ngày, L04={}/ngày",
-                runtimeConfig.getMaxShiftsPerStaff(), fairNonL04, fairL04);
-		    }
+        // Cảnh báo nếu config thủ công quá cao
+        if (autoGenCfg.l04MaxPerDay() > fairL04) {
+            log.warn("[AutoAdjust] ⚠️ L04 maxPerDay={} cao hơn đề xuất {} — có thể gây quá tải cho khoa ít người",
+                    autoGenCfg.l04MaxPerDay(), fairL04);
+        }
+        if (autoGenCfg.l01MaxPerDay() > fairNonL04) {
+            log.warn("[AutoAdjust] ⚠️ L01 maxPerDay={} cao hơn đề xuất {}", autoGenCfg.l01MaxPerDay(), fairNonL04);
+        }
+        if (autoGenCfg.l02MaxPerDay() > fairNonL04) {
+            log.warn("[AutoAdjust] ⚠️ L02 maxPerDay={} cao hơn đề xuất {}", autoGenCfg.l02MaxPerDay(), fairNonL04);
+        }
+        if (autoGenCfg.l03MaxPerDay() > fairNonL04) {
+            log.warn("[AutoAdjust] ⚠️ L03 maxPerDay={} cao hơn đề xuất {}", autoGenCfg.l03MaxPerDay(), fairNonL04);
+        }
+    }
 
 	    /**
 	     * Rotation post-processing để đảm bảo EVERY staff có ALL 4 shift types.

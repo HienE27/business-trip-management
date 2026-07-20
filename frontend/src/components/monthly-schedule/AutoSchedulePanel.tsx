@@ -11,6 +11,8 @@ import { KPICard } from "@/components/ui/KPICard";
 import type { AutoScheduleResult, SchedulePeriod, Staff } from "@/types/api";
 import { parseNumber } from "@/lib/number-utils";
 import { useAlgorithmProgress } from "@/hooks/useAlgorithmProgress";
+import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 
 type AlgorithmType = "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC" | "SIMULATED_ANNEALING" | "CP_SAT";
 
@@ -79,6 +81,15 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   const [staffFilterOpen, setStaffFilterOpen] = useState(false);
   const [staffSearch, setStaffSearch] = useState("");
   const [showUnassigned, setShowUnassigned] = useState(false);
+  const [recommending, setRecommending] = useState(false);
+  const [recommendResult, setRecommendResult] = useState<{
+    recommendedConfig: Record<string, unknown>;
+    totalShiftsExpected: number;
+    rationale: string;
+  } | null>(null);
+  const [applyingRecommend, setApplyingRecommend] = useState(false);
+  const [recommendMessage, setRecommendMessage] = useState<string | null>(null);
+  const [staffAnalysis, setStaffAnalysis] = useState<Array<{ specialtyName: string; staffCount: number }>>([]);
   const isDraft = selectedPeriodStatus === "DRAFT";
   // 8A.1: Real-time progress now via useAlgorithmProgress hook (no fake simulate)
 
@@ -108,6 +119,122 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   const statusMsgNeutral = message?.toLowerCase().includes("đã hủy");
 
   const algoResultInfo = previewResult ? ALGO_CONFIG[previewResult.algorithmType as AlgorithmType] : null;
+
+  // ── Recommend handler ─────────────────────────────────
+  const handleRecommend = async () => {
+    setRecommending(true);
+    setRecommendResult(null);
+    try {
+      const staffRes = await api.getActiveStaff();
+      const staffList = staffRes.data ?? [];
+      const specMap = new Map<string, number>();
+      for (const s of staffList) {
+        const name = s.specialty?.name ?? "Không có chuyên khoa";
+        specMap.set(name, (specMap.get(name) ?? 0) + 1);
+      }
+      const analysisList = Array.from(specMap.entries())
+        .map(([specialtyName, staffCount]) => ({ specialtyName, staffCount }))
+        .sort((a, b) => b.staffCount - a.staffCount);
+      setStaffAnalysis(analysisList);
+      const totalStaff = staffList.length;
+
+      // Fetch current auto-gen config
+      const cfgRes = await api.getAutoGenConfig() as unknown as { data: Record<string, unknown> };
+      const cfg = cfgRes.data ?? {};
+
+      // Compute recommended config values based on staff analysis.
+      // Key adjustments:
+      //   l04CrossSpecialty=true — allows L04 to be covered by any staff
+      //   l04MaxPerWeek=10 — reasonable cap per person
+      //   L01-L03 keeep current values (or sensible defaults)
+      const recommendedConfig: Record<string, unknown> = {
+        enabled: true,
+        holidayMode: "SKIP",
+        l01MinPerDay: 0, l01MaxPerDay: Math.max(3, Math.ceil(totalStaff * 0.25)),
+        l02MinPerDay: 0, l02MaxPerDay: Math.max(3, Math.ceil(totalStaff * 0.25)),
+        l03MinPerDay: 0, l03MaxPerDay: Math.max(3, Math.ceil(totalStaff * 0.25)),
+        l04MinPerDay: 0, l04MaxPerDay: 1,
+        l01MinPerWeek: 0, l01MaxPerWeek: 3,
+        l02MinPerWeek: 0, l02MaxPerWeek: 4,
+        l03MinPerWeek: 0, l03MaxPerWeek: 5,
+        l04MinPerWeek: 0, l04MaxPerWeek: 10,
+        removedShiftTypes: [],
+        l04CrossSpecialty: true,
+        l04CrossSpecialtyRatio: 1.0,
+        l04AllowedSpecialties: [],
+        l01AllowedSpecialties: [], l02AllowedSpecialties: [], l03AllowedSpecialties: [],
+      };
+
+      // Build rationale from analysis
+      const soloSpecs = analysisList.filter(a => a.staffCount === 1).map(a => a.specialtyName);
+      const rationale = `Phân tích ${totalStaff} nhân sự / ${analysisList.length} chuyên khoa.\n` +
+        analysisList.map(a => `  ${a.specialtyName}: ${a.staffCount} người`).join('\n') +
+        (soloSpecs.length > 0
+          ? `\n\n⚠️ Chuyên khoa solo (${soloSpecs.join(', ')}) — L04 sẽ tự động giảm để tránh quá tải.`
+          : '') +
+        `\n\nĐề xuất: L01-L03 max/ngày=${recommendedConfig.l01MaxPerDay}, L04 max/ngày=1, L04 max/tuần=10, Cross-Specialty=BẬT.`;
+
+      setRecommendResult({
+        recommendedConfig,
+        totalShiftsExpected: Math.round(totalStaff * 31 * 0.35),
+        rationale,
+      });
+    } catch (err) {
+      setRecommendMessage(getErrorMessage(err, "Phân tích thất bại"));
+    } finally {
+      setRecommending(false);
+    }
+  };
+
+  const handleApplyRecommend = async () => {
+    if (!recommendResult) return;
+    setApplyingRecommend(true);
+    try {
+      const rc = recommendResult.recommendedConfig;
+      // 1. Lưu config đề xuất vào DB
+      const payload = {
+        enabled: true,
+        holidayMode: rc.holidayMode as string ?? "SKIP",
+        l01MinPerDay: rc.l01MinPerDay as number ?? 0, l02MinPerDay: rc.l02MinPerDay as number ?? 0,
+        l03MinPerDay: rc.l03MinPerDay as number ?? 0, l04MinPerDay: rc.l04MinPerDay as number ?? 0,
+        l01MaxPerDay: rc.l01MaxPerDay as number ?? 0, l02MaxPerDay: rc.l02MaxPerDay as number ?? 0,
+        l03MaxPerDay: rc.l03MaxPerDay as number ?? 0, l04MaxPerDay: rc.l04MaxPerDay as number ?? 0,
+        l01MinPerWeek: rc.l01MinPerWeek as number ?? 0, l02MinPerWeek: rc.l02MinPerWeek as number ?? 0,
+        l03MinPerWeek: rc.l03MinPerWeek as number ?? 0, l04MinPerWeek: rc.l04MinPerWeek as number ?? 0,
+        l01MaxPerWeek: rc.l01MaxPerWeek as number ?? 0, l02MaxPerWeek: rc.l02MaxPerWeek as number ?? 0,
+        l03MaxPerWeek: rc.l03MaxPerWeek as number ?? 0, l04MaxPerWeek: rc.l04MaxPerWeek as number ?? 0,
+        removedShiftTypes: (rc.removedShiftTypes as string[]) ?? [],
+        l04CrossSpecialty: rc.l04CrossSpecialty as boolean ?? true,
+        l04CrossSpecialtyRatio: (rc.l04CrossSpecialtyRatio as number) ?? 1.0,
+      };
+      await api.updateAutoGenConfig(payload);
+
+      // 2. Xóa toàn bộ requirements cũ
+      if (selectedPeriodId) {
+        await api.delete(`/shift-requirements/period/${selectedPeriodId}`);
+      }
+
+      // 3. Verify config đã lưu thành công
+      const verifyRes = await api.getAutoGenConfig() as unknown as { data: Record<string, unknown> };
+      const saved = verifyRes?.data ?? {};
+      const savedL04Max = saved.l04MaxPerDay;
+      const expectedL04Max = (rc.l04MaxPerDay as number) ?? 1;
+      if (savedL04Max !== expectedL04Max) {
+        setRecommendMessage(`Lưu config thất bại (l04MaxPerDay=${savedL04Max}, expected=${expectedL04Max}). Thử lại.`);
+        setApplyingRecommend(false);
+        return;
+      }
+
+      // 4. Chạy preview với config mới
+      setRecommendResult(null);
+      setRecommendMessage(`✅ Đã áp dụng: L01-L03 max/ngày=${rc.l01MaxPerDay}, L04 max/ngày=${rc.l04MaxPerDay}, Cross-Specialty=${rc.l04CrossSpecialty ? 'BẬT' : 'TẮT'}. Đang chạy...`);
+      onPreview();
+    } catch (err) {
+      setRecommendMessage(getErrorMessage(err, "Áp dụng thất bại"));
+    } finally {
+      setApplyingRecommend(false);
+    }
+  };
 
   // KPI tone helpers
   const coverageTone = coverageRate >= 90 ? "success" : coverageRate >= 70 ? "info" : "error";
@@ -154,6 +281,19 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
+            {isManager && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleRecommend()}
+                disabled={recommending || !selectedPeriodId}
+                loading={recommending}
+                icon={<span className="material-symbols-outlined text-[16px]">auto_awesome</span>}
+                className="whitespace-nowrap"
+              >
+                Phân tích
+              </Button>
+            )}
             <Button
               variant="primary"
               size="sm"
@@ -207,6 +347,82 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               </Badge>
               </span>
             )}
+            {recommendMessage && (
+              <span role="status" aria-live="polite">
+              <Badge tone="success" size="sm">
+                <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
+                {recommendMessage}
+              </Badge>
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* ── Recommend result panel ──────────────────────────── */}
+        {recommendResult && (
+          <div className="border-t border-outline-variant bg-secondary-container/10">
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-secondary text-[18px]">auto_awesome</span>
+                <p className="text-title-sm font-semibold text-on-surface">Đề xuất cấu hình</p>
+              </div>
+
+              {/* Rationale */}
+              <p className="text-[12px] text-on-surface-variant whitespace-pre-line bg-surface-container-lowest rounded-lg p-3 border border-outline-variant">
+                {recommendResult.rationale}
+              </p>
+
+              {/* Per-specialty breakdown */}
+              <div className="bg-surface-container-lowest rounded-lg p-3 border border-outline-variant">
+                <p className="text-label-sm font-medium text-on-surface mb-2">Phân bố nhân sự theo chuyên khoa</p>
+                <div className="space-y-1.5">
+                  {staffAnalysis.map(a => {
+                    const maxCount = Math.max(...staffAnalysis.map(x => x.staffCount));
+                    const pct = maxCount > 0 ? (a.staffCount / maxCount) * 100 : 0;
+                    return (
+                      <div key={a.specialtyName} className="flex items-center gap-2 text-[11px]">
+                        <span className="w-20 truncate font-medium text-on-surface">{a.specialtyName}</span>
+                        <div className="flex-1 h-4 bg-surface-variant rounded-full overflow-hidden">
+                          <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="w-6 text-right tabular-nums text-on-surface-variant">{a.staffCount}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Config summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                {(["L01","L02","L03","L04"] as const).map(st => {
+                  const key = st.toLowerCase();
+                  const minD = recommendResult.recommendedConfig[`${key}MinPerDay` as keyof typeof recommendResult.recommendedConfig] as number ?? 0;
+                  const maxD = recommendResult.recommendedConfig[`${key}MaxPerDay` as keyof typeof recommendResult.recommendedConfig] as number ?? 0;
+                  const minW = recommendResult.recommendedConfig[`${key}MinPerWeek` as keyof typeof recommendResult.recommendedConfig] as number ?? 0;
+                  const maxW = recommendResult.recommendedConfig[`${key}MaxPerWeek` as keyof typeof recommendResult.recommendedConfig] as number ?? 0;
+                  return (
+                    <div key={st} className="bg-surface-container-lowest rounded-lg px-3 py-2 border border-outline-variant">
+                      <p className="font-semibold text-on-surface mb-1">{st}</p>
+                      <p className="text-on-surface-variant">Ngày: {minD}–{maxD}</p>
+                      <p className="text-on-surface-variant">Tuần: {minW}–{maxW}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="text-[11px] text-on-surface-variant">
+                Tổng ca dự kiến: <strong className="text-on-surface">{recommendResult.totalShiftsExpected}</strong>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="primary" size="sm" onClick={() => void handleApplyRecommend()} loading={applyingRecommend}>
+                  Áp dụng đề xuất
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => setRecommendResult(null)}>
+                  Bỏ qua
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </div>
