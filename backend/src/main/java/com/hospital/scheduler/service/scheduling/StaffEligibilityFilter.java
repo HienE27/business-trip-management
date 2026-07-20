@@ -492,15 +492,6 @@ public class StaffEligibilityFilter {
         return allowed.contains(staffSpecialtyName);
     }
 
-    /**
-     * @deprecated L01/L02/L03 không còn có specialty config.
-     * Luôn trả về List.of() — dùng StaffShiftTypeEligibility.isEligible() trực tiếp.
-     */
-    @Deprecated
-    public List<String> getNonL04AllowedSpecialties(String shiftTypeId) {
-        return List.of();
-    }
-
     private int getWeeklyMax(String shiftTypeId, AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {
         if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
             return runtimeConfig.getL01MaxPerWeek();

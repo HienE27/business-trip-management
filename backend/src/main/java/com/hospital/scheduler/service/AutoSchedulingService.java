@@ -2225,16 +2225,6 @@ public class AutoSchedulingService {
                 .orElse(new CrossSpecialtyConfig(true, 0.5f, List.of())); // Default: enabled, ratio 0.5, all specialties
     }
 
-    /**
-     * Trả về danh sách specialties được phép gán cho L01/L02/L03.
-     * DEPRECATED: L01/L02/L03 không còn có specialty config — dùng ALL_ELIGIBLE_SPECIALTIES.
-     * Giữ lại method này để tránh breaking change, nhưng luôn trả về List.of().
-     */
-    @Deprecated
-    private java.util.List<String> getNonL04AllowedSpecialties(String shiftTypeId) {
-        return java.util.List.of();
-    }
-
     private Staff selectStaffByWorkload(List<Staff> availableStaff, Integer periodId, String shiftTypeId) {
         Staff selected = null;
         long minCount = Long.MAX_VALUE;

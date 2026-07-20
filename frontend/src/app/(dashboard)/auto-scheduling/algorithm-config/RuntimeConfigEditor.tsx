@@ -633,7 +633,7 @@ type ParamFieldProps = {
   onChange: <K extends keyof RuntimeConfig>(key: K, value: RuntimeConfig[K]) => void;
 };
 
-const TRACKING_ONLY_PARAMS = new Set(["min_staff_per_shift", "min_shifts_per_staff", "overnight_recovery_hours", "l01_cross_specialty", "l02_cross_specialty", "l03_cross_specialty"]);
+const TRACKING_ONLY_PARAMS = new Set(["min_staff_per_shift", "min_shifts_per_staff", "overnight_recovery_hours"]);
 
 // Number spinner input với +/- buttons cho nhập liệu nhanh
 function NumberSpinner({ value, min, max, step, onChange, disabled }: {

@@ -117,7 +117,7 @@ public class PostAssignmentOptimizer {
                             .map(r -> r.getSpecialty() != null ? r.getSpecialty().getId() : null)
                             .orElse(null);
 
-                    if (!StaffShiftTypeEligibility.isEligible(staff, typeId, specId, eligibilityFilter.getNonL04AllowedSpecialties(typeId))) {
+                    if (!StaffShiftTypeEligibility.isEligible(staff, typeId, specId, List.of())) {
                         continue;
                     }
                     if (assignedByDate.getOrDefault(date, Set.of()).contains(staff.getId())) continue;
