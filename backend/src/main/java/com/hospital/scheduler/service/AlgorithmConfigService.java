@@ -461,6 +461,22 @@ public class AlgorithmConfigService {
 
     /**
      * Save algorithm runtime configuration.
+     *
+     * <p>PR-MAX-WEEK: {@code l01MaxPerWeek..l04MaxPerWeek} deliberately live
+     * here even though they are also part of {@link AutoGenConfig}.  The
+     * runtime editor bundles them with the rest of {@code RuntimeConfig} on
+     * save, but historically this method skipped them.  When a user modified
+     * the per-type weekly maximums in the UI and hit Save, the values were
+     * persisted successfully (HTTP 200, toast "Đã lưu cấu hình thuật toán")
+     * yet vanished on refresh — because {@link #getRuntimeConfig} reads those
+     * four fields from {@link AutoGenConfig} (which only writes via
+     * {@code updateAutoGenConfig}), and a partial failure of the second PUT
+     * left the {@code auto_gen_l*_max_per_week} rows at their defaults.
+     * Persisting here makes the runtime endpoint self-sufficient: a single
+     * PUT refreshes everything the UI bound to that endpoint.  The
+     * auto-gen-config endpoint still upserts the same rows; concurrent
+     * writes are safe because {@link #upsert(String, String, AlgorithmConfig.ValueType, String)}
+     * is idempotent on the same key.
      */
     @Transactional
     public void saveRuntimeConfig(AlgorithmRuntimeConfig config) {
@@ -480,6 +496,19 @@ public class AlgorithmConfigService {
                 "Số ca trực tối thiểu mỗi nhân sự trong kỳ. Đặt 0 để bỏ qua. Giúp đảm bảo mỗi người đều có ít nhất N ca trong kỳ.");
         upsert(MAX_SHIFTS_PER_STAFF, String.valueOf(config.getMaxShiftsPerStaff()), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca trực tối đa mỗi nhân sự trong kỳ. Đặt 0 để dùng maxShiftsPerMonth của nhân sự. Giới hạn này ngược lại với min — ngăn không ai bị quá tải.");
+        // PR-MAX-WEEK: see class javadoc.  Per-type weekly maxes are
+        // shared between RuntimeConfig and AutoGenConfig — see the comment
+        // on AUTO_GEN_L01_MAX_PER_WEEK constants.  We persist them on
+        // both endpoints to make the runtime-config save a single
+        // self-sufficient round trip.
+        upsert(AUTO_GEN_L01_MAX_PER_WEEK, String.valueOf(config.getL01MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L01 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L02_MAX_PER_WEEK, String.valueOf(config.getL02MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L02 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L03_MAX_PER_WEEK, String.valueOf(config.getL03MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L03 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L04_MAX_PER_WEEK, String.valueOf(config.getL04MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L04 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
     }
 
     private java.math.BigDecimal getBigDecimalValue(String paramKey, double defaultValue) {
