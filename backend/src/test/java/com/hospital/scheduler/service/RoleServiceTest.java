@@ -3,6 +3,7 @@ package com.hospital.scheduler.service;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.security.AuthContextService;
+import com.hospital.scheduler.security.PermissionVersionService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -21,6 +22,7 @@ class RoleServiceTest {
     @Mock private RolePermissionRepository rolePermissionRepository;
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private AuthContextService authContextService;
+    @Mock private PermissionVersionService permissionVersionService;
 
     @InjectMocks private RoleService roleService;
 
@@ -49,7 +51,7 @@ class RoleServiceTest {
         void returnsAllRolesAndPermissions() {
             when(roleRepository.findAll()).thenReturn(List.of(adminRole, managerRole));
             when(permissionRepository.findAll()).thenReturn(List.of(permScheduleRead, permScheduleWrite));
-            when(rolePermissionRepository.findAll()).thenReturn(List.of());
+            when(rolePermissionRepository.findAll()).thenReturn(List.<RolePermission>of());
 
             var matrix = roleService.getPermissionMatrix();
 
@@ -62,28 +64,31 @@ class RoleServiceTest {
             when(roleRepository.findAll()).thenReturn(List.of(adminRole, managerRole));
             when(permissionRepository.findAll()).thenReturn(List.of(permScheduleRead, permScheduleWrite));
 
-            // ADMIN has SCHEDULE_READ, MANAGER has neither
-            RolePermission granted = RolePermission.builder()
-                    .roleId(1).permissionId(1).build();
-            when(rolePermissionRepository.findAll()).thenReturn(List.of(granted));
+            // ADMIN has SCHEDULE_READ, MANAGER has neither.
+            // Production reads via findAll() returning RolePermission entities, then
+            // resolves each permission's name via permissionRepository.findById().
+            when(rolePermissionRepository.findAll()).thenReturn(List.of(
+                    RolePermission.builder().roleId(1).permissionId(1).build()
+            ));
+            when(permissionRepository.findById(1)).thenReturn(Optional.of(permScheduleRead));
 
             var matrix = roleService.getPermissionMatrix();
 
             // Check ADMIN × SCHEDULE_READ → granted
             var adminRead = matrix.getMatrix().stream()
-                    .filter(e -> e.getRoleId() == 1 && e.getPermissionId() == 1)
+                    .filter(e -> e.getRoleId() == 1 && "SCHEDULE_READ".equals(e.getPermissionName()))
                     .findFirst().orElseThrow();
             assertThat(adminRead.getGranted()).isTrue();
 
             // Check ADMIN × SCHEDULE_WRITE → not granted
             var adminWrite = matrix.getMatrix().stream()
-                    .filter(e -> e.getRoleId() == 1 && e.getPermissionId() == 2)
+                    .filter(e -> e.getRoleId() == 1 && "SCHEDULE_WRITE".equals(e.getPermissionName()))
                     .findFirst().orElseThrow();
             assertThat(adminWrite.getGranted()).isFalse();
 
             // Check MANAGER × SCHEDULE_READ → not granted
             var mgrRead = matrix.getMatrix().stream()
-                    .filter(e -> e.getRoleId() == 2 && e.getPermissionId() == 1)
+                    .filter(e -> e.getRoleId() == 2 && "SCHEDULE_READ".equals(e.getPermissionName()))
                     .findFirst().orElseThrow();
             assertThat(mgrRead.getGranted()).isFalse();
         }
@@ -92,7 +97,7 @@ class RoleServiceTest {
         void buildsFullCartesianProduct() {
             when(roleRepository.findAll()).thenReturn(List.of(adminRole, managerRole));
             when(permissionRepository.findAll()).thenReturn(List.of(permScheduleRead, permScheduleWrite));
-            when(rolePermissionRepository.findAll()).thenReturn(List.of());
+            when(rolePermissionRepository.findAll()).thenReturn(List.<RolePermission>of());
 
             var matrix = roleService.getPermissionMatrix();
 

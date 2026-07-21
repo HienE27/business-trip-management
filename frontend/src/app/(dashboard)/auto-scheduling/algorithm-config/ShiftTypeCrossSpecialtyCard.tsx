@@ -14,6 +14,12 @@ type ShiftTypeCrossSpecialtyProps = {
   allSpecialties: string[];
   editing: boolean;
   balanceStrategy: BalanceStrategy;
+  /**
+   * Nếu false, card không hiển thị section cấu hình chuyên khoa.
+   * Dùng cho L01/L02/L03 — theo nghiệp vụ, các loại ca này
+   * không có ràng buộc chuyên khoa (tất cả 6 khoa đều eligible).
+   */
+  showSpecialtyConfig?: boolean;
   onChange: (enabled: boolean, ratio: number, allowedSpecialties: string[], balanceStrategy: BalanceStrategy) => void;
 };
 
@@ -60,6 +66,9 @@ const BALANCE_STRATEGY_OPTIONS: { value: BalanceStrategy; label: string; desc: s
   { value: "WEIGHTED_FAIR", label: "Weighted fair", desc: "Ưu tiên ít ca + fairness" },
 ];
 
+// RESERVED — not used in scheduler v1.0
+const RESERVED_BALANCE_WARNING = "Balance strategy là reserved field. Thay đổi hiện không ảnh hưởng scheduler v1.0.";
+
 export function ShiftTypeCrossSpecialtyCard({
   shiftType,
   shiftTypeName,
@@ -69,6 +78,7 @@ export function ShiftTypeCrossSpecialtyCard({
   allSpecialties,
   editing,
   balanceStrategy,
+  showSpecialtyConfig = true,
   onChange,
 }: ShiftTypeCrossSpecialtyProps) {
   const [localRatio, setLocalRatio] = useState(ratio);
@@ -195,81 +205,91 @@ export function ShiftTypeCrossSpecialtyCard({
 
         {enabled && (
           <div className="pt-2 border-t border-outline-variant space-y-3">
-            {/* Quick actions */}
-            <div className="flex items-center justify-between">
-              <p className="text-label-sm text-on-surface font-medium">
-                {selectionMode === "all" ? "Tất cả chuyên khoa" : selectionMode === "none" ? "Không có chuyên khoa nào" : `${localAllowed.length}/${allSpecialties.length} chuyên khoa`}
-              </p>
-              {editing && (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSelectAll}
-                    className="text-[11px] text-primary hover:underline"
-                  >
-                    Chọn tất cả
-                  </button>
-                  <span className="text-outline">|</span>
-                  <button
-                    type="button"
-                    onClick={handleClearAll}
-                    className={`text-[11px] ${config.color.replace("text-", "hover:text-")} hover:underline`}
-                  >
-                    Bỏ chọn tất cả
-                  </button>
+            {/* Specialty config: chỉ hiện cho L04 */}
+            {showSpecialtyConfig && (
+              <>
+                {/* Quick actions */}
+                <div className="flex items-center justify-between">
+                  <p className="text-label-sm text-on-surface font-medium">
+                    {selectionMode === "all" ? "Tất cả chuyên khoa" : selectionMode === "none" ? "Không có chuyên khoa nào" : `${localAllowed.length}/${allSpecialties.length} chuyên khoa`}
+                  </p>
+                  {editing && (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSelectAll}
+                        className="text-[11px] text-primary hover:underline"
+                      >
+                        Chọn tất cả
+                      </button>
+                      <span className="text-outline">|</span>
+                      <button
+                        type="button"
+                        onClick={handleClearAll}
+                        className={`text-[11px] ${config.color.replace("text-", "hover:text-")} hover:underline`}
+                      >
+                        Bỏ chọn tất cả
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Specialty chips */}
-            {editing ? (
-              <div className="flex flex-wrap gap-2">
-                {allSpecialties.map((specialty) => {
-                  const isSelected = isSpecialtySelected(specialty);
-                  return (
-                    <button
-                      key={specialty}
-                      type="button"
-                      onClick={() => handleSpecialtyToggle(specialty)}
-                      className={`px-3 py-1.5 rounded-lg text-label-sm font-medium transition-all ${
-                        isSelected
-                          ? `${config.colorBg} ${config.color} border ${config.color.replace("text-", "border-")}`
-                          : "bg-surface-container text-on-surface-variant border border-outline hover:border-outline hover:text-on-surface"
-                      }`}
-                    >
-                      {specialty}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {selectionMode === "all" ? (
-                  <span className="text-[12px] text-on-surface-variant">
-                    Tất cả chuyên khoa được phép
-                  </span>
-                ) : selectionMode === "none" ? (
-                  <span className="text-[12px] text-error">
-                    Không có chuyên khoa nào được phép
-                  </span>
+                {/* Specialty chips */}
+                {editing ? (
+                  <div className="flex flex-wrap gap-2">
+                    {allSpecialties.map((specialty) => {
+                      const isSelected = isSpecialtySelected(specialty);
+                      return (
+                        <button
+                          key={specialty}
+                          type="button"
+                          onClick={() => handleSpecialtyToggle(specialty)}
+                          className={`px-3 py-1.5 rounded-lg text-label-sm font-medium transition-all ${
+                            isSelected
+                              ? `${config.colorBg} ${config.color} border ${config.color.replace("text-", "border-")}`
+                              : "bg-surface-container text-on-surface-variant border border-outline hover:border-outline hover:text-on-surface"
+                          }`}
+                        >
+                          {specialty}
+                        </button>
+                      );
+                    })}
+                  </div>
                 ) : (
-                  localAllowed.map((specialty) => (
-                    <span
-                      key={specialty}
-                      className={`px-2.5 py-1 rounded-lg text-[12px] font-medium ${config.colorBg} ${config.color}`}
-                    >
-                      {specialty}
-                    </span>
-                  ))
+                  <div className="flex flex-wrap gap-2">
+                    {selectionMode === "all" ? (
+                      <span className="text-[12px] text-on-surface-variant">
+                        Tất cả chuyên khoa được phép
+                      </span>
+                    ) : selectionMode === "none" ? (
+                      <span className="text-[12px] text-error">
+                        Không có chuyên khoa nào được phép
+                      </span>
+                    ) : (
+                      localAllowed.map((specialty) => (
+                        <span
+                          key={specialty}
+                          className={`px-2.5 py-1 rounded-lg text-[12px] font-medium ${config.colorBg} ${config.color}`}
+                        >
+                          {specialty}
+                        </span>
+                      ))
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
+            )}
+
+            {!showSpecialtyConfig && (
+              <p className="text-[11px] text-on-surface-variant italic">
+                Theo nghiệp vụ, tất cả chuyên khoa đều eligible cho loại ca này.
+              </p>
             )}
 
             {/* Cross-specialty ratio */}
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/50">
               <div>
-                <p className="text-label-sm text-on-surface font-medium">Cross-specialty ratio</p>
-                <p className="text-[11px] text-on-surface-variant mt-0.5">Tỷ lệ staff ngoài danh sách cho mỗi ca</p>
+                <p className="text-label-sm text-on-surface font-medium">Tối đa {Math.round(ratio * 100)}% nhân sự ngoài chuyên khoa</p>
               </div>
               <span className={`font-mono text-lg font-bold ${config.color} tabular-nums`}>
                 {Math.round(ratio * 100)}%
@@ -287,14 +307,20 @@ export function ShiftTypeCrossSpecialtyCard({
               />
             )}
 
-            {/* Balance strategy */}
+            {/* Balance strategy — Reserved for future implementation */}
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/50">
               <div>
-                <p className="text-label-sm text-on-surface font-medium">Balance strategy</p>
-                <p className="text-[11px] text-on-surface-variant mt-0.5">Phân bổ staff ngoài chuyên khoa thế nào</p>
+                <p className="text-label-sm text-on-surface font-medium">
+                  Balance strategy
+                  <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-surface-container text-outline uppercase tracking-wide">Chưa áp dụng trong Scheduler v1.0</span>
+                </p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">
+                  Phân bổ staff ngoài chuyên khoa thế nào — chưa dùng trong scheduler v1.0
+                </p>
               </div>
             </div>
             {editing ? (
+              <>
               <div className="flex flex-wrap gap-2">
                 {BALANCE_STRATEGY_OPTIONS.map((opt) => {
                   const active = localStrategy === opt.value;
@@ -319,7 +345,13 @@ export function ShiftTypeCrossSpecialtyCard({
                   );
                 })}
               </div>
+              <p className="text-[11px] text-tertiary-600 mt-2 flex items-start gap-1">
+                <span className="material-symbols-outlined text-[12px] shrink-0 mt-0.5">info</span>
+                {RESERVED_BALANCE_WARNING}
+              </p>
+              </>
             ) : (
+              <>
               <div className="flex items-center gap-2">
                 <span className={`px-2.5 py-1 rounded-md text-label-sm font-medium ${config.colorBg} ${config.color}`}>
                   {BALANCE_STRATEGY_OPTIONS.find(o => o.value === localStrategy)?.label ?? localStrategy}
@@ -328,17 +360,22 @@ export function ShiftTypeCrossSpecialtyCard({
                   {BALANCE_STRATEGY_OPTIONS.find(o => o.value === localStrategy)?.desc ?? ""}
                 </span>
               </div>
+              <p className="text-[11px] text-tertiary-600 mt-2 flex items-start gap-1">
+                <span className="material-symbols-outlined text-[12px] shrink-0 mt-0.5">info</span>
+                {RESERVED_BALANCE_WARNING}
+              </p>
+              </>
             )}
-          </div>
-        )}
 
-        {!enabled && (
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-surface-container-low">
-            <span className={`material-symbols-outlined text-[16px] ${config.color} shrink-0 mt-0.5`} aria-hidden="true">info</span>
-            <p className="text-[12px] text-on-surface-variant leading-relaxed">
-              Chỉ nhân sự thuộc chuyên khoa được chọn mới tham gia {shiftTypeName}.
-              Bật cross-specialty để mở rộng pool nhân sự.
-            </p>
+            {!enabled && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-surface-container-low">
+                <span className={`material-symbols-outlined text-[16px] ${config.color} shrink-0 mt-0.5`} aria-hidden="true">info</span>
+                <p className="text-[12px] text-on-surface-variant leading-relaxed">
+                  Chỉ nhân sự thuộc chuyên khoa được chọn mới tham gia {shiftTypeName}.
+                  Bật cross-specialty để mở rộng pool nhân sự.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

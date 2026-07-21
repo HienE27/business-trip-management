@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { PermissionGate } from "./PermissionGate";
+import { Permission } from "@/lib/permissions";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Permission } from "@/lib/permissions";
 
@@ -70,7 +71,7 @@ describe("PermissionGate", () => {
   it("renders fallback when user lacks permission", () => {
     setup(new Set([]));
     render(
-      <PermissionGate required={Permission.STAFF_VIEW} fallback={<span>locked</span>}>
+      <PermissionGate required={Permission.STAFF_DELETE} fallback={<span>locked</span>}>
         <button>hidden</button>
       </PermissionGate>
     );

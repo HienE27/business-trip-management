@@ -101,6 +101,34 @@ class ScheduleExchangeServiceTest {
         when(exchangeRepository.findByIdWithLock(1)).thenReturn(Optional.of(testExchange));
     }
 
+    /**
+     * Bug #5d refactor: executeSwap re-fetches the swapped schedules via the
+     * four-arg finder. Production looks them up by
+     * {@code (periodId, targetOldStaff.id, shiftType, requesterWorkDate)} and
+     * {@code (periodId, requesterOldStaff.id, shiftType, targetWorkDate)} — so
+     * the staffId on the lookup is the OLD staff id of the OTHER party.
+     *
+     * <p>Per-test mock with {@code eq()} matchers: if production ever passes
+     * the wrong staffId or the wrong workDate, the matcher will miss and the
+     * test will fail with a clean {@code IllegalStateException} from the
+     * {@code orElseThrow} branch in executeSwap. This is the regression net
+     * the original lenient stub did not provide.
+     */
+    private void stubSwapLookups() {
+        when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                eq(testPeriod.getId()),
+                eq(staffB.getId()),                // targetOldStaff (was on scheduleA)
+                eq("L01"),
+                eq(scheduleA.getWorkDate())))      // scheduleA's date (post-swap owned by staffB)
+                .thenReturn(Optional.of(scheduleA));
+        when(scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                eq(testPeriod.getId()),
+                eq(staffA.getId()),                // requesterOldStaff (was on scheduleB)
+                eq("L01"),
+                eq(scheduleB.getWorkDate())))      // scheduleB's date (post-swap owned by staffA)
+                .thenReturn(Optional.of(scheduleB));
+    }
+
     // ==================== getAllExchanges ====================
     @Nested
     @DisplayName("getAllExchanges - Lấy tất cả yêu cầu đổi ca")
@@ -388,6 +416,7 @@ class ScheduleExchangeServiceTest {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            stubSwapLookups();
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
@@ -487,6 +516,7 @@ class ScheduleExchangeServiceTest {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            stubSwapLookups();
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
@@ -541,6 +571,7 @@ class ScheduleExchangeServiceTest {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            stubSwapLookups();
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
@@ -599,6 +630,7 @@ class ScheduleExchangeServiceTest {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            stubSwapLookups();
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
@@ -643,6 +675,7 @@ class ScheduleExchangeServiceTest {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            stubSwapLookups();
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
@@ -690,6 +723,7 @@ class ScheduleExchangeServiceTest {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            stubSwapLookups();
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
@@ -727,6 +761,7 @@ class ScheduleExchangeServiceTest {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            stubSwapLookups();
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
@@ -802,6 +837,7 @@ class ScheduleExchangeServiceTest {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            stubSwapLookups();
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(2), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(leaveRequestRepository.findByStaffIdAndDateRange(eq(1), any(), any()))
@@ -842,6 +878,7 @@ class ScheduleExchangeServiceTest {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            stubSwapLookups();
             when(leaveRequestRepository.findByStaffIdAndDateRange(anyInt(), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findByStaffIdAndCompensationDate(anyInt(), any()))
@@ -873,6 +910,7 @@ class ScheduleExchangeServiceTest {
             Staff reviewer = Staff.builder().id(3).username("manager").fullName("Manager").build();
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            stubSwapLookups();
             when(leaveRequestRepository.findByStaffIdAndDateRange(anyInt(), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findByStaffIdAndCompensationDate(anyInt(), any()))
@@ -922,6 +960,7 @@ class ScheduleExchangeServiceTest {
 
             when(exchangeRepository.findById(1)).thenReturn(Optional.of(testExchange));
             when(staffRepository.findById(3)).thenReturn(Optional.of(reviewer));
+            stubSwapLookups();
             when(leaveRequestRepository.findByStaffIdAndDateRange(anyInt(), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(compensationDayRepository.findByStaffIdAndCompensationDate(anyInt(), any()))

@@ -1,0 +1,16 @@
+{
+  "comment": "Phase 1.5 baseline. Recorded on first benchmark run; update via BenchmarkSuiteTest. Threshold: any dataset regressing > 20% vs this baseline fails CI.",
+  "version": 1,
+  "datasets": {
+    "D1": { "staff": 20, "days": 31, "total_shifts": 124, "max_time_ms": 60000, "baseline_time_ms": 50 },
+    "D2": { "staff": 100, "days": 30, "total_shifts": 500, "max_time_ms": 60000, "baseline_time_ms": 100 },
+    "D3": { "staff": 100, "days": 30, "total_shifts": 1000, "max_time_ms": 60000, "baseline_time_ms": 200 },
+    "D4": { "staff": 200, "days": 30, "total_shifts": 3000, "max_time_ms": 60000, "baseline_time_ms": 400 },
+    "D5": { "staff": 250, "days": 30, "total_shifts": 5000, "max_time_ms": 60000, "baseline_time_ms": 800 }
+  },
+  "regression_threshold_percent": 20,
+  "notes": [
+    "Baseline is generous because v10 currently exits via target-reached on seeded solutions; once the engine is exercised on harder inputs these numbers should tighten.",
+    "Update via: backend$ ./mvnw.cmd -Pbenchmark verify"
+  ]
+}

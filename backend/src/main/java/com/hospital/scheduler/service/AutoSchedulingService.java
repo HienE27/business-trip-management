@@ -78,6 +78,7 @@ public class AutoSchedulingService {
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
     private final CSPScheduler cspScheduler;
+    private final com.hospital.scheduler.scheduling.LocalSearchScheduler localSearchScheduler;
     private final EntityManager entityManager;
     private final ScheduleConflictRepository scheduleConflictRepository;
     private final AlgorithmProgressTracker progressTracker;
@@ -831,11 +832,7 @@ public class AutoSchedulingService {
         if (save) {
             saveMetrics(period, algorithmType, (int) executionTime, coverageRate, balanceScore,
                     actualConflictCount, createdSchedules.size());
-            if (algorithmConfigService.getRuntimeConfig().isAutoCompensationEnabled()) {
-                createCompensationDaysForL01InPeriod(period.getId());
-            } else {
-                log.info("Auto compensation disabled by config for period {}", period.getId());
-            }
+            createCompensationDaysForL01InPeriod(period.getId());
         }
 
         // ── Build schedule summaries (deduplicated) ───────────────────────────────
@@ -914,7 +911,9 @@ public class AutoSchedulingService {
             "FAIR",
             "FAIR_GREEDY",
             "CSP_MRV_FC",
-            "CSP");
+            "CSP",
+            "V10_LOCAL_SEARCH",
+            "V10");
 
     private AlgorithmDispatchResult dispatchAlgorithm(SchedulePeriod period,
                                                      List<ShiftRequirement> requirements,
@@ -999,6 +998,15 @@ public class AutoSchedulingService {
             }
 
             return new AlgorithmDispatchResult(algorithmType, cspSchedules, cspResult.fairnessScore());
+        }
+
+        if ("V10_LOCAL_SEARCH".equals(algorithmType) || "V10".equals(algorithmType)) {
+            // v10 LocalSearch: incremental statistics + tabu acceptor + sampled
+            // neighborhood. Reuses runCspWithResult to rehydrate assignments into
+            // JPA entities so save=true persists the same way as CSP/Greedy.
+            SchedulingResultWithFairness v10Result = runV10LocalSearch(
+                    period, requirements, activeStaff, save, excluded);
+            return new AlgorithmDispatchResult(algorithmType, v10Result.schedules(), v10Result.fairnessScore());
         }
 
         // Explicit Greedy branch (was previously the implicit default for unknown values —
@@ -1316,6 +1324,49 @@ public class AutoSchedulingService {
     // it uses a per-shift-type rotation index (fgShiftTypeRotationIndex below) plus a demand-based
     // fair-share cap, not a cyclic permutation. The dispatch table in runScheduling accepts the
     // aliases "ROUND_ROBIN", "FAIR_ROUND_ROBIN", "FAIR", and "FAIR_GREEDY" for back-compat.
+    // ==================== V10 LOCAL SEARCH ALGORITHM ====================
+
+    /**
+     * v10 entry point: delegates to {@link com.hospital.scheduler.scheduling.LocalSearchScheduler}.
+     * Reuses {@link #runCspWithResult} to rehydrate assignments into JPA {@link Schedule}
+     * entities so the rest of the pipeline (audit, balance-score fallback, conflict save)
+     * can treat v10 the same as CSP.
+     */
+    private SchedulingResultWithFairness runV10LocalSearch(
+            SchedulePeriod period,
+            List<ShiftRequirement> requirements,
+            List<Staff> activeStaff,
+            boolean save,
+            Set<Integer> excludedStaffIds) {
+        log.info("Running v10-LocalSearch for period {}", period.getId());
+
+        List<ShiftRequirementInfo> algoReqs = toRequirementInfos(requirements);
+        SchedulingResult result = localSearchScheduler.solve(
+                activeStaff,
+                period.getStartDate(),
+                period.getEndDate(),
+                algoReqs,
+                new HashSet<>(),
+                leaveRequestRepository.findAll(),
+                excludedStaffIds != null ? excludedStaffIds : new HashSet<>());
+
+        // Rehydrate Map-based assignments → JPA entities, then persist if save=true.
+        SchedulingResultWithFairness rehydrated = runCspWithResult(result, period);
+        if (save) {
+            for (Schedule s : rehydrated.schedules()) {
+                Schedule saved = scheduleRepository.save(s);
+                if (saved != null) {
+                    auditHistoryService.logAction(
+                            "schedule", saved.getId(),
+                            AuditHistory.ActionType.INSERT, null, saved, null);
+                }
+            }
+        }
+        log.info("v10-LocalSearch completed: {} schedules (valid={}, partial={})",
+                rehydrated.schedules().size(), result.isValid(), result.isPartial());
+        return rehydrated;
+    }
+
     private List<Schedule> runFairGreedy(SchedulePeriod period, List<ShiftRequirement> requirements,
                                           List<Staff> activeStaff, boolean save,
                                           AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
@@ -2172,21 +2223,6 @@ public class AutoSchedulingService {
         return algorithmConfigService.getAutoGenConfig()
                 .map(cfg -> new CrossSpecialtyConfig(cfg.l04CrossSpecialty(), cfg.l04CrossSpecialtyRatio(), cfg.l04AllowedSpecialties()))
                 .orElse(new CrossSpecialtyConfig(true, 0.5f, List.of())); // Default: enabled, ratio 0.5, all specialties
-    }
-
-    /**
-     * Trả về danh sách specialties được phép gán cho L01/L02/L03.
-     * Đọc từ algorithm_config; null/empty → StaffShiftTypeEligibility sẽ fallback về CORE (Ngoại, Nội).
-     */
-    private java.util.List<String> getNonL04AllowedSpecialties(String shiftTypeId) {
-        return algorithmConfigService.getAutoGenConfig()
-                .map(cfg -> {
-                    if ("L01".equals(shiftTypeId)) return cfg.l01AllowedSpecialties();
-                    if ("L02".equals(shiftTypeId)) return cfg.l02AllowedSpecialties();
-                    if ("L03".equals(shiftTypeId)) return cfg.l03AllowedSpecialties();
-                    return java.util.List.<String>of();
-                })
-                .orElse(java.util.List.of());
     }
 
     private Staff selectStaffByWorkload(List<Staff> availableStaff, Integer periodId, String shiftTypeId) {
@@ -3070,31 +3106,32 @@ public class AutoSchedulingService {
             // Business rules only forbid specific pairs (L01/L02 and L03/L04), duplicate same-type,
             // compensation days, and leave days; hasInMemoryConflict enforces those below.
 
-            // 0. ELIGIBILITY CHECK: staff phải thuộc chuyên khoa phù hợp với shift type.
-            //    L01/L02/L03: specialties lấy từ config (mặc định Ngoại,Nội; có thể mở rộng qua UI).
-            //    L04: staff có specialty khớp requirement HOẶC cross-specialty enabled.
-            //    Tập trung logic tại StaffShiftTypeEligibility để thống nhất giữa
-            //    scoring engine và thuật toán.
+            // 0. ELIGIBILITY CHECK: staff phải thuộc ALL_ELIGIBLE_SPECIALTIES (6 khoa).
+            //    Theo nghiệp vụ, L01/L02/L03 không bị giới hạn theo chuyên khoa.
+            //    L04: kiểm tra requiredSpecialtyId nếu có.
+            //    Cross-specialty cho L04 được kiểm tra riêng bên dưới.
             Integer requiredSpecId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
-            java.util.List<String> nonL04Allowed = getNonL04AllowedSpecialties(shiftTypeId);
-            boolean isEligible = StaffShiftTypeEligibility
-                    .isEligible(staff, shiftTypeId, requiredSpecId, nonL04Allowed);
-            // For L04 with cross-specialty enabled: staff from other eligible specialties are allowed
-            if (!isEligible && crossEnabled && ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
-                // Cross-specialty L04: staff must belong to at least ONE eligible specialty
-                // (CORE or extended). Use ALL_ELIGIBLE_SPECIALTIES so Nhi/Mắt/Răng/Sản
-                // staff can fill L04 when their own specialty's pool is exhausted.
-                if (staff.getSpecialty() != null && StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
-                        .contains(staff.getSpecialty().getName())) {
-                    isEligible = true;
+            if (!StaffShiftTypeEligibility.isEligible(staff, shiftTypeId, requiredSpecId)) {
+                // L04 cross-specialty: staff từ chuyên khoa khác vẫn eligible nếu cross enabled
+                if (crossEnabled && ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
+                    if (staff.getSpecialty() != null
+                            && StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
+                                    .contains(staff.getSpecialty().getName())) {
+                        // Eligible via cross-specialty — proceed
+                    } else {
+                        if (log.isTraceEnabled()) {
+                            log.trace("FILTER_ELIGIBILITY: staff={} type={} spec={} REJECTED (cross-specialty not allowed)",
+                                staff.getId(), shiftTypeId, staff.getSpecialty() != null ? staff.getSpecialty().getName() : "null");
+                        }
+                        continue;
+                    }
+                } else {
+                    if (log.isTraceEnabled()) {
+                        log.trace("FILTER_ELIGIBILITY: staff={} type={} spec={} REJECTED",
+                            staff.getId(), shiftTypeId, staff.getSpecialty() != null ? staff.getSpecialty().getName() : "null");
+                    }
+                    continue;
                 }
-            }
-            if (!isEligible) {
-                if (log.isTraceEnabled()) {
-                    log.trace("FILTER_ELIGIBILITY: staff={} type={} spec={} REJECTED",
-                        staff.getId(), shiftTypeId, staff.getSpecialty() != null ? staff.getSpecialty().getName() : "null");
-                }
-                continue;
             }
             if (log.isTraceEnabled()) {
                 log.trace("FILTER_ELIGIBILITY: staff={} type={} spec={} ACCEPTED",
@@ -3575,10 +3612,7 @@ public class AutoSchedulingService {
                 entityManager.flush();
                 persisted = scheduleRepository.saveAll(persisted);
                 entityManager.flush();
-                if (algorithmConfigService.getRuntimeConfig() != null
-                        && algorithmConfigService.getRuntimeConfig().isAutoCompensationEnabled()) {
-                    createCompensationDaysForL01InPeriod(periodId);
-                }
+                createCompensationDaysForL01InPeriod(periodId);
                 log.info("Reschedule persisted {} schedules for period {}", persisted.size(), periodId);
             }
 

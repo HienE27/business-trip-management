@@ -12,7 +12,6 @@ export type PresetConfig = {
 };
 
 const baseConfig = {
-  autoCompensationEnabled: true,
   overnightRecoveryHours: 24,
   minStaffPerShift: 1,
   maxStaffPerShift: 0,

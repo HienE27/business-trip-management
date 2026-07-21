@@ -1068,14 +1068,12 @@ class ApiClient {
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
-    autoCompensationEnabled: boolean;
   }>> {
     return this.request<{
       weekendWeight: number;
       overnightRecoveryHours: number;
       greedyCoverageThreshold: number;
       balanceScoreMin: number;
-      autoCompensationEnabled: boolean;
     }>("/auto-schedule/runtime-config");
   }
 
@@ -1084,20 +1082,17 @@ class ApiClient {
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
-    autoCompensationEnabled: boolean;
   }): Promise<ApiResponse<{
     weekendWeight: number;
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
-    autoCompensationEnabled: boolean;
   }>> {
     return this.request<{
       weekendWeight: number;
       overnightRecoveryHours: number;
       greedyCoverageThreshold: number;
       balanceScoreMin: number;
-      autoCompensationEnabled: boolean;
     }>("/auto-schedule/runtime-config", {
       method: "PUT",
       body: JSON.stringify(data),

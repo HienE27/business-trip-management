@@ -71,8 +71,7 @@ Module M07 tự động phân công lịch cho toàn bộ nhân sự theo thuậ
 | 13 | `overnight_recovery_hours` | Khoảng cách nghỉ L01-L01 | `24` | NUMBER | `BatchConflictData` |
 | 14 | `greedy_coverage_threshold` | Ngưỡng phủ lịch tối thiểu (0.0–1.0) | `0.85` | NUMBER | `runGreedy()` — Greedy early stop |
 | 15 | `balance_score_min` | Ngưỡng cân bằng tải tối thiểu (0.0–1.0) | `0.70` | NUMBER | `runScheduling()` — Greedy → Round Robin fallback |
-| 16 | `auto_compensation_enabled` | Tự động tạo ngày nghỉ bù | `false` | BOOLEAN | `runScheduling()` |
-| 17 | `backtrack_time_limit_seconds` | Timeout backtracking (giây) | `60` | NUMBER | `runBacktracking()` |
+| 16 | `backtrack_time_limit_seconds` | Timeout backtracking (giây) | `60` | NUMBER | `runBacktracking()` |
 
 ## 4. Bug đã fix
 

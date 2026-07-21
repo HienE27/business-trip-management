@@ -283,20 +283,19 @@ class CspDataBuilder {
         // Pre-compute eligibility flags per staff per shift type.
         //
         // IMPORTANT: keep this in sync with {@link StaffShiftTypeEligibility}:
-        //   L01/L02/L03 → CORE_ELIGIBLE_SPECIALTIES (default = {Ngoại, Nội})
+        //   L01/L02/L03 → ALL_ELIGIBLE_SPECIALTIES (6 khoa: Ngoại, Nội, Sản, Nhi, Mắt, Răng)
         //   L04         → l04AllowedSpecialties (default = ALL_ELIGIBLE_SPECIALTIES)
         //                  AND staff.specialty.id == varSpecialty[v] for L04 vars.
         //
+        // Theo tài liệu nghiệp vụ, L01/L02/L03 không bị giới hạn theo chuyên khoa.
         // Specialty.name values come from the {@code Specialty} entity (seeded
-        // as "Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng" in DataSeeder), NOT
-        // from any role-like string such as "Bác sĩ" / "Điều dưỡng". Hardcoded
-        // role strings here would silently make EVERY staff ineligible.
+        // as "Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng" in DataSeeder).
         java.util.Map<Integer, boolean[]> eligibilityMatrix = new java.util.HashMap<>();
         for (int staffIdx = 0; staffIdx < numStaff; staffIdx++) {
             Staff st = staffList.get(staffIdx);
             String spName = st.getSpecialty() != null ? st.getSpecialty().getName() : null;
             boolean active = Boolean.TRUE.equals(st.getIsActive());
-            boolean inCore = spName != null && StaffShiftTypeEligibility.CORE_ELIGIBLE_SPECIALTIES.contains(spName);
+            boolean inAllEligible = spName != null && StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES.contains(spName);
             boolean inL04  = spName != null && l04AllowedSpecialties.contains(spName);
             for (int s = 0; s < SHIFT_ORDER.length; s++) {
                 String shiftTypeId = SHIFT_ORDER[s];
@@ -306,8 +305,8 @@ class CspDataBuilder {
                     // set is eligible (specialty filter still applied in AC-3).
                     eligible = active && inL04;
                 } else {
-                    // L01/L02/L03: only staff whose specialty is in CORE.
-                    eligible = active && inCore;
+                    // L01/L02/L03: any active staff in ALL_ELIGIBLE_SPECIALTIES
+                    eligible = active && inAllEligible;
                 }
                 eligibilityMatrix.computeIfAbsent(s, k -> new boolean[numStaff])[staffIdx] = eligible;
             }

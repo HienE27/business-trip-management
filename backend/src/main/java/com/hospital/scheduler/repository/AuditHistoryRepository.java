@@ -14,7 +14,9 @@ import java.util.List;
 @Repository
 public interface AuditHistoryRepository extends JpaRepository<AuditHistory, Integer> {
     List<AuditHistory> findByTableNameAndRecordId(String tableName, Integer recordId);
-    List<AuditHistory> findByChangedBy(Integer changedById);
+
+    @Query("SELECT ah FROM AuditHistory ah WHERE ah.changedBy.id = :changedById")
+    List<AuditHistory> findByChangedBy(@Param("changedById") Integer changedById);
 
     Page<AuditHistory> findByCreatedAtBetweenOrderByCreatedAtDesc(
             LocalDateTime startDate, LocalDateTime endDate, Pageable pageable);
@@ -39,7 +41,8 @@ public interface AuditHistoryRepository extends JpaRepository<AuditHistory, Inte
             @Param("recordId") Integer recordId,
             Pageable pageable);
 
-    Page<AuditHistory> findByChangedBy(Integer changedById, Pageable pageable);
+    @Query("SELECT ah FROM AuditHistory ah WHERE ah.changedBy.id = :changedById")
+    Page<AuditHistory> findByChangedBy(@Param("changedById") Integer changedById, Pageable pageable);
 
     List<AuditHistory> findAllByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 

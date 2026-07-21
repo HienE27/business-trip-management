@@ -122,10 +122,13 @@ function perShiftTypeValidation(
     } else {
       // Ca/người/tuần — 1 tuần tối đa 7 ngày.
       if (bound === "min" && num > 7) {
-        return { level: "warning", message: "Min > 7 ca/người/tuần vượt quá 1 ca/ngày — không khả thi." };
+        return { level: "warning", message: "Không thể trên 7 ngày/tuần. Khuyến nghị ≤ 6 để đảm bảo cân bằng tải." };
       }
       if (bound === "max" && num > 0 && num > 7) {
-        return { level: "warning", message: "Trần > 7 ca/người/tuần vượt quá 1 ca/ngày — không khả thi." };
+        const rec = num > 10
+          ? " Khuyến nghị ≤ 6 ca/tuần để đảm bảo cân bằng tải."
+          : " Khuyến nghị ≤ 6 ca/tuần.";
+        return { level: "warning", message: `Không thể vượt quá 1 ca/ngày (7/tuần).${rec}` };
       }
     }
     return null;

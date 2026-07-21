@@ -23,7 +23,7 @@ export async function scanPage(
   page: Page,
   path: string,
   label: string,
-  loginAs: (() => Promise<boolean>) | null,
+  loginAs: ((page: Page) => Promise<boolean>) | null,
 ): Promise<void> {
    
   console.log(`[axe] Scanning ${label} (${path})…`);
@@ -32,7 +32,7 @@ export async function scanPage(
   await page.waitForLoadState('domcontentloaded');
 
   if (loginAs) {
-    const loggedIn = await loginAs();
+    const loggedIn = await loginAs(page);
     if (!loggedIn) {
        
       console.warn(`[axe] Could not authenticate for ${path} — skipping`);

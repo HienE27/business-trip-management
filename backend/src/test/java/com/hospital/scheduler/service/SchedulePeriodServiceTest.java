@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -293,9 +294,14 @@ class SchedulePeriodServiceTest {
             SchedulePeriodResponse result = periodService.publishPeriod(1, 1);
 
             assertThat(result.getStatus()).isEqualTo("PUBLISHED");
-            // The publish flow now sends per-staff notifications (with each staff's
-            // personal schedule) and a bulk email, not a generic createNotificationForAllStaff.
-            verify(notificationService).createNotification(eq(adminStaff.getId()), any());
+            // The publish flow sends per-staff notifications (one call per active staff).
+            // Capture the staffId argument and verify createNotification was invoked
+            // with adminStaff — this catches production bugs that would skip notifications.
+            ArgumentCaptor<Integer> staffIdCaptor = ArgumentCaptor.forClass(Integer.class);
+            ArgumentCaptor<com.hospital.scheduler.dto.request.NotificationDTO> dtoCaptor =
+                    ArgumentCaptor.forClass(com.hospital.scheduler.dto.request.NotificationDTO.class);
+            verify(notificationService, atLeastOnce()).createNotification(staffIdCaptor.capture(), dtoCaptor.capture());
+            assertThat(staffIdCaptor.getAllValues()).contains(adminStaff.getId());
             verify(emailService).sendSchedulePublishedEmail(
                     eq(List.of(adminStaff)), anyString(), any(), any(), anyList(), anyList());
         }

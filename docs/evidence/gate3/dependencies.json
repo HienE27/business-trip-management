@@ -1,0 +1,49 @@
+﻿{
+  "generated": "2026-07-21T09:55:00+07:00",
+  "build": {
+    "maven": "3.9.11",
+    "java": {
+      "version": "17.0.15",
+      "source_version": "17"
+    },
+    "spring_boot": "3.5.5",
+    "source_encoding": "UTF-8"
+  },
+  "database": {
+    "mysql": "8.0.41",
+    "driver": "MySQL Connector/J (runtime)"
+  },
+  "runtime": {
+    "java": "OpenJDK 17.0.15",
+    "os": "Windows"
+  },
+  "key_dependencies": {
+    "spring-boot-starter-parent": "3.5.5",
+    "spring-boot-starter-data-jpa": "managed by parent",
+    "spring-boot-starter-security": "managed by parent",
+    "spring-boot-starter-validation": "managed by parent",
+    "spring-boot-starter-web": "managed by parent",
+    "spring-boot-starter-actuator": "managed by parent",
+    "hibernate-core": "managed by parent (6.x)",
+    "mysql-connector-j": "managed by parent (runtime)",
+    "flyway-core": "managed by parent",
+    "jjwt-api": "0.12.3",
+    "jjwt-impl": "0.12.3",
+    "jjwt-jackson": "0.12.3",
+    "springdoc-openapi-starter-webmvc-ui": "3.0.3",
+    "springdoc-openapi-starter-webflux-ui": "3.0.3",
+    "lombok": "managed by parent",
+    "snakeyaml": "managed by parent"
+  },
+  "frontend": {
+    "package_manager": "pnpm",
+    "node": "18+ recommended",
+    "framework": "Next.js 16.x"
+  },
+  "notes": [
+    "All Spring Boot managed dependencies use version from spring-boot-starter-parent:3.5.5",
+    "MySQL driver: runtime scope, loaded from Spring Boot BOM",
+    "JJWT: explicit version 0.12.3 (security-sensitive, pinned)",
+    "Frontend locked via pnpm-lock.yaml (commit to git)"
+  ]
+}

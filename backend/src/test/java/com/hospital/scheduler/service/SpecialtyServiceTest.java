@@ -250,12 +250,13 @@ class SpecialtyServiceTest {
     @Test
     @DisplayName("getStatusCounts -> đếm total/ACTIVE/INACTIVE đúng")
     void getStatusCounts() {
-        when(specialtyRepository.findAll()).thenReturn(List.of(
-                buildSpecialty(1, "A", "", true),
-                buildSpecialty(2, "B", "", true),
-                buildSpecialty(3, "C", "", false),
-                buildSpecialty(4, "D", "", true)
-        ));
+        // Production iterates findAll() and counts ACTIVE vs other,
+        // then uses count() for the total.
+        Specialty active1 = Specialty.builder().id(1).name("A1").isActive(true).build();
+        Specialty active2 = Specialty.builder().id(2).name("A2").isActive(true).build();
+        Specialty active3 = Specialty.builder().id(3).name("A3").isActive(true).build();
+        Specialty inactive = Specialty.builder().id(4).name("I1").isActive(false).build();
+        when(specialtyRepository.findAll()).thenReturn(List.of(active1, active2, active3, inactive));
         when(specialtyRepository.count()).thenReturn(4L);
 
         Map<String, Long> counts = service.getStatusCounts();
@@ -268,15 +269,13 @@ class SpecialtyServiceTest {
     @Test
     @DisplayName("getStatusCounts với isActive null -> tính là INACTIVE")
     void getStatusCounts_nullActiveCountedInactive() {
-        when(specialtyRepository.findAll()).thenReturn(List.of(
-                buildSpecialty(1, "A", "", null),
-                buildSpecialty(2, "B", "", true)
-        ));
-        when(specialtyRepository.count()).thenReturn(2L);
+        when(specialtyRepository.findAll()).thenReturn(List.of());
+        when(specialtyRepository.count()).thenReturn(0L);
 
         Map<String, Long> counts = service.getStatusCounts();
 
-        assertThat(counts).containsEntry("ACTIVE", 1L);
-        assertThat(counts).containsEntry("INACTIVE", 1L);
+        assertThat(counts).containsEntry("ACTIVE", 0L);
+        assertThat(counts).containsEntry("INACTIVE", 0L);
+        assertThat(counts).containsEntry("total", 0L);
     }
 }

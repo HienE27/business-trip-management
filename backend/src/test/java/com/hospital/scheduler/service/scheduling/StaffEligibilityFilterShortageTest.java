@@ -193,7 +193,8 @@ class StaffEligibilityFilterShortageTest {
     @Test
     @DisplayName("req == null → luôn false (null safety)")
     void nullReq_alwaysFalse() {
-        assertFalse(filter.shouldPreferCrossSpecialty((String) null, 0, 3, 1.0f));
+        // Test the ShiftRequirement overload with null req
+        assertFalse(filter.shouldPreferCrossSpecialty((ShiftRequirement) null, 0, 3, 1.0f));
     }
 
     // ─── Determinism ────────────────────────────────────────────────────

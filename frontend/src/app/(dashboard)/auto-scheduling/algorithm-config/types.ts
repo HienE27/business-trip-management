@@ -17,7 +17,6 @@ export type RuntimeConfig = {
   overnightRecoveryHours: number;
   greedyCoverageThreshold: number;
   balanceScoreMin: number;
-  autoCompensationEnabled: boolean;
   minStaffPerShift: number;
   maxStaffPerShift: number;
   minShiftsPerStaff: number;
@@ -139,6 +138,7 @@ export const PARAM_KEY_TO_CFG: Record<string, keyof RuntimeConfig> = {
 };
 
 export const LEGACY_AUTO_GEN_KEYS = new Set<string>([
+  "auto_compensation_enabled",
   "auto_generate_requirements",
   "auto_gen_holiday_mode",
   "auto_gen_l01_per_day",

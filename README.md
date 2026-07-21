@@ -307,7 +307,6 @@ Cấu hình thuật toán (17 params trong `algorithm_config`):
 | `overnight_recovery_hours` | Khoảng cách nghỉ L01-L01 | `24` |
 | `greedy_coverage_threshold` | Ngưỡng phủ lịch để Greedy dừng sớm (0.5-1.0) | `0.85` |
 | `balance_score_min` | Ngưỡng cân bằng tải — Greedy fallback sang Round Robin nếu thấp hơn (0.3-1.0) | `0.70` |
-| `auto_compensation_enabled` | Tự động tạo ngày nghỉ bù | `false` |
 | `backtrack_time_limit_seconds` | Timeout backtracking (giây) | `60` |
 
 Cấu hình tại `/auto-scheduling/algorithm-config`. Runtime params đang áp dụng hiển thị ngay trên header của `/auto-scheduling`.

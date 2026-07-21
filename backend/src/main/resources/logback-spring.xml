@@ -74,8 +74,8 @@
         </logger>
     </springProfile>
 
-    <!-- Spring profiles (default/dev/local: console only — no file appenders to avoid permission issues) -->
-    <springProfile name="default,dev,local">
+    <!-- Spring profiles (default/dev/local/mysql: console only — no file appenders to avoid permission issues) -->
+    <springProfile name="default,dev,local,mysql">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
         </root>

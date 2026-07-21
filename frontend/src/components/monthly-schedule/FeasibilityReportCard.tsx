@@ -275,14 +275,23 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
         <div className="px-4 pb-4">
           <h4 className="text-label-md text-on-surface-variant mb-2">Gợi ý</h4>
           <ul className="space-y-1">
-            {report.recommendations.slice(0, 3).map((rec, i) => (
-              <li key={i} className="flex items-start gap-2 text-label-sm text-on-surface">
-                <span className="material-symbols-outlined text-primary text-[14px] shrink-0 mt-0.5">
-                  lightbulb
-                </span>
-                <span>{rec.replace(/^[📋💡]\s*/, "")}</span>
-              </li>
-            ))}
+            {report.recommendations.slice(0, 3).map((rec, i) => {
+              const cleaned = rec.replace(/^(\[[^\]]+\]\s*|[📋💡⚠️]\s*)/u, "");
+              const isWarning = rec.startsWith("[CANH-BAO]") || rec.includes("thieu");
+              return (
+                <li key={i} className="flex items-start gap-2 text-label-sm text-on-surface">
+                  <span
+                    className={`material-symbols-outlined text-[14px] shrink-0 mt-0.5 ${
+                      isWarning ? "text-error" : "text-primary"
+                    }`}
+                    style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}
+                  >
+                    {isWarning ? "warning" : "lightbulb"}
+                  </span>
+                  <span>{cleaned}</span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

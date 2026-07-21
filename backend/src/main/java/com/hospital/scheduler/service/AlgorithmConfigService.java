@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.algorithm.AutoGenConfig;
+import com.hospital.scheduler.algorithm.AutoGenConstants;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.scheduler.dto.request.AlgoConfigRequest;
@@ -33,6 +34,12 @@ public class AlgorithmConfigService {
     private final AlgorithmConfigRepository configRepository;
     private final AlgorithmConfigAuditRepository auditRepository;
     private final ObjectMapper objectMapper;
+    // PR-002A: delegate-only injection. AutoGenConfigService owns the
+    // authoritative get/save implementation; this service keeps the
+    // public API stable for the 12 production callers that still
+    // depend on it. The PR-002C decision is intentionally deferred —
+    // if the facade stays thin and cheap, removal is not required.
+    private final AutoGenConfigService autoGenConfigService;
 
     // Auto-generate config param keys
     public static final String AUTO_GEN_ENABLED = "auto_gen_enabled";
@@ -53,33 +60,21 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_L03_MAX_PER_WEEK = "auto_gen_l03_max_per_week";
     public static final String AUTO_GEN_L04_MAX_PER_WEEK = "auto_gen_l04_max_per_week";
     public static final String AUTO_GEN_HOLIDAY_MODE = "auto_gen_holiday_mode";
-    // L01 cross-specialty
-    public static final String AUTO_GEN_L01_CROSS_SPECIALTY = "auto_gen_l01_cross_specialty";
-    public static final String AUTO_GEN_L01_CROSS_SPECIALTY_RATIO = "auto_gen_l01_cross_specialty_ratio";
-    public static final String AUTO_GEN_L01_ALLOWED_SPECIALTIES = "auto_gen_l01_allowed_specialties";
-    public static final String AUTO_GEN_L01_BALANCE_STRATEGY = "auto_gen_l01_balance_strategy";
-    // L02 cross-specialty
-    public static final String AUTO_GEN_L02_CROSS_SPECIALTY = "auto_gen_l02_cross_specialty";
-    public static final String AUTO_GEN_L02_CROSS_SPECIALTY_RATIO = "auto_gen_l02_cross_specialty_ratio";
-    public static final String AUTO_GEN_L02_ALLOWED_SPECIALTIES = "auto_gen_l02_allowed_specialties";
-    public static final String AUTO_GEN_L02_BALANCE_STRATEGY = "auto_gen_l02_balance_strategy";
-    // L03 cross-specialty
-    public static final String AUTO_GEN_L03_CROSS_SPECIALTY = "auto_gen_l03_cross_specialty";
-    public static final String AUTO_GEN_L03_CROSS_SPECIALTY_RATIO = "auto_gen_l03_cross_specialty_ratio";
-    public static final String AUTO_GEN_L03_ALLOWED_SPECIALTIES = "auto_gen_l03_allowed_specialties";
-    public static final String AUTO_GEN_L03_BALANCE_STRATEGY = "auto_gen_l03_balance_strategy";
-    // L04 cross-specialty
+    // L04 cross-specialty (chỉ L04 có specialty config; L01/L02/L03 không cần)
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY = "auto_gen_l04_cross_specialty";
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY_RATIO = "auto_gen_l04_cross_specialty_ratio";
     public static final String AUTO_GEN_L04_ALLOWED_SPECIALTIES = "auto_gen_l04_allowed_specialties";
     public static final String AUTO_GEN_L04_BALANCE_STRATEGY = "auto_gen_l04_balance_strategy";
+    // PR-002A: kept uppercase to match existing DB rows seeded by the legacy
+    // upsert path. Migrating this row to lowercase is intentionally deferred —
+    // it would change behavior outside the scope of the delegation refactor.
+    public static final String AUTO_GEN_REMOVED_SHIFT_TYPES = "AUTO_GEN_REMOVED_SHIFT_TYPES";
 
     // Algorithm runtime config param keys
     public static final String WEEKEND_WEIGHT = "weekend_weight";
     public static final String OVERNIGHT_RECOVERY_HOURS = "overnight_recovery_hours";
     public static final String GREEDY_COVERAGE_THRESHOLD = "greedy_coverage_threshold";
     public static final String BALANCE_SCORE_MIN = "balance_score_min";
-    public static final String AUTO_COMPENSATION_ENABLED = "auto_compensation_enabled";
     public static final String MIN_STAFF_PER_SHIFT = "min_staff_per_shift";
     public static final String MAX_STAFF_PER_SHIFT = "max_staff_per_shift";
     public static final String MIN_SHIFTS_PER_STAFF = "min_shifts_per_staff";
@@ -246,60 +241,29 @@ public class AlgorithmConfigService {
     }
 
     /**
-     * Get auto-generation configuration.
-     * Returns Optional.empty() if auto-gen is disabled.
+     * Returns the auto-generation configuration.
+     *
+     * <p>The {@code Optional} itself is always present. When
+     * {@code AUTO_GEN_ENABLED} is missing from the DB the returned config
+     * defaults to {@code enabled=true} so auto-scheduling works out-of-the-box;
+     * when the flag is explicitly set to {@code false} the returned config
+     * carries {@code enabled=false}. Consumers must inspect
+     * {@link AutoGenConfig#enabled()} to decide whether to proceed.
+     *
+     * <p><b>Do not</b> branch on {@code Optional#isEmpty()} to detect a
+     * disabled state — that pattern was misleadingly documented in an older
+     * version of this method and has never been the actual contract.
      */
+    @Transactional(readOnly = true)
     public java.util.Optional<AutoGenConfig> getAutoGenConfig() {
-        // Bulk-load once, then read every key from the in-memory map — replaces
-        // the 25 separate findByParamKey SELECTs that were making the
-        // algorithm-config page take 5+ seconds to load.
-        java.util.Map<String, String> cache = loadConfigCache();
-        String enabledRaw = cache.get(AUTO_GEN_ENABLED);
-        // Default to true so auto-scheduling works out-of-the-box.
-        boolean enabled = enabledRaw == null || Boolean.parseBoolean(enabledRaw);
-        // Always return a config with defaults — even if AUTO_GEN_ENABLED is missing from DB,
-        // fall back to defaults so auto-scheduling works out-of-the-box without manual config setup.
-        return java.util.Optional.of(new AutoGenConfig(
-                enabled,
-                getIntValue(AUTO_GEN_L01_MIN_PER_DAY, 1, cache),
-                getIntValue(AUTO_GEN_L02_MIN_PER_DAY, 1, cache),
-                getIntValue(AUTO_GEN_L03_MIN_PER_DAY, 1, cache),
-                getIntValue(AUTO_GEN_L04_MIN_PER_DAY, 1, cache),
-                getIntValue(AUTO_GEN_L01_MAX_PER_DAY, 0, cache),
-                getIntValue(AUTO_GEN_L02_MAX_PER_DAY, 0, cache),
-                getIntValue(AUTO_GEN_L03_MAX_PER_DAY, 0, cache),
-                getIntValue(AUTO_GEN_L04_MAX_PER_DAY, 0, cache),
-                getIntValue(AUTO_GEN_L01_MIN_PER_WEEK, 1, cache),
-                getIntValue(AUTO_GEN_L02_MIN_PER_WEEK, 2, cache),
-                getIntValue(AUTO_GEN_L03_MIN_PER_WEEK, 1, cache),
-                getIntValue(AUTO_GEN_L04_MIN_PER_WEEK, 1, cache),
-                getIntValue(AUTO_GEN_L01_MAX_PER_WEEK, 0, cache),
-                getIntValue(AUTO_GEN_L02_MAX_PER_WEEK, 0, cache),
-                getIntValue(AUTO_GEN_L03_MAX_PER_WEEK, 0, cache),
-                getIntValue(AUTO_GEN_L04_MAX_PER_WEEK, 0, cache),
-                getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP", cache),
-                getStringListValue("AUTO_GEN_REMOVED_SHIFT_TYPES", cache),
-                // L01 cross-specialty
-                getBooleanValue(AUTO_GEN_L01_CROSS_SPECIALTY, false, cache),
-                getFloatValue(AUTO_GEN_L01_CROSS_SPECIALTY_RATIO, 0.5f, cache),
-                getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES, cache),
-                "FAIR_DISTRIBUTE",  // l01BalanceStrategy (recommendation service computes its own; this hardcode keeps get-config working)
-                // L02 cross-specialty
-                getBooleanValue(AUTO_GEN_L02_CROSS_SPECIALTY, false, cache),
-                getFloatValue(AUTO_GEN_L02_CROSS_SPECIALTY_RATIO, 0.5f, cache),
-                getStringListValue(AUTO_GEN_L02_ALLOWED_SPECIALTIES, cache),
-                "FAIR_DISTRIBUTE",
-                // L03 cross-specialty
-                getBooleanValue(AUTO_GEN_L03_CROSS_SPECIALTY, false, cache),
-                getFloatValue(AUTO_GEN_L03_CROSS_SPECIALTY_RATIO, 0.5f, cache),
-                getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES, cache),
-                "FAIR_DISTRIBUTE",
-                // L04 cross-specialty
-                getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false, cache),
-                getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.5f, cache),
-                getStringListValue("AUTO_GEN_L04_ALLOWED_SPECIALTIES", cache), // null/empty = all specialties
-                "FAIR_DISTRIBUTE"
-        ));
+        // PR-002A: delegate. The authoritative implementation lives in
+        // AutoGenConfigService#getAutoGenConfig (uses the shared
+        // AlgorithmConfigCrudService for bulk-load + cache parsing).
+        // The contract documented above is preserved — this method still
+        // returns a present Optional whose cfg.enabled() reflects the
+        // persisted flag. Internal callers (getRuntimeConfig,
+        // recommendAutoGenConfig) keep using this delegation.
+        return autoGenConfigService.getAutoGenConfig();
     }
 
     /**
@@ -307,50 +271,12 @@ public class AlgorithmConfigService {
      */
     @Transactional
     public void saveAutoGenConfig(AutoGenConfig config) {
-        upsert(AUTO_GEN_ENABLED, String.valueOf(config.enabled()), AlgorithmConfig.ValueType.BOOLEAN,
-                "Tự động tạo yêu cầu nhân sự khi mở kỳ lịch mới.");
-        upsert(AUTO_GEN_L01_MIN_PER_DAY, String.valueOf(config.l01MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L01 mỗi ngày; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
-        upsert(AUTO_GEN_L02_MIN_PER_DAY, String.valueOf(config.l02MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L02 mỗi ngày; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
-        upsert(AUTO_GEN_L03_MIN_PER_DAY, String.valueOf(config.l03MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L03 mỗi ngày; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
-        upsert(AUTO_GEN_L04_MIN_PER_DAY, String.valueOf(config.l04MinPerDay()), AlgorithmConfig.ValueType.NUMBER, "Mục tiêu nhân sự L04 mỗi ngày/chuyên khoa; thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
-        upsert(AUTO_GEN_L01_MAX_PER_DAY, String.valueOf(config.l01MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L01 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
-        upsert(AUTO_GEN_L02_MAX_PER_DAY, String.valueOf(config.l02MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L02 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
-        upsert(AUTO_GEN_L03_MAX_PER_DAY, String.valueOf(config.l03MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L03 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
-        upsert(AUTO_GEN_L04_MAX_PER_DAY, String.valueOf(config.l04MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L04 mỗi ngày/chuyên khoa khi sinh mục tiêu. 0 = không đặt trần.");
-        upsert(AUTO_GEN_L01_MIN_PER_WEEK, String.valueOf(config.l01MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L01 tối thiểu mỗi người mỗi tuần.");
-        upsert(AUTO_GEN_L02_MIN_PER_WEEK, String.valueOf(config.l02MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L02 tối thiểu mỗi người mỗi tuần.");
-        upsert(AUTO_GEN_L03_MIN_PER_WEEK, String.valueOf(config.l03MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L03 tối thiểu mỗi người mỗi tuần.");
-        upsert(AUTO_GEN_L04_MIN_PER_WEEK, String.valueOf(config.l04MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L04 tối thiểu mỗi người mỗi tuần.");
-        upsert(AUTO_GEN_L01_MAX_PER_WEEK, String.valueOf(config.l01MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L01 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L02_MAX_PER_WEEK, String.valueOf(config.l02MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L02 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L03_MAX_PER_WEEK, String.valueOf(config.l03MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L03 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L04_MAX_PER_WEEK, String.valueOf(config.l04MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L04 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        upsert(AUTO_GEN_HOLIDAY_MODE, config.holidayMode(), AlgorithmConfig.ValueType.STRING,
-                "Xử lý ngày lễ: SKIP = bỏ qua, PARTIAL = giảm cường độ.");
-        String removedCsv = config.removedShiftTypes() == null
-                ? ""
-                : String.join(",", config.removedShiftTypes());
-        upsert("AUTO_GEN_REMOVED_SHIFT_TYPES", removedCsv, AlgorithmConfig.ValueType.STRING,
-                "Danh sách mã loại lịch (L01..L04) bị bỏ qua khi tự động tạo yêu cầu. Phân tách bằng dấu phẩy. Rỗng = không bỏ.");
-        upsert(AUTO_GEN_L04_CROSS_SPECIALTY, String.valueOf(config.l04CrossSpecialty()), AlgorithmConfig.ValueType.BOOLEAN,
-                "Cho phép gán nhân sự từ chuyên khoa khác vào L04 khi chuyên khoa gốc thiếu nhân sự.");
-        upsert(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, String.valueOf(config.l04CrossSpecialtyRatio()), AlgorithmConfig.ValueType.NUMBER,
-                "Ngưỡng shortage L04 (0.0-1.0) để kích hoạt cross-specialty. Ví dụ: 0.5 = chỉ dùng cross khi strict thiếu ≥ 50%. 0.0 = không bao giờ. 1.0 = dùng cross khi thiếu bất kỳ.");
-        // Lưu danh sách specialties được phép gán L04 (comma-separated)
-        String allowedSpecs = config.l04AllowedSpecialties() == null || config.l04AllowedSpecialties().isEmpty()
-                ? "" : String.join(",", config.l04AllowedSpecialties());
-        upsert("AUTO_GEN_L04_ALLOWED_SPECIALTIES", allowedSpecs, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L04. Rỗng = tất cả chuyên khoa. Ví dụ: Ngoại,Nội,Sản");
-        // L01/L02/L03 allowed specialties (CSV). Rỗng → dùng default CORE = Ngoại,Nội.
-        String l01Csv = config.l01AllowedSpecialties() == null ? "" : String.join(",", config.l01AllowedSpecialties());
-        upsert(AUTO_GEN_L01_ALLOWED_SPECIALTIES, l01Csv, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L01 (trực 24/24). Rỗng = mặc định Ngoại,Nội. Ví dụ: Ngoại,Nội,Sản,Nhi,Mắt,Răng");
-        String l02Csv = config.l02AllowedSpecialties() == null ? "" : String.join(",", config.l02AllowedSpecialties());
-        upsert(AUTO_GEN_L02_ALLOWED_SPECIALTIES, l02Csv, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L02 (thông tầm). Rỗng = mặc định Ngoại,Nội.");
-        String l03Csv = config.l03AllowedSpecialties() == null ? "" : String.join(",", config.l03AllowedSpecialties());
-        upsert(AUTO_GEN_L03_ALLOWED_SPECIALTIES, l03Csv, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L03 (phòng khám dịch vụ). Rỗng = mặc định Ngoại,Nội.");
+        // PR-002A: delegate to AutoGenConfigService#saveAutoGenConfig.
+        // All field-level upserts (paramKey, value, type, description)
+        // are owned by AutoGenConfigService to keep the persistence layer
+        // in one place. This thin wrapper preserves the public API for
+        // the 2 production callers (DataSeeder, AutoSchedulingController).
+        autoGenConfigService.saveAutoGenConfig(config);
     }
 
     /**
@@ -412,24 +338,21 @@ public class AlgorithmConfigService {
         upsert(AUTO_GEN_L04_MAX_PER_WEEK, getStringValue(AUTO_GEN_L04_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca L04 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
         map.put(AUTO_GEN_L04_MAX_PER_WEEK, "OK");
-        upsert(AUTO_GEN_HOLIDAY_MODE, getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"), AlgorithmConfig.ValueType.STRING,
+                upsert(AUTO_GEN_HOLIDAY_MODE, getStringValue(AUTO_GEN_HOLIDAY_MODE, AutoGenConstants.HOLIDAY_MODE_SKIP), AlgorithmConfig.ValueType.STRING,
                 "Xử lý khi gặp ngày lễ: SKIP = bỏ qua ngày lễ (không xếp lịch), PARTIAL = vẫn xếp lịch nhưng giảm cường độ.");
         map.put(AUTO_GEN_HOLIDAY_MODE, "OK");
         upsert(WEEKEND_WEIGHT, getStringValue(WEEKEND_WEIGHT, "2"), AlgorithmConfig.ValueType.NUMBER,
                 "Hệ số phạt khi xếp lịch cho người vào thứ 7 / chủ nhật. Giá trị càng cao → thuật toán càng tránh xếp ca cuối tuần. Đặt 1 để tắt ưu tiên.");
         map.put(WEEKEND_WEIGHT, "OK");
         upsert(OVERNIGHT_RECOVERY_HOURS, getStringValue(OVERNIGHT_RECOVERY_HOURS, "24"), AlgorithmConfig.ValueType.NUMBER,
-                "Ngưỡng nghỉ ngơi tham chiếu cho L01. Ràng buộc thực tế vẫn theo ngày nghỉ bù và kiểm tra back-to-back.");
+                "[RESERVED v1.1] Giờ hồi phục sau trực đêm. Hiện tại không dùng — quy tắc nghỉ bù và back-to-back đã được xử lý.");
         map.put(OVERNIGHT_RECOVERY_HOURS, "OK");
         upsert(GREEDY_COVERAGE_THRESHOLD, getStringValue(GREEDY_COVERAGE_THRESHOLD, "0.85"), AlgorithmConfig.ValueType.NUMBER,
-                "Ngưỡng phủ lịch tối thiểu (0.0–1.0). Khi tỷ lệ lịch đã phủ đạt mức này, thuật toán greedy sẽ dừng sớm. Giảm → chạy nhanh hơn; tăng → phủ kỹ hơn.");
+                "[v1.0] Chỉ dùng để giám sát/logging. Scheduler luôn gán 100% slot khi có thể. Không ảnh hưởng đến kết quả.");
         map.put(GREEDY_COVERAGE_THRESHOLD, "OK");
         upsert(BALANCE_SCORE_MIN, getStringValue(BALANCE_SCORE_MIN, "0.75"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
         map.put(BALANCE_SCORE_MIN, "OK");
-        upsert(AUTO_COMPENSATION_ENABLED, getStringValue(AUTO_COMPENSATION_ENABLED, "true"), AlgorithmConfig.ValueType.BOOLEAN,
-                "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
-        map.put(AUTO_COMPENSATION_ENABLED, "OK");
         upsert(MIN_STAFF_PER_SHIFT, getStringValue(MIN_STAFF_PER_SHIFT, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng theo dõi số nhân sự tối thiểu mỗi ca; dùng cho đánh giá/chất lượng, không ép thuật toán phá ràng buộc cứng.");
         map.put(MIN_STAFF_PER_SHIFT, "OK");
@@ -484,19 +407,6 @@ public class AlgorithmConfigService {
         return raw != null ? raw : defaultValue;
     }
 
-    private java.util.List<String> getStringListValue(String paramKey) {
-        return getStringListValue(paramKey, null);
-    }
-
-    private java.util.List<String> getStringListValue(String paramKey, java.util.Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
-        if (raw == null || raw.isBlank()) return java.util.List.of();
-        return java.util.Arrays.stream(raw.split(","))
-                .map(String::trim)
-                .filter(t -> !t.isEmpty())
-                .toList();
-    }
-
     /**
      * Single-row SELECT kept around for callers that do NOT preload the cache
      * (e.g. one-off lookups during save/upsert, audit queries).
@@ -537,7 +447,6 @@ public class AlgorithmConfigService {
                 .overnightRecoveryHours(getIntValue(OVERNIGHT_RECOVERY_HOURS, 24, cache))
                 .greedyCoverageThreshold(getBigDecimalValue(GREEDY_COVERAGE_THRESHOLD, 0.85, cache))
                 .balanceScoreMin(getBigDecimalValue(BALANCE_SCORE_MIN, 0.70, cache))
-                .autoCompensationEnabled(getBooleanValue(AUTO_COMPENSATION_ENABLED, true, cache))
                 .minStaffPerShift(getIntValue(MIN_STAFF_PER_SHIFT, 1, cache))
                 .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0, cache))
                 .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0, cache))
@@ -552,6 +461,22 @@ public class AlgorithmConfigService {
 
     /**
      * Save algorithm runtime configuration.
+     *
+     * <p>PR-MAX-WEEK: {@code l01MaxPerWeek..l04MaxPerWeek} deliberately live
+     * here even though they are also part of {@link AutoGenConfig}.  The
+     * runtime editor bundles them with the rest of {@code RuntimeConfig} on
+     * save, but historically this method skipped them.  When a user modified
+     * the per-type weekly maximums in the UI and hit Save, the values were
+     * persisted successfully (HTTP 200, toast "Đã lưu cấu hình thuật toán")
+     * yet vanished on refresh — because {@link #getRuntimeConfig} reads those
+     * four fields from {@link AutoGenConfig} (which only writes via
+     * {@code updateAutoGenConfig}), and a partial failure of the second PUT
+     * left the {@code auto_gen_l*_max_per_week} rows at their defaults.
+     * Persisting here makes the runtime endpoint self-sufficient: a single
+     * PUT refreshes everything the UI bound to that endpoint.  The
+     * auto-gen-config endpoint still upserts the same rows; concurrent
+     * writes are safe because {@link #upsert(String, String, AlgorithmConfig.ValueType, String)}
+     * is idempotent on the same key.
      */
     @Transactional
     public void saveRuntimeConfig(AlgorithmRuntimeConfig config) {
@@ -563,8 +488,6 @@ public class AlgorithmConfigService {
                 "Ngưỡng phủ lịch tối thiểu (0.0–1.0). Khi tỷ lệ lịch đã phủ đạt mức này, thuật toán greedy sẽ dừng sớm. Giảm → chạy nhanh hơn; tăng → phủ kỹ hơn.");
         upsert(BALANCE_SCORE_MIN, String.valueOf(config.getBalanceScoreMin()), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
-        upsert(AUTO_COMPENSATION_ENABLED, String.valueOf(config.isAutoCompensationEnabled()), AlgorithmConfig.ValueType.BOOLEAN,
-                "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
         upsert(MIN_STAFF_PER_SHIFT, String.valueOf(config.getMinStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối thiểu mỗi ca. Đặt 0 để bỏ qua giới hạn này. Nếu không đủ nhân sự đạt ngưỡng, thuật toán sẽ cảnh báo nhưng vẫn xếp.");
         upsert(MAX_STAFF_PER_SHIFT, String.valueOf(config.getMaxStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
@@ -573,29 +496,19 @@ public class AlgorithmConfigService {
                 "Số ca trực tối thiểu mỗi nhân sự trong kỳ. Đặt 0 để bỏ qua. Giúp đảm bảo mỗi người đều có ít nhất N ca trong kỳ.");
         upsert(MAX_SHIFTS_PER_STAFF, String.valueOf(config.getMaxShiftsPerStaff()), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca trực tối đa mỗi nhân sự trong kỳ. Đặt 0 để dùng maxShiftsPerMonth của nhân sự. Giới hạn này ngược lại với min — ngăn không ai bị quá tải.");
-    }
-
-    private boolean getBooleanValue(String paramKey, boolean defaultValue) {
-        return getBooleanValue(paramKey, defaultValue, null);
-    }
-
-    private boolean getBooleanValue(String paramKey, boolean defaultValue, java.util.Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
-        return raw != null && Boolean.parseBoolean(raw);
-    }
-
-    private float getFloatValue(String paramKey, float defaultValue) {
-        return getFloatValue(paramKey, defaultValue, null);
-    }
-
-    private float getFloatValue(String paramKey, float defaultValue, java.util.Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
-        if (raw == null) return defaultValue;
-        try {
-            return Float.parseFloat(raw);
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
+        // PR-MAX-WEEK: see class javadoc.  Per-type weekly maxes are
+        // shared between RuntimeConfig and AutoGenConfig — see the comment
+        // on AUTO_GEN_L01_MAX_PER_WEEK constants.  We persist them on
+        // both endpoints to make the runtime-config save a single
+        // self-sufficient round trip.
+        upsert(AUTO_GEN_L01_MAX_PER_WEEK, String.valueOf(config.getL01MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L01 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L02_MAX_PER_WEEK, String.valueOf(config.getL02MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L02 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L03_MAX_PER_WEEK, String.valueOf(config.getL03MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L03 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
+        upsert(AUTO_GEN_L04_MAX_PER_WEEK, String.valueOf(config.getL04MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca L04 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
     }
 
     private java.math.BigDecimal getBigDecimalValue(String paramKey, double defaultValue) {
@@ -673,28 +586,11 @@ public class AlgorithmConfigService {
         int l03MaxPerDay = Math.max(l03MinPerDay, (int) Math.ceil(l03MaxPerWeek * 1.2));
         int l04MaxPerDay = Math.max(l04MinPerDay, (int) Math.ceil(l04MaxPerWeek * 1.2));
 
-        java.util.List<String> l01Spec = expandNonL04Eligibility
-                ? (expandedSpecialties != null && !expandedSpecialties.isEmpty()
-                    ? expandedSpecialties
-                    : java.util.List.of("Bác sĩ", "Điều dưỡng", "Kỹ thuật viên", "Dược sĩ",
-                        "Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"))
-                : (current.l01AllowedSpecialties() != null && !current.l01AllowedSpecialties().isEmpty()
-                    ? current.l01AllowedSpecialties()
-                    : java.util.List.of("Ngoại", "Nội"));
-        java.util.List<String> l02Spec = expandNonL04Eligibility
-                ? l01Spec
-                : (current.l02AllowedSpecialties() != null && !current.l02AllowedSpecialties().isEmpty()
-                    ? current.l02AllowedSpecialties()
-                    : java.util.List.of("Ngoại", "Nội"));
-        java.util.List<String> l03Spec = expandNonL04Eligibility
-                ? l01Spec
-                : (current.l03AllowedSpecialties() != null && !current.l03AllowedSpecialties().isEmpty()
-                    ? current.l03AllowedSpecialties()
-                    : java.util.List.of("Ngoại", "Nội"));
-
         int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
                 + (l03Target * l03Elig) + (l04Target * l04Elig);
 
+        // L01/L02/L03: không có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
+        // Chỉ L04 có specialty config
         AutoGenConfig recommended = new AutoGenConfig(
                 current.enabled(),
                 l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
@@ -703,39 +599,24 @@ public class AlgorithmConfigService {
                 l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
                 current.holidayMode(),
                 current.removedShiftTypes() != null ? current.removedShiftTypes() : java.util.List.of(),
-                // L01
-                current.l01CrossSpecialty(),
-                current.l01CrossSpecialtyRatio(),
-                l01Spec,
-                "FAIR_DISTRIBUTE",
-                // L02
-                current.l02CrossSpecialty(),
-                current.l02CrossSpecialtyRatio(),
-                l02Spec,
-                "FAIR_DISTRIBUTE",
-                // L03
-                current.l03CrossSpecialty(),
-                current.l03CrossSpecialtyRatio(),
-                l03Spec,
-                "FAIR_DISTRIBUTE",
-                // L04
+                // L04 only
                 current.l04CrossSpecialty(),
                 current.l04CrossSpecialtyRatio(),
                 current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : java.util.List.of(),
-                "FAIR_DISTRIBUTE"
+                current.l04BalanceStrategy() != null ? current.l04BalanceStrategy() : AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE
         );
 
         String rationale = String.format(
                 "Đề xuất cho kỳ %d ngày/%d tuần với tổng ca dự kiến = %d. " +
-                "L01/L02/L03: %d/%d/%d ca/người × %d/%d/%d người eligible. " +
+                "L01/L02/L03: %d/%d/%d ca/người × %d/%d/%d người eligible (tất cả 6 khoa). " +
                 "L04: %d ca/người × %d người eligible. " +
-                "%s",
+                "Eligible pool: %s",
                 days, weeks, totalExpected,
                 l01Target, l02Target, l03Target, l01Elig, l02Elig, l03Elig,
                 l04Target, l04Elig,
                 expandNonL04Eligibility
-                    ? "Mở rộng eligibility L01/L02/L03 cho tất cả specialties để đạt mục tiêu."
-                    : "Giữ eligibility L01/L02/L03 cho Ngoại,Nội (8 người) — nếu không đủ, cân nhắc mở rộng."
+                    ? "Mở rộng cho tất cả specialties để đạt mục tiêu."
+                    : "StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES (Ngoại, Nội, Sản, Nhi, Mắt, Răng)."
         );
 
         return new AutoGenConfigRecommendation(recommended, totalExpected, rationale);
@@ -762,15 +643,46 @@ public class AlgorithmConfigService {
         private int overnightRecoveryHours;
         private java.math.BigDecimal greedyCoverageThreshold;
         private java.math.BigDecimal balanceScoreMin;
-        private boolean autoCompensationEnabled;
-        private int minStaffPerShift;
         private int maxStaffPerShift;
-        private int minShiftsPerStaff;
         private int maxShiftsPerStaff;
         // Per-shift-type weekly max (from AutoGenConfig)
         private int l01MaxPerWeek;
         private int l02MaxPerWeek;
         private int l03MaxPerWeek;
         private int l04MaxPerWeek;
+
+        /**
+         * @deprecated Not used in scheduler v1.0. Kept only for backward compatibility.
+         *
+         * <p>TODO(v1.1):
+         * <ul>
+         *   <li>Remove from {@link AlgorithmRuntimeConfig} record</li>
+         *   <li>Remove constants from {@link AlgorithmConfigService}</li>
+         *   <li>Remove from {@link com.hospital.scheduler.scheduling.config.ConfigMapper}</li>
+         *   <li>Remove from {@link com.hospital.scheduler.scheduling.config.ConfigMetadataRegistry}</li>
+         *   <li>Remove DB rows: {@code min_staff_per_shift}</li>
+         * </ul>
+         *
+         * @see <a href="https://github.com/tmHieu20-02/business-trip-management/issues">GitHub Issues</a>
+         */
+        @Deprecated
+        private int minStaffPerShift;
+
+        /**
+         * @deprecated Not used in scheduler v1.0. Kept only for backward compatibility.
+         *
+         * <p>TODO(v1.1):
+         * <ul>
+         *   <li>Remove from {@link AlgorithmRuntimeConfig} record</li>
+         *   <li>Remove constants from {@link AlgorithmConfigService}</li>
+         *   <li>Remove from {@link com.hospital.scheduler.scheduling.config.ConfigMapper}</li>
+         *   <li>Remove from {@link com.hospital.scheduler.scheduling.config.ConfigMetadataRegistry}</li>
+         *   <li>Remove DB rows: {@code min_shifts_per_staff}</li>
+         * </ul>
+         *
+         * @see <a href="https://github.com/tmHieu20-02/business-trip-management/issues">GitHub Issues</a>
+         */
+        @Deprecated
+        private int minShiftsPerStaff;
     }
 }
