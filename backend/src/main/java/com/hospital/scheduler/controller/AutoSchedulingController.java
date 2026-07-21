@@ -368,8 +368,9 @@ public class AutoSchedulingController {
 	        );
         int totalStaff = req.totalStaff() != null ? req.totalStaff()
                 : req.eligibleStaff().values().stream().mapToInt(Integer::intValue).sum();
-        int recommendedMax = Math.max(1, Math.min(req.periodDays(),
-                (int) Math.ceil((double) recommendation.totalShiftsExpected() / Math.max(1, totalStaff))));
+        int totalTargetPerPerson = req.targetPerStaffPerMonth().values().stream().mapToInt(Integer::intValue).sum();
+        int recommendedMax = Math.max(totalTargetPerPerson,
+                Math.min(60, (int) Math.ceil((double) recommendation.totalShiftsExpected() / Math.max(1, totalStaff))));
         var response = new AutoGenConfigRecommendResponse(
                 recommendation.config(),
                 new AutoGenConfigRecommendResponse.RecommendedRuntimeConfig(recommendedMax),

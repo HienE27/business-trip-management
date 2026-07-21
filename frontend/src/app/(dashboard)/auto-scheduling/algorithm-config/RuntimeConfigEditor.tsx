@@ -191,7 +191,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         periodWeeks: PERIOD_WEEKS,
         totalStaff,
         eligibleStaff: eligibleStaffMap,
-        targetPerStaffPerMonth: { L01: 8, L02: 7, L03: 8, L04: 3 },
+        targetPerStaffPerMonth: { L01: 8, L02: 7, L03: 8, L04: 10 },
         expandNonL04Eligibility: true,
         expandedSpecialties: staffAnalysis.map(a => a.specialtyName),
         maxShiftsPerStaff: form?.maxShiftsPerStaff,

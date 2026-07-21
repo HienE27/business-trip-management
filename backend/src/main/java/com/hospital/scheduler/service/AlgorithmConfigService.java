@@ -11,8 +11,12 @@ import com.hospital.scheduler.entity.AlgorithmConfig;
 import com.hospital.scheduler.entity.AlgorithmConfigAudit;
 import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
+import com.hospital.scheduler.entity.Schedule;
+import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.repository.AlgorithmConfigAuditRepository;
 import com.hospital.scheduler.repository.AlgorithmConfigRepository;
+import com.hospital.scheduler.repository.SchedulePeriodRepository;
+import com.hospital.scheduler.repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -32,6 +36,8 @@ public class AlgorithmConfigService {
 
     private final AlgorithmConfigRepository configRepository;
     private final AlgorithmConfigAuditRepository auditRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final SchedulePeriodRepository schedulePeriodRepository;
     private final ObjectMapper objectMapper;
 
     // Auto-generate config param keys
@@ -610,6 +616,34 @@ public class AlgorithmConfigService {
     }
 
     /**
+     * Đọc lịch sử từ kỳ PUBLISHED gần nhất để tính tỉ lệ phân bổ L01–L04.
+     */
+    private java.util.Map<String, Double> loadHistoricalShiftRatios() {
+        try {
+            List<SchedulePeriod> pastPeriods = schedulePeriodRepository
+                    .findByStatusOrderByStartDateDesc(SchedulePeriod.PeriodStatus.PUBLISHED);
+            if (pastPeriods.isEmpty()) return null;
+            SchedulePeriod last = pastPeriods.get(0);
+            List<Schedule> schedules = scheduleRepository.findByPeriodId(last.getId());
+            if (schedules.isEmpty()) return null;
+            java.util.Map<String, Long> counts = schedules.stream()
+                    .collect(java.util.stream.Collectors.groupingBy(
+                            s -> s.getShiftType().getId(), java.util.stream.Collectors.counting()));
+            long total = counts.values().stream().mapToLong(Long::longValue).sum();
+            if (total == 0) return null;
+            java.util.Map<String, Double> ratios = new java.util.HashMap<>();
+            for (java.util.Map.Entry<String, Long> e : counts.entrySet()) {
+                ratios.put(e.getKey(), (double) e.getValue() / total);
+            }
+            log.info("Historical shift ratios from period {}: {}", last.getId(), ratios);
+            return ratios;
+        } catch (Exception e) {
+            log.warn("Cannot load historical shift ratios, use fallback", e);
+            return null;
+        }
+    }
+
+    /**
      * Tính toán và trả về AutoGenConfig đề xuất dựa trên mục tiêu ca/người/tháng.
      *
      * <p>Công thức:
@@ -648,13 +682,21 @@ public class AlgorithmConfigService {
 	                ? l04Elig
 	                : Math.max(1, Math.min(l04Elig, (int) Math.ceil((double) totalStaff / numSpecialties)));
 
-	        // Tính target tối ưu từ năng lực, không dùng số cứng từ frontend
-	        int capacityPerPerson = Math.max(1, maxShiftsPerStaff > 0 ? maxShiftsPerStaff : periodDays);
-	        // Phân bổ: L01 30%, L02 25%, L03 30%, L04 15%
-	        int l01Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.30));
-	        int l02Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.25));
-	        int l03Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.30));
-	        int l04Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.15));
+                // Dùng target từ lịch sử nếu có, fallback sang frontend hoặc % mặc định
+                int capacityPerPerson = Math.max(1, maxShiftsPerStaff > 0 ? maxShiftsPerStaff : periodDays);
+                java.util.Map<String, Double> histRatios = loadHistoricalShiftRatios();
+                int l01Target, l02Target, l03Target, l04Target;
+                if (histRatios != null) {
+                    l01Target = Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault("L01", 0.30)));
+                    l02Target = Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault("L02", 0.25)));
+                    l03Target = Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault("L03", 0.30)));
+                    l04Target = Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault("L04", 0.15)));
+                } else {
+                    l01Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.30));
+                    l02Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.25));
+                    l03Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.30));
+                    l04Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.15));
+                }
 
 	        int l01Elig = Math.max(1, eligibleStaff.getOrDefault("L01", 1));
 	        int l02Elig = Math.max(1, eligibleStaff.getOrDefault("L02", 1));

@@ -167,9 +167,10 @@ public class RequirementAutoGenService {
                     int staffInSpec = staffPerSpecialty.getOrDefault(specialty.getId(), 0);
 
                     // Fair L04 per person per period: at most ~8-10 L04/month per person
-                    int maxL04PerPerson = Math.min(
-                            config.l04MaxPerWeek() * periodWeeks,
-                            Math.min(10, daysInPeriod / 2));
+                    // l04MaxPerWeek=0 means unlimited — use the hard cap directly.
+                    int maxL04PerPerson = config.l04MaxPerWeek() > 0
+                            ? Math.min(config.l04MaxPerWeek() * periodWeeks, Math.min(10, daysInPeriod / 2))
+                            : Math.min(10, daysInPeriod / 2);
 
                     // Total L04 needed for this specialty based on its own staff count.
                     // When cross-specialty is enabled, the algorithm can fill remaining
@@ -189,11 +190,12 @@ public class RequirementAutoGenService {
                     int dayOfPeriod = (int) ChronoUnit.DAYS.between(period.getStartDate(), date);
                     boolean generateToday = (dayOfPeriod % interval == 0) && dayOfPeriod < effectiveDays;
 
-                    if (generateToday) {
-                        int target = Math.max(1, Math.min(
-                                config.l04MaxPerDay() > 0 ? config.l04MaxPerDay() : totalL04Needed,
-                                totalL04Needed));
-                        target = Math.max(target, config.l04MinPerDay());
+	                    if (generateToday) {
+	                        // When maxPerDay=0 (unlimited), derive per-day cap from total need ÷ generation days
+	                        int perDayCap = config.l04MaxPerDay() > 0
+	                                ? config.l04MaxPerDay()
+	                                : Math.max(1, (int) Math.ceil((double) totalL04Needed / effectiveDays));
+	                        int target = Math.max(config.l04MinPerDay(), Math.min(perDayCap, totalL04Needed));
                         generated.add(buildAutoRequirement(period, l04, date, specialty, target,
                                 "AUTO_SOFT_TARGET:L04:" + date + ":" + specialty.getName()));
                     }
