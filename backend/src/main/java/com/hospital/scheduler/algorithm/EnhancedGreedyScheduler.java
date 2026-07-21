@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class EnhancedGreedyScheduler {
+	public class EnhancedGreedyScheduler {
 
     private final CompensationDateCalculator compensationDateCalculator;
 
@@ -28,7 +28,8 @@ public class EnhancedGreedyScheduler {
             List<ShiftRequirement> requirements,
             SchedulePeriod period,
             AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
-            Set<Integer> excludedStaffIds) {
+            Set<Integer> excludedStaffIds,
+            boolean l04CrossSpecialty) {
 
         long start = System.currentTimeMillis();
 	        Map<Integer, Staff> staffMap = activeStaff.stream()
@@ -117,7 +118,9 @@ public class EnhancedGreedyScheduler {
                     }
 
                     // Specialty check: chỉ gán đúng chuyên khoa (cho L04)
-                    if (specId != null && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(specId))) continue;
+                    // Nếu bật cross-specialty, bỏ qua kiểm tra chuyên khoa L04
+                    if (specId != null && !l04CrossSpecialty
+                            && (s.getSpecialty() == null || !s.getSpecialty().getId().equals(specId))) continue;
                     
                     // Eligibility check cho L01/L02/L03: staff KHÔNG có chuyên khoa (NULL) không được gán
                     if (specId == null && !"L04".equals(shiftTypeId)

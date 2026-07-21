@@ -96,9 +96,10 @@ class MetaheuristicSchedulersSmokeTest {
                 0,                                   // minShiftsPerStaff
                 12,                                  // maxShiftsPerStaff
                 0,                                   // maxShiftsPerDay
-                0, 0, 0, 0,                          // l01-l04 max per week
-                BEAM_WIDTH                           // beamWidth
-        );
+	                0, 0, 0, 0,                          // l01-l04 max per week
+	                BEAM_WIDTH,                          // beamWidth
+	                true                                 // autoAdjustConfig
+	        );
     }
 
     /** No staff-day may hold both L01+L02 or L03+L04. */

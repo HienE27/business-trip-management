@@ -626,13 +626,14 @@ public class AlgorithmConfigService {
      * @param targetPerStaff   Map shiftTypeId → mục tiêu ca/người/tháng
      * @return Đề xuất AutoGenConfig kèm expected total shifts
      */
-    public AutoGenConfigRecommendation recommendAutoGenConfig(
-            int periodDays,
-            int periodWeeks,
-            java.util.Map<String, Integer> eligibleStaff,
-            java.util.Map<String, Integer> targetPerStaff,
-            boolean expandNonL04Eligibility,
-            java.util.List<String> expandedSpecialties) {
+	    public AutoGenConfigRecommendation recommendAutoGenConfig(
+	            int periodDays,
+	            int periodWeeks,
+	            java.util.Map<String, Integer> eligibleStaff,
+	            java.util.Map<String, Integer> targetPerStaff,
+	            boolean expandNonL04Eligibility,
+	            java.util.List<String> expandedSpecialties,
+	            int maxShiftsPerStaff) {
 
         // Snapshot existing config để giữ enabled, holidayMode, cross-specialty, allowed lists
         AutoGenConfig current = getAutoGenConfig().orElseThrow();
@@ -689,8 +690,27 @@ public class AlgorithmConfigService {
                     ? current.l03AllowedSpecialties()
                     : java.util.List.of("Ngoại", "Nội"));
 
-        int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
-                + (l03Target * l03Elig) + (l04Target * l04Elig);
+	        int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
+	                + (l03Target * l03Elig) + (l04Target * l04Elig);
+
+	        // Nếu có maxShiftsPerStaff, kiểm tra năng lực thực tế và giới hạn min/ngày
+	        if (maxShiftsPerStaff > 0) {
+	            int staffCount = Math.max(1, eligibleStaff.values().stream().mapToInt(Integer::intValue).max().orElse(1));
+	            int dailyCapacity = Math.max(1, staffCount * maxShiftsPerStaff / days);
+	            int totalMinPerDay = l01MinPerDay + l02MinPerDay + l03MinPerDay + l04MinPerDay;
+	            if (totalMinPerDay > dailyCapacity) {
+	                double ratio = Math.max(0.25, (double) dailyCapacity / totalMinPerDay);
+	                l01MinPerDay = Math.max(1, (int) (l01MinPerDay * ratio));
+	                l02MinPerDay = Math.max(1, (int) (l02MinPerDay * ratio));
+	                l03MinPerDay = Math.max(1, (int) (l03MinPerDay * ratio));
+	                l04MinPerDay = Math.max(1, (int) (l04MinPerDay * ratio));
+	                // Re-derive max từ min đã giới hạn
+	                l01MaxPerDay = Math.max(l01MinPerDay, (int) Math.ceil(l01MaxPerWeek * 1.2));
+	                l02MaxPerDay = Math.max(l02MinPerDay, (int) Math.ceil(l02MaxPerWeek * 1.2));
+	                l03MaxPerDay = Math.max(l03MinPerDay, (int) Math.ceil(l03MaxPerWeek * 1.2));
+	                l04MaxPerDay = Math.max(l04MinPerDay, (int) Math.ceil(l04MaxPerWeek * 1.2));
+	            }
+	        }
 
         AutoGenConfig recommended = new AutoGenConfig(
                 current.enabled(),

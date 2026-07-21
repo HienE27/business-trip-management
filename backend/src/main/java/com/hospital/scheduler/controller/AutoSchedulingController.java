@@ -357,18 +357,22 @@ public class AutoSchedulingController {
     @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<AutoGenConfigRecommendResponse>> recommendAutoGenConfig(
             @Valid @RequestBody AutoGenConfigRecommendRequest req) {
-        var recommendation = configService.recommendAutoGenConfig(
-                req.periodDays(),
-                req.periodWeeks(),
-                req.eligibleStaff(),
-                req.targetPerStaffPerMonth(),
-                Boolean.TRUE.equals(req.expandNonL04Eligibility()),
-                req.expandedSpecialties()
-        );
+	        var recommendation = configService.recommendAutoGenConfig(
+	                req.periodDays(),
+	                req.periodWeeks(),
+	                req.eligibleStaff(),
+	                req.targetPerStaffPerMonth(),
+	                Boolean.TRUE.equals(req.expandNonL04Eligibility()),
+	                req.expandedSpecialties(),
+	                req.maxShiftsPerStaff() != null ? req.maxShiftsPerStaff() : 0
+	        );
         int totalStaff = req.totalStaff() != null ? req.totalStaff()
                 : req.eligibleStaff().values().stream().mapToInt(Integer::intValue).sum();
+        int recommendedMax = Math.max(1, Math.min(req.periodDays(),
+                (int) Math.ceil((double) recommendation.totalShiftsExpected() / Math.max(1, totalStaff))));
         var response = new AutoGenConfigRecommendResponse(
                 recommendation.config(),
+                new AutoGenConfigRecommendResponse.RecommendedRuntimeConfig(recommendedMax),
                 recommendation.totalShiftsExpected(),
                 totalStaff,
                 recommendation.rationale()

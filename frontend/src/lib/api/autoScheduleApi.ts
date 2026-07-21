@@ -273,6 +273,7 @@ export async function recommendAutoGenConfig(
     targetPerStaffPerMonth: Record<string, number>;
     expandNonL04Eligibility?: boolean;
     expandedSpecialties?: string[];
+    maxShiftsPerStaff?: number;
   },
 ): Promise<ApiResponse<{
   recommendedConfig: {
@@ -289,12 +290,14 @@ export async function recommendAutoGenConfig(
     l01AllowedSpecialties: string[];
     l02AllowedSpecialties: string[];
     l03AllowedSpecialties: string[];
-  };
-  totalShiftsExpected: number;
-  rationale: string;
-}>> {
-  return client.request<{
-    recommendedConfig: {
+	  };
+	  recommendedRuntimeConfig?: { maxShiftsPerStaff: number };
+	  totalShiftsExpected: number;
+	  totalStaffTargeted?: number;
+	  rationale: string;
+	}>> {
+	  return client.request<{
+	    recommendedConfig: {
       enabled: boolean;
       l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
       l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;

@@ -41,7 +41,7 @@ export type AutoSchedulePanelProps = {
   selectedPeriod: SchedulePeriod | null;
   selectedPeriodId: number | null;
   selectedPeriodStatus?: string;
-  onPreview: () => void;
+  onPreview: (useRecommendedConfig?: boolean) => void;
   onApplyPreview: () => void;
   onResetEdits: () => void;
   onEditPreviewItem?: (item: import("@/types/api").AutoScheduleSummary) => void;
@@ -120,71 +120,54 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
   const algoResultInfo = previewResult ? ALGO_CONFIG[previewResult.algorithmType as AlgorithmType] : null;
 
-  // ── Recommend handler ─────────────────────────────────
-  const handleRecommend = async () => {
-    setRecommending(true);
-    setRecommendResult(null);
-    try {
-      const staffRes = await api.getActiveStaff();
-      const staffList = staffRes.data ?? [];
-      const specMap = new Map<string, number>();
-      for (const s of staffList) {
-        const name = s.specialty?.name ?? "Không có chuyên khoa";
-        specMap.set(name, (specMap.get(name) ?? 0) + 1);
-      }
-      const analysisList = Array.from(specMap.entries())
-        .map(([specialtyName, staffCount]) => ({ specialtyName, staffCount }))
-        .sort((a, b) => b.staffCount - a.staffCount);
-      setStaffAnalysis(analysisList);
+	// ── Recommend handler ─────────────────────────────────
+	  const handleRecommend = async () => {
+	    setRecommending(true);
+	    setRecommendResult(null);
+	    try {
+	      const staffRes = await api.getActiveStaff();
+	      const staffList = staffRes.data ?? [];
+	      const specMap = new Map<string, number>();
+	      for (const s of staffList) {
+	        const name = s.specialty?.name ?? "Không có chuyên khoa";
+	        specMap.set(name, (specMap.get(name) ?? 0) + 1);
+	      }
+	      const analysisList = Array.from(specMap.entries())
+	        .map(([specialtyName, staffCount]) => ({ specialtyName, staffCount }))
+	        .sort((a, b) => b.staffCount - a.staffCount);
+	      setStaffAnalysis(analysisList);
       const totalStaff = staffList.length;
+      const specialtyNames = analysisList.map(a => a.specialtyName);
+      const periodDays = selectedPeriod
+        ? Math.max(1, Math.round((Date.parse(selectedPeriod.endDate) - Date.parse(selectedPeriod.startDate)) / 86400000) + 1)
+        : 31;
+      const periodWeeks = Math.max(1, Math.ceil(periodDays / 7));
+      const eligibleStaffMap = { L01: totalStaff, L02: totalStaff, L03: totalStaff, L04: totalStaff };
 
-      // Fetch current auto-gen config
-      const cfgRes = await api.getAutoGenConfig() as unknown as { data: Record<string, unknown> };
-      const cfg = cfgRes.data ?? {};
+      // Gọi backend API để tính toán đề xuất theo đúng kỳ đang chọn
+      const res = await api.recommendAutoGenConfig({
+        periodDays,
+        periodWeeks,
+	        totalStaff,
+	        eligibleStaff: eligibleStaffMap,
+	        targetPerStaffPerMonth: { L01: 8, L02: 7, L03: 8, L04: 8 },
+	        expandNonL04Eligibility: true,
+	        expandedSpecialties: specialtyNames,
+	      }) as unknown as { data: { recommendedConfig: Record<string, unknown>; totalShiftsExpected: number; rationale: string } };
 
-      // Compute recommended config values based on staff analysis.
-      // Key adjustments:
-      //   l04CrossSpecialty=true — allows L04 to be covered by any staff
-      //   l04MaxPerWeek=10 — reasonable cap per person
-      //   L01-L03 keeep current values (or sensible defaults)
-      const recommendedConfig: Record<string, unknown> = {
-        enabled: true,
-        holidayMode: "SKIP",
-        l01MinPerDay: 0, l01MaxPerDay: Math.max(3, Math.ceil(totalStaff * 0.25)),
-        l02MinPerDay: 0, l02MaxPerDay: Math.max(3, Math.ceil(totalStaff * 0.25)),
-        l03MinPerDay: 0, l03MaxPerDay: Math.max(3, Math.ceil(totalStaff * 0.25)),
-        l04MinPerDay: 0, l04MaxPerDay: 1,
-        l01MinPerWeek: 0, l01MaxPerWeek: 3,
-        l02MinPerWeek: 0, l02MaxPerWeek: 4,
-        l03MinPerWeek: 0, l03MaxPerWeek: 5,
-        l04MinPerWeek: 0, l04MaxPerWeek: 10,
-        removedShiftTypes: [],
-        l04CrossSpecialty: true,
-        l04CrossSpecialtyRatio: 1.0,
-        l04AllowedSpecialties: [],
-        l01AllowedSpecialties: [], l02AllowedSpecialties: [], l03AllowedSpecialties: [],
-      };
+	      const { recommendedConfig, totalShiftsExpected, rationale } = res.data;
 
-      // Build rationale from analysis
-      const soloSpecs = analysisList.filter(a => a.staffCount === 1).map(a => a.specialtyName);
-      const rationale = `Phân tích ${totalStaff} nhân sự / ${analysisList.length} chuyên khoa.\n` +
-        analysisList.map(a => `  ${a.specialtyName}: ${a.staffCount} người`).join('\n') +
-        (soloSpecs.length > 0
-          ? `\n\n⚠️ Chuyên khoa solo (${soloSpecs.join(', ')}) — L04 sẽ tự động giảm để tránh quá tải.`
-          : '') +
-        `\n\nĐề xuất: L01-L03 max/ngày=${recommendedConfig.l01MaxPerDay}, L04 max/ngày=1, L04 max/tuần=10, Cross-Specialty=BẬT.`;
-
-      setRecommendResult({
-        recommendedConfig,
-        totalShiftsExpected: Math.round(totalStaff * 31 * 0.35),
-        rationale,
-      });
-    } catch (err) {
-      setRecommendMessage(getErrorMessage(err, "Phân tích thất bại"));
-    } finally {
-      setRecommending(false);
-    }
-  };
+	      setRecommendResult({
+	        recommendedConfig,
+	        totalShiftsExpected,
+	        rationale,
+	      });
+	    } catch (err) {
+	      setRecommendMessage(getErrorMessage(err, "Phân tích thất bại"));
+	    } finally {
+	      setRecommending(false);
+	    }
+	  };
 
   const handleApplyRecommend = async () => {
     if (!recommendResult) return;
@@ -204,10 +187,18 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
         l01MaxPerWeek: rc.l01MaxPerWeek as number ?? 0, l02MaxPerWeek: rc.l02MaxPerWeek as number ?? 0,
         l03MaxPerWeek: rc.l03MaxPerWeek as number ?? 0, l04MaxPerWeek: rc.l04MaxPerWeek as number ?? 0,
         removedShiftTypes: (rc.removedShiftTypes as string[]) ?? [],
-        l04CrossSpecialty: rc.l04CrossSpecialty as boolean ?? true,
+        l04CrossSpecialty: (rc.l04CrossSpecialty as boolean) ?? true,
         l04CrossSpecialtyRatio: (rc.l04CrossSpecialtyRatio as number) ?? 1.0,
+        l04AllowedSpecialties: (rc.l04AllowedSpecialties as string[]) ?? [],
+        l01AllowedSpecialties: (rc.l01AllowedSpecialties as string[]) ?? [],
+        l02AllowedSpecialties: (rc.l02AllowedSpecialties as string[]) ?? [],
+        l03AllowedSpecialties: (rc.l03AllowedSpecialties as string[]) ?? [],
       };
       await api.updateAutoGenConfig(payload);
+
+      // Đồng bộ runtime config với trang cấu hình thuật toán.
+      const runtimeRes = await api.getRuntimeConfig();
+      await api.updateRuntimeConfig(runtimeRes.data);
 
       // 2. Xóa toàn bộ requirements cũ
       if (selectedPeriodId) {
@@ -228,7 +219,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
       // 4. Chạy preview với config mới
       setRecommendResult(null);
       setRecommendMessage(`✅ Đã áp dụng: L01-L03 max/ngày=${rc.l01MaxPerDay}, L04 max/ngày=${rc.l04MaxPerDay}, Cross-Specialty=${rc.l04CrossSpecialty ? 'BẬT' : 'TẮT'}. Đang chạy...`);
-      onPreview();
+      onPreview(true);
     } catch (err) {
       setRecommendMessage(getErrorMessage(err, "Áp dụng thất bại"));
     } finally {
@@ -281,23 +272,10 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
-            {isManager && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void handleRecommend()}
-                disabled={recommending || !selectedPeriodId}
-                loading={recommending}
-                icon={<span className="material-symbols-outlined text-[16px]">auto_awesome</span>}
-                className="whitespace-nowrap"
-              >
-                Phân tích
-              </Button>
-            )}
             <Button
               variant="primary"
               size="sm"
-              onClick={onPreview}
+              onClick={() => onPreview(false)}
               disabled={runningAutoSchedule || !selectedPeriodId || !isDraft}
               loading={runningAutoSchedule}
               icon={<span className="material-symbols-outlined text-[16px]">play_arrow</span>}

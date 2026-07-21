@@ -41,5 +41,11 @@ public record AutoGenConfigRecommendRequest(
      * Optional: danh sách tên specialty mở rộng (nếu expandNonL04Eligibility=true).
      * Mặc định: 10 specialties Ngoại,Nội,Sản,Nhi,Mắt,Răng,Bác sĩ,Điều dưỡng,Kỹ thuật viên,Dược sĩ
      */
-    List<String> expandedSpecialties
+    List<String> expandedSpecialties,
+
+    /**
+     * Optional: max shifts per staff (từ runtime config).
+     * Nếu có, dùng để giới hạn target không vượt năng lực.
+     */
+    Integer maxShiftsPerStaff
 ) {}

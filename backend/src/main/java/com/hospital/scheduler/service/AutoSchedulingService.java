@@ -588,7 +588,7 @@ public class AutoSchedulingService {
 	        AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig = algorithmConfigService.getRuntimeConfig();
 
 		        // ── AUTO-ADJUST CONFIG: Algorithm reads dataset and adjusts config ──
-		        boolean autoAdjust = runtimeConfig.isAutoAdjustConfig();
+		        boolean autoAdjust = runtimeConfig.isAutoAdjustConfig() && !Boolean.TRUE.equals(request.getUseRecommendedConfig());
 
 		        // Load active staff count for capacity calculation
 		        List<Staff> activeStaffForAuto = staffRepository.findByIsActiveTrue();
@@ -601,26 +601,37 @@ public class AutoSchedulingService {
 		        int staffCount = Math.max(1, activeStaffForAuto.size());
 		        int periodDays = (int) java.time.temporal.ChronoUnit.DAYS.between(
 		                period.getStartDate(), period.getEndDate()) + 1;
+                if (runtimeConfig.getMaxShiftsPerStaff() <= 0) {
+                    runtimeConfig.setMaxShiftsPerStaff(periodDays);
+                    log.info("maxShiftsPerStaff=0 → using physical limit of {}", periodDays);
+                }
 
 		        // Tính tổng yêu cầu từ config
 		        var autoGenCfg = algorithmConfigService.getAutoGenConfig();
 		        com.hospital.scheduler.algorithm.AutoGenConfig effectiveConfig = autoGenCfg.orElse(null);
 		        if (autoAdjust && effectiveConfig != null) {
-		            int estimatedDaily = effectiveConfig.l01MaxPerDay() + effectiveConfig.l02MaxPerDay() + effectiveConfig.l03MaxPerDay()
-		                    + effectiveConfig.l04MaxPerDay() * 6;
+            int estimatedDaily = effectiveConfig.l01MaxPerDay() + effectiveConfig.l02MaxPerDay() + effectiveConfig.l03MaxPerDay()
+                    + effectiveConfig.l04MaxPerDay();
 		            int estimatedTotal = estimatedDaily * periodDays;
 		            int capacity = staffCount * runtimeConfig.getMaxShiftsPerStaff();
 	
-		            // Nếu yêu cầu > năng lực → tự động giảm L04 max (in-memory, KHÔNG ghi DB)
+		            // Nếu yêu cầu > năng lực → tự động giảm đều các loại ca (in-memory, KHÔNG ghi DB)
 		            if (estimatedTotal > capacity && estimatedTotal > 0) {
-		                double ratio = (double) capacity / estimatedTotal;
+		                double ratio = Math.min(1.0, Math.max(0.2, (double) capacity / estimatedTotal));
+		                int newL01Max = Math.max(1, (int)(effectiveConfig.l01MaxPerDay() * ratio));
+		                int newL02Max = Math.max(1, (int)(effectiveConfig.l02MaxPerDay() * ratio));
+		                int newL03Max = Math.max(1, (int)(effectiveConfig.l03MaxPerDay() * ratio));
 		                int newL04Max = Math.max(1, (int)(effectiveConfig.l04MaxPerDay() * ratio));
-	                log.warn("[AutoAdjust] Config không phù hợp: yêu cầu={} > năng lực={}, tự giảm L04 max từ {} → {} (in-memory, không ghi DB)",
-	                        estimatedTotal, capacity, effectiveConfig.l04MaxPerDay(), newL04Max);
+	                log.warn("[AutoAdjust] Giảm đều các loại ca: yêu cầu={} > năng lực={}, ratio={}. L01: {}→{}, L02: {}→{}, L03: {}→{}, L04: {}→{} (in-memory)",
+	                        estimatedTotal, capacity, String.format("%.2f", ratio),
+	                        effectiveConfig.l01MaxPerDay(), newL01Max,
+	                        effectiveConfig.l02MaxPerDay(), newL02Max,
+	                        effectiveConfig.l03MaxPerDay(), newL03Max,
+	                        effectiveConfig.l04MaxPerDay(), newL04Max);
 		                effectiveConfig = new com.hospital.scheduler.algorithm.AutoGenConfig(
 		                        effectiveConfig.enabled(),
 		                        effectiveConfig.l01MinPerDay(), effectiveConfig.l02MinPerDay(), effectiveConfig.l03MinPerDay(), effectiveConfig.l04MinPerDay(),
-		                        effectiveConfig.l01MaxPerDay(), effectiveConfig.l02MaxPerDay(), effectiveConfig.l03MaxPerDay(), newL04Max,
+		                        newL01Max, newL02Max, newL03Max, newL04Max,
 		                        effectiveConfig.l01MinPerWeek(), effectiveConfig.l02MinPerWeek(), effectiveConfig.l03MinPerWeek(), effectiveConfig.l04MinPerWeek(),
 		                        effectiveConfig.l01MaxPerWeek(), effectiveConfig.l02MaxPerWeek(), effectiveConfig.l03MaxPerWeek(), effectiveConfig.l04MaxPerWeek(),
 		                        effectiveConfig.holidayMode(),
@@ -635,15 +646,12 @@ public class AutoSchedulingService {
 		            }
 		        }
 
-	        // Override maxShiftsPerStaff nếu = 0
-	        if (runtimeConfig.getMaxShiftsPerStaff() <= 0) {
-	            int maxPhysical = periodDays;
-	            log.info("maxShiftsPerStaff=0 → using physical limit of {}", maxPhysical);
-	            runtimeConfig.setMaxShiftsPerStaff(maxPhysical);
-	        }
-
-	        log.info("Runtime config: maxShiftsPerStaff={}, balanceMin={}, autoAdjust={}",
-	                runtimeConfig.getMaxShiftsPerStaff(), runtimeConfig.getBalanceScoreMin(), autoAdjust);
+		        log.info("Runtime config: maxShiftsPerStaff={}, balanceMin={}, autoAdjust={}, effectiveMaxes=[{},{},{},{}]",
+	                runtimeConfig.getMaxShiftsPerStaff(), runtimeConfig.getBalanceScoreMin(), autoAdjust,
+                effectiveConfig != null ? effectiveConfig.l01MaxPerDay() : 0,
+                effectiveConfig != null ? effectiveConfig.l02MaxPerDay() : 0,
+                effectiveConfig != null ? effectiveConfig.l03MaxPerDay() : 0,
+                effectiveConfig != null ? effectiveConfig.l04MaxPerDay() : 0);
 
         // Load approved swap requests for priority assignment
         // Staff in PENDING/APPROVED swap requests get priority for their preferred schedules
@@ -760,9 +768,10 @@ public class AutoSchedulingService {
 	                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
 	        } else if ("ENHANCED_GREEDY".equals(algorithmType)) {
 	            log.info("Running Enhanced Greedy for period {}", period.getId());
-	            createdSchedules = enhancedGreedyScheduler.solve(
-	                    activeStaff, requirements, period, runtimeConfig,
-	                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
+		            createdSchedules = enhancedGreedyScheduler.solve(
+		                    activeStaff, requirements, period, runtimeConfig,
+		                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null,
+		                    effectiveConfig != null && effectiveConfig.l04CrossSpecialty());
 	        } else if ("RANDOM_RESTART_HC".equals(algorithmType)) {
 	            log.info("Running Random Restart HC for period {}", period.getId());
 	            createdSchedules = randomRestartHCScheduler.solve(

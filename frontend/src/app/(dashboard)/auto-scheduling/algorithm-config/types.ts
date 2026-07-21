@@ -20,7 +20,7 @@ export type RuntimeConfig = {
   maxStaffPerShift: number;
   minShiftsPerStaff: number;
   maxShiftsPerStaff: number;
-  maxShiftsPerDay: number;
+  maxShiftsPerDay?: number;
   autoAdjustConfig?: boolean;
   l01MinPerDay?: number; l02MinPerDay?: number; l03MinPerDay?: number; l04MinPerDay?: number;
   l01MaxPerDay?: number; l02MaxPerDay?: number; l03MaxPerDay?: number; l04MaxPerDay?: number;

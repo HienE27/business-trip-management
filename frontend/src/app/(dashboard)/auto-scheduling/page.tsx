@@ -178,9 +178,9 @@ export default function AutoSchedulingPage() {
 
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId) ?? null;
 
-  const handleRunPreview = () => {
+  const handleRunPreview = (useRecommendedConfig = false) => {
     if (!selectedPeriodId) return;
-    void runPreview(selectedPeriodId, excludedStaffIds);
+    void runPreview(selectedPeriodId, excludedStaffIds, useRecommendedConfig);
   };
 
   const handleApplyPreview = async () => {

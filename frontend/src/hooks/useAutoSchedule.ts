@@ -28,7 +28,7 @@ export type AutoScheduleState = {
 };
 
 export type AutoScheduleActions = {
-  runPreview: (periodId: number | null, excludedStaffIds?: number[]) => Promise<void>;
+  runPreview: (periodId: number | null, excludedStaffIds?: number[], useRecommendedConfig?: boolean) => Promise<void>;
   applyPreview: (
     periodId: number | null,
     edited: PreviewScheduleEdit[],
@@ -77,7 +77,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
     return () => abortRef.current?.abort();
   }, []);
 
-  const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[]) => {
+  const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[], useRecommendedConfig = false) => {
     if (!periodId) return;
 
     // Cancel previous in-flight request
@@ -94,6 +94,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         algorithmType,
         excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
         holidayMode: holidayMode ?? undefined,
+        useRecommendedConfig,
       }, { timeout: 600000, cancelSignal: controller.signal }); // 10 minute ceiling for the CSP partial path
 
       setPreviewResult(result.data);

@@ -20,7 +20,7 @@ const SHIFT_TYPES = [
 ] as const;
 
 const PERIOD_DAYS = 31;
-const PERIOD_WEEKS = 4;
+const PERIOD_WEEKS = 5;
 
 type StaffAnalysis = {
   specialtyName: string;
@@ -31,6 +31,7 @@ type StaffAnalysis = {
 
 type RecommendResult = {
   recommendedConfig: Record<string, unknown>;
+  recommendedRuntimeConfig?: { maxShiftsPerStaff: number };
   totalShiftsExpected: number;
   rationale: string;
 };
@@ -193,6 +194,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         targetPerStaffPerMonth: { L01: 8, L02: 7, L03: 8, L04: 8 },
         expandNonL04Eligibility: true,
         expandedSpecialties: staffAnalysis.map(a => a.specialtyName),
+        maxShiftsPerStaff: form?.maxShiftsPerStaff,
       }) as unknown as { data: RecommendResult };
       setRecommendResult(res.data);
       success("Phân tích hoàn tất");
@@ -210,6 +212,8 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       const rc = recommendResult.recommendedConfig;
       const updated = {
         ...form,
+        maxShiftsPerStaff: recommendResult.recommendedRuntimeConfig?.maxShiftsPerStaff ?? form.maxShiftsPerStaff,
+        autoAdjustConfig: false,
         l01MinPerDay: (rc.l01MinPerDay as number) ?? form.l01MinPerDay,
         l01MaxPerDay: (rc.l01MaxPerDay as number) ?? form.l01MaxPerDay,
         l02MinPerDay: (rc.l02MinPerDay as number) ?? form.l02MinPerDay,
@@ -242,10 +246,11 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l03MinPerWeek: updated.l03MinPerWeek ?? 0, l04MinPerWeek: updated.l04MinPerWeek ?? 0,
         l01MaxPerWeek: updated.l01MaxPerWeek ?? 0, l02MaxPerWeek: updated.l02MaxPerWeek ?? 0,
         l03MaxPerWeek: updated.l03MaxPerWeek ?? 0, l04MaxPerWeek: updated.l04MaxPerWeek ?? 0,
-        removedShiftTypes: [],
+        removedShiftTypes: updated.removedShiftTypes ?? [],
         l04CrossSpecialty: updated.l04CrossSpecialty ?? false,
-        l04CrossSpecialtyRatio: 1.0,
-        l04BalanceStrategy: "FAIR_DISTRIBUTE" as "FAIR_DISTRIBUTE" | "STRICT_MATCH_ONLY" | "WEIGHTED_FAIR" | undefined,
+        l04CrossSpecialtyRatio: updated.l04CrossSpecialtyRatio ?? 0.3,
+        l04AllowedSpecialties: updated.l04AllowedSpecialties ?? [],
+        l04BalanceStrategy: updated.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
       };
       await api.updateAutoGenConfig(autoGenPayload);
       await api.updateRuntimeConfig(updated);
@@ -362,19 +367,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         </Button>
       </div>
 
-      {/* Weekend Weight (the only runtime slider needed — others auto-adjusted) */}
-      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-4 max-w-sm">
-        <SliderField
-          label="Weekend Weight"
-          desc="Trong so cuoi tuan"
-          value={form.weekendWeight ?? 1}
-          min={1} max={5} step={0.05}
-          format={(v) => `${v.toFixed(1)}x`}
-          onChange={(v) => setField("weekendWeight", v)}
-        />
-      </div>
-
-      {/* Per-shift limits: min/max per day + per week */}
+	      {/* Per-shift limits: min/max per day + per week */}
       <div>
         <div className="flex items-center gap-2 mb-3">
           <span className="material-symbols-outlined text-on-surface-variant text-[16px]" aria-hidden="true">calendar_view_month</span>
@@ -454,7 +447,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-surface-container-low/40">
             <div>
               <p className="text-label-sm font-medium text-on-surface">Tu dong tinh chinh (Auto-Adjust)</p>
-              <p className="text-[10px] text-on-surface-variant">Giam L04 neu vuot nang luc nhan su</p>
+              <p className="text-[10px] text-on-surface-variant">Tu dong giam deu L01-L04 neu qua tai</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" className="sr-only peer"

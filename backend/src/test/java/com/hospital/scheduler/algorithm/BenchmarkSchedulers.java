@@ -44,11 +44,11 @@ public class BenchmarkSchedulers {
                 .endDate(LocalDate.of(2026, 7, 26))
                 .build();
 
-        var cfg = new AlgorithmConfigService.AlgorithmRuntimeConfig(
-                new BigDecimal("2"), 0, new BigDecimal("0.85"), new BigDecimal("0.70"),
-                true, 1, 5, 0, 12, 0,
-                2, 2, 2, 2, BEAM_WIDTH
-        );
+	        var cfg = new AlgorithmConfigService.AlgorithmRuntimeConfig(
+	                new BigDecimal("2"), 0, new BigDecimal("0.85"), new BigDecimal("0.70"),
+	                true, 1, 5, 0, 12, 0,
+	                2, 2, 2, 2, BEAM_WIDTH, true
+	        );
 
         // Build requirements: each day L01+L02 (1 each), + L03 daily, L04 every other day
         List<ShiftRequirement> reqs = new ArrayList<>();

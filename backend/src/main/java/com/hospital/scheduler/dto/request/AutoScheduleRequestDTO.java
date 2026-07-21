@@ -32,6 +32,10 @@ public class AutoScheduleRequestDTO {
      */
     private String holidayMode;
 
+    /** Skip runtime auto-adjust for an explicitly applied recommendation. */
+    @Builder.Default
+    private Boolean useRecommendedConfig = false;
+
     /**
      * Whether to overwrite existing schedules in the period before generating new ones.
      *
