@@ -635,26 +635,37 @@ public class AlgorithmConfigService {
 	            java.util.List<String> expandedSpecialties,
 	            int maxShiftsPerStaff) {
 
-        // Snapshot existing config để giữ enabled, holidayMode, cross-specialty, allowed lists
-        AutoGenConfig current = getAutoGenConfig().orElseThrow();
+	        // Snapshot existing config để giữ enabled, holidayMode, cross-specialty, allowed lists
+	        AutoGenConfig current = getAutoGenConfig().orElseThrow();
 
-        int l01Target = Math.max(0, targetPerStaff.getOrDefault("L01", 0));
-        int l02Target = Math.max(0, targetPerStaff.getOrDefault("L02", 0));
-        int l03Target = Math.max(0, targetPerStaff.getOrDefault("L03", 0));
-        int l04Target = Math.max(0, targetPerStaff.getOrDefault("L04", 0));
+	        int totalStaff = Math.max(1, eligibleStaff.values().stream().mapToInt(Integer::intValue).max().orElse(1));
+	        int l04Elig = Math.max(1, eligibleStaff.getOrDefault("L04", 1));
 
-        int l01Elig = Math.max(1, eligibleStaff.getOrDefault("L01", 1));
-        int l02Elig = Math.max(1, eligibleStaff.getOrDefault("L02", 1));
-        int l03Elig = Math.max(1, eligibleStaff.getOrDefault("L03", 1));
-        int l04Elig = Math.max(1, eligibleStaff.getOrDefault("L04", 1));
+	        // Điều chỉnh eligible pool cho L04 dựa trên cross-specialty và số chuyên khoa
+	        int numSpecialties = Math.max(1, expandedSpecialties != null ? expandedSpecialties.size() : 1);
+	        boolean csEnabled = current.l04CrossSpecialty();
+	        int effectiveL04Elig = csEnabled
+	                ? l04Elig
+	                : Math.max(1, Math.min(l04Elig, (int) Math.ceil((double) totalStaff / numSpecialties)));
 
-        int days = Math.max(1, periodDays);
-        int weeks = Math.max(1, periodWeeks);
+	        // Tính target tối ưu từ năng lực, không dùng số cứng từ frontend
+	        int capacityPerPerson = Math.max(1, maxShiftsPerStaff > 0 ? maxShiftsPerStaff : periodDays);
+	        // Phân bổ: L01 30%, L02 25%, L03 30%, L04 15%
+	        int l01Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.30));
+	        int l02Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.25));
+	        int l03Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.30));
+	        int l04Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.15));
 
-        int l01MinPerDay = Math.max(1, (int) Math.ceil((double) (l01Target * l01Elig) / days));
-        int l02MinPerDay = Math.max(1, (int) Math.ceil((double) (l02Target * l02Elig) / days));
-        int l03MinPerDay = Math.max(1, (int) Math.ceil((double) (l03Target * l03Elig) / days));
-        int l04MinPerDay = Math.max(1, (int) Math.ceil((double) (l04Target * l04Elig) / days));
+	        int l01Elig = Math.max(1, eligibleStaff.getOrDefault("L01", 1));
+	        int l02Elig = Math.max(1, eligibleStaff.getOrDefault("L02", 1));
+	        int l03Elig = Math.max(1, eligibleStaff.getOrDefault("L03", 1));
+	        int days = Math.max(1, periodDays);
+	        int weeks = Math.max(1, periodWeeks);
+
+	        int l01MinPerDay = Math.max(1, (int) Math.ceil((double) (l01Target * l01Elig) / days));
+	        int l02MinPerDay = Math.max(1, (int) Math.ceil((double) (l02Target * l02Elig) / days));
+	        int l03MinPerDay = Math.max(1, (int) Math.ceil((double) (l03Target * l03Elig) / days));
+	        int l04MinPerDay = Math.max(1, (int) Math.ceil((double) (l04Target * effectiveL04Elig) / days));
 
         int l01MinPerWeek = Math.max(1, (int) Math.ceil((double) l01Target / weeks));
         int l02MinPerWeek = Math.max(1, (int) Math.ceil((double) l02Target / weeks));
@@ -690,8 +701,8 @@ public class AlgorithmConfigService {
                     ? current.l03AllowedSpecialties()
                     : java.util.List.of("Ngoại", "Nội"));
 
-	        int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
-	                + (l03Target * l03Elig) + (l04Target * l04Elig);
+int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
+                + (l03Target * l03Elig) + (l04Target * effectiveL04Elig);
 
 	        // Nếu có maxShiftsPerStaff, kiểm tra năng lực thực tế và giới hạn min/ngày
 	        if (maxShiftsPerStaff > 0) {
