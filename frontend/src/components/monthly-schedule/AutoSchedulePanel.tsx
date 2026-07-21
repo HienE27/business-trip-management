@@ -150,7 +150,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
         periodWeeks,
 	        totalStaff,
 	        eligibleStaff: eligibleStaffMap,
-	        targetPerStaffPerMonth: { L01: 8, L02: 7, L03: 8, L04: 8 },
+	        targetPerStaffPerMonth: { L01: 8, L02: 7, L03: 8, L04: 3 },
 	        expandNonL04Eligibility: true,
 	        expandedSpecialties: specialtyNames,
 	      }) as unknown as { data: { recommendedConfig: Record<string, unknown>; totalShiftsExpected: number; rationale: string } };
