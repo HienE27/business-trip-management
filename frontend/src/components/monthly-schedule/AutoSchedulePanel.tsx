@@ -144,6 +144,12 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
+            {isManager && selectedPeriodId && (
+              <TemplateActionsSplitButton
+                onApplyTemplate={() => onApplyTemplate?.()}
+                onSaveTemplate={onSaveTemplate}
+              />
+            )}
             <Button
               variant="primary"
               size="sm"
@@ -164,6 +170,16 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                 icon={<span className="material-symbols-outlined text-[16px]">check</span>}
               >
                 Áp dụng{editedPreview.length > 0 ? ` (${editedPreview.length})` : ""}
+              </Button>
+            )}
+            {editedPreview.length > 0 && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={onResetEdits}
+                icon={<span className="material-symbols-outlined text-[16px]">undo</span>}
+              >
+                Hủy thay đổi ({editedPreview.length})
               </Button>
             )}
           </div>
@@ -310,28 +326,6 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                   }}
                 />
               ))}
-            </div>
-          )}
-
-          {/* Quick actions row */}
-          {isManager && (
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <TemplateActionsSplitButton
-                  onApplyTemplate={() => onApplyTemplate?.()}
-                  onSaveTemplate={onSaveTemplate}
-                />
-              </div>
-              {editedPreview.length > 0 && (
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={onResetEdits}
-                  icon={<span className="material-symbols-outlined text-[16px]">undo</span>}
-                >
-                  Hủy thay đổi ({editedPreview.length})
-                </Button>
-              )}
             </div>
           )}
 
