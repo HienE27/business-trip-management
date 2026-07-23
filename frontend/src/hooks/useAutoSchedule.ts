@@ -3,7 +3,12 @@
 import { useCallback, useState } from "react";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { AutoScheduleResult, TemplatePreviewItem } from "@/types/api";
+import type {
+  AutoScheduleResult,
+  AutoScheduleSummary,
+  Schedule,
+  TemplatePreviewItem,
+} from "@/types/api";
 
 type PreviewScheduleEdit = {
   workDate: string;
@@ -61,6 +66,48 @@ function parseScheduleKey(key: string): PreviewScheduleEdit | null {
   const staffId = Number(staffIdRaw);
   if (!workDate || !shiftTypeId || !Number.isFinite(staffId)) return null;
   return { workDate, shiftTypeId, staffId };
+}
+
+/**
+ * After an apply-template (with or without edits) backend persists schedules
+ * directly into the DB. The hook only knows `appliedCount` from the response,
+ * so to surface the freshly created schedules in the matrix grid we re-fetch
+ * `/schedules/period/{id}` and project it into the AutoScheduleResult shape
+ * that AutoSchedulePanel already understands.
+ *
+ * KPI metrics (coverageRate / balanceScore / conflictCount) aren't recomputed
+ * because they require running the algorithm again; we fall back to neutral
+ * defaults so the UI doesn't crash on missing fields.
+ */
+async function buildPreviewResultFromPeriod(
+  periodId: number,
+  algorithmType: string,
+): Promise<AutoScheduleResult> {
+  const res = await api.getSchedulesByPeriod(periodId);
+  const schedules: Schedule[] = Array.isArray(res.data) ? res.data : [];
+  const summary: AutoScheduleSummary[] = schedules.map((s) => ({
+    scheduleId: s.id,
+    staffId: s.staff.id,
+    staffName: s.staff.fullName,
+    workDate: s.workDate,
+    shiftTypeId: s.shiftType.id,
+    shiftTypeName: s.shiftType.name,
+    staffSpecialtyName: s.staff.specialtyName ?? null,
+    requirementId: s.requirementId ?? null,
+  }));
+  return {
+    success: true,
+    message: "Đã tải lịch đã áp dụng từ mẫu",
+    periodId,
+    algorithmType,
+    executionTimeMs: 0,
+    coverageRate: 100,
+    balanceScore: 100,
+    conflictCount: 0,
+    totalSchedulesCreated: summary.length,
+    schedules: summary,
+    executedAt: new Date().toISOString(),
+  };
 }
 
 export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
@@ -169,6 +216,18 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         const result = await api.applyTemplate(templateId, periodId);
         const appliedCount = result.data?.appliedCount ?? 0;
         setMessage("Đã áp dụng mẫu lịch — " + appliedCount + " ca được tạo.");
+        // Surface the just-created schedules in the matrix grid so the user
+        // can see them immediately instead of getting a "1039 ca được tạo"
+        // toast over an empty state.
+        try {
+          const preview = await buildPreviewResultFromPeriod(periodId, "TEMPLATE");
+          setPreviewResult(preview);
+          setEditedPreview([]);
+          setRemovedShifts(new Set());
+          setRemovedShiftTypes(new Set());
+        } catch (loadErr) {
+          console.error("[loadTemplate] Failed to refresh schedules:", loadErr);
+        }
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("schedules-changed"));
         }
@@ -203,6 +262,18 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         const result = await api.applyTemplateWithEdits(templateId, periodId, edits);
         const count = result.data?.appliedCount ?? 0;
         setMessage("Đã áp dụng mẫu lịch với chỉnh sửa — " + count + " ca được tạo.");
+        // Re-fetch the period so the matrix grid renders the freshly created
+        // schedules (the hook otherwise only knows `appliedCount`, leaving the
+        // UI on an empty state).
+        try {
+          const preview = await buildPreviewResultFromPeriod(periodId, "TEMPLATE");
+          setPreviewResult(preview);
+          setEditedPreview([]);
+          setRemovedShifts(new Set());
+          setRemovedShiftTypes(new Set());
+        } catch (loadErr) {
+          console.error("[applyTemplateWithEdits] Failed to refresh schedules:", loadErr);
+        }
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("schedules-changed"));
         }
