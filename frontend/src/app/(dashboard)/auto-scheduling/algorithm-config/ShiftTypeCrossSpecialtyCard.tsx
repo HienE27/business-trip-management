@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { BalanceStrategy } from "./types";
+import { sanitizeAllowedSpecialties } from "./crossSpecialty";
 
 export type ShiftTypeId = "L01" | "L02" | "L03" | "L04";
 
@@ -82,28 +83,27 @@ export function ShiftTypeCrossSpecialtyCard({
   onChange,
 }: ShiftTypeCrossSpecialtyProps) {
   const [localRatio, setLocalRatio] = useState(ratio);
-  const [localAllowed, setLocalAllowed] = useState<string[]>(allowedSpecialties);
+  const [localAllowed, setLocalAllowed] = useState<string[]>(() =>
+    sanitizeAllowedSpecialties(allowedSpecialties)
+  );
   const [localStrategy, setLocalStrategy] = useState<BalanceStrategy>(balanceStrategy);
-  const [selectionMode, setSelectionMode] = useState<"all" | "partial" | "none">(() => {
-    if (allowedSpecialties.length === 0 || allowedSpecialties.length === allSpecialties.length) {
-      return "all";
-    } else if (allowedSpecialties.length > 0) {
-      return "partial";
-    }
-    return "none";
+  // Backend only models two states: empty list = "allow all specialties",
+  // non-empty list = explicit allowlist. The legacy UI had a third "none"
+  // state encoded with a "__NONE__" sentinel string that polluted the saved
+  // config, so we drop "none" entirely and only track all / partial.
+  const [selectionMode, setSelectionMode] = useState<"all" | "partial">(() => {
+    const cleaned = sanitizeAllowedSpecialties(allowedSpecialties);
+    return cleaned.length === 0 || cleaned.length === allSpecialties.length ? "all" : "partial";
   });
 
   const config = SHIFT_TYPE_CONFIG[shiftType];
 
   useEffect(() => {
-    setLocalAllowed(allowedSpecialties);
-    if (allowedSpecialties.length === 0 || allowedSpecialties.length === allSpecialties.length) {
-      setSelectionMode("all");
-    } else if (allowedSpecialties.length > 0) {
-      setSelectionMode("partial");
-    } else {
-      setSelectionMode("none");
-    }
+    const cleaned = sanitizeAllowedSpecialties(allowedSpecialties);
+    setLocalAllowed(cleaned);
+    setSelectionMode(
+      cleaned.length === 0 || cleaned.length === allSpecialties.length ? "all" : "partial"
+    );
   }, [allowedSpecialties, allSpecialties]);
 
   useEffect(() => {
@@ -112,7 +112,6 @@ export function ShiftTypeCrossSpecialtyCard({
 
   function isSpecialtySelected(specialty: string): boolean {
     if (selectionMode === "all") return true;
-    if (selectionMode === "none") return false;
     return localAllowed.includes(specialty);
   }
 
@@ -129,34 +128,27 @@ export function ShiftTypeCrossSpecialtyCard({
   function handleSpecialtyToggle(specialty: string) {
     let newAllowed: string[];
     if (selectionMode === "all") {
-      newAllowed = allSpecialties.filter(s => s !== specialty);
-      setSelectionMode("partial");
-    } else if (selectionMode === "none") {
-      newAllowed = [specialty];
+      newAllowed = allSpecialties.filter((s) => s !== specialty);
       setSelectionMode("partial");
     } else {
       if (localAllowed.includes(specialty)) {
-        newAllowed = localAllowed.filter(s => s !== specialty);
-        if (newAllowed.length === 0) setSelectionMode("none");
+        newAllowed = localAllowed.filter((s) => s !== specialty);
       } else {
         newAllowed = [...localAllowed, specialty];
       }
+      if (newAllowed.length === allSpecialties.length) {
+        setSelectionMode("all");
+      }
     }
-    setLocalAllowed(newAllowed);
-    onChange(enabled, localRatio, newAllowed, localStrategy);
+    const cleaned = sanitizeAllowedSpecialties(newAllowed);
+    setLocalAllowed(cleaned);
+    onChange(enabled, localRatio, cleaned, localStrategy);
   }
 
   function handleSelectAll() {
     setLocalAllowed([]);
     setSelectionMode("all");
     onChange(enabled, localRatio, [], localStrategy);
-  }
-
-  function handleClearAll() {
-    const noneMarker = ["__NONE__"];
-    setLocalAllowed(noneMarker);
-    setSelectionMode("none");
-    onChange(enabled, localRatio, noneMarker, localStrategy);
   }
 
   function handleStrategyChange(value: BalanceStrategy) {
@@ -211,7 +203,9 @@ export function ShiftTypeCrossSpecialtyCard({
                 {/* Quick actions */}
                 <div className="flex items-center justify-between">
                   <p className="text-label-sm text-on-surface font-medium">
-                    {selectionMode === "all" ? "Tất cả chuyên khoa" : selectionMode === "none" ? "Không có chuyên khoa nào" : `${localAllowed.length}/${allSpecialties.length} chuyên khoa`}
+                    {selectionMode === "all"
+                      ? "Tất cả chuyên khoa"
+                      : `${localAllowed.length}/${allSpecialties.length} chuyên khoa`}
                   </p>
                   {editing && (
                     <div className="flex gap-2">
@@ -221,14 +215,6 @@ export function ShiftTypeCrossSpecialtyCard({
                         className="text-[11px] text-primary hover:underline"
                       >
                         Chọn tất cả
-                      </button>
-                      <span className="text-outline">|</span>
-                      <button
-                        type="button"
-                        onClick={handleClearAll}
-                        className={`text-[11px] ${config.color.replace("text-", "hover:text-")} hover:underline`}
-                      >
-                        Bỏ chọn tất cả
                       </button>
                     </div>
                   )}
@@ -260,10 +246,6 @@ export function ShiftTypeCrossSpecialtyCard({
                     {selectionMode === "all" ? (
                       <span className="text-[12px] text-on-surface-variant">
                         Tất cả chuyên khoa được phép
-                      </span>
-                    ) : selectionMode === "none" ? (
-                      <span className="text-[12px] text-error">
-                        Không có chuyên khoa nào được phép
                       </span>
                     ) : (
                       localAllowed.map((specialty) => (

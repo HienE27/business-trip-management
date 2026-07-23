@@ -25,6 +25,7 @@ import { ShiftTypeGroupCard } from "./ShiftTypeGroupCard";
 import { HolidayModeField } from "./HolidayModeField";
 import { RemovedShiftTypesField } from "./RemovedShiftTypesField";
 import { ShiftTypeCrossSpecialtyCard } from "./ShiftTypeCrossSpecialtyCard";
+import { sanitizeAllowedSpecialties } from "./crossSpecialty";
 import { BusinessRulesCard } from "./BusinessRulesCard";
 import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
@@ -102,8 +103,16 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l01MaxPerDay: merged.l01MaxPerDay,
         l01MaxPerWeek: merged.l01MaxPerWeek,
       }));
-      setConfig(merged);
-      setForm(merged);
+      // Strip legacy "__NONE__" sentinels that may have leaked into the
+      // persisted allowlist via the older "Bỏ chọn tất cả" button. The
+      // backend treats an empty list as "all eligible", so we map a
+      // sentinel-only list back to an empty list.
+      const mergedSanitized = {
+        ...merged,
+        l04AllowedSpecialties: sanitizeAllowedSpecialties(merged.l04AllowedSpecialties),
+      };
+      setConfig(mergedSanitized);
+      setForm(mergedSanitized);
 
       // Calculate schedule stats for suggestion algorithm
       if (summary && shiftStats) {
@@ -230,10 +239,13 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l03MaxPerWeek: form.l03MaxPerWeek ?? 0,
         l04MaxPerWeek: form.l04MaxPerWeek ?? 0,
         removedShiftTypes: form.removedShiftTypes ?? [],
-        // L04 cross-specialty (L01/L02/L03 reserved for future use — currently unused)
+        // L04 cross-specialty (L01/L02/L03 reserved for future use — currently unused).
+        // Strip any "__NONE__" sentinel that may have leaked into form state
+        // from legacy saves so the persisted allowlist only contains real
+        // specialty names.
         l04CrossSpecialty: form.l04CrossSpecialty ?? false,
         l04CrossSpecialtyRatio: form.l04CrossSpecialtyRatio ?? 0.3,
-        l04AllowedSpecialties: form.l04AllowedSpecialties ?? [],
+        l04AllowedSpecialties: sanitizeAllowedSpecialties(form.l04AllowedSpecialties),
         l04BalanceStrategy: form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
       };
       // Runtime config: only the fields the backend DTO accepts
@@ -488,7 +500,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           shiftTypeName="PK Chuyên gia"
           enabled={form.l04CrossSpecialty ?? false}
           ratio={form.l04CrossSpecialtyRatio ?? 0.3}
-          allowedSpecialties={form.l04AllowedSpecialties ?? []}
+          allowedSpecialties={sanitizeAllowedSpecialties(form.l04AllowedSpecialties)}
           allSpecialties={allSpecialties}
           editing={editing}
           balanceStrategy={form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE"}
