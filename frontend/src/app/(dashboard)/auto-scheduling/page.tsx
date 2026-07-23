@@ -554,7 +554,23 @@ export default function AutoSchedulingPage() {
         onClose={() => { setApplyTemplateModalOpen(false); setTemplates([]); setTemplatePreview(null); setSelectedTemplateId(null); }}
         onPreview={handlePreviewTemplate}
         onApply={handleApplyTemplateConfirmed}
-        onSelectTemplate={(id) => { setSelectedTemplateId(id); setTemplatePreview(null); }}
+        onSelectTemplate={async (id) => {
+          // Auto-load preview on apply-click so the user always sees concrete data
+          // and the footer "Xác nhận áp dụng" button becomes visible.
+          setSelectedTemplateId(id);
+          setTemplatePreview([]);
+          if (selectedPeriodId) {
+            setPreviewLoading(true);
+            try {
+              const data = await previewTemplate(id, selectedPeriodId);
+              setTemplatePreview(data ?? []);
+            } catch {
+              setTemplatePreview([]);
+            } finally {
+              setPreviewLoading(false);
+            }
+          }
+        }}
         onStaffEdit={handleStaffEdit}
         onClearSelection={() => { setSelectedTemplateId(null); setTemplatePreview(null); }}
       />
