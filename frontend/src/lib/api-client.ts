@@ -976,6 +976,16 @@ class ApiClient {
       minDailyEligible: number;
       maxDailyEligible: number;
       utilizationRate: number;
+      bufferMin: number;
+      bufferRisk: "NONE" | "LOW" | "MEDIUM" | "HIGH";
+      noBufferDays: number;
+      totalDays: number;
+      backups: Array<{
+        staffId: number;
+        staffName: string;
+        specialtyName: string;
+        daysAvailable: number;
+      }>;
     }>;
     warnings: string[];
     recommendations: string[];

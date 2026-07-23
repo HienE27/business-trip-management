@@ -774,6 +774,65 @@ class SchedulingFeasibilityAnalyzerTest {
                     .anyMatch(w -> w.contains("dự phòng") && w.contains("2/3")),
                     "Should warn about 2/3 days no buffer: " + report.warnings());
         }
+
+        @Test
+        @DisplayName("bufferRisk = HIGH when every day has no buffer")
+        void bufferRiskHigh() {
+            LocalDate d1 = LocalDate.of(2026, 7, 1);
+            LocalDate d2 = LocalDate.of(2026, 7, 2);
+            LocalDate d3 = LocalDate.of(2026, 7, 3);
+
+            // 3 staff, require 3 every day → eligible == required, no buffer all days
+            List<ShiftRequirement> reqs = List.of(
+                    makeReq(1, period, lt01, null, d1, 3),
+                    makeReq(2, period, lt01, null, d2, 3),
+                    makeReq(3, period, lt01, null, d3, 3)
+            );
+            stubActiveStaff(List.of(staffNgoai, staffNoi, staffSan));
+            stubRequirements(reqs);
+            stubLeaves(Collections.emptyList());
+            stubCompDays(Collections.emptyList());
+            stubHolidays(Collections.emptyList());
+            stubAutoGenConfig(false, List.of());
+
+            var report = analyzer.analyzeFeasibility(1);
+
+            var l01Summary = report.availabilityByShiftType().get("L01");
+            assertNotNull(l01Summary);
+            assertEquals(SchedulingFeasibilityAnalyzer.BufferRisk.HIGH, l01Summary.bufferRisk());
+            assertEquals(3, l01Summary.noBufferDays());
+            assertEquals(3, l01Summary.totalDays());
+            assertEquals(0, l01Summary.bufferMin());
+        }
+
+        @Test
+        @DisplayName("backup staff = staff on leave/comp that could cover")
+        void backupStaffShown() {
+            LocalDate d1 = LocalDate.of(2026, 7, 1);
+            LocalDate d2 = LocalDate.of(2026, 7, 2);
+
+            // 2 staff active, 1 on leave — backup should show the staff on leave
+            List<ShiftRequirement> reqs = List.of(
+                    makeReq(1, period, lt01, null, d1, 2),
+                    makeReq(2, period, lt01, null, d2, 2)
+            );
+            stubActiveStaff(List.of(staffNgoai, staffNoi, staffSan));
+            stubRequirements(reqs);
+            // staffSan on leave for all days
+            stubLeaves(List.of(makeLeave(3, staffSan, d1, d2)));
+            stubCompDays(Collections.emptyList());
+            stubHolidays(Collections.emptyList());
+            stubAutoGenConfig(false, List.of());
+
+            var report = analyzer.analyzeFeasibility(1);
+
+            var l01Summary = report.availabilityByShiftType().get("L01");
+            assertNotNull(l01Summary);
+            // staffSan is on leave → should appear in backup list
+            assertTrue(l01Summary.backups().stream()
+                    .anyMatch(b -> b.staffName().contains("BS. C")),
+                    "Backup list should contain staffSan who is on leave: " + l01Summary.backups());
+        }
     }
 
     @Nested

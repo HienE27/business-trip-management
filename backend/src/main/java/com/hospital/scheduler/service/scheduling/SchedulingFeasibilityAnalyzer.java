@@ -77,6 +77,14 @@ public class SchedulingFeasibilityAnalyzer {
             String issue
     ) {}
 
+    /** Mức độ rủi ro buffer */
+    public enum BufferRisk {
+        NONE,       // eligible > required — an toàn
+        LOW,        // eligible == required — bất kỳ ai nghỉ đều thiếu
+        MEDIUM,     // N-1 ngày no-buffer
+        HIGH        // mọi ngày no-buffer
+    }
+
     /** Tóm tắt availability theo loại lịch */
     public record StaffAvailabilitySummary(
             String shiftTypeId,
@@ -85,7 +93,20 @@ public class SchedulingFeasibilityAnalyzer {
             double averageDailyEligible,
             int minDailyEligible,
             int maxDailyEligible,
-            double utilizationRate
+            double utilizationRate,
+            int bufferMin,            // = minDailyEligible - typicalRequired
+            BufferRisk bufferRisk,    // mức độ rủi ro no-buffer
+            int noBufferDays,         // số ngày eligible == required
+            int totalDays,             // tổng số ngày có shift này
+            List<StaffBackup> backups // nhân sự có thể thay thế nếu buffer = 0
+    ) {}
+
+    /** Nhân sự dự phòng có thể thay thế */
+    public record StaffBackup(
+            Integer staffId,
+            String staffName,
+            String specialtyName,
+            int daysAvailable  // số ngày trong kỳ nhân sự này KHÔNG bị block
     ) {}
 
     /**
@@ -190,6 +211,16 @@ public class SchedulingFeasibilityAnalyzer {
         // Accumulators for per-shift-type statistics across all days
         Map<String, List<Integer>> dailyEligibleByType = new HashMap<>();
 
+        // Combined pool: all active staff (used for backup/staffing analysis)
+        Set<Integer> allLeaveStaffIds = leavesByDate.values().stream()
+                .flatMap(Set::stream).collect(Collectors.toSet());
+        Set<Integer> allCompStaffIds = compDaysByDate.values().stream()
+                .flatMap(Set::stream).collect(Collectors.toSet());
+        List<Staff> combinedPool = allActiveStaff.stream()
+                .filter(s -> !allLeaveStaffIds.contains(s.getId()))
+                .filter(s -> !allCompStaffIds.contains(s.getId()))
+                .toList();
+
         for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
             Map<String, ShiftTypeAnalysis> shiftTypeAnalysis = new HashMap<>();
 
@@ -271,7 +302,9 @@ public class SchedulingFeasibilityAnalyzer {
 
         // 6. Calculate availability summary per shift type
         Map<String, StaffAvailabilitySummary> availabilityByShiftType = calculateAvailabilitySummary(
-                allActiveStaff, dailyEligibleByType);
+                allActiveStaff, dailyEligibleByType,
+                reqsByDateAndType, combinedPool,
+                l04CrossSpecialty, l04AllowedSpecialties);
 
         // 7. Generate warnings and recommendations
         List<String> warnings = new ArrayList<>();
@@ -302,20 +335,19 @@ public class SchedulingFeasibilityAnalyzer {
         for (String shiftTypeId : totalDaysByType.keySet()) {
             long total = totalDaysByType.get(shiftTypeId);
             long noBuffer = noBufferDaysByType.getOrDefault(shiftTypeId, 0L);
+            String label = SHIFT_TYPE_LABELS.getOrDefault(shiftTypeId, shiftTypeId);
             if (noBuffer == total) {
-                // Every single day has eligible == required — zero buffer
                 warnings.add(String.format(
                         "[CANH-BAO] [%s] vừa đủ nhân sự mỗi ngày nhưng KHÔNG có dự phòng — nếu 1 người nghỉ, ca đó sẽ thiếu",
-                        SHIFT_TYPE_LABELS.getOrDefault(shiftTypeId, shiftTypeId)));
+                        label));
             } else if (noBuffer > 0 && noBuffer == total - 1) {
-                // Almost every day has no buffer — high risk
                 warnings.add(String.format(
                         "[CANH-BAO] [%s] có %d/%d ngày vừa đủ (không có dự phòng) — cần chú ý ngày nghỉ phép",
-                        SHIFT_TYPE_LABELS.getOrDefault(shiftTypeId, shiftTypeId), noBuffer, total));
+                        label, noBuffer, total));
             }
         }
 
-        // Specific day/shift-type recommendations
+        // Actionable recommendations based on availability summary
         Map<String, Integer> shortageByType = new HashMap<>();
         for (DayAnalysis day : dailyAnalysis) {
             for (ShiftTypeAnalysis sta : day.shiftTypes().values()) {
@@ -329,12 +361,19 @@ public class SchedulingFeasibilityAnalyzer {
             }
         }
 
-        // Recommend enabling cross-specialty if L04 has shortages
+        // Recommend enabling cross-specialty if L04 has shortages or no-buffer
         String l04Label = SHIFT_TYPE_LABELS.getOrDefault("L04", "PK Chuyên gia");
         if (shortageByType.containsKey("L04") && !l04CrossSpecialty) {
             recommendations.add(String.format(
                     "[GOI-Y] %s thiếu %d ca — bật cross-specialty trong Cấu hình thuật toán để tăng pool nhân sự",
                     l04Label, shortageByType.get("L04")));
+        }
+        // Also check buffer risk for L04
+        var l04Summary = availabilityByShiftType.get("L04");
+        if (l04Summary != null && l04Summary.bufferRisk() != BufferRisk.NONE && !l04CrossSpecialty) {
+            recommendations.add(String.format(
+                    "[GOI-Y] %s có bufferRisk=%s — bật cross-specialty để tăng dự phòng",
+                    l04Label, l04Summary.bufferRisk()));
         }
 
         boolean hasNoBufferWarning = noBufferDaysByType.values().stream().anyMatch(v -> v > 0);
@@ -427,7 +466,11 @@ public class SchedulingFeasibilityAnalyzer {
      */
     private Map<String, StaffAvailabilitySummary> calculateAvailabilitySummary(
             List<Staff> allActiveStaff,
-            Map<String, List<Integer>> dailyEligibleByType) {
+            Map<String, List<Integer>> dailyEligibleByType,
+            Map<LocalDate, Map<String, List<ShiftRequirement>>> reqsByDateAndType,
+            List<Staff> pool,
+            boolean l04CrossSpecialty,
+            List<String> l04AllowedSpecialties) {
 
         int totalActive = allActiveStaff.size();
         Map<String, StaffAvailabilitySummary> summary = new HashMap<>();
@@ -443,20 +486,118 @@ public class SchedulingFeasibilityAnalyzer {
             int maxEligible = counts.stream().mapToInt(Integer::intValue).max().orElse(0);
             double utilization = totalActive > 0 ? avgEligible / totalActive * 100 : 0;
 
-            // eligibleStaff in summary = count of distinct staff that ever appear as eligible
-            // across all days (unique staff pool for this shift type)
+            // Gather required counts per day to compute mode/median and no-buffer days
+            List<Integer> requiredCounts = new ArrayList<>();
+            List<Integer> eligibleCounts = counts;
+            int noBufferDays = 0;
+            int idx = 0;
+            for (LocalDate date : reqsByDateAndType.keySet().stream().sorted().toList()) {
+                Map<String, List<ShiftRequirement>> dayReqs = reqsByDateAndType.get(date);
+                if (dayReqs == null || !dayReqs.containsKey(shiftTypeId)) continue;
+                List<ShiftRequirement> dayReqList = dayReqs.get(shiftTypeId);
+                int required = dayReqList.stream().mapToInt(ShiftRequirement::getRequiredStaffCount).sum();
+                requiredCounts.add(required);
+                if (idx < eligibleCounts.size()) {
+                    if (eligibleCounts.get(idx) == required) noBufferDays++;
+                }
+                idx++;
+            }
+            int totalDaysForThisType = requiredCounts.size();
+            int typicalRequired = computeModeOrMedian(requiredCounts);
+
+            int bufferMin = minEligible - typicalRequired;
+
+            // Determine buffer risk level
+            BufferRisk risk;
+            if (bufferMin > 0) {
+                risk = BufferRisk.NONE;
+            } else if (bufferMin == 0) {
+                if (totalDaysForThisType > 0 && noBufferDays == totalDaysForThisType) {
+                    risk = BufferRisk.HIGH;
+                } else if (totalDaysForThisType > 0 && noBufferDays >= totalDaysForThisType - 1) {
+                    risk = BufferRisk.MEDIUM;
+                } else {
+                    risk = BufferRisk.LOW;
+                }
+            } else {
+                risk = BufferRisk.LOW;
+            }
+
+            // Find backup staff: eligible but not in main pool (on leave/comp)
+            List<StaffBackup> backups = findBackupStaff(shiftTypeId, allActiveStaff, pool,
+                    l04CrossSpecialty, l04AllowedSpecialties);
+
             summary.put(shiftTypeId, new StaffAvailabilitySummary(
                     shiftTypeId,
                     totalActive,
-                    (int) avgEligible,   // simplified: avg daily eligible
+                    (int) avgEligible,
                     avgEligible,
                     minEligible,
                     maxEligible,
-                    utilization
+                    utilization,
+                    bufferMin,
+                    risk,
+                    noBufferDays,
+                    totalDaysForThisType,
+                    backups
             ));
         }
 
         return summary;
+    }
+
+    /** Tính typical required = mode hoặc median của required counts */
+    private int computeModeOrMedian(List<Integer> values) {
+        if (values.isEmpty()) return 0;
+        Map<Integer, Long> freq = values.stream()
+                .collect(Collectors.groupingBy(v -> v, Collectors.counting()));
+        var maxEntry = freq.entrySet().stream().max(Map.Entry.comparingByValue()).orElse(null);
+        if (maxEntry != null && maxEntry.getValue() > 1) {
+            return maxEntry.getKey();
+        }
+        // else median
+        List<Integer> sorted = values.stream().sorted().toList();
+        int mid = sorted.size() / 2;
+        return sorted.size() % 2 == 0 ? (sorted.get(mid - 1) + sorted.get(mid)) / 2 : sorted.get(mid);
+    }
+
+    /** Tìm nhân sự dự phòng — không trong pool chính nhưng có thể cross-cover */
+    private List<StaffBackup> findBackupStaff(
+            String shiftTypeId,
+            List<Staff> allActiveStaff,
+            List<Staff> pool,
+            boolean l04CrossSpecialty,
+            List<String> l04AllowedSpecialties) {
+
+        Set<Integer> poolIds = pool.stream().map(Staff::getId).collect(Collectors.toSet());
+        Set<Integer> crossEligibleIds = new HashSet<>();
+
+        if ("L04".equals(shiftTypeId) && l04CrossSpecialty && !l04AllowedSpecialties.isEmpty()) {
+            crossEligibleIds = allActiveStaff.stream()
+                    .filter(s -> poolIds.contains(s.getId()))
+                    .filter(s -> l04AllowedSpecialties.contains(s.getSpecialty().getId()))
+                    .map(Staff::getId)
+                    .collect(Collectors.toSet());
+        }
+
+        // Backups = staff active but NOT in pool (on leave/comp)
+        // AND eligible via cross-specialty if L04
+        List<StaffBackup> backups = allActiveStaff.stream()
+                .filter(s -> !poolIds.contains(s.getId()))
+                .filter(s -> {
+                    if ("L04".equals(shiftTypeId)) {
+                        return l04CrossSpecialty && l04AllowedSpecialties.contains(s.getSpecialty().getId());
+                    }
+                    return true;
+                })
+                .map(s -> new StaffBackup(
+                        s.getId(),
+                        s.getFullName(),
+                        s.getSpecialty() != null ? s.getSpecialty().getName() : "—",
+                        0))
+                .toList();
+
+        return backups;
     }
 
     /** Kiểm tra nhanh xem kỳ lịch có khả thi không */

@@ -22,6 +22,15 @@ type DayAnalysis = {
   shiftTypes: Record<string, ShiftTypeAnalysis>;
 };
 
+type BufferRisk = "NONE" | "LOW" | "MEDIUM" | "HIGH";
+
+type StaffBackup = {
+  staffId: number;
+  staffName: string;
+  specialtyName: string;
+  daysAvailable: number;
+};
+
 type AvailabilitySummary = {
   shiftTypeId: string;
   totalActiveStaff: number;
@@ -30,6 +39,11 @@ type AvailabilitySummary = {
   minDailyEligible: number;
   maxDailyEligible: number;
   utilizationRate: number;
+  bufferMin: number;
+  bufferRisk: BufferRisk;
+  noBufferDays: number;
+  totalDays: number;
+  backups: StaffBackup[];
 };
 
 type FeasibilityReport = {
@@ -179,44 +193,105 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
           {Object.entries(report.availabilityByShiftType).map(([typeId, summary]) => {
             const colors = SHIFT_TYPE_COLORS[typeId] || { bg: "bg-gray-50", border: "border-gray-500", text: "text-gray-800" };
             const avgEligible = Math.round(summary.averageDailyEligible);
-            const minEligible = summary.minDailyEligible;
-            const hasBufferWarning = report.warnings.some(w =>
-              w.includes("[CANH-BAO]") && w.includes(SHIFT_TYPE_LABELS[typeId] || typeId)
-            );
+            const typicalRequired = avgEligible - summary.bufferMin;
+            const buffer = summary.bufferMin;
+            const hasBuffer = buffer > 0;
+
+            // Risk badge config
+            const riskConfig: Record<BufferRisk, { label: string; bg: string; text: string; icon: string }> = {
+              NONE: { label: "An toàn", bg: "bg-secondary-container", text: "text-on-secondary-container", icon: "check_circle" },
+              LOW: { label: "Thấp", bg: "bg-yellow-100", text: "text-yellow-800", icon: "info" },
+              MEDIUM: { label: "Trung bình", bg: "bg-orange-100", text: "text-orange-800", icon: "warning" },
+              HIGH: { label: "Nguy hiểm", bg: "bg-error-container", text: "text-on-error-container", icon: "error" },
+            };
+            const risk = (summary.bufferRisk as BufferRisk) || "NONE";
+            const riskCfg = riskConfig[risk];
+
+            // Progress bar: eligible vs required
+            const pct = summary.totalDays > 0
+              ? Math.round((summary.totalDays - summary.noBufferDays) / summary.totalDays * 100)
+              : 100;
 
             return (
               <div
                 key={typeId}
-                className={`rounded-lg border ${colors.border} ${colors.bg} p-3`}
+                className={`rounded-lg border ${colors.border} ${colors.bg} p-3 flex flex-col gap-2`}
               >
-                <div className="flex items-center justify-between mb-2">
+                {/* Header */}
+                <div className="flex items-center justify-between">
                   <span className={`text-label-md font-semibold ${colors.text}`}>
                     {SHIFT_TYPE_LABELS[typeId] || typeId}
                   </span>
                   <span className={`text-label-xs ${colors.text} opacity-75`}>{typeId}</span>
                 </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between text-label-sm">
-                    <span className={`${colors.text} opacity-75`}>Trung bình eligible:</span>
-                    <span className={`${colors.text} font-bold`}>{avgEligible}</span>
+
+                {/* Required vs Eligible */}
+                <div className="flex items-center justify-between">
+                  <span className={`text-label-sm ${colors.text} opacity-75`}>Eligible/Required:</span>
+                  <span className={`text-label-sm font-bold ${colors.text}`}>
+                    {avgEligible}/{typicalRequired > 0 ? typicalRequired : "?"}
+                  </span>
+                </div>
+
+                {/* Buffer progress bar */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className={`text-label-xs ${colors.text} opacity-75`}>Buffer dự phòng</span>
+                    <span className={`text-label-xs font-semibold ${buffer >= 1 ? "text-secondary" : buffer === 0 ? "text-error" : "text-yellow-600"}`}>
+                      {buffer > 0 ? `+${buffer}` : buffer === 0 ? "0" : buffer}
+                    </span>
                   </div>
-                  <div className="flex justify-between text-label-sm">
-                    <span className={`${colors.text} opacity-75`}>Tối thiểu:</span>
-                    <span className={`${colors.text} font-bold`}>{minEligible}</span>
+                  <div className={`w-full rounded-full h-2 ${colors.bg.replace("50", "100")}`}>
+                    <div
+                      className={`h-2 rounded-full transition-all ${
+                        buffer > 0 ? "bg-secondary" : buffer === 0 ? "bg-error" : "bg-yellow-400"
+                      }`}
+                      style={{ width: `${Math.min(100, pct)}%` }}
+                      title={`${summary.noBufferDays}/${summary.totalDays} ngày không có buffer`}
+                    />
                   </div>
-                  {/* Buffer risk indicator */}
-                  {hasBufferWarning ? (
-                    <div className="flex items-center gap-1 mt-1.5">
-                      <span className="material-symbols-outlined text-error text-[14px]" aria-hidden="true">warning</span>
-                      <span className="text-[11px] text-error font-medium">Không có dự phòng</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1 mt-1.5">
-                      <span className="material-symbols-outlined text-secondary text-[14px]" aria-hidden="true" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                      <span className="text-[11px] text-secondary font-medium">Có buffer</span>
-                    </div>
+                  {summary.noBufferDays > 0 && (
+                    <p className={`text-[10px] mt-0.5 ${colors.text} opacity-60`}>
+                      {summary.noBufferDays}/{summary.totalDays} ngày không có dự phòng
+                    </p>
                   )}
                 </div>
+
+                {/* Risk level badge */}
+                <div className={`flex items-center justify-between px-2 py-1 rounded-md ${riskCfg.bg}`}>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`material-symbols-outlined text-[14px] ${riskCfg.text}`} style={{ fontVariationSettings: "'FILL' 1" }}>{riskCfg.icon}</span>
+                    <span className={`text-[11px] font-semibold ${riskCfg.text}`}>Rủi ro: {riskCfg.label}</span>
+                  </div>
+                </div>
+
+                {/* Backup staff section */}
+                {summary.backups && summary.backups.length > 0 && (
+                  <details className="group">
+                    <summary className={`cursor-pointer text-[11px] ${colors.text} opacity-75 hover:opacity-100 list-none flex items-center gap-1`}>
+                      <span className="material-symbols-outlined text-[12px] group-open:rotate-90 transition-transform">chevron_right</span>
+                      Xem {summary.backups.length} nhân sự dự phòng
+                    </summary>
+                    <div className="mt-1.5 space-y-1 max-h-24 overflow-y-auto">
+                      {summary.backups.slice(0, 5).map((b) => (
+                        <div key={b.staffId} className="flex items-center justify-between bg-white/50 rounded px-2 py-1">
+                          <div className="min-w-0">
+                            <p className={`text-[11px] font-medium truncate ${colors.text}`}>{b.staffName}</p>
+                            <p className={`text-[10px] ${colors.text} opacity-60`}>{b.specialtyName}</p>
+                          </div>
+                          <span className={`text-[10px] font-semibold shrink-0 ml-1 ${b.daysAvailable > 0 ? "text-secondary" : colors.text} opacity-60`}>
+                            {b.daysAvailable}d
+                          </span>
+                        </div>
+                      ))}
+                      {summary.backups.length > 5 && (
+                        <p className={`text-[10px] text-center ${colors.text} opacity-50`}>
+                          +{summary.backups.length - 5} người khác
+                        </p>
+                      )}
+                    </div>
+                  </details>
+                )}
               </div>
             );
           })}
@@ -288,26 +363,48 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
       {/* Recommendations */}
       {report.recommendations.length > 0 && (
         <div className="px-4 pb-4">
-          <h4 className="text-label-md text-on-surface-variant mb-2">Gợi ý</h4>
-          <ul className="space-y-1">
-            {report.recommendations.slice(0, 3).map((rec, i) => {
-              const cleaned = rec.replace(/^(\[[^\]]+\]\s*|[📋💡⚠️]\s*)/u, "");
-              const isWarning = rec.startsWith("[CANH-BAO]") || rec.includes("thieu");
+          <h4 className="text-label-md text-on-surface-variant mb-2">Gợi ý hành động</h4>
+          <div className="space-y-2">
+            {report.recommendations.map((rec, i) => {
+              const isWarning = rec.includes("CANH-BAO") || rec.includes("thieu") || rec.includes("không");
+              const isAction = rec.includes("GOI-Y") || rec.includes("bật") || rec.includes("thêm") || rec.includes("giảm");
+              const labelMatch = rec.match(/\[([^\]]+)\]/);
+              const label = labelMatch ? labelMatch[1] : null;
+              const content = rec.replace(/\[[^\]]+\]\s*/g, "");
+
               return (
-                <li key={i} className="flex items-start gap-2 text-label-sm text-on-surface">
+                <div
+                  key={i}
+                  className={`flex items-start gap-3 rounded-lg p-3 text-label-sm ${
+                    isWarning
+                      ? "bg-error-container/50 border border-error/20"
+                      : isAction
+                      ? "bg-primary-fixed/50 border border-primary/20"
+                      : "bg-surface-container-low border border-outline-variant"
+                  }`}
+                >
                   <span
-                    className={`material-symbols-outlined text-[14px] shrink-0 mt-0.5 ${
-                      isWarning ? "text-error" : "text-primary"
+                    className={`material-symbols-outlined text-[16px] shrink-0 mt-0.5 ${
+                      isWarning ? "text-error" : isAction ? "text-primary" : "text-secondary"
                     }`}
-                    style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}
+                    style={{ fontVariationSettings: "'FILL' 1" }}
                   >
-                    {isWarning ? "warning" : "lightbulb"}
+                    {isWarning ? "warning" : isAction ? "bolt" : "info"}
                   </span>
-                  <span>{cleaned}</span>
-                </li>
+                  <div className="flex-1 min-w-0">
+                    {label && (
+                      <span className={`inline-block text-[10px] font-bold uppercase tracking-wide mb-0.5 ${
+                        isWarning ? "text-error" : isAction ? "text-primary" : "text-secondary"
+                      }`}>
+                        {label}
+                      </span>
+                    )}
+                    <p className="text-on-surface">{content}</p>
+                  </div>
+                </div>
               );
             })}
-          </ul>
+          </div>
         </div>
       )}
 
