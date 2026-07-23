@@ -15,7 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * BR-04 — AdjacentL01Constraint.
  *
- * <p>Soft penalty for consecutive L01 shifts (each pair counts once).
+ * <p>Hard penalty for consecutive L01 shifts (each pair counts once).
+ * BR-04 is a HARD constraint — adjacent 24/24 duty on consecutive days
+ * creates an impossible situation (no rest between shifts).
  */
 class AdjacentL01ConstraintTest {
 
@@ -26,14 +28,14 @@ class AdjacentL01ConstraintTest {
         WorkingSolution sol = wrapSolution(emptyProblem(3));
         add(sol, 1, 1, LocalDate.of(2026, 6, 1), "L02");
         add(sol, 2, 1, LocalDate.of(2026, 6, 2), "L03");
-        assertEquals(0, rule.evaluate(sol).consecutiveDelta());
+        assertEquals(0, rule.evaluate(sol).hardDelta());
     }
 
     @Test
     void singleL01_returnsZero() {
         WorkingSolution sol = wrapSolution(emptyProblem(3));
         add(sol, 1, 1, LocalDate.of(2026, 6, 1), "L01");
-        assertEquals(0, rule.evaluate(sol).consecutiveDelta());
+        assertEquals(0, rule.evaluate(sol).hardDelta());
     }
 
     @Test
@@ -41,7 +43,7 @@ class AdjacentL01ConstraintTest {
         WorkingSolution sol = wrapSolution(emptyProblem(3));
         add(sol, 1, 1, LocalDate.of(2026, 6, 1), "L01");
         add(sol, 2, 1, LocalDate.of(2026, 6, 2), "L01");
-        assertEquals(1, rule.evaluate(sol).consecutiveDelta());
+        assertEquals(1, rule.evaluate(sol).hardDelta());
     }
 
     @Test
@@ -50,7 +52,7 @@ class AdjacentL01ConstraintTest {
         add(sol, 1, 1, LocalDate.of(2026, 6, 1), "L01");
         add(sol, 2, 1, LocalDate.of(2026, 6, 2), "L01");
         add(sol, 3, 1, LocalDate.of(2026, 6, 3), "L01");
-        assertEquals(2, rule.evaluate(sol).consecutiveDelta());
+        assertEquals(2, rule.evaluate(sol).hardDelta());
     }
 
     @Test
@@ -59,7 +61,7 @@ class AdjacentL01ConstraintTest {
         add(sol, 1, 1, LocalDate.of(2026, 6, 1), "L01");
         // gap day
         add(sol, 3, 1, LocalDate.of(2026, 6, 3), "L01");
-        assertEquals(0, rule.evaluate(sol).consecutiveDelta());
+        assertEquals(0, rule.evaluate(sol).hardDelta());
     }
 
     @Test
@@ -69,12 +71,12 @@ class AdjacentL01ConstraintTest {
         add(sol, 2, 1, LocalDate.of(2026, 6, 2), "L01");
         add(sol, 3, 2, LocalDate.of(2026, 6, 1), "L01");
         add(sol, 4, 2, LocalDate.of(2026, 6, 2), "L01");
-        assertEquals(2, rule.evaluate(sol).consecutiveDelta());
+        assertEquals(2, rule.evaluate(sol).hardDelta());
     }
 
     @Test
-    void constraintIsSoft() {
-        assertTrue(!new AdjacentL01Constraint().isHard());
+    void constraintIsHard() {
+        assertTrue(new AdjacentL01Constraint().isHard());
     }
 
     private static void add(WorkingSolution sol, int slotId, int staffId, LocalDate date, String shift) {

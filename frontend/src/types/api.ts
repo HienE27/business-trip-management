@@ -447,6 +447,7 @@ export interface AlgorithmMetrics {
   totalSchedulesCreated?: number;
   periodId?: number;
   periodName?: string;
+  runToken?: string;
   createdAt: string;
 }
 
@@ -710,3 +711,608 @@ export interface StaffShiftStatistics {
   totalHours: number;
   workloadPercentage: number;
 }
+
+// ============================================================
+// Explain / AI Explanation Types
+// ============================================================
+export interface ExplainQueryRequest {
+  slotId: number;
+  staffId?: number;
+  question?: string;
+}
+
+export interface AssignmentExplanation {
+  slotId: number;
+  workDate: string;
+  shiftTypeId: string;
+  chosenStaffId: number;
+  chosenStaffName: string;
+  staffName?: string;
+  score: number;
+  ranking: number;
+  totalScore?: number;
+  scoreBreakdown?: {
+    coverageScore?: number;
+    fairnessScore?: number;
+    preferenceScore?: number;
+    coverage?: number;
+    fairness?: number;
+    total?: number;
+  };
+  selectionReasons?: Array<{ reason: string } | string>;
+  hardConstraints?: Array<{ id: string; name: string; constraintName?: string; satisfied?: boolean }>;
+  alternatives: Array<{ staffId: number; staffName: string; score: number; reason: string }>;
+  naturalLanguageExplanation?: string;
+}
+
+export interface WhyNotExplanation {
+  staffId: number;
+  staffName: string;
+  slotId: number;
+  workDate: string;
+  shiftTypeId: string;
+  reasons: string[];
+  blockedBy: Array<{ rule: string; detail: string }>;
+  rejectionReasons?: Array<{
+    constraintId: string;
+    constraintName?: string;
+    description?: string;
+    isBlocking: boolean;
+    penalty?: number;
+    detail?: string;
+  }>;
+  score?: number;
+  rank?: number;
+  scoreImpact?: number;
+  constraintChain?: Array<{
+    constraintId: string;
+    description: string;
+    weight?: number;
+    detail?: string;
+  }>;
+  selectedAlternative?: { staffId: number; staffName: string; score?: number };
+  naturalLanguageExplanation?: string;
+}
+
+export interface CandidateRankingExplanation {
+  slotId: number;
+  workDate: string;
+  shiftTypeId: string;
+  totalCandidates?: number;
+  acceptedCount?: number;
+  rejectedCount?: number;
+  rankings?: Array<{
+    staffId: number;
+    staffName: string;
+    rank: number;
+    score: number;
+    reasons: string[];
+    selected?: boolean;
+    rejected?: boolean;
+    primaryConstraint?: string;
+  }>;
+  candidates: Array<{
+    staffId: number;
+    staffName: string;
+    rank: number;
+    score: number;
+    reasons: string[];
+    selected?: boolean;
+    rejected?: boolean;
+    primaryConstraint?: string;
+  }>;
+  summary?: {
+    bestStaffId?: number;
+    bestStaffName?: string;
+    averageScore?: number;
+    coverage?: number;
+    highestScore?: number;
+    lowestScore?: number;
+    averageBranchingFactor?: number;
+  };
+}
+
+export interface ReplayExplanation {
+  iteration: number;
+  moveType: string;
+  beforeScore: number;
+  afterScore: number;
+  changes: Array<{ slotId: number; oldStaffId: number; newStaffId: number; date: string }>;
+  constraintChanges?: Array<{
+    rule: string;
+    constraintId?: string;
+    constraintName?: string;
+    improved: boolean;
+    delta: number;
+  }>;
+  accepted: boolean;
+  reason: string;
+  rejectionReason?: string;
+  acceptanceReason?: string;
+  naturalLanguageExplanation?: string;
+  staffName?: string;
+  targetStaffName?: string;
+  scoreBreakdown?: {
+    coverageDelta?: number;
+    fairnessDelta?: number;
+    totalDelta?: number;
+  };
+}
+
+export interface ExplainQueryResponse {
+  query: ExplainQueryRequest;
+  explanations: AssignmentExplanation[];
+  whyNot: WhyNotExplanation[];
+  candidateRanking: CandidateRankingExplanation[];
+}
+
+// ============================================================
+// Config Profile Types (stubs — backend ConfigController CRUD pending)
+// ============================================================
+export type ConfigProfileCategory =
+  | "GENERAL"
+  | "ALGORITHM"
+  | "FAIRNESS"
+  | "COVERAGE"
+  | "EMERGENCY"
+  | "HOLIDAY"
+  | "TESTING"
+  | "L04";
+
+export interface ConfigProfile {
+  id: number;
+  profileKey?: string;
+  nameVi?: string;
+  nameEn?: string;
+  name?: string; // fallback
+  category: ConfigProfileCategory;
+  description?: string;
+  icon?: string;
+  tags?: string[];
+  enabled: boolean;
+  configJson?: Record<string, unknown>;
+  config?: Record<string, unknown>; // alternate field used by ProfileHealthBadge
+  createdAt: string;
+  updatedAt: string;
+  isFavorite?: boolean;
+  isHealthy?: boolean;
+  healthIssues?: string[];
+}
+
+export interface CreateProfileRequest {
+  nameVi: string;
+  nameEn?: string;
+  description?: string;
+  category: ConfigProfileCategory;
+  icon?: string;
+  tags?: string[];
+  enabled?: boolean;
+  configJson?: Record<string, unknown>;
+}
+
+// ============================================================
+// Governance Types
+// ============================================================
+export interface GovernancePolicy {
+  id: number;
+  name: string;
+  description: string;
+  policyType: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApprovalRequest {
+  id: number;
+  entityType: string;
+  entityId: number;
+  requestedBy: string;
+  submittedByName?: string;
+  requestedAt: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  description?: string;
+  createdAt?: string;
+  dueDate?: string;
+  title?: string;
+  priority?: string;
+  ApprovalStatus?: string;
+}
+
+export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "CHANGES_REQUESTED" | "CANCELLED" | "EXPIRED" | "APPLIED";
+
+export interface AuditEvent {
+  id: number;
+  eventType: string;
+  entityType: string;
+  entityId: number;
+  performedBy: string;
+  performedAt: string;
+  details: Record<string, unknown>;
+  timestamp?: string;
+  userName?: string;
+  userRole?: string;
+  action?: string;
+  previousValue?: string;
+  newValue?: string;
+  reason?: string;
+}
+
+export interface AuditSummary {
+  totalEvents: number;
+  todayEvents: number;
+  weekEvents?: number;
+  monthEvents?: number;
+  byEntityType: Record<string, number>;
+  byAction: Record<string, number>;
+  recentEvents?: AuditEvent[];
+}
+
+export interface AuditTimelineEvent {
+  id: number;
+  timestamp: string;
+  userName: string;
+  userRole: string;
+  action: string;
+  entityType: string;
+  entityId: number;
+  description: string;
+  previousValue?: string;
+  newValue?: string;
+  reason?: string;
+}
+
+export interface ConfigVersion {
+  id: number;
+  configKey: string;
+  version: number;
+  versionNumber?: number;
+  configJson: Record<string, unknown>;
+  changedBy: string;
+  changedByName?: string;
+  changedAt: string;
+  createdAt?: string;
+  createdBy?: string;
+  createdByName?: string;
+  changeNote: string;
+  changeComment?: string;
+  source?: string;
+  checksum?: string;
+  active?: boolean;
+  locked?: boolean;
+  configSnapshot?: Record<string, unknown>;
+}
+
+export interface ConfigVersionDiff {
+  key: string;
+  changeType: "ADDED" | "REMOVED" | "MODIFIED";
+  oldValue?: string | null;
+  newValue?: string | null;
+}
+
+// ============================================================
+// Benchmark Types
+// ============================================================
+export interface BenchmarkScenario {
+  id: number;
+  name: string;
+  description: string;
+  staffCount: number;
+  requirementCount: number;
+  conflictCount: number;
+  coverageTarget: number;
+  createdAt: string;
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+}
+
+export interface BenchmarkResult {
+  scenarioId: number;
+  algorithmType: string;
+  executionTimeMs: number;
+  coverageRate: number;
+  balanceScore: number;
+  hardViolations: number;
+  softViolations: number;
+  totalScore: number;
+  grade: string;
+}
+
+// ============================================================
+// Digital Twin / Sandbox Types
+// ============================================================
+// Sandbox / Digital Twin Types
+export interface SandboxSession {
+  id: number;
+  sessionKey: string;
+  name: string;
+  status: SandboxStatus;
+  configKey?: string;
+  sourcePeriodId?: number;
+  initialScore?: number;
+  bestScore?: number;
+  createdAt: string;
+  updatedAt?: string;
+  completedAt?: string | null;
+  coverageRate?: number;
+  fairnessCv?: number;
+  violations?: number;
+  runtimeSeconds?: number;
+  iterations?: number;
+}
+
+export interface SandboxSnapshot {
+  id: number;
+  sessionKey: string;
+  iteration: number;
+  iterations?: number;
+  scoreSnapshot: Record<string, unknown>;
+  score?: number;
+  coverageRate?: number;
+  fairnessCv?: number;
+  violations?: number;
+  createdAt: string;
+}
+
+// What-If Scenario Types
+export type ScenarioStatus = "DRAFT" | "PENDING" | "READY" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+
+export interface ScenarioResponse {
+  id: number;
+  name: string;
+  description: string;
+  status: ScenarioStatus;
+  createdAt: string;
+  completedAt?: string;
+  metrics?: Record<string, unknown>;
+  sessionKey?: string;
+  baseline?: boolean;
+  results?: {
+    coverage?: number;
+    balance?: number;
+    fairness?: number;
+    violations?: number;
+    score?: number;
+    executionTime?: number;
+  };
+  simulationDurationMs?: number;
+}
+
+export interface ScenarioComparison {
+  scenario1Id: number;
+  scenario2Id: number;
+  scenario1Name: string;
+  scenario2Name: string;
+  differences: Array<{ key: string; value1: unknown; value2: unknown }>;
+  scenario1?: Record<string, unknown>;
+  scenario2?: Record<string, unknown>;
+  metrics?: ScenarioMetrics;
+  changes?: ScenarioMetrics;
+  recommendation?: string;
+}
+
+// ============================================================
+// Sandbox / Digital Twin Types
+// ============================================================
+export interface ReplayScoreSummary {
+  iterations: number;
+  scores: Array<{ iteration: number; score: number }>;
+  hardViolations: number[];
+  softViolations: number[];
+}
+
+export interface ScenarioMetrics {
+  baselineScore?: number;
+  comparedScore?: number;
+  scoreDelta?: number;
+  baselineViolations?: number;
+  comparedViolations?: number;
+  violationsDelta?: number;
+  baselineRuntime?: number;
+  comparedRuntime?: number;
+  runtimeDelta?: number;
+  baselineCoverage?: number;
+  comparedCoverage?: number;
+  coverageDelta?: number;
+  baselineFairness?: number;
+  comparedFairness?: number;
+  fairnessDelta?: number;
+  violations?: { impact: string };
+  coverage?: { impact: string };
+  fairness?: { impact: string };
+  [key: string]: unknown;
+}
+
+// ============================================================
+// Digital Twin - Compare Types
+// ============================================================
+export interface SandboxTimeline {
+  events: TimelineEvent[];
+  iterations?: Array<{
+    iteration: number;
+    score: number;
+    accepted: boolean;
+    moveType?: string;
+  }>;
+}
+
+export interface SandboxPromotionDiff {
+  addedSchedules: Array<{ staffName: string; shiftTypeName: string; date: string }>;
+  removedSchedules: Array<{ staffName: string; shiftTypeName: string; date: string }>;
+  scoreDelta: number;
+  coverageDelta: number;
+  fairnessDelta: number;
+  totalChanges?: number;
+  added?: Array<{ staffName: string; shiftTypeName: string; date: string }>;
+  modified?: Array<{ staffName: string; shiftTypeName: string; date: string }>;
+  removed?: Array<{ staffName: string; shiftTypeName: string; date: string }>;
+}
+
+export interface TimelineIterationPoint {
+  iteration: number;
+  score: number;
+  hardViolations?: number;
+  softViolations?: number;
+  moveType?: string;
+  accepted?: boolean;
+}
+
+// ============================================================
+// Digital Twin - Decision Types
+// ============================================================
+export interface DecisionNode {
+  id: string;
+  iteration: number;
+  nodeType: "ROOT" | "ACCEPT" | "REJECT" | "BRANCH";
+  label: string;
+  score: number;
+  hardViolations: number;
+  softViolations: number;
+  moveDescription?: string;
+  x?: number;
+  y?: number;
+  status?: string;
+  candidateStaffName?: string;
+  slotId?: number;
+  violatedConstraint?: string;
+  candidateStaffId?: number;
+  rejectionReason?: string;
+  scoreDelta?: number;
+  coverageDelta?: number;
+  fairnessDelta?: number;
+  depth?: number;
+}
+
+export interface DecisionEdge {
+  id: string;
+  source: string;
+  target: string;
+  label: string;
+  accepted: boolean;
+  scoreDelta: number;
+  fromId?: string;
+  toId?: string;
+  type?: string;
+}
+
+export interface DecisionGraph {
+  nodes: DecisionNode[];
+  edges: DecisionEdge[];
+  totalIterations: number;
+  finalScore: number;
+  statistics?: GraphStatistics;
+}
+
+export interface GraphStatistics {
+  totalIterations: number;
+  totalAccepts: number;
+  totalRejects: number;
+  acceptanceRate: number;
+  avgScoreGain: number;
+  bestIteration: number;
+  worstIteration: number;
+  totalNodes?: number;
+  totalEdges?: number;
+  totalCandidates?: number;
+  totalAccepted?: number;
+  totalRejected?: number;
+  averageBranchingFactor?: number;
+  maxDepth?: number;
+  maxCandidatesPerIteration?: number;
+  rejectionReasons?: Record<string, number>;
+}
+
+// ============================================================
+// Digital Twin - Live Types
+// ============================================================
+export interface TimelineEvent {
+  id: string;
+  timestamp: string;
+  eventType: TimelineEventType;
+  message: string;
+  iteration?: number;
+  score?: number;
+  hardViolations?: number;
+  softViolations?: number;
+  accepted?: boolean;
+  coverage?: number;
+  fairnessCv?: number;
+  moveType?: string;
+  staffName?: string;
+  scoreDelta?: number;
+  rejectionReason?: string;
+  details?: Record<string, unknown>;
+}
+
+export type TimelineEventType =
+  | "STARTED"
+  | "ITERATION_START"
+  | "ITERATION_END"
+  | "MOVE_PROPOSED"
+  | "MOVE_EVALUATING"
+  | "MOVE_ACCEPTED"
+  | "MOVE_REJECTED"
+  | "SCORE_IMPROVED"
+  | "NO_IMPROVEMENT"
+  | "BEST_UPDATED"
+  | "TABU_HIT"
+  | "DIVERSIFIED"
+  | "EARLY_STOP"
+  | "COMPLETED"
+  | "FAILED"
+  | "PAUSED"
+  | "RESUMED"
+  | "SNAPSHOT";
+
+// ============================================================
+// Digital Twin - Replay Types
+// ============================================================
+export interface SandboxReplayFrame {
+  iteration: number;
+  score: number;
+  stepType?: string;
+  moveType?: string;
+  slotId?: number;
+  staffId?: number;
+  staffName?: string;
+  targetStaffId?: number;
+  targetStaff?: string;
+  timestamp: string;
+  accepted: boolean;
+  reason?: string;
+  scoreDelta?: number;
+  coverage?: number;
+  fairnessCv?: number;
+  hardViolations?: number;
+  softViolations?: number;
+  durationMs?: number;
+  staff?: { name: string; staffCode: string };
+}
+
+export interface ReplayScoreSummary {
+  iterations: number;
+  scores: Array<{ iteration: number; score: number }>;
+  hardViolations: number[];
+  softViolations: number[];
+}
+
+// ============================================================
+// Sandbox Status with all variants
+// ============================================================
+export type SandboxStatus =
+  | "CREATED"
+  | "CLONING"
+  | "READY"
+  | "RUNNING"
+  | "PAUSED"
+  | "COMPLETED"
+  | "FAILED"
+  | "PROMOTED"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "DELETED";
+
+export type SimulationMode = "STEPPING" | "FULL" | "FAST_FORWARD" | "SINGLE_RUN" | "COMPARE" | "SENSITIVITY" | "WHAT_IF";
+

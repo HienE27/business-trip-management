@@ -69,14 +69,39 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       // is declared with only a subset of fields to avoid coupling to backend
       // schema drift, but the runtime object actually carries the whole shape.
       // Cast through unknown to bridge the two views safely.
-      const data = res as unknown as RuntimeConfig;
-      const autoGen = resAutoGen as unknown as RuntimeConfig;
-      const specialties = (specialtiesRes ?? []).map(s => s.name);
-      const summary = dashboardRes?.summary;
-      const shiftStats = dashboardRes?.shiftStatistics as ShiftStatistics | undefined;
+      // BUG-CARD-NO-PERSIST: api-client.getRuntimeConfig() / getAutoGenConfig()
+      // return the full ApiResponse envelope (because they call this.request
+      // directly instead of this.get), so we MUST unwrap `.data` before
+      // feeding the values into mergeRuntimeAndAutoGen(). Without this, the
+      // merged config is empty, the form fields fall back to 0, and any save
+      // overwrites the user's persisted values with zeros.
+      const runtimeResp = res as unknown as { data?: RuntimeConfig };
+      const autoGenResp = resAutoGen as unknown as { data?: RuntimeConfig };
+      const data = (runtimeResp.data ?? (res as unknown as RuntimeConfig)) as RuntimeConfig;
+      const autoGen = (autoGenResp.data ?? (resAutoGen as unknown as RuntimeConfig)) as RuntimeConfig;
+      const specialties = ((specialtiesRes as { data?: Array<{ name: string }> })?.data ?? []).map((s) => s.name);
+      const summary = (dashboardRes as { summary?: { totalStaff: number } })?.summary ?? { totalStaff: 0 };
+      const shiftStats = (dashboardRes as { shiftStatistics?: ShiftStatistics })?.shiftStatistics;
 
       setAllSpecialties(specialties);
       const merged = mergeRuntimeAndAutoGen(data, autoGen);
+      // BUG-CARD-NO-PERSIST: This log is intentional for diagnosing the
+      // "values reset to 0 after Save" issue on algorithm-config page.
+      // See https://trellis.atlassian.net/browse/BUG-CONFIG-CARD-NO-PERSIST
+      // The merged config is what we hand to the form state and what gets
+      // POSTed on save. If l01MinPerDay shows 0 here, the BE response is the
+      // source — verify with curl. If merged has 7 but the form later reads 0,
+      // there's a stale closure / re-render problem downstream.
+      console.log("[algorithm-config] load() raw runtime =", JSON.stringify(data));
+      console.log("[algorithm-config] load() raw autoGen =", JSON.stringify(autoGen));
+      console.log("[algorithm-config] load() merged =", JSON.stringify({
+        l01MinPerDay: merged.l01MinPerDay,
+        l02MinPerDay: merged.l02MinPerDay,
+        l03MinPerDay: merged.l03MinPerDay,
+        l04MinPerDay: merged.l04MinPerDay,
+        l01MaxPerDay: merged.l01MaxPerDay,
+        l01MaxPerWeek: merged.l01MaxPerWeek,
+      }));
       setConfig(merged);
       setForm(merged);
 
@@ -185,6 +210,9 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       const autoGenPayload = {
         enabled: true,
         holidayMode: form.holidayMode ?? "SKIP",
+        // BUG-CARD-NO-PERSIST: log form snapshot at save time so we can
+        // confirm whether the form state held the loaded values or had been
+        // reset to 0 by some re-render path before this point.
         l01MinPerDay: form.l01MinPerDay ?? 0,
         l02MinPerDay: form.l02MinPerDay ?? 0,
         l03MinPerDay: form.l03MinPerDay ?? 0,
@@ -208,10 +236,39 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l04AllowedSpecialties: form.l04AllowedSpecialties ?? [],
         l04BalanceStrategy: form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
       };
+      // Runtime config: only the fields the backend DTO accepts
+      const runtimePayload = {
+        weekendWeight: form.weekendWeight ?? 1,
+        overnightRecoveryHours: form.overnightRecoveryHours ?? 24,
+        greedyCoverageThreshold: form.greedyCoverageThreshold ?? 0.95,
+        balanceScoreMin: form.balanceScoreMin ?? 0.6,
+        minStaffPerShift: form.minStaffPerShift ?? 0,
+        maxStaffPerShift: form.maxStaffPerShift ?? 0,
+        minShiftsPerStaff: form.minShiftsPerStaff ?? 0,
+        maxShiftsPerStaff: form.maxShiftsPerStaff ?? 0,
+        l01MaxPerWeek: form.l01MaxPerWeek ?? 0,
+        l02MaxPerWeek: form.l02MaxPerWeek ?? 0,
+        l03MaxPerWeek: form.l03MaxPerWeek ?? 0,
+        l04MaxPerWeek: form.l04MaxPerWeek ?? 0,
+      };
       // Sequential: save runtime-config then auto-gen-config to avoid
       // concurrent lock contention on the algorithm_config table.
       // If the first call fails, do not attempt the second.
-      await api.updateRuntimeConfig(form);
+      // BUG-CARD-NO-PERSIST: log the exact payload being POSTed so we can
+      // see whether the form state held the loaded values when save fired.
+      console.log("[algorithm-config] handleSave() payload =", JSON.stringify({
+        formSnapshot: {
+          l01MinPerDay: form.l01MinPerDay,
+          l02MinPerDay: form.l02MinPerDay,
+          l03MinPerDay: form.l03MinPerDay,
+          l04MinPerDay: form.l04MinPerDay,
+          l01MaxPerDay: form.l01MaxPerDay,
+          l01MaxPerWeek: form.l01MaxPerWeek,
+        },
+        autoGenPayload,
+        runtimePayload,
+      }));
+      await api.updateRuntimeConfig(runtimePayload);
       await api.updateAutoGenConfig(autoGenPayload);
       setConfig(form);
       setEditing(false);
@@ -672,6 +729,21 @@ function NumberSpinner({ value, min, max, step, onChange, disabled }: {
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value;
     setLocalVal(raw);
+    // Bug config-not-persist (RuntimeConfigEditor): the previous version of
+    // this component only propagated the typed value to the parent on blur.
+    // If a user typed a number then clicked "Lưu thay đổi" without first
+    // blurring the input (common in dense forms with many parameters), the
+    // parent's `form` state still held the old value, so the save payload
+    // silently contained the stale number and the DB never updated. Commit
+    // every valid keystroke to the parent immediately so that any save path
+    // — keyboard shortcut, button click, or programmatic dispatch — always
+    // uses the latest value the user has entered.
+    if (raw === "") return; // allow empty while editing; commit on blur
+    const parsed = step < 1 ? parseFloat(raw) || 0 : parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return;
+    const clamped = Math.max(min, Math.min(max, parsed));
+    if (clamped === value) return; // no-op when nothing changed
+    onChange(clamped);
   }
 
   function handleBlur() {

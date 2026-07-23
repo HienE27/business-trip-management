@@ -5,11 +5,11 @@ import com.hospital.scheduler.scheduling.solution.MutableAssignment;
 import com.hospital.scheduler.scheduling.solution.WorkingSolution;
 
 /**
- * BR-04 — adjacent L01 shifts (24/24 duty on consecutive days) are allowed
- * but penalized because each L01 triggers a compensation day, which can
- * cascade into rest-day violations downstream.
+ * BR-04 — adjacent L01 shifts (24/24 duty on consecutive days) are forbidden
+ * by the business rules. Each L01 triggers a compensation day; consecutive
+ * L01 creates an impossible situation (no rest between shifts).
  *
- * <p>Penalty = count of (L01_today, L01_tomorrow) pairs per staff.
+ * <p>Hard constraint — BR-04 violations cannot be resolved by optimization.
  */
 public class AdjacentL01Constraint implements Constraint {
 
@@ -20,12 +20,12 @@ public class AdjacentL01Constraint implements Constraint {
 
     @Override
     public boolean isHard() {
-        return false;
+        return true;
     }
 
     @Override
     public double weight() {
-        return 50.0;
+        return Double.POSITIVE_INFINITY;
     }
 
     @Override
@@ -45,6 +45,6 @@ public class AdjacentL01Constraint implements Constraint {
                 prev = d;
             }
         }
-        return new ScoreDelta(0, 0, 0, 0, violations, 0, 0);
+        return new ScoreDelta(violations, 0, 0, 0, 0, 0, 0);
     }
 }

@@ -41,6 +41,16 @@ public final class SchedulingProblem {
     private final Map<Integer, Set<LocalDate>> compensationDays;
 
     private final SchedulingConfig config;
+    /**
+     * BUGFIX (M07-CROSSCONFIG-V10): Whether the L04 cross-specialty config is
+     * currently enabled for this run. Carried into {@code SchedulingProblem}
+     * so V10's {@link #getEligibleStaff(int)} honors the user's toggle and
+     * does not surface cross-specialty staff when the toggle is off.
+     *
+     * <p>Defaults to {@code true} so existing call sites that don't pass it
+     * keep their prior behavior.
+     */
+    private final boolean crossSpecialtyEnabled;
 
     private SchedulingProblem(List<StaffNode> staffList,
                               Map<Integer, StaffNode> staffById,
@@ -50,6 +60,19 @@ public final class SchedulingProblem {
                               Set<LocalDate> holidays,
                               Map<Integer, Set<LocalDate>> compensationDays,
                               SchedulingConfig config) {
+        this(staffList, staffById, requirements, requirementsById, leavesByStaff,
+                holidays, compensationDays, config, true);
+    }
+
+    private SchedulingProblem(List<StaffNode> staffList,
+                              Map<Integer, StaffNode> staffById,
+                              List<ShiftRequirementInfo> requirements,
+                              Map<Integer, ShiftRequirementInfo> requirementsById,
+                              Map<Integer, Set<LocalDate>> leavesByStaff,
+                              Set<LocalDate> holidays,
+                              Map<Integer, Set<LocalDate>> compensationDays,
+                              SchedulingConfig config,
+                              boolean crossSpecialtyEnabled) {
         this.staffList = staffList;
         this.staffById = staffById;
         this.requirements = requirements;
@@ -58,6 +81,7 @@ public final class SchedulingProblem {
         this.holidays = holidays;
         this.compensationDays = compensationDays;
         this.config = config;
+        this.crossSpecialtyEnabled = crossSpecialtyEnabled;
     }
 
     /**
@@ -151,6 +175,22 @@ public final class SchedulingProblem {
                                                       Set<LocalDate> rawCompDays,
                                                       Set<LocalDate> holidays,
                                                       SchedulingConfig config) {
+        return withRequirements(rawStaff, v10Requirements, rawLeaves, rawCompDays, holidays, config, true);
+    }
+
+    /**
+     * Overload of {@link #withRequirements} that accepts the
+     * {@code crossSpecialtyEnabled} flag. BUGFIX (M07-CROSSCONFIG-V10):
+     * callers that already know the user's L04 cross-specialty toggle state
+     * can pass it here so {@link #getEligibleStaff(int)} honors it.
+     */
+    public static SchedulingProblem withRequirements(List<Staff> rawStaff,
+                                                      List<ShiftRequirementInfo> v10Requirements,
+                                                      List<LeaveRequest> rawLeaves,
+                                                      Set<LocalDate> rawCompDays,
+                                                      Set<LocalDate> holidays,
+                                                      SchedulingConfig config,
+                                                      boolean crossSpecialtyEnabled) {
         List<StaffNode> staffList = rawStaff.stream().map(StaffNode::from).toList();
         Map<Integer, StaffNode> staffById = staffList.stream()
                 .collect(Collectors.toMap(StaffNode::getId, s -> s));
@@ -177,13 +217,23 @@ public final class SchedulingProblem {
                 leavesByStaff,
                 holidays != null ? holidays : Collections.emptySet(),
                 new HashMap<>(),
-                config);
+                config,
+                crossSpecialtyEnabled);
     }
 
     /**
      * Eligible staff IDs for a slot, with leave/compensation/holiday already
-     * filtered out. Caller still needs to apply specialty rules via
-     * {@code StaffEligibilityFilter}.
+     * filtered out. Specialty filtering for L04:
+     * <ul>
+     *   <li>If the slot is L04 with a required specialty AND the cross-specialty
+     *       toggle is OFF, only staff whose {@link StaffNode#getSpecialtyId()}
+     *       matches the requirement's specialty are eligible.</li>
+     *   <li>If cross-specialty is ON (the default), all L04-eligible staff are
+     *       returned — letting the score director decide between strict and
+     *       cross assignments.</li>
+     *   <li>Non-L04 shift types are unaffected by the cross-specialty toggle
+     *       (they have no specialty requirement).</li>
+     * </ul>
      */
     public List<Integer> getEligibleStaff(int slotId) {
         ShiftRequirementInfo slot = requirementsById.get(slotId);
@@ -191,11 +241,23 @@ public final class SchedulingProblem {
             return Collections.emptyList();
         }
 
+        // BUGFIX (M07-CROSSCONFIG-V10): when the user has turned off
+        // cross-specialty for L04, do not surface cross-specialty staff as
+        // candidates for L04 slots. Previously the V10 search saw every
+        // L04-eligible staff as a candidate and would happily assign
+        // non-matching-specialty staff to L04 — surfacing a non-zero
+        // "Cross L04" KPI even though the toggle was OFF.
+        boolean enforceL04StrictSpecialty =
+                !crossSpecialtyEnabled
+                        && "L04".equals(slot.shiftTypeId())
+                        && slot.specialtyId() != null;
+
         List<Integer> result = new ArrayList<>();
         for (StaffNode s : staffList) {
             if (isOnLeave(s.getId(), slot.date())) continue;
             if (isOnCompensation(s.getId(), slot.date())) continue;
             if (!s.isEligibleFor(slot.shiftTypeId())) continue;
+            if (enforceL04StrictSpecialty && !slot.specialtyId().equals(s.getSpecialtyId())) continue;
             result.add(s.getId());
         }
         return result;

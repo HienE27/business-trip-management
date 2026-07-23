@@ -31,7 +31,17 @@ function CompactSpinner({ value, onChange, disabled }: {
   }, [value, isFocused]);
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setLocalVal(e.target.value);
+    const raw = e.target.value;
+    setLocalVal(raw);
+    // Mirror the fix from NumberSpinner in RuntimeConfigEditor: commit every
+    // valid keystroke to the parent immediately so that pressing "Lưu thay
+    // đổi" right after typing (without blurring) actually persists the value.
+    // Otherwise the parent form stays stale and the save payload silently
+    // reverts to the previous value.
+    if (raw === "") return; // allow empty while editing; commit on blur
+    const parsed = Math.max(0, Math.min(99, parseInt(raw, 10) || 0));
+    if (parsed === value) return; // no-op when nothing changed
+    onChange(parsed);
   }
 
   function handleBlur() {

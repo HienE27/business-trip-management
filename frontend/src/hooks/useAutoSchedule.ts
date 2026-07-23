@@ -116,7 +116,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
           .filter((item): item is PreviewScheduleEdit => item !== null);
         const schedules = edited.length > 0
           ? edited
-          : previewResult?.schedules.map((s) => ({
+          : (previewResult?.schedules ?? []).map((s) => ({
               workDate: s.workDate,
               shiftTypeId: s.shiftTypeId,
               staffId: s.staffId,
@@ -124,7 +124,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
               // backend so the resolver picks the right (date, shiftType)
               // requirement even when L04 has multiple specialties.
               requirementId: s.requirementId ?? null,
-            })) ?? [];
+            }));
         await api.applyPreview({ periodId, algorithmType, schedules, removedSchedules });
         setMessage("Đã áp dụng phương án phân công.");
         setPreviewResult(null);

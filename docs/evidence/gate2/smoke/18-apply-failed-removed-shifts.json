@@ -1,0 +1,1 @@
+﻿{"success":false,"message":"Config validation failed: 1 error(s), 0 warning(s)","data":{"valid":false,"errorCount":1,"warningCount":0,"infoCount":0,"errors":[{"fieldPath":"removedShiftTypes","message":"Loại trừ ca xếp có giá trị không hợp lệ","severity":"ERROR"}],"warnings":[],"infos":[]},"timestamp":"2026-07-21T04:18:37.9999707"}

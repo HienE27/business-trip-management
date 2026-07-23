@@ -40,27 +40,44 @@ type Props = { config: ConfigEntry };
 
 export function ConfigValueCell({ config }: Props) {
   const { error: toastError } = useToast();
+  // CRITICAL (bug-config-persist): `config.paramValue` may come back as
+  // undefined/null when the backend serialises an entry whose column is
+  // empty. Using `?? ""` keeps `value` always a string so the controlled
+  // <input> does not render the literal "undefined" into the DOM and
+  // so save() never serialises `undefined` into the payload.
+  const initialValue =
+    typeof config.paramValue === "string" ? config.paramValue : (config.paramValue ?? "");
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(config.paramValue);
+  const [value, setValue] = useState<string>(String(initialValue));
   const [saving, setSaving] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const presets = VALUE_PRESETS[config.valueType] ?? [];
 
-  useEffect(() => { setValue(config.paramValue); }, [config.paramValue]);
+  // Keep local state in sync when the parent row updates (e.g. after
+  // page refresh or another component updated the same config).
+  useEffect(() => {
+    setValue(typeof config.paramValue === "string" ? config.paramValue : "");
+  }, [config.paramValue]);
 
   useEffect(() => {
     if (editing && presets.length > 0) setShowDropdown(true);
   }, [editing, presets.length]);
 
   const handleSave = async () => {
-    if (value === config.paramValue) { setEditing(false); return; }
+    // Bug-config-persist: previous code stored `undefined` into the
+    // payload whenever the row's paramValue was missing, which produced
+    // `NaN` after backend parsing and made "Save" silently fail (toast
+    // "Thành công" nhưng DB giữ nguyên giá trị cũ).
+    const safeValue = typeof value === "string" ? value : "";
+    const safeOriginal = typeof config.paramValue === "string" ? config.paramValue : "";
+    if (safeValue === safeOriginal) { setEditing(false); return; }
     setSaving(true);
     try {
-      await api.updateAlgorithmConfig(config.paramKey, { paramValue: value, description: config.description });
+      await api.updateAlgorithmConfig(config.paramKey, { paramValue: safeValue, description: config.description });
       setEditing(false);
     } catch (err) {
       toastError(getErrorMessage(err, "Lưu thất bại"));
-      setValue(config.paramValue);
+      setValue(safeOriginal);
     } finally { setSaving(false); }
   };
 
@@ -74,7 +91,7 @@ export function ConfigValueCell({ config }: Props) {
             onChange={e => setValue(e.target.value)}
             onKeyDown={e => {
               if (e.key === "Enter") handleSave();
-              if (e.key === "Escape") { setEditing(false); setValue(config.paramValue); }
+              if (e.key === "Escape") { setEditing(false); setValue(typeof config.paramValue === "string" ? config.paramValue : ""); }
             }}
             onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
             autoFocus
@@ -97,7 +114,7 @@ export function ConfigValueCell({ config }: Props) {
         <IconButton label="Lưu" variant="primary" size="sm" disabled={saving} loading={saving} onClick={handleSave} className="text-white">
           <span className="material-symbols-outlined text-[14px]" aria-hidden="true">check</span>
         </IconButton>
-        <IconButton label="Hủy" variant="ghost" size="sm" onClick={() => { setEditing(false); setValue(config.paramValue); }} className="border border-outline-variant text-on-surface">
+        <IconButton label="Hủy" variant="ghost" size="sm" onClick={() => { setEditing(false); setValue(typeof config.paramValue === "string" ? config.paramValue : ""); }} className="border border-outline-variant text-on-surface">
           <span className="material-symbols-outlined text-[14px]" aria-hidden="true">close</span>
         </IconButton>
       </div>

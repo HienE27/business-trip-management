@@ -33,11 +33,6 @@ const BulkPublishModal = dynamic(
   () => import("./BulkPublishModal").then((m) => m.BulkPublishModal),
   { loading: () => null },
 );
-const AutoSchedulingWizard = dynamic(
-  () => import("@/components/auto-scheduling/AutoSchedulingWizard").then((m) => m.AutoSchedulingWizard),
-  { loading: () => null },
-);
-
 // Heavy chart/panel components — code-split so they don't block initial paint
 const WorkloadChart = dynamic(
   () => import("@/components/auto-scheduling/WorkloadChart").then((m) => m.WorkloadChart),
@@ -104,8 +99,6 @@ export default function AutoSchedulingPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingStaffIds, setEditingStaffIds] = useState<Map<string | number, number>>(new Map());
   const [previewEditItem, setPreviewEditItem] = useState<import("@/types/api").AutoScheduleSummary | null>(null);
-  const [showWizard, setShowWizard] = useState(false);
-  const [wizardCompleted, setWizardCompleted] = useState(false);
 
   const loadWorkspace = useCallback(async () => {
     try {
@@ -194,12 +187,22 @@ export default function AutoSchedulingPage() {
         workDate: s.workDate,
         shiftTypeId: s.shiftTypeId,
         staffId: s.staffId,
+        // BUGFIX (M07 #8): forward requirementId so apply-preview can
+        // disambiguate L04 slots with multi-specialty requirements.
+        // PreviewScheduleEdit.requirementId is number | null | undefined;
+        // the apply payload expects number | undefined, so coerce null → undefined.
+        requirementId: s.requirementId == null ? undefined : s.requirementId,
       }))
       .filter((s) => !removedKeys.has(`${s.workDate}_${s.shiftTypeId}_${s.staffId}`))
       .filter((s) => !editedKeys.has(`${s.workDate}_${s.shiftTypeId}`));
-    const merged: Array<{ workDate: string; shiftTypeId: string; staffId: number }> = [
+    const cleanedEdited: Array<{ workDate: string; shiftTypeId: string; staffId: number; requirementId?: number }> =
+      editedPreview.map((s) => ({
+        ...s,
+        requirementId: s.requirementId == null ? undefined : s.requirementId,
+      }));
+    const merged: Array<{ workDate: string; shiftTypeId: string; staffId: number; requirementId?: number }> = [
       ...baseSchedules,
-      ...editedPreview,
+      ...cleanedEdited,
     ];
     await applyPreview(selectedPeriodId, merged, () => {
       setApplyModalOpen(false);
@@ -382,17 +385,6 @@ export default function AutoSchedulingPage() {
 
             {/* Right: Action links */}
             <div className="flex flex-wrap items-center gap-2">
-              {isManager && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowWizard(true)}
-                  icon={<span className="material-symbols-outlined text-[16px]">menu_book</span>}
-                  className="whitespace-nowrap"
-                >
-                  Hướng dẫn
-                </Button>
-              )}
               <Link href="/auto-scheduling/algorithm-config">
                 <Button variant="secondary" size="sm" icon={<span className="material-symbols-outlined text-[16px]">tune</span>} className="whitespace-nowrap">
                   Cấu hình
@@ -592,19 +584,6 @@ export default function AutoSchedulingPage() {
           setPreviewEditItem(null);
         }}
       />
-
-      {showWizard && isManager && (
-        <AutoSchedulingWizard
-          periods={periods}
-          activeStaff={activeStaff}
-          onComplete={() => {
-            setShowWizard(false);
-            setWizardCompleted(true);
-            void loadWorkspace();
-          }}
-          onSkip={() => setShowWizard(false)}
-        />
-      )}
     </div>
   );
 }

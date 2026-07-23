@@ -3,7 +3,6 @@ import { render, screen } from "@testing-library/react";
 import { PermissionGate } from "./PermissionGate";
 import { Permission } from "@/lib/permissions";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Permission } from "@/lib/permissions";
 
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: vi.fn(),

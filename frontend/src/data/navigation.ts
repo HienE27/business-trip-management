@@ -13,12 +13,20 @@ export type AppSectionKey =
   | "leave-requests"
   | "shift-swaps"
   | "auto-scheduling"
+  | "config-profiles"
   | "reports"
   | "holidays"
   | "notifications"
   | "audit-history"
   | "compensation-days"
-  | "settings";
+  | "settings"
+  | "benchmark"
+  | "governance"
+  | "digital-twin-compare"
+  | "digital-twin-decision"
+  | "digital-twin-live"
+  | "digital-twin-replay"
+  | "digital-twin-what-if";
 
 export type AppSectionDefinition = {
   key: AppSectionKey;
@@ -30,6 +38,14 @@ export type AppSectionDefinition = {
 };
 
 export const APP_SECTIONS: AppSectionDefinition[] = [
+  {
+    key: "config-profiles",
+    label: "Cấu hình",
+    href: "/config-profiles",
+    icon: "tune",
+    description: "Quản lý cấu hình runtime, profile và lịch sử.",
+    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
+  },
   {
     key: "dashboard",
     label: "Tổng quan",
@@ -166,6 +182,62 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     description: "Cấu hình hệ thống.",
     requiredPermissions: ["APP_CONFIG_VIEW"],
   },
+  {
+    key: "benchmark",
+    label: "Benchmark",
+    href: "/benchmark",
+    icon: "speed",
+    description: "Đo hiệu năng thuật toán trên các kịch bản khác nhau.",
+    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
+  },
+  {
+    key: "governance",
+    label: "Quản trị",
+    href: "/governance",
+    icon: "admin_panel_settings",
+    description: "Phê duyệt cấu hình, audit và chính sách.",
+    requiredPermissions: ["APP_CONFIG_VIEW"],
+  },
+  {
+    key: "digital-twin-compare",
+    label: "So sánh",
+    href: "/digital-twin/compare",
+    icon: "compare",
+    description: "So sánh hai phiên sandbox.",
+    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
+  },
+  {
+    key: "digital-twin-what-if",
+    label: "What-If",
+    href: "/digital-twin/what-if",
+    icon: "explore",
+    description: "Phân tích kịch bản what-if.",
+    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
+  },
+  {
+    key: "digital-twin-live",
+    label: "Live",
+    href: "/digital-twin/live",
+    icon: "play_circle",
+    description: "Theo dõi search trực tiếp.",
+    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
+  },
+  {
+    key: "digital-twin-decision",
+    label: "Quyết định",
+    href: "/digital-twin/decision",
+    icon: "account_tree",
+    description: "Đồ thị quyết định của search.",
+    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
+  },
+  {
+    key: "digital-twin-replay",
+    label: "Phát lại",
+    href: "/digital-twin/replay",
+    icon: "replay",
+    description: "Phát lại lịch sử search.",
+    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
+  },
 ];
 
 export function getNavigationItems(activeSection: AppSectionKey): NavigationItem[] {
@@ -195,6 +267,11 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/schedule-summary": "monthly-schedule",
   "/periods": "periods",
   "/auto-scheduling": "auto-scheduling",
+  "/auto-scheduling/algorithm-config": "config-profiles",
+  "/auto-scheduling/dashboard": "auto-scheduling",
+  "/auto-scheduling/live": "auto-scheduling",
+  "/auto-scheduling/history": "auto-scheduling",
+  "/auto-scheduling/replay": "auto-scheduling",
   "/conflict-check": "monthly-schedule",
   "/leave-requests": "leave-requests",
   "/swap-requests": "shift-swaps",
@@ -202,6 +279,7 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/reports/monthly": "reports",
   "/reports/staff": "reports",
   "/reports/conflicts": "reports",
+  "/reports/statistics": "reports",
   "/holidays": "holidays",
   "/notifications": "notifications",
   "/audit-history": "audit-history",
@@ -209,6 +287,14 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/compensation-days": "compensation-days",
   "/settings": "settings",
   "/settings/roles": "settings",
+  "/benchmark": "benchmark",
+  "/governance": "governance",
+  "/config-profiles": "config-profiles",
+  "/digital-twin/compare": "digital-twin-compare",
+  "/digital-twin/decision": "digital-twin-decision",
+  "/digital-twin/live": "digital-twin-live",
+  "/digital-twin/replay": "digital-twin-replay",
+  "/digital-twin/what-if": "digital-twin-what-if",
 };
 
 export function resolveSectionKey(pathname: string): AppSectionKey {

@@ -14,7 +14,7 @@ import type { NavigationItem } from "@/types/schedule";
  * Settings + Profile are intentionally kept OUT of groups because they
  * are surfaced as a footer card (different visual treatment).
  */
-export type SidebarGroupKey = "overview" | "scheduling" | "operations" | "insights";
+export type SidebarGroupKey = "overview" | "scheduling" | "operations" | "insights" | "tools";
 
 export type SidebarGroup = {
   key: SidebarGroupKey;
@@ -50,6 +50,12 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     label: "Theo dõi",
     icon: "monitoring",
     sections: ["reports", "notifications", "audit-history", "compensation-days"],
+  },
+  {
+    key: "tools",
+    label: "Công cụ",
+    icon: "build",
+    sections: ["benchmark", "governance", "digital-twin-compare", "digital-twin-what-if", "digital-twin-live", "digital-twin-decision", "digital-twin-replay"],
   },
 ];
 

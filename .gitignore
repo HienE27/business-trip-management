@@ -393,3 +393,34 @@ frontend/frontend_run.err
 frontend/smoke-test-result.json
 frontend/puppeteer-test-report.json
 frontend/puppeteer-quickadd-report.json
+frontend/.frontend-logs/
+
+# ============================================
+# Cleanup 2026-07-23: dev artifacts (B2 + Epic 1 RC)
+# ============================================
+
+# Local config / secret dumps (NEVER commit — may contain DB passwords)
+config.json
+config.new.json
+backend/lib/
+backend/.b2-buildtmp/
+backend/package-lock.json
+monitoring/
+backend/start-backend.bat
+
+# Backend preview/auto-schedule JSON dumps
+backend/.all_configs.json
+backend/.autogen_config.json
+backend/.comp_p4.json
+backend/.feas_*.json
+backend/.feasibility_p4.json
+backend/.periods.json
+backend/.preview_*.json
+backend/.req_*.json
+backend/.runtime_config.json
+backend/.staff.json
+api-docs.json
+
+# Frontend Playwright smoke-test scripts (test artifacts only)
+frontend/tests/smoke-constraint.cjs
+frontend/tests/smoke-dashboard.cjs

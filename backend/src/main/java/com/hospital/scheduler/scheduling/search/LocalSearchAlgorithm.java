@@ -80,6 +80,16 @@ public class LocalSearchAlgorithm {
     public SearchResult search(WorkingSolution initial) {
         WorkingSolution current = initial;
         scoreDirector.recomputeFull(current);
+
+        // Populate hardViolations from constraint registry so the hard-fence check
+        // in processMove() has an accurate baseline. recomputeFull() only sets
+        // coverage/fairness; hard constraints are evaluated here.
+        ScoreDelta initialConstraintDelta = ScoreDelta.zero();
+        for (Constraint c : constraintRegistry.all()) {
+            initialConstraintDelta = initialConstraintDelta.plus(c.evaluate(current));
+        }
+        scoreDirector.applyDelta(initialConstraintDelta);
+
         director.onNewBest(current);
         director.onIteration(current);
         log.info("v10 search starting: {} slots, {} staff, score={}",
@@ -122,6 +132,19 @@ public class LocalSearchAlgorithm {
     /**
      * Process a single move: try it, evaluate delta, decide.
      * Returns true if accepted.
+     *
+     * <p>Decision rules:
+     * <ol>
+     *   <li><b>Hard violations MUST NEVER increase.</b> A move that increases
+     *       {@code hardViolations} (BR-01..05: L01↔L02 same day, L03↔L04 same
+     *       day, conflict with compensation, conflict with approved leave,
+     *       adjacent L01) is always rejected regardless of tabu status. Hard
+     *       constraints are non-negotiable business rules and tabu search
+     *       must not be allowed to escape them.</li>
+     *   <li>If hard is unchanged, improving = coverage went up. Improving
+     *       moves are always accepted (aspiration).</li>
+     *   <li>If neither (no improvement, no violation), tabu decides.</li>
+     * </ol>
      */
     private boolean processMove(WorkingSolution solution, Move move) {
         // Snapshot pre-move score for "improving" check
@@ -143,13 +166,29 @@ public class LocalSearchAlgorithm {
         // Decide
         int postHard = scoreDirector.getCurrent().toImmutable().getHardViolations();
         double postCoverage = scoreDirector.getCurrent().toImmutable().getCoverage();
+
+        // RULE 1 (hard-fence): never accept a move that grows hard violations.
+        // The tabu acceptor exists to escape local optima for soft (fairness)
+        // objectives, NOT to allow BR-01..05 violations. This guarantees that
+        // the search result satisfies every HARD business rule on exit.
+        if (postHard > preHard) {
+            // Undo immediately, do not even consult tabu acceptor
+            move.undo(solution);
+            statisticsHub.undo(move, solution);
+            scoreDirector.undoDelta(delta);
+            director.onRejected();
+            return false;
+        }
+
+        // RULE 2: improving = hard unchanged AND coverage went up. Aspiration: always accept.
         boolean improving = (postHard < preHard)
                 || (postHard == preHard && postCoverage > preCoverage);
-
         boolean accept = improving;
         boolean tabu = false;
         if (!improving && moveAcceptor instanceof TabuAcceptor tabuAcceptor) {
-            // Tabu logic: non-improving moves are accepted unless they're tabu
+            // RULE 3: for non-improving moves that don't increase hard violations,
+            // tabu decides. A move in the tabu list at this iteration is rejected;
+            // otherwise it's accepted as a sideways exploration step.
             accept = !tabuAcceptor.isTabu(move, director.getState().getIteration());
             tabu = !accept;
         }

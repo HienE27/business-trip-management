@@ -94,10 +94,20 @@ public class StaffEligibilityFilter {
         String shiftTypeId = shiftType.getId();
         boolean isL04WithSpecialty = ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)
                 && req.getSpecialty() != null;
-        boolean crossEnabled = isL04WithSpecialty;
-        CrossSpecialtyConfig crossConfig = crossEnabled
+        // BUGFIX (M07-CROSSCONFIG): crossEnabled must reflect the user's
+        // l04.crossSpecialtyEnabled toggle. The previous version set
+        // crossEnabled = isL04WithSpecialty (shape-based), so when the user
+        // turned OFF the toggle the algorithm still added cross-specialty
+        // staff to the eligible pool and picked them when strict matches were
+        // exhausted — surfacing non-zero "Cross L04" KPI despite the toggle
+        // being off. Now crossEnabled gates whether cross-staff are
+        // considered at all; with the toggle off, they are filtered out
+        // entirely and the L04 slot is left unassigned instead of being
+        // filled with the wrong specialty.
+        CrossSpecialtyConfig crossConfig = isL04WithSpecialty
                 ? getCrossSpecialtyConfig(shiftTypeId)
                 : CrossSpecialtyConfig.disabled();
+        boolean crossEnabled = isL04WithSpecialty && crossConfig.enabled();
 
         List<Staff> strictMatches = new ArrayList<>();
         List<Staff> crossMatches = new ArrayList<>();

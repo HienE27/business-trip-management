@@ -36,6 +36,28 @@ import type {
   StaffShiftStatistics,
   Page,
   CompensationDay,
+  ConfigProfile,
+  CreateProfileRequest,
+  GovernancePolicy,
+  ApprovalRequest,
+  AuditEvent,
+  AuditSummary,
+  AuditTimelineEvent,
+  BenchmarkScenario,
+  BenchmarkResult,
+  SandboxSession,
+  SandboxSnapshot,
+  SandboxStatus,
+  ExplainQueryRequest,
+  ExplainQueryResponse,
+  AssignmentExplanation,
+  WhyNotExplanation,
+  CandidateRankingExplanation,
+  ReplayExplanation,
+  ConfigVersion,
+  ConfigVersionDiff,
+  ScenarioResponse,
+  ScenarioComparison,
 } from "@/types/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
@@ -816,9 +838,8 @@ class ApiClient {
   async applyPreview(data: {
     periodId: number;
     algorithmType: string;
-    // BUGFIX (was M07 #8): requirementId is forwarded by the wizard when the
-    // auto-schedule preview carries one; the backend uses it to resolve
-    // multi-specialty L04 slots deterministically.
+    // BUGFIX (BUG-UI-001): requirementId is forwarded by the preview result;
+    // the backend uses it to resolve multi-specialty L04 slots deterministically.
     schedules: Array<{
       workDate: string;
       shiftTypeId: string;
@@ -1068,12 +1089,28 @@ class ApiClient {
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
+    minStaffPerShift: number;
+    maxStaffPerShift: number;
+    minShiftsPerStaff: number;
+    maxShiftsPerStaff: number;
+    l01MaxPerWeek: number;
+    l02MaxPerWeek: number;
+    l03MaxPerWeek: number;
+    l04MaxPerWeek: number;
   }>> {
     return this.request<{
       weekendWeight: number;
       overnightRecoveryHours: number;
       greedyCoverageThreshold: number;
       balanceScoreMin: number;
+      minStaffPerShift: number;
+      maxStaffPerShift: number;
+      minShiftsPerStaff: number;
+      maxShiftsPerStaff: number;
+      l01MaxPerWeek: number;
+      l02MaxPerWeek: number;
+      l03MaxPerWeek: number;
+      l04MaxPerWeek: number;
     }>("/auto-schedule/runtime-config");
   }
 
@@ -1082,17 +1119,41 @@ class ApiClient {
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
+    minStaffPerShift?: number;
+    maxStaffPerShift?: number;
+    minShiftsPerStaff?: number;
+    maxShiftsPerStaff?: number;
+    l01MaxPerWeek?: number;
+    l02MaxPerWeek?: number;
+    l03MaxPerWeek?: number;
+    l04MaxPerWeek?: number;
   }): Promise<ApiResponse<{
     weekendWeight: number;
     overnightRecoveryHours: number;
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
+    minStaffPerShift: number;
+    maxStaffPerShift: number;
+    minShiftsPerStaff: number;
+    maxShiftsPerStaff: number;
+    l01MaxPerWeek: number;
+    l02MaxPerWeek: number;
+    l03MaxPerWeek: number;
+    l04MaxPerWeek: number;
   }>> {
     return this.request<{
       weekendWeight: number;
       overnightRecoveryHours: number;
       greedyCoverageThreshold: number;
       balanceScoreMin: number;
+      minStaffPerShift: number;
+      maxStaffPerShift: number;
+      minShiftsPerStaff: number;
+      maxShiftsPerStaff: number;
+      l01MaxPerWeek: number;
+      l02MaxPerWeek: number;
+      l03MaxPerWeek: number;
+      l04MaxPerWeek: number;
     }>("/auto-schedule/runtime-config", {
       method: "PUT",
       body: JSON.stringify(data),
@@ -1522,6 +1583,310 @@ class ApiClient {
     const params = new URLSearchParams({ periodId: String(periodId) });
     if (shiftTypeId) params.set("shiftTypeId", shiftTypeId);
     return this.get<StaffShiftStatistics[]>(`/statistics/staff?${params.toString()}`);
+  }
+
+  // Config Profile CRUD (stubs — ConfigController CRUD endpoints TBD)
+  async createConfigProfile(_profile: CreateProfileRequest): Promise<ConfigProfile> {
+    return this.post<ConfigProfile>("/config/profiles", _profile);
+  }
+
+  async getConfigProfiles(): Promise<ConfigProfile[]> {
+    return this.get<ConfigProfile[]>("/config/profiles");
+  }
+
+  async updateConfigProfile(id: number, _profile: Partial<ConfigProfile>): Promise<ConfigProfile> {
+    return this.put<ConfigProfile>(`/config/profiles/${id}`, _profile);
+  }
+
+  async deleteConfigProfile(id: number): Promise<void> {
+    return this.delete<void>(`/config/profiles/${id}`);
+  }
+
+  async exportConfigProfile(id: number): Promise<string> {
+    const profile = await this.get<ConfigProfile>(`/config/profiles/${id}`);
+    return JSON.stringify(profile, null, 2);
+  }
+
+  async importConfigProfile(_json: string): Promise<ConfigProfile> {
+    const profile = JSON.parse(_json) as ConfigProfile;
+    return this.post<ConfigProfile>("/config/profiles", profile);
+  }
+
+  // Governance
+  async getGovernancePolicies(): Promise<GovernancePolicy[]> {
+    return this.get<GovernancePolicy[]>("/governance/policies");
+  }
+
+  async getApprovalRequests(): Promise<ApprovalRequest[]> {
+    return this.get<ApprovalRequest[]>("/governance/approvals");
+  }
+
+  async reviewApproval(id: number, _review: { approved: boolean; note?: string }): Promise<ApprovalRequest> {
+    return this.post<ApprovalRequest>(`/governance/approvals/${id}/review`, _review);
+  }
+
+  async getConfigVersions(): Promise<ConfigVersion[]> {
+    return this.get<ConfigVersion[]>("/governance/versions");
+  }
+
+  async getConfigVersionHistory(_configKey?: string): Promise<{ versions: ConfigVersion[] }> {
+    return this.get<{ versions: ConfigVersion[] }>(`/governance/versions/history`);
+  }
+
+  async getConfigVersionDiff(id1: number, id2: number): Promise<{ diffs: ConfigVersionDiff[] }> {
+    return this.get<{ diffs: ConfigVersionDiff[] }>(`/governance/versions/diff/${id1}/${id2}`);
+  }
+
+  async rollbackConfigVersion(id: number, _note?: string): Promise<ConfigVersion> {
+    return this.post<ConfigVersion>(`/governance/versions/${id}/rollback`, {});
+  }
+
+  async getAuditEvents(_params?: { page?: number; size?: number }): Promise<Page<AuditEvent>> {
+    return this.getPage<AuditEvent>("/governance/audit", _params ?? {});
+  }
+
+  async getAuditSummary(): Promise<{
+    totalEvents: number;
+    todayEvents: number;
+    weekEvents: number;
+    monthEvents: number;
+    byEntityType: Record<string, number>;
+    byAction: Record<string, number>;
+  }> {
+    return this.get("/governance/audit/summary");
+  }
+
+  async searchAudit(_params?: {
+    entityType?: string;
+    action?: string;
+    performedBy?: string;
+    fromDate?: string;
+    toDate?: string;
+    page?: number;
+    size?: number;
+  }): Promise<{ events: AuditEvent[]; totalElements?: number }> {
+    return this.get(`/governance/audit/search`, _params ?? {});
+  }
+
+  async getPendingApprovals(): Promise<ApprovalRequest[]> {
+    return this.get<ApprovalRequest[]>("/governance/approvals?status=PENDING");
+  }
+
+  async approveRequest(id: number, _note?: string): Promise<ApprovalRequest> {
+    return this.post<ApprovalRequest>(`/governance/approvals/${id}/approve`, {});
+  }
+
+  async rejectApproval(id: number, _note?: string): Promise<ApprovalRequest> {
+    return this.post<ApprovalRequest>(`/governance/approvals/${id}/reject`, {});
+  }
+
+  // Sandbox / Digital Twin
+  async getSandboxSessions(): Promise<SandboxSession[]> {
+    return this.get<SandboxSession[]>("/sandbox/sessions");
+  }
+
+  async getSandboxes(): Promise<SandboxSession[]> {
+    return this.get<SandboxSession[]>("/sandbox");
+  }
+
+  async createSandboxSession(_name: string): Promise<SandboxSession> {
+    return this.post<SandboxSession>("/sandbox/sessions", { name: _name });
+  }
+
+  async getSandboxSnapshots(sessionKey: string): Promise<SandboxSnapshot[]> {
+    return this.get<SandboxSnapshot[]>(`/sandbox/sessions/${sessionKey}/snapshots`);
+  }
+
+  async getSandboxByKey(sessionKey: string): Promise<SandboxSession> {
+    return this.get<SandboxSession>(`/sandbox/sessions/${sessionKey}`);
+  }
+
+  async getReplay(sessionKey: string): Promise<{
+    session: SandboxSession;
+    snapshots: SandboxSnapshot[];
+    decisions: Array<{ iteration: number; decision: string; score: number }>;
+  }> {
+    return this.get(`/sandbox/replay/${sessionKey}`);
+  }
+
+  async getSandboxTimeline(sessionKey: string): Promise<{
+    events: Array<{
+      id: string;
+      timestamp: string;
+      eventType: string;
+      message: string;
+      iteration?: number;
+      score?: number;
+      details?: Record<string, unknown>;
+    }>;
+  }> {
+    return this.get(`/sandbox/sessions/${sessionKey}/timeline`);
+  }
+
+  async getSandboxDiff(sessionKey: string): Promise<{
+    addedSchedules: Array<{ staffName: string; shiftTypeName: string; date: string }>;
+    removedSchedules: Array<{ staffName: string; shiftTypeName: string; date: string }>;
+    scoreDelta: number;
+    coverageDelta: number;
+    fairnessDelta: number;
+  }> {
+    return this.get(`/sandbox/sessions/${sessionKey}/diff`);
+  }
+
+  async promoteSandbox(sessionKey: string): Promise<void> {
+    return this.post(`/sandbox/sessions/${sessionKey}/promote`, {});
+  }
+
+  async deleteSandbox(sessionKey: string): Promise<void> {
+    return this.delete(`/sandbox/sessions/${sessionKey}`);
+  }
+
+  async startSandboxSimulation(sessionKey: string, _mode?: string): Promise<SandboxSession> {
+    return this.post<SandboxSession>(`/sandbox/sessions/${sessionKey}/start`, { mode: _mode ?? "FULL" });
+  }
+
+  async pauseSandboxSimulation(sessionKey: string): Promise<void> {
+    return this.post(`/sandbox/sessions/${sessionKey}/pause`, {});
+  }
+
+  async resumeSandboxSimulation(sessionKey: string): Promise<void> {
+    return this.post(`/sandbox/sessions/${sessionKey}/resume`, {});
+  }
+
+  async cancelSandboxSimulation(sessionKey: string): Promise<void> {
+    return this.post(`/sandbox/sessions/${sessionKey}/cancel`, {});
+  }
+
+  async getDecisionGraph(sessionKey: string): Promise<{
+    nodes: Array<{
+      id: string;
+      iteration: number;
+      nodeType: string;
+      label: string;
+      score: number;
+      hardViolations: number;
+      softViolations: number;
+      moveDescription?: string;
+      x?: number;
+      y?: number;
+    }>;
+    edges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      label: string;
+      accepted: boolean;
+      scoreDelta: number;
+    }>;
+    totalIterations: number;
+    finalScore: number;
+  }> {
+    return this.get(`/sandbox/sessions/${sessionKey}/decision-graph`);
+  }
+
+  // What-If Scenario
+  async getWhatIfScenarios(): Promise<ScenarioResponse[]> {
+    return this.get<ScenarioResponse[]>("/sandbox/what-if/scenarios");
+  }
+
+  async createWhatIfScenario(_data: { name: string; description?: string; configOverrides?: Record<string, unknown> }): Promise<ScenarioResponse> {
+    return this.post<ScenarioResponse>("/sandbox/what-if/scenarios", _data);
+  }
+
+  async runWhatIfScenario(id: number): Promise<ScenarioResponse> {
+    return this.post<ScenarioResponse>(`/sandbox/what-if/scenarios/${id}/run`, {});
+  }
+
+  async runWhatIfBatch(ids: number[]): Promise<ScenarioResponse[]> {
+    return this.post<ScenarioResponse[]>("/sandbox/what-if/batch", { scenarioIds: ids });
+  }
+
+  async deleteWhatIfScenario(id: number): Promise<void> {
+    return this.delete<void>(`/sandbox/what-if/scenarios/${id}`);
+  }
+
+  async compareWhatIfScenarios(id1: number, id2: number): Promise<ScenarioComparison> {
+    return this.get<ScenarioComparison>(`/sandbox/what-if/compare/${id1}/${id2}`);
+  }
+
+  // Benchmark
+  async getBenchmarkScenarios(): Promise<BenchmarkScenario[]> {
+    return this.get<BenchmarkScenario[]>("/benchmark/scenarios");
+  }
+
+  async runBenchmarkScenario(id: number): Promise<BenchmarkResult> {
+    return this.post<BenchmarkResult>(`/benchmark/scenarios/${id}/run`, {});
+  }
+
+  async getBenchmarkResults(scenarioId: number): Promise<BenchmarkResult[]> {
+    return this.get<BenchmarkResult[]>(`/benchmark/scenarios/${scenarioId}/results`);
+  }
+
+  // Balance breakdown (M07-F12)
+  async getBalanceBreakdown(periodId: number): Promise<{
+    overall: {
+      cv: number;
+      score: number;
+      totalSchedules: number;
+      totalActiveStaff: number;
+      worstCv?: number;
+      targetCv?: number;
+    };
+    pools: Array<{
+      shiftTypeId: string;
+      specialtyName?: string;
+      cv: number;
+      score: number;
+      total: number;
+      gini: number;
+      range: number;
+      min: number;
+      max: number;
+      avg: number;
+      typeKey?: string;
+      totalAssignments?: number;
+      idealMinCount?: number;
+      idealMaxCount?: number;
+      actualMinCount?: number;
+      actualMaxCount?: number;
+      poolSize?: number;
+      mean?: number;
+      stdDev?: number;
+      weight?: number;
+      contributionToOverall?: number;
+    }>;
+    recommendations?: Array<{
+      type: string;
+      shiftTypeId?: string;
+      message: string;
+      severity?: string;
+      pool?: string;
+      issue?: string;
+      suggestions?: string[];
+    }>;
+  }> {
+    return this.get(`/auto-schedule/balance-breakdown/${periodId}`);
+  }
+
+  // Explain / AI Explanation
+  async getAssignmentExplanation(assignmentId: number, _params?: { slotId?: number; staffId?: number }): Promise<AssignmentExplanation> {
+    return this.get<AssignmentExplanation>(`/explain/assignment/${assignmentId}`);
+  }
+
+  async getWhyNotExplanation(slotId: number, staffId: number, _params?: { sessionKey?: string }): Promise<WhyNotExplanation> {
+    return this.get<WhyNotExplanation>(`/explain/why-not/${slotId}/${staffId}`);
+  }
+
+  async getCandidateRanking(slotId: number, _sessionKey?: string): Promise<CandidateRankingExplanation> {
+    return this.get<CandidateRankingExplanation>(`/explain/candidates/${slotId}`);
+  }
+
+  async getReplayExplanation(sessionKey: string, iteration: number): Promise<ReplayExplanation> {
+    return this.get<ReplayExplanation>(`/explain/replay/${sessionKey}/${iteration}`);
+  }
+
+  async postExplainQuery(query: ExplainQueryRequest): Promise<ExplainQueryResponse> {
+    return this.post<ExplainQueryResponse>("/explain/query", query);
   }
 }
 

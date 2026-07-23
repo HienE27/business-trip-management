@@ -22,6 +22,7 @@ import com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility;
 import com.hospital.scheduler.service.scheduling.CspAssignmentEngine;
 import com.hospital.scheduler.service.scheduling.GreedyAssignmentEngine;
 import com.hospital.scheduler.service.scheduling.PostAssignmentOptimizer;
+import com.hospital.scheduler.service.scheduling.RequirementPreparationService;
 import com.hospital.scheduler.service.scheduling.ReplacementSuggestionService;
 import com.hospital.scheduler.service.scheduling.SchedulePersistenceService;
 import com.hospital.scheduler.service.scheduling.SchedulingConflictDataLoader;
@@ -76,7 +77,6 @@ public class AutoSchedulingService {
     private final AlgorithmConfigService algorithmConfigService;
     private final HolidayRepository holidayRepository;
     private final ShiftTypeRepository shiftTypeRepository;
-    private final SpecialtyRepository specialtyRepository;
     private final CSPScheduler cspScheduler;
     private final com.hospital.scheduler.scheduling.LocalSearchScheduler localSearchScheduler;
     private final EntityManager entityManager;
@@ -95,6 +95,14 @@ public class AutoSchedulingService {
     private final StaffEligibilityFilter staffEligibilityFilter;
     private final PostAssignmentOptimizer postAssignmentOptimizer;
     private final SchedulePersistenceService schedulePersistenceService;
+
+    /**
+     * Single source of truth for ShiftRequirement generation. Replaces the
+     * formerly-duplicated {@code generateRequirementsFromConfig},
+     * {@code persistRequirementsIfTransient}, {@code syncExistingRequirementsWithConfig}
+     * and helper methods that used to live on this class. See Issue #12 (B2).
+     */
+    private final RequirementPreparationService requirementPreparationService;
 
     // ─── In-memory scheduling state — backed by SchedulingStateAccessor. Concurrent
     // requests each see their own copy because SchedulingStateAccessor holds the
@@ -596,25 +604,14 @@ public class AutoSchedulingService {
         // CRITICAL: Re-sync existing requirements with current config so changes to min/max per day
         // take effect on the next preview run. Without this, the scheduler would re-use stale
         // requiredCount values persisted by a previous run with older config.
-        // BUGFIX (was M07 #6): Preview runs must NOT delete-and-regenerate requirements.
-        // The user expects preview to be read-only — touching persisted state would
-        // silently mutate the draft period on every preview. Only run the destructive
-        // sync + persist path when the caller is committing the result (save=true).
-        if (save) {
-            syncExistingRequirementsWithConfig(period, autoGenConfig.get(), activeStaff);
-            requirements = generateRequirementsFromConfig(period, autoGenConfig.get(), activeStaff);
-            requirements = persistRequirementsIfTransient(requirements);
-            log.info("Generated {} requirements from config for period {}", requirements.size(), period.getId());
-        } else {
-            // Preview mode: reuse whatever is already in the DB without touching it.
-            requirements = requirementRepository.findByPeriodId(period.getId());
-            if (requirements == null || requirements.isEmpty()) {
-                // First run against a fresh period — fall back to in-memory generation
-                // without persisting, so a preview still has data to schedule against.
-                requirements = generateRequirementsFromConfig(period, autoGenConfig.get(), activeStaff);
-                log.info("Preview-only generated {} requirements (transient) for period {}", requirements.size(), period.getId());
-            }
-        }
+        // B2 (Issue #12): delegate requirement generation + persistence to
+        // RequirementPreparationService — single source of truth. The previously
+        // duplicated branches (save vs preview) both end up at the same helper
+        // which already handles "use existing requirements; fall back to in-memory
+        // generation when DB is empty". The caller's save flag controls whether
+        // sync + persist happen or the result stays transient.
+        requirements = requirementPreparationService.prepareRequirements(period, save, activeStaff);
+        log.info("Prepared {} requirements (save={}) for period {}", requirements.size(), save, period.getId());
 
         // Pre-load existing compensation days from the same period so greedy doesn't assign L01 on a day
         // that is already someone's compensation day (confirmed day off — cannot assign L01)
@@ -1351,7 +1348,7 @@ public class AutoSchedulingService {
                 excludedStaffIds != null ? excludedStaffIds : new HashSet<>());
 
         // Rehydrate Map-based assignments → JPA entities, then persist if save=true.
-        SchedulingResultWithFairness rehydrated = runCspWithResult(result, period);
+        SchedulingResultWithFairness rehydrated = runCspWithResult(result, period, requirements);
         if (save) {
             for (Schedule s : rehydrated.schedules()) {
                 Schedule saved = scheduleRepository.save(s);
@@ -3308,238 +3305,9 @@ public class AutoSchedulingService {
         return staffEligibilityFilter.isStrictMatchForStaff(staff, req);
     }
 
-    // ==================== REQUIREMENTS GENERATION FROM CONFIG ====================
-
-    /**
-     * Re-sync persisted requirements for a period with the current auto-gen config.
-     * Existing ShiftRequirement rows keep their id (FK safety with schedule rows) but get their
-     * requiredStaffCount updated to match the latest min/max per day from the config.
-     * Without this, previous runs' stale requiredCount values would persist and ignore config changes.
-     */
-    private void syncExistingRequirementsWithConfig(SchedulePeriod period, AutoGenConfig config, List<Staff> activeStaff) {
-        List<ShiftRequirement> existing = requirementRepository.findByPeriodId(period.getId());
-        if (existing == null || existing.isEmpty()) return;
-
-        Set<LocalDate> holidays = holidayRepository.findActiveHolidaysBetween(period.getStartDate(), period.getEndDate())
-                .stream()
-                .map(Holiday::getHolidayDate)
-                .collect(Collectors.toSet());
-
-        int generalPoolSize = Math.max(1, activeStaff.size());
-        boolean skipL03OnHoliday = !"PARTIAL".equalsIgnoreCase(config.holidayMode());
-
-        boolean anyChanged = false;
-        for (ShiftRequirement req : existing) {
-            if (req.getWorkDate() == null || req.getShiftType() == null) continue;
-            boolean isHoliday = holidays.contains(req.getWorkDate());
-            int newTarget;
-            String typeId = req.getShiftType().getId();
-            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(typeId)) {
-                newTarget = resolveSoftDailyTarget(config.l01MinPerDay(), config.l01MaxPerDay(), generalPoolSize);
-            } else if (ConflictDetectionService.SHIFT_TYPE_L02.equals(typeId)) {
-                newTarget = resolveSoftDailyTarget(config.l02MinPerDay(), config.l02MaxPerDay(), generalPoolSize);
-            } else if (ConflictDetectionService.SHIFT_TYPE_L03.equals(typeId)) {
-                int min = (isHoliday && skipL03OnHoliday) ? 0 : config.l03MinPerDay();
-                newTarget = resolveSoftDailyTarget(min, config.l03MaxPerDay(), generalPoolSize);
-            } else if (ConflictDetectionService.SHIFT_TYPE_L04.equals(typeId)) {
-                int specialtyPoolSize = config.l04CrossSpecialty()
-                        ? generalPoolSize
-                        : countActiveStaffBySpecialty(activeStaff, req.getSpecialty() != null ? req.getSpecialty().getId() : null);
-                newTarget = resolveSoftDailyTarget(config.l04MinPerDay(), config.l04MaxPerDay(), specialtyPoolSize);
-            } else {
-                continue;
-            }
-            if (req.getRequiredStaffCount() != newTarget) {
-                req.setRequiredStaffCount(newTarget);
-                anyChanged = true;
-            }
-        }
-        if (anyChanged) {
-            requirementRepository.saveAll(existing);
-            entityManager.flush();
-            log.info("Synced {} requirements with current config for period {}", existing.size(), period.getId());
-        }
-    }
-
-    private List<ShiftRequirement> generateRequirementsFromConfig(SchedulePeriod period, AutoGenConfig config, List<Staff> activeStaff) {
-        List<ShiftRequirement> generated = new ArrayList<>();
-        Set<String> removedShiftTypes = config.removedShiftTypes() == null
-                ? Set.of()
-                : config.removedShiftTypes().stream().map(String::toUpperCase).collect(Collectors.toSet());
-
-        Set<LocalDate> holidays = holidayRepository.findActiveHolidaysBetween(period.getStartDate(), period.getEndDate())
-                .stream()
-                .map(Holiday::getHolidayDate)
-                .collect(Collectors.toSet());
-
-        Map<String, ShiftType> shiftTypeMap = shiftTypeRepository.findAll().stream()
-                .collect(Collectors.toMap(ShiftType::getId, s -> s));
-
-        ShiftType l01 = shiftTypeMap.get("L01");
-        ShiftType l02 = shiftTypeMap.get("L02");
-        ShiftType l03 = shiftTypeMap.get("L03");
-        ShiftType l04 = shiftTypeMap.get("L04");
-
-        if (l01 == null || l02 == null || l03 == null || l04 == null) {
-            throw new BadRequestException("Không tìm thấy shift types L01-L04 trong hệ thống");
-        }
-
-        int generalPoolSize = Math.max(1, activeStaff.size());
-        List<Specialty> activeSpecialties = specialtyRepository.findByIsActiveTrue();
-        LocalDate current = period.getStartDate();
-        while (!current.isAfter(period.getEndDate())) {
-            LocalDate date = current;
-            boolean isHoliday = holidays.contains(date);
-            boolean shouldGenerateFullDay = !isHoliday || "PARTIAL".equalsIgnoreCase(config.holidayMode());
-
-            if (shouldGenerateFullDay && !removedShiftTypes.contains("L01")) {
-                generated.add(buildAutoRequirement(period, l01, date, null,
-                        resolveSoftDailyTarget(config.l01MinPerDay(), config.l01MaxPerDay(), generalPoolSize),
-                        "AUTO_SOFT_TARGET:L01:" + date));
-            }
-            if (shouldGenerateFullDay && !removedShiftTypes.contains("L02")) {
-                generated.add(buildAutoRequirement(period, l02, date, null,
-                        resolveSoftDailyTarget(config.l02MinPerDay(), config.l02MaxPerDay(), generalPoolSize),
-                        "AUTO_SOFT_TARGET:L02:" + date));
-            }
-
-            if (!removedShiftTypes.contains("L03")) {
-                if ("PARTIAL".equalsIgnoreCase(config.holidayMode())) {
-                    generated.add(buildAutoRequirement(period, l03, date, null,
-                            resolveSoftDailyTarget(isHoliday ? 1 : config.l03MinPerDay(), config.l03MaxPerDay(), generalPoolSize),
-                            "AUTO_SOFT_TARGET:L03:" + date));
-                } else if (!isHoliday) {
-                    generated.add(buildAutoRequirement(period, l03, date, null,
-                            resolveSoftDailyTarget(config.l03MinPerDay(), config.l03MaxPerDay(), generalPoolSize),
-                            "AUTO_SOFT_TARGET:L03:" + date));
-                }
-            }
-
-            if (shouldGenerateFullDay && !removedShiftTypes.contains("L04")) {
-                for (Specialty specialty : activeSpecialties) {
-                    int specialtyPoolSize = config.l04CrossSpecialty()
-                            ? generalPoolSize
-                            : countActiveStaffBySpecialty(activeStaff, specialty.getId());
-                    int target = resolveSoftDailyTarget(config.l04MinPerDay(), config.l04MaxPerDay(), specialtyPoolSize);
-                    generated.add(buildAutoRequirement(period, l04, date, specialty, target,
-                            "AUTO_SOFT_TARGET:L04:" + date + ":" + specialty.getName()));
-                }
-            }
-
-            current = current.plusDays(1);
-        }
-
-        Map<String, ShiftRequirement> uniqueReqs = new LinkedHashMap<>();
-        for (ShiftRequirement r : generated) {
-            String key = period.getId() + "_" + r.getWorkDate() + "_" + r.getShiftType().getId()
-                    + "_" + (r.getSpecialty() != null ? r.getSpecialty().getId() : "null");
-            uniqueReqs.putIfAbsent(key, r);
-        }
-        List<ShiftRequirement> deduplicated = new ArrayList<>(uniqueReqs.values());
-        log.info("Generated {} soft-target requirements from auto config for period {}", deduplicated.size(), period.getId());
-        return deduplicated;
-    }
-
-    private ShiftRequirement buildAutoRequirement(
-            SchedulePeriod period,
-            ShiftType shiftType,
-            LocalDate workDate,
-            Specialty specialty,
-            int targetStaffCount,
-            String note) {
-        return ShiftRequirement.builder()
-                .period(period)
-                .shiftType(shiftType)
-                .workDate(workDate)
-                .specialty(specialty)
-                .requiredStaffCount(targetStaffCount)
-                .note(note)
-                .build();
-    }
-
-    /**
-     * Resolve daily staff target from min/max config.
-     * <p>
-     * Logic: start from preferredMax (upper bound), clamp to min if needed, cap at pool.
-     * Examples:
-     *   min=3, max=4, pool=20 → 4 (within [min,max], cap at pool)
-     *   min=3, max=4, pool=2  → 2 (below min, use pool)
-     *   min=5, max=10, pool=20 → 10 (within [min,max], cap at pool)
-     *   min=5, max=10, pool=7  → 7 (below min, use pool)
-     *   min=5, max=0, pool=20  → 5 (max=0 means unlimited, use min)
-     */
-    private int resolveSoftDailyTarget(int preferredMin, int preferredMax, int eligiblePoolSize) {
-        int target;
-        if (preferredMax > 0) {
-            target = Math.min(preferredMax, eligiblePoolSize);  // Start from max, cap at pool
-            target = Math.max(target, preferredMin);            // Ensure at least min
-        } else {
-            target = Math.max(preferredMin, 1);                  // max=0 means unlimited, use min
-        }
-        return Math.min(target, Math.max(1, eligiblePoolSize));
-    }
-
-    private int countActiveStaffBySpecialty(List<Staff> activeStaff, Integer specialtyId) {
-        long count = activeStaff.stream()
-                .filter(s -> s.getSpecialty() != null && Objects.equals(s.getSpecialty().getId(), specialtyId))
-                .count();
-        return Math.max(1, (int) count);
-    }
-
-    private List<ShiftRequirement> persistRequirementsIfTransient(List<ShiftRequirement> requirements) {
-        if (requirements == null || requirements.isEmpty()) return requirements;
-
-        List<ShiftRequirement> toSave = requirements.stream()
-                .filter(r -> r != null && r.getId() == null)
-                .collect(Collectors.toList());
-        if (toSave.isEmpty()) return requirements;
-
-        Map<String, ShiftRequirement> existing = new HashMap<>();
-        for (ShiftRequirement req : requirementRepository.findByPeriodId(toSave.get(0).getPeriod().getId())) {
-            String key = req.getWorkDate() + "|" + req.getShiftType().getId() + "|"
-                    + (req.getSpecialty() != null ? req.getSpecialty().getId() : "null");
-            existing.putIfAbsent(key, req);
-        }
-
-        List<ShiftRequirement> merged = new ArrayList<>(requirements.size());
-        for (ShiftRequirement req : requirements) {
-            if (req == null) { merged.add(null); continue; }
-            if (req.getId() != null) { merged.add(req); continue; }
-            String key = req.getWorkDate() + "|" + req.getShiftType().getId() + "|"
-                    + (req.getSpecialty() != null ? req.getSpecialty().getId() : "null");
-            ShiftRequirement already = existing.get(key);
-            merged.add(already != null ? already : req);
-        }
-
-        List<ShiftRequirement> toInsert = merged.stream()
-                .filter(r -> r != null && r.getId() == null)
-                .collect(Collectors.toList());
-        if (!toInsert.isEmpty()) {
-            Map<String, ShiftRequirement> dedup = new LinkedHashMap<>();
-            for (ShiftRequirement r : toInsert) {
-                String key = r.getWorkDate() + "|" + r.getShiftType().getId() + "|"
-                        + (r.getSpecialty() != null ? r.getSpecialty().getId() : "null");
-                dedup.putIfAbsent(key, r);
-            }
-            List<ShiftRequirement> saved = requirementRepository.saveAll(new ArrayList<>(dedup.values()));
-            for (int i = 0; i < merged.size(); i++) {
-                ShiftRequirement cur = merged.get(i);
-                if (cur != null && cur.getId() == null) {
-                    for (ShiftRequirement s : saved) {
-                        if (s.getWorkDate().equals(cur.getWorkDate())
-                                && s.getShiftType().getId().equals(cur.getShiftType().getId())
-                                && Objects.equals(
-                                        s.getSpecialty() != null ? s.getSpecialty().getId() : null,
-                                        cur.getSpecialty() != null ? cur.getSpecialty().getId() : null)) {
-                            merged.set(i, s);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        return merged;
-    }
+    // Requirement generation + persistence moved to
+    // {@link com.hospital.scheduler.service.scheduling.RequirementPreparationService}
+    // — see Issue #12 (B2) — to eliminate duplication with AutoSchedulingService.
 
     // ==================== INCREMENTAL RE-SCHEDULE ====================
 
@@ -3587,7 +3355,7 @@ public class AutoSchedulingService {
             if (previous != null && cspScheduler.canReSolveIncrementally(changes)) {
                 log.info("Reschedule period {} via CSP incremental path ({} changes)",
                         periodId, countChanges(changes));
-                result = runCspWithResult(cspScheduler.reSolve(previous, changes, activeStaff, CspAssignmentEngine.toRequirementInfos(requirements), leaveRequests), period);
+                result = runCspWithResult(cspScheduler.reSolve(previous, changes, activeStaff, CspAssignmentEngine.toRequirementInfos(requirements), leaveRequests), period, requirements);
                 usedIncremental = true;
             } else {
                 log.info("Reschedule period {} via full CSP solve (incremental not applicable: previous={}, canReSolve={})",
@@ -3656,16 +3424,47 @@ public class AutoSchedulingService {
         }
     }
 
-    /** Re-hydrate a raw {@link SchedulingResult} from the incremental path into Schedule entities.
+    /**
+     * Re-hydrate a raw {@link SchedulingResult} from the incremental path into Schedule entities.
      * The incremental resolver returns assignments keyed by "staffId_workDate" — we map them back
-     * to Schedule entities so the existing persistence pipeline can be reused unchanged. */
-    private SchedulingResultWithFairness runCspWithResult(SchedulingResult result, SchedulePeriod period) {
+     * to Schedule entities so the existing persistence pipeline can be reused unchanged.
+     *
+     * <p>BUGFIX (BUG-UI-001): When the CSP/Local Search solver produces an assignment, the
+     * rehydrated {@link Schedule} entity MUST carry the originating {@link ShiftRequirement}
+     * reference, otherwise downstream code (preview response, apply-preview request mapping)
+     * receives {@code requirementId=null} and BUG-UI-001 strikes for L04 multi-specialty
+     * slots ("Có nhiều requirement cho (workDate, shiftTypeId)").</p>
+     */
+    private SchedulingResultWithFairness runCspWithResult(SchedulingResult result, SchedulePeriod period,
+                                                           List<ShiftRequirement> requirements) {
         if (result == null || !result.isValid() || result.getAssignments() == null || result.getAssignments().isEmpty()) {
-            return new SchedulingResultWithFairness(List.of(), BigDecimal.ZERO);
+            // BUGFIX (M07-PREVIEW-UOE): returning List.of() here is an immutable
+            // empty list. The preview path in runScheduling() then tries
+            // `createdSchedules.add(existing)` to fold in pre-existing schedules
+            // for coverage display — that throws UnsupportedOperationException
+            // every time V10 returns an empty result (e.g. period 1 with the
+            // current V10 weights, valid=false). Return a mutable empty list so
+            // both the save and preview callers can safely append.
+            return new SchedulingResultWithFairness(new ArrayList<>(), BigDecimal.ZERO);
         }
         Map<Integer, Staff> staffById = new HashMap<>();
         for (Staff s : staffRepository.findByIsActiveTrue()) {
             staffById.put(s.getId(), s);
+        }
+        // Build (workDate|shiftTypeId) → list of requirements. When multiple
+        // requirements match (L04 multi-specialty), the picker below prefers the
+        // one whose specialty matches the assigned staff's specialty — falling
+        // back to the lowest id. This matters because V10 may have legitimately
+        // assigned staff X (specialty S) to a Ngoại L04 slot on 2026-06-16,
+        // and we need to attach the Ngoại requirement (not the Sản or Nội one
+        // that happens to share the date) so the cross-L04 KPI is not falsely
+        // inflated by a rehydration artifact.
+        Map<String, List<ShiftRequirement>> reqsByDateShift = new HashMap<>();
+        if (requirements != null) {
+            for (ShiftRequirement r : requirements) {
+                String key = r.getWorkDate() + "|" + r.getShiftType().getId();
+                reqsByDateShift.computeIfAbsent(key, k -> new ArrayList<>()).add(r);
+            }
         }
         List<Schedule> rehydrated = new ArrayList<>();
         for (Map.Entry<String, String> e : result.getAssignments().entrySet()) {
@@ -3678,11 +3477,35 @@ public class AutoSchedulingService {
                 if (staff == null) continue;
                 ShiftType shiftType = shiftTypeRepository.findById(e.getValue()).orElse(null);
                 if (shiftType == null) continue;
+                List<ShiftRequirement> candidates = reqsByDateShift.get(workDate + "|" + shiftType.getId());
+                if (candidates == null || candidates.isEmpty()) continue;
+                // Prefer the requirement whose specialty matches the staff's
+                // specialty; otherwise fall back to the lowest-id requirement
+                // (preserves prior deterministic behavior for non-L04).
+                ShiftRequirement req = null;
+                if (staff.getSpecialty() != null) {
+                    Integer staffSpecId = staff.getSpecialty().getId();
+                    for (ShiftRequirement r : candidates) {
+                        if (r.getSpecialty() != null
+                                && staffSpecId.equals(r.getSpecialty().getId())) {
+                            req = r;
+                            break;
+                        }
+                    }
+                }
+                if (req == null) {
+                    req = candidates.stream()
+                            .min(Comparator.comparing(ShiftRequirement::getId))
+                            .orElse(null);
+                }
+                if (req == null) continue;
                 rehydrated.add(Schedule.builder()
                         .period(period)
                         .staff(staff)
                         .workDate(workDate)
                         .shiftType(shiftType)
+                        .requirement(req)
+                        .hasConflict(false)
                         .build());
             } catch (Exception parseErr) {
                 log.warn("Skipping malformed assignment key during incremental rehydrate: {}", e.getKey());

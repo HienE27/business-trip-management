@@ -9,6 +9,7 @@ import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.HolidayRepository;
 import com.hospital.scheduler.scheduling.config.SchedulingConfig;
+import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.scheduling.constraint.AdjacentL01Constraint;
 import com.hospital.scheduler.scheduling.constraint.Constraint;
 import com.hospital.scheduler.scheduling.constraint.ConstraintRegistry;
@@ -56,6 +57,14 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
 
     private final SchedulingConfig config;
     private final HolidayRepository holidayRepository;
+    /**
+     * BUGFIX (M07-CROSSCONFIG-V10): injected so the V10 problem can read the
+     * user's L04 cross-specialty toggle and apply it during candidate
+     * generation. Without this, the V10 search would happily assign
+     * non-matching-specialty staff to L04 slots and surface a non-zero
+     * "Cross L04" KPI even when the toggle is OFF.
+     */
+    private final AlgorithmConfigService algorithmConfigService;
 
     @Override
     public SchedulingResult solve(List<Staff> staffList,
@@ -91,7 +100,8 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                 leaveRequests,
                 new HashSet<>(),
                 holidays,
-                config);
+                config,
+                isL04CrossSpecialtyEnabled());
 
         // ── 2. Build SolutionDescriptor + StatisticsHub ───────────────────────
         SolutionDescriptor descriptor = new SolutionDescriptor(problem, null);
@@ -254,5 +264,23 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
             out.setFairnessScore(java.math.BigDecimal.ZERO);
         }
         return out;
+    }
+
+    /**
+     * BUGFIX (M07-CROSSCONFIG-V10): read the user's L04 cross-specialty toggle
+     * from {@link AlgorithmConfigService}. Defaults to {@code true} when the
+     * config is unavailable so legacy callers retain the prior (cross-allowed)
+     * behavior — flipping the fix to opt-in rather than opt-out.
+     */
+    private boolean isL04CrossSpecialtyEnabled() {
+        try {
+            return algorithmConfigService.getAutoGenConfig()
+                    .map(cfg -> cfg.l04CrossSpecialty())
+                    .orElse(true);
+        } catch (Exception ex) {
+            log.warn("Failed to read l04CrossSpecialty config for V10 problem; defaulting to enabled: {}",
+                    ex.getMessage());
+            return true;
+        }
     }
 }
