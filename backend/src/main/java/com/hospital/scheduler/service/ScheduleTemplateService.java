@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.ScheduleTemplate;
+import com.hospital.scheduler.entity.ShiftRequirement;
 import com.hospital.scheduler.entity.ShiftType;
 import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.exception.BadRequestException;
@@ -15,6 +16,7 @@ import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.SchedulePeriodRepository;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.repository.ScheduleTemplateRepository;
+import com.hospital.scheduler.repository.ShiftRequirementRepository;
 import com.hospital.scheduler.repository.ShiftTypeRepository;
 import com.hospital.scheduler.repository.SpecialtyRepository;
 import com.hospital.scheduler.repository.StaffRepository;
@@ -50,6 +52,11 @@ public class ScheduleTemplateService {
     // to audit_history. Without these, template mutations were invisible.
     private final AuditHistoryService auditHistoryService;
     private final com.hospital.scheduler.security.AuthContextService authContextService;
+    // BUGFIX (template-pattern-apply): required to persist pattern slots as
+    // shift_requirement rows so the count returned to the caller reflects
+    // actual inserts (previously the method only incremented a counter and
+    // told the user 'N ca được tạo' while writing nothing).
+    private final ShiftRequirementRepository shiftRequirementRepository;
 
     private static final String[] VIETNAMESE_DAYS = { "", "T2", "T3", "T4", "T5", "T6", "T7", "CN" };
 
@@ -850,7 +857,21 @@ public class ScheduleTemplateService {
                 : specialtyRepository.findAllById(specialtyIds).stream()
                         .collect(java.util.stream.Collectors.toMap(Specialty::getId, s -> s));
 
+        // BUGFIX (template-pattern-apply): the legacy code only incremented a
+        // counter and told the caller 'N ca được tạo' while writing nothing.
+        // Now we insert a shift_requirement row per matching slot so the returned
+        // count reflects actual DB state. Existing rows are detected via
+        // uk_shift_requirement_unique to skip duplicates without relying on
+        // throwing DataIntegrityViolationException.
+        java.util.Set<String> existingKeys = new java.util.HashSet<>();
+        for (ShiftRequirement existing : shiftRequirementRepository.findByPeriodId(period.getId())) {
+            existingKeys.add(reqKey(existing.getWorkDate(),
+                    existing.getShiftType().getId(),
+                    existing.getSpecialty() != null ? existing.getSpecialty().getId() : null));
+        }
+
         int appliedCount = 0;
+        int skipped = 0;
         LocalDate current = period.getStartDate();
 
         while (!current.isAfter(period.getEndDate())) {
@@ -861,14 +882,35 @@ public class ScheduleTemplateService {
                     ShiftType shiftType = shiftTypeMap.get(entry.shiftTypeId);
                     if (shiftType == null) continue;
 
-                    // ShiftRequirement removed - just count the slots
-                    appliedCount += entry.requiredStaffCount;
+                    String key = reqKey(current, entry.shiftTypeId,
+                            specialty != null ? specialty.getId() : null);
+                    if (!existingKeys.add(key)) {
+                        skipped++;
+                        continue;
+                    }
+
+                    ShiftRequirement req = ShiftRequirement.builder()
+                            .period(period)
+                            .workDate(current)
+                            .shiftType(shiftType)
+                            .specialty(specialty)
+                            .requiredStaffCount(entry.requiredStaffCount)
+                            .note("Tự động tạo từ mẫu lịch PATTERN")
+                            .build();
+                    shiftRequirementRepository.save(req);
+                    appliedCount++;
                 }
             }
             current = current.plusDays(1);
         }
 
+        log.info("applyPatternTemplate template={} period={}: inserted {} requirement rows, skipped {} duplicates",
+                template.getId(), period.getId(), appliedCount, skipped);
         return appliedCount;
+    }
+
+    private static String reqKey(LocalDate date, String shiftTypeId, Integer specialtyId) {
+        return date + "|" + shiftTypeId + "|" + (specialtyId == null ? "_" : specialtyId);
     }
 
     /**
@@ -913,7 +955,18 @@ public class ScheduleTemplateService {
                 : specialtyRepository.findAllById(specialtyIds).stream()
                         .collect(java.util.stream.Collectors.toMap(Specialty::getId, s -> s));
 
+        // BUGFIX (template-pattern-apply): same fix as applyPatternTemplate —
+        // persist shift_requirement rows so the returned appliedCount reflects
+        // actual inserts instead of being a synthetic slot count.
+        java.util.Set<String> existingKeys = new java.util.HashSet<>();
+        for (ShiftRequirement existing : shiftRequirementRepository.findByPeriodId(period.getId())) {
+            existingKeys.add(reqKey(existing.getWorkDate(),
+                    existing.getShiftType().getId(),
+                    existing.getSpecialty() != null ? existing.getSpecialty().getId() : null));
+        }
+
         int appliedCount = 0;
+        int skipped = 0;
         LocalDate current = period.getStartDate();
 
         while (!current.isAfter(period.getEndDate())) {
@@ -935,13 +988,30 @@ public class ScheduleTemplateService {
                     // Skip if count is 0 or negative
                     if (requiredCount <= 0) continue;
 
-                    // ShiftRequirement removed - just count the slots
-                    appliedCount += requiredCount;
+                    String key = reqKey(current, entry.shiftTypeId,
+                            specialty != null ? specialty.getId() : null);
+                    if (!existingKeys.add(key)) {
+                        skipped++;
+                        continue;
+                    }
+
+                    ShiftRequirement req = ShiftRequirement.builder()
+                            .period(period)
+                            .workDate(current)
+                            .shiftType(shiftType)
+                            .specialty(specialty)
+                            .requiredStaffCount(requiredCount)
+                            .note("Tự động tạo từ mẫu lịch PATTERN (có chỉnh sửa)")
+                            .build();
+                    shiftRequirementRepository.save(req);
+                    appliedCount++;
                 }
             }
             current = current.plusDays(1);
         }
 
+        log.info("applyPatternTemplateForWithEdits template={} period={}: inserted {} requirement rows, skipped {} duplicates",
+                template.getId(), period.getId(), appliedCount, skipped);
         return appliedCount;
     }
 

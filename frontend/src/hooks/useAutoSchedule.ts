@@ -215,7 +215,14 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         setMessage(null);
         const result = await api.applyTemplate(templateId, periodId);
         const appliedCount = result.data?.appliedCount ?? 0;
-        setMessage("Đã áp dụng mẫu lịch — " + appliedCount + " ca được tạo.");
+        // PATTERN templates persist slot rows as shift_requirement (no staff
+        // yet); GENERATED templates persist fully-staffed Schedule rows. Show
+        // the correct verb so the count matches what the user can actually
+        // inspect on screen.
+        const suffix = appliedCount > 0
+            ? " — " + appliedCount + " yêu cầu nhân sự được tạo. Nhấn \"Chạy\" để phân công."
+            : ".";
+        setMessage("Đã áp dụng mẫu lịch" + suffix);
         // Surface the just-created schedules in the matrix grid so the user
         // can see them immediately instead of getting a "1039 ca được tạo"
         // toast over an empty state.
@@ -261,10 +268,13 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         setMessage(null);
         const result = await api.applyTemplateWithEdits(templateId, periodId, edits);
         const count = result.data?.appliedCount ?? 0;
-        setMessage("Đã áp dụng mẫu lịch với chỉnh sửa — " + count + " ca được tạo.");
+        const suffix = count > 0
+            ? " — " + count + " yêu cầu nhân sự được tạo. Nhấn \"Chạy\" để phân công."
+            : ".";
+        setMessage("Đã áp dụng mẫu lịch với chỉnh sửa" + suffix);
         // Re-fetch the period so the matrix grid renders the freshly created
-        // schedules (the hook otherwise only knows `appliedCount`, leaving the
-        // UI on an empty state).
+        // schedules (PATTERN templates persist shift_requirement rows instead,
+        // which the user can fill by pressing "Chạy").
         try {
           const preview = await buildPreviewResultFromPeriod(periodId, "TEMPLATE");
           setPreviewResult(preview);
