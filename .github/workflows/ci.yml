@@ -305,6 +305,63 @@ jobs:
           echo "Deploy to development server is commented out."
           echo "Configure SSH credentials to enable deployment."
 
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [docker-build-backend, docker-build-frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: https://staging.hospital-scheduler.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_STAGING_HOST }}
+          username: ${{ secrets.SSH_STAGING_USER }}
+          key: ${{ secrets.SSH_STAGING_KEY }}
+          script: |
+            set -e
+            export APP_DIR=/opt/hospital-scheduler
+            export BACKEND_IMAGE="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}"
+            export FRONTEND_IMAGE="${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}"
+
+            echo "Pulling new images..."
+            docker pull $BACKEND_IMAGE
+            docker pull $FRONTEND_IMAGE
+
+            echo "Backing up docker-compose file..."
+            cp $APP_DIR/docker-compose.staging.yml $APP_DIR/docker-compose.staging.yml.bak
+
+            echo "Stopping old containers..."
+            cd $APP_DIR && docker compose -f docker-compose.staging.yml --env-file .env.staging down || true
+
+            echo "Starting new containers..."
+            docker pull ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+            docker pull ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+
+            docker compose -f docker-compose.staging.yml --env-file .env.staging up -d
+
+            echo "Waiting for health checks..."
+            sleep 30
+
+            echo "Health check backend..."
+            curl -sf http://localhost:8080/actuator/health || exit 1
+
+            echo "Health check frontend..."
+            curl -sf http://localhost:3000 || exit 1
+
+            echo "Deployment complete!"
+
+      - name: Verify staging deployment
+        run: |
+          echo "Verifying deployment..."
+          curl -sf http://localhost:8080/actuator/health
+          curl -sf http://localhost:3000
+
   deploy-production:
     name: Deploy to Production (main branch)
     needs: [docker-build-backend, docker-build-frontend]

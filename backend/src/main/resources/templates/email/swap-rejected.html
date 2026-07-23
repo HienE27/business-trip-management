@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/base :: layout(~{::#content})}">
+<head>
+  <title>Yêu cầu đổi ca bị từ chối</title>
+</head>
+<body>
+  <div id="content" th:fragment="layout">
+    <p>Kính gửi <strong th:text="${staffName}">Nhân viên</strong>,</p>
+
+    <p>Yêu cầu đổi trực (<span th:text="${fromDate}">01/07</span> &harr; <span th:text="${toDate}">02/07</span>) đã bị <strong style="color: #ba1a1a;">TỪ CHỐI</strong>.</p>
+
+    <th:block th:if="${reason != null and reason != ''}">
+      <div class="alert">
+        <div class="alert-title">Lý do:</div>
+        <span th:text="${reason}">Lý do từ chối</span>
+      </div>
+    </th:block>
+
+    <p>Nếu cần thiết, bạn có thể gửi yêu cầu đổi ca mới trên hệ thống.</p>
+    <p>Liên hệ quản lý nếu cần hỗ trợ thêm.</p>
+  </div>
+</body>
+</html>

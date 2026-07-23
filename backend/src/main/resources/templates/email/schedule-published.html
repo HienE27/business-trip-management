@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/base :: layout(~{::#content})}">
+<head>
+  <title>Lịch công tác đã công bố</title>
+</head>
+<body>
+  <div id="content" th:fragment="layout">
+    <p>Kính gửi <strong th:text="${staffName}">Nhân viên</strong>,</p>
+
+    <p>Kỳ lịch công tác mới đã được công bố. Dưới đây là thông tin lịch của bạn.</p>
+
+    <div class="info-box">
+      <table>
+        <tr>
+          <td>Kỳ lịch:</td>
+          <td th:text="${periodName}">Tháng 7/2026</td>
+        </tr>
+        <tr>
+          <td>Thời gian:</td>
+          <td th:text="${periodRange}">01/07/2026 - 31/07/2026</td>
+        </tr>
+        <tr>
+          <td>Ngày công bố:</td>
+          <td th:text="${publishedAt}">23/07/2026</td>
+        </tr>
+      </table>
+    </div>
+
+    <h2>Lịch trực của bạn</h2>
+    <th:block th:if="${not #lists.isEmpty(schedules)}">
+      <div class="schedule-list">
+        <th:block th:each="s : ${schedules}">
+          <div class="item">
+            <span class="date" th:text="${s.date}">01/07/2026</span>
+            <span class="type" th:text="${s.shiftType}">Trực 24/24</span>
+          </div>
+        </th:block>
+      </div>
+    </th:block>
+    <th:block th:if="${#lists.isEmpty(schedules)}">
+      <div class="schedule-list">
+        <p style="color: #434655; font-style: italic;">Không có ca trực nào được phân công trong kỳ này.</p>
+      </div>
+    </th:block>
+
+    <th:block th:if="${not #lists.isEmpty(compDays)}">
+      <h2 style="margin-top: 24px;">Ngày nghỉ bù</h2>
+      <div class="schedule-list">
+        <th:block th:each="cd : ${compDays}">
+          <div class="item">
+            <span class="date" th:text="${cd}">03/07/2026</span>
+            <span class="type" style="color: #973400;">Nghỉ bù</span>
+          </div>
+        </th:block>
+      </div>
+      <p style="font-size: 12px; color: #434655; margin-top: 8px;">
+        Lưu ý: Ngày nghỉ bù được tự động tính theo quy định sau ca trực 24/24.
+      </p>
+    </th:block>
+
+    <p style="margin-top: 20px;">Vui lòng kiểm tra lịch trên hệ thống để xem chi tiết.</p>
+  </div>
+</body>
+</html>

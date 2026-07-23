@@ -36,8 +36,13 @@ function applyTheme(theme: Theme) {
   const root = document.documentElement;
   if (theme === "system") {
     root.removeAttribute("data-theme");
+    root.classList.remove("dark");
+  } else if (theme === "dark") {
+    root.setAttribute("data-theme", "dark");
+    root.classList.add("dark");
   } else {
-    root.setAttribute("data-theme", theme);
+    root.setAttribute("data-theme", "light");
+    root.classList.remove("dark");
   }
 }
 

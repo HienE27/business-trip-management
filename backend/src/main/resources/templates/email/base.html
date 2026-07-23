@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title th:text="${subject}">Email</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      line-height: 1.6;
+      color: #191c1e;
+      background-color: #f7f9fb;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .header {
+      background: linear-gradient(135deg, #004ac6, #0062cc);
+      color: #ffffff;
+      padding: 24px 32px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .header .subtitle {
+      margin: 4px 0 0;
+      font-size: 13px;
+      opacity: 0.85;
+    }
+    .body {
+      padding: 24px 32px;
+    }
+    .body h2 {
+      color: #004ac6;
+      font-size: 16px;
+      margin-top: 0;
+      border-bottom: 2px solid #004ac6;
+      padding-bottom: 8px;
+    }
+    .body p {
+      margin: 12px 0;
+      font-size: 14px;
+    }
+    .info-box {
+      background-color: #f2f4f6;
+      border-left: 4px solid #004ac6;
+      padding: 12px 16px;
+      border-radius: 0 4px 4px 0;
+      margin: 16px 0;
+    }
+    .info-box table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .info-box td {
+      padding: 4px 0;
+      font-size: 13px;
+    }
+    .info-box td:first-child {
+      color: #434655;
+      width: 40%;
+    }
+    .info-box td:last-child {
+      font-weight: 600;
+      color: #191c1e;
+    }
+    .schedule-list {
+      background-color: #f2f4f6;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 12px 0;
+    }
+    .schedule-list .item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #e0e3e5;
+      font-size: 13px;
+    }
+    .schedule-list .item:last-child {
+      border-bottom: none;
+    }
+    .schedule-list .item .date {
+      color: #191c1e;
+      font-weight: 500;
+    }
+    .schedule-list .item .type {
+      color: #434655;
+    }
+    .btn {
+      display: inline-block;
+      background-color: #004ac6;
+      color: #ffffff !important;
+      text-decoration: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 14px;
+      margin-top: 16px;
+    }
+    .footer {
+      background-color: #f2f4f6;
+      padding: 16px 32px;
+      font-size: 12px;
+      color: #434655;
+      text-align: center;
+    }
+    .footer a {
+      color: #004ac6;
+      text-decoration: none;
+    }
+    .alert {
+      background-color: #ffdad6;
+      border-left: 4px solid #ba1a1a;
+      padding: 12px 16px;
+      border-radius: 0 4px 4px 0;
+      margin: 12px 0;
+      font-size: 13px;
+      color: #93000a;
+    }
+    .alert-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 th:text="${headerTitle}">Hệ thống Quản lý Lịch Công Tác</h1>
+      <p class="subtitle" th:text="${headerSubtitle}">Thông báo tự động</p>
+    </div>
+
+    <div class="body" th:utext="${bodyContent}">
+      <!-- Dynamic content -->
+    </div>
+
+    <div class="footer">
+      <p>Email này được gửi tự động từ <strong>Hệ thống Quản lý Lịch Công Tác</strong>.</p>
+      <p th:if="${appUrl != null}">
+        <a th:href="${appUrl}" th:text="${appUrl}">Truy cập hệ thống</a>
+      </p>
+      <p>Không trả lời email này. Liên hệ quản trị viên nếu cần hỗ trợ.</p>
+    </div>
+  </div>
+</body>
+</html>

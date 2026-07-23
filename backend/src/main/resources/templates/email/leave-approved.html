@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/base :: layout(~{::#content})}">
+<head>
+  <title>Yêu cầu nghỉ phép đã duyệt</title>
+</head>
+<body>
+  <div id="content" th:fragment="layout">
+    <p>Kính gửi <strong th:text="${staffName}">Nhân viên</strong>,</p>
+
+    <p>Yêu cầu nghỉ phép của bạn đã được <strong style="color: #006e2d;">DUYỆT</strong>.</p>
+
+    <div class="info-box">
+      <table>
+        <tr>
+          <td>Từ ngày:</td>
+          <td th:text="${startDate}">01/07/2026</td>
+        </tr>
+        <tr>
+          <td>Đến ngày:</td>
+          <td th:text="${endDate}">03/07/2026</td>
+        </tr>
+        <tr>
+          <td>Số ngày:</td>
+          <td th:text="${days}">3 ngày</td>
+        </tr>
+      </table>
+    </div>
+
+    <p>Vui lòng kiểm tra lịch làm việc của bạn trên hệ thống.</p>
+    <p>Chúc bạn nghỉ ngơi tốt!</p>
+  </div>
+</body>
+</html>

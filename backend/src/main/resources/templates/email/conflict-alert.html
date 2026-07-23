@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/base :: layout(~{::#content})}">
+<head>
+  <title>Cảnh báo xung đột lịch</title>
+</head>
+<body>
+  <div id="content" th:fragment="layout">
+    <p>Kính gửi <strong th:text="${staffName}">Nhân viên</strong>,</p>
+
+    <div class="alert">
+      <div class="alert-title">Cảnh báo xung đột lịch!</div>
+      <p>Hệ thống phát hiện xung đột lịch liên quan đến bạn. Vui lòng kiểm tra và liên hệ quản lý.</p>
+    </div>
+
+    <div class="info-box">
+      <table>
+        <tr>
+          <td>Ngày làm việc:</td>
+          <td th:text="${workDate}" style="color: #ba1a1a; font-weight: bold;">01/07/2026</td>
+        </tr>
+        <tr>
+          <td>Loại lịch:</td>
+          <td th:text="${shiftTypeName}">Trực 24/24</td>
+        </tr>
+        <tr>
+          <td>Mã ca:</td>
+          <td th:text="${shiftTypeId}">L01</td>
+        </tr>
+        <tr>
+          <td>Kỳ lịch:</td>
+          <td th:text="${periodName}">Tháng 7/2026</td>
+        </tr>
+      </table>
+    </div>
+
+    <h2>Mô tả xung đột</h2>
+    <div class="alert" style="background-color: #fff3e0; border-left-color: #e65100;">
+      <p style="color: #bf360c; margin: 0;" th:text="${conflictDescription}">Mô tả xung đột</p>
+    </div>
+
+    <p>Vui lòng kiểm tra lịch làm việc của bạn và liên hệ với quản lý để được giải quyết.</p>
+  </div>
+</body>
+</html>

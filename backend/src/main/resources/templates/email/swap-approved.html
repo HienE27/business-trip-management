@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/base :: layout(~{::#content})}">
+<head>
+  <title>Yêu cầu đổi ca đã được duyệt</title>
+</head>
+<body>
+  <div id="content" th:fragment="layout">
+    <p>Kính gửi <strong th:text="${staffName}">Nhân viên</strong>,</p>
+
+    <p>Yêu cầu đổi trực của bạn đã được <strong style="color: #006e2d;">DUYỆT</strong>.</p>
+
+    <div class="info-box">
+      <table>
+        <tr>
+          <td>Ngày trực mới:</td>
+          <td th:text="${newDate}" style="color: #006e2d; font-weight: bold;">01/07/2026</td>
+        </tr>
+        <tr>
+          <td>Loại ca:</td>
+          <td th:text="${shiftType}">Trực 24/24</td>
+        </tr>
+      </table>
+    </div>
+
+    <p>Vui lòng kiểm tra lịch làm việc mới trên hệ thống.</p>
+    <p>Nếu có thắc mắc, vui lòng liên hệ quản lý.</p>
+  </div>
+</body>
+</html>
