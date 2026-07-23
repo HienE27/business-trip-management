@@ -231,6 +231,11 @@ audit/
 *.py 
 *.txt 
 *.md 
+# Allow specific markdown files that are project documentation
+!.github/PULL_REQUEST_TEMPLATE.md
+!docs/
+!docs/**/*.md
+!SPEC.md
 backend/backend_run.out
 backend/src/main/java/com/hospital/scheduler/report/
 
