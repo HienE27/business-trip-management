@@ -153,9 +153,9 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
         className={`
           fixed left-0 top-0 h-screen w-60 border-r border-outline-variant
           bg-surface-container-low z-50 flex flex-col
-          hidden lg:flex
+          hidden md:flex
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0
+          md:translate-x-0
           transition-transform duration-200
         `}
       >

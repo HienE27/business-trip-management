@@ -39,7 +39,7 @@ function GlobalSearch() {
   }, []);
 
   return (
-    <div className="relative w-full max-w-64">
+    <div className="relative w-full sm:max-w-64">
       <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">
         search
       </span>
@@ -75,13 +75,13 @@ export function DashboardHeader(props: {
           aria-controls="app-sidebar"
           aria-label="Mở menu điều hướng"
           onClick={props.onMenuToggle}
-          className="p-3 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:hidden shrink-0"
+          className="p-3 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden shrink-0"
         >
             <span className="material-symbols-outlined text-[20px]">menu</span>
           </button>
         )}
         <Suspense fallback={
-          <div className="relative w-full max-w-64">
+          <div className="relative w-full sm:max-w-64">
             <div className="h-10 bg-surface-container-low border border-outline-variant rounded-lg animate-pulse" />
           </div>
         }>
