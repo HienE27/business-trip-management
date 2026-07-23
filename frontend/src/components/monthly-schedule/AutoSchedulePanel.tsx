@@ -109,14 +109,15 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
       {/* ── Top control bar ─────────────────────────────────── */}
       <div className="border-b border-outline-variant">
 
-        {/* Row 1: algorithm pills + action */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+        {/* Row 1: algorithm pills (left) + actions (right).
+            On narrow viewports each block stays on its own line. */}
+        <div className="flex flex-col gap-3 p-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
           {/* Algorithm pills */}
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-fixed">
               <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden="true">psychology</span>
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:thin]">
               {(Object.keys(ALGO_CONFIG) as AlgorithmType[]).map((type) => {
                 const cfg = ALGO_CONFIG[type];
                 const sel = algorithmType === type;
@@ -128,7 +129,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                     disabled={runningAutoSchedule}
                     title={cfg.desc}
                     aria-pressed={sel}
-                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={`inline-flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                       sel
                         ? "bg-primary text-on-primary border-primary"
                         : "bg-primary-fixed text-primary border-primary/30 hover:brightness-95"
@@ -142,13 +143,16 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             </div>
           </div>
 
-          {/* Right actions */}
-          <div className="flex items-center gap-2">
+          {/* Right actions — wraps to next line on narrow viewports,
+              scrolls horizontally as a fallback on extra-narrow ones. */}
+          <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:thin] lg:flex-wrap">
             {isManager && selectedPeriodId && (
-              <TemplateActionsSplitButton
-                onApplyTemplate={() => onApplyTemplate?.()}
-                onSaveTemplate={onSaveTemplate}
-              />
+              <div className="shrink-0">
+                <TemplateActionsSplitButton
+                  onApplyTemplate={() => onApplyTemplate?.()}
+                  onSaveTemplate={onSaveTemplate}
+                />
+              </div>
             )}
             <Button
               variant="primary"
