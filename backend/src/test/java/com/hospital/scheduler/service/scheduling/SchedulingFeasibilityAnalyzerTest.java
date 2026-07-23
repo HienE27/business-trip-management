@@ -687,6 +687,93 @@ class SchedulingFeasibilityAnalyzerTest {
             assertTrue(report.recommendations().stream()
                     .anyMatch(r -> r.contains("khả thi") || r.contains("hiện tại")));
         }
+
+        @Test
+        @DisplayName("eligible == required every day → no-buffer warning for that shift type")
+        void noBufferWarning() {
+            LocalDate d1 = LocalDate.of(2026, 7, 1);
+            LocalDate d2 = LocalDate.of(2026, 7, 2);
+            LocalDate d3 = LocalDate.of(2026, 7, 3);
+
+            // 3 staff Ngoại, require 3 every day → eligible == required (no buffer)
+            List<ShiftRequirement> reqs = List.of(
+                    makeReq(1, period, lt01, null, d1, 3),
+                    makeReq(2, period, lt01, null, d2, 3),
+                    makeReq(3, period, lt01, null, d3, 3)
+            );
+            stubActiveStaff(List.of(staffNgoai, staffNoi, staffSan));
+            stubRequirements(reqs);
+            stubLeaves(Collections.emptyList());
+            stubCompDays(Collections.emptyList());
+            stubHolidays(Collections.emptyList());
+            stubAutoGenConfig(false, List.of());
+
+            var report = analyzer.analyzeFeasibility(1);
+
+            // coverage 100%, feasible, but no buffer
+            assertTrue(report.feasible());
+            assertEquals(100.0, report.coverageRate(), 0.01);
+            assertTrue(report.warnings().stream()
+                    .anyMatch(w -> w.contains("KHÔNG có dự phòng")),
+                    "Should warn about no buffer: " + report.warnings());
+            assertTrue(report.recommendations().stream()
+                    .anyMatch(r -> r.contains("buffer dự phòng")),
+                    "Should recommend adding buffer: " + report.recommendations());
+        }
+
+        @Test
+        @DisplayName("eligible > required every day → no no-buffer warning")
+        void withBufferNoWarning() {
+            LocalDate d1 = LocalDate.of(2026, 7, 1);
+            LocalDate d2 = LocalDate.of(2026, 7, 2);
+
+            // 5 staff, require 2 every day → eligible > required (has buffer)
+            List<ShiftRequirement> reqs = List.of(
+                    makeReq(1, period, lt01, null, d1, 2),
+                    makeReq(2, period, lt01, null, d2, 2)
+            );
+            stubActiveStaff(List.of(staffNgoai, staffNoi, staffSan, staffMat, staffChild1));
+            stubRequirements(reqs);
+            stubLeaves(Collections.emptyList());
+            stubCompDays(Collections.emptyList());
+            stubHolidays(Collections.emptyList());
+            stubAutoGenConfig(false, List.of());
+
+            var report = analyzer.analyzeFeasibility(1);
+
+            assertTrue(report.feasible());
+            assertFalse(report.warnings().stream()
+                    .anyMatch(w -> w.contains("dự phòng")),
+                    "Should NOT warn when eligible > required: " + report.warnings());
+        }
+
+        @Test
+        @DisplayName("almost all days no buffer (N-1) → high risk warning")
+        void almostNoBufferWarning() {
+            LocalDate d1 = LocalDate.of(2026, 7, 1);
+            LocalDate d2 = LocalDate.of(2026, 7, 2);
+            LocalDate d3 = LocalDate.of(2026, 7, 3);
+
+            // Day 1: eligible == required (no buffer), Day 2: no buffer, Day 3: has buffer
+            List<ShiftRequirement> reqs = List.of(
+                    makeReq(1, period, lt01, null, d1, 2),  // have 3 staff → buffer
+                    makeReq(2, period, lt01, null, d2, 3),  // have 3 staff → no buffer
+                    makeReq(3, period, lt01, null, d3, 3)   // have 3 staff → no buffer
+            );
+            stubActiveStaff(List.of(staffNgoai, staffNoi, staffSan));
+            stubRequirements(reqs);
+            stubLeaves(Collections.emptyList());
+            stubCompDays(Collections.emptyList());
+            stubHolidays(Collections.emptyList());
+            stubAutoGenConfig(false, List.of());
+
+            var report = analyzer.analyzeFeasibility(1);
+
+            // 2 out of 3 days have no buffer → high risk
+            assertTrue(report.warnings().stream()
+                    .anyMatch(w -> w.contains("dự phòng") && w.contains("2/3")),
+                    "Should warn about 2/3 days no buffer: " + report.warnings());
+        }
     }
 
     @Nested

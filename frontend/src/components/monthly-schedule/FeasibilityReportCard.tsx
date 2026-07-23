@@ -180,7 +180,10 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
             const colors = SHIFT_TYPE_COLORS[typeId] || { bg: "bg-gray-50", border: "border-gray-500", text: "text-gray-800" };
             const avgEligible = Math.round(summary.averageDailyEligible);
             const minEligible = summary.minDailyEligible;
-            
+            const hasBufferWarning = report.warnings.some(w =>
+              w.includes("[CANH-BAO]") && w.includes(SHIFT_TYPE_LABELS[typeId] || typeId)
+            );
+
             return (
               <div
                 key={typeId}
@@ -201,6 +204,18 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
                     <span className={`${colors.text} opacity-75`}>Tối thiểu:</span>
                     <span className={`${colors.text} font-bold`}>{minEligible}</span>
                   </div>
+                  {/* Buffer risk indicator */}
+                  {hasBufferWarning ? (
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <span className="material-symbols-outlined text-error text-[14px]" aria-hidden="true">warning</span>
+                      <span className="text-[11px] text-error font-medium">Không có dự phòng</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <span className="material-symbols-outlined text-secondary text-[14px]" aria-hidden="true" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                      <span className="text-[11px] text-secondary font-medium">Có buffer</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );

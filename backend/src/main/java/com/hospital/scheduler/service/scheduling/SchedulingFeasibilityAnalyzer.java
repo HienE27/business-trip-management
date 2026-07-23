@@ -286,6 +286,35 @@ public class SchedulingFeasibilityAnalyzer {
             warnings.add(String.format("[CANH-BAO] %.0f%% ngày có đủ nhân sự - một số ca sẽ thiếu", coverageRate));
         }
 
+        // Detect "no buffer" risk: eligible == required on every day of a shift type.
+        // This means any single absence will cause understaffing — a hidden risk
+        // even when coverageRate = 100%.
+        Map<String, Long> noBufferDaysByType = new HashMap<>();
+        Map<String, Long> totalDaysByType = new HashMap<>();
+        for (DayAnalysis day : dailyAnalysis) {
+            for (ShiftTypeAnalysis sta : day.shiftTypes().values()) {
+                totalDaysByType.merge(sta.shiftTypeId(), 1L, Long::sum);
+                if (sta.required() > 0 && sta.eligibleStaff() == sta.required()) {
+                    noBufferDaysByType.merge(sta.shiftTypeId(), 1L, Long::sum);
+                }
+            }
+        }
+        for (String shiftTypeId : totalDaysByType.keySet()) {
+            long total = totalDaysByType.get(shiftTypeId);
+            long noBuffer = noBufferDaysByType.getOrDefault(shiftTypeId, 0L);
+            if (noBuffer == total) {
+                // Every single day has eligible == required — zero buffer
+                warnings.add(String.format(
+                        "[CANH-BAO] [%s] vừa đủ nhân sự mỗi ngày nhưng KHÔNG có dự phòng — nếu 1 người nghỉ, ca đó sẽ thiếu",
+                        SHIFT_TYPE_LABELS.getOrDefault(shiftTypeId, shiftTypeId)));
+            } else if (noBuffer > 0 && noBuffer == total - 1) {
+                // Almost every day has no buffer — high risk
+                warnings.add(String.format(
+                        "[CANH-BAO] [%s] có %d/%d ngày vừa đủ (không có dự phòng) — cần chú ý ngày nghỉ phép",
+                        SHIFT_TYPE_LABELS.getOrDefault(shiftTypeId, shiftTypeId), noBuffer, total));
+            }
+        }
+
         // Specific day/shift-type recommendations
         Map<String, Integer> shortageByType = new HashMap<>();
         for (DayAnalysis day : dailyAnalysis) {
@@ -308,8 +337,13 @@ public class SchedulingFeasibilityAnalyzer {
                     l04Label, shortageByType.get("L04")));
         }
 
+        boolean hasNoBufferWarning = noBufferDaysByType.values().stream().anyMatch(v -> v > 0);
         if (shortageByType.isEmpty() && coverageRate >= 80) {
-            recommendations.add("[GOI-Y] Kỳ lịch khả thi với cấu hình hiện tại");
+            if (hasNoBufferWarning) {
+                recommendations.add("[GOI-Y] Kỳ lịch đủ nhân sự nhưng thiếu buffer dự phòng — cân nhắc thêm nhân sự hoặc giảm required");
+            } else {
+                recommendations.add("[GOI-Y] Kỳ lịch khả thi với cấu hình hiện tại");
+            }
         } else {
             recommendations.add("[GOI-Y] Giảm required count nếu không đủ nhân sự thực tế");
         }
