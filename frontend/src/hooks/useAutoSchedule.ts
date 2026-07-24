@@ -24,11 +24,10 @@ export type AutoScheduleState = {
   running: boolean;
   message: string | null;
   algorithmType: "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC" | "SIMULATED_ANNEALING" | "CP_SAT";
-  holidayMode: "SKIP" | "PARTIAL" | null;
 };
 
 export type AutoScheduleActions = {
-  runPreview: (periodId: number | null, excludedStaffIds?: number[], useRecommendedConfig?: boolean) => Promise<void>;
+  runPreview: (periodId: number | null, excludedStaffIds?: number[], useRecommendedConfig?: boolean, recommendedConfig?: Record<string, unknown>) => Promise<void>;
   applyPreview: (
     periodId: number | null,
     edited: PreviewScheduleEdit[],
@@ -50,7 +49,6 @@ export type AutoScheduleActions = {
   clearMessage: () => void;
   setMessage: (msg: string) => void;
   setAlgorithmType: (type: "BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC" | "SIMULATED_ANNEALING" | "CP_SAT") => void;
-  setHolidayMode: (mode: "SKIP" | "PARTIAL" | null) => void;
 };
 
 function parseScheduleKey(key: string): PreviewScheduleEdit | null {
@@ -69,33 +67,66 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [algorithmType, setAlgorithmType] = useState<"BEAM_SEARCH" | "ENHANCED_GREEDY" | "RANDOM_RESTART_HC" | "SIMULATED_ANNEALING" | "CP_SAT">("BEAM_SEARCH");
-  const [holidayMode, setHolidayMode] = useState<"SKIP" | "PARTIAL" | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Track period đang chạy preview — dùng để gửi POST /cancel/{periodId} khi unmount,
+  // giúp backend giải phóng lock ngay (không phải chờ 15s stale timeout). Thread
+  // thuật toán cũ vẫn chạy tới khi kết thúc nhưng kết quả bị bỏ qua.
+  const currentPeriodRef = useRef<number | null>(null);
 
-  // Cancel any in-flight request on unmount (page refresh, navigation)
+  // Cancel any in-flight request on unmount (page refresh, navigation).
+  // Bên cạnh abort() request HTTP ở client, ta cũng gọi POST /cancel/{periodId}
+  // để backend clear progress + đánh dấu lock stale ngay → request kế tiếp
+  // không bị 400 "đang được xếp tự động bởi yêu cầu khác".
   useEffect(() => {
-    return () => abortRef.current?.abort();
+    return () => {
+      abortRef.current?.abort();
+      const periodId = currentPeriodRef.current;
+      if (periodId != null) {
+        // Fire-and-forget; dùng fetch + keepalive để đảm bảo gửi được ngay cả
+        // khi trang đang unmount. sendBeacon không set được Authorization header,
+        // nên không dùng được (endpoint cancel yêu cầu quyền AUTO_SCHEDULE_RUN).
+        try {
+          const token = typeof window !== "undefined"
+            ? window.localStorage.getItem("medschedule.token") ?? ""
+            : "";
+          void fetch(`/api/v1/auto-schedule/cancel/${periodId}`, {
+            method: "POST",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            credentials: "include",
+            keepalive: true,
+          }).catch(() => { /* silent: best-effort */ });
+        } catch {
+          /* silent */
+        }
+      }
+    };
   }, []);
 
-  const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[], useRecommendedConfig = false) => {
-    if (!periodId) return;
+	  const runPreview = useCallback(async (
+	    periodId: number | null,
+	    excludedStaffIds?: number[],
+	    useRecommendedConfig = false,
+	    recommendedConfig?: Record<string, unknown>,
+	  ) => {
+	    if (!periodId) return;
 
-    // Cancel previous in-flight request
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+	    // Cancel previous in-flight request
+	    abortRef.current?.abort();
+	    const controller = new AbortController();
+	    abortRef.current = controller;
+	    currentPeriodRef.current = periodId; // track để unmount gửi cancel tới backend
 
-    try {
-      setRunning(true);
-      setMessage(null);
+	    try {
+	      setRunning(true);
+	      setMessage(null);
 
-      const result = await api.previewAutoSchedule({
-        periodId,
-        algorithmType,
-        excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
-        holidayMode: holidayMode ?? undefined,
-        useRecommendedConfig,
-      }, { timeout: 600000, cancelSignal: controller.signal }); // 10 minute ceiling for the CSP partial path
+	      const result = await api.previewAutoSchedule({
+	        periodId,
+	        algorithmType,
+	        excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
+	        useRecommendedConfig,
+	        recommendedConfig,
+	      }, { timeout: 600000, cancelSignal: controller.signal }); // 10 minute ceiling for the CSP partial path
 
       setPreviewResult(result.data);
       setEditedPreview([]);
@@ -108,8 +139,9 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
       setMessage(getErrorMessage(error, "Không thể chạy auto schedule."));
     } finally {
       setRunning(false);
+      currentPeriodRef.current = null; // đã xong, không cần cancel nữa
     }
-  }, [algorithmType, holidayMode]);
+  }, [algorithmType]);
 
   const applyPreview = useCallback(
     async (
@@ -296,7 +328,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   }, [setAlgorithmType]);
 
   return [
-    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType, holidayMode },
-    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType, setHolidayMode: setHolidayMode },
+    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType },
+    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType },
   ];
 }

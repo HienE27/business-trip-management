@@ -61,9 +61,16 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_HOLIDAY_MODE = "auto_gen_holiday_mode";
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY = "auto_gen_l04_cross_specialty";
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY_RATIO = "auto_gen_l04_cross_specialty_ratio";
+    public static final String AUTO_GEN_L04_BALANCE_STRATEGY = "auto_gen_l04_balance_strategy";
     public static final String AUTO_GEN_L01_ALLOWED_SPECIALTIES = "auto_gen_l01_allowed_specialties";
     public static final String AUTO_GEN_L02_ALLOWED_SPECIALTIES = "auto_gen_l02_allowed_specialties";
     public static final String AUTO_GEN_L03_ALLOWED_SPECIALTIES = "auto_gen_l03_allowed_specialties";
+    // Target ca/người/tháng — input editable cho recommendAutoGenConfig.
+    // Persist vào DB để UI refresh không reset default.
+    public static final String AUTO_GEN_L01_TARGET_PER_MONTH = "auto_gen_l01_target_per_month";
+    public static final String AUTO_GEN_L02_TARGET_PER_MONTH = "auto_gen_l02_target_per_month";
+    public static final String AUTO_GEN_L03_TARGET_PER_MONTH = "auto_gen_l03_target_per_month";
+    public static final String AUTO_GEN_L04_TARGET_PER_MONTH = "auto_gen_l04_target_per_month";
 
     // Algorithm runtime config param keys
     public static final String WEEKEND_WEIGHT = "weekend_weight";
@@ -71,12 +78,27 @@ public class AlgorithmConfigService {
     public static final String GREEDY_COVERAGE_THRESHOLD = "greedy_coverage_threshold";
     public static final String BALANCE_SCORE_MIN = "balance_score_min";
     public static final String AUTO_COMPENSATION_ENABLED = "auto_compensation_enabled";
-    public static final String MIN_STAFF_PER_SHIFT = "min_staff_per_shift";
     public static final String MAX_STAFF_PER_SHIFT = "max_staff_per_shift";
-    public static final String MIN_SHIFTS_PER_STAFF = "min_shifts_per_staff";
     public static final String MAX_SHIFTS_PER_STAFF = "max_shifts_per_staff";
     public static final String MAX_SHIFTS_PER_DAY = "max_shifts_per_day";
+    public static final String BEAM_WIDTH = "beam_width";
     public static final String AUTO_ADJUST_CONFIG = "auto_adjust_config";
+
+    // ScheduleQualityScorer weight keys
+    public static final String SCORER_COVERAGE_WEIGHT = "scorer_coverage_weight";
+    public static final String SCORER_FAIRNESS_WEIGHT = "scorer_fairness_weight";
+    public static final String SCORER_CONSTRAINT_WEIGHT = "scorer_constraint_weight";
+    public static final String SCORER_PASS_THRESHOLD = "scorer_pass_threshold";
+    public static final String SCORER_HARD_VIOLATION_PENALTY = "scorer_hard_violation_penalty";
+    public static final String SCORER_SOFT_VIOLATION_PENALTY = "scorer_soft_violation_penalty";
+    public static final String SCORER_TARGET_CV = "scorer_target_cv";
+    public static final String SCORER_WORST_CV = "scorer_worst_cv";
+
+    // Rebalance round keys
+    public static final String REBALANCE_ROUNDS_TOTAL = "rebalance_rounds_total";
+    public static final String REBALANCE_ROUNDS_PER_TYPE = "rebalance_rounds_per_type";
+    public static final String REBALANCE_ROUNDS_EG = "rebalance_rounds_eg";
+    public static final String REBALANCE_ROUNDS_POST_SAVE = "rebalance_rounds_post_save";
 
     public List<AlgorithmConfigDTO> getAllConfigs() {
         // OPTIMIZATION: use JOIN FETCH to avoid N+1 on updatedBy lazy loading
@@ -278,7 +300,14 @@ public class AlgorithmConfigService {
                 // L01/L02/L03: null/empty → fallback to CORE_ELIGIBLE_SPECIALTIES (Ngoại, Nội) trong StaffShiftTypeEligibility
                 getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES, cache),
                 getStringListValue(AUTO_GEN_L02_ALLOWED_SPECIALTIES, cache),
-                getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES, cache)
+                getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES, cache),
+                // Target ca/người/tháng — default L01-L03=2, L04=5 (hợp lý cho bệnh viện ~900 NS)
+                getIntValue(AUTO_GEN_L01_TARGET_PER_MONTH, 2, cache),
+                getIntValue(AUTO_GEN_L02_TARGET_PER_MONTH, 2, cache),
+                getIntValue(AUTO_GEN_L03_TARGET_PER_MONTH, 2, cache),
+                getIntValue(AUTO_GEN_L04_TARGET_PER_MONTH, 5, cache),
+                // Chiến lược cân bằng L04 cross-specialty — frontend default "FAIR_DISTRIBUTE".
+                getStringValue(AUTO_GEN_L04_BALANCE_STRATEGY, "FAIR_DISTRIBUTE", cache)
         ));
     }
 
@@ -331,6 +360,19 @@ public class AlgorithmConfigService {
         String l03Csv = config.l03AllowedSpecialties() == null ? "" : String.join(",", config.l03AllowedSpecialties());
         upsert(AUTO_GEN_L03_ALLOWED_SPECIALTIES, l03Csv, AlgorithmConfig.ValueType.STRING,
                 "Danh sách chuyên khoa được gán L03 (phòng khám dịch vụ). Rỗng = mặc định Ngoại,Nội.");
+        // Target ca/người/tháng — input editable cho recommend.
+        upsert(AUTO_GEN_L01_TARGET_PER_MONTH, String.valueOf(config.l01TargetPerMonth()),
+                AlgorithmConfig.ValueType.NUMBER, "Mục tiêu ca L01 mỗi nhân sự mỗi tháng (input cho đề xuất cấu hình tự động).");
+        upsert(AUTO_GEN_L02_TARGET_PER_MONTH, String.valueOf(config.l02TargetPerMonth()),
+                AlgorithmConfig.ValueType.NUMBER, "Mục tiêu ca L02 mỗi nhân sự mỗi tháng (input cho đề xuất cấu hình tự động).");
+        upsert(AUTO_GEN_L03_TARGET_PER_MONTH, String.valueOf(config.l03TargetPerMonth()),
+                AlgorithmConfig.ValueType.NUMBER, "Mục tiêu ca L03 mỗi nhân sự mỗi tháng (input cho đề xuất cấu hình tự động).");
+        upsert(AUTO_GEN_L04_TARGET_PER_MONTH, String.valueOf(config.l04TargetPerMonth()),
+                AlgorithmConfig.ValueType.NUMBER, "Mục tiêu ca L04 mỗi nhân sự mỗi tháng (input cho đề xuất cấu hình tự động).");
+        upsert(AUTO_GEN_L04_BALANCE_STRATEGY,
+                config.l04BalanceStrategy() != null ? config.l04BalanceStrategy() : "FAIR_DISTRIBUTE",
+                AlgorithmConfig.ValueType.STRING,
+                "Chiến lược cân bằng L04 cross-specialty: STRICT_MATCH_ONLY | FAIR_DISTRIBUTE | WEIGHTED_FAIR.");
     }
 
     /**
@@ -392,6 +434,9 @@ public class AlgorithmConfigService {
         upsert(AUTO_GEN_L04_MAX_PER_WEEK, getStringValue(AUTO_GEN_L04_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca L04 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
         map.put(AUTO_GEN_L04_MAX_PER_WEEK, "OK");
+        upsert(AUTO_GEN_L04_BALANCE_STRATEGY, getStringValue(AUTO_GEN_L04_BALANCE_STRATEGY, "FAIR_DISTRIBUTE"), AlgorithmConfig.ValueType.STRING,
+                "Chiến lược cân bằng L04 cross-specialty: STRICT_MATCH_ONLY | FAIR_DISTRIBUTE | WEIGHTED_FAIR.");
+        map.put(AUTO_GEN_L04_BALANCE_STRATEGY, "OK");
         upsert(AUTO_GEN_HOLIDAY_MODE, getStringValue(AUTO_GEN_HOLIDAY_MODE, "SKIP"), AlgorithmConfig.ValueType.STRING,
                 "Xử lý khi gặp ngày lễ: SKIP = bỏ qua ngày lễ (không xếp lịch), PARTIAL = vẫn xếp lịch nhưng giảm cường độ.");
         map.put(AUTO_GEN_HOLIDAY_MODE, "OK");
@@ -404,28 +449,66 @@ public class AlgorithmConfigService {
         upsert(GREEDY_COVERAGE_THRESHOLD, getStringValue(GREEDY_COVERAGE_THRESHOLD, "0.85"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng phủ lịch tối thiểu (0.0–1.0). Khi tỷ lệ lịch đã phủ đạt mức này, thuật toán greedy sẽ dừng sớm. Giảm → chạy nhanh hơn; tăng → phủ kỹ hơn.");
         map.put(GREEDY_COVERAGE_THRESHOLD, "OK");
-        upsert(BALANCE_SCORE_MIN, getStringValue(BALANCE_SCORE_MIN, "0.75"), AlgorithmConfig.ValueType.NUMBER,
-                "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
+        upsert(BALANCE_SCORE_MIN, getStringValue(BALANCE_SCORE_MIN, "0.70"), AlgorithmConfig.ValueType.NUMBER,
+                "Ngưỡng fairness tối thiểu (0.0–1.0, mặc định 0.70 = 70%). So với balanceScore sau khi xếp lịch; dưới ngưỡng → cảnh báo soft, không từ chối kết quả.");
         map.put(BALANCE_SCORE_MIN, "OK");
         upsert(AUTO_COMPENSATION_ENABLED, getStringValue(AUTO_COMPENSATION_ENABLED, "true"), AlgorithmConfig.ValueType.BOOLEAN,
                 "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
         map.put(AUTO_COMPENSATION_ENABLED, "OK");
-        upsert(MIN_STAFF_PER_SHIFT, getStringValue(MIN_STAFF_PER_SHIFT, "1"), AlgorithmConfig.ValueType.NUMBER,
-                "Ngưỡng theo dõi số nhân sự tối thiểu mỗi ca; dùng cho đánh giá/chất lượng, không ép thuật toán phá ràng buộc cứng.");
-        map.put(MIN_STAFF_PER_SHIFT, "OK");
-        upsert(MAX_STAFF_PER_SHIFT, getStringValue(MAX_STAFF_PER_SHIFT, "5"), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối đa cho mỗi ca trực. Giới hạn tránh quá tải một ca.");
+        upsert(MAX_STAFF_PER_SHIFT, getStringValue(MAX_STAFF_PER_SHIFT, "0"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối đa cho mỗi ca trực. Giới hạn tránh quá tải một ca. 0 = không giới hạn.");
         map.put(MAX_STAFF_PER_SHIFT, "OK");
-        upsert(MIN_SHIFTS_PER_STAFF, getStringValue(MIN_SHIFTS_PER_STAFF, "0"), AlgorithmConfig.ValueType.NUMBER,
-                "Ngưỡng theo dõi số ca tối thiểu mỗi nhân sự trong kỳ; dùng để đánh giá cân bằng, không ép tạo ca giả.");
-        map.put(MIN_SHIFTS_PER_STAFF, "OK");
-        upsert(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "35"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca tối đa mỗi nhân sự trong kỳ lịch. Spec M07-F01 yêu cầu phân bổ đều không giới hạn cố định, nhưng đặt trần hợp lý để bảo vệ nhân sự khỏi bị quá tải. Default 35 (≈1 ca/ngày + buffer cho L04 đa chuyên khoa).");
+        upsert(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "12"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca tối đa mỗi nhân sự trong kỳ lịch. Đặt 0 để dùng maxShiftsPerMonth của nhân sự. Mặc định 12.");
         map.put(MAX_SHIFTS_PER_STAFF, "OK");
-	        upsert(MAX_SHIFTS_PER_DAY, getStringValue(MAX_SHIFTS_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
-	                "Số ca tối đa mỗi nhân sự trong 1 ngày. 0 = không giới hạn, thuật toán tự quyết định dựa trên ràng buộc conflict (L01+L02, L03+L04).");
-        map.put(MAX_SHIFTS_PER_DAY, "OK");
-        return map;
+        upsert(MAX_SHIFTS_PER_DAY, getStringValue(MAX_SHIFTS_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
+		                "Số ca tối đa mỗi nhân sự trong 1 ngày. 0 = không giới hạn, thuật toán tự quyết định dựa trên ràng buộc conflict (L01+L02, L03+L04).");
+		        map.put(MAX_SHIFTS_PER_DAY, "OK");
+		        upsert(BEAM_WIDTH, getStringValue(BEAM_WIDTH, "5"), AlgorithmConfig.ValueType.NUMBER,
+		                "Độ rộng Beam Search (mặc định 5). Giá trị càng cao → tìm kiếm rộng hơn, quality tốt hơn nhưng chậm hơn. Với SA scheduler, dùng để tính số vòng lặp (beamWidth × 100).");
+		        map.put(BEAM_WIDTH, "OK");
+        // ScheduleQualityScorer runtime weights (Commit I)
+        upsert(SCORER_COVERAGE_WEIGHT, getStringValue(SCORER_COVERAGE_WEIGHT, "0.40"), AlgorithmConfig.ValueType.NUMBER,
+                "Trọng số coverage cho ScheduleQualityScorer (0.0–1.0). Mặc định 0.40. Càng cao càng ưu tiên lấp đầy ca trực.");
+        map.put(SCORER_COVERAGE_WEIGHT, "OK");
+        upsert(SCORER_FAIRNESS_WEIGHT, getStringValue(SCORER_FAIRNESS_WEIGHT, "0.35"), AlgorithmConfig.ValueType.NUMBER,
+                "Trọng số fairness cho ScheduleQualityScorer (0.0–1.0). Mặc định 0.35. Càng cao càng ưu tiên phân bổ công bằng.");
+        map.put(SCORER_FAIRNESS_WEIGHT, "OK");
+        upsert(SCORER_CONSTRAINT_WEIGHT, getStringValue(SCORER_CONSTRAINT_WEIGHT, "0.25"), AlgorithmConfig.ValueType.NUMBER,
+                "Trọng số constraint cho ScheduleQualityScorer (0.0–1.0). Mặc định 0.25. Càng cao càng ưu tiên kỷ luật ràng buộc.");
+        map.put(SCORER_CONSTRAINT_WEIGHT, "OK");
+        upsert(SCORER_PASS_THRESHOLD, getStringValue(SCORER_PASS_THRESHOLD, "80.0"), AlgorithmConfig.ValueType.NUMBER,
+                "Ngưỡng điểm đạt yêu cầu (0-100). Mặc định 80.0. Lịch có tổng điểm ≥ ngưỡng này được coi là passed.");
+        map.put(SCORER_PASS_THRESHOLD, "OK");
+        upsert(SCORER_HARD_VIOLATION_PENALTY, getStringValue(SCORER_HARD_VIOLATION_PENALTY, "25.0"), AlgorithmConfig.ValueType.NUMBER,
+                "Phạt điểm cho mỗi vi phạm HARD (BR-01 đến BR-05). Mặc định 25.0.");
+        map.put(SCORER_HARD_VIOLATION_PENALTY, "OK");
+        upsert(SCORER_SOFT_VIOLATION_PENALTY, getStringValue(SCORER_SOFT_VIOLATION_PENALTY, "5.0"), AlgorithmConfig.ValueType.NUMBER,
+                "Phạt điểm cho mỗi vi phạm SOFT (BR-06, BR-07). Mặc định 5.0.");
+        map.put(SCORER_SOFT_VIOLATION_PENALTY, "OK");
+        upsert(SCORER_TARGET_CV, getStringValue(SCORER_TARGET_CV, "0.10"), AlgorithmConfig.ValueType.NUMBER,
+                "CV mục tiêu cho fairness. CV ≤ targetCv → 100 điểm fairness. Mặc định 0.10.");
+        map.put(SCORER_TARGET_CV, "OK");
+        upsert(SCORER_WORST_CV, getStringValue(SCORER_WORST_CV, "0.50"), AlgorithmConfig.ValueType.NUMBER,
+                "CV vượt ngưỡng này → 0 điểm fairness. Mặc định 0.50.");
+        map.put(SCORER_WORST_CV, "OK");
+        // Rebalance round keys (Commit C)
+        upsert(REBALANCE_ROUNDS_TOTAL, getStringValue(REBALANCE_ROUNDS_TOTAL, "80"), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp rebalance tổng (RRHC totalCountRebalance, SA fairnessRebalance). Đặt 0 để tắt. Mặc định 80.");
+        map.put(REBALANCE_ROUNDS_TOTAL, "OK");
+        upsert(REBALANCE_ROUNDS_PER_TYPE, getStringValue(REBALANCE_ROUNDS_PER_TYPE, "30"), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp rebalance per-type (RRHC perTypeRebalance, Beam perTypeRebalance). Đặt 0 để tắt. Mặc định 30.");
+        map.put(REBALANCE_ROUNDS_PER_TYPE, "OK");
+        upsert(REBALANCE_ROUNDS_EG, getStringValue(REBALANCE_ROUNDS_EG, "40"), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp rebalance EG perTypeMoveRebalance. Đặt 0 để tắt. Mặc định 40.");
+        map.put(REBALANCE_ROUNDS_EG, "OK");
+	        upsert(REBALANCE_ROUNDS_POST_SAVE, getStringValue(REBALANCE_ROUNDS_POST_SAVE, "100"), AlgorithmConfig.ValueType.NUMBER,
+	                "Số vòng lặp post-process rebalance khi lưu (AutoSchedulingService.optimizeFairnessBySafeReassignment). Đặt 0 để tắt. Mặc định 100.");
+	        map.put(REBALANCE_ROUNDS_POST_SAVE, "OK");
+	        upsert(AUTO_ADJUST_CONFIG, getStringValue(AUTO_ADJUST_CONFIG, "true"), AlgorithmConfig.ValueType.BOOLEAN,
+	                "Tự động điều chỉnh cấu hình (giảm L04) nếu tổng yêu cầu vượt năng lực nhân sự. Tắt nếu muốn dùng config thủ công.");
+	        map.put(AUTO_ADJUST_CONFIG, "OK");
+		        return map;
     }
 
     private void upsert(String paramKey, String value, AlgorithmConfig.ValueType valueType, String description) {
@@ -535,10 +618,8 @@ public class AlgorithmConfigService {
                 .greedyCoverageThreshold(getBigDecimalValue(GREEDY_COVERAGE_THRESHOLD, 0.85, cache))
                 .balanceScoreMin(getBigDecimalValue(BALANCE_SCORE_MIN, 0.70, cache))
                 .autoCompensationEnabled(getBooleanValue(AUTO_COMPENSATION_ENABLED, true, cache))
-                .minStaffPerShift(getIntValue(MIN_STAFF_PER_SHIFT, 1, cache))
                 .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0, cache))
-                .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0, cache))
-	                .maxShiftsPerDay(getIntValue(MAX_SHIFTS_PER_DAY, 0, cache))
+                .maxShiftsPerDay(getIntValue(MAX_SHIFTS_PER_DAY, 0, cache))
                 .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 12, cache))
                 // Per-type weekly max from AutoGenConfig
                 .l01MaxPerWeek(autoGenConfig.map(AutoGenConfig::l01MaxPerWeek).orElse(0))
@@ -546,6 +627,19 @@ public class AlgorithmConfigService {
                 .l03MaxPerWeek(autoGenConfig.map(AutoGenConfig::l03MaxPerWeek).orElse(0))
                 .l04MaxPerWeek(autoGenConfig.map(AutoGenConfig::l04MaxPerWeek).orElse(0))
                 .autoAdjustConfig(getBooleanValue(AUTO_ADJUST_CONFIG, true, cache))
+                .beamWidth(getIntValue(BEAM_WIDTH, 5, cache))
+                .coverageWeight(getBigDecimalValue(SCORER_COVERAGE_WEIGHT, 0.40, cache))
+                .fairnessWeight(getBigDecimalValue(SCORER_FAIRNESS_WEIGHT, 0.35, cache))
+                .constraintWeight(getBigDecimalValue(SCORER_CONSTRAINT_WEIGHT, 0.25, cache))
+                .passThreshold(getDoubleValue(SCORER_PASS_THRESHOLD, 80.0, cache))
+                .hardViolationPenalty(getDoubleValue(SCORER_HARD_VIOLATION_PENALTY, 25.0, cache))
+                .softViolationPenalty(getDoubleValue(SCORER_SOFT_VIOLATION_PENALTY, 5.0, cache))
+                .targetCv(getDoubleValue(SCORER_TARGET_CV, 0.10, cache))
+                .worstCv(getDoubleValue(SCORER_WORST_CV, 0.50, cache))
+                .rebalanceRoundsTotal(getIntValue(REBALANCE_ROUNDS_TOTAL, 80, cache))
+                .rebalanceRoundsPerType(getIntValue(REBALANCE_ROUNDS_PER_TYPE, 30, cache))
+                .rebalanceRoundsEg(getIntValue(REBALANCE_ROUNDS_EG, 40, cache))
+                .rebalanceRoundsPostSave(getIntValue(REBALANCE_ROUNDS_POST_SAVE, 100, cache))
                 .build();
     }
 
@@ -561,21 +655,43 @@ public class AlgorithmConfigService {
         upsert(GREEDY_COVERAGE_THRESHOLD, String.valueOf(config.getGreedyCoverageThreshold()), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng phủ lịch tối thiểu (0.0–1.0). Khi tỷ lệ lịch đã phủ đạt mức này, thuật toán greedy sẽ dừng sớm. Giảm → chạy nhanh hơn; tăng → phủ kỹ hơn.");
         upsert(BALANCE_SCORE_MIN, String.valueOf(config.getBalanceScoreMin()), AlgorithmConfig.ValueType.NUMBER,
-                "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
+                "Ngưỡng fairness tối thiểu (0.0–1.0, mặc định 0.70 = 70%). So với balanceScore sau khi xếp lịch; dưới ngưỡng → cảnh báo soft, không từ chối kết quả.");
         upsert(AUTO_COMPENSATION_ENABLED, String.valueOf(config.isAutoCompensationEnabled()), AlgorithmConfig.ValueType.BOOLEAN,
                 "Tự động tạo ngày nghỉ bù sau mỗi ca trực 24/24 theo quy tắc bù ca đã quy định. Tắt OFF nếu muốn quản lý nghỉ bù thủ công.");
-        upsert(MIN_STAFF_PER_SHIFT, String.valueOf(config.getMinStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối thiểu mỗi ca. Đặt 0 để bỏ qua giới hạn này. Nếu không đủ nhân sự đạt ngưỡng, thuật toán sẽ cảnh báo nhưng vẫn xếp.");
         upsert(MAX_STAFF_PER_SHIFT, String.valueOf(config.getMaxStaffPerShift()), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối đa mỗi ca. Đặt 0 để không giới hạn. Giới hạn này chỉ áp dụng khi yêu cầu ca có requiredStaffCount > maxStaffPerShift.");
-        upsert(MIN_SHIFTS_PER_STAFF, String.valueOf(config.getMinShiftsPerStaff()), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca trực tối thiểu mỗi nhân sự trong kỳ. Đặt 0 để bỏ qua. Giúp đảm bảo mỗi người đều có ít nhất N ca trong kỳ.");
         upsert(MAX_SHIFTS_PER_STAFF, String.valueOf(config.getMaxShiftsPerStaff()), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca trực tối đa mỗi nhân sự trong kỳ. Đặt 0 để dùng maxShiftsPerMonth của nhân sự. Giới hạn này ngược lại với min — ngăn không ai bị quá tải.");
         upsert(MAX_SHIFTS_PER_DAY, String.valueOf(config.getMaxShiftsPerDay()), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca tối đa mỗi nhân sự trong 1 ngày. 0 = không giới hạn, thuật toán tự quyết định.");
+        upsert(BEAM_WIDTH, String.valueOf(config.getBeamWidth()), AlgorithmConfig.ValueType.NUMBER,
+                "Độ rộng Beam Search (mặc định 5). Giá trị càng cao → tìm kiếm rộng hơn, quality tốt hơn nhưng chậm hơn. Với SA scheduler, dùng để tính số vòng lặp (beamWidth × 100).");
         upsert(AUTO_ADJUST_CONFIG, String.valueOf(config.isAutoAdjustConfig()), AlgorithmConfig.ValueType.BOOLEAN,
                 "Tự động điều chỉnh cấu hình (giảm L04) nếu tổng yêu cầu vượt năng lực nhân sự. Tắt nếu muốn dùng config thủ công.");
+        upsert(SCORER_COVERAGE_WEIGHT, String.valueOf(config.getCoverageWeight()), AlgorithmConfig.ValueType.NUMBER,
+                "Trọng số coverage cho ScheduleQualityScorer (0.0–1.0). Mặc định 0.40. Càng cao càng ưu tiên lấp đầy ca trực.");
+        upsert(SCORER_FAIRNESS_WEIGHT, String.valueOf(config.getFairnessWeight()), AlgorithmConfig.ValueType.NUMBER,
+                "Trọng số fairness cho ScheduleQualityScorer (0.0–1.0). Mặc định 0.35. Càng cao càng ưu tiên phân bổ công bằng.");
+        upsert(SCORER_CONSTRAINT_WEIGHT, String.valueOf(config.getConstraintWeight()), AlgorithmConfig.ValueType.NUMBER,
+                "Trọng số constraint cho ScheduleQualityScorer (0.0–1.0). Mặc định 0.25. Càng cao càng ưu tiên kỷ luật ràng buộc.");
+        upsert(SCORER_PASS_THRESHOLD, String.valueOf(config.getPassThreshold()), AlgorithmConfig.ValueType.NUMBER,
+                "Ngưỡng điểm đạt yêu cầu (0-100). Mặc định 80.0. Lịch có tổng điểm ≥ ngưỡng này được coi là passed.");
+        upsert(SCORER_HARD_VIOLATION_PENALTY, String.valueOf(config.getHardViolationPenalty()), AlgorithmConfig.ValueType.NUMBER,
+                "Phạt điểm cho mỗi vi phạm HARD (BR-01 đến BR-05). Mặc định 25.0.");
+        upsert(SCORER_SOFT_VIOLATION_PENALTY, String.valueOf(config.getSoftViolationPenalty()), AlgorithmConfig.ValueType.NUMBER,
+                "Phạt điểm cho mỗi vi phạm SOFT (BR-06, BR-07). Mặc định 5.0.");
+        upsert(SCORER_TARGET_CV, String.valueOf(config.getTargetCv()), AlgorithmConfig.ValueType.NUMBER,
+                "CV mục tiêu cho fairness. CV ≤ targetCv → 100 điểm fairness. Mặc định 0.10.");
+        upsert(SCORER_WORST_CV, String.valueOf(config.getWorstCv()), AlgorithmConfig.ValueType.NUMBER,
+                "CV vượt ngưỡng này → 0 điểm fairness. Mặc định 0.50.");
+        upsert(REBALANCE_ROUNDS_TOTAL, String.valueOf(config.getRebalanceRoundsTotal()), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp rebalance tổng (RRHC totalCountRebalance, SA fairnessRebalance). Mặc định 80.");
+        upsert(REBALANCE_ROUNDS_PER_TYPE, String.valueOf(config.getRebalanceRoundsPerType()), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp rebalance per-type (RRHC perTypeRebalance, Beam perTypeRebalance). Mặc định 30.");
+        upsert(REBALANCE_ROUNDS_EG, String.valueOf(config.getRebalanceRoundsEg()), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp rebalance EG perTypeMoveRebalance (cũng dùng cho Beam totalCountRebalance). Mặc định 40.");
+        upsert(REBALANCE_ROUNDS_POST_SAVE, String.valueOf(config.getRebalanceRoundsPostSave()), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp post-process rebalance khi lưu (AutoSchedulingService). Mặc định 100.");
     }
 
     private boolean getBooleanValue(String paramKey, boolean defaultValue) {
@@ -584,7 +700,7 @@ public class AlgorithmConfigService {
 
     private boolean getBooleanValue(String paramKey, boolean defaultValue, java.util.Map<String, String> cache) {
         String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
-        return raw != null && Boolean.parseBoolean(raw);
+        return raw != null ? Boolean.parseBoolean(raw) : defaultValue;
     }
 
     private float getFloatValue(String paramKey, float defaultValue) {
@@ -612,6 +728,16 @@ public class AlgorithmConfigService {
             return new java.math.BigDecimal(raw);
         } catch (NumberFormatException e) {
             return java.math.BigDecimal.valueOf(defaultValue);
+        }
+    }
+
+    private double getDoubleValue(String paramKey, double defaultValue, java.util.Map<String, String> cache) {
+        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        if (raw == null) return defaultValue;
+        try {
+            return Double.parseDouble(raw);
+        } catch (NumberFormatException e) {
+            return defaultValue;
         }
     }
 
@@ -686,7 +812,16 @@ public class AlgorithmConfigService {
                 int capacityPerPerson = Math.max(1, maxShiftsPerStaff > 0 ? maxShiftsPerStaff : periodDays);
                 java.util.Map<String, Double> histRatios = loadHistoricalShiftRatios();
                 int l01Target, l02Target, l03Target, l04Target;
-                if (histRatios != null) {
+                // ƯU TIÊN target_per_month từ DB (user đã chỉnh trong UI). Chỉ fallback sang
+                // histRatios/percent khi target = 0 (chưa set). Trước đây target frontend
+                // truyền vào nhưng bị ignore → recommend bơm minPerDay lên 299.
+                if (current.l01TargetPerMonth() > 0 || current.l02TargetPerMonth() > 0
+                        || current.l03TargetPerMonth() > 0 || current.l04TargetPerMonth() > 0) {
+                    l01Target = current.l01TargetPerMonth() > 0 ? current.l01TargetPerMonth() : 2;
+                    l02Target = current.l02TargetPerMonth() > 0 ? current.l02TargetPerMonth() : 2;
+                    l03Target = current.l03TargetPerMonth() > 0 ? current.l03TargetPerMonth() : 2;
+                    l04Target = current.l04TargetPerMonth() > 0 ? current.l04TargetPerMonth() : 5;
+                } else if (histRatios != null) {
                     l01Target = Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault("L01", 0.30)));
                     l02Target = Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault("L02", 0.25)));
                     l03Target = Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault("L03", 0.30)));
@@ -776,7 +911,12 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
                 current.l04CrossSpecialty(),
                 current.l04CrossSpecialtyRatio(),
                 current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : java.util.List.of(),
-                l01Spec, l02Spec, l03Spec
+                l01Spec, l02Spec, l03Spec,
+                // Preserve target_per_month từ config hiện tại — recommend không đổi target,
+                // chỉ dùng target để tính minPerDay.
+                current.l01TargetPerMonth(), current.l02TargetPerMonth(),
+                current.l03TargetPerMonth(), current.l04TargetPerMonth(),
+                current.l04BalanceStrategy()
         );
 
         String rationale = String.format(
@@ -792,23 +932,113 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
                     : "Giữ eligibility L01/L02/L03 cho Ngoại,Nội (8 người) — nếu không đủ, cân nhắc mở rộng."
         );
 
-        return new AutoGenConfigRecommendation(recommended, totalExpected, rationale);
+        // ── Commit B: compute demand ratio, fairness type, expected metrics, warnings ──
+        java.util.Map<String, Integer> demandRatio = new java.util.LinkedHashMap<>();
+        demandRatio.put("L01", l01MinPerDay);
+        demandRatio.put("L02", l02MinPerDay);
+        demandRatio.put("L03", l03MinPerDay);
+        demandRatio.put("L04", l04MinPerDay);
+
+        // Fairness type: base is INTRA_TYPE. INTER_TYPE_BALANCE only when demand ratios
+        // across L01/L02/L03 are similar enough that a soft rebalance is feasible.
+        double l01Ratio = (double) l01MinPerDay / Math.max(1, l01Elig);
+        double l02Ratio = (double) l02MinPerDay / Math.max(1, l02Elig);
+        double l03Ratio = (double) l03MinPerDay / Math.max(1, l03Elig);
+        double maxRatio = Math.max(Math.max(l01Ratio, l02Ratio), l03Ratio);
+        double minRatio = Math.min(Math.min(l01Ratio, l02Ratio), l03Ratio);
+        boolean interBalanceFeasible = maxRatio > 0 && (maxRatio / minRatio) <= 2.5;
+        String fairnessType = interBalanceFeasible ? "INTRA_TYPE_WITH_INTER_BALANCE" : "INTRA_TYPE";
+
+        // Cross-specialty policy description
+        String crossSpecialtyPolicy;
+        if (csEnabled) {
+            if (current.l04BalanceStrategy() != null) {
+                crossSpecialtyPolicy = switch (current.l04BalanceStrategy()) {
+                    case "STRICT_MATCH_ONLY" -> "TẮT — L04 chỉ theo đúng chuyên khoa";
+                    case "FAIR_DISTRIBUTE" -> String.format("BẬT — cross-specialty ratio %.0f%%, phân bổ công bằng theo specialty",
+                            current.l04CrossSpecialtyRatio() * 100);
+                    case "WEIGHTED_FAIR" -> String.format("BẬT — cross-specialty ratio %.0f%%, chiến lược cân bằng theo trọng số",
+                            current.l04CrossSpecialtyRatio() * 100);
+                    default -> String.format("BẬT — cross-specialty ratio %.0f%%",
+                            current.l04CrossSpecialtyRatio() * 100);
+                };
+            } else {
+                crossSpecialtyPolicy = String.format("BẬT — cross-specialty ratio %.0f%%, chiến lược FAIR_DISTRIBUTE mặc định",
+                        current.l04CrossSpecialtyRatio() * 100);
+            }
+        } else {
+            crossSpecialtyPolicy = "TẮT — L04 chỉ theo đúng chuyên khoa";
+        }
+
+        // Expected metrics (estimates before running algorithm)
+        double targetCv = 0.10;
+        double worstCv = 0.50;
+        // estFairness: how balanced the demand ratios are across L01/L02/L03 eligible groups.
+        // 100 = perfectly proportional, decreases as imbalance grows.
+        double estFairness = maxRatio > 0 && minRatio > 0
+                ? 100.0 * Math.max(0, 1.0 - (maxRatio / minRatio - 1.0) / 2.0)
+                : 75.0;  // conservative default
+        // Estimated coverage: min achievable given minPerDay vs eligible capacity
+        int totalMinPerDay = l01MinPerDay + l02MinPerDay + l03MinPerDay + l04MinPerDay;
+        int totalEligible = l01Elig + l02Elig + l03Elig + effectiveL04Elig;
+        double estCoverage = totalEligible > 0
+                ? Math.min(100.0, 100.0 * totalMinPerDay / Math.max(1, totalEligible))
+                : 80.0;
+        double estQuality = 0.40 * estCoverage + 0.35 * estFairness + 0.25 * 85.0;  // 85 = constraint baseline
+
+        var expectedMetrics = new com.hospital.scheduler.dto.response.AutoGenConfigRecommendResponse.ExpectedMetrics(
+                estCoverage, estFairness, estQuality, targetCv, worstCv);
+
+        // Trade-off warnings
+        java.util.List<String> warnings = new java.util.ArrayList<>();
+        if (l01Ratio > 0 && l02Ratio > 0 && l03Ratio > 0) {
+            double imbalance = (maxRatio / minRatio - 1.0) * 100;
+            if (imbalance > 50) {
+                warnings.add(String.format("⚠️ Demand lệch: L01/L02/L03 ratio = %.0f%%/%.0f%%/%.0f%%/ca. " +
+                        "Inter-type balance chỉ là soft objective — không đảm bảo bằng nhau nếu demand gốc lệch.",
+                        l01Ratio * days, l02Ratio * days, l03Ratio * days));
+            }
+        }
+        if (totalMinPerDay > (totalEligible > 0 ? totalEligible : 1) && maxShiftsPerStaff > 0) {
+            warnings.add("⚠️ Tổng min/ngày (" + totalMinPerDay + ") có thể vượt năng lực. Đã áp dụng uniform scaling.");
+        }
+        if (!csEnabled && effectiveL04Elig < l04Elig) {
+            warnings.add("⚠️ Cross-specialty TẮT — L04 chỉ có " + effectiveL04Elig + " người eligible, có thể thiếu.");
+        }
+        if (l04MinPerDay > effectiveL04Elig && effectiveL04Elig > 0) {
+            warnings.add("⚠️ L04: " + l04MinPerDay + " ca/ngày cho " + effectiveL04Elig + " người — mỗi người cần ≥1 ca.");
+        }
+
+        return new AutoGenConfigRecommendation(
+                recommended, totalExpected, rationale,
+                demandRatio, fairnessType, crossSpecialtyPolicy, expectedMetrics, warnings);
     }
 
     /**
-     * Kết quả recommend bao gồm config + metadata
+     * Commit B (Workflow M07): Kết quả recommend bao gồm config + metadata cho recommendation card.
+     * Bao gồm: demand ratio, fairness type, cross-specialty policy, expected metrics, trade-off warnings.
      */
     public record AutoGenConfigRecommendation(
             AutoGenConfig config,
             int totalShiftsExpected,
-            String rationale
+            String rationale,
+            /** minPerDay values per shift type — keys: L01/L02/L03/L04 */
+            java.util.Map<String, Integer> demandRatio,
+            /** Fairness type: INTRA_TYPE | INTRA_TYPE_WITH_INTER_BALANCE */
+            String fairnessType,
+            /** Human-readable cross-specialty policy description */
+            String crossSpecialtyPolicy,
+            /** Estimated metrics before running preview */
+            com.hospital.scheduler.dto.response.AutoGenConfigRecommendResponse.ExpectedMetrics expectedMetrics,
+            /** Trade-off and constraint warnings */
+            java.util.List<String> warnings
     ) {}
 
     /**
      * Runtime configuration record for algorithm execution.
      */
     @lombok.Data
-    @lombok.Builder(access = lombok.AccessLevel.PRIVATE)
+    @lombok.Builder
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     public static class AlgorithmRuntimeConfig {
@@ -817,9 +1047,7 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
         private java.math.BigDecimal greedyCoverageThreshold;
         private java.math.BigDecimal balanceScoreMin;
         private boolean autoCompensationEnabled;
-        private int minStaffPerShift;
         private int maxStaffPerShift;
-        private int minShiftsPerStaff;
         private int maxShiftsPerStaff;
         private int maxShiftsPerDay;
         // Per-shift-type weekly max (from AutoGenConfig)
@@ -827,11 +1055,56 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
         private int l02MaxPerWeek;
         private int l03MaxPerWeek;
         private int l04MaxPerWeek;
-        // Beam Search width (default 5)
+        // Beam Search width (default 5, from DB)
         @lombok.Builder.Default
         private int beamWidth = 5;
         // Auto-adjust config before scheduler run
         @lombok.Builder.Default
         private boolean autoAdjustConfig = true;
+
+        // ScheduleQualityScorer runtime weights
+        @lombok.Builder.Default
+        private java.math.BigDecimal coverageWeight = java.math.BigDecimal.valueOf(0.40);
+        @lombok.Builder.Default
+        private java.math.BigDecimal fairnessWeight = java.math.BigDecimal.valueOf(0.35);
+        @lombok.Builder.Default
+        private java.math.BigDecimal constraintWeight = java.math.BigDecimal.valueOf(0.25);
+
+        // ScheduleQualityScorer runtime thresholds/penalties — mirror defaults
+        // declared in ScheduleQualityScorer.java (single source of truth stays
+        // there; these @Builder.Default values must match the scorer's hardcoded
+        // fallbacks: passThreshold=80.0, hardViolationPenalty=25.0,
+        // softViolationPenalty=5.0, targetCv=0.10, worstCv=0.50).
+        @lombok.Builder.Default
+        private double passThreshold = 80.0;
+        @lombok.Builder.Default
+        private double hardViolationPenalty = 25.0;
+        @lombok.Builder.Default
+        private double softViolationPenalty = 5.0;
+        @lombok.Builder.Default
+        private double targetCv = 0.10;
+        @lombok.Builder.Default
+        private double worstCv = 0.50;
+
+        // Rebalance rounds (defaults match hard-coded values before Commit C)
+        @lombok.Builder.Default
+        private int rebalanceRoundsTotal = 80;
+        @lombok.Builder.Default
+        private int rebalanceRoundsPerType = 30;
+        @lombok.Builder.Default
+        private int rebalanceRoundsEg = 40;
+        @lombok.Builder.Default
+        private int rebalanceRoundsPostSave = 100;
+
+        /**
+         * L01 adjacent day window derived from overnightRecoveryHours.
+         * Ceil(hours / 24) = số ngày cấm L01 trước/sau 1 L01 đã gán.
+         * Default 24h → W=1 (trùng hành vi cũ ±1). 48h → W=2.
+         */
+        public int getL01AdjacentDayWindow() {
+            return overnightRecoveryHours > 0
+                    ? (int) Math.ceil(overnightRecoveryHours / 24.0)
+                    : 1;
+        }
     }
 }

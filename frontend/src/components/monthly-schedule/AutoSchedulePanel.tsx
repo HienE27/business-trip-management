@@ -41,7 +41,7 @@ export type AutoSchedulePanelProps = {
   selectedPeriod: SchedulePeriod | null;
   selectedPeriodId: number | null;
   selectedPeriodStatus?: string;
-  onPreview: (useRecommendedConfig?: boolean) => void;
+  onPreview: (useRecommendedConfig?: boolean, recommendedConfig?: Record<string, unknown>) => void;
   onApplyPreview: () => void;
   onResetEdits: () => void;
   onEditPreviewItem?: (item: import("@/types/api").AutoScheduleSummary) => void;
@@ -86,6 +86,21 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
     recommendedConfig: Record<string, unknown>;
     totalShiftsExpected: number;
     rationale: string;
+    demandRatio?: Record<string, number>;
+    fairnessType?: string;
+    crossSpecialtyPolicy?: string;
+    expectedMetrics?: {
+      estimatedCoverageMin?: number;
+      estimatedFairnessScore?: number;
+      estimatedQualityScore?: number;
+      targetCv?: number;
+      worstCv?: number;
+    };
+    warnings?: string[];
+    /** Commit B: true nếu có actual requirements từ kỳ hiện tại */
+    hasRequirementData?: boolean;
+    /** Commit B: actual demand từ period requirements (theo L01/L02/L03/L04) */
+    demandFromPeriod?: { L01: number; L02: number; L03: number; L04: number };
   } | null>(null);
   const [applyingRecommend, setApplyingRecommend] = useState(false);
   const [recommendMessage, setRecommendMessage] = useState<string | null>(null);
@@ -107,6 +122,8 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   const crossSpecialtyCount = previewResult?.schedules.filter(s => s.crossSpecialty).length ?? 0;
   const coverageRate = previewResult ? Math.min(Math.round(parseNumber(previewResult.coverageRate)), 100) : 0;
   const balanceScore = previewResult ? parseNumber(previewResult.balanceScore) : 0;
+  const balanceScoreMinPct = previewResult?.balanceScoreMinPct;
+  const belowBalanceMin = previewResult?.belowBalanceMin;
   // New metrics from quality report
   const qr = previewResult?.qualityReport;
   const eligibleGroupFairness = qr?.eligibleGroupFairnessScore ?? balanceScore;
@@ -142,25 +159,83 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
         ? Math.max(1, Math.round((Date.parse(selectedPeriod.endDate) - Date.parse(selectedPeriod.startDate)) / 86400000) + 1)
         : 31;
       const periodWeeks = Math.max(1, Math.ceil(periodDays / 7));
-      const eligibleStaffMap = { L01: totalStaff, L02: totalStaff, L03: totalStaff, L04: totalStaff };
 
-      // Gọi backend API để tính toán đề xuất theo đúng kỳ đang chọn
+      // eligibleStaff: count specialty groups for L04, total for L01/L02/L03
+      const l04Specialties = analysisList.filter(a =>
+        specialtyNames.includes(a.specialtyName) && a.specialtyName !== "Không có chuyên khoa"
+      );
+      const eligibleStaffMap = {
+        L01: totalStaff,
+        L02: totalStaff,
+        L03: totalStaff,
+        L04: Math.max(1, l04Specialties.reduce((sum, a) => sum + a.staffCount, 0)),
+      };
+
+      // ── Đọc actual requirements từ kỳ hiện tại ──
+      // Nếu không có requirements → hiển thị "chưa có dữ liệu", không fallback im lặng.
+      let hasRequirementData = false;
+      const demandFromPeriod: { L01: number; L02: number; L03: number; L04: number } = { L01: 0, L02: 0, L03: 0, L04: 0 };
+      if (selectedPeriodId) {
+        try {
+          const reqs: Array<{ shiftType?: { id?: string }; requiredStaffCount?: number }> = await api.getShiftRequirements(selectedPeriodId);
+          if (reqs.length > 0) {
+            hasRequirementData = true;
+            for (const r of reqs) {
+              const stId = r.shiftType?.id?.toUpperCase() ?? "";
+              const cnt = r.requiredStaffCount ?? 0;
+              if (stId === "L01") demandFromPeriod.L01 += cnt;
+              else if (stId === "L02") demandFromPeriod.L02 += cnt;
+              else if (stId === "L03") demandFromPeriod.L03 += cnt;
+              else if (stId === "L04") demandFromPeriod.L04 += cnt;
+            }
+          }
+        } catch { /* requirements fetch failed — treat as no data */ }
+      }
+
+      // Backend dùng demand để tính recommendation.
+      // Nếu có actual requirements → truyền demand từ period.
+      // Nếu không → backend fallback sang historical ratios và frontend ghi rõ nguồn.
       const res = await api.recommendAutoGenConfig({
         periodDays,
         periodWeeks,
-	        totalStaff,
-	        eligibleStaff: eligibleStaffMap,
-	        targetPerStaffPerMonth: { L01: 8, L02: 7, L03: 8, L04: 3 },
-	        expandNonL04Eligibility: true,
-	        expandedSpecialties: specialtyNames,
-	      }) as unknown as { data: { recommendedConfig: Record<string, unknown>; totalShiftsExpected: number; rationale: string } };
+        totalStaff,
+        eligibleStaff: eligibleStaffMap,
+        targetPerStaffPerMonth: { L01: 0, L02: 0, L03: 0, L04: 0 },
+        expandNonL04Eligibility: true,
+        expandedSpecialties: specialtyNames,
+      }) as unknown as {
+        data: {
+          recommendedConfig: Record<string, unknown>;
+          totalShiftsExpected: number;
+          rationale: string;
+          demandRatio?: Record<string, number>;
+          fairnessType?: string;
+          crossSpecialtyPolicy?: string;
+          expectedMetrics?: {
+            estimatedCoverageMin?: number;
+            estimatedFairnessScore?: number;
+            estimatedQualityScore?: number;
+            targetCv?: number;
+            worstCv?: number;
+          };
+          warnings?: string[];
+        }
+      };
 
-	      const { recommendedConfig, totalShiftsExpected, rationale } = res.data;
+      const { recommendedConfig, totalShiftsExpected, rationale,
+        demandRatio, fairnessType, crossSpecialtyPolicy, expectedMetrics, warnings } = res.data;
 
 	      setRecommendResult({
 	        recommendedConfig,
 	        totalShiftsExpected,
 	        rationale,
+	        demandRatio,
+	        fairnessType,
+	        crossSpecialtyPolicy,
+	        expectedMetrics,
+	        warnings,
+	        hasRequirementData,
+	        demandFromPeriod,
 	      });
 	    } catch (err) {
 	      setRecommendMessage(getErrorMessage(err, "Phân tích thất bại"));
@@ -171,60 +246,12 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
   const handleApplyRecommend = async () => {
     if (!recommendResult) return;
-    setApplyingRecommend(true);
-    try {
-      const rc = recommendResult.recommendedConfig;
-      // 1. Lưu config đề xuất vào DB
-      const payload = {
-        enabled: true,
-        holidayMode: rc.holidayMode as string ?? "SKIP",
-        l01MinPerDay: rc.l01MinPerDay as number ?? 0, l02MinPerDay: rc.l02MinPerDay as number ?? 0,
-        l03MinPerDay: rc.l03MinPerDay as number ?? 0, l04MinPerDay: rc.l04MinPerDay as number ?? 0,
-        l01MaxPerDay: rc.l01MaxPerDay as number ?? 0, l02MaxPerDay: rc.l02MaxPerDay as number ?? 0,
-        l03MaxPerDay: rc.l03MaxPerDay as number ?? 0, l04MaxPerDay: rc.l04MaxPerDay as number ?? 0,
-        l01MinPerWeek: rc.l01MinPerWeek as number ?? 0, l02MinPerWeek: rc.l02MinPerWeek as number ?? 0,
-        l03MinPerWeek: rc.l03MinPerWeek as number ?? 0, l04MinPerWeek: rc.l04MinPerWeek as number ?? 0,
-        l01MaxPerWeek: rc.l01MaxPerWeek as number ?? 0, l02MaxPerWeek: rc.l02MaxPerWeek as number ?? 0,
-        l03MaxPerWeek: rc.l03MaxPerWeek as number ?? 0, l04MaxPerWeek: rc.l04MaxPerWeek as number ?? 0,
-        removedShiftTypes: (rc.removedShiftTypes as string[]) ?? [],
-        l04CrossSpecialty: (rc.l04CrossSpecialty as boolean) ?? true,
-        l04CrossSpecialtyRatio: (rc.l04CrossSpecialtyRatio as number) ?? 1.0,
-        l04AllowedSpecialties: (rc.l04AllowedSpecialties as string[]) ?? [],
-        l01AllowedSpecialties: (rc.l01AllowedSpecialties as string[]) ?? [],
-        l02AllowedSpecialties: (rc.l02AllowedSpecialties as string[]) ?? [],
-        l03AllowedSpecialties: (rc.l03AllowedSpecialties as string[]) ?? [],
-      };
-      await api.updateAutoGenConfig(payload);
-
-      // Đồng bộ runtime config với trang cấu hình thuật toán.
-      const runtimeRes = await api.getRuntimeConfig();
-      await api.updateRuntimeConfig(runtimeRes.data);
-
-      // 2. Xóa toàn bộ requirements cũ
-      if (selectedPeriodId) {
-        await api.delete(`/shift-requirements/period/${selectedPeriodId}`);
-      }
-
-      // 3. Verify config đã lưu thành công
-      const verifyRes = await api.getAutoGenConfig() as unknown as { data: Record<string, unknown> };
-      const saved = verifyRes?.data ?? {};
-      const savedL04Max = saved.l04MaxPerDay;
-      const expectedL04Max = (rc.l04MaxPerDay as number) ?? 1;
-      if (savedL04Max !== expectedL04Max) {
-        setRecommendMessage(`Lưu config thất bại (l04MaxPerDay=${savedL04Max}, expected=${expectedL04Max}). Thử lại.`);
-        setApplyingRecommend(false);
-        return;
-      }
-
-      // 4. Chạy preview với config mới
-      setRecommendResult(null);
-      setRecommendMessage(`✅ Đã áp dụng: L01-L03 max/ngày=${rc.l01MaxPerDay}, L04 max/ngày=${rc.l04MaxPerDay}, Cross-Specialty=${rc.l04CrossSpecialty ? 'BẬT' : 'TẮT'}. Đang chạy...`);
-      onPreview(true);
-    } catch (err) {
-      setRecommendMessage(getErrorMessage(err, "Áp dụng thất bại"));
-    } finally {
-      setApplyingRecommend(false);
-    }
+    // Commit B (Workflow M07): Apply Recommendation → preview without persisting.
+    // Preview runs with the recommended config IN-MEMORY via recommendedConfig field.
+    // Config is NOT saved to DB here — only "Lưu làm mặc định" persists.
+    setRecommendResult(null);
+    setRecommendMessage(`Đang chạy preview với cấu hình đề xuất...`);
+    onPreview(true, recommendResult.recommendedConfig);
   };
 
   // KPI tone helpers
@@ -325,6 +352,14 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               </Badge>
               </span>
             )}
+            {belowBalanceMin && balanceScoreMinPct != null && !runningAutoSchedule && (
+              <span role="status" aria-live="polite">
+              <Badge tone="warning" size="sm">
+                <span className="material-symbols-outlined text-[12px]">balance</span>
+                Cân bằng {Math.round(balanceScore)}% &lt; ngưỡng {Math.round(balanceScoreMinPct)}%
+              </Badge>
+              </span>
+            )}
             {recommendMessage && (
               <span role="status" aria-live="polite">
               <Badge tone="success" size="sm">
@@ -349,6 +384,97 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               <p className="text-[12px] text-on-surface-variant whitespace-pre-line bg-surface-container-lowest rounded-lg p-3 border border-outline-variant">
                 {recommendResult.rationale}
               </p>
+
+              {/* Data source indicator */}
+              <div className="flex items-center gap-2 text-[11px] text-on-surface-variant">
+                <span className="material-symbols-outlined text-[12px]">database</span>
+                {recommendResult.hasRequirementData
+                  ? <span>Nguồn: dữ liệu kỳ hiện tại — {recommendResult.demandFromPeriod
+                      ? `L01=${recommendResult.demandFromPeriod.L01}, L02=${recommendResult.demandFromPeriod.L02}, L03=${recommendResult.demandFromPeriod.L03}, L04=${recommendResult.demandFromPeriod.L04} (tổng)`
+                      : ""}
+                    </span>
+                  : <span>Nguồn: historical ratios (kỳ trước) — không có dữ liệu kỳ hiện tại</span>
+                }
+              </div>
+
+              {/* Fairness type + cross-specialty policy badges */}
+              <div className="flex flex-wrap items-center gap-2">
+                {recommendResult.fairnessType && (
+                  <Badge tone={recommendResult.fairnessType === "INTRA_TYPE_WITH_INTER_BALANCE" ? "info" : "neutral"} size="sm">
+                    <span className="material-symbols-outlined text-[12px]">tune</span>
+                    {recommendResult.fairnessType === "INTRA_TYPE_WITH_INTER_BALANCE"
+                      ? "Intra-type + Inter-balance (soft)"
+                      : "Intra-type fairness"}
+                  </Badge>
+                )}
+                {recommendResult.crossSpecialtyPolicy && (
+                  <Badge tone="neutral" size="sm">
+                    <span className="material-symbols-outlined text-[12px]">account_tree</span>
+                    {recommendResult.crossSpecialtyPolicy}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Expected metrics */}
+              {recommendResult.expectedMetrics && (
+                <div className="grid grid-cols-3 gap-2 text-[11px]">
+                  <div className="bg-surface-container-lowest rounded-lg px-3 py-2 border border-outline-variant">
+                    <p className="text-on-surface-variant mb-0.5">Coverage est.</p>
+                    <p className="font-semibold text-on-surface tabular-nums">
+                      {recommendResult.expectedMetrics.estimatedCoverageMin != null
+                        ? `${Math.round(recommendResult.expectedMetrics.estimatedCoverageMin)}%` : "—"}
+                    </p>
+                  </div>
+                  <div className="bg-surface-container-lowest rounded-lg px-3 py-2 border border-outline-variant">
+                    <p className="text-on-surface-variant mb-0.5">Fairness est.</p>
+                    <p className="font-semibold text-on-surface tabular-nums">
+                      {recommendResult.expectedMetrics.estimatedFairnessScore != null
+                        ? `${Math.round(recommendResult.expectedMetrics.estimatedFairnessScore)}` : "—"}
+                    </p>
+                  </div>
+                  <div className="bg-surface-container-lowest rounded-lg px-3 py-2 border border-outline-variant">
+                    <p className="text-on-surface-variant mb-0.5">Quality est.</p>
+                    <p className="font-semibold text-on-surface tabular-nums">
+                      {recommendResult.expectedMetrics.estimatedQualityScore != null
+                        ? `${Math.round(recommendResult.expectedMetrics.estimatedQualityScore)}` : "—"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Demand ratio */}
+              {recommendResult.demandRatio && (
+                <div className="bg-surface-container-lowest rounded-lg p-3 border border-outline-variant">
+                  <p className="text-label-sm font-medium text-on-surface mb-2">Demand ratio (ca/ngày)</p>
+                  <div className="grid grid-cols-4 gap-2 text-[11px]">
+                    {(["L01","L02","L03","L04"] as const).map(st => (
+                      <div key={st} className="flex items-center gap-1.5">
+                        <span className="font-semibold text-on-surface w-6">{st}</span>
+                        <div className="flex-1 h-3 bg-surface-variant rounded-full overflow-hidden">
+                          <div className="h-full bg-secondary rounded-full"
+                            style={{
+                              width: `${Math.min(100, ((recommendResult.demandRatio?.[st] ?? 0) / Math.max(...Object.values(recommendResult.demandRatio ?? {L01:1,L02:1,L03:1,L04:1})) * 100))}%`
+                            }} />
+                        </div>
+                        <span className="tabular-nums text-on-surface-variant w-4 text-right">
+                          {recommendResult.demandRatio?.[st] ?? "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Trade-off warnings */}
+              {recommendResult.warnings && recommendResult.warnings.length > 0 && (
+                <div className="space-y-1">
+                  {recommendResult.warnings.map((w, i) => (
+                    <div key={i} className="text-[11px] text-warning-container bg-warning-container/20 rounded-lg px-3 py-2 border border-warning/30">
+                      {w}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Per-specialty breakdown */}
               <div className="bg-surface-container-lowest rounded-lg p-3 border border-outline-variant">
@@ -614,7 +740,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                         <p className="text-[10px] text-on-surface-variant leading-relaxed">
                           <span className="font-semibold">Phân tích:</span> Các nhóm eligibility được tính riêng. 
                           Mỗi nhóm L04 theo chuyên khoa là một nhóm riêng. 
-                          Nhóm chỉ có 1 người (Mắt) được loại khỏi chỉ số "Cân bằng (nhóm)" vì không có sự cạnh tranh.
+                          Nhóm chỉ có 1 người (Mắt) được loại khỏi chỉ số &quot;Cân bằng (nhóm)&quot; vì không có sự cạnh tranh.
                           {crossSpecialtyCount > 0 ? ` ${crossSpecialtyCount} ca L04 được gán chéo chuyên khoa.` : ''}
                         </p>
                       </div>
@@ -728,7 +854,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                         Một số chuyên khoa chỉ có rất ít nhân sự (vd: Mắt 1 người). 
                         Người này phải đảm nhận toàn bộ ca L04 của chuyên khoa đó. 
                         Đây là hạn chế của nguồn nhân lực, không phải do thuật toán phân công.
-                        Các nhóm chỉ có 1 người được loại khỏi chỉ số "Cân bằng (nhóm)" để phản ánh đúng chất lượng thuật toán.
+                        Các nhóm chỉ có 1 người được loại khỏi chỉ số &quot;Cân bằng (nhóm)&quot; để phản ánh đúng chất lượng thuật toán.
                       </p>
                     </div>
                   )}

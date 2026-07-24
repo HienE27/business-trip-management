@@ -16,12 +16,23 @@ export type RuntimeConfig = {
   greedyCoverageThreshold: number;
   balanceScoreMin: number;
   autoCompensationEnabled: boolean;
-  minStaffPerShift: number;
   maxStaffPerShift: number;
-  minShiftsPerStaff: number;
   maxShiftsPerStaff: number;
   maxShiftsPerDay?: number;
   autoAdjustConfig?: boolean;
+  beamWidth?: number;
+  coverageWeight?: number;
+  fairnessWeight?: number;
+  constraintWeight?: number;
+  passThreshold?: number;
+  hardViolationPenalty?: number;
+  softViolationPenalty?: number;
+  targetCv?: number;
+  worstCv?: number;
+  rebalanceRoundsTotal?: number;
+  rebalanceRoundsPerType?: number;
+  rebalanceRoundsEg?: number;
+  rebalanceRoundsPostSave?: number;
   l01MinPerDay?: number; l02MinPerDay?: number; l03MinPerDay?: number; l04MinPerDay?: number;
   l01MaxPerDay?: number; l02MaxPerDay?: number; l03MaxPerDay?: number; l04MaxPerDay?: number;
   l01MinPerWeek?: number; l02MinPerWeek?: number; l03MinPerWeek?: number; l04MinPerWeek?: number;
@@ -31,7 +42,15 @@ export type RuntimeConfig = {
   l04CrossSpecialty?: boolean;
   l04CrossSpecialtyRatio?: number;
   l04AllowedSpecialties?: string[];
+  l01AllowedSpecialties?: string[];
+  l02AllowedSpecialties?: string[];
+  l03AllowedSpecialties?: string[];
   l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
+  /** Target ca/người/tháng — input editable cho recommend. Persist vào DB. */
+  l01TargetPerMonth?: number;
+  l02TargetPerMonth?: number;
+  l03TargetPerMonth?: number;
+  l04TargetPerMonth?: number;
 };
 
 export type AlgorithmMetrics = {
@@ -58,7 +77,15 @@ export type AutoGenConfigPayload = {
   l04CrossSpecialty?: boolean;
   l04CrossSpecialtyRatio?: number;
   l04AllowedSpecialties?: string[];
+  l01AllowedSpecialties?: string[];
+  l02AllowedSpecialties?: string[];
+  l03AllowedSpecialties?: string[];
   l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
+  /** Target ca/người/tháng — input editable cho recommend. Persist vào DB. */
+  l01TargetPerMonth?: number;
+  l02TargetPerMonth?: number;
+  l03TargetPerMonth?: number;
+  l04TargetPerMonth?: number;
 };
 
 export type TabKey = "config" | "history" | "audit" | "reference";
@@ -75,6 +102,7 @@ export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([
   "l04CrossSpecialtyRatio",
   "l04AllowedSpecialties",
   "l04BalanceStrategy",
+  "l01TargetPerMonth", "l02TargetPerMonth", "l03TargetPerMonth", "l04TargetPerMonth",
 ]);
 
 /** Map snake_case param key (URL/draft) sang camelCase RuntimeConfig field */
@@ -83,12 +111,25 @@ export const PARAM_KEY_TO_CFG: Record<string, keyof RuntimeConfig> = {
   balance_score_min: "balanceScoreMin",
   weekend_weight: "weekendWeight",
   overnight_recovery_hours: "overnightRecoveryHours",
-  min_staff_per_shift: "minStaffPerShift",
   max_staff_per_shift: "maxStaffPerShift",
-  min_shifts_per_staff: "minShiftsPerStaff",
   max_shifts_per_staff: "maxShiftsPerStaff",
+  max_shifts_per_day: "maxShiftsPerDay",
+  auto_adjust_config: "autoAdjustConfig",
   holiday_mode: "holidayMode",
-};
+  scorer_coverage_weight: "coverageWeight",
+  scorer_fairness_weight: "fairnessWeight",
+  scorer_constraint_weight: "constraintWeight",
+  scorer_pass_threshold: "passThreshold",
+  scorer_hard_violation_penalty: "hardViolationPenalty",
+  scorer_soft_violation_penalty: "softViolationPenalty",
+  scorer_target_cv: "targetCv",
+  scorer_worst_cv: "worstCv",
+  rebalance_rounds_total: "rebalanceRoundsTotal",
+  rebalance_rounds_per_type: "rebalanceRoundsPerType",
+  rebalance_rounds_eg: "rebalanceRoundsEg",
+	  rebalance_rounds_post_save: "rebalanceRoundsPostSave",
+	  beam_width: "beamWidth",
+	};
 
 export const LEGACY_AUTO_GEN_KEYS = new Set<string>([
   "auto_generate_requirements",

@@ -15,6 +15,7 @@ import com.hospital.scheduler.util.ScheduleKeyUtils;
 import com.hospital.scheduler.algorithm.AutoGenConfig;
 import com.hospital.scheduler.algorithm.BeamSearchScheduler;
 import com.hospital.scheduler.algorithm.EnhancedGreedyScheduler;
+import com.hospital.scheduler.algorithm.L04CrossSpecialtyConfig;
 import com.hospital.scheduler.algorithm.RandomRestartHCScheduler;
 import com.hospital.scheduler.algorithm.SimulatedAnnealingScheduler;
 import com.hospital.scheduler.algorithm.CpSatScheduler;
@@ -27,6 +28,7 @@ import com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -65,7 +67,7 @@ public class AutoSchedulingService {
     private final ShiftTypeRepository shiftTypeRepository;
     private final SpecialtyRepository specialtyRepository;
     private final AlgorithmProgressTracker progressTracker;
-    private final ScheduleQualityScorer scheduleQualityScorer;
+    private final ObjectProvider<ScheduleQualityScorer> scheduleQualityScorerProvider;
 
     // New extracted services
     final CompensationDayAutoService compensationDayAutoService;
@@ -101,8 +103,18 @@ public class AutoSchedulingService {
     /** Tracks when each period's execution lock was acquired (epoch millis). Used to detect stale locks. */
     private final java.util.concurrent.ConcurrentHashMap<Integer, Long> lockAcquiredAt =
             new java.util.concurrent.ConcurrentHashMap<>();
-    /** Stale lock threshold: if a lock is held longer than this (ms), a new request may override it. */
-    private static final long STALE_LOCK_TIMEOUT_MS = 60_000L;
+    /**
+     * Stale lock threshold: if a lock is held longer than this (ms), a new request may override it.
+     *
+     * Tuned down from 60s → 15s for demo UX: long-running algorithms (CP-SAT ~33s solve,
+     * Beam ~22s) keep the ReentrantLock held even after the client disconnects/refreshes,
+     * because Java threads can't be force-stopped mid-CPU-bound work. The previous 60s
+     * window forced the user to wait a full minute after a refresh before re-running
+     * preview. 15s is still long enough to not collide with genuinely concurrent calls
+     * (which fail fast with 400 anyway) but short enough that a refresh → re-preview
+     * cycle recovers within ~15s.
+     */
+    private static final long STALE_LOCK_TIMEOUT_MS = 15_000L;
 
     // Pre-loaded period-level conflict data (rebuilt each scheduling run)
     record BatchConflictData(
@@ -466,11 +478,20 @@ public class AutoSchedulingService {
                         period.getId(), com.hospital.scheduler.entity.LeaveRequest.LeaveStatus.APPROVED);
         com.hospital.scheduler.algorithm.AutoGenConfig autoGenCfgForApply =
                 algorithmConfigService.getAutoGenConfig().orElse(null);
-        com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta scoringMetaForApply =
-                com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta
-                        .of(request.getAlgorithmType(), 0L);
-        com.hospital.scheduler.algorithm.scoring.ScheduleQualityReport qualityReportForApply =
-                scheduleQualityScorer.score(
+	        var runtimeCfgForApply = algorithmConfigService.getRuntimeConfig();
+	        var scorerForApply = scheduleQualityScorerProvider.getObject();
+	        scorerForApply.withWeights(
+	                runtimeCfgForApply.getCoverageWeight().doubleValue(),
+	                runtimeCfgForApply.getFairnessWeight().doubleValue(),
+	                runtimeCfgForApply.getConstraintWeight().doubleValue())
+	                .withPassThreshold(runtimeCfgForApply.getPassThreshold())
+	                .withViolationPenalties(runtimeCfgForApply.getHardViolationPenalty(), runtimeCfgForApply.getSoftViolationPenalty())
+	                .withCvTargets(runtimeCfgForApply.getTargetCv(), runtimeCfgForApply.getWorstCv());
+	        com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta scoringMetaForApply =
+	                com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta
+	                        .of(request.getAlgorithmType(), 0L);
+	        com.hospital.scheduler.algorithm.scoring.ScheduleQualityReport qualityReportForApply =
+	                scorerForApply.score(
                         savedSchedules, periodRequirements, activeStaffForApply,
                         compDaysForApply, approvedLeavesForApply, scoringMetaForApply, autoGenCfgForApply);
 
@@ -588,7 +609,11 @@ public class AutoSchedulingService {
 	        AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig = algorithmConfigService.getRuntimeConfig();
 
 		        // ── AUTO-ADJUST CONFIG: Algorithm reads dataset and adjusts config ──
-		        boolean autoAdjust = runtimeConfig.isAutoAdjustConfig() && !Boolean.TRUE.equals(request.getUseRecommendedConfig());
+		        // Commit B (Workflow M07): When inline recommended config is provided, skip auto-adjust
+		        // so the explicit recommendation is used verbatim during preview.
+		        boolean autoAdjust = request.getRecommendedConfig() == null
+			                && runtimeConfig.isAutoAdjustConfig()
+			                && !Boolean.TRUE.equals(request.getUseRecommendedConfig());
 
 		        // Load active staff count for capacity calculation
 		        List<Staff> activeStaffForAuto = staffRepository.findByIsActiveTrue();
@@ -607,8 +632,11 @@ public class AutoSchedulingService {
                 }
 
 		        // Tính tổng yêu cầu từ config
-		        var autoGenCfg = algorithmConfigService.getAutoGenConfig();
-		        com.hospital.scheduler.algorithm.AutoGenConfig effectiveConfig = autoGenCfg.orElse(null);
+		        // Commit B (Workflow M07): Use inline recommended config if provided (from "Apply Recommendation"
+		        // preview flow). This lets preview run without persisting config to DB first.
+		        var effectiveConfig = request.getRecommendedConfig() != null
+			                ? request.getRecommendedConfig()
+			                : algorithmConfigService.getAutoGenConfig().orElse(null);
 		        if (autoAdjust && effectiveConfig != null) {
             int estimatedDaily = effectiveConfig.l01MaxPerDay() + effectiveConfig.l02MaxPerDay() + effectiveConfig.l03MaxPerDay()
                     + effectiveConfig.l04MaxPerDay();
@@ -628,21 +656,24 @@ public class AutoSchedulingService {
 	                        effectiveConfig.l02MaxPerDay(), newL02Max,
 	                        effectiveConfig.l03MaxPerDay(), newL03Max,
 	                        effectiveConfig.l04MaxPerDay(), newL04Max);
-		                effectiveConfig = new com.hospital.scheduler.algorithm.AutoGenConfig(
-		                        effectiveConfig.enabled(),
-		                        effectiveConfig.l01MinPerDay(), effectiveConfig.l02MinPerDay(), effectiveConfig.l03MinPerDay(), effectiveConfig.l04MinPerDay(),
-		                        newL01Max, newL02Max, newL03Max, newL04Max,
-		                        effectiveConfig.l01MinPerWeek(), effectiveConfig.l02MinPerWeek(), effectiveConfig.l03MinPerWeek(), effectiveConfig.l04MinPerWeek(),
-		                        effectiveConfig.l01MaxPerWeek(), effectiveConfig.l02MaxPerWeek(), effectiveConfig.l03MaxPerWeek(), effectiveConfig.l04MaxPerWeek(),
-		                        effectiveConfig.holidayMode(),
-		                        effectiveConfig.removedShiftTypes() != null ? effectiveConfig.removedShiftTypes() : java.util.List.of(),
-		                        effectiveConfig.l04CrossSpecialty(),
-		                        effectiveConfig.l04CrossSpecialtyRatio(),
-		                        effectiveConfig.l04AllowedSpecialties() != null ? effectiveConfig.l04AllowedSpecialties() : java.util.List.of(),
-		                        effectiveConfig.l01AllowedSpecialties() != null ? effectiveConfig.l01AllowedSpecialties() : java.util.List.of(),
-		                        effectiveConfig.l02AllowedSpecialties() != null ? effectiveConfig.l02AllowedSpecialties() : java.util.List.of(),
-		                        effectiveConfig.l03AllowedSpecialties() != null ? effectiveConfig.l03AllowedSpecialties() : java.util.List.of()
-		                );
+	                effectiveConfig = new com.hospital.scheduler.algorithm.AutoGenConfig(
+	                        effectiveConfig.enabled(),
+	                        effectiveConfig.l01MinPerDay(), effectiveConfig.l02MinPerDay(), effectiveConfig.l03MinPerDay(), effectiveConfig.l04MinPerDay(),
+	                        newL01Max, newL02Max, newL03Max, newL04Max,
+	                        effectiveConfig.l01MinPerWeek(), effectiveConfig.l02MinPerWeek(), effectiveConfig.l03MinPerWeek(), effectiveConfig.l04MinPerWeek(),
+	                        effectiveConfig.l01MaxPerWeek(), effectiveConfig.l02MaxPerWeek(), effectiveConfig.l03MaxPerWeek(), effectiveConfig.l04MaxPerWeek(),
+	                        effectiveConfig.holidayMode(),
+	                        effectiveConfig.removedShiftTypes() != null ? effectiveConfig.removedShiftTypes() : java.util.List.of(),
+	                        effectiveConfig.l04CrossSpecialty(),
+	                        effectiveConfig.l04CrossSpecialtyRatio(),
+	                        effectiveConfig.l04AllowedSpecialties() != null ? effectiveConfig.l04AllowedSpecialties() : java.util.List.of(),
+	                        effectiveConfig.l01AllowedSpecialties() != null ? effectiveConfig.l01AllowedSpecialties() : java.util.List.of(),
+	                        effectiveConfig.l02AllowedSpecialties() != null ? effectiveConfig.l02AllowedSpecialties() : java.util.List.of(),
+	                        effectiveConfig.l03AllowedSpecialties() != null ? effectiveConfig.l03AllowedSpecialties() : java.util.List.of(),
+                        effectiveConfig.l01TargetPerMonth(), effectiveConfig.l02TargetPerMonth(),
+                        effectiveConfig.l03TargetPerMonth(), effectiveConfig.l04TargetPerMonth(),
+                        effectiveConfig.l04BalanceStrategy()
+                );
 		            }
 		        }
 
@@ -761,53 +792,44 @@ public class AutoSchedulingService {
         }
 
         List<Schedule> createdSchedules;
-	        if ("BEAM_SEARCH".equals(algorithmType)) {
-	            log.info("Running Beam Search for period {}", period.getId());
-	            createdSchedules = beamSearchScheduler.solve(
-	                    activeStaff, requirements, period, runtimeConfig,
-	                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-	        } else if ("ENHANCED_GREEDY".equals(algorithmType)) {
-	            log.info("Running Enhanced Greedy for period {}", period.getId());
-		            createdSchedules = enhancedGreedyScheduler.solve(
-		                    activeStaff, requirements, period, runtimeConfig,
-		                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null,
-		                    effectiveConfig != null && effectiveConfig.l04CrossSpecialty());
-	        } else if ("RANDOM_RESTART_HC".equals(algorithmType)) {
-	            log.info("Running Random Restart HC for period {}", period.getId());
-	            createdSchedules = randomRestartHCScheduler.solve(
-	                    activeStaff, requirements, period, runtimeConfig,
-	                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-	        } else if ("SIMULATED_ANNEALING".equals(algorithmType)) {
-	            log.info("Running Simulated Annealing for period {}", period.getId());
-	            createdSchedules = simulatedAnnealingScheduler.solve(
-	                    activeStaff, requirements, period, runtimeConfig,
-	                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-	        } else if ("CP_SAT".equals(algorithmType)) {
-	            log.info("Running CP-SAT for period {}", period.getId());
-	            createdSchedules = cpSatScheduler.solve(
-	                    activeStaff, requirements, period, runtimeConfig,
-	                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-	        } else {
-	            log.info("Running Greedy for period {}", period.getId());
-	            createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
-	                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
-	        }
-        int greedyStaffCount = (int) createdSchedules.stream().map(s -> s.getStaff().getId()).distinct().count();
-        BigDecimal greedyBalanceScore = calculateBalanceScore(createdSchedules, greedyStaffCount > 0 ? greedyStaffCount : 1);
-
-        // balance_score_min: if balance is below threshold, log it (no fallback needed)
-        // Beam Search already handles fairness, Greedy has ~99% balance naturally.
-        BigDecimal bestScore = greedyBalanceScore;
-        List<Schedule> bestSchedules = createdSchedules;
-
-        if (greedyBalanceScore.compareTo(runtimeConfig.getBalanceScoreMin()) < 0 && !activeStaff.isEmpty()) {
-            log.info("{} balance score {} < threshold {} — result still usable",
-                    algorithmType, greedyBalanceScore, runtimeConfig.getBalanceScoreMin());
+        var l04CrossConfig = getL04CrossSpecialtyConfig();
+        var l04Config = new L04CrossSpecialtyConfig(
+                l04CrossConfig.enabled(), l04CrossConfig.ratio(), l04CrossConfig.allowedSpecialties());
+        if ("BEAM_SEARCH".equals(algorithmType)) {
+            log.info("Running Beam Search for period {}", period.getId());
+            createdSchedules = beamSearchScheduler.solve(
+                    activeStaff, requirements, period, runtimeConfig,
+                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null,
+                    l04Config);
+        } else if ("ENHANCED_GREEDY".equals(algorithmType)) {
+            log.info("Running Enhanced Greedy for period {}", period.getId());
+            createdSchedules = enhancedGreedyScheduler.solve(
+                    activeStaff, requirements, period, runtimeConfig,
+                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null,
+                    l04Config);
+        } else if ("RANDOM_RESTART_HC".equals(algorithmType)) {
+            log.info("Running Random Restart HC for period {}", period.getId());
+            createdSchedules = randomRestartHCScheduler.solve(
+                    activeStaff, requirements, period, runtimeConfig,
+                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null,
+                    l04Config);
+        } else if ("SIMULATED_ANNEALING".equals(algorithmType)) {
+            log.info("Running Simulated Annealing for period {}", period.getId());
+            createdSchedules = simulatedAnnealingScheduler.solve(
+                    activeStaff, requirements, period, runtimeConfig,
+                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null,
+                    l04Config);
+        } else if ("CP_SAT".equals(algorithmType)) {
+            log.info("Running CP-SAT for period {}", period.getId());
+            createdSchedules = cpSatScheduler.solve(
+                    activeStaff, requirements, period, runtimeConfig,
+                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null,
+                    l04Config);
+        } else {
+            log.info("Running Greedy for period {}", period.getId());
+            createdSchedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig,
+                    request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null);
         }
-
-        // Use the best result
-        createdSchedules = bestSchedules;
-
         // Phase 2b: Rotation - ensure EVERY staff has ALL 4 shift types
         if (!createdSchedules.isEmpty()) {
             int rotated = applyRotationPostProcessing(createdSchedules, requirements, activeStaff);
@@ -834,7 +856,7 @@ public class AutoSchedulingService {
 
         // Phase 3: Local Search fairness rebalance.
         if (!createdSchedules.isEmpty()) {
-            int rebalanceRounds = save ? 100 : 50;
+            int rebalanceRounds = runtimeConfig.getRebalanceRoundsPostSave();
             int optimizedMoves = optimizeFairnessBySafeReassignment(createdSchedules, activeStaff, requirements, rebalanceRounds);
             if (optimizedMoves > 0) {
                 log.info("Local Search fairness optimization applied {} safe reassignment moves (rounds={})", optimizedMoves, rebalanceRounds);
@@ -858,6 +880,31 @@ public class AutoSchedulingService {
                 log.warn("HARD GUARANTEE: {} staff have 0 assignments, attempting to fix", staffWithoutShifts.size());
                 int guaranteed = guaranteeMinimumShifts(createdSchedules, staffWithoutShifts, requirements, activeStaff);
                 log.info("HARD GUARANTEE: fixed {} staff with minimum shifts", guaranteed);
+            }
+        }
+
+        // Metaheuristics (ENHANCED_GREEDY/BEAM/...) build in-memory only.
+        // Greedy path may already have ids via buildAndSaveSchedule — skip those.
+        if (save && !createdSchedules.isEmpty()) {
+            List<Schedule> toPersist = createdSchedules.stream()
+                    .filter(s -> s.getId() == null)
+                    .toList();
+            if (!toPersist.isEmpty()) {
+                List<Schedule> saved = scheduleRepository.saveAll(toPersist);
+                entityManager.flush();
+                Map<String, Schedule> byKey = new HashMap<>();
+                for (Schedule s : saved) {
+                    byKey.put(s.getStaff().getId() + "_" + s.getWorkDate() + "_" + s.getShiftType().getId(), s);
+                }
+                for (int i = 0; i < createdSchedules.size(); i++) {
+                    Schedule s = createdSchedules.get(i);
+                    if (s.getId() == null) {
+                        Schedule replaced = byKey.get(
+                                s.getStaff().getId() + "_" + s.getWorkDate() + "_" + s.getShiftType().getId());
+                        if (replaced != null) createdSchedules.set(i, replaced);
+                    }
+                }
+                log.info("Persisted {} schedules for period {}", saved.size(), period.getId());
             }
         }
 
@@ -890,11 +937,20 @@ public class AutoSchedulingService {
 
         com.hospital.scheduler.algorithm.AutoGenConfig autoGenCfgForScoring =
             algorithmConfigService.getAutoGenConfig().orElse(null);
-        com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta scoringMeta =
-                com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta
-                        .of(algorithmType, executionTime);
-        com.hospital.scheduler.algorithm.scoring.ScheduleQualityReport qualityReport =
-                scheduleQualityScorer.score(
+	        var runtimeCfgForScoring = algorithmConfigService.getRuntimeConfig();
+	        var scorerForScoring = scheduleQualityScorerProvider.getObject();
+	        scorerForScoring.withWeights(
+	                runtimeCfgForScoring.getCoverageWeight().doubleValue(),
+	                runtimeCfgForScoring.getFairnessWeight().doubleValue(),
+	                runtimeCfgForScoring.getConstraintWeight().doubleValue())
+	                .withPassThreshold(runtimeCfgForScoring.getPassThreshold())
+	                .withViolationPenalties(runtimeCfgForScoring.getHardViolationPenalty(), runtimeCfgForScoring.getSoftViolationPenalty())
+	                .withCvTargets(runtimeCfgForScoring.getTargetCv(), runtimeCfgForScoring.getWorstCv());
+	        com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta scoringMeta =
+	                com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta
+	                        .of(algorithmType, executionTime);
+	        com.hospital.scheduler.algorithm.scoring.ScheduleQualityReport qualityReport =
+	                scorerForScoring.score(
                         createdSchedules, requirements, activeStaff,
                         compDaysForScoring, approvedLeaves, scoringMeta, autoGenCfgForScoring);
         log.info("Quality report: {}", qualityReport.summary());
@@ -962,16 +1018,38 @@ public class AutoSchedulingService {
         String qualityGrade = qualityReport.getGrade();
         String scoreMsg = String.format(" [%s %.1f/100]", qualityGrade, qualityReport.getTotalScore());
 
+        // Commit B: soft-gate balanceScoreMin against final fairness (0–100).
+        // Config stores 0.0–1.0 (default 0.70 → 70). Below threshold → warn, never reject.
+        BigDecimal balanceThresholdPct = toBalanceThresholdPercent(runtimeConfig.getBalanceScoreMin());
+        boolean belowBalanceMin = isBelowBalanceThreshold(balanceScore, runtimeConfig.getBalanceScoreMin());
+        if (belowBalanceMin) {
+            log.warn("{} balance score {} < threshold {} ({}%) — result still usable",
+                    algorithmType, balanceScore, runtimeConfig.getBalanceScoreMin(), balanceThresholdPct);
+        }
+
+        String message = warnings.isEmpty()
+                ? actionType + scoreMsg
+                : actionType + " với " + warnings.size() + " cảnh báo" + scoreMsg;
+        if (belowBalanceMin) {
+            message += String.format(
+                    " | Cảnh báo cân bằng: balanceScore %s < balance_score_min %s (%s%%)",
+                    balanceScore.toPlainString(),
+                    runtimeConfig.getBalanceScoreMin() != null
+                            ? runtimeConfig.getBalanceScoreMin().toPlainString()
+                            : "0.70",
+                    balanceThresholdPct.toPlainString());
+        }
+
         var responseBuilder = AutoScheduleResponse.builder()
                 .success(true)
-                .message(warnings.isEmpty()
-                        ? actionType + scoreMsg
-                        : actionType + " với " + warnings.size() + " cảnh báo" + scoreMsg)
+                .message(message)
                 .periodId(period.getId())
                 .algorithmType(algorithmType)
                 .executionTimeMs((int) executionTime)
                 .coverageRate(coverageRate)
                 .balanceScore(balanceScore)
+                .balanceScoreMinPct(belowBalanceMin ? balanceThresholdPct : null)
+                .belowBalanceMin(belowBalanceMin ? true : null)
                 .conflictCount(actualConflictCount)
                 .totalSchedulesCreated(createdSchedules.size())
                 .schedules(scheduleSummaries)
@@ -1127,6 +1205,10 @@ public class AutoSchedulingService {
         return reportingService.getUnassignedDaysReport(periodId);
     }
 
+    public Map<String, Object> getL04SpecialtyEvalReport(Integer periodId) {
+        return reportingService.getL04SpecialtyEvalReport(periodId);
+    }
+
     // ==================== M07-F08: Đề xuất người thay thế ====================
     public Map<String, Object> suggestReplacements(Integer scheduleId) {
         return reportingService.suggestReplacements(scheduleId);
@@ -1245,10 +1327,29 @@ public class AutoSchedulingService {
         return strictMatches;
     }
 
+    /**
+     * Builds {@link SchedulingAlgorithmRunner.CrossSpecialtyConfig} from the 3-branch
+     * {@code l04BalanceStrategy} instead of the legacy boolean {@code l04CrossSpecialty}.
+     *
+     * <ul>
+     *   <li>{@code STRICT_MATCH_ONLY} — cross-specialty disabled.
+     *   <li>{@code FAIR_DISTRIBUTE} — cross-specialty enabled at full ratio (1.0).
+     *   <li>{@code WEIGHTED_FAIR} — cross-specialty enabled at user-controlled {@code l04CrossSpecialtyRatio}.
+     * </ul>
+     */
     SchedulingAlgorithmRunner.CrossSpecialtyConfig getL04CrossSpecialtyConfig() {
         return algorithmConfigService.getAutoGenConfig()
-                .map(cfg -> new SchedulingAlgorithmRunner.CrossSpecialtyConfig(cfg.l04CrossSpecialty(), cfg.l04CrossSpecialtyRatio(), cfg.l04AllowedSpecialties()))
-                .orElse(new SchedulingAlgorithmRunner.CrossSpecialtyConfig(false, 0.3f, List.of())); // Default: all specialties
+                .map(cfg -> {
+                    String strategy = cfg.l04BalanceStrategy();
+                    boolean enabled = "FAIR_DISTRIBUTE".equals(strategy)
+                            || "WEIGHTED_FAIR".equals(strategy);
+                    float ratio = "WEIGHTED_FAIR".equals(strategy)
+                            ? cfg.l04CrossSpecialtyRatio()   // user-controlled (0.0–1.0)
+                            : (enabled ? 1.0f : 0.0f);       // FAIR_DISTRIBUTE = full, STRICT = none
+                    return new SchedulingAlgorithmRunner.CrossSpecialtyConfig(
+                            enabled, ratio, cfg.l04AllowedSpecialties());
+                })
+                .orElse(new SchedulingAlgorithmRunner.CrossSpecialtyConfig(false, 0.0f, List.of()));
     }
 
     /**
@@ -1534,6 +1635,31 @@ public class AutoSchedulingService {
     }
 
     /**
+     * Convert {@code balance_score_min} (canonical 0.0–1.0) to a 0–100 percent threshold.
+     * Values already &gt; 1 are treated as percent for forward-compat with mis-seeded rows.
+     */
+    static BigDecimal toBalanceThresholdPercent(BigDecimal balanceScoreMin) {
+        if (balanceScoreMin == null) {
+            return BigDecimal.valueOf(70);
+        }
+        if (balanceScoreMin.compareTo(BigDecimal.ONE) <= 0) {
+            return balanceScoreMin.multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP);
+        }
+        return balanceScoreMin.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Soft threshold check: final fairness score (0–100) vs balance_score_min.
+     * Never rejects a schedule — callers only warn.
+     */
+    static boolean isBelowBalanceThreshold(BigDecimal balanceScore0to100, BigDecimal balanceScoreMin) {
+        if (balanceScore0to100 == null) {
+            return false;
+        }
+        return balanceScore0to100.compareTo(toBalanceThresholdPercent(balanceScoreMin)) < 0;
+    }
+
+    /**
      * Delete any persisted schedule from {@code candidate} that passes the
      * {@code shouldDelete} predicate AND is not present in {@code keep}.
      *
@@ -1711,7 +1837,8 @@ public class AutoSchedulingService {
      * - P × 1 query for compensation per day
      * → down to 4 queries total regardless of period length
      */
-    PeriodConflictData loadPeriodConflictData(SchedulePeriod period, List<ShiftRequirement> requirements, List<Staff> activeStaff) {
+    PeriodConflictData loadPeriodConflictData(SchedulePeriod period, List<ShiftRequirement> requirements, List<Staff> activeStaff,
+                                              int l01Window) {
         LocalDate periodStart = period.getStartDate();
         LocalDate periodEnd = period.getEndDate();
 
@@ -1757,15 +1884,19 @@ public class AutoSchedulingService {
         }
 
         // ── Batch 4: Load L01 schedules in adjacent range ONCE ──────────────
-        LocalDate adjStart = periodStart.minusDays(1);
-        LocalDate adjEnd = periodEnd.plusDays(2);
+        // Widen range theo l01Window để hỗ trợ overnightRecoveryHours > 24
+        LocalDate adjStart = periodStart.minusDays(l01Window + 1);
+        LocalDate adjEnd = periodEnd.plusDays(l01Window + 1);
         List<Schedule> l01Schedules = scheduleRepository.findL01SchedulesInRange(adjStart, adjEnd);
         Set<Integer> allL01StaffIds = new HashSet<>();
         Map<LocalDate, Set<Integer>> adjacentL01ByDate = new HashMap<>();
         for (Schedule s : l01Schedules) {
             allL01StaffIds.add(s.getStaff().getId());
-            adjacentL01ByDate.computeIfAbsent(s.getWorkDate().minusDays(1), k -> new HashSet<>()).add(s.getStaff().getId());
-            adjacentL01ByDate.computeIfAbsent(s.getWorkDate().plusDays(1), k -> new HashSet<>()).add(s.getStaff().getId());
+            // Map L01 schedule vào tất cả các ngày nằm trong window ±l01Window
+            for (int dt = 1; dt <= l01Window; dt++) {
+                adjacentL01ByDate.computeIfAbsent(s.getWorkDate().minusDays(dt), k -> new HashSet<>()).add(s.getStaff().getId());
+                adjacentL01ByDate.computeIfAbsent(s.getWorkDate().plusDays(dt), k -> new HashSet<>()).add(s.getStaff().getId());
+            }
         }
 
         // ── Build per-date BatchConflictData in-memory ──────────────────────
@@ -2049,6 +2180,22 @@ public class AutoSchedulingService {
                 }
             }
 
+            // 4d. maxShiftsPerDay — HARD cap tổng số ca mỗi nhân sự mỗi ngày
+            // (across shift types). Mặc định 0 = không giới hạn. Đếm từ inMemoryAssignments
+            // (cả DB-baseline khi save=true lẫn in-run assignments) — tính unique shift
+            // type trong ngày đó.
+            if (runtimeConfig != null && runtimeConfig.getMaxShiftsPerDay() > 0) {
+                int todayCount = getTodayShiftCount(staff.getId(), req.getWorkDate());
+                if (todayCount >= runtimeConfig.getMaxShiftsPerDay()) {
+                    if (log.isTraceEnabled()) {
+                        log.trace("MAX_SHIFTS_PER_DAY_BLOCK: staff={} date={} count={} max={}",
+                            staff.getId(), req.getWorkDate(), todayCount,
+                            runtimeConfig.getMaxShiftsPerDay());
+                    }
+                    continue;
+                }
+            }
+
             if (isStrictMatch) {
                 strictMatches.add(staff);
             } else {
@@ -2118,6 +2265,22 @@ public class AutoSchedulingService {
                 ? inRunCounts.values().stream().mapToLong(Long::longValue).sum()
                 : 0L;
         return db + inRun;
+    }
+
+    /**
+     * Đếm số ca đã gán cho {@code staffId} trong ngày {@code workDate} trong run hiện tại.
+     * Dùng cho filter {@code maxShiftsPerDay} — giới hạn cứng số ca mỗi nhân sự mỗi ngày.
+     *
+     * <p>Tính cả DB-baseline (loadPeriodConflictData ghi vào inMemoryAssignments) lẫn
+     * in-run assignments. DB assignments chỉ nạp khi {@code save=true} (xem
+     * runScheduling {@code Pre-load existing schedules from the same period}).
+     *
+     * <p>ponytail: nếu sau này cần tính cả DB rows khi preview, đổi sang query
+     * scheduleRepository.findByPeriodIdAndStaffIdAndDateRange().
+     */
+    int getTodayShiftCount(int staffId, LocalDate workDate) {
+        Set<String> shifts = inMemoryAssignments.get().get(staffId + "_" + workDate);
+        return shifts != null ? shifts.size() : 0;
     }
 
     boolean isStrictMatchForStaff(Staff staff, ShiftRequirement req) {
@@ -2235,6 +2398,22 @@ public class AutoSchedulingService {
 	    private boolean isLockStale(Integer periodId) {
 	        Long acquiredAt = lockAcquiredAt.get(periodId);
 	        return acquiredAt != null && (System.currentTimeMillis() - acquiredAt) > STALE_LOCK_TIMEOUT_MS;
+	    }
+
+	    /**
+	     * Đánh dấu lock của period là stale ngay lập tức (client refresh / huỷ).
+	     * <p>An toàn: không interrupt thread đang chạy; chỉ reset {@code lockAcquiredAt} về 0
+	     * để {@link #isLockStale} trả về true → request kế tiếp sẽ override lock và chạy tiếp.
+	     * Thread cũ vẫn chạy tới khi kết thúc (OrTools/scheduler trả về) rồi tự unlock —
+	     * kết quả của nó bị bỏ qua (frontend đã refresh).
+	     * @return true nếu có lock đang được giữ và đã được đánh dấu stale
+	     */
+	    public boolean markLockStale(Integer periodId) {
+	        boolean hadLock = periodLocks.containsKey(periodId) || lockAcquiredAt.containsKey(periodId);
+	        lockAcquiredAt.put(periodId, 0L);
+	        progressTracker.clear(periodId);
+	        log.warn("markLockStale(period={}) — thread cũ vẫn chạy tới khi kết thúc, lock được đánh dấu stale để request kế tiếp override.", periodId);
+	        return hadLock;
 	    }
 
 	    /**
@@ -2487,9 +2666,19 @@ public class AutoSchedulingService {
 
                 // Score candidates with balance awareness
 		                List<Object[]> scored = activeStaff.stream()
-		                        .filter(s -> excludedStaffIds == null || !excludedStaffIds.contains(s.getId()))
-		                        .filter(s -> staffCount.getOrDefault(s.getId(), 0) < maxShifts)
-		                        .filter(s -> !hasGapConflict(schedules, s.getId(), date, shiftTypeId, specId))
+			                        .filter(s -> excludedStaffIds == null || !excludedStaffIds.contains(s.getId()))
+			                        .filter(s -> staffCount.getOrDefault(s.getId(), 0) < maxShifts)
+			                        // maxShiftsPerDay — HARD cap tổng số ca mỗi nhân sự mỗi ngày (gap-fill)
+			                        .filter(s -> {
+			                            if (runtimeConfig != null && runtimeConfig.getMaxShiftsPerDay() > 0) {
+			                                long todayCount = schedules.stream()
+			                                        .filter(x -> x.getStaff().getId() == s.getId() && x.getWorkDate().equals(date))
+			                                        .count();
+			                                return todayCount < runtimeConfig.getMaxShiftsPerDay();
+			                            }
+			                            return true;
+			                        })
+			                        .filter(s -> !hasGapConflict(schedules, s.getId(), date, shiftTypeId, specId))
 			                        .filter(s -> {
 			                            if (specId == null) return true;
 			                            return s.getSpecialty() != null && s.getSpecialty().getId().equals(specId);

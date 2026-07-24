@@ -85,21 +85,22 @@ class MetaheuristicSchedulersSmokeTest {
     }
 
     private static AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig() {
-        return new AlgorithmConfigService.AlgorithmRuntimeConfig(
-                new java.math.BigDecimal("2"),      // weekendWeight
-                24,                                  // overnightRecoveryHours
-                new java.math.BigDecimal("0.85"),   // greedyCoverageThreshold
-                new java.math.BigDecimal("0.70"),   // balanceScoreMin
-                true,                                // autoCompensationEnabled
-                1,                                   // minStaffPerShift
-                5,                                   // maxStaffPerShift
-                0,                                   // minShiftsPerStaff
-                12,                                  // maxShiftsPerStaff
-                0,                                   // maxShiftsPerDay
-	                0, 0, 0, 0,                          // l01-l04 max per week
-	                BEAM_WIDTH,                          // beamWidth
-	                true                                 // autoAdjustConfig
-	        );
+        return AlgorithmConfigService.AlgorithmRuntimeConfig.builder()
+                .weekendWeight(new java.math.BigDecimal("2"))
+                .overnightRecoveryHours(24)
+                .greedyCoverageThreshold(new java.math.BigDecimal("0.85"))
+                .balanceScoreMin(new java.math.BigDecimal("0.70"))
+                .autoCompensationEnabled(true)
+                .maxStaffPerShift(5)
+                .maxShiftsPerStaff(12)
+                .maxShiftsPerDay(0)
+                .l01MaxPerWeek(0).l02MaxPerWeek(0).l03MaxPerWeek(0).l04MaxPerWeek(0)
+                .beamWidth(BEAM_WIDTH)
+                .autoAdjustConfig(true)
+                .coverageWeight(new java.math.BigDecimal("0.40"))
+                .fairnessWeight(new java.math.BigDecimal("0.35"))
+                .constraintWeight(new java.math.BigDecimal("0.25"))
+                .build();
     }
 
     /** No staff-day may hold both L01+L02 or L03+L04. */
@@ -126,27 +127,39 @@ class MetaheuristicSchedulersSmokeTest {
         return result == null ? List.of() : result;
     }
 
-    @Test
-    @DisplayName("BeamSearch — runs, returns non-null, no L01+L02 / L03+L04 conflicts")
-    void beamSearch_runs() {
-        BeamSearchScheduler s = new BeamSearchScheduler(compCalc());
-        List<Schedule> r = s.solve(staff(3), reqs(period(), shiftTypes()),
-                period(), runtimeConfig(), Collections.emptySet());
-        assertThat(solveFor(r)).isNotNull();
-        assertThat(r).allSatisfy(x -> {
-            assertThat(x.getStaff()).isNotNull();
-            assertThat(x.getWorkDate()).isNotNull();
-            assertThat(x.getShiftType()).isNotNull();
-        });
-        assertNoBusinessConflict(r);
-    }
+	@Test
+	@DisplayName("BeamSearch — runs, returns non-null, no L01+L02 / L03+L04 conflicts")
+	void beamSearch_runs() {
+		BeamSearchScheduler s = new BeamSearchScheduler(compCalc());
+		List<Schedule> r = s.solve(staff(3), reqs(period(), shiftTypes()),
+				period(), runtimeConfig(), Collections.emptySet(), L04CrossSpecialtyConfig.DISABLED);
+		assertThat(solveFor(r)).isNotNull();
+		assertThat(r).allSatisfy(x -> {
+			assertThat(x.getStaff()).isNotNull();
+			assertThat(x.getWorkDate()).isNotNull();
+			assertThat(x.getShiftType()).isNotNull();
+		});
+		assertNoBusinessConflict(r);
+	}
+
+	@Test
+	@DisplayName("BeamSearch — beamWidth=8 produces valid schedule (no conflicts)")
+	void beamSearch_withWidth8() {
+		BeamSearchScheduler s = new BeamSearchScheduler(compCalc());
+		var cfg = runtimeConfig();
+		cfg.setBeamWidth(8);
+		List<Schedule> r = s.solve(staff(3), reqs(period(), shiftTypes()),
+				period(), cfg, Collections.emptySet(), L04CrossSpecialtyConfig.DISABLED);
+		assertThat(solveFor(r)).isNotNull();
+		assertNoBusinessConflict(r);
+	}
 
     @Test
     @DisplayName("RandomRestartHC — runs, returns non-null, no L01+L02 / L03+L04 conflicts")
     void randomRestartHC_runs() {
         RandomRestartHCScheduler s = new RandomRestartHCScheduler(compCalc());
         List<Schedule> r = s.solve(staff(3), reqs(period(), shiftTypes()),
-                period(), runtimeConfig(), Collections.emptySet());
+                period(), runtimeConfig(), Collections.emptySet(), L04CrossSpecialtyConfig.DISABLED);
         assertThat(solveFor(r)).isNotNull();
         assertNoBusinessConflict(r);
     }
@@ -156,7 +169,7 @@ class MetaheuristicSchedulersSmokeTest {
     void enhancedGreedy_runs() {
         EnhancedGreedyScheduler s = new EnhancedGreedyScheduler(compCalc());
         List<Schedule> r = s.solve(staff(3), reqs(period(), shiftTypes()),
-                period(), runtimeConfig(), Collections.emptySet());
+                period(), runtimeConfig(), Collections.emptySet(), L04CrossSpecialtyConfig.DISABLED);
         assertThat(solveFor(r)).isNotNull();
         assertNoBusinessConflict(r);
     }
@@ -166,7 +179,7 @@ class MetaheuristicSchedulersSmokeTest {
     void simulatedAnnealing_runs() {
         SimulatedAnnealingScheduler s = new SimulatedAnnealingScheduler(compCalc());
         List<Schedule> r = s.solve(staff(3), reqs(period(), shiftTypes()),
-                period(), runtimeConfig(), Collections.emptySet());
+                period(), runtimeConfig(), Collections.emptySet(), L04CrossSpecialtyConfig.DISABLED);
         assertThat(solveFor(r)).isNotNull();
         assertNoBusinessConflict(r);
     }
@@ -183,7 +196,7 @@ class MetaheuristicSchedulersSmokeTest {
         reqs.add(req(p, st.get("L02"), p.getStartDate(), 1, 1));
         reqs.add(req(p, st.get("L03"), p.getStartDate().plusDays(1), 1, 1));
         reqs.add(req(p, st.get("L04"), p.getStartDate().plusDays(2), 1, 1));
-        List<Schedule> r = s.solve(staff(3), reqs, p, runtimeConfig(), Collections.emptySet());
+	        List<Schedule> r = s.solve(staff(3), reqs, p, runtimeConfig(), Collections.emptySet(), L04CrossSpecialtyConfig.DISABLED);
         assertThat(solveFor(r)).isNotNull();
         assertNoBusinessConflict(r);
     }

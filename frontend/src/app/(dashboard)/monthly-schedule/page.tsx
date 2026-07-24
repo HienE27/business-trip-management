@@ -24,6 +24,10 @@ const ShiftDetailModal = dynamic(
   () => import("@/components/monthly-schedule/ShiftDetailModal").then((m) => m.ShiftDetailModal),
   { loading: () => null },
 );
+const SuggestionsModal = dynamic(
+  () => import("@/app/(dashboard)/auto-scheduling/SuggestionsModal").then((m) => m.SuggestionsModal),
+  { loading: () => null },
+);
 const WorkflowStepper = dynamic(
   () => import("@/components/monthly-schedule/WorkflowStepper").then((m) => m.WorkflowStepper),
   { loading: () => null },
@@ -38,6 +42,7 @@ import { useRole, canManage } from "@/hooks/useRole";
 import { useMonthlyScheduleDerivedData } from "@/hooks/monthly-schedule/useMonthlyScheduleDerivedData";
 import { useMonthlyScheduleUrlState } from "@/hooks/monthly-schedule/useMonthlyScheduleUrlState";
 import { useScheduleDetailModal } from "@/hooks/monthly-schedule/useScheduleDetailModal";
+import { useReplacementSuggestions } from "@/hooks/monthly-schedule/useReplacementSuggestions";
 import { useScheduleWorkspace } from "@/hooks/useScheduleWorkspace";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -152,6 +157,23 @@ export default function MonthlySchedulePage() {
     detailLoading,
     closeDetail,
   } = useScheduleDetailModal(parsedScheduleId, closeScheduleDetail);
+
+  // M07-F08 — replacement suggestions surfaced from ShiftDetailModal.
+  // `suggestScheduleId` is set when the manager clicks "Đề xuất thay thế";
+  // the hook only fetches while `suggestModalOpen` is true so opening the
+  // detail modal alone never fires a request.
+  const [suggestModalOpen, setSuggestModalOpen] = useState(false);
+  const [suggestScheduleId, setSuggestScheduleId] = useState<number | null>(null);
+  const replacementSuggestions = useReplacementSuggestions(suggestScheduleId, suggestModalOpen);
+  const handleSuggestReplacements = useCallback((scheduleId: number) => {
+    setSuggestScheduleId(scheduleId);
+    setSuggestModalOpen(true);
+  }, []);
+  const closeSuggestModal = useCallback(() => {
+    setSuggestModalOpen(false);
+    setSuggestScheduleId(null);
+    replacementSuggestions.reset();
+  }, [replacementSuggestions]);
 
   const {
     filteredSchedules,
@@ -462,6 +484,14 @@ export default function MonthlySchedulePage() {
         onSave={() => { void wsActions.refreshWorkspace(); closeDetail(); }}
         onDelete={() => { void wsActions.refreshWorkspace(); closeDetail(); }}
         onRefresh={() => { void wsActions.refreshWorkspace(); }}
+        onSuggestReplacements={canManage(role) ? handleSuggestReplacements : undefined}
+      />
+
+      <SuggestionsModal
+        open={suggestModalOpen}
+        onClose={closeSuggestModal}
+        suggestionsData={replacementSuggestions.data}
+        loading={replacementSuggestions.loading}
       />
 
       <ConflictResolutionModal

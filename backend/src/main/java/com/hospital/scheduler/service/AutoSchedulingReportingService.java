@@ -9,6 +9,7 @@ import com.hospital.scheduler.util.DateUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.time.LocalDate;
@@ -399,6 +400,107 @@ public class AutoSchedulingReportingService {
         }
 
         return warnings;
+    }
+
+    /**
+     * L04 per-specialty: required vs assigned vs staff + crossLeak.
+     * crossLeak = L04 rows where staff.specialty != requirement specialty (or schedule has no matching req specialty).
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getL04SpecialtyEvalReport(Integer periodId) {
+        SchedulePeriod period = periodRepository.findById(periodId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay ky lich voi ID: " + periodId));
+
+        List<ShiftRequirement> requirements = requirementRepository.findByPeriodId(periodId);
+        List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
+        List<Staff> activeStaff = staffRepository.findByIsActiveTrue();
+
+        Map<Integer, Integer> staffBySpec = new HashMap<>();
+        Map<Integer, String> specNames = new HashMap<>();
+        for (Staff s : activeStaff) {
+            if (s.getSpecialty() != null) {
+                staffBySpec.merge(s.getSpecialty().getId(), 1, Integer::sum);
+                specNames.putIfAbsent(s.getSpecialty().getId(), s.getSpecialty().getName());
+            }
+        }
+
+        Map<Integer, Integer> requiredBySpec = new HashMap<>();
+        for (ShiftRequirement req : requirements) {
+            if (!ConflictDetectionService.SHIFT_TYPE_L04.equals(req.getShiftType().getId())) continue;
+            if (req.getSpecialty() == null) continue;
+            Integer sid = req.getSpecialty().getId();
+            specNames.put(sid, req.getSpecialty().getName());
+            requiredBySpec.merge(sid, req.getRequiredStaffCount(), Integer::sum);
+        }
+
+        Map<Integer, Integer> assignedByReqSpec = new HashMap<>();
+        int crossLeak = 0;
+        int l04Total = 0;
+        for (Schedule s : schedules) {
+            if (!ConflictDetectionService.SHIFT_TYPE_L04.equals(s.getShiftType().getId())) continue;
+            l04Total++;
+            Integer staffSpecId = s.getStaff() != null && s.getStaff().getSpecialty() != null
+                    ? s.getStaff().getSpecialty().getId() : null;
+            // Prefer requirement specialty when present (authoritative for L04 demand).
+            Integer reqSpecId = s.getRequirement() != null && s.getRequirement().getSpecialty() != null
+                    ? s.getRequirement().getSpecialty().getId()
+                    : staffSpecId;
+            if (reqSpecId != null) {
+                assignedByReqSpec.merge(reqSpecId, 1, Integer::sum);
+                if (s.getRequirement() != null && s.getRequirement().getSpecialty() != null) {
+                    specNames.putIfAbsent(reqSpecId, s.getRequirement().getSpecialty().getName());
+                } else if (s.getStaff() != null && s.getStaff().getSpecialty() != null) {
+                    specNames.putIfAbsent(reqSpecId, s.getStaff().getSpecialty().getName());
+                }
+            }
+            if (reqSpecId != null && staffSpecId != null && !reqSpecId.equals(staffSpecId)) {
+                crossLeak++;
+            } else if (reqSpecId != null && staffSpecId == null) {
+                crossLeak++;
+            }
+        }
+
+        Set<Integer> allSpecIds = new LinkedHashSet<>();
+        allSpecIds.addAll(requiredBySpec.keySet());
+        allSpecIds.addAll(assignedByReqSpec.keySet());
+        allSpecIds.addAll(staffBySpec.keySet());
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int totalRequired = 0;
+        int totalAssigned = 0;
+        for (Integer sid : allSpecIds) {
+            int required = requiredBySpec.getOrDefault(sid, 0);
+            int assigned = assignedByReqSpec.getOrDefault(sid, 0);
+            int staff = staffBySpec.getOrDefault(sid, 0);
+            totalRequired += required;
+            totalAssigned += assigned;
+            double fillRate = required > 0 ? (double) assigned / required : (assigned > 0 ? 1.0 : 0.0);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("specialtyId", sid);
+            row.put("specialty", specNames.getOrDefault(sid, String.valueOf(sid)));
+            row.put("staffCount", staff);
+            row.put("requiredL04", required);
+            row.put("assignedL04", assigned);
+            row.put("missingL04", Math.max(0, required - assigned));
+            row.put("fillRate", Math.round(fillRate * 1000.0) / 1000.0);
+            rows.add(row);
+        }
+        rows.sort(Comparator.comparing(m -> String.valueOf(m.get("specialty"))));
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("periodId", periodId);
+        result.put("periodName", period.getPeriodName());
+        result.put("startDate", period.getStartDate());
+        result.put("endDate", period.getEndDate());
+        result.put("totalRequiredL04", totalRequired);
+        result.put("totalAssignedL04", totalAssigned);
+        result.put("totalL04Schedules", l04Total);
+        result.put("crossLeak", crossLeak);
+        result.put("fillRate", totalRequired > 0
+                ? Math.round((double) totalAssigned / totalRequired * 1000.0) / 1000.0
+                : 0.0);
+        result.put("bySpecialty", rows);
+        return result;
     }
 
     public String buildUnassignedReason(ShiftRequirement req, long assigned) {

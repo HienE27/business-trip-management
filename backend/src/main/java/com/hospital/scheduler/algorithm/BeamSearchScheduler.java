@@ -24,6 +24,10 @@ import java.util.stream.Collectors;
 public class BeamSearchScheduler {
 
     private final CompensationDateCalculator compensationDateCalculator;
+
+    /** L04 cross-specialty config — set per solve() call. Used by rebalance methods. */
+    private L04CrossSpecialtyConfig l04CrossConfig = L04CrossSpecialtyConfig.DISABLED;
+
     private static final int DEFAULT_BEAM_WIDTH = 5;
     private static final double COVERAGE_WEIGHT = 0.20;
     private static final double FAIRNESS_WEIGHT = 0.55;
@@ -38,13 +42,18 @@ public class BeamSearchScheduler {
             List<ShiftRequirement> requirements,
             SchedulePeriod period,
             AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
-            Set<Integer> excludedStaffIds) {
+            Set<Integer> excludedStaffIds,
+            L04CrossSpecialtyConfig l04CrossConfig) {
 
         long start = System.currentTimeMillis();
+        this.l04CrossConfig = l04CrossConfig != null ? l04CrossConfig : L04CrossSpecialtyConfig.DISABLED;
         int beamWidth = runtimeConfig != null && runtimeConfig.getBeamWidth() > 0
                 ? runtimeConfig.getBeamWidth() : DEFAULT_BEAM_WIDTH;
         int maxShifts = runtimeConfig != null && runtimeConfig.getMaxShiftsPerStaff() > 0
                 ? runtimeConfig.getMaxShiftsPerStaff() : Integer.MAX_VALUE;
+        int maxShiftsPerDay = runtimeConfig != null && runtimeConfig.getMaxShiftsPerDay() > 0
+                ? runtimeConfig.getMaxShiftsPerDay() : Integer.MAX_VALUE;
+        int l01Window = runtimeConfig != null ? runtimeConfig.getL01AdjacentDayWindow() : 1;
 
         // Group requirements by date
         Map<LocalDate, List<ShiftRequirement>> byDate = requirements.stream()
@@ -74,15 +83,19 @@ public class BeamSearchScheduler {
             for (ShiftRequirement req : dayReqs) {
                 String shiftTypeId = req.getShiftType().getId();
                 int required = req.getRequiredStaffCount();
-                Integer specId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
+	                Integer specId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
+	                String reqSpecName = req.getSpecialty() != null ? req.getSpecialty().getName() : null;
 
-                // Expand beam by 1 slot at a time (required times)
-                for (int slot = 0; slot < required; slot++) {
-                    List<ScoredEntry> candidates = new ArrayList<>();
+		                // Expand beam by 1 slot at a time (required times)
+		                int crossCapacity = specId != null && "L04".equals(shiftTypeId)
+		                        ? this.l04CrossConfig.crossCap(required) : 0;
+		                for (int slot = 0; slot < required; slot++) {
+		                    List<ScoredEntry> candidates = new ArrayList<>();
 
-                    for (PartialState state : beam) {
-                        List<Integer> eligible = findEligible(activeStaff, state,
-                                date, shiftTypeId, specId, excludedStaffIds, maxShifts);
+		                    for (PartialState state : beam) {
+		                        List<Integer> eligible = findEligible(activeStaff, state,
+		                                date, shiftTypeId, specId, excludedStaffIds, maxShifts, maxShiftsPerDay, l01Window,
+		                                this.l04CrossConfig, reqSpecName, crossCapacity);
                         if (eligible.size() > ELIGIBLE_EXPAND_CAP) {
                             eligible = eligible.subList(0, ELIGIBLE_EXPAND_CAP);
                         }
@@ -157,7 +170,7 @@ public class BeamSearchScheduler {
         }
 
         // Light fairness rebalance: move shifts max-load → min-load staff
-        fairnessRebalance(result, activeStaff, excludedStaffIds, staffMap, requirements);
+        fairnessRebalance(result, activeStaff, excludedStaffIds, staffMap, requirements, l01Window, runtimeConfig);
 
         log.info("BeamSearch: {} schedules in {}ms (beam={})",
                 result.size(), System.currentTimeMillis() - start, beamWidth);
@@ -167,8 +180,21 @@ public class BeamSearchScheduler {
     /** Move a few shifts from overloaded to underloaded staff. Keeps coverage. */
     private void fairnessRebalance(List<Schedule> schedules, List<Staff> activeStaff,
                                    Set<Integer> excludedIds, Map<Integer, Staff> staffMap,
-                                   List<ShiftRequirement> reqs) {
-        for (int round = 0; round < 40; round++) {
+                                   List<ShiftRequirement> reqs, int l01Window,
+                                   AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {
+        // Phase 1: Total-count rebalance (existing logic)
+        totalCountRebalance(schedules, activeStaff, excludedIds, staffMap, reqs, l01Window, runtimeConfig);
+        // Phase 2: Per-type rebalance (TASK-L01-FAIRNESS Phase C)
+        perTypeRebalance(schedules, activeStaff, excludedIds, staffMap, reqs, l01Window, runtimeConfig);
+    }
+
+    /** Total-count rebalance: move shifts from most overloaded → most underloaded staff. */
+    private void totalCountRebalance(List<Schedule> schedules, List<Staff> activeStaff,
+                                   Set<Integer> excludedIds, Map<Integer, Staff> staffMap,
+                                   List<ShiftRequirement> reqs, int l01Window,
+                                   AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {
+        int totalRounds = runtimeConfig != null ? runtimeConfig.getRebalanceRoundsTotal() : 80;
+        for (int round = 0; round < totalRounds; round++) {
             Map<Integer, Integer> counts = new HashMap<>();
             for (Schedule s : schedules) counts.merge(s.getStaff().getId(), 1, Integer::sum);
             if (counts.isEmpty()) break;
@@ -195,15 +221,19 @@ public class BeamSearchScheduler {
             boolean moved = false;
             for (Schedule s : schedules) {
                 if (s.getStaff().getId() != overloaded) continue;
-                if (!canTakeBeam(schedules, underloaded, s)) continue;
+                if (!canTakeBeam(schedules, underloaded, s, l01Window)) continue;
                 if (isCompensationDayList(schedules, underloaded, s.getWorkDate())) continue;
                 if ("L04".equals(s.getShiftType().getId())) {
                     ShiftRequirement r = ScheduleConflictUtils.findMatchingRequirement(
                             staffMap.get(underloaded), s.getWorkDate(), "L04", reqs);
                     if (r != null && r.getSpecialty() != null) {
                         Staff u = staffMap.get(underloaded);
-                        if (u.getSpecialty() == null
-                                || !u.getSpecialty().getId().equals(r.getSpecialty().getId())) continue;
+                        boolean matchesSpecialty = u.getSpecialty() != null
+                                && u.getSpecialty().getId().equals(r.getSpecialty().getId());
+                        if (!matchesSpecialty) {
+                            if (!l04CrossConfig.isPermittedFor(r.getSpecialty().getName()))
+                                continue;
+                        }
                     }
                 }
                 s.setStaff(staffMap.get(underloaded));
@@ -217,7 +247,81 @@ public class BeamSearchScheduler {
         }
     }
 
-    private boolean canTakeBeam(List<Schedule> schedules, int staffId, Schedule candidate) {
+    /**
+     * Per-type rebalance: for each shift type (L01/L02/L03), move shifts from
+     * staff with highest count of that type to staff with lowest count.
+     * This complements the total-count rebalance by fixing per-type disparities
+     * that total rebalance cannot address (e.g., staff A has 13 L01 + 2 L02,
+     * staff B has 11 L01 + 6 L02 — total counts are similar but L02 is imbalanced).
+     *
+     * <p>ponytail: add L04 per-specialty rebalance when cross-specialty is enabled.
+     */
+    private void perTypeRebalance(List<Schedule> schedules, List<Staff> activeStaff,
+                                   Set<Integer> excludedIds, Map<Integer, Staff> staffMap,
+                                   List<ShiftRequirement> reqs, int l01Window,
+                                   AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {
+        String[] typesToBalance = {"L02", "L03", "L01"}; // L02/L03 first (most imbalanced), then L01
+        int perTypeRounds = runtimeConfig != null ? runtimeConfig.getRebalanceRoundsPerType() : 30;
+        for (String type : typesToBalance) {
+            for (int round = 0; round < perTypeRounds; round++) {
+                // Count per-type per-staff
+                Map<Integer, Integer> typeCounts = new HashMap<>();
+                for (Staff st : activeStaff) {
+                    if (excludedIds != null && excludedIds.contains(st.getId())) continue;
+                    typeCounts.put(st.getId(), 0);
+                }
+                for (Schedule s : schedules) {
+                    if (type.equals(s.getShiftType().getId())) {
+                        typeCounts.merge(s.getStaff().getId(), 1, Integer::sum);
+                    }
+                }
+                if (typeCounts.isEmpty()) break;
+
+                int maxCnt = typeCounts.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+                int minCnt = typeCounts.values().stream().mapToInt(Integer::intValue).min().orElse(0);
+                if (maxCnt - minCnt <= 1) break; // balanced for this type
+
+                int overloaded = -1, underloaded = -1;
+                int overCnt = Integer.MIN_VALUE, underCnt = Integer.MAX_VALUE;
+                for (Map.Entry<Integer, Integer> e : typeCounts.entrySet()) {
+                    if (e.getValue() > overCnt) { overCnt = e.getValue(); overloaded = e.getKey(); }
+                    if (e.getValue() < underCnt) { underCnt = e.getValue(); underloaded = e.getKey(); }
+                }
+                if (overloaded < 0 || underloaded < 0 || overloaded == underloaded) break;
+
+                // Try to move a shift of this type from overloaded to underloaded
+                boolean moved = false;
+                for (Schedule s : schedules) {
+                    if (s.getStaff().getId() != overloaded) continue;
+                    if (!type.equals(s.getShiftType().getId())) continue;
+                    if (!canTakeBeam(schedules, underloaded, s, l01Window)) continue;
+                    if (isCompensationDayList(schedules, underloaded, s.getWorkDate())) continue;
+                    if ("L04".equals(s.getShiftType().getId())) {
+                        ShiftRequirement r = ScheduleConflictUtils.findMatchingRequirement(
+                                staffMap.get(underloaded), s.getWorkDate(), "L04", reqs);
+                        if (r != null && r.getSpecialty() != null) {
+                            Staff u = staffMap.get(underloaded);
+                            boolean matchesSpecialty = u.getSpecialty() != null
+                                    && u.getSpecialty().getId().equals(r.getSpecialty().getId());
+                            if (!matchesSpecialty) {
+                                if (!l04CrossConfig.isPermittedFor(r.getSpecialty().getName()))
+                                    continue;
+                            }
+                        }
+                    }
+                    s.setStaff(staffMap.get(underloaded));
+                    ShiftRequirement matched = ScheduleConflictUtils.findMatchingRequirement(
+                            s.getStaff(), s.getWorkDate(), s.getShiftType().getId(), reqs);
+                    if (matched != null) s.setRequirement(matched);
+                    moved = true;
+                    break;
+                }
+                if (!moved) break;
+            }
+        }
+    }
+
+    private boolean canTakeBeam(List<Schedule> schedules, int staffId, Schedule candidate, int l01Window) {
         LocalDate date = candidate.getWorkDate();
         String type = candidate.getShiftType().getId();
         for (Schedule ex : schedules) {
@@ -227,7 +331,7 @@ public class BeamSearchScheduler {
                 if (exType.equals(type) || ScheduleConflictUtils.isBusinessConflict(type, exType)) return false;
             }
             if ("L01".equals(type) && "L01".equals(ex.getShiftType().getId())
-                    && Math.abs(ex.getWorkDate().toEpochDay() - date.toEpochDay()) == 1) return false;
+                    && Math.abs(ex.getWorkDate().toEpochDay() - date.toEpochDay()) <= l01Window) return false;
         }
         return true;
     }
@@ -285,16 +389,52 @@ public class BeamSearchScheduler {
                 + VARIETY_WEIGHT * variety;
     }
 
-    private List<Integer> findEligible(
-            List<Staff> staffList, PartialState state,
-            LocalDate date, String shiftTypeId, Integer specId,
-            Set<Integer> excludedIds, int maxShifts) {
+	    private List<Integer> findEligible(
+	            List<Staff> staffList, PartialState state,
+	            LocalDate date, String shiftTypeId, Integer specId,
+	            Set<Integer> excludedIds, int maxShifts, int maxShiftsPerDay,
+	            int l01Window,
+	            L04CrossSpecialtyConfig l04CrossConfig,
+	            String reqSpecName,
+	            int crossCapacity) {
 
-        return staffList.stream()
-                .filter(s -> excludedIds == null || !excludedIds.contains(s.getId()))
-                .filter(s -> !state.assignments.containsKey(s.getId() + "|" + date + "|" + shiftTypeId))
-                .filter(s -> state.count.getOrDefault(s.getId(), 0) < maxShifts)
-                .filter(s -> specId == null || (s.getSpecialty() != null && s.getSpecialty().getId().equals(specId)))
+	        // Build staff specialty lookup for cross-cap computation
+	        Map<Integer, Staff> staffLookup = staffList.stream()
+	                .collect(Collectors.toMap(Staff::getId, s -> s));
+
+	        return staffList.stream()
+	                .filter(s -> excludedIds == null || !excludedIds.contains(s.getId()))
+	                .filter(s -> !state.assignments.containsKey(s.getId() + "|" + date + "|" + shiftTypeId))
+	                .filter(s -> state.count.getOrDefault(s.getId(), 0) < maxShifts)
+	                // Specialty check: L04 with cross-specialty support (TASK-02)
+	                .filter(s -> {
+	                    if (specId == null) return true; // no specialty req → all eligible
+	                    if (!"L04".equals(shiftTypeId)) {
+	                        // Non-L04: staff must match requirement specialty
+	                        return s.getSpecialty() != null && s.getSpecialty().getId().equals(specId);
+	                    }
+	                    // L04 with specialty requirement
+	                    boolean matchesSpecialty = s.getSpecialty() != null
+	                            && s.getSpecialty().getId().equals(specId);
+	                    if (matchesSpecialty) return true;
+	                    // Cross-specialty: only if permitted AND within capacity cap
+	                    if (!l04CrossConfig.isPermittedFor(reqSpecName)) return false;
+	                    if (crossCapacity <= 0) return false;
+	                    // Count current cross-specialty assignments in state for this requirement
+	                    int crossCount = 0;
+	                    String prefix = "|" + date + "|" + shiftTypeId;
+	                    for (String key : state.assignments.keySet()) {
+	                        if (key.endsWith(prefix)) {
+	                            int asid = Integer.parseInt(key.split("\\|")[0]);
+	                            Staff as = staffLookup.get(asid);
+	                            if (as != null && as.getSpecialty() != null
+	                                    && !as.getSpecialty().getId().equals(specId)) {
+	                                crossCount++;
+	                            }
+	                        }
+	                    }
+	                    return crossCount < crossCapacity;
+	                })
                 .filter(s -> {
                     if (specId == null && !"L04".equals(shiftTypeId) && s.getSpecialty() == null) return false;
                     return true;
@@ -305,6 +445,10 @@ public class BeamSearchScheduler {
                     for (String t : today) {
                         if (ScheduleConflictUtils.isBusinessConflict(shiftTypeId, t)) return false;
                     }
+                    // maxShiftsPerDay — HARD cap tổng số ca mỗi nhân sự mỗi ngày.
+                    if (maxShiftsPerDay != Integer.MAX_VALUE && today.size() >= maxShiftsPerDay) {
+                        return false;
+                    }
                     return true;
                 })
                 .filter(s -> {
@@ -313,11 +457,16 @@ public class BeamSearchScheduler {
                 })
                 .filter(s -> {
                     if (!"L01".equals(shiftTypeId)) return true;
-                    Set<String> prev = state.dayTypes.getOrDefault(
-                            s.getId() + "|" + date.minusDays(1), Collections.emptySet());
-                    Set<String> next = state.dayTypes.getOrDefault(
-                            s.getId() + "|" + date.plusDays(1), Collections.emptySet());
-                    return !prev.contains("L01") && !next.contains("L01");
+                    // Consecutive L01 check: window = ceil(overnightRecoveryHours/24)
+                    for (int dt = 1; dt <= l01Window; dt++) {
+                        Set<String> prev = state.dayTypes.getOrDefault(
+                                s.getId() + "|" + date.minusDays(dt), Collections.emptySet());
+                        if (prev.contains("L01")) return false;
+                        Set<String> next = state.dayTypes.getOrDefault(
+                                s.getId() + "|" + date.plusDays(dt), Collections.emptySet());
+                        if (next.contains("L01")) return false;
+                    }
+                    return true;
                 })
                 .sorted(Comparator
                         .comparingInt((Staff s) -> state.count.getOrDefault(s.getId(), 0))

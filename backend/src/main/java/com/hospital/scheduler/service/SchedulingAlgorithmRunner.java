@@ -54,7 +54,8 @@ public class SchedulingAlgorithmRunner {
 
         // OPTIMIZATION 1: Load all conflict data for entire period in ONE pass (instead of per-day)
         // OPTIMIZATION 2: Load all shift type counts in ONE query (instead of Nx4 queries)
-        AutoSchedulingService.PeriodConflictData periodData = autoSchedulingService.loadPeriodConflictData(period, requirements, activeStaff);
+        AutoSchedulingService.PeriodConflictData periodData = autoSchedulingService.loadPeriodConflictData(period, requirements, activeStaff,
+                runtimeConfig != null ? runtimeConfig.getL01AdjacentDayWindow() : 1);
 
         // FAIRNESS: Pre-compute fair share per shift type = ceil(totalDemand[type] / eligiblePool)
         // L04 uses per-specialty pool (spec M05); L01/L02/L03 use full staffPool.
@@ -107,15 +108,13 @@ public class SchedulingAlgorithmRunner {
             AutoSchedulingService.BatchConflictData todayConflicts = periodData.byDate().get(currentDate);
 
             // Merge DB adjacent L01 with batch-assigned L01 from this greedy run
-            // IMPORTANT: Include BOTH N-1 AND N-2 for back-to-back checking
-            // N-1: catches immediate consecutive days
-            // N-2: catches cases where staff had L01 on N-2, then day N-1 was their compensation day (which is blocked),
-            //       but day N they might have been assigned L01 again (if compensation day wasn't enforced)
+            // window = ceil(overnightRecoveryHours/24) — L01 cấm L01 trong ±l01Window ngày
+            int l01Window = runtimeConfig != null ? runtimeConfig.getL01AdjacentDayWindow() : 1;
             Set<Integer> adjacentL01FromPrev = new HashSet<>();
-            Set<Integer> fromBatch1 = l01AssignmentsByDate.get(currentDate.minusDays(1));
-            if (fromBatch1 != null) adjacentL01FromPrev.addAll(fromBatch1);
-            Set<Integer> fromBatch2 = l01AssignmentsByDate.get(currentDate.minusDays(2));
-            if (fromBatch2 != null) adjacentL01FromPrev.addAll(fromBatch2);
+            for (int dt = 1; dt <= l01Window; dt++) {
+                Set<Integer> fromBatch = l01AssignmentsByDate.get(currentDate.minusDays(dt));
+                if (fromBatch != null) adjacentL01FromPrev.addAll(fromBatch);
+            }
             if (todayConflicts != null && todayConflicts.adjacentL01StaffIds() != null) {
                 adjacentL01FromPrev.addAll(todayConflicts.adjacentL01StaffIds());
             }
@@ -459,26 +458,23 @@ public class SchedulingAlgorithmRunner {
                     }
                     if (hasConflict) continue;
 
-                    // Check L01 adjacent constraint (no back-to-back L01)
+                    // Check L01 adjacent constraint (no back-to-back L01 within l01Window days)
+                    // guaranteeMinimumShifts là safety-net → dùng window mặc định 1 (tương thích ngược)
                     if (ConflictDetectionService.SHIFT_TYPE_L01.equals(typeId)) {
-                        LocalDate prevDate = date.minusDays(1);
-                        LocalDate nextDate = date.plusDays(1);
-                        Set<Integer> prevAssigned = assignedByDate.getOrDefault(prevDate, Set.of());
-                        Set<Integer> nextAssigned = assignedByDate.getOrDefault(nextDate, Set.of());
-                        if (prevAssigned.contains(staff.getId()) || nextAssigned.contains(staff.getId())) {
-                            // Check if those were L01
-                            boolean hasAdjL01 = false;
-                            for (Schedule s : schedules) {
-                                if (s.getStaff().getId().equals(staff.getId())) {
-                                    if ((s.getWorkDate().equals(prevDate) || s.getWorkDate().equals(nextDate))
-                                            && ConflictDetectionService.SHIFT_TYPE_L01.equals(s.getShiftType().getId())) {
-                                        hasAdjL01 = true;
-                                        break;
-                                    }
+                        boolean hasAdjL01 = false;
+                        for (int dt = 1; dt <= 1 && !hasAdjL01; dt++) {
+                            LocalDate adjDate = date.minusDays(dt);
+                            if (assignedByDate.getOrDefault(adjDate, Set.of()).contains(staff.getId())) {
+                                hasAdjL01 = checkAdjacentL01(schedules, staff.getId(), adjDate);
+                            }
+                            if (!hasAdjL01) {
+                                adjDate = date.plusDays(dt);
+                                if (assignedByDate.getOrDefault(adjDate, Set.of()).contains(staff.getId())) {
+                                    hasAdjL01 = checkAdjacentL01(schedules, staff.getId(), adjDate);
                                 }
                             }
-                            if (hasAdjL01) continue;
                         }
+                        if (hasAdjL01) continue;
                     }
 
                     // ASSIGN THIS STAFF
@@ -818,5 +814,17 @@ public class SchedulingAlgorithmRunner {
         return req.getSpecialty() != null
                 && staff.getSpecialty() != null
                 && staff.getSpecialty().getId().equals(req.getSpecialty().getId());
+    }
+
+    /** Check if a specific staff has an L01 schedule on a specific date. */
+    private boolean checkAdjacentL01(List<Schedule> schedules, int staffId, LocalDate date) {
+        for (Schedule s : schedules) {
+            if (s.getStaff().getId().equals(staffId)
+                    && s.getWorkDate().equals(date)
+                    && ConflictDetectionService.SHIFT_TYPE_L01.equals(s.getShiftType().getId())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

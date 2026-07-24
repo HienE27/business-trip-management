@@ -20,7 +20,7 @@ describe("useAutoSchedule — state defaults", () => {
     vi.clearAllMocks();
   });
 
-  it("starts with no preview, no edits, no message, CSP_MRV_FC algorithm", () => {
+  it("starts with no preview, no edits, no message, BEAM_SEARCH algorithm", () => {
     const { result } = renderHook(() => useAutoSchedule());
     const [state] = result.current;
     expect(state.previewResult).toBeNull();
@@ -29,7 +29,7 @@ describe("useAutoSchedule — state defaults", () => {
     expect(state.applying).toBe(false);
     expect(state.running).toBe(false);
     expect(state.message).toBeNull();
-    expect(state.algorithmType).toBe("CSP_MRV_FC");
+    expect(state.algorithmType).toBe("BEAM_SEARCH");
   });
 });
 
@@ -40,10 +40,10 @@ describe("useAutoSchedule — synchronous actions", () => {
 
   it("setAlgorithmType updates the algorithm choice", () => {
     const { result } = renderHook(() => useAutoSchedule());
-    act(() => result.current[1].setAlgorithmType("CSP_MRV_FC"));
-    expect(result.current[0].algorithmType).toBe("CSP_MRV_FC");
-    act(() => result.current[1].setAlgorithmType("FAIR_GREEDY"));
-    expect(result.current[0].algorithmType).toBe("FAIR_GREEDY");
+    act(() => result.current[1].setAlgorithmType("ENHANCED_GREEDY"));
+    expect(result.current[0].algorithmType).toBe("ENHANCED_GREEDY");
+    act(() => result.current[1].setAlgorithmType("CP_SAT"));
+    expect(result.current[0].algorithmType).toBe("CP_SAT");
   });
 
   it("setMessage writes a transient banner message", () => {
@@ -174,10 +174,82 @@ describe("useAutoSchedule — applyPreview", () => {
 
     expect(api.applyPreview).toHaveBeenCalledWith({
       periodId: 1,
-      algorithmType: "CSP_MRV_FC",
+      algorithmType: "BEAM_SEARCH",
       schedules: [{ workDate: "2026-06-15", shiftTypeId: "L02", staffId: 7 }],
       removedSchedules: [{ workDate: "2026-06-15", shiftTypeId: "L01", staffId: 7 }],
     });
     expect(onSuccess).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useAutoSchedule — persistence contract (Commit B)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.previewAutoSchedule).mockResolvedValue({
+      success: true,
+      data: { success: true, message: "ok", periodId: 1, algorithmType: "BEAM_SEARCH",
+        executionTimeMs: 100, coverageRate: 0, balanceScore: 0, conflictCount: 0,
+        totalSchedulesCreated: 0, schedules: [], executedAt: "" },
+      timestamp: "2026-07-07T00:00:00Z",
+    });
+  });
+
+  it("runPreview calls previewAutoSchedule (not applyPreview)", async () => {
+    const { result } = renderHook(() => useAutoSchedule());
+    await act(async () => {
+      await result.current[1].runPreview(1, undefined, false);
+    });
+    expect(api.previewAutoSchedule).toHaveBeenCalledTimes(1);
+    expect(api.applyPreview).not.toHaveBeenCalled();
+  });
+
+  it("runPreview with recommendedConfig passes it through to previewAutoSchedule", async () => {
+    const { result } = renderHook(() => useAutoSchedule());
+    const recommendedConfig = { l01MinPerDay: 2, l02MinPerDay: 2, l04CrossSpecialty: true };
+    await act(async () => {
+      await result.current[1].runPreview(1, undefined, true, recommendedConfig);
+    });
+    expect(api.previewAutoSchedule).toHaveBeenCalledWith(
+      expect.objectContaining({ recommendedConfig }),
+      expect.any(Object)
+    );
+    expect(api.applyPreview).not.toHaveBeenCalled();
+  });
+
+  it("applyPreview calls applyPreview (not previewAutoSchedule)", async () => {
+    vi.mocked(api.applyPreview).mockResolvedValue({
+      success: true, data: undefined, timestamp: "2026-07-07T00:00:00Z",
+    });
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() => useAutoSchedule());
+    await act(async () => {
+      await result.current[1].applyPreview(1, [], onSuccess);
+    });
+    expect(api.applyPreview).toHaveBeenCalledTimes(1);
+    expect(api.previewAutoSchedule).not.toHaveBeenCalled();
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("resetEdits makes zero API calls", async () => {
+    const { result } = renderHook(() => useAutoSchedule());
+    act(() => result.current[1].editStaff("2026-06-15", "L01", 7));
+    act(() => result.current[1].resetEdits());
+    // resetEdits only updates local state — no API calls
+    expect(api.previewAutoSchedule).not.toHaveBeenCalled();
+    expect(api.applyPreview).not.toHaveBeenCalled();
+    expect(result.current[0].editedPreview).toEqual([]);
+  });
+
+  it("runPreview does NOT persist config or requirements", async () => {
+    // Verify that calling runPreview does not trigger any POST/PUT/DELETE that
+    // would persist data — it is a read-only preview (save=false in request).
+    const { result } = renderHook(() => useAutoSchedule());
+    await act(async () => {
+      await result.current[1].runPreview(1, undefined, false);
+    });
+    // previewAutoSchedule is a POST, but it is idempotent preview — the mock confirms
+    // no applyPreview (save=true) was called
+    expect(api.previewAutoSchedule).toHaveBeenCalled();
+    expect(api.applyPreview).not.toHaveBeenCalled();
   });
 });

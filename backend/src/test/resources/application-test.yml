@@ -1,7 +1,10 @@
 spring:
   datasource:
-    # Dynamically overridden by TestcontainerConfig singleton
-    url: ${TEST_DATASOURCE_URL:jdbc:tc:mysql:8.0:///}
+    # Uses existing MySQL 8 container on localhost:3306 (started via docker-compose).
+    # Creates/drops tables via ddl-auto per test class — no data leakage.
+    url: jdbc:mysql://localhost:3306/test_scheduler?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh&characterEncoding=UTF-8
+    username: hospital
+    password: hospital123
   jpa:
     # Validate schema on startup so bad entity mappings fail fast
     hibernate:

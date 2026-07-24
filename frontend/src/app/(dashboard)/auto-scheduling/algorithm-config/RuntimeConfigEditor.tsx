@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PresetKey } from "@/components/algorithm-config/PresetSelector";
+import { PresetSelector } from "@/components/algorithm-config/PresetSelector";
 import { Button } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -50,6 +51,13 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const [recommending, setRecommending] = useState(false);
   const [recommendResult, setRecommendResult] = useState<RecommendResult | null>(null);
   const [applyingRecommend, setApplyingRecommend] = useState(false);
+  // Target ca/người/tháng — USER-EDITABLE (trước đây hardcode → recommend bơm
+  // minPerDay lên 299, sinh 25K+ slots → thuật toán chạy 200s+).
+  // Default hợp lý cho bệnh viện ~900 NS: 2 ca/người/tháng cho L01-L03 (đủ
+  // nghỉ), 5 cho L04 (phòng khám chuyên gia, chủ trì).
+  const [targetPerStaffPerMonth, setTargetPerStaffPerMonth] = useState({
+    L01: 2, L02: 2, L03: 2, L04: 5,
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,6 +72,13 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       setConfig(merged);
       setForm(merged);
       setActivePreset(detectPreset(merged));
+      // Load target_per_month từ DB (ưu tiên giá trị đã lưu, fallback default)
+      setTargetPerStaffPerMonth({
+        L01: merged.l01TargetPerMonth ?? 2,
+        L02: merged.l02TargetPerMonth ?? 2,
+        L03: merged.l03TargetPerMonth ?? 2,
+        L04: merged.l04TargetPerMonth ?? 5,
+      });
     } catch {
       error("Khong the tai cau hinh runtime");
     } finally {
@@ -105,6 +120,53 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     if (form) setActivePreset(detectPreset(form));
   }, [form]);
 
+  // AUTO-FILL: khi user đổi targetPerStaffPerMonth → tự động tính lại min/max
+  // per day/week trong form (cùng công thức backend dùng trong recommendAutoGenConfig).
+  // User vẫn có thể chỉnh tay các ô min/max sau khi auto-fill (chỉ ghi đè nếu form
+  // chưa dirty hoặc user chủ động bấm "Tính lại theo target").
+  const [autoFillEnabled, setAutoFillEnabled] = useState(true);
+  useEffect(() => {
+    if (!form || !autoFillEnabled) return;
+    const days = PERIOD_DAYS;       // 31
+    const weeks = PERIOD_WEEKS;     // 5
+    // Tính totalStaff từ staffAnalysis trực tiếp (state này đã được load
+    // trước effect này → không dùng useMemo ở trên để tránh used-before-decl).
+    const staff = Math.max(1, staffAnalysis.reduce((s, a) => s + a.staffCount, 0) || 924);
+    const l04Elig = Math.max(1, staff);
+    const numSpecs = Math.max(1, staffAnalysis.length || 6);
+    const effectiveL04 = Math.max(1, Math.min(l04Elig, Math.ceil(staff / numSpecs)));
+
+    const compute = (target: number, elig: number) => {
+      if (target <= 0) return { minPerDay: 0, maxPerDay: 0, minPerWeek: 0, maxPerWeek: 0 };
+      const minPerDay = Math.max(1, Math.ceil((target * elig) / days));
+      const minPerWeek = Math.max(1, Math.ceil(target / weeks));
+      const maxPerWeek = Math.max(minPerWeek + 1, Math.ceil((target / weeks) * 1.5));
+      const maxPerDay = Math.max(minPerDay, Math.ceil(maxPerWeek * 1.2));
+      return { minPerDay, maxPerDay, minPerWeek, maxPerWeek };
+    };
+
+    const l01 = compute(targetPerStaffPerMonth.L01, staff);
+    const l02 = compute(targetPerStaffPerMonth.L02, staff);
+    const l03 = compute(targetPerStaffPerMonth.L03, staff);
+    const l04 = compute(targetPerStaffPerMonth.L04, effectiveL04);
+
+    setForm(prev => prev ? {
+      ...prev,
+      l01MinPerDay: l01.minPerDay, l01MaxPerDay: l01.maxPerDay,
+      l01MinPerWeek: l01.minPerWeek, l01MaxPerWeek: l01.maxPerWeek,
+      l02MinPerDay: l02.minPerDay, l02MaxPerDay: l02.maxPerDay,
+      l02MinPerWeek: l02.minPerWeek, l02MaxPerWeek: l02.maxPerWeek,
+      l03MinPerDay: l03.minPerDay, l03MaxPerDay: l03.maxPerDay,
+      l03MinPerWeek: l03.minPerWeek, l03MaxPerWeek: l03.maxPerWeek,
+      l04MinPerDay: l04.minPerDay, l04MaxPerDay: l04.maxPerDay,
+      l04MinPerWeek: l04.minPerWeek, l04MaxPerWeek: l04.maxPerWeek,
+      l01TargetPerMonth: targetPerStaffPerMonth.L01,
+      l02TargetPerMonth: targetPerStaffPerMonth.L02,
+      l03TargetPerMonth: targetPerStaffPerMonth.L03,
+      l04TargetPerMonth: targetPerStaffPerMonth.L04,
+    } : prev);
+  }, [targetPerStaffPerMonth, autoFillEnabled, staffAnalysis]); // eslint-disable-line react-hooks/exhaustive-deps -- form intentionally omitted; effect sets form (would loop)
+
   // Keyboard shortcuts: Ctrl+S save, Ctrl+Z reset
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -117,7 +179,8 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bind once on mount; re-binding on every form change would re-attach the listener without semantic benefit
+  }, []);
 
   function applyPreset(key: PresetKey) {
     const preset = ALGORITHM_PRESETS[key];
@@ -148,7 +211,16 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         removedShiftTypes: form.removedShiftTypes ?? [],
         l04CrossSpecialty: form.l04CrossSpecialty ?? false,
         l04CrossSpecialtyRatio: form.l04CrossSpecialtyRatio ?? 0.3,
+        l04AllowedSpecialties: form.l04AllowedSpecialties ?? [],
+        l01AllowedSpecialties: form.l01AllowedSpecialties ?? [],
+        l02AllowedSpecialties: form.l02AllowedSpecialties ?? [],
+        l03AllowedSpecialties: form.l03AllowedSpecialties ?? [],
         l04BalanceStrategy: form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
+        // Persist target_per_month để UI refresh không reset (trước đây hardcode).
+        l01TargetPerMonth: targetPerStaffPerMonth.L01,
+        l02TargetPerMonth: targetPerStaffPerMonth.L02,
+        l03TargetPerMonth: targetPerStaffPerMonth.L03,
+        l04TargetPerMonth: targetPerStaffPerMonth.L04,
       };
       await api.updateRuntimeConfig(form);
       await api.updateAutoGenConfig(autoGenPayload);
@@ -191,7 +263,9 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         periodWeeks: PERIOD_WEEKS,
         totalStaff,
         eligibleStaff: eligibleStaffMap,
-        targetPerStaffPerMonth: { L01: 8, L02: 7, L03: 8, L04: 10 },
+        // Truyền giá trị từ state (user-editable) — trước đây hardcode
+        // {L01:8, L02:7, L03:8, L04:10} → recommend bơm minPerDay lên 299.
+        targetPerStaffPerMonth: targetPerStaffPerMonth,
         expandNonL04Eligibility: true,
         expandedSpecialties: staffAnalysis.map(a => a.specialtyName),
         maxShiftsPerStaff: form?.maxShiftsPerStaff,
@@ -250,7 +324,15 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l04CrossSpecialty: updated.l04CrossSpecialty ?? false,
         l04CrossSpecialtyRatio: updated.l04CrossSpecialtyRatio ?? 0.3,
         l04AllowedSpecialties: updated.l04AllowedSpecialties ?? [],
+        l01AllowedSpecialties: updated.l01AllowedSpecialties ?? [],
+        l02AllowedSpecialties: updated.l02AllowedSpecialties ?? [],
+        l03AllowedSpecialties: updated.l03AllowedSpecialties ?? [],
         l04BalanceStrategy: updated.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
+        // Preserve target_per_month để UI refresh không reset (recommend không đổi target).
+        l01TargetPerMonth: targetPerStaffPerMonth.L01,
+        l02TargetPerMonth: targetPerStaffPerMonth.L02,
+        l03TargetPerMonth: targetPerStaffPerMonth.L03,
+        l04TargetPerMonth: targetPerStaffPerMonth.L04,
       };
       await api.updateAutoGenConfig(autoGenPayload);
       await api.updateRuntimeConfig(updated);
@@ -271,6 +353,19 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
 
   return (
     <div className="space-y-5">
+      {/* Preset selector — bao gồm Lab-Eval (demo/đánh giá chuyên khoa).
+          Preset CHỈ nạp form, KHÔNG tự lưu; người dùng vẫn bấm "Lưu thay đổi"
+          để ghi vào DB. Đặc tính Hiến yêu cầu: "auto được, nhưng bắt buộc manual". */}
+      <div className="space-y-1.5">
+        <PresetSelector activePreset={activePreset} onApply={(k) => applyPreset(k)} />
+        {activePreset === "labEval" && (
+          <p className="text-[11px] text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[14px]" aria-hidden="true">info</span>
+            Lab-Eval là cấu hình đánh giá (L04 dày, cross OFF, auto-adjust OFF). Nút này chỉ nạp form — bấm <strong className="font-semibold">Lưu thay đổi</strong> để ghi vào DB. Không tự thay cấu hình production.
+          </p>
+        )}
+      </div>
+
       {/* Keyboard shortcuts hint */}
       <div className="flex items-center justify-end gap-4 text-[11px] text-on-surface-variant">
         <span className="flex items-center gap-1">
@@ -355,6 +450,65 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             </div>
           </div>
         )}
+
+        {/* Target ca/người/tháng — USER-EDITABLE. Tự auto-fill các ô min/max per day/week
+            trong form khi toggle "Auto-fill" bật. Persist vào DB khi user bấm "Lưu thay đổi". */}
+        <div className="mb-4 p-3 rounded-lg bg-surface-container-low/40 border border-outline-variant/40">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="material-symbols-outlined text-primary text-[16px]" aria-hidden="true">target</span>
+            <p className="text-label-sm font-semibold text-on-surface">Mục tiêu ca / người / tháng</p>
+            <label className="ml-auto flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" className="sr-only peer"
+                checked={autoFillEnabled}
+                onChange={(e) => setAutoFillEnabled(e.target.checked)} />
+              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${autoFillEnabled ? "bg-primary/10 border-primary/40 text-primary" : "bg-surface-container-low border-outline-variant text-on-surface-variant"}`}>
+                {autoFillEnabled ? "Auto-fill ON" : "Auto-fill OFF"}
+              </span>
+              <div className="w-7 h-4 bg-surface-variant rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-3 relative" />
+            </label>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {([
+              { key: "L01" as const, label: "L01 Trực", color: "text-red-700" },
+              { key: "L02" as const, label: "L02 TT", color: "text-blue-700" },
+              { key: "L03" as const, label: "L03 PK", color: "text-green-700" },
+              { key: "L04" as const, label: "L04 CG", color: "text-purple-700" },
+            ]).map(({ key, label, color }) => {
+              const target = targetPerStaffPerMonth[key];
+              // Live preview: tính minPerDay mà backend sẽ sinh ra
+              const elig = key === "L04"
+                ? Math.max(1, Math.min(totalStaff, Math.ceil(totalStaff / Math.max(1, staffAnalysis.length || 6))))
+                : Math.max(1, totalStaff);
+              const previewMinPerDay = target > 0 ? Math.max(1, Math.ceil((target * elig) / PERIOD_DAYS)) : 0;
+              return (
+                <div key={key}>
+                  <label className={`block text-[10px] font-semibold mb-0.5 ${color}`}>{label}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={31}
+                    value={target}
+                    onChange={(e) => setTargetPerStaffPerMonth(prev => ({
+                      ...prev,
+                      [key]: Math.max(0, parseInt(e.target.value) || 0),
+                    }))}
+                    className="h-8 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                  {autoFillEnabled && target > 0 && (
+                    <p className="text-[9px] text-on-surface-variant mt-0.5 text-center">
+                      → min/day: {previewMinPerDay}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-on-surface-variant mt-1.5">
+            {autoFillEnabled
+              ? "Auto-fill đang bật: đổi target → ô min/max per day/week tự tính lại. Bấm 'Lưu thay đổi' để commit DB."
+              : "Auto-fill đang tắt: chỉ chỉnh tay các ô min/max. Target vẫn lưu vào DB khi bấm Lưu."}
+          </p>
+        </div>
 
         <Button
           variant="secondary"
@@ -471,18 +625,167 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             </select>
           </div>
 
-          {/* maxShiftsPerStaff */}
-          <div>
-            <label className="block text-label-sm font-medium text-on-surface mb-1">Max ca/nguoi</label>
-            <input type="number" min={0}
-              value={form.maxShiftsPerStaff ?? 0}
-              onChange={(e) => setField("maxShiftsPerStaff", parseInt(e.target.value) || 0)}
-              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            <p className="text-[10px] text-on-surface-variant mt-0.5">0 = tu dong</p>
-          </div>
-        </div>
-      </div>
+	          {/* maxShiftsPerStaff */}
+	          <div>
+	            <label className="block text-label-sm font-medium text-on-surface mb-1">Max ca/nguoi</label>
+	            <input type="number" min={0}
+	              value={form.maxShiftsPerStaff ?? 0}
+	              onChange={(e) => setField("maxShiftsPerStaff", parseInt(e.target.value) || 0)}
+	              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+	            />
+	            <p className="text-[10px] text-on-surface-variant mt-0.5">0 = tu dong</p>
+	          </div>
+	        </div>
+
+			        {/* weekendWeight — chỉ áp dụng cho GREEDY */}
+			        <div className="mt-4">
+			          <SliderField
+			            label="weekendWeight"
+			            desc="Trong số cuối tuần — chỉ áp dụng cho thuật toán GREEDY. Giá trị càng cao càng ưu tiên giảm ca cuối tuần."
+			            value={form.weekendWeight ?? 2.0}
+			            min={0}
+			            max={5}
+			            step={0.5}
+			            format={(v) => v.toFixed(1)}
+			            onChange={(v) => setField("weekendWeight", v)}
+			          />
+			        </div>
+
+			        {/* beamWidth — Beam Search width & SA iteration multiplier */}
+			        <div className="mt-4">
+			          <div className="flex items-center justify-between">
+			            <label className="text-label-sm font-medium text-on-surface">Beam Width</label>
+			            <input type="number" min={1} max={50} step={1}
+			              value={form.beamWidth ?? 5}
+			              onChange={(e) => setField("beamWidth", parseInt(e.target.value) || 5)}
+			              className="h-9 w-24 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+			            />
+			          </div>
+			          <p className="text-[10px] text-on-surface-variant mt-0.5">
+			            Độ rộng Beam Search (mặc định 5). Với SA scheduler, dùng để tính số vòng lặp (beamWidth × 100).
+			          </p>
+			        </div>
+
+			        {/* Scorer weights — quyết định tỷ trọng coverage / fairness / constraint */}
+		        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+		          <SliderField
+		            label="Coverage Weight"
+		            desc="Trọng số coverage (0.0–1.0). Cao → ưu tiên lấp đầy ca."
+		            value={form.coverageWeight ?? 0.40}
+		            min={0} max={1} step={0.05}
+		            format={(v) => v.toFixed(2)}
+		            onChange={(v) => setField("coverageWeight", v)}
+		          />
+		          <SliderField
+		            label="Fairness Weight"
+		            desc="Trọng số fairness (0.0–1.0). Cao → ưu tiên phân bổ công bằng."
+		            value={form.fairnessWeight ?? 0.35}
+		            min={0} max={1} step={0.05}
+		            format={(v) => v.toFixed(2)}
+		            onChange={(v) => setField("fairnessWeight", v)}
+		          />
+		          <SliderField
+		            label="Constraint Weight"
+		            desc="Trọng số constraint (0.0–1.0). Cao → ưu tiên kỷ luật ràng buộc."
+		            value={form.constraintWeight ?? 0.25}
+		            min={0} max={1} step={0.05}
+		            format={(v) => v.toFixed(2)}
+		            onChange={(v) => setField("constraintWeight", v)}
+		          />
+		        </div>
+
+		        {/* Scorer thresholds & penalties */}
+		        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+		          <div>
+		            <label className="block text-label-sm font-medium text-on-surface mb-1">Pass Threshold</label>
+		            <input type="number" min={0} max={100} step={1}
+		              value={form.passThreshold ?? 80}
+		              onChange={(e) => setField("passThreshold", parseFloat(e.target.value) || 0)}
+		              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+		            />
+		            <p className="text-[10px] text-on-surface-variant mt-0.5">Ngưỡng đạt (0-100)</p>
+		          </div>
+		          <div>
+		            <label className="block text-label-sm font-medium text-on-surface mb-1">Hard Violation Penalty</label>
+		            <input type="number" min={0} max={100} step={0.5}
+		              value={form.hardViolationPenalty ?? 25}
+		              onChange={(e) => setField("hardViolationPenalty", parseFloat(e.target.value) || 0)}
+		              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+		            />
+		            <p className="text-[10px] text-on-surface-variant mt-0.5">Phạt / vi phạm HARD</p>
+		          </div>
+		          <div>
+		            <label className="block text-label-sm font-medium text-on-surface mb-1">Soft Violation Penalty</label>
+		            <input type="number" min={0} max={50} step={0.5}
+		              value={form.softViolationPenalty ?? 5}
+		              onChange={(e) => setField("softViolationPenalty", parseFloat(e.target.value) || 0)}
+		              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+		            />
+		            <p className="text-[10px] text-on-surface-variant mt-0.5">Phạt / vi phạm SOFT</p>
+		          </div>
+		          <div>
+		            <label className="block text-label-sm font-medium text-on-surface mb-1">Target CV</label>
+		            <input type="number" min={0} max={1} step={0.01}
+		              value={form.targetCv ?? 0.10}
+		              onChange={(e) => setField("targetCv", parseFloat(e.target.value) || 0)}
+		              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+		            />
+		            <p className="text-[10px] text-on-surface-variant mt-0.5">CV ≤ target → 100 điểm</p>
+		          </div>
+		          <div>
+		            <label className="block text-label-sm font-medium text-on-surface mb-1">Worst CV</label>
+		            <input type="number" min={0} max={1} step={0.01}
+		              value={form.worstCv ?? 0.50}
+		              onChange={(e) => setField("worstCv", parseFloat(e.target.value) || 0)}
+		              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+		            />
+			            <p className="text-[10px] text-on-surface-variant mt-0.5">CV ≥ worst → 0 điểm</p>
+			          </div>
+			        </div>
+
+		        {/* Rebalance rounds */}
+		        <div className="mt-4">
+		          <p className="text-label-sm font-medium text-on-surface mb-2">Rebalance Rounds</p>
+		          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+		            <div>
+		              <label className="block text-label-sm font-medium text-on-surface mb-1">Total</label>
+		              <input type="number" min={0} max={500} step={1}
+		                value={form.rebalanceRoundsTotal ?? 80}
+		                onChange={(e) => setField("rebalanceRoundsTotal", parseInt(e.target.value) || 0)}
+		                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+		              />
+		              <p className="text-[10px] text-on-surface-variant mt-0.5">RRHC total, SA fairness (default 80)</p>
+		            </div>
+		            <div>
+		              <label className="block text-label-sm font-medium text-on-surface mb-1">Per-type</label>
+		              <input type="number" min={0} max={500} step={1}
+		                value={form.rebalanceRoundsPerType ?? 30}
+		                onChange={(e) => setField("rebalanceRoundsPerType", parseInt(e.target.value) || 0)}
+		                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+		              />
+		              <p className="text-[10px] text-on-surface-variant mt-0.5">RRHC per-type, Beam per-type (default 30)</p>
+		            </div>
+		            <div>
+		              <label className="block text-label-sm font-medium text-on-surface mb-1">EG / Beam total</label>
+		              <input type="number" min={0} max={500} step={1}
+		                value={form.rebalanceRoundsEg ?? 40}
+		                onChange={(e) => setField("rebalanceRoundsEg", parseInt(e.target.value) || 0)}
+		                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+		              />
+		              <p className="text-[10px] text-on-surface-variant mt-0.5">EG per-type, Beam total (default 40)</p>
+		            </div>
+		            <div>
+		              <label className="block text-label-sm font-medium text-on-surface mb-1">Post-save</label>
+		              <input type="number" min={0} max={500} step={1}
+		                value={form.rebalanceRoundsPostSave ?? 100}
+		                onChange={(e) => setField("rebalanceRoundsPostSave", parseInt(e.target.value) || 0)}
+		                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+		              />
+		              <p className="text-[10px] text-on-surface-variant mt-0.5">Post-process rebalance (default 100)</p>
+		            </div>
+		          </div>
+		        </div>
+		      </div>
 
       {/* Save / Reset buttons */}
       <div className="flex items-center justify-end gap-3">

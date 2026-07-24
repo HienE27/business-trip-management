@@ -32,11 +32,12 @@ export const PARAM_VALIDATIONS: Record<string, ValidationRule> = {
   },
   balance_score_min: (v) => {
     const num = Number(v);
+    // Soft gate only: below threshold → warning in auto-schedule message, never reject.
     if (num > 0.85) {
-      return { level: "warning", message: "Ngưỡng cân bằng cao (> 85%) khó đạt. Có thể thuật toán fail hoặc chạy rất lâu." };
+      return { level: "warning", message: "Ngưỡng fairness cao (> 0.85 = 85%). Kết quả vẫn lưu; chỉ hiện cảnh báo soft nếu balanceScore thấp hơn." };
     }
     if (num < 0.5) {
-      return { level: "warning", message: "Cân bằng thấp, NS có thể chênh lệch nhiều ca." };
+      return { level: "warning", message: "Ngưỡng fairness thấp (< 0.50). Cảnh báo soft gần như không kích hoạt; NS có thể chênh nhiều ca." };
     }
     return null;
   },
@@ -60,13 +61,6 @@ export const PARAM_VALIDATIONS: Record<string, ValidationRule> = {
     }
     if (num > 0 && num < 8) {
       return { level: "warning", message: "Tối đa < 8 ca/kỳ → có thể không đáp ứng requirement cao." };
-    }
-    return null;
-  },
-  min_shifts_per_staff: (v) => {
-    const num = Number(v);
-    if (num > 15) {
-      return { level: "warning", message: "Min ca > 15 có thể ép NS nhận nhiều ca hơn mong muốn." };
     }
     return null;
   },

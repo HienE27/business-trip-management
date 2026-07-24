@@ -51,6 +51,11 @@ const StaffExclusionTable = dynamic(
   () => import("@/components/auto-scheduling/StaffExclusionTable").then((m) => m.StaffExclusionTable),
   { loading: () => <Skeleton className="h-48 rounded-xl" /> },
 );
+// L04 specialty eval — bảng required/assigned/cross-leak theo chuyên khoa
+const L04EvalTable = dynamic(
+  () => import("@/components/auto-scheduling/L04EvalTable").then((m) => m.L04EvalTable),
+  { loading: () => <Skeleton className="h-64 rounded-xl" /> },
+);
 
 import { useAutoSchedule } from "@/hooks/useAutoSchedule";
 import { useRole, canManage } from "@/hooks/useRole";
@@ -104,6 +109,8 @@ export default function AutoSchedulingPage() {
   const [editingStaffIds, setEditingStaffIds] = useState<Map<string | number, number>>(new Map());
   const [previewEditItem, setPreviewEditItem] = useState<import("@/types/api").AutoScheduleSummary | null>(null);
   const [showWizard, setShowWizard] = useState(false);
+  // Bump sau mỗi lần apply → refetch bảng L04-eval (lịch mới đã lưu)
+  const [l04EvalRefreshKey, setL04EvalRefreshKey] = useState(0);
 
   const loadWorkspace = useCallback(async () => {
     try {
@@ -178,9 +185,9 @@ export default function AutoSchedulingPage() {
 
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId) ?? null;
 
-  const handleRunPreview = (useRecommendedConfig = false) => {
+  const handleRunPreview = (useRecommendedConfig = false, recommendedConfig?: Record<string, unknown>) => {
     if (!selectedPeriodId) return;
-    void runPreview(selectedPeriodId, excludedStaffIds, useRecommendedConfig);
+    void runPreview(selectedPeriodId, excludedStaffIds, useRecommendedConfig, recommendedConfig);
   };
 
   const handleApplyPreview = async () => {
@@ -202,6 +209,7 @@ export default function AutoSchedulingPage() {
     await applyPreview(selectedPeriodId, merged, () => {
       setApplyModalOpen(false);
       void loadWorkspace();
+      setL04EvalRefreshKey((k) => k + 1);
     });
   };
 
@@ -494,6 +502,14 @@ export default function AutoSchedulingPage() {
             <WorkloadChart periodId={selectedPeriodId!} previewSchedules={previewResult?.schedules} />
           </div>
         </div>
+      )}
+
+      {/* L04 specialty eval — bảng chứng minh cross OFF + leak = 0 sau khi apply */}
+      {selectedPeriodId && (
+        <L04EvalTable
+          periodId={selectedPeriodId}
+          refreshKey={l04EvalRefreshKey}
+        />
       )}
 
       <ApplyConfirmationModal

@@ -15,5 +15,12 @@ public record AutoGenConfig(
     List<String> l04AllowedSpecialties,  // Danh sách specialties được gán L04 (null/empty = tất cả)
     List<String> l01AllowedSpecialties,  // Danh sách specialties được gán L01 (null/empty = CORE = Ngoại,Nội)
     List<String> l02AllowedSpecialties,  // Danh sách specialties được gán L02 (null/empty = CORE = Ngoại,Nội)
-    List<String> l03AllowedSpecialties   // Danh sách specialties được gán L03 (null/empty = CORE = Ngoại,Nội)
+    List<String> l03AllowedSpecialties,  // Danh sách specialties được gán L03 (null/empty = CORE = Ngoại,Nội)
+    // Target ca/người/tháng — input cho recommendAutoGenConfig. Persist vào DB
+    // để UI refresh không reset về default. Default L01-L03=2, L04=5 (xem AlgorithmConfigService).
+    int l01TargetPerMonth, int l02TargetPerMonth, int l03TargetPerMonth, int l04TargetPerMonth,
+    // Chiến lược cân bằng L04 khi cross-specialty:
+    // STRICT_MATCH_ONLY | FAIR_DISTRIBUTE | WEIGHTED_FAIR.
+    // Frontend default = "FAIR_DISTRIBUTE".
+    String l04BalanceStrategy
 ) {}

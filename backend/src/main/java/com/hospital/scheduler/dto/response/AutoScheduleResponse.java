@@ -21,6 +21,10 @@ public class AutoScheduleResponse {
     private Integer executionTimeMs;
     private BigDecimal coverageRate;
     private BigDecimal balanceScore;
+    /** Commit B: balance_score_min threshold value in 0–100 percent (e.g. 70.00). Null if not configured. */
+    private BigDecimal balanceScoreMinPct;
+    /** Commit B: true when balanceScore < balanceScoreMin. Soft warning — never blocks save/confirm. */
+    private Boolean belowBalanceMin;
     private Integer conflictCount;
     private Integer totalSchedulesCreated;
     private List<ScheduleSummary> schedules;

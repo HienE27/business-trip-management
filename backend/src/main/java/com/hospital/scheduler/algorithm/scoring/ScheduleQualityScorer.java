@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -34,9 +36,14 @@ import java.util.stream.Collectors;
  * CV &lt; 10% → rất tốt. CV &gt; 30% → xấu.
  *
  * <p><b>Constraint:</b> Quét BR-01 → BR-05 (5 rule cốt lõi từ spec).
+ *
+ * <p><b>Scope:</b> prototype — mutable fluent config ({@code withWeights}, …)
+ * must not share one singleton across concurrent scoring calls.
+ * Callers obtain via {@code ObjectProvider<ScheduleQualityScorer>#getObject()}.
  */
 @Slf4j
 @Component
+@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 @RequiredArgsConstructor
 public class ScheduleQualityScorer {
 
@@ -67,6 +74,9 @@ public class ScheduleQualityScorer {
 
     /** CV vượt ngưỡng này [%] → 0 điểm fairness. */
     private double worstCv = 0.50;
+
+    /** L01 adjacent window = ceil(overnightRecoveryHours/24). Mặc định 1 (tương thích ngược). */
+    private int l01Window = 1;
 
     // ─────────────────────────────────────────────────────────────
     // Defaults — single source of truth for all three weights.
@@ -119,6 +129,11 @@ public class ScheduleQualityScorer {
     public ScheduleQualityScorer withCvTargets(double target, double worst) {
         this.targetCv = target;
         this.worstCv = worst;
+        return this;
+    }
+
+    public ScheduleQualityScorer withL01Window(int l01Window) {
+        this.l01Window = l01Window;
         return this;
     }
 
@@ -756,9 +771,10 @@ public class ScheduleQualityScorer {
                 }
             }
 
-            // BR-04: adjacent L01 (cùng nhân sự, 2 ngày liên tiếp có L01)
+            // BR-04: adjacent L01 (cùng nhân sự, L01 cách nhau < l01Window+1 ngày là vi phạm)
             if ("L01".equals(typeId)) {
-                for (int delta : new int[]{-1, 1}) {
+                for (int delta = -l01Window; delta <= l01Window; delta++) {
+                    if (delta == 0) continue;
                     LocalDate adj = date.plusDays(delta);
                     String adjKey = staffId + "|" + adj;
                     List<Schedule> adjList = byStaffDate.getOrDefault(adjKey, List.of());

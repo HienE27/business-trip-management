@@ -133,6 +133,29 @@ public class RequirementAutoGenService {
         }
 
         List<Specialty> activeSpecialties = specialtyRepository.findByIsActiveTrue();
+
+        // === [DEBUG L04-INVESTIGATION] temporary logging ===
+        log.info("[L04-DBG] ===== generateRequirementsFromConfig START =====");
+        log.info("[L04-DBG] periodId={} dateRange={}..{} daysInPeriod={} periodWeeks={}",
+                period.getId(), period.getStartDate(), period.getEndDate(), daysInPeriod, periodWeeks);
+        log.info("[L04-DBG] activeStaff.size={} generalPoolSize={} holidayMode={} removedShiftTypes={}",
+                activeStaff.size(), generalPoolSize, config.holidayMode(), removedShiftTypes);
+        log.info("[L04-DBG] CONFIG L01: min/day={} max/day={}", config.l01MinPerDay(), config.l01MaxPerDay());
+        log.info("[L04-DBG] CONFIG L02: min/day={} max/day={}", config.l02MinPerDay(), config.l02MaxPerDay());
+        log.info("[L04-DBG] CONFIG L03: min/day={} max/day={}", config.l03MinPerDay(), config.l03MaxPerDay());
+        log.info("[L04-DBG] CONFIG L04: min/day={} max/day={} max/week={} crossSpecialty={} crossRatio={} balanceStrategy={}",
+                config.l04MinPerDay(), config.l04MaxPerDay(), config.l04MaxPerWeek(),
+                config.l04CrossSpecialty(), config.l04CrossSpecialtyRatio(), config.l04BalanceStrategy());
+        log.info("[L04-DBG] l04AllowedSpecialties={} (NOTE: not applied in this generator — generator iterates findByIsActiveTrue)",
+                config.l04AllowedSpecialties());
+        log.info("[L04-DBG] activeSpecialties count={} (findByIsActiveTrue):",
+                activeSpecialties.size());
+        for (Specialty sp : activeSpecialties) {
+            int cnt = staffPerSpecialty.getOrDefault(sp.getId(), 0);
+            log.info("[L04-DBG]   - specialty id={} name='{}' activeStaffCount={}", sp.getId(), sp.getName(), cnt);
+        }
+        // === [END DEBUG BLOCK 1] ===
+
         LocalDate current = period.getStartDate();
         while (!current.isAfter(period.getEndDate())) {
             LocalDate date = current;
@@ -166,11 +189,11 @@ public class RequirementAutoGenService {
                 for (Specialty specialty : activeSpecialties) {
                     int staffInSpec = staffPerSpecialty.getOrDefault(specialty.getId(), 0);
 
-                    // Fair L04 per person per period: at most ~8-10 L04/month per person
-                    // l04MaxPerWeek=0 means unlimited — use the hard cap directly.
+                    // L04 per person per period from config (no hard ceiling of 10).
+                    // l04MaxPerWeek=0 = unlimited → physical bound = daysInPeriod.
                     int maxL04PerPerson = config.l04MaxPerWeek() > 0
-                            ? Math.min(config.l04MaxPerWeek() * periodWeeks, Math.min(10, daysInPeriod / 2))
-                            : Math.min(10, daysInPeriod / 2);
+                            ? Math.min(config.l04MaxPerWeek() * periodWeeks, daysInPeriod)
+                            : daysInPeriod;
 
                     // Total L04 needed for this specialty based on its own staff count.
                     // When cross-specialty is enabled, the algorithm can fill remaining
@@ -190,6 +213,14 @@ public class RequirementAutoGenService {
                     int dayOfPeriod = (int) ChronoUnit.DAYS.between(period.getStartDate(), date);
                     boolean generateToday = (dayOfPeriod % interval == 0) && dayOfPeriod < effectiveDays;
 
+                    // === [DEBUG L04-INVESTIGATION] per (specialty × day) ===
+                    if (generateToday || dayOfPeriod == 0) {
+                        log.info("[L04-DBG] spec='{}' date={} dayOfPeriod={} staffInSpec={} maxL04PerPerson={} totalL04Needed={} effectiveDays={} interval={} generateToday={}",
+                                specialty.getName(), date, dayOfPeriod, staffInSpec, maxL04PerPerson,
+                                totalL04Needed, effectiveDays, interval, generateToday);
+                    }
+                    // === [END DEBUG BLOCK 2] ===
+
 	                    if (generateToday) {
 	                        // When maxPerDay=0 (unlimited), derive per-day cap from total need ÷ generation days
 	                        int perDayCap = config.l04MaxPerDay() > 0
@@ -198,9 +229,9 @@ public class RequirementAutoGenService {
 	                        int target = Math.max(config.l04MinPerDay(), Math.min(perDayCap, totalL04Needed));
                         generated.add(buildAutoRequirement(period, l04, date, specialty, target,
                                 "AUTO_SOFT_TARGET:L04:" + date + ":" + specialty.getName()));
-                    }
-                }
-            }
+	                }
+	            }
+	        }
 
             current = current.plusDays(1);
         }
@@ -212,6 +243,46 @@ public class RequirementAutoGenService {
             uniqueReqs.putIfAbsent(key, r);
         }
         List<ShiftRequirement> deduplicated = new ArrayList<>(uniqueReqs.values());
+
+        // === [DEBUG L04-INVESTIGATION] summary of generated requirements ===
+        Map<String, Integer> countByShiftType = new LinkedHashMap<>();
+        Map<String, Integer> countByShiftTypeSpecialty = new LinkedHashMap<>();
+        Map<String, Integer> sumTargetBySpecialty = new LinkedHashMap<>();
+        for (ShiftRequirement r : deduplicated) {
+            String stId = r.getShiftType().getId();
+            countByShiftType.merge(stId, 1, Integer::sum);
+            String specName = r.getSpecialty() != null ? r.getSpecialty().getName() : "null";
+            String key = stId + "|" + specName;
+            countByShiftTypeSpecialty.merge(key, 1, Integer::sum);
+            if ("L04".equals(stId)) {
+                sumTargetBySpecialty.merge(specName, r.getRequiredStaffCount(), Integer::sum);
+            }
+        }
+        log.info("[L04-DBG] ===== SUMMARY generateRequirementsFromConfig END =====");
+        log.info("[L04-DBG] total deduplicated requirements = {} (before dedup: {})", deduplicated.size(), generated.size());
+        log.info("[L04-DBG] count by shiftType: {}", countByShiftType);
+        log.info("[L04-DBG] count by (shiftType, specialty):");
+        for (Map.Entry<String, Integer> e : countByShiftTypeSpecialty.entrySet()) {
+            log.info("[L04-DBG]   - {}: {}", e.getKey(), e.getValue());
+        }
+        log.info("[L04-DBG] L04 sum of requiredStaffCount by specialty:");
+        for (Map.Entry<String, Integer> e : sumTargetBySpecialty.entrySet()) {
+            log.info("[L04-DBG]   - {}: totalTarget={}", e.getKey(), e.getValue());
+        }
+        // dump first few L04 requirements (sorted by date) for visual verification
+        List<ShiftRequirement> l04Sample = deduplicated.stream()
+                .filter(r -> "L04".equals(r.getShiftType().getId()))
+                .sorted(java.util.Comparator.comparing(ShiftRequirement::getWorkDate))
+                .limit(15)
+                .collect(Collectors.toList());
+        log.info("[L04-DBG] sample L04 requirements (first 15 sorted by date):");
+        for (ShiftRequirement r : l04Sample) {
+            log.info("[L04-DBG]   - date={} spec='{}' target={}", r.getWorkDate(),
+                    r.getSpecialty() != null ? r.getSpecialty().getName() : "null", r.getRequiredStaffCount());
+        }
+        log.info("[L04-DBG] ===== END DEBUG BLOCK =====");
+        // === [END DEBUG BLOCK 3] ===
+
         log.info("Generated {} soft-target requirements from auto config for period {}", deduplicated.size(), period.getId());
         return deduplicated;
     }

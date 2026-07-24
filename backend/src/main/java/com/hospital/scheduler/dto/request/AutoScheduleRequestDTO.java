@@ -1,5 +1,6 @@
 package com.hospital.scheduler.dto.request;
 
+import com.hospital.scheduler.algorithm.AutoGenConfig;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
@@ -19,18 +20,7 @@ public class AutoScheduleRequestDTO {
     private String algorithmType = "GREEDY";
 
     @Builder.Default
-    private Boolean autoAssign = true;
-
-    @Builder.Default
     private List<Integer> excludedStaffIds = List.of();
-
-    /**
-     * Holiday handling mode for this run.
-     * SKIP = skip all shifts on holidays (default from DB config).
-     * PARTIAL = reduce L03 intensity on holidays.
-     * When null, uses the value from algorithm_config DB.
-     */
-    private String holidayMode;
 
     /** Skip runtime auto-adjust for an explicitly applied recommendation. */
     @Builder.Default
@@ -49,5 +39,14 @@ public class AutoScheduleRequestDTO {
      */
     @Builder.Default
     private Boolean overwriteExisting = false;
+
+    /**
+     * Commit B (Workflow M07): Inline AutoGenConfig override for preview.
+     * When non-null, the preview scheduler uses this config instead of the saved DB config.
+     * This allows "Apply Recommendation" to preview without persisting the config first.
+     * The config is used IN-MEMORY ONLY — never written to DB.
+     */
+    @Builder.Default
+    private AutoGenConfig recommendedConfig = null;
 
 }

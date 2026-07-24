@@ -203,6 +203,38 @@ public class AutoSchedulingController {
         return ResponseEntity.ok(ApiResponse.success(report));
     }
 
+    @GetMapping("/l04-eval/{periodId}")
+    @Operation(summary = "Báo cáo đánh giá L04 theo chuyên khoa: required vs assigned + crossLeak")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getL04SpecialtyEvalReport(@PathVariable Integer periodId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                autoSchedulingService.getL04SpecialtyEvalReport(periodId)));
+    }
+
+    /**
+     * Huỷ (release) lock của một period khi client refresh trang hoặc chủ động bấm Cancel.
+     *
+     * <p>Thread đang chạy (CPU-bound CP-SAT / Beam) KHÔNG bị interrupt — nó vẫn chạy tới
+     * khi kết thúc, kết quả bị frontend bỏ qua vì đã refresh. Mục đích endpoint chỉ là
+     * "đánh dấu lock là stale ngay" để request preview kế tiếp không bị chặn 400 với
+     * thông báo "đang được xếp tự động bởi yêu cầu khác".
+     *
+     * <p>Idempotent: gọi nhiều lần không gây hại; trả về {@code true} nếu thực sự có
+     * lock/progress đã bị xoá, {@code false} nếu period đó đang idle.
+     */
+    @PostMapping("/cancel/{periodId}")
+    @Operation(summary = "Huỷ lock/progress của một period (khi refresh hoặc cancel manual)")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_RUN + "')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> cancelRun(@PathVariable Integer periodId) {
+        boolean released = autoSchedulingService.markLockStale(periodId);
+        Map<String, Object> payload = Map.of(
+            "periodId", periodId,
+            "released", released,
+            "message", released ? "Đã huỷ lock & progress cũ — có thể chạy lại." : "Period đang idle, không cần huỷ."
+        );
+        return ResponseEntity.ok(ApiResponse.success(payload));
+    }
+
     @GetMapping("/suggest-replacements/{scheduleId}")
     @Operation(summary = "M07-F08: Đề xuất người thay thế khi có thay đổi đột xuất")
     @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
@@ -376,7 +408,12 @@ public class AutoSchedulingController {
                 new AutoGenConfigRecommendResponse.RecommendedRuntimeConfig(recommendedMax),
                 recommendation.totalShiftsExpected(),
                 totalStaff,
-                recommendation.rationale()
+                recommendation.rationale(),
+                recommendation.demandRatio(),
+                recommendation.fairnessType(),
+                recommendation.crossSpecialtyPolicy(),
+                recommendation.expectedMetrics(),
+                recommendation.warnings()
         );
         log.info("AutoGenConfig recommend: totalExpected={}, rationale={}",
                 recommendation.totalShiftsExpected(), recommendation.rationale());

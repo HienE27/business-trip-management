@@ -327,10 +327,10 @@ export interface ScheduleExchangeCreate {
 export interface AutoScheduleRequest {
   periodId: number;
   algorithmType?: string;
-  autoAssign?: boolean;
   excludedStaffIds?: number[];
-  holidayMode?: "SKIP" | "PARTIAL";
   useRecommendedConfig?: boolean;
+  /** Commit B (Workflow M07): Inline AutoGenConfig for preview without persisting to DB. */
+  recommendedConfig?: Record<string, unknown>;
 }
 
 export interface AutoScheduleSummary {
@@ -359,6 +359,10 @@ export interface AutoScheduleResult {
   executionTimeMs: number;
   coverageRate: number;
   balanceScore: number;
+  /** Commit B: balance_score_min threshold in 0-100 percent (e.g. 70). Present when score < threshold. */
+  balanceScoreMinPct?: number;
+  /** Commit B: true when balanceScore < balanceScoreMin threshold. Soft warning only. */
+  belowBalanceMin?: boolean;
   conflictCount: number;
   totalSchedulesCreated: number;
   schedules: AutoScheduleSummary[];

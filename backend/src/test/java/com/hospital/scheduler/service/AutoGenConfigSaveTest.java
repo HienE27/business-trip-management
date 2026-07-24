@@ -42,10 +42,12 @@ class AutoGenConfigSaveTest {
                 List.of(),
                 false,
                 0.3f,
-                List.of("Ngoại", "Nội"),
-                List.of("Ngoại", "Nội"),
-                List.of("Ngoại", "Nội"),
-                List.of("Ngoại", "Nội")
+                List.of("Ngoại", "Nội"),  // l04AllowedSpecialties
+                List.of("Ngoại", "Nội"),  // l01AllowedSpecialties
+                List.of("Ngoại", "Nội"),  // l02AllowedSpecialties
+                List.of("Ngoại", "Nội"),  // l03AllowedSpecialties
+                2, 2, 2, 5,   // target per month
+                "FAIR_DISTRIBUTE"  // l04BalanceStrategy
         );
     }
 
@@ -53,9 +55,10 @@ class AutoGenConfigSaveTest {
     void saveAutoGenConfig_invokesUpsertConfigForEachParam() {
         configService.saveAutoGenConfig(sampleConfig());
 
-        // 25 keys written: 22 constants in service + 3 dynamic (REMOVED_SHIFT_TYPES, L04_ALLOWED_SPECIALTIES, L01/L02/L03 specialtys)
-        // Tightly bounded — if the upsert helper changes, this count fails loudly.
-        verify(configRepository, times(25)).upsertConfig(
+        // 30 keys written: 22 base constants + 3 dynamic (REMOVED_SHIFT_TYPES, L04/L01/L02/L03_ALLOWED_SPECIALTIES)
+        // + 4 target_per_month (L01/L02/L03/L04) + 1 L04_BALANCE_STRATEGY. Tightly bounded —
+        // if the upsert helper changes, this count fails loudly.
+        verify(configRepository, times(30)).upsertConfig(
                 any(), any(), any(), any());
     }
 

@@ -154,6 +154,24 @@ export async function getRuntimeConfig(client: ApiClient): Promise<ApiResponse<{
   greedyCoverageThreshold: number;
   balanceScoreMin: number;
   autoCompensationEnabled: boolean;
+  maxStaffPerShift: number;
+  maxShiftsPerStaff: number;
+  maxShiftsPerDay: number;
+  beamWidth: number;
+  autoAdjustConfig: boolean;
+  coverageWeight: number;
+  fairnessWeight: number;
+  constraintWeight: number;
+  passThreshold: number;
+  hardViolationPenalty: number;
+  softViolationPenalty: number;
+  targetCv: number;
+  worstCv: number;
+  l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
+  rebalanceRoundsTotal: number;
+  rebalanceRoundsPerType: number;
+  rebalanceRoundsEg: number;
+  rebalanceRoundsPostSave: number;
 }>> {
   return client.request<{
     weekendWeight: number;
@@ -161,6 +179,24 @@ export async function getRuntimeConfig(client: ApiClient): Promise<ApiResponse<{
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
     autoCompensationEnabled: boolean;
+    maxStaffPerShift: number;
+    maxShiftsPerStaff: number;
+    maxShiftsPerDay: number;
+    beamWidth: number;
+    autoAdjustConfig: boolean;
+    coverageWeight: number;
+    fairnessWeight: number;
+    constraintWeight: number;
+    passThreshold: number;
+    hardViolationPenalty: number;
+    softViolationPenalty: number;
+    targetCv: number;
+    worstCv: number;
+    l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
+    rebalanceRoundsTotal: number;
+    rebalanceRoundsPerType: number;
+    rebalanceRoundsEg: number;
+    rebalanceRoundsPostSave: number;
   }>("/auto-schedule/runtime-config");
 }
 
@@ -172,6 +208,19 @@ export async function updateRuntimeConfig(
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
     autoCompensationEnabled: boolean;
+    maxStaffPerShift?: number;
+    maxShiftsPerStaff?: number;
+    maxShiftsPerDay?: number;
+    beamWidth?: number;
+    autoAdjustConfig?: boolean;
+    coverageWeight?: number;
+    fairnessWeight?: number;
+    constraintWeight?: number;
+    passThreshold?: number;
+    hardViolationPenalty?: number;
+    softViolationPenalty?: number;
+    targetCv?: number;
+    worstCv?: number;
   },
 ): Promise<ApiResponse<{
   weekendWeight: number;
@@ -179,6 +228,19 @@ export async function updateRuntimeConfig(
   greedyCoverageThreshold: number;
   balanceScoreMin: number;
   autoCompensationEnabled: boolean;
+  maxStaffPerShift?: number;
+  maxShiftsPerStaff?: number;
+  maxShiftsPerDay?: number;
+  beamWidth?: number;
+  autoAdjustConfig?: boolean;
+  coverageWeight?: number;
+  fairnessWeight?: number;
+  constraintWeight?: number;
+  passThreshold?: number;
+  hardViolationPenalty?: number;
+  softViolationPenalty?: number;
+  targetCv?: number;
+  worstCv?: number;
 }>> {
   return client.request<{
     weekendWeight: number;
@@ -186,6 +248,19 @@ export async function updateRuntimeConfig(
     greedyCoverageThreshold: number;
     balanceScoreMin: number;
     autoCompensationEnabled: boolean;
+    maxStaffPerShift?: number;
+    maxShiftsPerStaff?: number;
+    maxShiftsPerDay?: number;
+    beamWidth?: number;
+    autoAdjustConfig?: boolean;
+    coverageWeight?: number;
+    fairnessWeight?: number;
+    constraintWeight?: number;
+    passThreshold?: number;
+    hardViolationPenalty?: number;
+    softViolationPenalty?: number;
+    targetCv?: number;
+    worstCv?: number;
   }>("/auto-schedule/runtime-config", {
     method: "PUT",
     body: JSON.stringify(data),
@@ -217,6 +292,10 @@ export async function getAutoGenConfig(client: ApiClient): Promise<ApiResponse<{
     l02AllowedSpecialties?: string[] | null;
     l03AllowedSpecialties?: string[] | null;
     l04AllowedSpecialties?: string[] | null;
+    l01TargetPerMonth?: number;
+    l02TargetPerMonth?: number;
+    l03TargetPerMonth?: number;
+    l04TargetPerMonth?: number;
   }>("/auto-schedule/auto-gen-config");
 }
 
@@ -232,7 +311,15 @@ export async function updateAutoGenConfig(
     removedShiftTypes: string[];
     l04CrossSpecialty?: boolean;
     l04CrossSpecialtyRatio?: number;
+    l04AllowedSpecialties?: string[];
+    l01AllowedSpecialties?: string[];
+    l02AllowedSpecialties?: string[];
+    l03AllowedSpecialties?: string[];
     l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
+    l01TargetPerMonth?: number;
+    l02TargetPerMonth?: number;
+    l03TargetPerMonth?: number;
+    l04TargetPerMonth?: number;
   },
 ): Promise<ApiResponse<{
   enabled: boolean;
@@ -244,7 +331,15 @@ export async function updateAutoGenConfig(
   removedShiftTypes: string[];
   l04CrossSpecialty?: boolean;
   l04CrossSpecialtyRatio?: number;
+  l04AllowedSpecialties?: string[];
+  l01AllowedSpecialties?: string[];
+  l02AllowedSpecialties?: string[];
+  l03AllowedSpecialties?: string[];
   l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
+  l01TargetPerMonth?: number;
+  l02TargetPerMonth?: number;
+  l03TargetPerMonth?: number;
+  l04TargetPerMonth?: number;
 }>> {
   return client.request<{
     enabled: boolean;
@@ -256,7 +351,15 @@ export async function updateAutoGenConfig(
     removedShiftTypes: string[];
     l04CrossSpecialty?: boolean;
     l04CrossSpecialtyRatio?: number;
+    l04AllowedSpecialties?: string[];
+    l01AllowedSpecialties?: string[];
+    l02AllowedSpecialties?: string[];
+    l03AllowedSpecialties?: string[];
     l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
+    l01TargetPerMonth?: number;
+    l02TargetPerMonth?: number;
+    l03TargetPerMonth?: number;
+    l04TargetPerMonth?: number;
   }>("/auto-schedule/auto-gen-config", {
     method: "PUT",
     body: JSON.stringify(data),
@@ -290,14 +393,30 @@ export async function recommendAutoGenConfig(
     l01AllowedSpecialties: string[];
     l02AllowedSpecialties: string[];
     l03AllowedSpecialties: string[];
-	  };
-	  recommendedRuntimeConfig?: { maxShiftsPerStaff: number };
-	  totalShiftsExpected: number;
-	  totalStaffTargeted?: number;
-	  rationale: string;
-	}>> {
-	  return client.request<{
-	    recommendedConfig: {
+  };
+  recommendedRuntimeConfig?: { maxShiftsPerStaff: number };
+  totalShiftsExpected: number;
+  totalStaffTargeted?: number;
+  rationale: string;
+  /** Commit B: minPerDay values per shift type — keys: L01/L02/L03/L04 */
+  demandRatio?: Record<string, number>;
+  /** Commit B: INTRA_TYPE | INTRA_TYPE_WITH_INTER_BALANCE */
+  fairnessType?: string;
+  /** Commit B: Human-readable cross-specialty policy */
+  crossSpecialtyPolicy?: string;
+  /** Commit B: Estimated metrics before preview run */
+  expectedMetrics?: {
+    estimatedCoverageMin?: number;
+    estimatedFairnessScore?: number;
+    estimatedQualityScore?: number;
+    targetCv?: number;
+    worstCv?: number;
+  };
+  /** Commit B: Trade-off warnings when demand is imbalanced */
+  warnings?: string[];
+}>> {
+  return client.request<{
+    recommendedConfig: {
       enabled: boolean;
       l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
       l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
@@ -314,6 +433,17 @@ export async function recommendAutoGenConfig(
     };
     totalShiftsExpected: number;
     rationale: string;
+    demandRatio?: Record<string, number>;
+    fairnessType?: string;
+    crossSpecialtyPolicy?: string;
+    expectedMetrics?: {
+      estimatedCoverageMin?: number;
+      estimatedFairnessScore?: number;
+      estimatedQualityScore?: number;
+      targetCv?: number;
+      worstCv?: number;
+    };
+    warnings?: string[];
   }>("/auto-schedule/auto-gen-config/recommend", {
     method: "POST",
     body: JSON.stringify(data),
@@ -419,4 +549,55 @@ export async function syncAlgorithmConfigDescriptions(client: ApiClient): Promis
   return client.request<Record<string, string>>("/auto-schedule/config/sync-descriptions", {
     method: "POST",
   });
+}
+
+// ── L04 specialty eval (per-specialty required/assigned/leak) ────────────
+export type L04EvalSpecialtyRow = {
+  specialtyId: number;
+  specialty: string;
+  staffCount: number;
+  requiredL04: number;
+  assignedL04: number;
+  missingL04: number;
+  fillRate: number;
+};
+
+export type L04EvalReport = {
+  periodId: number;
+  periodName: string;
+  startDate: string;
+  endDate: string;
+  totalRequiredL04: number;
+  totalAssignedL04: number;
+  totalL04Schedules: number;
+  crossLeak: number;
+  fillRate: number;
+  bySpecialty: L04EvalSpecialtyRow[];
+};
+
+/** Báo cáo đánh giá L04 theo chuyên khoa (required / assigned / cross-leak). */
+export async function getL04EvalReport(
+  client: ApiClient,
+  periodId: number,
+): Promise<L04EvalReport> {
+  return client.get<L04EvalReport>(`/auto-schedule/l04-eval/${periodId}`);
+}
+
+// ── Shift Requirements ────────────────────────────────────────────────────────
+
+export type ShiftRequirementResponse = {
+  id: number;
+  periodId: number;
+  workDate: string;
+  shiftType: { id: string; name: string };
+  specialty: { id: number; name: string };
+  requiredStaffCount: number;
+};
+
+/** Lấy actual requirements của một kỳ lịch — dùng để compute demand ratio. */
+export async function getShiftRequirements(
+  client: ApiClient,
+  periodId: number,
+): Promise<ShiftRequirementResponse[]> {
+  return client.get<ShiftRequirementResponse[]>(`/shift-requirements/period/${periodId}`);
 }

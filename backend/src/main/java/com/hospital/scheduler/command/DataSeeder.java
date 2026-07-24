@@ -269,7 +269,13 @@ public class DataSeeder implements CommandLineRunner {
                 // L01/L02/L03 allowed specialties (null/empty → fallback to CORE = Ngoại, Nội)
                 null,   // l01AllowedSpecialties
                 null,   // l02AllowedSpecialties
-                null    // l03AllowedSpecialties
+                null,   // l03AllowedSpecialties
+                // Target ca/người/tháng — default hợp lý cho bệnh viện ~900 NS
+                2,      // l01TargetPerMonth
+                2,      // l02TargetPerMonth
+                2,      // l03TargetPerMonth
+                5,      // l04TargetPerMonth
+                "FAIR_DISTRIBUTE"  // l04BalanceStrategy — frontend default
         );
         algorithmConfigService.saveAutoGenConfig(defaults);
 

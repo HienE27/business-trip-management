@@ -21,6 +21,9 @@ export type ShiftDetailModalProps = {
   onSave?: (updated: Schedule) => void;
   onDelete?: (deletedId: number) => void;
   onRefresh?: () => void;
+  /** Fired when the manager clicks "Đề xuất thay thế" (M07-F08). Wired by
+   *  the monthly-schedule page to open SuggestionsModal for this schedule. */
+  onSuggestReplacements?: (scheduleId: number) => void;
 };
 
 export const ShiftDetailModal = memo(function ShiftDetailModal({
@@ -31,6 +34,7 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
   onClose,
   onSave,
   onDelete,
+  onSuggestReplacements,
 }: ShiftDetailModalProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -161,6 +165,16 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
                 <span className="material-symbols-outlined text-[16px]">delete</span>
                 Xóa
               </button>
+              {onSuggestReplacements && scheduleId != null && (
+                <button
+                  type="button"
+                  onClick={() => onSuggestReplacements(scheduleId)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-label-sm font-medium text-on-surface transition-colors hover:bg-surface-container-low"
+                >
+                  <span className="material-symbols-outlined text-[16px]">swap_horiz</span>
+                  Đề xuất thay thế
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setEditing(true)}
