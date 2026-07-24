@@ -46,12 +46,16 @@ export function KPICard({
           {icon}
         </span>
       </div>
-      <div className="mt-3 flex items-baseline gap-2 min-w-0">
-        <span className={`font-bold text-[28px] leading-none tabular-nums truncate ${config.valueColor}`}>
-          {value}
-        </span>
+      <div className="mt-3 min-w-0">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className={`font-bold text-[28px] leading-none tabular-nums truncate ${config.valueColor}`}>
+            {value}
+          </span>
+        </div>
         {helper && (
-          <span className="text-label-xs text-on-surface-variant truncate min-w-0">{helper}</span>
+          <span className="mt-1 block text-label-xs text-on-surface-variant leading-snug break-words">
+            {helper}
+          </span>
         )}
       </div>
     </div>

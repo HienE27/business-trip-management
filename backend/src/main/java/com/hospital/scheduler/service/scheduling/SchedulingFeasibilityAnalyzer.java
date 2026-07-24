@@ -8,6 +8,7 @@ import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -126,10 +127,15 @@ public class SchedulingFeasibilityAnalyzer {
      *   <li>Sinh warnings + recommendations</li>
      * </ol>
      */
+    @Transactional(readOnly = true)
     public FeasibilityReport analyzeFeasibility(Integer periodId) {
         // 1. Load requirements and staff
         List<ShiftRequirement> requirements = requirementRepository.findByPeriodId(periodId);
-        List<Staff> allActiveStaff = staffRepository.findByIsActiveTrue();
+        // BUGFIX (lazy-specialty-init): use the variant that LEFT JOIN FETCHes the
+        // Specialty so downstream filter logic can read staff.getSpecialty().getId()
+        // / .getName() without tripping LazyInitializationException once the
+        // transaction boundary is left.
+        List<Staff> allActiveStaff = staffRepository.findByIsActiveTrueWithSpecialty();
 
         if (requirements.isEmpty() || allActiveStaff.isEmpty()) {
             return FeasibilityReport.builder()

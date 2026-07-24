@@ -189,28 +189,34 @@ public class ScheduleTemplateService {
                     "Mẫu lịch thiếu thông tin ngày trong tuần hoặc loại ca. Vui lòng chọn mẫu hợp lệ.");
         }
 
-        ShiftType shiftType = shiftTypeRepository.findById(template.getShiftTypeId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại ca với ID: " + template.getShiftTypeId()));
+        Specialty specialty = template.getSpecialty();
+        Integer specialtyId = specialty != null ? specialty.getId() : null;
 
-        // Legacy single weekday pattern template: count matching dates so callers at
-        // least know how many slots the template would target. The actual schedule
-        // creation is performed by runScheduling()/runGreedy() against the auto-gen
-        // configuration, not by inserting rows here — this branch is purely a probe.
-        int appliedCount = 0;
-        LocalDate currentDate = period.getStartDate();
+        // BUGFIX (was BE#17): legacy single-weekday templates previously only
+        // counted matching dates without inserting anything, so callers saw
+        // "N ca được tạo" but the database stayed unchanged. Wrap the legacy
+        // fields in a single-entry pattern and route through the same insert
+        // path so the returned appliedCount always reflects actual rows.
+        PatternEntry legacyEntry = new PatternEntry();
+        legacyEntry.dayOfWeek = template.getDayOfWeek();
+        legacyEntry.shiftTypeId = template.getShiftTypeId();
+        legacyEntry.specialtyId = specialtyId;
+        legacyEntry.requiredStaffCount = template.getRequiredStaffCount() != null
+                ? template.getRequiredStaffCount()
+                : 1;
+        ScheduleTemplate wrapped = new ScheduleTemplate();
+        wrapped.setId(template.getId());
+        wrapped.setName(template.getName());
+        wrapped.setPatternConfig(serializePatternConfig(java.util.List.of(legacyEntry)));
+        return applyPatternTemplate(wrapped, period);
+    }
 
-        while (!currentDate.isAfter(period.getEndDate())) {
-            int dayOfWeek = currentDate.getDayOfWeek().getValue();
-            if (dayOfWeek == template.getDayOfWeek()) {
-                appliedCount++;
-            }
-            currentDate = currentDate.plusDays(1);
+    private String serializePatternConfig(java.util.List<PatternEntry> entries) {
+        try {
+            return new ObjectMapper().writeValueAsString(entries);
+        } catch (JsonProcessingException e) {
+            throw new BadRequestException("Không thể serialize pattern cũ: " + e.getMessage());
         }
-
-        log.info("applyTemplate (legacy pattern) matched {} candidate dates for period {} (template {}). " +
-                "Actual schedule creation is handled by runScheduling() against the algorithm config.",
-                appliedCount, period.getId(), template.getId());
-        return appliedCount;
     }
 
     /**

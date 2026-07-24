@@ -19,6 +19,13 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
     Optional<Staff> findByUsername(@Param("username") String username);
     Optional<Staff> findByEmail(String email);
     List<Staff> findByIsActiveTrue();
+    /**
+     * Same as {@link #findByIsActiveTrue()} but eagerly fetches the {@code Specialty}
+     * association so the caller can read {@code staff.getSpecialty().getId()} without
+     * triggering a {@code LazyInitializationException} outside the persistence context.
+     */
+    @Query("SELECT DISTINCT s FROM Staff s LEFT JOIN FETCH s.specialty WHERE s.isActive = true ORDER BY s.id")
+    List<Staff> findByIsActiveTrueWithSpecialty();
     long countByIsActiveTrue();
     List<Staff> findBySpecialtyId(Integer specialtyId);
     boolean existsByUsername(String username);

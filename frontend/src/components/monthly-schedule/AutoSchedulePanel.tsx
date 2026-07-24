@@ -92,17 +92,30 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   const unassignedDays = previewResult?.unassignedDays ?? [];
   const totalMissing = unassignedDays.reduce((sum: number, d: unknown) => sum + ((d as { missingCount?: number }).missingCount ?? 0), 0);
   const crossSpecialtyCount = previewResult?.schedules.filter(s => s.crossSpecialty).length ?? 0;
-  const coverageRate = previewResult ? Math.min(Math.round(parseNumber(previewResult.coverageRate)), 100) : 0;
-  const balanceScore = previewResult ? parseNumber(previewResult.balanceScore) : 0;
+  const coverageRateRaw = previewResult?.coverageRate ?? null;
+  const balanceScoreRaw = previewResult?.balanceScore ?? null;
+  const conflictCountRaw = previewResult?.conflictCount ?? null;
+  const kpiAvailable = previewResult?.status !== "TEMPLATE_APPLIED"
+    && coverageRateRaw !== null;
+  const coverageRate = previewResult
+    ? Math.min(Math.round(parseNumber(coverageRateRaw ?? 0)), 100)
+    : 0;
+  const balanceScore = previewResult ? parseNumber(balanceScoreRaw ?? 0) : 0;
   const statusMsgOk = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng");
   const statusMsgNeutral = message?.toLowerCase().includes("đã hủy");
 
   const algoResultInfo = previewResult ? ALGO_CONFIG[previewResult.algorithmType as AlgorithmType] : null;
 
   // KPI tone helpers
-  const coverageTone = coverageRate >= 90 ? "success" : coverageRate >= 70 ? "info" : "error";
-  const balanceTone = balanceScore >= 75 ? "success" : balanceScore >= 50 ? "warning" : "error";
-  const conflictTone = previewResult?.conflictCount === 0 ? "success" : "error";
+  const coverageTone = !kpiAvailable
+    ? "neutral"
+    : coverageRate >= 90 ? "success" : coverageRate >= 70 ? "info" : "error";
+  const balanceTone = !kpiAvailable
+    ? "neutral"
+    : balanceScore >= 75 ? "success" : balanceScore >= 50 ? "warning" : "error";
+  const conflictTone = !kpiAvailable
+    ? "neutral"
+    : (conflictCountRaw ?? 0) === 0 ? "success" : "error";
 
   return (
     <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
@@ -262,19 +275,22 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             <KPICard
               icon="radio_button_checked"
               label="Tỷ lệ phủ"
-              value={`${coverageRate}%`}
+              value={kpiAvailable ? `${coverageRate}%` : "—"}
+              helper={kpiAvailable ? undefined : "Nhấn Chạy để tính"}
               tone={coverageTone}
             />
             <KPICard
               icon="balance"
               label="Cân bằng"
-              value={`${Math.round(Number(balanceScore))}%`}
+              value={kpiAvailable ? `${Math.round(Number(balanceScore))}%` : "—"}
+              helper={kpiAvailable ? undefined : "Nhấn Chạy để tính"}
               tone={balanceTone}
             />
             <KPICard
-              icon={previewResult.conflictCount > 0 ? "warning" : "check_circle"}
+              icon={kpiAvailable && (conflictCountRaw ?? 0) > 0 ? "warning" : "check_circle"}
               label="Xung đột"
-              value={previewResult.conflictCount}
+              value={kpiAvailable ? (conflictCountRaw ?? 0) : "—"}
+              helper={kpiAvailable ? undefined : "Nhấn Chạy để tính"}
               tone={conflictTone}
             />
             <KPICard

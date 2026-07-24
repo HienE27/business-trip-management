@@ -362,10 +362,16 @@ export interface AutoScheduleResult {
   periodId: number;
   algorithmType: string;
   executionTimeMs: number;
-  coverageRate: number;
-  balanceScore: number;
-  conflictCount: number;
+  /**
+   * KPI only meaningful after Auto Scheduling runs.
+   * `null` indicates templates were applied but the algorithm has not run yet
+   * (no Schedule rows => no coverage to measure). Avoid hardcoding 100 here.
+   */
+  coverageRate: number | null;
+  balanceScore: number | null;
+  conflictCount: number | null;
   totalSchedulesCreated: number;
+  status?: "SCHEDULED" | "TEMPLATE_APPLIED" | "PREVIEW";
   schedules: AutoScheduleSummary[];
   executedAt: string;
   excludedStaffIds?: number[];

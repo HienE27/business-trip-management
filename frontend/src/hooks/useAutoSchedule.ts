@@ -49,8 +49,8 @@ export type AutoScheduleActions = {
   loadTemplate: (templateId: number, periodId: number | null) => Promise<void>;
   previewTemplate: (templateId: number, periodId: number | null) => Promise<TemplatePreviewItem[]>;
   applyTemplateWithEdits: (templateId: number, periodId: number | null, edits: { slotId: number; assignedStaffId: number }[]) => Promise<void>;
-  editStaff: (workDate: string, shiftTypeId: string, staffId: number) => void;
-  editShiftType: (workDate: string, oldShiftTypeId: string, newShiftTypeId: string, staffId: number) => void;
+  editStaff: (workDate: string, shiftTypeId: string, staffId: number, requirementId?: number | null) => void;
+  editShiftType: (workDate: string, oldShiftTypeId: string, newShiftTypeId: string, staffId: number, requirementId?: number | null) => void;
   removeShift: (workDate: string, shiftTypeId: string, staffId: number) => void;
   resetEdits: () => void;
   clearPreview: () => void;
@@ -69,15 +69,16 @@ function parseScheduleKey(key: string): PreviewScheduleEdit | null {
 }
 
 /**
- * After an apply-template (with or without edits) backend persists schedules
- * directly into the DB. The hook only knows `appliedCount` from the response,
- * so to surface the freshly created schedules in the matrix grid we re-fetch
- * `/schedules/period/{id}` and project it into the AutoScheduleResult shape
- * that AutoSchedulePanel already understands.
+ * After an apply-template (PATTERN or GENERATED) the backend has only inserted
+ * ShiftRequirement rows (or, for GENERATED, copied Schedule rows). The hook
+ * re-fetches `/schedules/period/{id}` so the matrix grid renders correctly,
+ * but the response is projected into the AutoScheduleResult shape used by
+ * AutoSchedulePanel.
  *
- * KPI metrics (coverageRate / balanceScore / conflictCount) aren't recomputed
- * because they require running the algorithm again; we fall back to neutral
- * defaults so the UI doesn't crash on missing fields.
+ * KPI fields are intentionally left as `null` because applying a template is
+ * a prerequisite to scheduling, not scheduling itself. Coverage/balance/conflict
+ * would be misleading here, so the panel renders them as "—" until the user
+ * clicks "Chạy" and the scheduler computes the real numbers.
  */
 async function buildPreviewResultFromPeriod(
   periodId: number,
@@ -101,10 +102,11 @@ async function buildPreviewResultFromPeriod(
     periodId,
     algorithmType,
     executionTimeMs: 0,
-    coverageRate: 100,
-    balanceScore: 100,
-    conflictCount: 0,
+    coverageRate: null,
+    balanceScore: null,
+    conflictCount: null,
     totalSchedulesCreated: summary.length,
+    status: "TEMPLATE_APPLIED",
     schedules: summary,
     executedAt: new Date().toISOString(),
   };
@@ -136,8 +138,26 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         maxShiftsPerMonthOverride,
       }, { timeout: 600000 }); // 10 minute ceiling for the CSP partial path
 
-      setPreviewResult(result.data);
-      setEditedPreview([]);
+      // Preserve user edits across re-runs: merge edited items back into the fresh
+      // result so they carry their requirementId (needed for L04 multi-specialty
+      // disambiguation) and are visible in the matrix grid alongside the new result.
+      const editedKeys = new Set(editedPreview.map((e) => `${e.workDate}_${e.shiftTypeId}_${e.staffId}`));
+      const mergedSchedules = [
+        ...result.data.schedules,
+        ...editedPreview.map((e) => ({
+          scheduleId: null,
+          staffId: e.staffId,
+          staffName: "",
+          workDate: e.workDate,
+          shiftTypeId: e.shiftTypeId,
+          shiftTypeName: "",
+          requirementId: e.requirementId ?? null,
+        })),
+      ];
+      const merged = { ...result.data, schedules: mergedSchedules };
+      setPreviewResult(merged);
+      // DON'T clear editedPreview here — edits survive re-runs so the user can
+      // compare results and still apply their changes.
       setRemovedShifts(new Set());
       setRemovedShiftTypes(new Set());
     } catch (error) {
@@ -297,7 +317,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   );
 
   const editStaff = useCallback(
-    (workDate: string, shiftTypeId: string, staffId: number) => {
+    (workDate: string, shiftTypeId: string, staffId: number, requirementId?: number | null) => {
       setEditedPreview((prev) => {
         const existing = prev.findIndex(
           (e) => e.workDate === workDate && e.shiftTypeId === shiftTypeId
@@ -307,7 +327,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
             i === existing ? { ...e, staffId } : e
           );
         }
-        return [...prev, { workDate, shiftTypeId, staffId }];
+        return [...prev, { workDate, shiftTypeId, staffId, requirementId: requirementId ?? null }];
       });
     },
     []
@@ -317,9 +337,11 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
    * Change the shift type of an existing (date, staff) assignment.
    * Removes any entry keyed by (workDate, oldShiftTypeId) and adds one keyed by (workDate, newShiftTypeId).
    * If newShiftTypeId is empty, removes the entry entirely.
+   * The requirementId is preserved from the original preview item so the apply step
+   * can pin the right ShiftRequirement when multiple L04 slots exist on the same date.
    */
   const editShiftType = useCallback(
-    (workDate: string, oldShiftTypeId: string, newShiftTypeId: string, staffId: number) => {
+    (workDate: string, oldShiftTypeId: string, newShiftTypeId: string, staffId: number, requirementId?: number | null) => {
       const removeKey = `${workDate}_${oldShiftTypeId}_${staffId}`;
       setRemovedShiftTypes((prev) => {
         const next = new Set(prev);
@@ -331,7 +353,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
           (e) => !(e.workDate === workDate && e.shiftTypeId === oldShiftTypeId)
         );
         if (newShiftTypeId && newShiftTypeId !== oldShiftTypeId) {
-          return [...filtered, { workDate, shiftTypeId: newShiftTypeId, staffId }];
+          return [...filtered, { workDate, shiftTypeId: newShiftTypeId, staffId, requirementId: requirementId ?? null }];
         }
         return filtered;
       });

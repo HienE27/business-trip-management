@@ -16,7 +16,7 @@ type PreviewEditModalProps = {
   staffList: { id: number; fullName: string }[];
   /** Available shift types for this date */
   shiftTypes: ShiftType[];
-  onSave: (workDate: string, shiftTypeId: string, staffId: number) => void;
+  onSave: (workDate: string, shiftTypeId: string, staffId: number, requirementId?: number | null) => void;
 };
 
 export function PreviewEditModal({
@@ -39,7 +39,7 @@ export function PreviewEditModal({
 
   const handleSave = () => {
     if (!item || !selectedStaffId || !selectedShiftTypeId) return;
-    onSave(item.workDate, selectedShiftTypeId, Number(selectedStaffId));
+    onSave(item.workDate, selectedShiftTypeId, Number(selectedStaffId), item.requirementId);
     onClose();
   };
 

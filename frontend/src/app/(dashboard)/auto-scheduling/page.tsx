@@ -593,9 +593,9 @@ export default function AutoSchedulingPage() {
           { id: "L03", name: "Phòng khám dịch vụ" },
           { id: "L04", name: "Phòng khám chuyên gia" },
         ]}
-        onSave={(workDate, shiftTypeId, staffId) => {
+        onSave={(workDate, shiftTypeId, staffId, requirementId) => {
           if (previewEditItem) {
-            editShiftType(workDate, previewEditItem.shiftTypeId, shiftTypeId, staffId);
+            editShiftType(workDate, previewEditItem.shiftTypeId, shiftTypeId, staffId, requirementId ?? previewEditItem.requirementId);
           }
           setPreviewEditItem(null);
         }}
