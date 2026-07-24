@@ -103,7 +103,7 @@ public class PermissionVersionService {
                         .paramKey(KEY)
                         .paramValue(String.valueOf(next))
                         .valueType(AlgorithmConfig.ValueType.STRING)
-                        .description("Permission matrix version (epoch ms) — bumped when role_permission changes; used to invalidate stale JWTs")
+                        .description("Phiên bản cấu hình phân quyền (epoch ms). Tự động tăng khi bảng role_permission thay đổi; dùng để phát hiện và vô hiệu hóa JWT đã cũ.")
                         .build());
         cfg.setParamValue(String.valueOf(next));
         algorithmConfigRepository.save(cfg);

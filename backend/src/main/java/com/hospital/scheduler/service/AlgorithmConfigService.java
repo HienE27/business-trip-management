@@ -80,6 +80,18 @@ public class AlgorithmConfigService {
     public static final String MIN_SHIFTS_PER_STAFF = "min_shifts_per_staff";
     public static final String MAX_SHIFTS_PER_STAFF = "max_shifts_per_staff";
 
+    // Scheduling metaheuristic param keys (config-ui visibility fix 2026-07-24)
+    public static final String SCHEDULING_MAX_ITERATIONS = "scheduling_max_iterations";
+    public static final String SCHEDULING_MAX_NO_IMPROVE = "scheduling_max_no_improve";
+    public static final String SCHEDULING_DIVERSIFY_AFTER = "scheduling_diversify_after";
+    public static final String SCHEDULING_ACCEPTANCE_STRATEGY = "scheduling_acceptance_strategy";
+    public static final String SCHEDULING_CANDIDATE_LIST_SIZE = "scheduling_candidate_list_size";
+    public static final String SCHEDULING_LA_MEMORY_SIZE = "scheduling_la_memory_size";
+    public static final String SCHEDULING_GD_INITIAL_LEVEL = "scheduling_gd_initial_level";
+    public static final String SCHEDULING_GD_DECAY_RATE = "scheduling_gd_decay_rate";
+    public static final String SCHEDULING_GD_MIN_LEVEL = "scheduling_gd_min_level";
+    public static final String BALANCE_SCORE_WORST = "balance_score_worst";
+
     public List<AlgorithmConfigDTO> getAllConfigs() {
         // OPTIMIZATION: use JOIN FETCH to avoid N+1 on updatedBy lazy loading
         return configRepository.findAllWithUpdatedBy().stream()
@@ -365,6 +377,37 @@ public class AlgorithmConfigService {
         upsert(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "35"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca tối đa mỗi nhân sự trong kỳ lịch. Spec M07-F01 yêu cầu phân bổ đều không giới hạn cố định, nhưng đặt trần hợp lý để bảo vệ nhân sự khỏi bị quá tải. Default 35 (≈1 ca/ngày + buffer cho L04 đa chuyên khoa).");
         map.put(MAX_SHIFTS_PER_STAFF, "OK");
+        // ─── Scheduling metaheuristic params (config-ui visibility fix 2026-07-24) ───
+        upsert(SCHEDULING_MAX_ITERATIONS, getStringValue(SCHEDULING_MAX_ITERATIONS, "500"), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp tối đa của thuật toán tối ưu (Tabu Search / Late Acceptance / Great Deluge). Tăng lên nếu thuật toán chưa hết thời gian mà vẫn chưa tìm được lời giải tốt; giảm xuống nếu chạy quá lâu.");
+        map.put(SCHEDULING_MAX_ITERATIONS, "OK");
+        upsert(SCHEDULING_MAX_NO_IMPROVE, getStringValue(SCHEDULING_MAX_NO_IMPROVE, "50"), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp liên tiếp không cải thiện trước khi dừng sớm (diversification). Tăng lên → thuật toán kiên trì tìm lời giải tốt hơn; giảm xuống → dừng sớm khi bão hòa.");
+        map.put(SCHEDULING_MAX_NO_IMPROVE, "OK");
+        upsert(SCHEDULING_DIVERSIFY_AFTER, getStringValue(SCHEDULING_DIVERSIFY_AFTER, "20"), AlgorithmConfig.ValueType.NUMBER,
+                "Số vòng lặp không cải thiện liên tiếp kích hoạt diversification (reset/perturb lời giải hiện tại). Giúp tránh local optimum.");
+        map.put(SCHEDULING_DIVERSIFY_AFTER, "OK");
+        upsert(SCHEDULING_ACCEPTANCE_STRATEGY, getStringValue(SCHEDULING_ACCEPTANCE_STRATEGY, "TABU"), AlgorithmConfig.ValueType.STRING,
+                "Chiến lược chấp nhận nghiệm xấu hơn: TABU (Tabu Search), SA (Simulated Annealing), LA (Late Acceptance), GD (Great Deluge).");
+        map.put(SCHEDULING_ACCEPTANCE_STRATEGY, "OK");
+        upsert(SCHEDULING_CANDIDATE_LIST_SIZE, getStringValue(SCHEDULING_CANDIDATE_LIST_SIZE, "50"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ứng viên lân cận được sinh ra mỗi vòng lặp. Tăng → khám phá rộng hơn, chậm hơn; giảm → hẹp hơn, nhanh hơn.");
+        map.put(SCHEDULING_CANDIDATE_LIST_SIZE, "OK");
+        upsert(SCHEDULING_LA_MEMORY_SIZE, getStringValue(SCHEDULING_LA_MEMORY_SIZE, "10"), AlgorithmConfig.ValueType.NUMBER,
+                "Độ dài bộ nhớ của Late Acceptance (số vòng lặp trước được so sánh). Lớn hơn → ổn định hơn; nhỏ hơn → phản ứng nhanh hơn.");
+        map.put(SCHEDULING_LA_MEMORY_SIZE, "OK");
+        upsert(SCHEDULING_GD_INITIAL_LEVEL, getStringValue(SCHEDULING_GD_INITIAL_LEVEL, "1000.0"), AlgorithmConfig.ValueType.NUMBER,
+                "Mực nước ban đầu của Great Deluge (ngưỡng chấp nhận lời giải xấu). Cao → chấp nhận thoáng hơn; thấp → khắt khe hơn.");
+        map.put(SCHEDULING_GD_INITIAL_LEVEL, "OK");
+        upsert(SCHEDULING_GD_DECAY_RATE, getStringValue(SCHEDULING_GD_DECAY_RATE, "0.999"), AlgorithmConfig.ValueType.NUMBER,
+                "Tốc độ giảm mực nước Great Deluge mỗi vòng lặp. Gần 1.0 → giảm chậm, tìm kiếm kỹ; nhỏ hơn → giảm nhanh, hội tụ sớm.");
+        map.put(SCHEDULING_GD_DECAY_RATE, "OK");
+        upsert(SCHEDULING_GD_MIN_LEVEL, getStringValue(SCHEDULING_GD_MIN_LEVEL, "0.0"), AlgorithmConfig.ValueType.NUMBER,
+                "Mực nước tối thiểu của Great Deluge — khi đạt ngưỡng, dừng thuật toán.");
+        map.put(SCHEDULING_GD_MIN_LEVEL, "OK");
+        upsert(BALANCE_SCORE_WORST, getStringValue(BALANCE_SCORE_WORST, "0.50"), AlgorithmConfig.ValueType.NUMBER,
+                "Hệ số CV (Coefficient of Variation) tải ca trực cho phép ở mức tệ nhất. Thấp → yêu cầu cân bằng chặt; cao → chấp nhận chênh lệch nhiều hơn.");
+        map.put(BALANCE_SCORE_WORST, "OK");
         return map;
     }
 
