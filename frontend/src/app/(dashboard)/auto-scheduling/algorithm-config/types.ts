@@ -36,6 +36,8 @@ export type RuntimeConfig = {
   l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
   /** Chế độ sắp xếp: INTRA_TYPE (mặc định) hoặc WITH_INTER_BALANCE */
   arrangementMode?: "INTRA_TYPE" | "WITH_INTER_BALANCE";
+  /** Inter-type balance weight (chỉ áp dụng khi arrangementMode = WITH_INTER_BALANCE). Default: 5.0. Cao hơn → mạnh hơn ép cân bằng L01/L02/L03. */
+  interTypeWeight?: number;
   /** Target ca/người/tháng — input editable cho recommend. Persist vào DB. */
   l01TargetPerMonth?: number;
   l02TargetPerMonth?: number;

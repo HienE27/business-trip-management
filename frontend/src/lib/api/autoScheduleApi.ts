@@ -221,6 +221,8 @@ export async function updateRuntimeConfig(
     softViolationPenalty?: number;
     targetCv?: number;
     worstCv?: number;
+    arrangementMode?: "INTRA_TYPE" | "WITH_INTER_BALANCE";
+    interTypeWeight?: number;
   },
 ): Promise<ApiResponse<{
   weekendWeight: number;
@@ -241,6 +243,8 @@ export async function updateRuntimeConfig(
   softViolationPenalty?: number;
   targetCv?: number;
   worstCv?: number;
+  arrangementMode?: "INTRA_TYPE" | "WITH_INTER_BALANCE";
+  interTypeWeight?: number;
 }>> {
   return client.request<{
     weekendWeight: number;
@@ -261,6 +265,8 @@ export async function updateRuntimeConfig(
     softViolationPenalty?: number;
     targetCv?: number;
     worstCv?: number;
+    arrangementMode?: "INTRA_TYPE" | "WITH_INTER_BALANCE";
+    interTypeWeight?: number;
   }>("/auto-schedule/runtime-config", {
     method: "PUT",
     body: JSON.stringify(data),

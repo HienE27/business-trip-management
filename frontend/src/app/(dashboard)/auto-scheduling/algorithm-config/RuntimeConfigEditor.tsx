@@ -289,6 +289,10 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         ...(rel.arrangementMode !== false && {
           arrangementMode: p.parameters.arrangementMode as "INTRA_TYPE" | "WITH_INTER_BALANCE",
         }),
+        // interTypeWeight chỉ áp dụng khi inter-type balance được chọn
+        ...(("WITH_INTER_BALANCE".equals(p.parameters.arrangementMode) || form?.arrangementMode === "WITH_INTER_BALANCE") && {
+          interTypeWeight: form?.interTypeWeight ?? 5.0,
+        }),
       };
 
       // Build auto-gen payload
@@ -512,6 +516,24 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
               );
             })}
           </div>
+
+          {/* Inter-type balance weight — chỉ hiển thị khi balance được chọn */}
+          {(form?.arrangementMode ?? "INTRA_TYPE") === "WITH_INTER_BALANCE" && (
+            <div className="mt-2 flex items-center gap-3">
+              <label className="text-[10px] text-on-surface-variant whitespace-nowrap">
+                Inter weight: <span className="font-semibold text-primary">{form?.interTypeWeight ?? 5}</span>
+              </label>
+              <input
+                type="range" min={0} max={50} step={1}
+                value={form?.interTypeWeight ?? 5}
+                onChange={(e) => setField("interTypeWeight", parseFloat(e.target.value))}
+                className="flex-1 h-1.5 rounded-full appearance-none bg-outline-variant accent-primary cursor-pointer"
+              />
+              <span className="text-[9px] text-on-surface-variant w-16 text-right">
+                Cao hơn = cân bằng mạnh hơn
+              </span>
+            </div>
+          )}
 
           {/* L04 Cross-Specialty — button like the arrangement mode ones */}
           <div className="mb-3">
