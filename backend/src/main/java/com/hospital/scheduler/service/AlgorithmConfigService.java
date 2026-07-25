@@ -73,6 +73,7 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_L04_TARGET_PER_MONTH = "auto_gen_l04_target_per_month";
 
     // Algorithm runtime config param keys
+    public static final String ARRANGEMENT_MODE = "arrangement_mode";
     public static final String WEEKEND_WEIGHT = "weekend_weight";
     public static final String OVERNIGHT_RECOVERY_HOURS = "overnight_recovery_hours";
     public static final String GREEDY_COVERAGE_THRESHOLD = "greedy_coverage_threshold";
@@ -627,6 +628,7 @@ public class AlgorithmConfigService {
                 .l03MaxPerWeek(autoGenConfig.map(AutoGenConfig::l03MaxPerWeek).orElse(0))
                 .l04MaxPerWeek(autoGenConfig.map(AutoGenConfig::l04MaxPerWeek).orElse(0))
                 .autoAdjustConfig(getBooleanValue(AUTO_ADJUST_CONFIG, true, cache))
+                .arrangementMode(cache.getOrDefault(ARRANGEMENT_MODE, "INTRA_TYPE"))
                 .beamWidth(getIntValue(BEAM_WIDTH, 5, cache))
                 .coverageWeight(getBigDecimalValue(SCORER_COVERAGE_WEIGHT, 0.40, cache))
                 .fairnessWeight(getBigDecimalValue(SCORER_FAIRNESS_WEIGHT, 0.35, cache))
@@ -668,6 +670,8 @@ public class AlgorithmConfigService {
                 "Độ rộng Beam Search (mặc định 5). Giá trị càng cao → tìm kiếm rộng hơn, quality tốt hơn nhưng chậm hơn. Với SA scheduler, dùng để tính số vòng lặp (beamWidth × 100).");
         upsert(AUTO_ADJUST_CONFIG, String.valueOf(config.isAutoAdjustConfig()), AlgorithmConfig.ValueType.BOOLEAN,
                 "Tự động điều chỉnh cấu hình (giảm L04) nếu tổng yêu cầu vượt năng lực nhân sự. Tắt nếu muốn dùng config thủ công.");
+        upsert(ARRANGEMENT_MODE, config.getArrangementMode(), AlgorithmConfig.ValueType.STRING,
+                "Chế độ sắp xếp: INTRA_TYPE (công bằng trong từng loại ca) hoặc WITH_INTER_BALANCE (cân bằng giữa các loại ca trên cùng nhân sự).");
         upsert(SCORER_COVERAGE_WEIGHT, String.valueOf(config.getCoverageWeight()), AlgorithmConfig.ValueType.NUMBER,
                 "Trọng số coverage cho ScheduleQualityScorer (0.0–1.0). Mặc định 0.40. Càng cao càng ưu tiên lấp đầy ca trực.");
         upsert(SCORER_FAIRNESS_WEIGHT, String.valueOf(config.getFairnessWeight()), AlgorithmConfig.ValueType.NUMBER,
@@ -1061,6 +1065,10 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
         // Auto-adjust config before scheduler run
         @lombok.Builder.Default
         private boolean autoAdjustConfig = true;
+
+        // Arrangement mode: INTRA_TYPE (default) or WITH_INTER_BALANCE
+        @lombok.Builder.Default
+        private String arrangementMode = "INTRA_TYPE";
 
         // ScheduleQualityScorer runtime weights
         @lombok.Builder.Default

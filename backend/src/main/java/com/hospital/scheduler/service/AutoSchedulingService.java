@@ -945,7 +945,8 @@ public class AutoSchedulingService {
 	                runtimeCfgForScoring.getConstraintWeight().doubleValue())
 	                .withPassThreshold(runtimeCfgForScoring.getPassThreshold())
 	                .withViolationPenalties(runtimeCfgForScoring.getHardViolationPenalty(), runtimeCfgForScoring.getSoftViolationPenalty())
-	                .withCvTargets(runtimeCfgForScoring.getTargetCv(), runtimeCfgForScoring.getWorstCv());
+	                .withCvTargets(runtimeCfgForScoring.getTargetCv(), runtimeCfgForScoring.getWorstCv())
+                .withArrangementMode(runtimeCfgForScoring.getArrangementMode());
 	        com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta scoringMeta =
 	                com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer.ScoringMeta
 	                        .of(algorithmType, executionTime);

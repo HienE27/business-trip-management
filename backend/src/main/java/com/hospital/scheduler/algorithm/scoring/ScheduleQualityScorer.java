@@ -78,6 +78,9 @@ public class ScheduleQualityScorer {
     /** L01 adjacent window = ceil(overnightRecoveryHours/24). Mặc định 1 (tương thích ngược). */
     private int l01Window = 1;
 
+    /** Chế độ sắp xếp: INTRA_TYPE (mặc định) hoặc WITH_INTER_BALANCE. */
+    private String arrangementMode = "INTRA_TYPE";
+
     // ─────────────────────────────────────────────────────────────
     // Defaults — single source of truth for all three weights.
     // References: ScheduleQualityReport javadoc and test helpers.
@@ -137,6 +140,11 @@ public class ScheduleQualityScorer {
         return this;
     }
 
+    public ScheduleQualityScorer withArrangementMode(String arrangementMode) {
+        this.arrangementMode = arrangementMode;
+        return this;
+    }
+
     // ─────────────────────────────────────────────────────────────
     // MAIN ENTRY POINT
     // ─────────────────────────────────────────────────────────────
@@ -176,6 +184,37 @@ public class ScheduleQualityScorer {
         FairnessResult fair = computeFairness(schedules, activeStaff);
         double globalFairnessScore = fair.overallFairnessPct; // toàn viện (tham khảo)
         double fairnessScore = fair.internalFairnessPct; // trong nhóm (KPI chính)
+
+        // Soft inter-type balance adjustment (M07). Only active when mode = WITH_INTER_BALANCE.
+        if ("WITH_INTER_BALANCE".equals(arrangementMode) && fair.shiftsByStaffAndType != null
+                && !fair.shiftsByStaffAndType.isEmpty()) {
+            double totalDev = 0;
+            int count = 0;
+            String[] interTypes = {"L01", "L02", "L03"};
+            for (var entry : fair.shiftsByStaffAndType.entrySet()) {
+                var typeCounts = entry.getValue();
+                int maxVal = 0, minVal = Integer.MAX_VALUE;
+                boolean hasCore = false;
+                for (String t : interTypes) {
+                    int c = typeCounts.getOrDefault(t, 0);
+                    if (c > 0) hasCore = true;
+                    maxVal = Math.max(maxVal, c);
+                    minVal = Math.min(minVal, c);
+                }
+                if (hasCore) {
+                    totalDev += (maxVal - minVal);
+                    count++;
+                }
+            }
+            if (count > 0) {
+                double avgDev = totalDev / count;
+                // 100% when avgDev ≤ 2, 0% when avgDev ≥ 10, linear in between
+                double ratio = Math.min(1.0, Math.max(0.0, (avgDev - 2.0) / 8.0));
+                double interTypeFairnessPct = 100.0 * (1.0 - ratio);
+                // Blend: 85% intra-type + 15% inter-type (soft weight per M07)
+                fairnessScore = 0.85 * fairnessScore + 0.15 * interTypeFairnessPct;
+            }
+        }
 
         // 3. Constraint
         ConstraintResult con = computeConstraints(
