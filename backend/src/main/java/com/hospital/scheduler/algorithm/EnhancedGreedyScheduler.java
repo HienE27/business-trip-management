@@ -187,13 +187,14 @@ import java.util.stream.Collectors;
 	                        specBalancePenalty = l04InSpec * 18.0 * specAdaptive;
 	                    }
 	                    
-                    // Per-type balance penalty for L01/L02/L03 (ADAPTIVE)
+                    // Per-type balance penalty for L01/L02/L03 (ADAPTIVE).
+                    // KEPT ACTIVE alongside prospective interTypePenalty — per-type penalty ensures
+                    // no single type dominates, inter-type penalty ensures cross-type fairness.
                     double typeBalancePenalty = 0;
                     if (!"L04".equals(shiftTypeId)) {
                         int typeCount = typeCountByStaff
                                 .getOrDefault(s.getId(), Collections.emptyMap())
                                 .getOrDefault(shiftTypeId, 0);
-                        // Adaptive factor: giảm penalty khi còn nhiều ca loại này chưa gán
                         int typeTotalReq = totalRequiredByType.getOrDefault(shiftTypeId, 0);
                         int typeAssigned = assignedByType.getOrDefault(shiftTypeId, 0);
                         double typeCoverageGap = typeTotalReq > 0 ? (double)(typeTotalReq - typeAssigned) / typeTotalReq : 0;
@@ -202,9 +203,7 @@ import java.util.stream.Collectors;
                     }
 
                     // Non-adaptive per-type penalty (TASK-L01-FAIRNESS Phase A).
-                    // Penalizes staff above the running average for this shift type.
-                    // Unlike typeBalancePenalty, weight does NOT decrease with coverage gap.
-                    // Weight 35/cap 60 (up from 20/40): stronger diff to reduce L02 span from 3 to ≤2.
+                    // KEPT ACTIVE alongside prospective interTypePenalty.
                     double quotaPenalty = 0;
                     if (!"L04".equals(shiftTypeId)) {
                         int typeCount = typeCountByStaff
@@ -219,11 +218,16 @@ import java.util.stream.Collectors;
                     }
 
                     // Inter-type balance penalty (soft). OFF when INTRA_TYPE.
-                    double interTypePenalty = interTypeWeight > 0
-                            ? ArrangementModeSupport.interTypePenalty(
-                                    typeCountByStaff.getOrDefault(s.getId(), Collections.emptyMap()),
-                                    interTypeWeight)
-                            : 0;
+                    // PROSPECTIVE: compute as-if this assignment is already made.
+                    // This penalizes giving L01/L02/L03 to staff who already have more of that type
+                    // than other types — driving toward inter-type fairness.
+                    double interTypePenalty = 0;
+                    if (interTypeWeight > 0 && !"L04".equals(shiftTypeId)) {
+                        java.util.Map<String, Integer> prospective = new java.util.HashMap<>(
+                                typeCountByStaff.getOrDefault(s.getId(), java.util.Collections.emptyMap()));
+                        prospective.merge(shiftTypeId, 1, Integer::sum);
+                        interTypePenalty = ArrangementModeSupport.interTypePenalty(prospective, interTypeWeight);
+                    }
 
                     double score = 100 - cnt * 6 + fatigueBonus + rotationBonus
                             - specBalancePenalty - typeBalancePenalty - quotaPenalty - interTypePenalty;
@@ -480,18 +484,19 @@ double fatigueBonus = 0;
 		                        long gap = date.toEpochDay() - last.toEpochDay();
 		                        if (gap >= 1) fatigueBonus = Math.min(gap * 3, 10.0);
 		                    }
-		                    double totalPenalty = cnt * 6.0; // Tăng: 5→6
-		                    double typePenalty = 0;
-		                    if (!"L04".equals(shiftTypeId)) {
-		                        int typeCnt = typeCountGap.getOrDefault(s.getId(), Collections.emptyMap())
-		                                .getOrDefault(shiftTypeId, 0);
-		                        // Adaptive: giảm penalty khi còn nhiều ca chưa gán
-		                        int typeTotalReq = totalRequiredByType.getOrDefault(shiftTypeId, 0);
-		                        int typeAssigned = assignedByType.getOrDefault(shiftTypeId, 0) + alreadyAssigned;
-		                        double typeGap = typeTotalReq > 0 ? (double)(typeTotalReq - typeAssigned) / typeTotalReq : 0;
-		                        double typeAdaptive = Math.max(0.3, 1.0 - typeGap * 0.7);
-		                        typePenalty = typeCnt * 15.0 * typeAdaptive;
-	                    }
+                    double totalPenalty = cnt * 6.0; // Tăng: 5→6
+                    // KEPT ACTIVE alongside prospective gapInterTypePenalty.
+                    double typePenalty = 0;
+                    if (!"L04".equals(shiftTypeId)) {
+                        int typeCnt = typeCountGap.getOrDefault(s.getId(), Collections.emptyMap())
+                                .getOrDefault(shiftTypeId, 0);
+                        // Adaptive: giảm penalty khi còn nhiều ca chưa gán
+                        int typeTotalReq = totalRequiredByType.getOrDefault(shiftTypeId, 0);
+                        int typeAssigned = assignedByType.getOrDefault(shiftTypeId, 0) + alreadyAssigned;
+                        double typeGap = typeTotalReq > 0 ? (double)(typeTotalReq - typeAssigned) / typeTotalReq : 0;
+                        double typeAdaptive = Math.max(0.3, 1.0 - typeGap * 0.7);
+                        typePenalty = typeCnt * 15.0 * typeAdaptive;
+                    }
 			                    double specPenalty = 0;
 			                    if (specId != null && "L04".equals(shiftTypeId)) {
 			                        int l04Spec = l04SpecGap.getOrDefault(s.getId(), Collections.emptyMap())
@@ -504,16 +509,19 @@ double fatigueBonus = 0;
 			                        specPenalty = l04Spec * 18.0 * specAdaptive;
 			                    }
 
-                    // Inter-type balance penalty in gap-fill (soft). OFF when INTRA_TYPE.
-                    double gapInterTypePenalty = interTypeWeight > 0
-                            ? ArrangementModeSupport.interTypePenalty(
-                                    typeCountGap.getOrDefault(s.getId(), Collections.emptyMap()),
-                                    interTypeWeight)
-                            : 0;
+                    // Inter-type balance penalty in gap-fill (soft). PROSPECTIVE: count as-if assigned.
+                    double gapInterTypePenalty = 0;
+                    if (interTypeWeight > 0 && !"L04".equals(shiftTypeId)) {
+                        java.util.Map<String, Integer> prospective = new java.util.HashMap<>(
+                                typeCountGap.getOrDefault(s.getId(), java.util.Collections.emptyMap()));
+                        prospective.merge(shiftTypeId, 1, Integer::sum);
+                        gapInterTypePenalty = ArrangementModeSupport.interTypePenalty(prospective, interTypeWeight);
+                    }
 
 			                    double score = 100 - totalPenalty + fatigueBonus + rotationBonus
 			                            - typePenalty - specPenalty - gapInterTypePenalty;
-                    // Per-type penalty in gap-fill (TASK-L01-FAIRNESS Phase A)
+                    // Per-type penalty in gap-fill (TASK-L01-FAIRNESS Phase A).
+                    // KEPT ACTIVE alongside prospective gapInterTypePenalty.
                     if (!"L04".equals(shiftTypeId)) {
                         int typeCntGapVal = typeCountGap.getOrDefault(s.getId(), Collections.emptyMap())
                                 .getOrDefault(shiftTypeId, 0);

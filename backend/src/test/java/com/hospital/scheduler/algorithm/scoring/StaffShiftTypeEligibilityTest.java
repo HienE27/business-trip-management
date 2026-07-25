@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>Đảm bảo logic eligibility được áp dụng đúng cho từng shift type:
  * <ul>
- *   <li>L01/L02/L03 chỉ gán cho Ngoại / Nội (CORE specialties)</li>
+ *   <li>L01/L02/L03 gán cho mọi active staff có chuyên khoa</li>
  *   <li>L04 với specialty: chỉ staff cùng chuyên khoa</li>
  *   <li>L04 không có specialty: mặc định tất cả chuyên khoa eligible</li>
  * </ul>
@@ -51,21 +51,20 @@ class StaffShiftTypeEligibilityTest {
     }
 
     @Test
-    void pharmacist_isIneligible_for_L01() {
-        Staff pha = staff(3, specialty(3, "Dược sĩ"), true);
-        assertThat(StaffShiftTypeEligibility.isEligible(pha, "L01", null)).isFalse();
+    void futureSpecialty_isEligible_forAllNonL04Shifts() {
+        Staff cardiologist = staff(3, specialty(3, "Tim mạch"), true);
+
+        assertThat(StaffShiftTypeEligibility.isEligible(cardiologist, "L01", null)).isTrue();
+        assertThat(StaffShiftTypeEligibility.isEligible(cardiologist, "L02", null)).isTrue();
+        assertThat(StaffShiftTypeEligibility.isEligible(cardiologist, "L03", null)).isTrue();
     }
 
     @Test
-    void technician_isIneligible_for_L02() {
-        Staff tech = staff(4, specialty(4, "Kỹ thuật viên"), true);
-        assertThat(StaffShiftTypeEligibility.isEligible(tech, "L02", null)).isFalse();
-    }
+    void runtimeSpecialtyList_doesNotRestrictNonL04Shifts() {
+        Staff cardiologist = staff(3, specialty(3, "Tim mạch"), true);
 
-    @Test
-    void pharmacist_isIneligible_for_L03() {
-        Staff pha = staff(3, specialty(3, "Dược sĩ"), true);
-        assertThat(StaffShiftTypeEligibility.isEligible(pha, "L03", null)).isFalse();
+        assertThat(StaffShiftTypeEligibility.isEligible(
+            cardiologist, "L01", null, List.of("Ngoại", "Nội"))).isTrue();
     }
 
     @Test
@@ -118,26 +117,30 @@ class StaffShiftTypeEligibilityTest {
     }
 
     @Test
-    void filterEligible_returnsOnlyEligible() {
+    void filterEligible_returnsAllActiveStaffWithSpecialty() {
         Staff doc = staff(1, specialty(1, "Ngoại"), true);
-        Staff nur = staff(2, specialty(2, "Nội"), true);
-        Staff pha = staff(3, specialty(3, "Dược sĩ"), true);
-        Staff tech = staff(4, specialty(4, "Kỹ thuật viên"), true);
-        List<Staff> pool = List.of(doc, nur, pha, tech);
+        Staff futureSpecialty = staff(2, specialty(2, "Tim mạch"), true);
+        Staff inactive = staff(3, specialty(3, "Nội"), false);
+        Staff withoutSpecialty = staff(4, null, true);
+        List<Staff> pool = List.of(doc, futureSpecialty, inactive, withoutSpecialty);
+
         List<Staff> eligible = StaffShiftTypeEligibility.filterEligible(pool, "L01", null);
+
         assertThat(eligible).extracting(Staff::getId).containsExactly(1, 2);
     }
 
     @Test
-    void eligibleStaffIdsForNonL04_excludesIneligibleSpecialties() {
+    void eligibleStaffIdsForNonL04_includesEverySpecialty() {
         Staff doc = staff(1, specialty(1, "Ngoại"), true);
-        Staff nur = staff(2, specialty(2, "Nội"), true);
-        Staff pha = staff(3, specialty(3, "Dược sĩ"), true);
-        Staff tech = staff(4, specialty(4, "Kỹ thuật viên"), true);
-        Staff inactive = staff(5, specialty(1, "Ngoại"), false);
-        List<Staff> pool = List.of(doc, nur, pha, tech, inactive);
+        Staff futureSpecialty = staff(2, specialty(2, "Tim mạch"), true);
+        Staff pharmacist = staff(3, specialty(3, "Dược sĩ"), true);
+        Staff inactive = staff(4, specialty(1, "Ngoại"), false);
+        Staff withoutSpecialty = staff(5, null, true);
+        List<Staff> pool = List.of(doc, futureSpecialty, pharmacist, inactive, withoutSpecialty);
+
         Set<Integer> ids = StaffShiftTypeEligibility.eligibleStaffIdsForNonL04(pool);
-        assertThat(ids).containsExactlyInAnyOrder(1, 2);
+
+        assertThat(ids).containsExactlyInAnyOrder(1, 2, 3);
     }
 
     @Test

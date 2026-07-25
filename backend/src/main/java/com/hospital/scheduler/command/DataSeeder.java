@@ -266,7 +266,7 @@ public class DataSeeder implements CommandLineRunner {
                 false,  // l04CrossSpecialty (disabled by default)
                 0.3f,   // l04CrossSpecialtyRatio
                 List.of(),  // l04AllowedSpecialties (empty = all specialties)
-                // L01/L02/L03 allowed specialties (null/empty → fallback to CORE = Ngoại, Nội)
+                // Legacy fields; L01/L02/L03 now allow every specialty.
                 null,   // l01AllowedSpecialties
                 null,   // l02AllowedSpecialties
                 null,   // l03AllowedSpecialties

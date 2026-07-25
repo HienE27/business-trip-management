@@ -27,8 +27,24 @@ type StaffAnalysis = {
   isSolo: boolean;
 };
 
+type RecommendResultRecommendedConfig = {
+  l01MinPerDay?: number; l02MinPerDay?: number; l03MinPerDay?: number; l04MinPerDay?: number;
+  l01MaxPerDay?: number; l02MaxPerDay?: number; l03MaxPerDay?: number; l04MaxPerDay?: number;
+  l01MinPerWeek?: number; l02MinPerWeek?: number; l03MinPerWeek?: number; l04MinPerWeek?: number;
+  l01MaxPerWeek?: number; l02MaxPerWeek?: number; l03MaxPerWeek?: number; l04MaxPerWeek?: number;
+  holidayMode?: string;
+  l04CrossSpecialty?: boolean;
+  l04CrossSpecialtyRatio?: number;
+  l04AllowedSpecialties?: string[];
+  l01AllowedSpecialties?: string[];
+  l02AllowedSpecialties?: string[];
+  l03AllowedSpecialties?: string[];
+  l04BalanceStrategy?: string;
+  l01TargetPerMonth?: number; l02TargetPerMonth?: number; l03TargetPerMonth?: number; l04TargetPerMonth?: number;
+};
+
 type RecommendResult = {
-  recommendedConfig: Record<string, unknown>;
+  recommendedConfig: RecommendResultRecommendedConfig;
   totalShiftsExpected: number;
   rationale: string;
   planningReport?: PlanningReport;
@@ -220,25 +236,74 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     return { L01: t, L02: t, L03: t, L04: t };
   }, [totalStaff]);
 
+  /** Map recommend → form. Giữ targets + interTypeWeight (user/runtime soft; không phải param CP-SAT). */
+  function applyRecommendToForm(base: RuntimeConfig, data: RecommendResult): RuntimeConfig {
+    const p = data.planningReport;
+    if (!p) return base;
+    const rel = p.parameters.paramRelevance ?? {};
+    const updated: RuntimeConfig = {
+      ...base,
+      autoAdjustConfig: false,
+      ...(rel.beamWidth !== false && { beamWidth: p.parameters.beamWidth }),
+      ...(rel.scorerWeights !== false && {
+        coverageWeight: p.parameters.coverageWeight,
+        fairnessWeight: p.parameters.fairnessWeight,
+        constraintWeight: p.parameters.constraintWeight,
+      }),
+      ...(rel.weekendWeight !== false && { weekendWeight: p.parameters.weekendWeight }),
+      ...(rel.rebalanceRounds !== false && { rebalanceRoundsTotal: p.parameters.rebalanceRounds }),
+      ...(rel.maxShiftsPerStaff !== false && { maxShiftsPerStaff: p.parameters.maxShiftsPerStaff }),
+      ...(rel.arrangementMode !== false && {
+        arrangementMode: p.parameters.arrangementMode as "INTRA_TYPE" | "WITH_INTER_BALANCE",
+      }),
+      interTypeWeight: base.interTypeWeight ?? 5.0,
+    };
+    const rc = data.recommendedConfig;
+    if (rc) {
+      updated.l01MinPerDay = rc.l01MinPerDay ?? updated.l01MinPerDay;
+      updated.l01MaxPerDay = rc.l01MaxPerDay ?? updated.l01MaxPerDay;
+      updated.l02MinPerDay = rc.l02MinPerDay ?? updated.l02MinPerDay;
+      updated.l02MaxPerDay = rc.l02MaxPerDay ?? updated.l02MaxPerDay;
+      updated.l03MinPerDay = rc.l03MinPerDay ?? updated.l03MinPerDay;
+      updated.l03MaxPerDay = rc.l03MaxPerDay ?? updated.l03MaxPerDay;
+      updated.l04MinPerDay = rc.l04MinPerDay ?? updated.l04MinPerDay;
+      updated.l04MaxPerDay = rc.l04MaxPerDay ?? updated.l04MaxPerDay;
+      updated.l01MinPerWeek = rc.l01MinPerWeek ?? updated.l01MinPerWeek;
+      updated.l01MaxPerWeek = rc.l01MaxPerWeek ?? updated.l01MaxPerWeek;
+      updated.l02MinPerWeek = rc.l02MinPerWeek ?? updated.l02MinPerWeek;
+      updated.l02MaxPerWeek = rc.l02MaxPerWeek ?? updated.l02MaxPerWeek;
+      updated.l03MinPerWeek = rc.l03MinPerWeek ?? updated.l03MinPerWeek;
+      updated.l03MaxPerWeek = rc.l03MaxPerWeek ?? updated.l03MaxPerWeek;
+      updated.l04MinPerWeek = rc.l04MinPerWeek ?? updated.l04MinPerWeek;
+      updated.l04MaxPerWeek = rc.l04MaxPerWeek ?? updated.l04MaxPerWeek;
+      updated.holidayMode = rc.holidayMode ?? updated.holidayMode;
+      updated.l04CrossSpecialty = rc.l04CrossSpecialty ?? updated.l04CrossSpecialty;
+    }
+    return updated;
+  }
+
   async function handleRecommend() {
+    if (!form) return;
     setRecommending(true);
     setRecommendResult(null);
     try {
+      // Input: targets + kiểu sắp xếp. interTypeWeight không gửi (soft runtime, không CP-SAT).
       const res = await api.recommendAutoGenConfig({
         periodDays: PERIOD_DAYS,
         periodWeeks: PERIOD_WEEKS,
         totalStaff,
         eligibleStaff: eligibleStaffMap,
-        // Truyền giá trị từ state (user-editable) — trước đây hardcode
-        // {L01:8, L02:7, L03:8, L04:10} → recommend bơm minPerDay lên 299.
         targetPerStaffPerMonth: targetPerStaffPerMonth,
         expandNonL04Eligibility: true,
         expandedSpecialties: staffAnalysis.map(a => a.specialtyName),
-        maxShiftsPerStaff: form?.maxShiftsPerStaff,
-        arrangementMode: form?.arrangementMode ?? undefined,
+        maxShiftsPerStaff: form.maxShiftsPerStaff,
+        arrangementMode: form.arrangementMode ?? undefined,
       }) as unknown as { data: RecommendResult };
-      setRecommendResult(res.data);
-      success("Phân tích hoàn tất");
+      const data = res.data;
+      setRecommendResult(data);
+      // Tự chỉnh weights / beam / min-max theo thuật toán đề xuất (chưa lưu DB)
+      setForm(applyRecommendToForm(form, data));
+      success("Phân tích hoàn tất — đã tự điều chỉnh chỉ số form");
     } catch (err) {
       error(getErrorMessage(err, "Phân tích thất bại"));
     } finally {
@@ -246,75 +311,30 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     }
   }
 
-  async function handleApplyAllParameters() {
-    if (!recommendResult?.planningReport || !form) return;
-    const p = recommendResult.planningReport;
-    const rel = p.parameters.paramRelevance ?? {};
-    const rc = recommendResult.recommendedConfig;
+  async function handleApplyAlgorithmOnly() {
+    if (!form) return;
     setApplyingRecommend(true);
     try {
-      // Apply algorithm params (runtime config) + shift limits (auto-gen config)
-      const updated: RuntimeConfig = {
-        ...form,
-        // Shift limits from recommended config
-        ...(rc?.l01MinPerDay != null && { l01MinPerDay: rc.l01MinPerDay as number }),
-        ...(rc?.l01MaxPerDay != null && { l01MaxPerDay: rc.l01MaxPerDay as number }),
-        ...(rc?.l02MinPerDay != null && { l02MinPerDay: rc.l02MinPerDay as number }),
-        ...(rc?.l02MaxPerDay != null && { l02MaxPerDay: rc.l02MaxPerDay as number }),
-        ...(rc?.l03MinPerDay != null && { l03MinPerDay: rc.l03MinPerDay as number }),
-        ...(rc?.l03MaxPerDay != null && { l03MaxPerDay: rc.l03MaxPerDay as number }),
-        ...(rc?.l04MinPerDay != null && { l04MinPerDay: rc.l04MinPerDay as number }),
-        ...(rc?.l04MaxPerDay != null && { l04MaxPerDay: rc.l04MaxPerDay as number }),
-        ...(rc?.l01MinPerWeek != null && { l01MinPerWeek: rc.l01MinPerWeek as number }),
-        ...(rc?.l01MaxPerWeek != null && { l01MaxPerWeek: rc.l01MaxPerWeek as number }),
-        ...(rc?.l02MinPerWeek != null && { l02MinPerWeek: rc.l02MinPerWeek as number }),
-        ...(rc?.l02MaxPerWeek != null && { l02MaxPerWeek: rc.l02MaxPerWeek as number }),
-        ...(rc?.l03MinPerWeek != null && { l03MinPerWeek: rc.l03MinPerWeek as number }),
-        ...(rc?.l03MaxPerWeek != null && { l03MaxPerWeek: rc.l03MaxPerWeek as number }),
-        ...(rc?.l04MinPerWeek != null && { l04MinPerWeek: rc.l04MinPerWeek as number }),
-        ...(rc?.l04MaxPerWeek != null && { l04MaxPerWeek: rc.l04MaxPerWeek as number }),
-        ...(rc?.holidayMode != null && { holidayMode: rc.holidayMode as string }),
-        ...(rc?.l04CrossSpecialty != null && { l04CrossSpecialty: rc.l04CrossSpecialty as boolean }),
-        autoAdjustConfig: false,
-        // Algorithm params from planner (only relevant ones)
-        ...(rel.beamWidth !== false && { beamWidth: p.parameters.beamWidth }),
-        ...(rel.scorerWeights !== false && {
-          coverageWeight: p.parameters.coverageWeight,
-          fairnessWeight: p.parameters.fairnessWeight,
-          constraintWeight: p.parameters.constraintWeight,
-        }),
-        ...(rel.weekendWeight !== false && { weekendWeight: p.parameters.weekendWeight }),
-        ...(rel.rebalanceRounds !== false && { rebalanceRoundsTotal: p.parameters.rebalanceRounds }),
-        ...(rel.maxShiftsPerStaff !== false && { maxShiftsPerStaff: p.parameters.maxShiftsPerStaff }),
-        ...(rel.arrangementMode !== false && {
-          arrangementMode: p.parameters.arrangementMode as "INTRA_TYPE" | "WITH_INTER_BALANCE",
-        }),
-        // interTypeWeight chỉ áp dụng khi inter-type balance được chọn
-        ...(("WITH_INTER_BALANCE".equals(p.parameters.arrangementMode) || form?.arrangementMode === "WITH_INTER_BALANCE") && {
-          interTypeWeight: form?.interTypeWeight ?? 5.0,
-        }),
-      };
-
-      // Build auto-gen payload
+      // Lưu form đã auto-fill từ Phân tích (targets giữ nguyên)
       const autoGenPayload = {
         enabled: true,
-        holidayMode: updated.holidayMode ?? "SKIP",
-        l01MinPerDay: updated.l01MinPerDay ?? 0, l02MinPerDay: updated.l02MinPerDay ?? 0,
-        l03MinPerDay: updated.l03MinPerDay ?? 0, l04MinPerDay: updated.l04MinPerDay ?? 0,
-        l01MaxPerDay: updated.l01MaxPerDay ?? 0, l02MaxPerDay: updated.l02MaxPerDay ?? 0,
-        l03MaxPerDay: updated.l03MaxPerDay ?? 0, l04MaxPerDay: updated.l04MaxPerDay ?? 0,
-        l01MinPerWeek: updated.l01MinPerWeek ?? 0, l02MinPerWeek: updated.l02MinPerWeek ?? 0,
-        l03MinPerWeek: updated.l03MinPerWeek ?? 0, l04MinPerWeek: updated.l04MinPerWeek ?? 0,
-        l01MaxPerWeek: updated.l01MaxPerWeek ?? 0, l02MaxPerWeek: updated.l02MaxPerWeek ?? 0,
-        l03MaxPerWeek: updated.l03MaxPerWeek ?? 0, l04MaxPerWeek: updated.l04MaxPerWeek ?? 0,
-        removedShiftTypes: updated.removedShiftTypes ?? [],
-        l04CrossSpecialty: updated.l04CrossSpecialty ?? false,
-        l04CrossSpecialtyRatio: updated.l04CrossSpecialtyRatio ?? 0.3,
-        l04AllowedSpecialties: updated.l04AllowedSpecialties ?? [],
-        l01AllowedSpecialties: updated.l01AllowedSpecialties ?? [],
-        l02AllowedSpecialties: updated.l02AllowedSpecialties ?? [],
-        l03AllowedSpecialties: updated.l03AllowedSpecialties ?? [],
-        l04BalanceStrategy: updated.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
+        holidayMode: form.holidayMode ?? "SKIP",
+        l01MinPerDay: form.l01MinPerDay ?? 0, l02MinPerDay: form.l02MinPerDay ?? 0,
+        l03MinPerDay: form.l03MinPerDay ?? 0, l04MinPerDay: form.l04MinPerDay ?? 0,
+        l01MaxPerDay: form.l01MaxPerDay ?? 0, l02MaxPerDay: form.l02MaxPerDay ?? 0,
+        l03MaxPerDay: form.l03MaxPerDay ?? 0, l04MaxPerDay: form.l04MaxPerDay ?? 0,
+        l01MinPerWeek: form.l01MinPerWeek ?? 0, l02MinPerWeek: form.l02MinPerWeek ?? 0,
+        l03MinPerWeek: form.l03MinPerWeek ?? 0, l04MinPerWeek: form.l04MinPerWeek ?? 0,
+        l01MaxPerWeek: form.l01MaxPerWeek ?? 0, l02MaxPerWeek: form.l02MaxPerWeek ?? 0,
+        l03MaxPerWeek: form.l03MaxPerWeek ?? 0, l04MaxPerWeek: form.l04MaxPerWeek ?? 0,
+        removedShiftTypes: form.removedShiftTypes ?? [],
+        l04CrossSpecialty: form.l04CrossSpecialty ?? false,
+        l04CrossSpecialtyRatio: form.l04CrossSpecialtyRatio ?? 0.3,
+        l04AllowedSpecialties: form.l04AllowedSpecialties ?? [],
+        l01AllowedSpecialties: form.l01AllowedSpecialties ?? [],
+        l02AllowedSpecialties: form.l02AllowedSpecialties ?? [],
+        l03AllowedSpecialties: form.l03AllowedSpecialties ?? [],
+        l04BalanceStrategy: form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
         l01TargetPerMonth: targetPerStaffPerMonth.L01,
         l02TargetPerMonth: targetPerStaffPerMonth.L02,
         l03TargetPerMonth: targetPerStaffPerMonth.L03,
@@ -322,20 +342,18 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       };
 
       await api.updateAutoGenConfig(autoGenPayload);
-      await api.updateRuntimeConfig(updated);
-      setForm(updated);
-      setConfig(updated);
-      success("Da ap dung toan bo cau hinh + tham so tu Planning Report");
-      setRecommendResult(null);
+      await api.updateRuntimeConfig(form);
+      setConfig(form);
+      success(`Đã lưu cấu hình (targets=${targetPerStaffPerMonth.L01}/${targetPerStaffPerMonth.L02}/${targetPerStaffPerMonth.L03}/${targetPerStaffPerMonth.L04})`);
       onSaved?.();
     } catch (err) {
-      error(getErrorMessage(err, "Ap dung that bai"));
+      error(getErrorMessage(err, "Áp dụng thất bại"));
     } finally {
       setApplyingRecommend(false);
     }
   }
 
-  if (loading) return <EditorSkeleton />;
+	  if (loading) return <EditorSkeleton />;
   if (!config || !form) return null;
 
   return (
@@ -400,7 +418,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
                 <PlanningReportView
                   report={recommendResult.planningReport}
                   applying={applyingRecommend}
-                  onApplyAll={() => void handleApplyAllParameters()}
+                  onApply={() => void handleApplyAlgorithmOnly()}
                   onDismiss={() => setRecommendResult(null)}
                 />
               </div>
@@ -460,34 +478,9 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
               );
             })}
           </div>
-	          <div className="flex items-center justify-between mt-2">
-	            <button
-	              onClick={() => {
-	                const maxShift = form?.maxShiftsPerStaff ?? 0;
-	                const baseline = Math.min(Math.max(1, maxShift > 0 ? maxShift : PERIOD_DAYS), PERIOD_DAYS);
-	                const isInter = (form?.arrangementMode ?? "INTRA_TYPE") === "WITH_INTER_BALANCE";
-	                // Intra-type: theo tỉ lệ lịch sử. Inter-type: cân bằng L01/L02/L03.
-	                const [r1, r2, r3, r4] = isInter
-	                  ? [0.30, 0.30, 0.30, 0.10]  // balance: 3 loại chính bằng nhau
-	                  : [0.30, 0.25, 0.30, 0.15]; // fairness: theo demand lịch sử
-	                setTargetPerStaffPerMonth({
-	                  L01: Math.max(1, Math.round(baseline * r1)),
-	                  L02: Math.max(1, Math.round(baseline * r2)),
-	                  L03: Math.max(1, Math.round(baseline * r3)),
-	                  L04: Math.max(1, Math.round(baseline * r4)),
-	                });
-	              }}
-	              className="flex items-center gap-1 px-2 py-1 rounded-lg border border-primary/40 text-[10px] font-semibold text-primary hover:bg-primary/10 transition-colors"
-	            >
-	              <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
-	              De xuat muc tieu
-            </button>
-            <p className="text-[10px] text-on-surface-variant">
-              {autoFillEnabled
-                ? "Auto-fill đang bật: đổi target → ô min/max per day/week tự tính lại. Bấm 'Lưu thay đổi' để commit DB."
-                : "Auto-fill đang tắt: chỉ chỉnh tay các ô min/max. Target vẫn lưu vào DB khi bấm Lưu."}
-            </p>
-          </div>
+	          <p className="text-[10px] text-on-surface-variant mt-1">
+            Target + Kiểu sắp xếp → "Phân tích" tự chỉnh weights/min-max. Inter weight giữ tay (soft, không CP-SAT). "Áp dụng" = lưu DB.
+          </p>
         </div>
 
         {/* Kiểu sắp xếp — ảnh hưởng tới đề xuất cấu hình */}
@@ -517,22 +510,28 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             })}
           </div>
 
-          {/* Inter-type balance weight — chỉ hiển thị khi balance được chọn */}
-          {(form?.arrangementMode ?? "INTRA_TYPE") === "WITH_INTER_BALANCE" && (
-            <div className="mt-2 flex items-center gap-3">
-              <label className="text-[10px] text-on-surface-variant whitespace-nowrap">
-                Inter weight: <span className="font-semibold text-primary">{form?.interTypeWeight ?? 5}</span>
-              </label>
-              <input
-                type="range" min={0} max={50} step={1}
-                value={form?.interTypeWeight ?? 5}
-                onChange={(e) => setField("interTypeWeight", parseFloat(e.target.value))}
-                className="flex-1 h-1.5 rounded-full appearance-none bg-outline-variant accent-primary cursor-pointer"
-              />
-              <span className="text-[9px] text-on-surface-variant w-16 text-right">
-                Cao hơn = cân bằng mạnh hơn
-              </span>
+          {/* Inter weight: chỉ bật khi WITH_INTER_BALANCE (backend interEnabled). Intra → ẩn + scheduler bỏ qua. */}
+          {(form?.arrangementMode ?? "INTRA_TYPE") === "WITH_INTER_BALANCE" ? (
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center gap-3">
+                <label className="text-[10px] text-on-surface-variant whitespace-nowrap">
+                  Inter weight: <span className="font-semibold text-primary">{form?.interTypeWeight ?? 5}</span>
+                </label>
+                <input
+                  type="range" min={0} max={50} step={1}
+                  value={form?.interTypeWeight ?? 5}
+                  onChange={(e) => setField("interTypeWeight", parseFloat(e.target.value))}
+                  className="flex-1 h-1.5 rounded-full appearance-none bg-outline-variant accent-primary cursor-pointer"
+                />
+              </div>
+              <p className="text-[9px] text-on-surface-variant leading-snug">
+                Chỉ có hiệu lực khi Inter-type bật. Gợi ý: <strong>0</strong> = tắt ép · <strong>5</strong> = vừa (mặc định) · <strong>20–50</strong> = ép mạnh (có thể giảm coverage).
+              </p>
             </div>
+          ) : (
+            <p className="mt-1 text-[9px] text-on-surface-variant">
+              Inter weight tắt (Intra-type). Chọn Inter-type balance để chỉnh 0 / 5 / 20–50.
+            </p>
           )}
 
           {/* L04 Cross-Specialty — button like the arrangement mode ones */}

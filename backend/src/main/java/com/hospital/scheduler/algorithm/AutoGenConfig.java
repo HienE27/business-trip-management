@@ -13,9 +13,9 @@ public record AutoGenConfig(
     boolean l04CrossSpecialty,  // Allow cross-specialty assignment for L04
     float l04CrossSpecialtyRatio,  // Max ratio (0.0-1.0) of cross-specialty staff per requirement
     List<String> l04AllowedSpecialties,  // Danh sách specialties được gán L04 (null/empty = tất cả)
-    List<String> l01AllowedSpecialties,  // Danh sách specialties được gán L01 (null/empty = CORE = Ngoại,Nội)
-    List<String> l02AllowedSpecialties,  // Danh sách specialties được gán L02 (null/empty = CORE = Ngoại,Nội)
-    List<String> l03AllowedSpecialties,  // Danh sách specialties được gán L03 (null/empty = CORE = Ngoại,Nội)
+    List<String> l01AllowedSpecialties,  // Legacy; L01 hiện nhận mọi specialty
+    List<String> l02AllowedSpecialties,  // Legacy; L02 hiện nhận mọi specialty
+    List<String> l03AllowedSpecialties,  // Legacy; L03 hiện nhận mọi specialty
     // Target ca/người/tháng — input cho recommendAutoGenConfig. Persist vào DB
     // để UI refresh không reset về default. Default L01-L03=2, L04=5 (xem AlgorithmConfigService).
     int l01TargetPerMonth, int l02TargetPerMonth, int l03TargetPerMonth, int l04TargetPerMonth,

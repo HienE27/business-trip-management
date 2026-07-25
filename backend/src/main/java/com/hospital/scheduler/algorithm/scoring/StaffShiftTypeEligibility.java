@@ -13,10 +13,8 @@ import java.util.stream.Collectors;
 /**
  * Xác định nhân sự <b>eligible</b> (đủ điều kiện) cho từng loại ca.
  *
- * <p>Trước đây {@link ScheduleQualityScorer} tính fairness trên tất cả
- * {@code activeStaff} — điều này gây CV cao giả vì nhân sự không cùng
- * chuyên khoa (ví dụ Dược sĩ/KTV không thể đảm nhận L01/L02/L03)
- * luôn có 0 ca và bị tính vào variance.
+ * <p>{@link ScheduleQualityScorer} tính fairness trên tập nhân sự thực sự
+ * có thể nhận từng loại ca, tránh đưa nhân sự không có chuyên khoa vào variance.
  *
  * <p>Utility này định nghĩa eligibility tập trung, dùng được cho cả:
  * <ul>
@@ -28,26 +26,15 @@ import java.util.stream.Collectors;
  *
  * <h3>Quy tắc eligibility</h3>
  * <pre>
- *   L01 (Trực 24/24)     → Ngoại, Nội
- *   L02 (Thông tầm)      → Ngoại, Nội
- *   L03 (PK Dịch vụ)     → Ngoại, Nội
- *   L04 (PK Chuyên gia)  → Tất cả (Ngoại, Nội, Sản, Nhi, Mắt, Răng)
- *                          hoặc chỉ các specialty được cấu hình trong
- *                          AUTO_GEN_L04_ALLOWED_SPECIALTIES
+ *   L01/L02/L03           → Mọi chuyên khoa hiện tại và tương lai
+ *   L04 (PK Chuyên gia)   → Các specialty được cấu hình trong
+ *                           AUTO_GEN_L04_ALLOWED_SPECIALTIES
+ *                           (rỗng = tập mặc định hiện tại)
  * </pre>
  */
 public final class StaffShiftTypeEligibility {
 
     private StaffShiftTypeEligibility() {}
-
-    /**
-     * Các chuyên khoa CỐT LÕI được phép gán ca trực/thông tầm/phòng khám.
-     * Đây là baseline - L01/L02/L03 yêu cầu staff thuộc các specialty này.
-     */
-    public static final Set<String> CORE_ELIGIBLE_SPECIALTIES = Set.of(
-        "Ngoại",
-        "Nội"
-    );
 
     /**
      * Tất cả các chuyên khoa có thể gán ca L04 (PK Chuyên gia).
@@ -61,13 +48,6 @@ public final class StaffShiftTypeEligibility {
         "Mắt",
         "Răng"
     );
-
-    /**
-     * Backward compatibility - map cũ sang sets mới.
-     * @deprecated Use {@link #CORE_ELIGIBLE_SPECIALTIES} instead.
-     */
-    @Deprecated
-    public static final Set<String> ELIGIBLE_SPECIALTY_NAMES = CORE_ELIGIBLE_SPECIALTIES;
 
     /**
      * Kiểm tra staff có đủ điều kiện cho 1 shift type hay không.
@@ -102,13 +82,8 @@ public final class StaffShiftTypeEligibility {
             case "L01":
             case "L02":
             case "L03":
-                // L01/L02/L03: allowed specialties được truyền vào qua l04AllowedSpecialties param
-                // (tên param lịch sử, hiện áp dụng cho cả 4 loại ca).
-                // null/empty → fallback về CORE_ELIGIBLE_SPECIALTIES (giữ behavior mặc định).
-                Set<String> coreAllowed = l04AllowedSpecialties != null && !l04AllowedSpecialties.isEmpty()
-                    ? new java.util.HashSet<>(l04AllowedSpecialties)
-                    : CORE_ELIGIBLE_SPECIALTIES;
-                return spName != null && coreAllowed.contains(spName);
+                // Mọi chuyên khoa hiện tại và tương lai đều nhận được ca non-L04.
+                return sp != null;
 
             case "L04":
                 // L04: Kiểm tra với danh sách allowed specialties từ config
@@ -162,16 +137,15 @@ public final class StaffShiftTypeEligibility {
     }
 
     /**
-     * Lấy set staff IDs eligible cho L01/L02/L03 (không cần specialty).
+     * Lấy set staff IDs eligible cho L01/L02/L03.
      *
-     * @return Set các staffId thuộc Bác sĩ / Điều dưỡng và active.
+     * @return Set staff active có chuyên khoa.
      */
     public static Set<Integer> eligibleStaffIdsForNonL04(List<Staff> staffList) {
         if (staffList == null) return Set.of();
         return staffList.stream()
             .filter(s -> s != null && Boolean.TRUE.equals(s.getIsActive())
-                && s.getSpecialty() != null
-                && CORE_ELIGIBLE_SPECIALTIES.contains(s.getSpecialty().getName()))
+                && s.getSpecialty() != null)
             .map(Staff::getId)
             .collect(Collectors.toSet());
     }
@@ -235,26 +209,18 @@ public final class StaffShiftTypeEligibility {
 
     /**
      * Lấy tất cả eligible staff IDs (cho L01-L04).
-     * @return Set các staffId thuộc ALL_ELIGIBLE_SPECIALTIES và active.
+     * @return Set staff active có chuyên khoa.
      */
     public static Set<Integer> getAllEligibleStaffIds(List<Staff> staffList) {
-        if (staffList == null) return Set.of();
-        return staffList.stream()
-            .filter(s -> s != null && Boolean.TRUE.equals(s.getIsActive())
-                && s.getSpecialty() != null
-                && ALL_ELIGIBLE_SPECIALTIES.contains(s.getSpecialty().getName()))
-            .map(Staff::getId)
-            .collect(Collectors.toSet());
+        return eligibleStaffIdsForNonL04(staffList);
     }
 
     /**
      * Kiểm tra staff có eligible cho BẤT KỲ ca nào không.
-     * @return true nếu staff thuộc ALL_ELIGIBLE_SPECIALTIES.
      */
     public static boolean isEligibleForAnyShift(Staff staff) {
-        if (staff == null) return false;
-        if (!Boolean.TRUE.equals(staff.getIsActive())) return false;
-        String spName = staff.getSpecialty() != null ? staff.getSpecialty().getName() : null;
-        return spName != null && ALL_ELIGIBLE_SPECIALTIES.contains(spName);
+        return staff != null
+            && Boolean.TRUE.equals(staff.getIsActive())
+            && staff.getSpecialty() != null;
     }
 }

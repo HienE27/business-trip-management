@@ -438,7 +438,7 @@ public class SchedulingAlgorithmRunner {
                             .map(r -> r.getSpecialty() != null ? r.getSpecialty().getId() : null)
                             .orElse(null);
 
-                    if (!StaffShiftTypeEligibility.isEligible(staff, typeId, specId, autoSchedulingService.getNonL04AllowedSpecialties(typeId))) {
+                    if (!StaffShiftTypeEligibility.isEligible(staff, typeId, specId)) {
                         continue;
                     }
 

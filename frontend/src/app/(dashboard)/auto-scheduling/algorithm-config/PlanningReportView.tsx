@@ -8,7 +8,7 @@ import type {
 type Props = {
   report: PlanningReport;
   applying?: boolean;
-  onApplyAll: () => void;
+  onApply: () => void;
   onDismiss: () => void;
 };
 
@@ -16,7 +16,7 @@ function starString(n: number): string {
   return "★".repeat(n) + "☆".repeat(5 - n);
 }
 
-export function PlanningReportView({ report, applying = false, onApplyAll, onDismiss }: Props) {
+export function PlanningReportView({ report, applying = false, onApply, onDismiss }: Props) {
   const r = report;
   return (
     <div className="space-y-2 text-[11px]">
@@ -186,11 +186,11 @@ export function PlanningReportView({ report, applying = false, onApplyAll, onDis
       {/* Actions */}
       <div className="flex gap-2 pt-1">
         <button
-          onClick={onApplyAll}
+          onClick={onApply}
           disabled={applying}
           className="flex-1 px-3 py-1.5 rounded-lg bg-primary text-white text-[10px] font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {applying ? "Applying..." : "Apply All Parameters"}
+          {applying ? "Applying..." : "Áp dụng thuật toán"}
         </button>
         <button
           onClick={onDismiss}

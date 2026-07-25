@@ -298,7 +298,7 @@ public class AlgorithmConfigService {
                 getBooleanValue(AUTO_GEN_L04_CROSS_SPECIALTY, false, cache),
                 getFloatValue(AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.3f, cache),
                 getStringListValue("AUTO_GEN_L04_ALLOWED_SPECIALTIES", cache), // null/empty = all specialties
-                // L01/L02/L03: null/empty → fallback to CORE_ELIGIBLE_SPECIALTIES (Ngoại, Nội) trong StaffShiftTypeEligibility
+                // Legacy fields retained for API/DB compatibility; L01/L02/L03 now allow every specialty.
                 getStringListValue(AUTO_GEN_L01_ALLOWED_SPECIALTIES, cache),
                 getStringListValue(AUTO_GEN_L02_ALLOWED_SPECIALTIES, cache),
                 getStringListValue(AUTO_GEN_L03_ALLOWED_SPECIALTIES, cache),
@@ -351,16 +351,16 @@ public class AlgorithmConfigService {
                 ? "" : String.join(",", config.l04AllowedSpecialties());
         upsert("AUTO_GEN_L04_ALLOWED_SPECIALTIES", allowedSpecs, AlgorithmConfig.ValueType.STRING,
                 "Danh sách chuyên khoa được gán L04. Rỗng = tất cả chuyên khoa. Ví dụ: Ngoại,Nội,Sản");
-        // L01/L02/L03 allowed specialties (CSV). Rỗng → dùng default CORE = Ngoại,Nội.
+        // Legacy L01/L02/L03 lists retained for API/DB compatibility; scheduler ignores them.
         String l01Csv = config.l01AllowedSpecialties() == null ? "" : String.join(",", config.l01AllowedSpecialties());
         upsert(AUTO_GEN_L01_ALLOWED_SPECIALTIES, l01Csv, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L01 (trực 24/24). Rỗng = mặc định Ngoại,Nội. Ví dụ: Ngoại,Nội,Sản,Nhi,Mắt,Răng");
+                "Trường legacy; L01 hiện nhận mọi chuyên khoa.");
         String l02Csv = config.l02AllowedSpecialties() == null ? "" : String.join(",", config.l02AllowedSpecialties());
         upsert(AUTO_GEN_L02_ALLOWED_SPECIALTIES, l02Csv, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L02 (thông tầm). Rỗng = mặc định Ngoại,Nội.");
+                "Trường legacy; L02 hiện nhận mọi chuyên khoa.");
         String l03Csv = config.l03AllowedSpecialties() == null ? "" : String.join(",", config.l03AllowedSpecialties());
         upsert(AUTO_GEN_L03_ALLOWED_SPECIALTIES, l03Csv, AlgorithmConfig.ValueType.STRING,
-                "Danh sách chuyên khoa được gán L03 (phòng khám dịch vụ). Rỗng = mặc định Ngoại,Nội.");
+                "Trường legacy; L03 hiện nhận mọi chuyên khoa.");
         // Target ca/người/tháng — input editable cho recommend.
         upsert(AUTO_GEN_L01_TARGET_PER_MONTH, String.valueOf(config.l01TargetPerMonth()),
                 AlgorithmConfig.ValueType.NUMBER, "Mục tiêu ca L01 mỗi nhân sự mỗi tháng (input cho đề xuất cấu hình tự động).");
@@ -842,6 +842,11 @@ public class AlgorithmConfigService {
 	        int l01MinPerDay = Math.max(1, (int) Math.ceil((double) (l01Target * l01Elig) / days));
 	        int l02MinPerDay = Math.max(1, (int) Math.ceil((double) (l02Target * l02Elig) / days));
 	        int l03MinPerDay = Math.max(1, (int) Math.ceil((double) (l03Target * l03Elig) / days));
+                // Clamp demand về eligible pool do request phân tích cung cấp.
+
+	        if (l03MinPerDay > Math.max(1, l03Elig)) {
+	            l03MinPerDay = Math.max(1, l03Elig);
+	        }
 	        int l04MinPerDay = Math.max(1, (int) Math.ceil((double) (l04Target * effectiveL04Elig) / days));
 
         int l01MinPerWeek = Math.max(1, (int) Math.ceil((double) l01Target / weeks));
@@ -859,24 +864,10 @@ public class AlgorithmConfigService {
         int l03MaxPerDay = Math.max(l03MinPerDay, (int) Math.ceil(l03MaxPerWeek * 1.2));
         int l04MaxPerDay = Math.max(l04MinPerDay, (int) Math.ceil(l04MaxPerWeek * 1.2));
 
-        java.util.List<String> l01Spec = expandNonL04Eligibility
-                ? (expandedSpecialties != null && !expandedSpecialties.isEmpty()
-                    ? expandedSpecialties
-                    : java.util.List.of("Bác sĩ", "Điều dưỡng", "Kỹ thuật viên", "Dược sĩ",
-                        "Ngoại", "Nội", "Sản", "Nhi", "Mắt", "Răng"))
-                : (current.l01AllowedSpecialties() != null && !current.l01AllowedSpecialties().isEmpty()
-                    ? current.l01AllowedSpecialties()
-                    : java.util.List.of("Ngoại", "Nội"));
-        java.util.List<String> l02Spec = expandNonL04Eligibility
-                ? l01Spec
-                : (current.l02AllowedSpecialties() != null && !current.l02AllowedSpecialties().isEmpty()
-                    ? current.l02AllowedSpecialties()
-                    : java.util.List.of("Ngoại", "Nội"));
-        java.util.List<String> l03Spec = expandNonL04Eligibility
-                ? l01Spec
-                : (current.l03AllowedSpecialties() != null && !current.l03AllowedSpecialties().isEmpty()
-                    ? current.l03AllowedSpecialties()
-                    : java.util.List.of("Ngoại", "Nội"));
+        // Legacy fields: empty because L01/L02/L03 always allow every specialty.
+        java.util.List<String> l01Spec = java.util.List.of();
+        java.util.List<String> l02Spec = java.util.List.of();
+        java.util.List<String> l03Spec = java.util.List.of();
 
 int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
                 + (l03Target * l03Elig) + (l04Target * effectiveL04Elig);
@@ -927,9 +918,7 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
                 days, weeks, totalExpected,
                 l01Target, l02Target, l03Target, l01Elig, l02Elig, l03Elig,
                 l04Target, l04Elig,
-                expandNonL04Eligibility
-                    ? "Mở rộng eligibility L01/L02/L03 cho tất cả specialties để đạt mục tiêu."
-                    : "Giữ eligibility L01/L02/L03 cho Ngoại,Nội (8 người) — nếu không đủ, cân nhắc mở rộng."
+                "L01/L02/L03 dùng mọi active staff có chuyên khoa."
         );
 
         // ── Commit B: compute demand ratio, fairness type, expected metrics, warnings ──
@@ -1016,6 +1005,9 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
         }
         if (l04MinPerDay > effectiveL04Elig && effectiveL04Elig > 0) {
             warnings.add("⚠️ L04: " + l04MinPerDay + " ca/ngày cho " + effectiveL04Elig + " người — mỗi người cần ≥1 ca.");
+        }
+        if (l03Elig < totalStaff && l03MinPerDay > l03Elig) {
+            warnings.add("⚠️ L03 eligible pool chỉ " + l03Elig + " người — demand/ngày đã clamp về ≤" + l03Elig + ".");
         }
 
         return new AutoGenConfigRecommendation(

@@ -47,8 +47,11 @@ type LoginResponse = {
 };
 
 const AuthContext = createContext<AuthState | null>(null);
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api/v1";
+// Keep relative so the request stays same-origin and goes through the Next.js
+// rewrite proxy. Absolute URLs (e.g. http://localhost:8080/api/v1) trigger a
+// CORS preflight that the backend does not answer, leaving the login POST
+// hanging indefinitely. See api-client.ts for the same pattern.
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 
 function toAuthUser(staff: Staff, permissions: string[] = []): AuthUser {
   return {

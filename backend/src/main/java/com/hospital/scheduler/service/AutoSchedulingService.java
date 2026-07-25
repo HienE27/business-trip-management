@@ -1353,21 +1353,6 @@ public class AutoSchedulingService {
                 .orElse(new SchedulingAlgorithmRunner.CrossSpecialtyConfig(false, 0.0f, List.of()));
     }
 
-    /**
-     * Trả về danh sách specialties được phép gán cho L01/L02/L03.
-     * Đọc từ algorithm_config; null/empty → StaffShiftTypeEligibility sẽ fallback về CORE (Ngoại, Nội).
-     */
-    java.util.List<String> getNonL04AllowedSpecialties(String shiftTypeId) {
-        return algorithmConfigService.getAutoGenConfig()
-                .map(cfg -> {
-                    if ("L01".equals(shiftTypeId)) return cfg.l01AllowedSpecialties();
-                    if ("L02".equals(shiftTypeId)) return cfg.l02AllowedSpecialties();
-                    if ("L03".equals(shiftTypeId)) return cfg.l03AllowedSpecialties();
-                    return java.util.List.<String>of();
-                })
-                .orElse(java.util.List.of());
-    }
-
     private Staff selectStaffByWorkload(List<Staff> availableStaff, Integer periodId, String shiftTypeId) {
         Staff selected = null;
         long minCount = Long.MAX_VALUE;
@@ -2033,15 +2018,11 @@ public class AutoSchedulingService {
             // Business rules only forbid specific pairs (L01/L02 and L03/L04), duplicate same-type,
             // compensation days, and leave days; hasInMemoryConflict enforces those below.
 
-            // 0. ELIGIBILITY CHECK: staff phải thuộc chuyên khoa phù hợp với shift type.
-            //    L01/L02/L03: specialties lấy từ config (mặc định Ngoại,Nội; có thể mở rộng qua UI).
-            //    L04: staff có specialty khớp requirement HOẶC cross-specialty enabled.
-            //    Tập trung logic tại StaffShiftTypeEligibility để thống nhất giữa
-            //    scoring engine và thuật toán.
+            // 0. ELIGIBILITY CHECK: L01/L02/L03 nhận mọi staff có chuyên khoa;
+            //    L04 yêu cầu specialty phù hợp hoặc cross-specialty enabled.
             Integer requiredSpecId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
-            java.util.List<String> nonL04Allowed = getNonL04AllowedSpecialties(shiftTypeId);
             boolean isEligible = StaffShiftTypeEligibility
-                    .isEligible(staff, shiftTypeId, requiredSpecId, nonL04Allowed);
+                    .isEligible(staff, shiftTypeId, requiredSpecId);
             // For L04 with cross-specialty enabled: staff from other eligible specialties are allowed
             if (!isEligible && crossEnabled && ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
                 // Cross-specialty L04: staff must belong to at least ONE eligible specialty
