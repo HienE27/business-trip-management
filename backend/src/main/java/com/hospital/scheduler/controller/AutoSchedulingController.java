@@ -19,6 +19,7 @@ import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.service.AlgorithmProgressTracker;
 import com.hospital.scheduler.service.AutoSchedulingService;
+import com.hospital.scheduler.service.PlannerService;
 import com.hospital.scheduler.service.ScheduleTemplateService;
 import com.hospital.scheduler.service.AlgorithmMetricsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -53,6 +54,7 @@ public class AutoSchedulingController {
     private final AlgorithmProgressTracker progressTracker;
     private final AlgorithmConfigAuditRepository auditRepository;
     private final ObjectMapper objectMapper;
+    private final PlannerService plannerService;
 
     private String serializeToJson(Object obj) {
         try {
@@ -389,20 +391,34 @@ public class AutoSchedulingController {
     @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<AutoGenConfigRecommendResponse>> recommendAutoGenConfig(
             @Valid @RequestBody AutoGenConfigRecommendRequest req) {
-	        var recommendation = configService.recommendAutoGenConfig(
-	                req.periodDays(),
-	                req.periodWeeks(),
-	                req.eligibleStaff(),
-	                req.targetPerStaffPerMonth(),
-	                Boolean.TRUE.equals(req.expandNonL04Eligibility()),
-	                req.expandedSpecialties(),
-	                req.maxShiftsPerStaff() != null ? req.maxShiftsPerStaff() : 0
-	        );
+            var recommendation = configService.recommendAutoGenConfig(
+                    req.periodDays(),
+                    req.periodWeeks(),
+                    req.eligibleStaff(),
+                    req.targetPerStaffPerMonth(),
+                    Boolean.TRUE.equals(req.expandNonL04Eligibility()),
+                    req.expandedSpecialties(),
+                    req.maxShiftsPerStaff() != null ? req.maxShiftsPerStaff() : 0
+            );
         int totalStaff = req.totalStaff() != null ? req.totalStaff()
                 : req.eligibleStaff().values().stream().mapToInt(Integer::intValue).sum();
         int totalTargetPerPerson = req.targetPerStaffPerMonth().values().stream().mapToInt(Integer::intValue).sum();
         int recommendedMax = Math.max(totalTargetPerPerson,
                 Math.min(60, (int) Math.ceil((double) recommendation.totalShiftsExpected() / Math.max(1, totalStaff))));
+
+        // Planner: phân tích capacity, constraint, fairness feasibility, đề xuất thuật toán + tham số
+        var currentConfig = configService.getAutoGenConfig().orElse(null);
+        var planningReport = plannerService.plan(
+                req.periodDays(),
+                req.periodWeeks(),
+                req.eligibleStaff(),
+                req.targetPerStaffPerMonth(),
+                Boolean.TRUE.equals(req.expandNonL04Eligibility()),
+                req.expandedSpecialties(),
+                req.maxShiftsPerStaff() != null ? req.maxShiftsPerStaff() : 0,
+                currentConfig
+        );
+
         var response = new AutoGenConfigRecommendResponse(
                 recommendation.config(),
                 new AutoGenConfigRecommendResponse.RecommendedRuntimeConfig(recommendedMax),
@@ -413,10 +429,11 @@ public class AutoSchedulingController {
                 recommendation.fairnessType(),
                 recommendation.crossSpecialtyPolicy(),
                 recommendation.expectedMetrics(),
-                recommendation.warnings()
+                recommendation.warnings(),
+                planningReport
         );
-        log.info("AutoGenConfig recommend: totalExpected={}, rationale={}",
-                recommendation.totalShiftsExpected(), recommendation.rationale());
+        log.info("AutoGenConfig recommend: totalExpected={}, planner.algorithm={}",
+                recommendation.totalShiftsExpected(), planningReport.algorithm().algorithm());
         return ResponseEntity.ok(ApiResponse.success(response,
                 "Đề xuất cấu hình cho kỳ " + req.periodDays() + " ngày với "
                         + recommendation.totalShiftsExpected() + " ca dự kiến"));

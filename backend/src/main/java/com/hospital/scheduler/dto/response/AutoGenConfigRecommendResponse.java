@@ -1,6 +1,7 @@
 package com.hospital.scheduler.dto.response;
 
 import com.hospital.scheduler.algorithm.AutoGenConfig;
+import com.hospital.scheduler.algorithm.PlanningReport;
 
 import java.util.List;
 import java.util.Map;
@@ -8,6 +9,7 @@ import java.util.Map;
 /**
  * Commit B (Workflow M07): recommendation response enriched with demand analysis,
  * fairness type, cross-specialty policy, expected metrics, and trade-off warnings.
+ * Extended with PlanningReport (Phase 2).
  */
 public record AutoGenConfigRecommendResponse(
     AutoGenConfig recommendedConfig,
@@ -29,7 +31,9 @@ public record AutoGenConfigRecommendResponse(
     /** Estimated metrics before running preview. null if cannot estimate. */
     ExpectedMetrics expectedMetrics,
     /** Trade-off and limit warnings. Empty if demand is well-balanced. */
-    List<String> warnings
+    List<String> warnings,
+    /** Planning Report từ PlannerService (Phase 2). Null nếu chưa có planner data. */
+    PlanningReport planningReport
 ) {
     public record RecommendedRuntimeConfig(int maxShiftsPerStaff) {}
 
