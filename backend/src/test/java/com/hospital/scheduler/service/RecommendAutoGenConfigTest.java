@@ -53,7 +53,7 @@ class RecommendAutoGenConfigTest {
             List<String> specialties,
             int maxShiftsPerStaff) {
         return configService.recommendAutoGenConfig(
-                30, 4, eligibleStaff, targets, expandNonL04, specialties, maxShiftsPerStaff);
+                30, 4, eligibleStaff, targets, expandNonL04, specialties, maxShiftsPerStaff, null);
     }
 
     private void seedCrossSpecialtyOff() {

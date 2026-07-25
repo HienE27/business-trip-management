@@ -812,13 +812,13 @@ class AutoSchedulingControllerWebMvcTest {
             );
             when(algorithmConfigService.recommendAutoGenConfig(
                     anyInt(), anyInt(), anyMap(), anyMap(), anyBoolean(),
-                    anyList(), anyInt())).thenReturn(recommendation);
+                    anyList(), anyInt(), any())).thenReturn(recommendation);
 
             AutoGenConfigRecommendRequest req = new AutoGenConfigRecommendRequest(
                     30, 4, 20,
                     Map.of("L01", 10, "L02", 10, "L03", 10, "L04", 10),
                     Map.of("L01", 5, "L02", 5, "L03", 5, "L04", 5),
-                    true, List.of("Ngoại", "Nội"), null);
+                    true, List.of("Ngoại", "Nội"), null, null);
 
             mockMvc.perform(post("/api/v1/auto-schedule/auto-gen-config/recommend")
                             .with(user("alice").authorities(

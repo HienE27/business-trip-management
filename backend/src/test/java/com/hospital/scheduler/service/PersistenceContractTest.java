@@ -112,7 +112,7 @@ class PersistenceContractTest {
                 7, 1,
                 java.util.Map.of("L01", 4, "L02", 4, "L03", 4, "L04", 4),
                 java.util.Map.of("L01", 2, "L02", 2, "L03", 2, "L04", 2),
-                true, java.util.List.of("Ngoại", "Nội"), 0);
+                true, java.util.List.of("Ngoại", "Nội"), 0, null);
         assertThat(countSchedules()).isEqualTo(before);
     }
 
@@ -124,7 +124,7 @@ class PersistenceContractTest {
                 7, 1,
                 java.util.Map.of("L01", 4, "L02", 4, "L03", 4, "L04", 4),
                 java.util.Map.of("L01", 2, "L02", 2, "L03", 2, "L04", 2),
-                true, java.util.List.of("Ngoại", "Nội"), 0);
+                true, java.util.List.of("Ngoại", "Nội"), 0, null);
         assertThat(countRequirements()).isEqualTo(before);
     }
 
