@@ -797,7 +797,8 @@ public class AlgorithmConfigService {
 	            java.util.Map<String, Integer> targetPerStaff,
 	            boolean expandNonL04Eligibility,
 	            java.util.List<String> expandedSpecialties,
-	            int maxShiftsPerStaff) {
+	            int maxShiftsPerStaff,
+	            String arrangementMode) {
 
 	        // Snapshot existing config để giữ enabled, holidayMode, cross-specialty, allowed lists
 	        AutoGenConfig current = getAutoGenConfig().orElseThrow();
@@ -945,13 +946,19 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
 
         // Fairness type: base is INTRA_TYPE. INTER_TYPE_BALANCE only when demand ratios
         // across L01/L02/L03 are similar enough that a soft rebalance is feasible.
+        // If user explicitly chose arrangementMode, respect it.
         double l01Ratio = (double) l01MinPerDay / Math.max(1, l01Elig);
         double l02Ratio = (double) l02MinPerDay / Math.max(1, l02Elig);
         double l03Ratio = (double) l03MinPerDay / Math.max(1, l03Elig);
         double maxRatio = Math.max(Math.max(l01Ratio, l02Ratio), l03Ratio);
         double minRatio = Math.min(Math.min(l01Ratio, l02Ratio), l03Ratio);
-        boolean interBalanceFeasible = maxRatio > 0 && (maxRatio / minRatio) <= 2.5;
-        String fairnessType = interBalanceFeasible ? "INTRA_TYPE_WITH_INTER_BALANCE" : "INTRA_TYPE";
+        String fairnessType;
+        if ("WITH_INTER_BALANCE".equals(arrangementMode)) {
+            fairnessType = "INTRA_TYPE_WITH_INTER_BALANCE";
+        } else {
+            boolean interBalanceFeasible = maxRatio > 0 && (maxRatio / minRatio) <= 2.5;
+            fairnessType = interBalanceFeasible ? "INTRA_TYPE_WITH_INTER_BALANCE" : "INTRA_TYPE";
+        }
 
         // Cross-specialty policy description
         String crossSpecialtyPolicy;
@@ -993,16 +1000,19 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
         var expectedMetrics = new com.hospital.scheduler.dto.response.AutoGenConfigRecommendResponse.ExpectedMetrics(
                 estCoverage, estFairness, estQuality, targetCv, worstCv);
 
-        // Trade-off warnings
-        java.util.List<String> warnings = new java.util.ArrayList<>();
-        if (l01Ratio > 0 && l02Ratio > 0 && l03Ratio > 0) {
-            double imbalance = (maxRatio / minRatio - 1.0) * 100;
-            if (imbalance > 50) {
-                warnings.add(String.format("⚠️ Demand lệch: L01/L02/L03 ratio = %.0f%%/%.0f%%/%.0f%%/ca. " +
-                        "Inter-type balance chỉ là soft objective — không đảm bảo bằng nhau nếu demand gốc lệch.",
-                        l01Ratio * days, l02Ratio * days, l03Ratio * days));
-            }
-        }
+	        // Trade-off warnings
+	        java.util.List<String> warnings = new java.util.ArrayList<>();
+	        if (l01Ratio > 0 && l02Ratio > 0 && l03Ratio > 0) {
+	            double imbalance = (maxRatio / minRatio - 1.0) * 100;
+	            if (imbalance > 50) {
+	                warnings.add(String.format("⚠️ Demand lệch: L01/L02/L03 ratio = %.0f%%/%.0f%%/%.0f%%/ca. " +
+	                        "Inter-type balance chỉ là soft objective — không đảm bảo bằng nhau nếu demand gốc lệch.",
+	                        l01Ratio * days, l02Ratio * days, l03Ratio * days));
+	            }
+	            if ("WITH_INTER_BALANCE".equals(arrangementMode) && imbalance > 50) {
+	                warnings.add("⚠️ Inter-type balance được chọn theo yêu cầu nhưng demand lệch " + String.format("%.0f%%", imbalance) + " — coverage có thể giảm.");
+	            }
+	        }
         if (totalMinPerDay > (totalEligible > 0 ? totalEligible : 1) && maxShiftsPerStaff > 0) {
             warnings.add("⚠️ Tổng min/ngày (" + totalMinPerDay + ") có thể vượt năng lực. Đã áp dụng uniform scaling.");
         }

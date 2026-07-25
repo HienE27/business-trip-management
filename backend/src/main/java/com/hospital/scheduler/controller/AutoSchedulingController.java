@@ -398,7 +398,8 @@ public class AutoSchedulingController {
                     req.targetPerStaffPerMonth(),
                     Boolean.TRUE.equals(req.expandNonL04Eligibility()),
                     req.expandedSpecialties(),
-                    req.maxShiftsPerStaff() != null ? req.maxShiftsPerStaff() : 0
+                    req.maxShiftsPerStaff() != null ? req.maxShiftsPerStaff() : 0,
+                    req.arrangementMode()
             );
         int totalStaff = req.totalStaff() != null ? req.totalStaff()
                 : req.eligibleStaff().values().stream().mapToInt(Integer::intValue).sum();
@@ -416,7 +417,8 @@ public class AutoSchedulingController {
                 Boolean.TRUE.equals(req.expandNonL04Eligibility()),
                 req.expandedSpecialties(),
                 req.maxShiftsPerStaff() != null ? req.maxShiftsPerStaff() : 0,
-                currentConfig
+                currentConfig,
+                req.arrangementMode()
         );
 
         var response = new AutoGenConfigRecommendResponse(

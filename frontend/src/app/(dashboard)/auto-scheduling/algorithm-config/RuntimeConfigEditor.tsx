@@ -235,6 +235,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         expandNonL04Eligibility: true,
         expandedSpecialties: staffAnalysis.map(a => a.specialtyName),
         maxShiftsPerStaff: form?.maxShiftsPerStaff,
+        arrangementMode: form?.arrangementMode ?? undefined,
       }) as unknown as { data: RecommendResult };
       setRecommendResult(res.data);
       success("Phân tích hoàn tất");

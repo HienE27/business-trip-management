@@ -366,18 +366,19 @@ export async function updateAutoGenConfig(
   });
 }
 
-export async function recommendAutoGenConfig(
-  client: ApiClient,
-  data: {
-    periodDays: number;
-    periodWeeks: number;
-    totalStaff: number;
-    eligibleStaff: Record<string, number>;
-    targetPerStaffPerMonth: Record<string, number>;
-    expandNonL04Eligibility?: boolean;
-    expandedSpecialties?: string[];
-    maxShiftsPerStaff?: number;
-  },
+	export async function recommendAutoGenConfig(
+	  client: ApiClient,
+	  data: {
+	    periodDays: number;
+	    periodWeeks: number;
+	    totalStaff: number;
+	    eligibleStaff: Record<string, number>;
+	    targetPerStaffPerMonth: Record<string, number>;
+	    expandNonL04Eligibility?: boolean;
+	    expandedSpecialties?: string[];
+	    maxShiftsPerStaff?: number;
+	    arrangementMode?: string;
+	  },
 ): Promise<ApiResponse<{
   recommendedConfig: {
     enabled: boolean;

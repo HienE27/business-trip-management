@@ -35,7 +35,8 @@ public class PlannerService {
             boolean expandNonL04Eligibility,
             List<String> expandedSpecialties,
             int maxShiftsPerStaff,
-            AutoGenConfig currentConfig
+            AutoGenConfig currentConfig,
+            String preferredArrangementMode
     ) {
         int totalStaff = Math.max(1, eligibleStaff.values().stream().mapToInt(Integer::intValue).max().orElse(1));
         int l01Elig = Math.max(1, eligibleStaff.getOrDefault("L01", 1));
@@ -207,11 +208,16 @@ public class PlannerService {
         recFairWeight /= wSum;
         recConWeight /= wSum;
 
-        // Arrangement mode: pick best fairness type
-        String arrangementMode = "INTRA_TYPE";
-        if (interFeasibility >= 65 && intraFeasibility >= 60) {
-            arrangementMode = "WITH_INTER_BALANCE";
-        }
+	        // Arrangement mode: prefer user's choice, fallback to auto-detect
+	        String arrangementMode = preferredArrangementMode != null
+	                ? preferredArrangementMode
+	                : "INTRA_TYPE";
+	        if (preferredArrangementMode == null && interFeasibility >= 65 && intraFeasibility >= 60) {
+	            arrangementMode = "WITH_INTER_BALANCE";
+	        }
+	        if ("WITH_INTER_BALANCE".equals(arrangementMode) && interFeasibility < 40) {
+	            log.warn("User-selected WITH_INTER_BALANCE but inter-type feasibility is only {}%", interFeasibility);
+	        }
 
         // Build param relevance map per algorithm
         java.util.Map<String, Boolean> relevance = new java.util.LinkedHashMap<>();
@@ -261,9 +267,12 @@ public class PlannerService {
         if (interFeasibility < 40) {
             warningsList.add("Inter-type balance khả thi thấp (" + String.format("%.0f", interFeasibility) + "%) — demand lệch giữa các loại ca.");
         }
-        if (effectiveL04Elig < l04Elig && l04Elig > 1) {
-            warningsList.add("L04 chỉ " + effectiveL04Elig + "/" + l04Elig + " người/khoa — " + (csEnabled ? "cross-specialty đang bù." : "cân nhắc bật cross-specialty."));
-        }
+	        if (effectiveL04Elig < l04Elig && l04Elig > 1) {
+	            warningsList.add("L04 chỉ " + effectiveL04Elig + "/" + l04Elig + " người/khoa — " + (csEnabled ? "cross-specialty đang bù." : "cân nhắc bật cross-specialty."));
+	        }
+	        if ("WITH_INTER_BALANCE".equals(arrangementMode) && interFeasibility < 65 && preferredArrangementMode != null) {
+	            warningsList.add("Inter-type balance được chọn theo yêu cầu nhưng khả thi chỉ " + String.format("%.0f", interFeasibility) + "% — coverage có thể giảm.");
+	        }
 
         return new PlanningReport(
                 capacity, constraint, fairnessOptions, algoRec, params, expected, warningsList

@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Positive;
 import java.util.List;
 import java.util.Map;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public record AutoGenConfigRecommendRequest(
     @NotNull
     @Positive
@@ -47,5 +49,8 @@ public record AutoGenConfigRecommendRequest(
      * Optional: max shifts per staff (từ runtime config).
      * Nếu có, dùng để giới hạn target không vượt năng lực.
      */
-    Integer maxShiftsPerStaff
+    Integer maxShiftsPerStaff,
+
+    @Schema(description = "Kiểu sắp xếp user chọn (INTRA_TYPE | WITH_INTER_BALANCE), null = auto-detect")
+    String arrangementMode
 ) {}

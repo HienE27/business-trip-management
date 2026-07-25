@@ -109,8 +109,11 @@ public class ScheduleQualityScorer {
     public ScheduleQualityScorer withWeights(double coverage, double fairness, double constraint) {
         double sum = coverage + fairness + constraint;
         if (Math.abs(sum - 1.0) > 0.001) {
-            throw new IllegalArgumentException(
-                "Weights must sum to 1.0, got " + sum);
+            // Auto-normalize to avoid 500 errors from minor misconfigurations (DB rounding, user input).
+            this.coverageWeight = coverage / sum;
+            this.fairnessWeight = fairness / sum;
+            this.constraintWeight = constraint / sum;
+            return this;
         }
         this.coverageWeight = coverage;
         this.fairnessWeight = fairness;
