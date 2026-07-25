@@ -2,6 +2,7 @@ package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
+import static com.hospital.scheduler.algorithm.ArrangementModeSupport.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -65,7 +66,7 @@ public class SimulatedAnnealingScheduler {
         // Index: staffId -> their schedules (for O(1) conflict checks)
         Map<Integer, List<Schedule>> byStaff = indexByStaff(current);
 
-        double currentScore = score(current, requirements, staffMap, totalRequired, l01Window);
+        double currentScore = score(current, requirements, staffMap, totalRequired, l01Window, runtimeConfig);
         List<Schedule> bestSolution = deepCopy(current);
         double bestScore = currentScore;
 
@@ -98,7 +99,7 @@ public class SimulatedAnnealingScheduler {
                     byStaff.get(origStaff.getId()).remove(s);
                     byStaff.computeIfAbsent(target.getId(), k -> new ArrayList<>()).add(s);
 
-                    double newScore = score(current, requirements, staffMap, totalRequired, l01Window);
+                    double newScore = score(current, requirements, staffMap, totalRequired, l01Window, runtimeConfig);
                     double delta = newScore - oldScore;
                     if (delta > 0 || rng.nextDouble() < Math.exp(delta / Math.max(T, 1e-9))) {
                         currentScore = newScore;
@@ -143,7 +144,7 @@ public class SimulatedAnnealingScheduler {
                         byStaff.get(staffA.getId()).add(b);
                         byStaff.get(staffB.getId()).add(a);
 
-                        double newScore = score(current, requirements, staffMap, totalRequired, l01Window);
+                        double newScore = score(current, requirements, staffMap, totalRequired, l01Window, runtimeConfig);
                         double delta = newScore - oldScore;
                         if (delta > 0 || rng.nextDouble() < Math.exp(delta / Math.max(T, 1e-9))) {
                             currentScore = newScore;
@@ -170,7 +171,7 @@ public class SimulatedAnnealingScheduler {
         fairnessRebalance(bestSolution, activeStaff, excludedStaffIds, staffMap, requirements, runtimeConfig, rng, l01Window);
 
         log.info("SimulatedAnnealing: {} schedules (best={}) in {}ms (maxIter={})",
-                bestSolution.size(), String.format("%.3f", score(bestSolution, requirements, staffMap, totalRequired, l01Window)),
+                bestSolution.size(), String.format("%.3f", score(bestSolution, requirements, staffMap, totalRequired, l01Window, runtimeConfig)),
                 System.currentTimeMillis() - start, maxIter);
         return bestSolution;
     }
@@ -379,9 +380,11 @@ public class SimulatedAnnealingScheduler {
         return result;
     }
 
-    /** Score = coverage × 0.7 + fairness × 0.3 − conflict_penalty. */
+    /** Score = coverage × 0.7 + fairness × 0.3 − conflict_penalty − inter_penalty (WITH_INTER_BALANCE).
+     *  Inter penalty mirrors ARRANGEMENT_MODE_CONTRACT: interEnabled → 5.0 weight × mean span × 0.02 scale. */
     private double score(List<Schedule> schedules, List<ShiftRequirement> reqs,
-                         Map<Integer, Staff> staffMap, int totalRequired, int l01Window) {
+                         Map<Integer, Staff> staffMap, int totalRequired, int l01Window,
+                         AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {
         // Per-requirement coverage
         Map<String, Integer> requiredCount = new HashMap<>();
         for (ShiftRequirement r : reqs) {
@@ -429,7 +432,17 @@ public class SimulatedAnnealingScheduler {
             }
         }
         int conflicts = countConflicts(schedules, l01Window);
-        return COVERAGE_WEIGHT * coverage + FAIRNESS_WEIGHT * fairness - conflicts * CONFLICT_PENALTY;
+
+        // Soft inter-type penalty: WITH_INTER_BALANCE only (ARRANGEMENT_MODE_CONTRACT)
+        double interPenalty = 0;
+        if (interEnabled(runtimeConfig)) {
+            Map<Integer, Map<String, Integer>> byStaff = typeCountsFromSchedules(schedules);
+            double meanSpan = meanInterSpan(byStaff);
+            interPenalty = DEFAULT_INTER_WEIGHT * meanSpan * OBJECTIVE_INTER_SCALE;
+        }
+
+        return COVERAGE_WEIGHT * coverage + FAIRNESS_WEIGHT * fairness
+                - conflicts * CONFLICT_PENALTY - interPenalty;
     }
 
     private int countConflicts(List<Schedule> schedules, int l01Window) {

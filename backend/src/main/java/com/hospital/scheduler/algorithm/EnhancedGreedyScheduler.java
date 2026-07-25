@@ -32,9 +32,9 @@ import java.util.stream.Collectors;
             L04CrossSpecialtyConfig l04CrossConfig) {
 
         long start = System.currentTimeMillis();
-        // Inter-type balance weight: derived from arrangement_mode config.
-        // WITH_INTER_BALANCE → 5.0 (soft penalty), INTRA_TYPE → 0.0 (disabled).
-        double interTypeWeight = "WITH_INTER_BALANCE".equals(runtimeConfig.getArrangementMode()) ? 5.0 : 0.0;
+        // Inter-type balance weight: arrangement_mode soft objective (see ArrangementModeSupport).
+        double interTypeWeight = ArrangementModeSupport.interEnabled(runtimeConfig)
+                ? ArrangementModeSupport.DEFAULT_INTER_WEIGHT : 0.0;
 	        Map<Integer, Staff> staffMap = activeStaff.stream()
 	                .collect(Collectors.toMap(Staff::getId, s -> s));
 	        // P2-7: single-date map (only the latest date is consulted; previous List<LocalDate> grew unbounded)
@@ -218,20 +218,12 @@ import java.util.stream.Collectors;
                         }
                     }
 
-                    // Inter-type balance penalty (TASK-INTER-TYPE-BALANCE).
-                    // Soft objective: penalizes staff where max(L01,L02,L03) - min(L01,L02,L03) is large.
-                    // Weight kept low (5.0) — coverage and intra-type fairness take priority.
-                    double interTypePenalty = 0;
-                    if (interTypeWeight > 0) {
-                        Map<String, Integer> tCounts = typeCountByStaff
-                                .getOrDefault(s.getId(), Collections.emptyMap());
-                        int l01c = tCounts.getOrDefault("L01", 0);
-                        int l02c = tCounts.getOrDefault("L02", 0);
-                        int l03c = tCounts.getOrDefault("L03", 0);
-                        int dev = Math.max(Math.max(l01c, l02c), l03c)
-                                - Math.min(Math.min(l01c, l02c), l03c);
-                        interTypePenalty = interTypeWeight * dev;
-                    }
+                    // Inter-type balance penalty (soft). OFF when INTRA_TYPE.
+                    double interTypePenalty = interTypeWeight > 0
+                            ? ArrangementModeSupport.interTypePenalty(
+                                    typeCountByStaff.getOrDefault(s.getId(), Collections.emptyMap()),
+                                    interTypeWeight)
+                            : 0;
 
                     double score = 100 - cnt * 6 + fatigueBonus + rotationBonus
                             - specBalancePenalty - typeBalancePenalty - quotaPenalty - interTypePenalty;
@@ -512,18 +504,12 @@ double fatigueBonus = 0;
 			                        specPenalty = l04Spec * 18.0 * specAdaptive;
 			                    }
 
-                    // Inter-type balance penalty in gap-fill (TASK-INTER-TYPE-BALANCE)
-                    double gapInterTypePenalty = 0;
-                    if (interTypeWeight > 0) {
-                        Map<String, Integer> tCounts = typeCountGap
-                                .getOrDefault(s.getId(), Collections.emptyMap());
-                        int l01c = tCounts.getOrDefault("L01", 0);
-                        int l02c = tCounts.getOrDefault("L02", 0);
-                        int l03c = tCounts.getOrDefault("L03", 0);
-                        int dev = Math.max(Math.max(l01c, l02c), l03c)
-                                - Math.min(Math.min(l01c, l02c), l03c);
-                        gapInterTypePenalty = interTypeWeight * dev;
-                    }
+                    // Inter-type balance penalty in gap-fill (soft). OFF when INTRA_TYPE.
+                    double gapInterTypePenalty = interTypeWeight > 0
+                            ? ArrangementModeSupport.interTypePenalty(
+                                    typeCountGap.getOrDefault(s.getId(), Collections.emptyMap()),
+                                    interTypeWeight)
+                            : 0;
 
 			                    double score = 100 - totalPenalty + fatigueBonus + rotationBonus
 			                            - typePenalty - specPenalty - gapInterTypePenalty;

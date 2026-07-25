@@ -2,6 +2,7 @@ package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
+import static com.hospital.scheduler.algorithm.ArrangementModeSupport.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -95,7 +96,7 @@ public class RandomRestartHCScheduler {
                     runtimeConfig, excludedStaffIds, staffMap, rng, l01Window);
             if (current.isEmpty()) continue;
 
-            double currentScore = score(current, requirements, staffMap, l01Window);
+            double currentScore = score(current, requirements, staffMap, l01Window, runtimeConfig);
             if (currentScore > bestScore) {
                 bestScore = currentScore;
                 bestSchedules = deepCopy(current);
@@ -108,15 +109,15 @@ public class RandomRestartHCScheduler {
                 int maxTries = Math.min(20, current.size() * activeStaff.size());
                 for (int t = 0; t < maxTries; t++) {
                     if (rng.nextBoolean()) {
-                        accepted = tryRandomMove(current, activeStaff, excludedStaffIds, staffMap, requirements, runtimeConfig, rng);
+                        accepted = tryRandomMove(current, activeStaff, excludedStaffIds, staffMap, requirements, runtimeConfig, rng, l01Window);
                     } else {
-                        accepted = tryRandomSwap(current, requirements, staffMap, rng, l01Window);
+                        accepted = tryRandomSwap(current, requirements, staffMap, rng, l01Window, runtimeConfig);
                     }
                     if (accepted) break;
                 }
                 if (!accepted) break; // local optimum — restart
 
-                double newScore = score(current, requirements, staffMap, l01Window);
+                double newScore = score(current, requirements, staffMap, l01Window, runtimeConfig);
                 if (newScore > bestScore) {
                     bestScore = newScore;
                     bestSchedules = deepCopy(current);
@@ -213,12 +214,12 @@ public class RandomRestartHCScheduler {
                 if (!matchesSpecialtyL04(staffMap.get(underloaded), s.getShiftType().getId(), s.getWorkDate(), reqs))
                     continue;
 
-                double oldScore = score(schedules, reqs, staffMap, l01Window);
+                double oldScore = score(schedules, reqs, staffMap, l01Window, runtimeConfig);
                 Staff origStaff = s.getStaff();
                 s.setStaff(staffMap.get(underloaded));
                 updateReq(s, reqs);
 
-                double newScore = score(schedules, reqs, staffMap, l01Window);
+                double newScore = score(schedules, reqs, staffMap, l01Window, runtimeConfig);
                 if (newScore > oldScore) {
                     moved = true;
                     break;
@@ -506,9 +507,11 @@ public class RandomRestartHCScheduler {
         return result;
     }
 
-    /** Per-requirement coverage + fairness − conflict penalty. */
+    /** Per-requirement coverage + fairness − conflict penalty − inter_penalty (WITH_INTER_BALANCE).
+     *  Inter penalty mirrors ARRANGEMENT_MODE_CONTRACT: interEnabled → 5.0 weight × mean span × 0.02 scale. */
     private double score(List<Schedule> schedules, List<ShiftRequirement> reqs,
-                         Map<Integer, Staff> staffMap, int l01Window) {
+                         Map<Integer, Staff> staffMap, int l01Window,
+                         AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {
         Map<String, Integer> requiredCount = new HashMap<>();
         for (ShiftRequirement r : reqs) {
             String key = r.getWorkDate() + "|" + r.getShiftType().getId()
@@ -552,7 +555,17 @@ public class RandomRestartHCScheduler {
             }
         }
         int conflicts = countConflicts(schedules, l01Window);
-        return COVERAGE_WEIGHT * coverage + FAIRNESS_WEIGHT * fairness - conflicts * CONFLICT_PENALTY;
+
+        // Soft inter-type penalty: WITH_INTER_BALANCE only (ARRANGEMENT_MODE_CONTRACT)
+        double interPenalty = 0;
+        if (interEnabled(runtimeConfig)) {
+            Map<Integer, Map<String, Integer>> byStaff = typeCountsFromSchedules(schedules);
+            double meanSpan = meanInterSpan(byStaff);
+            interPenalty = DEFAULT_INTER_WEIGHT * meanSpan * OBJECTIVE_INTER_SCALE;
+        }
+
+        return COVERAGE_WEIGHT * coverage + FAIRNESS_WEIGHT * fairness
+                - conflicts * CONFLICT_PENALTY - interPenalty;
     }
 
     private int countConflicts(List<Schedule> schedules, int l01Window) {
@@ -685,12 +698,11 @@ public class RandomRestartHCScheduler {
                                    Set<Integer> excludedIds, Map<Integer, Staff> staffMap,
                                    List<ShiftRequirement> reqs,
                                    AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
-                                   Random rng) {
+                                   Random rng, int l01Window) {
         Schedule s = current.get(rng.nextInt(current.size()));
         Staff originalStaff = s.getStaff();
         int maxShiftsPerDay = runtimeConfig != null && runtimeConfig.getMaxShiftsPerDay() > 0
                 ? runtimeConfig.getMaxShiftsPerDay() : Integer.MAX_VALUE;
-        int l01Window = runtimeConfig != null ? runtimeConfig.getL01AdjacentDayWindow() : 1;
 
         // Pick random eligible target staff
         Staff target = null;
@@ -709,11 +721,11 @@ public class RandomRestartHCScheduler {
         }
         if (target == null) return false;
 
-        double oldScore = score(current, reqs, staffMap, l01Window);
+        double oldScore = score(current, reqs, staffMap, l01Window, runtimeConfig);
         s.setStaff(target);
         updateReq(s, reqs);
 
-        if (score(current, reqs, staffMap, l01Window) > oldScore) return true;
+        if (score(current, reqs, staffMap, l01Window, runtimeConfig) > oldScore) return true;
 
         // Revert
         s.setStaff(originalStaff);
@@ -726,7 +738,8 @@ public class RandomRestartHCScheduler {
      * accept if strictly improves score. O(N) per call.
      */
     private boolean tryRandomSwap(List<Schedule> current, List<ShiftRequirement> reqs,
-                                  Map<Integer, Staff> staffMap, Random rng, int l01Window) {
+                                  Map<Integer, Staff> staffMap, Random rng, int l01Window,
+                                  AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {
         if (current.size() < 2) return false;
 
         // Build index: date → list of schedules
@@ -760,7 +773,7 @@ public class RandomRestartHCScheduler {
                     if (!matchesSpecialtyL04(b.getStaff(), a.getShiftType().getId(), a.getWorkDate(), reqs))
                         continue;
 
-                    double oldScore = score(current, reqs, staffMap, l01Window);
+                    double oldScore = score(current, reqs, staffMap, l01Window, runtimeConfig);
                     var typeA = a.getShiftType();
                     var typeB = b.getShiftType();
                     a.setShiftType(typeB);
@@ -768,7 +781,7 @@ public class RandomRestartHCScheduler {
                     updateReq(a, reqs);
                     updateReq(b, reqs);
 
-                    if (score(current, reqs, staffMap, l01Window) > oldScore) return true;
+                    if (score(current, reqs, staffMap, l01Window, runtimeConfig) > oldScore) return true;
 
                     // Revert
                     a.setShiftType(typeA);

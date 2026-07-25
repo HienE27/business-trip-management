@@ -2,6 +2,7 @@ package com.hospital.scheduler.algorithm;
 
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
+import static com.hospital.scheduler.algorithm.ArrangementModeSupport.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -128,7 +129,7 @@ public class BeamSearchScheduler {
                             }
 
                             double score = scoreStateFast(newAssign, newTypes, newCount,
-                                    totalSlots, activeStaff.size());
+                                    totalSlots, activeStaff.size(), runtimeConfig);
                             candidates.add(new ScoredEntry(newAssign, newTypes, newCount,
                                     newDayTypes, newComp, score));
                         }
@@ -348,11 +349,13 @@ public class BeamSearchScheduler {
     /**
      * Fast scoring using pre-computed count and typeMap — no scan over assignments.
      * Skips expensive per-type CV computation (dropped during expansion; fairness+coverage sufficient for pruning).
+     * Includes soft inter-type penalty when arrangementMode= WITH_INTER_BALANCE (ARRANGEMENT_MODE_CONTRACT).
      */
     private double scoreStateFast(Map<String, String> assignments,
                                    Map<Integer, Set<String>> staffTypes,
                                    Map<Integer, Integer> staffCount,
-                                   int totalRequired, int numStaff) {
+                                   int totalRequired, int numStaff,
+                                   AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {
         double coverage = totalRequired > 0 ? (double) assignments.size() / totalRequired : 0;
 
         // Fairness over full staff pool (zero-load staff count as 0)
@@ -383,10 +386,28 @@ public class BeamSearchScheduler {
         double variety = staffTypes.isEmpty() ? 0
                 : Math.min(1, (double) totalVariety / staffTypes.size() / SHIFT_TYPES.length);
 
+        // Soft inter-type penalty: WITH_INTER_BALANCE only (ARRANGEMENT_MODE_CONTRACT)
+        // Build per-staff L01/L02/L03 counts from typeMap (L04 excluded)
+        double interPenalty = 0;
+        if (interEnabled(runtimeConfig)) {
+            Map<Integer, Map<String, Integer>> byStaff = new HashMap<>();
+            for (Map.Entry<Integer, Set<String>> e : staffTypes.entrySet()) {
+                Map<String, Integer> m = byStaff.computeIfAbsent(e.getKey(), k -> new HashMap<>());
+                for (String t : e.getValue()) {
+                    if ("L01".equals(t) || "L02".equals(t) || "L03".equals(t)) {
+                        m.merge(t, 1, Integer::sum);
+                    }
+                }
+            }
+            double meanSpan = meanInterSpan(byStaff);
+            interPenalty = DEFAULT_INTER_WEIGHT * meanSpan * OBJECTIVE_INTER_SCALE;
+        }
+
         // Eligibility already enforces conflicts — skip O(N) scan in hot path
         return COVERAGE_WEIGHT * coverage
                 + (FAIRNESS_WEIGHT + BALANCE_WEIGHT) * fairness
-                + VARIETY_WEIGHT * variety;
+                + VARIETY_WEIGHT * variety
+                - interPenalty;
     }
 
 	    private List<Integer> findEligible(

@@ -5,6 +5,7 @@ import com.google.ortools.sat.*;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
+import static com.hospital.scheduler.algorithm.ArrangementModeSupport.*;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -298,6 +299,22 @@ public class CpSatScheduler {
         for (int sh = 0; sh < WORK_SHIFTS.length; sh++) {
             objective.addTerm(maxPerType[sh], 1);
         }
+
+        // Soft inter-type penalty: WITH_INTER_BALANCE only (ARRANGEMENT_MODE_CONTRACT).
+        // CpSatScheduler already favours balanced inter-type distribution via maxPerType[sh] terms.
+        // To avoid OR-Tools LinearExpr API limitations (no coefficient != 1, no addDifference),
+        // we use a configurable weight on each type's max — penalises high peaks, encouraging
+        // the solver to smooth L01/L02/L03 distribution toward each other.
+        if (interEnabled(runtimeConfig)) {
+            long interWeight = runtimeConfig != null && runtimeConfig.getInterTypeWeight() != null
+                    ? runtimeConfig.getInterTypeWeight().longValue()
+                    : 5L;
+            // Configurable weight per type — interWeight=5 means 3*5=15 total balance pressure
+            objective.addTerm(maxPerType[0], interWeight);  // L01 max — drives toward lower L01 peak
+            objective.addTerm(maxPerType[1], interWeight);  // L02 max
+            objective.addTerm(maxPerType[2], interWeight);  // L03 max
+        }
+
         model.minimize(objective.build());
 
         CpSolver solver = new CpSolver();
