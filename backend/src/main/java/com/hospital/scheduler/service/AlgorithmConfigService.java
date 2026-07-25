@@ -813,30 +813,25 @@ public class AlgorithmConfigService {
 	                ? l04Elig
 	                : Math.max(1, Math.min(l04Elig, (int) Math.ceil((double) totalStaff / numSpecialties)));
 
-                // Dùng target từ lịch sử nếu có, fallback sang frontend hoặc % mặc định
+                // Target priority: request (>0) → DB (>0) → hist/default %.
+                // Request first so unsaved UI edits govern recommend (contract).
+                // Fallback defaults are mode-specific per ARRANGEMENT_MODE_CONTRACT:
+                //   INTRA_TYPE       → L01=0.30, L02=0.25, L03=0.30, L04=0.15
+                //   WITH_INTER_BALANCE → L01=0.30, L02=0.30, L03=0.30, L04=0.10
                 int capacityPerPerson = Math.max(1, maxShiftsPerStaff > 0 ? maxShiftsPerStaff : periodDays);
                 java.util.Map<String, Double> histRatios = loadHistoricalShiftRatios();
-                int l01Target, l02Target, l03Target, l04Target;
-                // ƯU TIÊN target_per_month từ DB (user đã chỉnh trong UI). Chỉ fallback sang
-                // histRatios/percent khi target = 0 (chưa set). Trước đây target frontend
-                // truyền vào nhưng bị ignore → recommend bơm minPerDay lên 299.
-                if (current.l01TargetPerMonth() > 0 || current.l02TargetPerMonth() > 0
-                        || current.l03TargetPerMonth() > 0 || current.l04TargetPerMonth() > 0) {
-                    l01Target = current.l01TargetPerMonth() > 0 ? current.l01TargetPerMonth() : 2;
-                    l02Target = current.l02TargetPerMonth() > 0 ? current.l02TargetPerMonth() : 2;
-                    l03Target = current.l03TargetPerMonth() > 0 ? current.l03TargetPerMonth() : 2;
-                    l04Target = current.l04TargetPerMonth() > 0 ? current.l04TargetPerMonth() : 5;
-                } else if (histRatios != null) {
-                    l01Target = Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault("L01", 0.30)));
-                    l02Target = Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault("L02", 0.25)));
-                    l03Target = Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault("L03", 0.30)));
-                    l04Target = Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault("L04", 0.15)));
-                } else {
-                    l01Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.30));
-                    l02Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.25));
-                    l03Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.30));
-                    l04Target = Math.max(1, (int) Math.round(capacityPerPerson * 0.15));
-                }
+                double l01Def = 0.30;
+                double l02Def = "WITH_INTER_BALANCE".equals(arrangementMode) ? 0.30 : 0.25;
+                double l03Def = 0.30;
+                double l04Def = "WITH_INTER_BALANCE".equals(arrangementMode) ? 0.10 : 0.15;
+                int l01Target = resolveTarget(targetPerStaff, "L01", current.l01TargetPerMonth(), capacityPerPerson,
+                        histRatios, l01Def, 2);
+                int l02Target = resolveTarget(targetPerStaff, "L02", current.l02TargetPerMonth(), capacityPerPerson,
+                        histRatios, l02Def, 2);
+                int l03Target = resolveTarget(targetPerStaff, "L03", current.l03TargetPerMonth(), capacityPerPerson,
+                        histRatios, l03Def, 2);
+                int l04Target = resolveTarget(targetPerStaff, "L04", current.l04TargetPerMonth(), capacityPerPerson,
+                        histRatios, l04Def, 5);
 
 	        int l01Elig = Math.max(1, eligibleStaff.getOrDefault("L01", 1));
 	        int l02Elig = Math.max(1, eligibleStaff.getOrDefault("L02", 1));
@@ -944,9 +939,7 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
         demandRatio.put("L03", l03MinPerDay);
         demandRatio.put("L04", l04MinPerDay);
 
-        // Fairness type: base is INTRA_TYPE. INTER_TYPE_BALANCE only when demand ratios
-        // across L01/L02/L03 are similar enough that a soft rebalance is feasible.
-        // If user explicitly chose arrangementMode, respect it.
+// Fairness type exclusive: user mode wins. Auto only when arrangementMode is null.
         double l01Ratio = (double) l01MinPerDay / Math.max(1, l01Elig);
         double l02Ratio = (double) l02MinPerDay / Math.max(1, l02Elig);
         double l03Ratio = (double) l03MinPerDay / Math.max(1, l03Elig);
@@ -955,6 +948,8 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
         String fairnessType;
         if ("WITH_INTER_BALANCE".equals(arrangementMode)) {
             fairnessType = "INTRA_TYPE_WITH_INTER_BALANCE";
+        } else if ("INTRA_TYPE".equals(arrangementMode)) {
+            fairnessType = "INTRA_TYPE";
         } else {
             boolean interBalanceFeasible = maxRatio > 0 && (maxRatio / minRatio) <= 2.5;
             fairnessType = interBalanceFeasible ? "INTRA_TYPE_WITH_INTER_BALANCE" : "INTRA_TYPE";
@@ -1028,6 +1023,27 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
                 demandRatio, fairnessType, crossSpecialtyPolicy, expectedMetrics, warnings);
     }
 
+    /** request (>0) → dbTarget (>0) → hist ratio → fallbackDefault. */
+    private static int resolveTarget(java.util.Map<String, Integer> request,
+                                     String key,
+                                     int dbTarget,
+                                     int capacityPerPerson,
+                                     java.util.Map<String, Double> histRatios,
+                                     double defaultRatio,
+                                     int fallbackDefault) {
+        if (request != null) {
+            Integer req = request.get(key);
+            if (req != null && req > 0) return req;
+        }
+        if (dbTarget > 0) return dbTarget;
+        if (histRatios != null) {
+            return Math.max(1, (int) Math.round(capacityPerPerson * histRatios.getOrDefault(key, defaultRatio)));
+        }
+        return Math.max(1, fallbackDefault > 0
+                ? fallbackDefault
+                : (int) Math.round(capacityPerPerson * defaultRatio));
+    }
+
     /**
      * Commit B (Workflow M07): Kết quả recommend bao gồm config + metadata cho recommendation card.
      * Bao gồm: demand ratio, fairness type, cross-specialty policy, expected metrics, trade-off warnings.
@@ -1079,6 +1095,13 @@ int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
         // Arrangement mode: INTRA_TYPE (default) or WITH_INTER_BALANCE
         @lombok.Builder.Default
         private String arrangementMode = "INTRA_TYPE";
+
+        // Inter-type balance weight (only used when arrangementMode = WITH_INTER_BALANCE).
+        // Default 5.0 matches ArrangementModeSupport.DEFAULT_INTER_WEIGHT.
+        // Higher values → scheduler strongly prefers balanced L01/L02/L03 per staff.
+        // ponytail: expose in UI when inter-type balance is selected. Range: 0–50.
+        @lombok.Builder.Default
+        private java.math.BigDecimal interTypeWeight = java.math.BigDecimal.valueOf(5.0);
 
         // ScheduleQualityScorer runtime weights
         @lombok.Builder.Default
