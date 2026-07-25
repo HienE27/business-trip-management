@@ -228,7 +228,8 @@ public class PlannerService {
         boolean isGreedy = "GREEDY".equals(algorithm); // fallback
         relevance.put("beamWidth", isBeamSearch || isSimAnneal);
         relevance.put("weekendWeight", isEnhancedGreedy || isGreedy);
-        relevance.put("arrangementMode", isEnhancedGreedy || isBeamSearch || isSimAnneal);
+        // All supported algos honor arrangementMode soft objective (contract).
+        relevance.put("arrangementMode", true);
         relevance.put("rebalanceRounds", !isCpSat && !isGreedy);
         relevance.put("scorerWeights", true); // all algorithms use the scorer
         relevance.put("maxShiftsPerStaff", true); // universal cap
