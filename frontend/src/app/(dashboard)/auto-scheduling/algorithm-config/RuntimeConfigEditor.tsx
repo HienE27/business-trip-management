@@ -1,15 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { PresetKey } from "@/components/algorithm-config/PresetSelector";
-import { PresetSelector } from "@/components/algorithm-config/PresetSelector";
 import { Button } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
-import type { RuntimeConfig } from "./types";
-import { ALGORITHM_PRESETS, detectPreset } from "./presets";
+import type { RuntimeConfig, PlanningReport } from "./types";
 import { mergeRuntimeAndAutoGen } from "./merge";
+import { PlanningReportView } from "./PlanningReportView";
 
 type Props = { onSaved?: () => void };
 
@@ -26,15 +24,14 @@ const PERIOD_WEEKS = 5;
 type StaffAnalysis = {
   specialtyName: string;
   staffCount: number;
-  l04PerMonth: number;
   isSolo: boolean;
 };
 
 type RecommendResult = {
   recommendedConfig: Record<string, unknown>;
-  recommendedRuntimeConfig?: { maxShiftsPerStaff: number };
   totalShiftsExpected: number;
   rationale: string;
+  planningReport?: PlanningReport;
 };
 
 export function RuntimeConfigEditor({ onSaved }: Props) {
@@ -43,7 +40,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<RuntimeConfig | null>(null);
-  const [activePreset, setActivePreset] = useState<PresetKey | null>(null);
 
   // Staff analysis state
   const [staffAnalysis, setStaffAnalysis] = useState<StaffAnalysis[]>([]);
@@ -71,7 +67,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       const merged = mergeRuntimeAndAutoGen(data, autoGen);
       setConfig(merged);
       setForm(merged);
-      setActivePreset(detectPreset(merged));
       // Load target_per_month từ DB (ưu tiên giá trị đã lưu, fallback default)
       setTargetPerStaffPerMonth({
         L01: merged.l01TargetPerMonth ?? 2,
@@ -102,8 +97,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         }
         const analysis: StaffAnalysis[] = [];
         for (const [name, count] of specMap) {
-          const l04PerMonth = Math.min(Math.max(1, count) * 8, 31);
-          analysis.push({ specialtyName: name, staffCount: count, l04PerMonth, isSolo: count === 1 });
+          analysis.push({ specialtyName: name, staffCount: count, isSolo: count === 1 });
         }
         analysis.sort((a, b) => b.staffCount - a.staffCount);
         setStaffAnalysis(analysis);
@@ -114,11 +108,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       }
     })();
   }, []);
-
-  // Re-detect preset when form changes
-  useEffect(() => {
-    if (form) setActivePreset(detectPreset(form));
-  }, [form]);
 
   // AUTO-FILL: khi user đổi targetPerStaffPerMonth → tự động tính lại min/max
   // per day/week trong form (cùng công thức backend dùng trong recommendAutoGenConfig).
@@ -167,30 +156,8 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     } : prev);
   }, [targetPerStaffPerMonth, autoFillEnabled, staffAnalysis]); // eslint-disable-line react-hooks/exhaustive-deps -- form intentionally omitted; effect sets form (would loop)
 
-  // Keyboard shortcuts: Ctrl+S save, Ctrl+Z reset
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === "s") { e.preventDefault(); void handleSave(); }
-        else if (e.key === "z" && !e.shiftKey) { e.preventDefault(); handleReset(); }
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- bind once on mount; re-binding on every form change would re-attach the listener without semantic benefit
-  }, []);
-
-  function applyPreset(key: PresetKey) {
-    const preset = ALGORITHM_PRESETS[key];
-    if (!preset) return;
-    setForm(prev => prev ? { ...prev, ...preset.config } : prev);
-    setActivePreset(key);
-  }
-
   function handleReset() {
-    if (config) { setForm(config); setActivePreset(detectPreset(config)); }
+    if (config) { setForm(config); }
   }
 
   async function handleSave() {
@@ -225,7 +192,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       await api.updateRuntimeConfig(form);
       await api.updateAutoGenConfig(autoGenPayload);
       setConfig(form);
-      setActivePreset(detectPreset(form));
       success("Da luu cau hinh thuat toan");
       onSaved?.();
     } catch (err) {
@@ -279,36 +245,52 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     }
   }
 
-  async function handleApplyRecommend() {
-    if (!recommendResult || !form) return;
+  async function handleApplyAllParameters() {
+    if (!recommendResult?.planningReport || !form) return;
+    const p = recommendResult.planningReport;
+    const rel = p.parameters.paramRelevance ?? {};
+    const rc = recommendResult.recommendedConfig;
     setApplyingRecommend(true);
     try {
-      const rc = recommendResult.recommendedConfig;
-      const updated = {
+      // Apply algorithm params (runtime config) + shift limits (auto-gen config)
+      const updated: RuntimeConfig = {
         ...form,
-        maxShiftsPerStaff: recommendResult.recommendedRuntimeConfig?.maxShiftsPerStaff ?? form.maxShiftsPerStaff,
+        // Shift limits from recommended config
+        ...(rc?.l01MinPerDay != null && { l01MinPerDay: rc.l01MinPerDay as number }),
+        ...(rc?.l01MaxPerDay != null && { l01MaxPerDay: rc.l01MaxPerDay as number }),
+        ...(rc?.l02MinPerDay != null && { l02MinPerDay: rc.l02MinPerDay as number }),
+        ...(rc?.l02MaxPerDay != null && { l02MaxPerDay: rc.l02MaxPerDay as number }),
+        ...(rc?.l03MinPerDay != null && { l03MinPerDay: rc.l03MinPerDay as number }),
+        ...(rc?.l03MaxPerDay != null && { l03MaxPerDay: rc.l03MaxPerDay as number }),
+        ...(rc?.l04MinPerDay != null && { l04MinPerDay: rc.l04MinPerDay as number }),
+        ...(rc?.l04MaxPerDay != null && { l04MaxPerDay: rc.l04MaxPerDay as number }),
+        ...(rc?.l01MinPerWeek != null && { l01MinPerWeek: rc.l01MinPerWeek as number }),
+        ...(rc?.l01MaxPerWeek != null && { l01MaxPerWeek: rc.l01MaxPerWeek as number }),
+        ...(rc?.l02MinPerWeek != null && { l02MinPerWeek: rc.l02MinPerWeek as number }),
+        ...(rc?.l02MaxPerWeek != null && { l02MaxPerWeek: rc.l02MaxPerWeek as number }),
+        ...(rc?.l03MinPerWeek != null && { l03MinPerWeek: rc.l03MinPerWeek as number }),
+        ...(rc?.l03MaxPerWeek != null && { l03MaxPerWeek: rc.l03MaxPerWeek as number }),
+        ...(rc?.l04MinPerWeek != null && { l04MinPerWeek: rc.l04MinPerWeek as number }),
+        ...(rc?.l04MaxPerWeek != null && { l04MaxPerWeek: rc.l04MaxPerWeek as number }),
+        ...(rc?.holidayMode != null && { holidayMode: rc.holidayMode as string }),
+        ...(rc?.l04CrossSpecialty != null && { l04CrossSpecialty: rc.l04CrossSpecialty as boolean }),
         autoAdjustConfig: false,
-        l01MinPerDay: (rc.l01MinPerDay as number) ?? form.l01MinPerDay,
-        l01MaxPerDay: (rc.l01MaxPerDay as number) ?? form.l01MaxPerDay,
-        l02MinPerDay: (rc.l02MinPerDay as number) ?? form.l02MinPerDay,
-        l02MaxPerDay: (rc.l02MaxPerDay as number) ?? form.l02MaxPerDay,
-        l03MinPerDay: (rc.l03MinPerDay as number) ?? form.l03MinPerDay,
-        l03MaxPerDay: (rc.l03MaxPerDay as number) ?? form.l03MaxPerDay,
-        l04MinPerDay: (rc.l04MinPerDay as number) ?? form.l04MinPerDay,
-        l04MaxPerDay: (rc.l04MaxPerDay as number) ?? form.l04MaxPerDay,
-        l01MinPerWeek: (rc.l01MinPerWeek as number) ?? form.l01MinPerWeek,
-        l01MaxPerWeek: (rc.l01MaxPerWeek as number) ?? form.l01MaxPerWeek,
-        l02MinPerWeek: (rc.l02MinPerWeek as number) ?? form.l02MinPerWeek,
-        l02MaxPerWeek: (rc.l02MaxPerWeek as number) ?? form.l02MaxPerWeek,
-        l03MinPerWeek: (rc.l03MinPerWeek as number) ?? form.l03MinPerWeek,
-        l03MaxPerWeek: (rc.l03MaxPerWeek as number) ?? form.l03MaxPerWeek,
-        l04MinPerWeek: (rc.l04MinPerWeek as number) ?? form.l04MinPerWeek,
-        l04MaxPerWeek: (rc.l04MaxPerWeek as number) ?? form.l04MaxPerWeek,
-        l04CrossSpecialty: (rc.l04CrossSpecialty as boolean) ?? form.l04CrossSpecialty,
-        holidayMode: (rc.holidayMode as string) ?? form.holidayMode,
+        // Algorithm params from planner (only relevant ones)
+        ...(rel.beamWidth !== false && { beamWidth: p.parameters.beamWidth }),
+        ...(rel.scorerWeights !== false && {
+          coverageWeight: p.parameters.coverageWeight,
+          fairnessWeight: p.parameters.fairnessWeight,
+          constraintWeight: p.parameters.constraintWeight,
+        }),
+        ...(rel.weekendWeight !== false && { weekendWeight: p.parameters.weekendWeight }),
+        ...(rel.rebalanceRounds !== false && { rebalanceRoundsTotal: p.parameters.rebalanceRounds }),
+        ...(rel.maxShiftsPerStaff !== false && { maxShiftsPerStaff: p.parameters.maxShiftsPerStaff }),
+        ...(rel.arrangementMode !== false && {
+          arrangementMode: p.parameters.arrangementMode as "INTRA_TYPE" | "WITH_INTER_BALANCE",
+        }),
       };
-      setForm(updated);
-      // Save immediately
+
+      // Build auto-gen payload
       const autoGenPayload = {
         enabled: true,
         holidayMode: updated.holidayMode ?? "SKIP",
@@ -328,21 +310,21 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l02AllowedSpecialties: updated.l02AllowedSpecialties ?? [],
         l03AllowedSpecialties: updated.l03AllowedSpecialties ?? [],
         l04BalanceStrategy: updated.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
-        // Preserve target_per_month để UI refresh không reset (recommend không đổi target).
         l01TargetPerMonth: targetPerStaffPerMonth.L01,
         l02TargetPerMonth: targetPerStaffPerMonth.L02,
         l03TargetPerMonth: targetPerStaffPerMonth.L03,
         l04TargetPerMonth: targetPerStaffPerMonth.L04,
       };
+
       await api.updateAutoGenConfig(autoGenPayload);
       await api.updateRuntimeConfig(updated);
+      setForm(updated);
       setConfig(updated);
-      setActivePreset(detectPreset(updated));
-      success("Đã áp dụng đề xuất cấu hình");
+      success("Da ap dung toan bo cau hinh + tham so tu Planning Report");
       setRecommendResult(null);
       onSaved?.();
     } catch (err) {
-      error(getErrorMessage(err, "Áp dụng thất bại"));
+      error(getErrorMessage(err, "Ap dung that bai"));
     } finally {
       setApplyingRecommend(false);
     }
@@ -353,38 +335,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
 
   return (
     <div className="space-y-5">
-      {/* Preset selector — bao gồm Lab-Eval (demo/đánh giá chuyên khoa).
-          Preset CHỈ nạp form, KHÔNG tự lưu; người dùng vẫn bấm "Lưu thay đổi"
-          để ghi vào DB. Đặc tính Hiến yêu cầu: "auto được, nhưng bắt buộc manual". */}
-      <div className="space-y-1.5">
-        <PresetSelector activePreset={activePreset} onApply={(k) => applyPreset(k)} />
-        {activePreset === "labEval" && (
-          <p className="text-[11px] text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[14px]" aria-hidden="true">info</span>
-            Lab-Eval là cấu hình đánh giá (L04 dày, cross OFF, auto-adjust OFF). Nút này chỉ nạp form — bấm <strong className="font-semibold">Lưu thay đổi</strong> để ghi vào DB. Không tự thay cấu hình production.
-          </p>
-        )}
-      </div>
-
-      {/* Keyboard shortcuts hint */}
-      <div className="flex items-center justify-end gap-4 text-[11px] text-on-surface-variant">
-        <span className="flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Ctrl</kbd>
-          <span>+</span>
-          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">S</kbd>
-          <span>Luu</span>
-        </span>
-        <span className="flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Ctrl</kbd>
-          <span>+</span>
-          <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Z</kbd>
-          <span>Huy</span>
-        </span>
-      </div>
-
-      {/* ════════════════════════════════════════════════════════
-          Staff Analysis & Auto-Adjust Section
-         ════════════════════════════════════════════════════════ */}
+      {/* Staff Analysis & Recommend */}
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-5">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -415,9 +366,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
                     {a.staffCount}
                   </div>
                 </div>
-                <span className="text-[11px] text-on-surface-variant tabular-nums w-24 text-right">
-                  L04: ~{a.l04PerMonth} ca/thang
-                </span>
                 {a.isSolo && (
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-300 whitespace-nowrap">
                     <span className="material-symbols-outlined text-[12px]">warning</span>
@@ -437,17 +385,21 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
               <p className="text-label-sm font-semibold text-on-surface">Ket qua phan tich</p>
             </div>
             <p className="text-[12px] text-on-surface-variant whitespace-pre-line mb-2">{recommendResult.rationale}</p>
-            <div className="flex items-center gap-4 text-[11px] text-on-surface-variant">
+            <div className="flex items-center gap-4 text-[11px] text-on-surface-variant mb-2">
               <span>Tong ca du kien: <strong className="text-on-surface">{recommendResult.totalShiftsExpected}</strong></span>
             </div>
-            <div className="flex gap-2 mt-3">
-              <Button variant="primary" size="sm" onClick={() => void handleApplyRecommend()} loading={applyingRecommend}>
-                Ap dung de xuat
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => setRecommendResult(null)}>
-                Bo qua
-              </Button>
-            </div>
+
+            {/* Planning Report (Phase 2) */}
+            {recommendResult.planningReport && (
+              <div className="mb-3">
+                <PlanningReportView
+                  report={recommendResult.planningReport}
+                  applying={applyingRecommend}
+                  onApplyAll={() => void handleApplyAllParameters()}
+                  onDismiss={() => setRecommendResult(null)}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -503,11 +455,105 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
               );
             })}
           </div>
-          <p className="text-[10px] text-on-surface-variant mt-1.5">
-            {autoFillEnabled
-              ? "Auto-fill đang bật: đổi target → ô min/max per day/week tự tính lại. Bấm 'Lưu thay đổi' để commit DB."
-              : "Auto-fill đang tắt: chỉ chỉnh tay các ô min/max. Target vẫn lưu vào DB khi bấm Lưu."}
-          </p>
+	          <div className="flex items-center justify-between mt-2">
+	            <button
+	              onClick={() => {
+	                const maxShift = form?.maxShiftsPerStaff ?? 0;
+	                const baseline = Math.min(Math.max(1, maxShift > 0 ? maxShift : PERIOD_DAYS), PERIOD_DAYS);
+	                const isInter = (form?.arrangementMode ?? "INTRA_TYPE") === "WITH_INTER_BALANCE";
+	                // Intra-type: theo tỉ lệ lịch sử. Inter-type: cân bằng L01/L02/L03.
+	                const [r1, r2, r3, r4] = isInter
+	                  ? [0.30, 0.30, 0.30, 0.10]  // balance: 3 loại chính bằng nhau
+	                  : [0.30, 0.25, 0.30, 0.15]; // fairness: theo demand lịch sử
+	                setTargetPerStaffPerMonth({
+	                  L01: Math.max(1, Math.round(baseline * r1)),
+	                  L02: Math.max(1, Math.round(baseline * r2)),
+	                  L03: Math.max(1, Math.round(baseline * r3)),
+	                  L04: Math.max(1, Math.round(baseline * r4)),
+	                });
+	              }}
+	              className="flex items-center gap-1 px-2 py-1 rounded-lg border border-primary/40 text-[10px] font-semibold text-primary hover:bg-primary/10 transition-colors"
+	            >
+	              <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
+	              De xuat muc tieu
+            </button>
+            <p className="text-[10px] text-on-surface-variant">
+              {autoFillEnabled
+                ? "Auto-fill đang bật: đổi target → ô min/max per day/week tự tính lại. Bấm 'Lưu thay đổi' để commit DB."
+                : "Auto-fill đang tắt: chỉ chỉnh tay các ô min/max. Target vẫn lưu vào DB khi bấm Lưu."}
+            </p>
+          </div>
+        </div>
+
+        {/* Kiểu sắp xếp — ảnh hưởng tới đề xuất cấu hình */}
+        <div className="mb-4 p-3 rounded-lg bg-surface-container-low/40 border border-outline-variant/40">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="material-symbols-outlined text-primary text-[16px]" aria-hidden="true">swap_vert</span>
+            <p className="text-label-sm font-semibold text-on-surface">Kiểu sắp xếp</p>
+          </div>
+          <div className="flex gap-2 mb-3">
+            {(["INTRA_TYPE", "WITH_INTER_BALANCE"] as const).map((mode) => {
+              const isActive = (form.arrangementMode ?? "INTRA_TYPE") === mode;
+              return (
+                <button key={mode}
+                  onClick={() => setField("arrangementMode", mode)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-[11px] font-semibold transition-all ${
+                    isActive
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-outline-variant bg-surface-container-low text-on-surface-variant hover:border-outline"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[14px]">
+                    {mode === "INTRA_TYPE" ? "equalizer" : "balance"}
+                  </span>
+                  {mode === "INTRA_TYPE" ? "Intra-type fairness" : "Inter-type balance"}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* L04 Cross-Specialty — button like the arrangement mode ones */}
+          <div className="mb-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const next = !(form.l04CrossSpecialty ?? false);
+                  setField("l04CrossSpecialty", next);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-[11px] font-semibold transition-all ${
+                  (form.l04CrossSpecialty ?? false)
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-outline-variant bg-surface-container-low text-on-surface-variant hover:border-outline"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[14px]">
+                  {form.l04CrossSpecialty ? "check_circle" : "toggle_off"}
+                </span>
+                L04 Cross-Specialty: {form.l04CrossSpecialty ? "ON" : "OFF"}
+              </button>
+            </div>
+            {(form.l04CrossSpecialty ?? false) && (
+              <div className="flex items-center gap-3 mt-2 ml-1">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-on-surface-variant">Ratio:</span>
+                  <input type="number" min={0} max={1} step={0.1}
+                    value={form.l04CrossSpecialtyRatio ?? 0.3}
+                    onChange={(e) => setField("l04CrossSpecialtyRatio", parseFloat(e.target.value) || 0)}
+                    className="h-7 w-16 rounded border border-outline-variant bg-surface-container-lowest px-1 text-center text-[11px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+                <select
+                  className="h-7 rounded-lg border border-outline-variant bg-surface-container-lowest px-1 text-[10px] font-medium text-on-surface focus:border-primary focus:outline-none"
+                  value={form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE"}
+                  onChange={(e) => setField("l04BalanceStrategy", e.target.value as "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR")}
+                >
+                  <option value="STRICT_MATCH_ONLY">Strict match</option>
+                  <option value="FAIR_DISTRIBUTE">Fair distribute</option>
+                  <option value="WEIGHTED_FAIR">Weighted fair</option>
+                </select>
+              </div>
+            )}
+          </div>
         </div>
 
         <Button
@@ -566,226 +612,227 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           <span className="material-symbols-outlined text-on-surface-variant text-[16px]" aria-hidden="true">tune</span>
           <p className="text-label-sm font-medium text-on-surface-variant">Cau hinh nang cao</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* l04CrossSpecialty toggle */}
-          <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-surface-container-low/40">
+
+        {/* ── Fairness ── */}
+        <div className="mb-6 p-4 rounded-lg bg-surface-container-low/20 border border-outline-variant/30">
+          <p className="text-label-sm font-semibold text-on-surface mb-3">Fairness</p>
+
+          {/* Scorer weights */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            <SliderField
+              label="Coverage Weight"
+              desc="Trọng số coverage (0.0–1.0). Cao → ưu tiên lấp đầy ca."
+              value={form.coverageWeight ?? 0.40}
+              min={0} max={1} step={0.05}
+              format={(v) => v.toFixed(2)}
+              onChange={(v) => setField("coverageWeight", v)}
+            />
+            <SliderField
+              label="Fairness Weight"
+              desc="Trọng số fairness (0.0–1.0). Cao → ưu tiên phân bổ công bằng."
+              value={form.fairnessWeight ?? 0.35}
+              min={0} max={1} step={0.05}
+              format={(v) => v.toFixed(2)}
+              onChange={(v) => setField("fairnessWeight", v)}
+            />
+            <SliderField
+              label="Constraint Weight"
+              desc="Trọng số constraint (0.0–1.0). Cao → ưu tiên kỷ luật ràng buộc."
+              value={form.constraintWeight ?? 0.25}
+              min={0} max={1} step={0.05}
+              format={(v) => v.toFixed(2)}
+              onChange={(v) => setField("constraintWeight", v)}
+            />
+          </div>
+
+          {/* Thresholds & penalties */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div>
-              <p className="text-label-sm font-medium text-on-surface">L04 Cross-Specialty</p>
-              <p className="text-[10px] text-on-surface-variant">Cho phep nguoi ngoai chuyen khoa nhan L04</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer"
-                checked={form.l04CrossSpecialty ?? false}
-                onChange={(e) => setField("l04CrossSpecialty", e.target.checked)}
+              <label className="block text-[11px] text-on-surface-variant mb-1">Pass Threshold</label>
+              <input type="number" min={0} max={100} step={1}
+                value={form.passThreshold ?? 80}
+                onChange={(e) => setField("passThreshold", parseFloat(e.target.value) || 0)}
+                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
-              <div className="w-9 h-5 bg-surface-variant rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
-            </label>
-          </div>
-
-          {/* autoCompensationEnabled toggle */}
-          <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-surface-container-low/40">
+              <p className="text-[8px] text-on-surface-variant mt-0.5">Ngưỡng đạt (0-100)</p>
+            </div>
             <div>
-              <p className="text-label-sm font-medium text-on-surface">Tu dong nghỉ bu</p>
-              <p className="text-[10px] text-on-surface-variant">Tao ngay nghỉ bu sau L01</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer"
-                checked={form.autoCompensationEnabled ?? false}
-                onChange={(e) => setField("autoCompensationEnabled", e.target.checked)}
+              <label className="block text-[11px] text-on-surface-variant mb-1">Hard Penalty</label>
+              <input type="number" min={0} max={100} step={0.5}
+                value={form.hardViolationPenalty ?? 25}
+                onChange={(e) => setField("hardViolationPenalty", parseFloat(e.target.value) || 0)}
+                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
-              <div className="w-9 h-5 bg-surface-variant rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
-            </label>
-          </div>
-
-          {/* autoAdjustConfig toggle */}
-          <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-surface-container-low/40">
+              <p className="text-[8px] text-on-surface-variant mt-0.5">Phạt / vi phạm HARD</p>
+            </div>
             <div>
-              <p className="text-label-sm font-medium text-on-surface">Tu dong tinh chinh (Auto-Adjust)</p>
-              <p className="text-[10px] text-on-surface-variant">Tu dong giam deu L01-L04 neu qua tai</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer"
-                checked={form.autoAdjustConfig ?? true}
-                onChange={(e) => setField("autoAdjustConfig", e.target.checked)}
+              <label className="block text-[11px] text-on-surface-variant mb-1">Soft Penalty</label>
+              <input type="number" min={0} max={50} step={0.5}
+                value={form.softViolationPenalty ?? 5}
+                onChange={(e) => setField("softViolationPenalty", parseFloat(e.target.value) || 0)}
+                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
-              <div className="w-9 h-5 bg-surface-variant rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
-            </label>
+              <p className="text-[8px] text-on-surface-variant mt-0.5">Phạt / vi phạm SOFT</p>
+            </div>
+            <div>
+              <label className="block text-[11px] text-on-surface-variant mb-1">Target CV</label>
+              <input type="number" min={0} max={1} step={0.01}
+                value={form.targetCv ?? 0.10}
+                onChange={(e) => setField("targetCv", parseFloat(e.target.value) || 0)}
+                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <p className="text-[8px] text-on-surface-variant mt-0.5">CV ≤ target → 100 điểm</p>
+            </div>
+            <div>
+              <label className="block text-[11px] text-on-surface-variant mb-1">Worst CV</label>
+              <input type="number" min={0} max={1} step={0.01}
+                value={form.worstCv ?? 0.50}
+                onChange={(e) => setField("worstCv", parseFloat(e.target.value) || 0)}
+                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <p className="text-[8px] text-on-surface-variant mt-0.5">CV ≥ worst → 0 điểm</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Scheduling ── */}
+        <div className="mb-6 p-4 rounded-lg bg-surface-container-low/20 border border-outline-variant/30">
+          <p className="text-label-sm font-semibold text-on-surface mb-3">Scheduling</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* holidayMode */}
+            <div>
+              <label className="block text-label-sm font-medium text-on-surface mb-1">Holiday Mode</label>
+              <select
+                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-[13px] font-medium text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                value={form.holidayMode ?? "SKIP"}
+                onChange={(e) => setField("holidayMode", e.target.value)}
+              >
+                <option value="SKIP">SKIP - Bo qua ngay le</option>
+                <option value="PARTIAL">PARTIAL - Giam tai</option>
+              </select>
+            </div>
+
+            {/* maxShiftsPerStaff */}
+            <div>
+              <label className="block text-label-sm font-medium text-on-surface mb-1">Max ca/nguoi</label>
+              <input type="number" min={0}
+                value={form.maxShiftsPerStaff ?? 0}
+                onChange={(e) => setField("maxShiftsPerStaff", parseInt(e.target.value) || 0)}
+                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <p className="text-[8px] text-on-surface-variant mt-0.5">0 = tu dong</p>
+            </div>
+
+            {/* maxShiftsPerDay */}
+            <div>
+              <label className="block text-label-sm font-medium text-on-surface mb-1">Max ca/ngay</label>
+              <input type="number" min={0}
+                value={form.maxShiftsPerDay ?? 0}
+                onChange={(e) => setField("maxShiftsPerDay", parseInt(e.target.value) || 0)}
+                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <p className="text-[8px] text-on-surface-variant mt-0.5">0 = khong gioi han</p>
+            </div>
+
+            {/* overnightRecoveryHours */}
+            <div>
+              <label className="block text-label-sm font-medium text-on-surface mb-1">Nghi giua L01 (h)</label>
+              <input type="number" min={0} step={1}
+                value={form.overnightRecoveryHours ?? 24}
+                onChange={(e) => setField("overnightRecoveryHours", parseInt(e.target.value) || 24)}
+                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <p className="text-[8px] text-on-surface-variant mt-0.5">Mac dinh 24h (W=1)</p>
+            </div>
+
+            {/* autoCompensationEnabled */}
+            <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-surface-container-low/40 col-span-1 sm:col-span-2 lg:col-span-4">
+              <div>
+                <p className="text-label-sm font-medium text-on-surface">Tu dong nghi bu</p>
+                <p className="text-[10px] text-on-surface-variant">Tao ngay nghi bu sau L01</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer"
+                  checked={form.autoCompensationEnabled ?? false}
+                  onChange={(e) => setField("autoCompensationEnabled", e.target.checked)}
+                />
+                <div className="w-9 h-5 bg-surface-variant rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Algorithm-specific ── */}
+        <div className="p-4 rounded-lg bg-surface-container-low/20 border border-outline-variant/30">
+          <p className="text-label-sm font-semibold text-on-surface mb-3">Algorithm-specific</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* weekendWeight — GREEDY */}
+            <SliderField
+              label="weekendWeight (GREEDY)"
+              desc="Trọng số cuối tuần — chỉ áp dụng cho thuật toán GREEDY. Giá trị càng cao càng ưu tiên giảm ca cuối tuần."
+              value={form.weekendWeight ?? 2.0}
+              min={0} max={5} step={0.5}
+              format={(v) => v.toFixed(1)}
+              onChange={(v) => setField("weekendWeight", v)}
+            />
+
+            {/* beamWidth — BEAM / SA */}
+            <div>
+              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-4">
+                <p className="text-label-sm font-semibold text-on-surface">beamWidth (BEAM / SA)</p>
+                <p className="text-[11px] text-on-surface-variant mb-3">Độ rộng Beam Search. Với SA scheduler, dùng iterations = beamWidth × 100.</p>
+                <div className="flex items-center gap-3">
+                  <input type="range" min={1} max={50} step={1}
+                    value={form.beamWidth ?? 5}
+                    onChange={(e) => setField("beamWidth", parseInt(e.target.value) || 5)}
+                    className="flex-1 h-1.5 bg-surface-variant rounded-full appearance-none cursor-pointer accent-primary"
+                  />
+                  <span className="font-mono text-sm font-bold text-on-surface tabular-nums w-8 text-right">{form.beamWidth ?? 5}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* holidayMode dropdown */}
-          <div>
-            <label className="block text-label-sm font-medium text-on-surface mb-1">Holiday Mode</label>
-            <select
-              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-[13px] font-medium text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              value={form.holidayMode ?? "SKIP"}
-              onChange={(e) => setField("holidayMode", e.target.value)}
-            >
-              <option value="SKIP">SKIP - Bo qua ngay le</option>
-              <option value="PARTIAL">PARTIAL - Giam tai</option>
-            </select>
+          {/* Rebalance rounds — RRHC / SA / Beam / EG */}
+          <div className="mt-4">
+            <p className="text-label-sm font-medium text-on-surface mb-2">Rebalance Rounds</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-[11px] text-on-surface-variant mb-1">Total (RRHC/SA)</label>
+                <input type="number" min={0} max={500} step={1}
+                  value={form.rebalanceRoundsTotal ?? 80}
+                  onChange={(e) => setField("rebalanceRoundsTotal", parseInt(e.target.value) || 0)}
+                  className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-on-surface-variant mb-1">Per-type (RRHC/Beam)</label>
+                <input type="number" min={0} max={500} step={1}
+                  value={form.rebalanceRoundsPerType ?? 30}
+                  onChange={(e) => setField("rebalanceRoundsPerType", parseInt(e.target.value) || 0)}
+                  className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-on-surface-variant mb-1">EG / Beam total</label>
+                <input type="number" min={0} max={500} step={1}
+                  value={form.rebalanceRoundsEg ?? 40}
+                  onChange={(e) => setField("rebalanceRoundsEg", parseInt(e.target.value) || 0)}
+                  className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-on-surface-variant mb-1">Post-save (all)</label>
+                <input type="number" min={0} max={500} step={1}
+                  value={form.rebalanceRoundsPostSave ?? 100}
+                  onChange={(e) => setField("rebalanceRoundsPostSave", parseInt(e.target.value) || 0)}
+                  className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </div>
           </div>
-
-	          {/* maxShiftsPerStaff */}
-	          <div>
-	            <label className="block text-label-sm font-medium text-on-surface mb-1">Max ca/nguoi</label>
-	            <input type="number" min={0}
-	              value={form.maxShiftsPerStaff ?? 0}
-	              onChange={(e) => setField("maxShiftsPerStaff", parseInt(e.target.value) || 0)}
-	              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-	            />
-	            <p className="text-[10px] text-on-surface-variant mt-0.5">0 = tu dong</p>
-	          </div>
-	        </div>
-
-			        {/* weekendWeight — chỉ áp dụng cho GREEDY */}
-			        <div className="mt-4">
-			          <SliderField
-			            label="weekendWeight"
-			            desc="Trong số cuối tuần — chỉ áp dụng cho thuật toán GREEDY. Giá trị càng cao càng ưu tiên giảm ca cuối tuần."
-			            value={form.weekendWeight ?? 2.0}
-			            min={0}
-			            max={5}
-			            step={0.5}
-			            format={(v) => v.toFixed(1)}
-			            onChange={(v) => setField("weekendWeight", v)}
-			          />
-			        </div>
-
-			        {/* beamWidth — Beam Search width & SA iteration multiplier */}
-			        <div className="mt-4">
-			          <div className="flex items-center justify-between">
-			            <label className="text-label-sm font-medium text-on-surface">Beam Width</label>
-			            <input type="number" min={1} max={50} step={1}
-			              value={form.beamWidth ?? 5}
-			              onChange={(e) => setField("beamWidth", parseInt(e.target.value) || 5)}
-			              className="h-9 w-24 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-			            />
-			          </div>
-			          <p className="text-[10px] text-on-surface-variant mt-0.5">
-			            Độ rộng Beam Search (mặc định 5). Với SA scheduler, dùng để tính số vòng lặp (beamWidth × 100).
-			          </p>
-			        </div>
-
-			        {/* Scorer weights — quyết định tỷ trọng coverage / fairness / constraint */}
-		        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-		          <SliderField
-		            label="Coverage Weight"
-		            desc="Trọng số coverage (0.0–1.0). Cao → ưu tiên lấp đầy ca."
-		            value={form.coverageWeight ?? 0.40}
-		            min={0} max={1} step={0.05}
-		            format={(v) => v.toFixed(2)}
-		            onChange={(v) => setField("coverageWeight", v)}
-		          />
-		          <SliderField
-		            label="Fairness Weight"
-		            desc="Trọng số fairness (0.0–1.0). Cao → ưu tiên phân bổ công bằng."
-		            value={form.fairnessWeight ?? 0.35}
-		            min={0} max={1} step={0.05}
-		            format={(v) => v.toFixed(2)}
-		            onChange={(v) => setField("fairnessWeight", v)}
-		          />
-		          <SliderField
-		            label="Constraint Weight"
-		            desc="Trọng số constraint (0.0–1.0). Cao → ưu tiên kỷ luật ràng buộc."
-		            value={form.constraintWeight ?? 0.25}
-		            min={0} max={1} step={0.05}
-		            format={(v) => v.toFixed(2)}
-		            onChange={(v) => setField("constraintWeight", v)}
-		          />
-		        </div>
-
-		        {/* Scorer thresholds & penalties */}
-		        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-		          <div>
-		            <label className="block text-label-sm font-medium text-on-surface mb-1">Pass Threshold</label>
-		            <input type="number" min={0} max={100} step={1}
-		              value={form.passThreshold ?? 80}
-		              onChange={(e) => setField("passThreshold", parseFloat(e.target.value) || 0)}
-		              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-		            />
-		            <p className="text-[10px] text-on-surface-variant mt-0.5">Ngưỡng đạt (0-100)</p>
-		          </div>
-		          <div>
-		            <label className="block text-label-sm font-medium text-on-surface mb-1">Hard Violation Penalty</label>
-		            <input type="number" min={0} max={100} step={0.5}
-		              value={form.hardViolationPenalty ?? 25}
-		              onChange={(e) => setField("hardViolationPenalty", parseFloat(e.target.value) || 0)}
-		              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-		            />
-		            <p className="text-[10px] text-on-surface-variant mt-0.5">Phạt / vi phạm HARD</p>
-		          </div>
-		          <div>
-		            <label className="block text-label-sm font-medium text-on-surface mb-1">Soft Violation Penalty</label>
-		            <input type="number" min={0} max={50} step={0.5}
-		              value={form.softViolationPenalty ?? 5}
-		              onChange={(e) => setField("softViolationPenalty", parseFloat(e.target.value) || 0)}
-		              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-		            />
-		            <p className="text-[10px] text-on-surface-variant mt-0.5">Phạt / vi phạm SOFT</p>
-		          </div>
-		          <div>
-		            <label className="block text-label-sm font-medium text-on-surface mb-1">Target CV</label>
-		            <input type="number" min={0} max={1} step={0.01}
-		              value={form.targetCv ?? 0.10}
-		              onChange={(e) => setField("targetCv", parseFloat(e.target.value) || 0)}
-		              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-		            />
-		            <p className="text-[10px] text-on-surface-variant mt-0.5">CV ≤ target → 100 điểm</p>
-		          </div>
-		          <div>
-		            <label className="block text-label-sm font-medium text-on-surface mb-1">Worst CV</label>
-		            <input type="number" min={0} max={1} step={0.01}
-		              value={form.worstCv ?? 0.50}
-		              onChange={(e) => setField("worstCv", parseFloat(e.target.value) || 0)}
-		              className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-		            />
-			            <p className="text-[10px] text-on-surface-variant mt-0.5">CV ≥ worst → 0 điểm</p>
-			          </div>
-			        </div>
-
-		        {/* Rebalance rounds */}
-		        <div className="mt-4">
-		          <p className="text-label-sm font-medium text-on-surface mb-2">Rebalance Rounds</p>
-		          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-		            <div>
-		              <label className="block text-label-sm font-medium text-on-surface mb-1">Total</label>
-		              <input type="number" min={0} max={500} step={1}
-		                value={form.rebalanceRoundsTotal ?? 80}
-		                onChange={(e) => setField("rebalanceRoundsTotal", parseInt(e.target.value) || 0)}
-		                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-		              />
-		              <p className="text-[10px] text-on-surface-variant mt-0.5">RRHC total, SA fairness (default 80)</p>
-		            </div>
-		            <div>
-		              <label className="block text-label-sm font-medium text-on-surface mb-1">Per-type</label>
-		              <input type="number" min={0} max={500} step={1}
-		                value={form.rebalanceRoundsPerType ?? 30}
-		                onChange={(e) => setField("rebalanceRoundsPerType", parseInt(e.target.value) || 0)}
-		                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-		              />
-		              <p className="text-[10px] text-on-surface-variant mt-0.5">RRHC per-type, Beam per-type (default 30)</p>
-		            </div>
-		            <div>
-		              <label className="block text-label-sm font-medium text-on-surface mb-1">EG / Beam total</label>
-		              <input type="number" min={0} max={500} step={1}
-		                value={form.rebalanceRoundsEg ?? 40}
-		                onChange={(e) => setField("rebalanceRoundsEg", parseInt(e.target.value) || 0)}
-		                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-		              />
-		              <p className="text-[10px] text-on-surface-variant mt-0.5">EG per-type, Beam total (default 40)</p>
-		            </div>
-		            <div>
-		              <label className="block text-label-sm font-medium text-on-surface mb-1">Post-save</label>
-		              <input type="number" min={0} max={500} step={1}
-		                value={form.rebalanceRoundsPostSave ?? 100}
-		                onChange={(e) => setField("rebalanceRoundsPostSave", parseInt(e.target.value) || 0)}
-		                className="h-9 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-		              />
-		              <p className="text-[10px] text-on-surface-variant mt-0.5">Post-process rebalance (default 100)</p>
-		            </div>
-		          </div>
-		        </div>
-		      </div>
+        </div>
+      </div>
 
       {/* Save / Reset buttons */}
       <div className="flex items-center justify-end gap-3">

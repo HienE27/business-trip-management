@@ -1,15 +1,3 @@
-export type ConfigEntry = {
-  paramKey: string;
-  paramValue: string;
-  valueType: "STRING" | "NUMBER" | "BOOLEAN" | "JSON";
-  description: string;
-  updatedBy: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type EditingConfig = Partial<Pick<ConfigEntry, "paramValue" | "description">>;
-
 export type RuntimeConfig = {
   weekendWeight: number;
   overnightRecoveryHours: number;
@@ -46,6 +34,8 @@ export type RuntimeConfig = {
   l02AllowedSpecialties?: string[];
   l03AllowedSpecialties?: string[];
   l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
+  /** Chế độ sắp xếp: INTRA_TYPE (mặc định) hoặc WITH_INTER_BALANCE */
+  arrangementMode?: "INTRA_TYPE" | "WITH_INTER_BALANCE";
   /** Target ca/người/tháng — input editable cho recommend. Persist vào DB. */
   l01TargetPerMonth?: number;
   l02TargetPerMonth?: number;
@@ -88,7 +78,7 @@ export type AutoGenConfigPayload = {
   l04TargetPerMonth?: number;
 };
 
-export type TabKey = "config" | "history" | "audit" | "reference";
+export type TabKey = "config" | "history";
 
 /** Keys mà auto-gen payload ghi đè runtime config khi load */
 export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([
@@ -105,41 +95,67 @@ export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([
   "l01TargetPerMonth", "l02TargetPerMonth", "l03TargetPerMonth", "l04TargetPerMonth",
 ]);
 
-/** Map snake_case param key (URL/draft) sang camelCase RuntimeConfig field */
-export const PARAM_KEY_TO_CFG: Record<string, keyof RuntimeConfig> = {
-  greedy_coverage_threshold: "greedyCoverageThreshold",
-  balance_score_min: "balanceScoreMin",
-  weekend_weight: "weekendWeight",
-  overnight_recovery_hours: "overnightRecoveryHours",
-  max_staff_per_shift: "maxStaffPerShift",
-  max_shifts_per_staff: "maxShiftsPerStaff",
-  max_shifts_per_day: "maxShiftsPerDay",
-  auto_adjust_config: "autoAdjustConfig",
-  holiday_mode: "holidayMode",
-  scorer_coverage_weight: "coverageWeight",
-  scorer_fairness_weight: "fairnessWeight",
-  scorer_constraint_weight: "constraintWeight",
-  scorer_pass_threshold: "passThreshold",
-  scorer_hard_violation_penalty: "hardViolationPenalty",
-  scorer_soft_violation_penalty: "softViolationPenalty",
-  scorer_target_cv: "targetCv",
-  scorer_worst_cv: "worstCv",
-  rebalance_rounds_total: "rebalanceRoundsTotal",
-  rebalance_rounds_per_type: "rebalanceRoundsPerType",
-  rebalance_rounds_eg: "rebalanceRoundsEg",
-	  rebalance_rounds_post_save: "rebalanceRoundsPostSave",
-	  beam_width: "beamWidth",
-	};
+// ── PlanningReport types (Phase 2) ──────────────────────────
 
-export const LEGACY_AUTO_GEN_KEYS = new Set<string>([
-  "auto_generate_requirements",
-  "auto_gen_holiday_mode",
-  "auto_gen_l01_per_day",
-  "auto_gen_l02_per_day",
-  "auto_gen_l03_per_day",
-  "auto_gen_l04_per_day",
-  "auto_gen_l01_per_week",
-  "auto_gen_l02_per_week",
-  "auto_gen_l03_per_week",
-  "auto_gen_l04_per_week",
-]);
+export type CapacityAnalysis = {
+  totalStaff: number;
+  periodDays: number;
+  totalDemand: number;
+  maxCapacity: number;
+  coverageCeiling: number;
+};
+
+export type ConstraintAnalysis = {
+  leaveDensity: number;
+  l01AdjacencyImpact: number;
+  weeklyCapTightness: number;
+  overallFeasibility: number;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+};
+
+export type FairnessAnalysis = {
+  type: "INTRA_TYPE" | "INTER_TYPE" | "CROSS_SPECIALTY";
+  label: string;
+  feasibility: number;
+  expectedFairness: number;
+  coverageImpact: number;
+  constraintRisk: string;
+  description: string;
+  starRating: number;
+};
+
+export type AlgorithmRecommendation = {
+  algorithm: string;
+  rationale: string;
+  alternatives: string[];
+};
+
+export type ParameterRecommendation = {
+  beamWidth: number;
+  rebalanceRounds: number;
+  weekendWeight: number;
+  coverageWeight: number;
+  fairnessWeight: number;
+  constraintWeight: number;
+  maxShiftsPerStaff: number;
+  arrangementMode: string;
+  /** Global config param key → relevant (true) or ignored (false) for the recommended algorithm */
+  paramRelevance: Record<string, boolean>;
+};
+
+export type ExpectedResult = {
+  coverage: number;
+  constraintScore: number;
+  fairnessScore: number;
+  qualityScore: number;
+};
+
+export type PlanningReport = {
+  capacity: CapacityAnalysis;
+  constraint: ConstraintAnalysis;
+  fairnessOptions: FairnessAnalysis[];
+  algorithm: AlgorithmRecommendation;
+  parameters: ParameterRecommendation;
+  expected: ExpectedResult;
+  warnings: string[];
+};
