@@ -25,11 +25,9 @@ const SHIFT_TYPES = ["L01", "L02", "L03", "L04"];
 
 export function Mode1Panel({
   periodId,
-  algorithmType,
   period,
 }: {
   periodId: number;
-  algorithmType: string;
   period?: SchedulePeriod | null;
 }) {
   const router = useRouter();
@@ -164,7 +162,7 @@ export function Mode1Panel({
       const resp = await api.configCalculator({
         mode: 1,
         periodId,
-        algorithmType,
+        algorithmType: "GREEDY",
         configOverride: {
           maxShiftsPerStaff,
           maxStaffPerShift,

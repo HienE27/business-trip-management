@@ -5,26 +5,17 @@ import { BackButton } from "@/components/ui/BackButton";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/useToast";
 import { getErrorMessage } from "@/lib/errors";
-import type { SchedulePeriod, ConfigCalculatorResponse } from "@/types/api";
+import type { SchedulePeriod } from "@/types/api";
 import { Mode1Panel } from "./Mode1Panel";
 import { Mode2Panel } from "./Mode2Panel";
 
 type TabKey = "mode1" | "mode2";
 
-const ALGORITHM_OPTIONS = [
-  { value: "GREEDY", label: "GREEDY", desc: "Greedy — nhanh, đơn giản" },
-  { value: "FAIR_GREEDY", label: "FAIR_GREEDY", desc: "Công bằng — phân bổ đều" },
-  { value: "CSP_MRV_FC", label: "CSP_MRV_FC", desc: "CSP — ràng buộc, chính xác" },
-  { value: "V10_LOCAL_SEARCH", label: "V10", desc: "Local Search — tối ưu cục bộ" },
-];
-
 export default function ConfigurationCalculatorPage() {
   const { success, error: toastError } = useToast();
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
-  const [selectedAlgo, setSelectedAlgo] = useState("GREEDY");
   const [activeTab, setActiveTab] = useState<TabKey>("mode1");
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     api.getAllPeriods().then((res) => {
@@ -62,23 +53,6 @@ export default function ConfigurationCalculatorPage() {
               ))}
             </select>
           </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-[12px] font-medium text-on-surface-variant whitespace-nowrap">Thuật toán:</label>
-            <select
-              value={selectedAlgo}
-              onChange={(e) => setSelectedAlgo(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              {ALGORITHM_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <span className="text-[10px] text-on-surface-variant hidden sm:inline">
-            {ALGORITHM_OPTIONS.find((o) => o.value === selectedAlgo)?.desc}
-          </span>
         </div>
 
         {/* Tab bar */}
@@ -110,9 +84,9 @@ export default function ConfigurationCalculatorPage() {
               <p className="text-[14px]">Chọn kỳ lịch để bắt đầu phân tích</p>
             </div>
           ) : activeTab === "mode1" ? (
-            <Mode1Panel periodId={selectedPeriodId} algorithmType={selectedAlgo} period={period} />
+            <Mode1Panel periodId={selectedPeriodId} period={period} />
           ) : (
-            <Mode2Panel periodId={selectedPeriodId} algorithmType={selectedAlgo} mode={2} period={period} />
+            <Mode2Panel periodId={selectedPeriodId} period={period} />
           )}
         </div>
       </div>

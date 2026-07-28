@@ -10,13 +10,9 @@ import type { ConfigCalculatorResponse, SchedulePeriod, Bottleneck, ConfigChange
 
 export function Mode2Panel({
   periodId,
-  algorithmType,
-  mode,
   period,
 }: {
   periodId: number;
-  algorithmType: string;
-  mode: number; // 2 or 3
   period?: SchedulePeriod | null;
 }) {
   const router = useRouter();
@@ -50,7 +46,7 @@ export function Mode2Panel({
       if (enableL04) enabledGroups.push("l04");
 
       const body: Record<string, unknown> = {
-        mode,
+        mode: 2,
         periodId,
         targetShifts: {
           L01: targetL01,
@@ -60,10 +56,7 @@ export function Mode2Panel({
         },
         enabledGroups,
       };
-      // Mode 3 tự động chọn algorithm, mode 2 dùng algorithm được chọn
-      if (mode === 2 || mode == null || mode === undefined) {
-        body.algorithmType = algorithmType;
-      }
+      body.algorithmType = "GREEDY";
       const resp = await api.configCalculator(body as any);
       setResult(resp?.data ?? null);
     } catch (err) {
@@ -166,9 +159,6 @@ export function Mode2Panel({
           icon={<span className="material-symbols-outlined text-[18px]">check_circle</span>}>
           {applying ? "Đang áp dụng..." : "Áp dụng cấu hình đề xuất"}
         </Button>
-        <span className="text-[11px] text-on-surface-variant">
-          Với thuật toán: <strong>{algorithmType}</strong>
-        </span>
       </div>
 
       {/* Group toggles — cho phép backend điều chỉnh nhóm nào */}
