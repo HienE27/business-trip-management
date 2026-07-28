@@ -88,5 +88,13 @@ public interface ShiftRequirementRepository extends JpaRepository<ShiftRequireme
               HAVING COUNT(st.id) = 0
           )
         """, nativeQuery = true)
-    List<ShiftRequirement> findL04RequirementsWithoutStaff(@Param("periodId") Integer periodId);
-}
+	    List<ShiftRequirement> findL04RequirementsWithoutStaff(@Param("periodId") Integer periodId);
+
+	    /**
+	     * Bulk delete requirements for given shift types within a period.
+	     * Used when shift types are added to removedShiftTypes.
+	     */
+	    @Modifying(clearAutomatically = true, flushAutomatically = true)
+	    @Query(value = "DELETE FROM shift_requirement WHERE period_id = :periodId AND shift_type_id IN (:shiftTypeIds)", nativeQuery = true)
+	    int deleteByPeriodIdAndShiftTypeIds(@Param("periodId") Integer periodId, @Param("shiftTypeIds") java.util.Set<String> shiftTypeIds);
+	}

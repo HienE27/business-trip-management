@@ -63,15 +63,14 @@ class StaffEligibilityFilterTest {
      */
     @Test
     void l04CrossSpecialty_disabledInConfig_returnsDisabledConfig() {
-        var cfg = new com.hospital.scheduler.algorithm.AutoGenConfig(
-                true,                              // enabled
-                1, 1, 1, 1,                        // min/day
-                0, 0, 0, 0,                        // max/day
-                1, 2, 1, 1,                        // min/week
-                0, 0, 0, 0,                        // max/week
-                "SKIP", List.of(),
-                /* l04CrossSpecialty */ false,     // ← the toggle the user flipped OFF
-                0.3f, List.of(), "FAIR_DISTRIBUTE");
+		        var cfg = new com.hospital.scheduler.algorithm.AutoGenConfig(
+		                true,                              // enabled
+		                1, 1, 1, 1,                        // min/day
+		                0, 0, 0, 0,                        // max/day
+		                0, 0, 0, 0,                        // max/week
+		                "SKIP", List.of(),
+		                /* l04CrossSpecialty */ false,     // ← the toggle the user flipped OFF
+		                0.3f, List.of(), "FAIR_DISTRIBUTE");
         when(algorithmConfigService.getAutoGenConfig()).thenReturn(Optional.of(cfg));
 
         var resolved = filter.getCrossSpecialtyConfig("L04");
@@ -83,13 +82,13 @@ class StaffEligibilityFilterTest {
 
     @Test
     void l04CrossSpecialty_enabledInConfig_returnsEnabledConfig() {
-        var cfg = new com.hospital.scheduler.algorithm.AutoGenConfig(
-                true,
-                1, 1, 1, 1, 0, 0, 0, 0,
-                1, 2, 1, 1, 0, 0, 0, 0,
-                "SKIP", List.of(),
-                /* l04CrossSpecialty */ true,
-                0.5f, List.of(), "FAIR_DISTRIBUTE");
+		        var cfg = new com.hospital.scheduler.algorithm.AutoGenConfig(
+		                true,
+		                1, 1, 1, 1, 0, 0, 0, 0,  // min/day, max/day
+		                0, 0, 0, 0,               // max/week
+		                "SKIP", List.of(),
+		                /* l04CrossSpecialty */ true,
+		                0.5f, List.of(), "FAIR_DISTRIBUTE");
         when(algorithmConfigService.getAutoGenConfig()).thenReturn(Optional.of(cfg));
 
         var resolved = filter.getCrossSpecialtyConfig("L04");

@@ -84,8 +84,8 @@ export default function AutoSchedulingPage() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
   const [autoState, autoActions] = useAutoSchedule();
-  const { previewResult, editedPreview, removedShiftTypes, applying, running, message, algorithmType } = autoState;
-  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editShiftType, resetEdits, clearPreview, setMessage, setAlgorithmType } = autoActions;
+  const { previewResult, editedPreview, removedShiftTypes, applying, running, message, algorithmType, skipExisting } = autoState;
+  const { runPreview, applyPreview, saveAsTemplate, previewTemplate, applyTemplateWithEdits, editShiftType, resetEdits, clearPreview, setMessage, setAlgorithmType, setSkipExisting } = autoActions;
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
@@ -148,6 +148,15 @@ export default function AutoSchedulingPage() {
   useEffect(() => { void loadWorkspace(); }, [loadWorkspace]);
   useEffect(() => { void loadAutoGenStatus(); }, [loadAutoGenStatus]);
 
+  // Auto-cancel stale lock on mount (handles page refresh mid-run).
+  // Fire-and-forget: no need to await or handle errors.
+  useEffect(() => {
+    if (!selectedPeriodId) return;
+    fetch(`/api/v1/auto-schedule/cancel/${selectedPeriodId}`, {
+      method: "GET", credentials: "include",
+    }).catch(() => {});
+  }, [selectedPeriodId]);
+
   // Refresh auto-gen status when the user comes back to this tab (e.g. after toggling
   // the switch in /algorithm-config). Avoids stale "disabled" warnings.
   useEffect(() => {
@@ -173,9 +182,20 @@ export default function AutoSchedulingPage() {
 
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId) ?? null;
 
-  const handleRunPreview = () => {
-    if (!selectedPeriodId) return;
-    void runPreview(selectedPeriodId, excludedStaffIds);
+  const handleRunPreview = async () => {
+    if (!selectedPeriodId || running) return;
+    // In-flight guard: don't queue another run while one is already active.
+    // The button is also disabled via `runningAutoSchedule`, but this catches
+    // rapid double-clicks before the React re-render propagates.
+    // Cancel any running scheduling first so the lock is released immediately
+    try {
+      await fetch(`/api/v1/auto-schedule/cancel/${selectedPeriodId}`, {
+        method: "GET", credentials: "include",
+      });
+    } catch {
+      // Ignore cancel errors — the subsequent preview will surface any real issue
+    }
+    await runPreview(selectedPeriodId, excludedStaffIds);
   };
 
   const handleApplyPreview = async () => {
@@ -452,6 +472,8 @@ export default function AutoSchedulingPage() {
           isManager={isManager}
           onSaveTemplate={() => setSaveModalOpen(true)}
           onApplyTemplate={openApplyTemplateModal}
+          skipExisting={skipExisting}
+          onSetSkipExisting={setSkipExisting}
         />
       )}
 

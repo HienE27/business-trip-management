@@ -97,13 +97,25 @@ public class PermissionInvalidationFilter extends OncePerRequestFilter {
             return;
         }
 
-        Long tokenVersion = jwtService.extractPermissionVersion(jwt);
-        long currentVersion = permissionVersionService.currentVersion();
+        try {
+            Long tokenVersion = jwtService.extractPermissionVersion(jwt);
+            long currentVersion = permissionVersionService.currentVersion();
 
-        if (tokenVersion == null || tokenVersion < currentVersion) {
-            logger.warn("Stale permission matrix version in JWT (token={}, current={}) — forcing re-login",
-                    tokenVersion, currentVersion);
-            writeStaleResponse(response, currentVersion);
+            if (tokenVersion == null || tokenVersion < currentVersion) {
+                logger.warn("Stale permission matrix version in JWT (token={}, current={}) — forcing re-login",
+                        tokenVersion, currentVersion);
+                writeStaleResponse(response, currentVersion);
+                return;
+            }
+        } catch (Exception e) {
+            // BUGFIX (M07-JWT-500): JWT may be signed with a different secret
+            // (e.g. after backend restart with different profile), causing
+            // extractPermissionVersion to throw. Don't let this crash the filter
+            // chain with HTTP 500 — pass through unauthenticated so the user
+            // gets a proper 401/403 from downstream security checks.
+            logger.warn("Failed to verify permission version (JWT may be from a different backend instance): {}",
+                    e.getMessage());
+            filterChain.doFilter(request, response);
             return;
         }
 

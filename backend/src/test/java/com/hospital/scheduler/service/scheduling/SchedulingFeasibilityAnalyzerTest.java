@@ -134,6 +134,7 @@ class SchedulingFeasibilityAnalyzerTest {
 
     private void stubActiveStaff(List<Staff> staff) {
         when(staffRepository.findByIsActiveTrue()).thenReturn(staff);
+        when(staffRepository.findByIsActiveTrueWithSpecialty()).thenReturn(staff);
     }
 
     private void stubRequirements(List<ShiftRequirement> reqs) {

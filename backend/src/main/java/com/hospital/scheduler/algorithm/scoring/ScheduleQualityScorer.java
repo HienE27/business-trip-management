@@ -69,6 +69,19 @@ public class ScheduleQualityScorer {
     private double worstCv = 0.50;
 
     // ─────────────────────────────────────────────────────────────
+    // Fairness bucketing — L123 combined, L04 per-specialty (M05)
+    // ─────────────────────────────────────────────────────────────
+
+    /** Rarity boost cho L04 khi combine với L123 (L04 slots ít/ngày hơn nhiều). */
+    private static final double L04_RARITY_BOOST = 3.0;
+
+    /** Key trong fairnessByType map cho bucket L123 (L01+L02+L03 gộp). */
+    private static final String FAIRNESS_KEY_L123 = "L123";
+
+    /** Key trong fairnessByType map cho bucket L04 (per-specialty aggregate). */
+    private static final String FAIRNESS_KEY_L04 = "L04";
+
+    // ─────────────────────────────────────────────────────────────
     // Defaults — single source of truth for all three weights.
     // References: ScheduleQualityReport javadoc and test helpers.
     // ─────────────────────────────────────────────────────────────
@@ -335,9 +348,8 @@ public class ScheduleQualityScorer {
         // Count assigned per requirement key
         Map<String, Integer> assignedByReq = new HashMap<>();
         for (Schedule s : schedules) {
-            Integer reqId = s.getRequirement() != null ? s.getRequirement().getId() : null;
-            if (reqId == null) continue;  // skip orphan assignments
             ShiftRequirement r = s.getRequirement();
+            if (r == null) continue;  // skip orphan assignments (no requirement at all)
             String key = reqKey(r.getWorkDate(), r.getShiftType().getId(),
                                 r.getSpecialty() != null ? r.getSpecialty().getId() : null);
             assignedByReq.merge(key, 1, Integer::sum);
@@ -429,57 +441,119 @@ public class ScheduleQualityScorer {
                 .build();
         }
 
-        // Theo nghiệp vụ, L01/L02/L03 không bị giới hạn theo chuyên khoa.
-        // Eligibility = ALL_ELIGIBLE_SPECIALTIES (6 khoa: Ngoại, Nội, Sản, Nhi, Mắt, Răng).
-        // Chỉ L04 có cấu hình specialty động.
-        final Set<Integer> nonL04Eligible;
-        final Map<Integer, Set<Integer>> l04BySpec;
-        nonL04Eligible = StaffShiftTypeEligibility.eligibleStaffIdsForNonL04(activeStaff);
-        l04BySpec = cfg != null
-                ? StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff, cfg.l04AllowedSpecialties())
-                : StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff);
-
-        // Group schedules by (shiftType, [specialty])
-        Map<String, Map<Integer, Integer>> countsByTypeAndStaff = new HashMap<>();
+        // Per-staff totals & per-(staff, type) breakdown (kept for UI).
+        Map<Integer, Integer> totalByStaff = new HashMap<>();
+        Map<Integer, Map<String, Integer>> byStaffAndType = new HashMap<>();
         for (Schedule s : schedules) {
-            String typeId = s.getShiftType().getId();
-            String specialtyKey = "";
-            if (s.getRequirement() != null && s.getRequirement().getSpecialty() != null) {
-                specialtyKey = ":" + s.getRequirement().getSpecialty().getId();
-            }
-            String typeKey = typeId + specialtyKey;
-
-            int staffId = s.getStaff().getId();
-            countsByTypeAndStaff
-                .computeIfAbsent(typeKey, k -> new HashMap<>())
-                .merge(staffId, 1, Integer::sum);
+            int sid = s.getStaff().getId();
+            totalByStaff.merge(sid, 1, Integer::sum);
+            byStaffAndType
+                .computeIfAbsent(sid, k -> new HashMap<>())
+                .merge(s.getShiftType().getId(), 1, Integer::sum);
         }
 
+        // Bucket 1: L123 (L01+L02+L03 combined) — single global CV.
+        FairnessBucketResult l123 = computeFairnessL123(schedules, activeStaff);
+
+        // Bucket 2: L04 per specialty (M05) — weighted CV across specialties.
+        FairnessBucketResult l04 = computeFairnessL04(schedules, activeStaff, cfg);
+
+        // Combine: L123 weight=1, L04 weight=L04_RARITY_BOOST (rare slots).
+        double wL123 = 1.0;
+        double wL04 = L04_RARITY_BOOST;
+        double combinedFairness =
+                (wL123 * l123.fairnessPct() + wL04 * l04.fairnessPct()) / (wL123 + wL04);
+
         Map<String, ScheduleQualityReport.FairnessDetail> fairnessByType = new LinkedHashMap<>();
+        fairnessByType.put(FAIRNESS_KEY_L123, l123.detail());
+        fairnessByType.put(FAIRNESS_KEY_L04, l04.detail());
+
+        return FairnessResult.builder()
+            .overallFairnessPct(combinedFairness)
+            .byType(fairnessByType)
+            .totalShiftsByStaff(totalByStaff)
+            .shiftsByStaffAndType(byStaffAndType)
+            .build();
+    }
+
+    /** Result of a single fairness bucket (one per group: L123 or L04). */
+    private record FairnessBucketResult(
+            ScheduleQualityReport.FairnessDetail detail,
+            double fairnessPct) {}
+
+    /**
+     * L123 fairness: sum of L01+L02+L03 per staff across all eligible staff,
+     * single CV → 0-100 fairness score.
+     */
+    private FairnessBucketResult computeFairnessL123(
+            List<Schedule> schedules, List<Staff> activeStaff) {
+
+        Set<Integer> pool = StaffShiftTypeEligibility.eligibleStaffIdsForNonL04(activeStaff);
+
+        if (pool.isEmpty()) {
+            return new FairnessBucketResult(emptyFairnessDetail(FAIRNESS_KEY_L123), 100.0);
+        }
+
+        // Sum L01+L02+L03 per staff in pool
+        Map<Integer, Integer> l123ByStaff = new HashMap<>();
+        for (Schedule s : schedules) {
+            String typeId = s.getShiftType().getId();
+            if (!"L01".equals(typeId) && !"L02".equals(typeId) && !"L03".equals(typeId)) {
+                continue;
+            }
+            int sid = s.getStaff().getId();
+            if (!pool.contains(sid)) continue;
+            l123ByStaff.merge(sid, 1, Integer::sum);
+        }
+
+        ScheduleQualityReport.FairnessDetail detail =
+                computeCvFairnessDetail(FAIRNESS_KEY_L123, null, pool, l123ByStaff);
+        return new FairnessBucketResult(detail, detail.getFairnessPct());
+    }
+
+    /**
+     * L04 fairness: per-specialty CV (M05), then weighted average across specialties.
+     * Result aggregated into a single L04 FairnessDetail entry.
+     */
+    private FairnessBucketResult computeFairnessL04(
+            List<Schedule> schedules, List<Staff> activeStaff, AutoGenConfig cfg) {
+
+        Map<Integer, Set<Integer>> l04BySpec = cfg != null
+                ? StaffShiftTypeEligibility.getL04EligibilityBySpecialty(
+                        activeStaff, cfg.l04AllowedSpecialties(), cfg.l04CrossSpecialty())
+                : StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff);
+
+        if (l04BySpec.isEmpty()) {
+            return new FairnessBucketResult(emptyFairnessDetail(FAIRNESS_KEY_L04), 100.0);
+        }
+
+        // Group L04 schedules by specialty → staff counts
+        Map<Integer, Map<Integer, Integer>> l04BySpecAndStaff = new HashMap<>();
+        for (Schedule s : schedules) {
+            if (!"L04".equals(s.getShiftType().getId())) continue;
+            if (s.getRequirement() == null || s.getRequirement().getSpecialty() == null) continue;
+            Integer specId = s.getRequirement().getSpecialty().getId();
+            l04BySpecAndStaff
+                    .computeIfAbsent(specId, k -> new HashMap<>())
+                    .merge(s.getStaff().getId(), 1, Integer::sum);
+        }
+
         double totalCvWeighted = 0.0;
         int weightSum = 0;
+        int aggMax = 0, aggMin = Integer.MAX_VALUE;
+        long totalShifts = 0;
+        int totalPoolSize = 0;
 
-        for (String typeKey : countsByTypeAndStaff.keySet()) {
-            Map<Integer, Integer> perStaff = countsByTypeAndStaff.get(typeKey);
-
-            // Determine pool: for L04 with specialty, only staff in that specialty.
-            // For L01/L02/L03: only Bác sĩ / Điều dưỡng (other specialties cannot take these shifts).
-            String typeId = typeKey.split(":")[0];
-            Set<Integer> pool;
-            if ("L04".equals(typeId) && typeKey.contains(":")) {
-                Integer specId = Integer.parseInt(typeKey.split(":")[1]);
-                pool = l04BySpec.getOrDefault(specId, Set.of());
-            } else {
-                pool = nonL04Eligible;
-            }
-
+        for (Map.Entry<Integer, Set<Integer>> entry : l04BySpec.entrySet()) {
+            Integer specId = entry.getKey();
+            Set<Integer> pool = entry.getValue();
             if (pool.isEmpty()) continue;
 
+            Map<Integer, Integer> perStaff = l04BySpecAndStaff.getOrDefault(specId, Map.of());
             int poolSize = pool.size();
-            long totalForType = perStaff.values().stream().mapToInt(Integer::intValue).sum();
-            double mean = totalForType * 1.0 / poolSize;
+            long totalForSpec = perStaff.values().stream().mapToInt(Integer::intValue).sum();
+            double mean = poolSize > 0 ? totalForSpec * 1.0 / poolSize : 0.0;
 
-            // Variance includes zero-count staff (correct fairness measure)
             double sumSq = 0.0;
             int maxCount = 0, minCount = Integer.MAX_VALUE;
             for (Integer sid : pool) {
@@ -491,38 +565,73 @@ public class ScheduleQualityScorer {
             }
             if (minCount == Integer.MAX_VALUE) minCount = 0;
 
-            double variance = sumSq / poolSize;
+            double variance = poolSize > 0 ? sumSq / poolSize : 0.0;
             double stdDev = Math.sqrt(variance);
             double cv = mean > 0 ? stdDev / mean : 0.0;
 
-            // CV → fairness pct: piecewise linear
-            // CV ≤ targetCv → 100; CV ≥ worstCv → 0; otherwise linear
-            double fairnessPct;
-            if (cv <= targetCv) {
-                fairnessPct = 100.0;
-            } else if (cv >= worstCv) {
-                fairnessPct = 0.0;
-            } else {
-                double ratio = (cv - targetCv) / (worstCv - targetCv);
-                fairnessPct = 100.0 * (1.0 - ratio);
-            }
+            int weight = Math.max(1, (int) totalForSpec);
+            totalCvWeighted += cv * weight;
+            weightSum += weight;
+            totalShifts += totalForSpec;
+            totalPoolSize += poolSize;
+            if (maxCount > aggMax) aggMax = maxCount;
+            if (minCount < aggMin) aggMin = minCount;
+        }
 
-            String specialtyName = null;
-            if (typeKey.contains(":")) {
-                Integer specId = Integer.parseInt(typeKey.split(":")[1]);
-                // Try to derive specialty name from any staff
-                for (Schedule s : schedules) {
-                    if (s.getRequirement() != null
-                        && s.getRequirement().getSpecialty() != null
-                        && specId.equals(s.getRequirement().getSpecialty().getId())) {
-                        specialtyName = s.getRequirement().getSpecialty().getName();
-                        break;
-                    }
-                }
-            }
+        double overallCv = weightSum > 0 ? totalCvWeighted / weightSum : 0.0;
+        double overallFairness = cvToFairnessPct(overallCv);
+        double aggMean = totalPoolSize > 0 ? totalShifts * 1.0 / totalPoolSize : 0.0;
 
-            fairnessByType.put(typeKey, ScheduleQualityReport.FairnessDetail.builder()
-                .shiftTypeId(typeId)
+        ScheduleQualityReport.FairnessDetail detail = ScheduleQualityReport.FairnessDetail.builder()
+                .shiftTypeId(FAIRNESS_KEY_L04)
+                .specialtyName(null)
+                .mean(round(aggMean))
+                .stdDev(round(overallCv * aggMean))  // stdDev ≈ cv × mean (aggregate approximation)
+                .cv(round(overallCv))
+                .fairnessPct(round(overallFairness))
+                .maxCount(aggMax)
+                .minCount(aggMin == Integer.MAX_VALUE ? 0 : aggMin)
+                .maxDeviation(aggMax - (aggMin == Integer.MAX_VALUE ? 0 : aggMin))
+                .build();
+
+        return new FairnessBucketResult(detail, overallFairness);
+    }
+
+    /** CV → fairnessPct: piecewise linear (CV ≤ targetCv → 100; CV ≥ worstCv → 0). */
+    private double cvToFairnessPct(double cv) {
+        if (cv <= targetCv) return 100.0;
+        if (cv >= worstCv) return 0.0;
+        double ratio = (cv - targetCv) / (worstCv - targetCv);
+        return 100.0 * (1.0 - ratio);
+    }
+
+    /** Compute FairnessDetail from CV stats over a pool. */
+    private ScheduleQualityReport.FairnessDetail computeCvFairnessDetail(
+            String shiftTypeId, String specialtyName,
+            Set<Integer> pool, Map<Integer, Integer> countsByStaff) {
+
+        int poolSize = pool.size();
+        long total = countsByStaff.values().stream().mapToInt(Integer::intValue).sum();
+        double mean = poolSize > 0 ? total * 1.0 / poolSize : 0.0;
+
+        double sumSq = 0.0;
+        int maxCount = 0, minCount = Integer.MAX_VALUE;
+        for (Integer sid : pool) {
+            int c = countsByStaff.getOrDefault(sid, 0);
+            double diff = c - mean;
+            sumSq += diff * diff;
+            if (c > maxCount) maxCount = c;
+            if (c < minCount) minCount = c;
+        }
+        if (minCount == Integer.MAX_VALUE) minCount = 0;
+
+        double variance = poolSize > 0 ? sumSq / poolSize : 0.0;
+        double stdDev = Math.sqrt(variance);
+        double cv = mean > 0 ? stdDev / mean : 0.0;
+        double fairnessPct = cvToFairnessPct(cv);
+
+        return ScheduleQualityReport.FairnessDetail.builder()
+                .shiftTypeId(shiftTypeId)
                 .specialtyName(specialtyName)
                 .mean(round(mean))
                 .stdDev(round(stdDev))
@@ -531,42 +640,18 @@ public class ScheduleQualityScorer {
                 .maxCount(maxCount)
                 .minCount(minCount)
                 .maxDeviation(maxCount - minCount)
-                .build());
+                .build();
+    }
 
-            // Weight by total shifts in this type (more shifts → more impact)
-            int weight = Math.max(1, (int) totalForType);
-            totalCvWeighted += cv * weight;
-            weightSum += weight;
-        }
-
-        double overallCv = weightSum > 0 ? totalCvWeighted / weightSum : 0.0;
-        double overallFairness;
-        if (overallCv <= targetCv) {
-            overallFairness = 100.0;
-        } else if (overallCv >= worstCv) {
-            overallFairness = 0.0;
-        } else {
-            double ratio = (overallCv - targetCv) / (worstCv - targetCv);
-            overallFairness = 100.0 * (1.0 - ratio);
-        }
-
-        // Per-staff totals & per-(staff, type) breakdown
-        Map<Integer, Integer> totalByStaff = new HashMap<>();
-        Map<Integer, Map<String, Integer>> byStaffAndType = new HashMap<>();
-        for (Schedule s : schedules) {
-            int sid = s.getStaff().getId();
-            totalByStaff.merge(sid, 1, Integer::sum);
-            byStaffAndType
-                .computeIfAbsent(sid, k -> new HashMap<>())
-                .merge(s.getShiftType().getId(), 1, Integer::sum);
-        }
-
-        return FairnessResult.builder()
-            .overallFairnessPct(overallFairness)
-            .byType(fairnessByType)
-            .totalShiftsByStaff(totalByStaff)
-            .shiftsByStaffAndType(byStaffAndType)
-            .build();
+    /** Empty FairnessDetail (no constraints violated → 100). */
+    private ScheduleQualityReport.FairnessDetail emptyFairnessDetail(String shiftTypeId) {
+        return ScheduleQualityReport.FairnessDetail.builder()
+                .shiftTypeId(shiftTypeId)
+                .specialtyName(null)
+                .mean(0).stdDev(0).cv(0)
+                .fairnessPct(100.0)
+                .maxCount(0).minCount(0).maxDeviation(0)
+                .build();
     }
 
     // ─────────────────────────────────────────────────────────────

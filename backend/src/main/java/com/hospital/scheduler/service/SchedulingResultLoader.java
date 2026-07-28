@@ -19,7 +19,7 @@ class SchedulingResultLoader {
     SchedulingResult loadPreviousFromDb(Integer periodId, ScheduleRepository scheduleRepository) {
         Map<String, String> map = new HashMap<>();
         for (Schedule s : scheduleRepository.findByPeriodId(periodId)) {
-            map.put(s.getStaff().getId() + "_" + s.getWorkDate().toString(),
+            map.put(s.getStaff().getId() + "_" + s.getWorkDate().toString() + "_" + s.getShiftType().getId(),
                     s.getShiftType().getId());
         }
         if (map.isEmpty()) {

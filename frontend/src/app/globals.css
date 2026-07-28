@@ -79,6 +79,12 @@
   --color-error-container: #ffdad6;
   --color-on-error-container: #93000a;
 
+  /* ── Warning ── */
+  --color-warning: #b45309;
+  --color-on-warning: #ffffff;
+  --color-warning-container: #fef3c7;
+  --color-on-warning-container: #78350f;
+
   /* ── Surface (Light — overridden in dark mode) ── */
   --color-surface: #f7f9fb;
   --color-surface-bright: #f7f9fb;
@@ -169,6 +175,12 @@
     /* Primary Container Dark Mode */
     --color-primary-container:          #1e3a5f;
     --color-on-primary-container:       #dbeafe;
+
+    /* Warning Dark Mode */
+    --color-warning:                   #f59e0b;
+    --color-on-warning:                #1a1c22;
+    --color-warning-container:          #451a03;
+    --color-on-warning-container:       #fde68a;
   }
 }
 
@@ -205,6 +217,12 @@
     /* Primary Container Dark Mode */
     --color-primary-container:          #1e3a5f;
     --color-on-primary-container:       #dbeafe;
+
+    /* Warning Dark Mode */
+    --color-warning:                   #f59e0b;
+    --color-on-warning:                #1a1c22;
+    --color-warning-container:          #451a03;
+    --color-on-warning-container:       #fde68a;
 }
 
 [data-theme="dark"] .dark\:surface-lowest    { background-color: var(--color-surface-container-lowest); }
@@ -251,6 +269,12 @@ html.dark {
     /* Primary Container Dark Mode */
     --color-primary-container:          #1e3a5f;
     --color-on-primary-container:       #dbeafe;
+
+    /* Warning Dark Mode */
+    --color-warning:                   #f59e0b;
+    --color-on-warning:                #1a1c22;
+    --color-warning-container:          #451a03;
+    --color-on-warning-container:       #fde68a;
 }
 
 /* Dark mode surface utility classes */

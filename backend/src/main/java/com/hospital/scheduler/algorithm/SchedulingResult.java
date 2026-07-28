@@ -30,6 +30,14 @@ public class SchedulingResult {
     private Set<String> compensationDays = new HashSet<>();
 
     /**
+     * Map từ (staffId|workDate) → compensationDate cho L01 assignments.
+     * Được CSP result builder điền để post-processing (runCsp) dùng
+     * đúng ngày nghỉ bù mà CSP đã chọn (flexible cho T6/T7).
+     */
+    @Builder.Default
+    private Map<String, LocalDate> l01CompensationDateMap = new HashMap<>();
+
+    /**
      * Danh sách lỗi/xung đột (nếu có)
      */
     @Builder.Default
@@ -145,16 +153,27 @@ public class SchedulingResult {
      * Thêm một assignment.
      */
     public void addAssignment(Integer staffId, LocalDate workDate, String shiftTypeId) {
-        String key = staffId + "_" + workDate.toString();
+        String key = staffId + "_" + workDate.toString() + "_" + shiftTypeId;
         assignments.put(key, shiftTypeId);
     }
 
     /**
-     * Lấy assignment.
+     * Lấy assignment (theo shiftType).
+     */
+    public String getAssignment(Integer staffId, LocalDate workDate, String shiftTypeId) {
+        String key = staffId + "_" + workDate.toString() + "_" + shiftTypeId;
+        return assignments.get(key);
+    }
+
+    /**
+     * Lấy assignment (không shiftType — trả về shiftType đầu tìm thấy).
      */
     public String getAssignment(Integer staffId, LocalDate workDate) {
-        String key = staffId + "_" + workDate.toString();
-        return assignments.get(key);
+        String prefix = staffId + "_" + workDate.toString() + "_";
+        return assignments.entrySet().stream()
+                .filter(e -> e.getKey().startsWith(prefix))
+                .map(Map.Entry::getValue)
+                .findFirst().orElse(null);
     }
 
     /**

@@ -30,7 +30,6 @@ import { BusinessRulesCard } from "./BusinessRulesCard";
 import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
-import { AutoCalculateDialog, type AutoCalculateResult, type AutoCalculateInput } from "./AutoCalculateDialog";
 import type { DashboardData, DashboardSummary, ShiftStatistics } from "@/types/api";
 
 type Props = { onSaved?: () => void };
@@ -46,8 +45,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const [customPresets, setCustomPresets] = useState<Record<string, { label: string; tagline: string; config: Partial<RuntimeConfig> }>>({});
   const [showDiff, setShowDiff] = useState(false);
   const [sandboxOpen, setSandboxOpen] = useState(false);
-  const [autoCalcOpen, setAutoCalcOpen] = useState(false);
-  const [savedCalcPresets, setSavedCalcPresets] = useState<{ id: string; name: string; config: AutoCalculateInput }[]>([]);
   const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
   const [scheduleStats, setScheduleStats] = useState<{
     totalStaff: number;
@@ -59,27 +56,21 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, resAutoGen, specialtiesRes, dashboardRes] = await Promise.all([
-        api.getRuntimeConfig(),
-        api.getAutoGenConfig(),
-        api.getActiveSpecialties(),
-        api.getDashboard(),
-      ]);
-      // unwrapped by api-client interceptor
-      // The backend returns the full RuntimeConfig object; the api-client method
-      // is declared with only a subset of fields to avoid coupling to backend
-      // schema drift, but the runtime object actually carries the whole shape.
-      // Cast through unknown to bridge the two views safely.
-      // BUG-CARD-NO-PERSIST: api-client.getRuntimeConfig() / getAutoGenConfig()
-      // return the full ApiResponse envelope (because they call this.request
-      // directly instead of this.get), so we MUST unwrap `.data` before
-      // feeding the values into mergeRuntimeAndAutoGen(). Without this, the
-      // merged config is empty, the form fields fall back to 0, and any save
-      // overwrites the user's persisted values with zeros.
-      const runtimeResp = res as unknown as { data?: RuntimeConfig };
-      const autoGenResp = resAutoGen as unknown as { data?: RuntimeConfig };
-      const data = (runtimeResp.data ?? (res as unknown as RuntimeConfig)) as RuntimeConfig;
-      const autoGen = (autoGenResp.data ?? (resAutoGen as unknown as RuntimeConfig)) as RuntimeConfig;
+	      const [runtimeResp, autoGenResp, specialtiesRes, dashboardRes] = await Promise.all([
+	        api.getRuntimeConfig(),
+	        api.getAutoGenConfig(),
+	        api.getActiveSpecialties(),
+	        api.getDashboard(),
+	      ]);
+	      // BUG-CARD-NO-PERSIST fix: unwrap ApiResponse.data envelope.
+	      // The api-client methods return the FULL ApiResponse<T> (with .data wrapping),
+	      // not T directly — so we must read .data to get the actual config object.
+	      // `as any` is safe here because we know the runtime shape at runtime even
+	      // though the TypeScript return types are under-specified.
+	      const resAny = runtimeResp as any;
+	      const data = (resAny.data ?? resAny) as RuntimeConfig;
+	      const autoGenAny = autoGenResp as any;
+	      const autoGen = (autoGenAny.data ?? autoGenAny) as RuntimeConfig;
       const specialties = ((specialtiesRes as { data?: Array<{ name: string }> })?.data ?? []).map((s) => s.name);
       const summary = (dashboardRes as { summary?: { totalStaff: number } })?.summary ?? { totalStaff: 0 };
       const shiftStats = (dashboardRes as { shiftStatistics?: ShiftStatistics })?.shiftStatistics;
@@ -101,7 +92,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l03MinPerDay: merged.l03MinPerDay,
         l04MinPerDay: merged.l04MinPerDay,
         l01MaxPerDay: merged.l01MaxPerDay,
-        l01MaxPerWeek: merged.l01MaxPerWeek,
       }));
       // Strip legacy "__NONE__" sentinels that may have leaked into the
       // persisted allowlist via the older "Bỏ chọn tất cả" button. The
@@ -217,27 +207,23 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     setSaving(true);
     try {
       const autoGenPayload = {
-        enabled: true,
+        enabled: form.enabled ?? true,  // BUGFIX: was hardcoded true — now reads from API/form
         holidayMode: form.holidayMode ?? "SKIP",
         // BUG-CARD-NO-PERSIST: log form snapshot at save time so we can
         // confirm whether the form state held the loaded values or had been
         // reset to 0 by some re-render path before this point.
-        l01MinPerDay: form.l01MinPerDay ?? 0,
-        l02MinPerDay: form.l02MinPerDay ?? 0,
-        l03MinPerDay: form.l03MinPerDay ?? 0,
-        l04MinPerDay: form.l04MinPerDay ?? 0,
+        l01MinPerDay: form.l01MinPerDay ?? 1,
+        l02MinPerDay: form.l02MinPerDay ?? 1,
+        l03MinPerDay: form.l03MinPerDay ?? 1,
+        l04MinPerDay: form.l04MinPerDay ?? 1,
         l01MaxPerDay: form.l01MaxPerDay ?? 0,
         l02MaxPerDay: form.l02MaxPerDay ?? 0,
         l03MaxPerDay: form.l03MaxPerDay ?? 0,
         l04MaxPerDay: form.l04MaxPerDay ?? 0,
-        l01MinPerWeek: form.l01MinPerWeek ?? 0,
-        l02MinPerWeek: form.l02MinPerWeek ?? 0,
-        l03MinPerWeek: form.l03MinPerWeek ?? 0,
-        l04MinPerWeek: form.l04MinPerWeek ?? 0,
-        l01MaxPerWeek: form.l01MaxPerWeek ?? 0,
-        l02MaxPerWeek: form.l02MaxPerWeek ?? 0,
-        l03MaxPerWeek: form.l03MaxPerWeek ?? 0,
-        l04MaxPerWeek: form.l04MaxPerWeek ?? 0,
+        l01MaxPerWeek: (form as any).l01MaxPerWeek ?? 0,
+        l02MaxPerWeek: (form as any).l02MaxPerWeek ?? 0,
+        l03MaxPerWeek: (form as any).l03MaxPerWeek ?? 0,
+        l04MaxPerWeek: (form as any).l04MaxPerWeek ?? 0,
         removedShiftTypes: form.removedShiftTypes ?? [],
         // L04 cross-specialty (L01/L02/L03 reserved for future use — currently unused).
         // Strip any "__NONE__" sentinel that may have leaked into form state
@@ -250,18 +236,14 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       };
       // Runtime config: only the fields the backend DTO accepts
       const runtimePayload = {
-        weekendWeight: form.weekendWeight ?? 1,
+        weekendWeight: form.weekendWeight ?? 2,
         overnightRecoveryHours: form.overnightRecoveryHours ?? 24,
-        greedyCoverageThreshold: form.greedyCoverageThreshold ?? 0.95,
-        balanceScoreMin: form.balanceScoreMin ?? 0.6,
+        greedyCoverageThreshold: form.greedyCoverageThreshold ?? 0.85,
+        balanceScoreMin: form.balanceScoreMin ?? 0.7,
         minStaffPerShift: form.minStaffPerShift ?? 0,
         maxStaffPerShift: form.maxStaffPerShift ?? 0,
         minShiftsPerStaff: form.minShiftsPerStaff ?? 0,
-        maxShiftsPerStaff: form.maxShiftsPerStaff ?? 0,
-        l01MaxPerWeek: form.l01MaxPerWeek ?? 0,
-        l02MaxPerWeek: form.l02MaxPerWeek ?? 0,
-        l03MaxPerWeek: form.l03MaxPerWeek ?? 0,
-        l04MaxPerWeek: form.l04MaxPerWeek ?? 0,
+        maxShiftsPerStaff: form.maxShiftsPerStaff ?? 30,
       };
       // Sequential: save runtime-config then auto-gen-config to avoid
       // concurrent lock contention on the algorithm_config table.
@@ -275,7 +257,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           l03MinPerDay: form.l03MinPerDay,
           l04MinPerDay: form.l04MinPerDay,
           l01MaxPerDay: form.l01MaxPerDay,
-          l01MaxPerWeek: form.l01MaxPerWeek,
         },
         autoGenPayload,
         runtimePayload,
@@ -295,12 +276,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
 
   function setField<K extends keyof RuntimeConfig>(key: K, value: RuntimeConfig[K]) {
     setForm(prev => prev ? { ...prev, [key]: value } : prev);
-  }
-
-  function handleAutoCalculate(result: AutoCalculateResult) {
-    setForm(prev => prev ? { ...prev, ...result } : prev);
-    setEditing(true);
-    success("Đã áp dụng giá trị tự động tính. Nhấn 'Lưu thay đổi' để lưu vào DB.");
   }
 
   function handleSaveCustomPreset(key: PresetKey, name: string, config: Partial<RuntimeConfig>) {
@@ -520,12 +495,12 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setAutoCalcOpen(true)}
+            onClick={() => window.location.href = "/auto-scheduling/configuration-calculator"}
             icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">calculate</span>}
             className="rounded-full !bg-primary-fixed !text-primary !border !border-primary/20 hover:!bg-primary/10 px-2.5 py-1 text-[11px]"
-            title="Tự động tính toán min/max từ mục tiêu ca/người/tháng"
+            title="Mở Configuration Calculator để phân tích capacity dựa trên thuật toán thật"
           >
-            Tự động tính
+            Configuration Calculator
           </Button>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -560,42 +535,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         presets={ALGORITHM_PRESETS as unknown as Record<string, PresetEntry>}
         currentConfig={(form ?? config) as unknown as Record<string, number | boolean | string>}
         onApply={(preset) => applyPreset(preset.key as PresetKey)}
-      />
-
-      <AutoCalculateDialog
-        open={autoCalcOpen}
-        onClose={() => setAutoCalcOpen(false)}
-        onApply={handleAutoCalculate}
-        onSavePreset={(name, config) => {
-          const id = `preset-${Date.now()}`;
-          setSavedCalcPresets(prev => [...prev, { id, name, config }]);
-          success(`Đã lưu preset "${name}"`);
-        }}
-        savedPresets={savedCalcPresets}
-        initialValues={{
-          periodDays: 30,
-          periodWeeks: 4,
-          targetsPerStaffPerMonth: { L01: 7, L02: 8, L03: 9, L04: 16 },
-          eligibleStaff: { L01: 8, L02: 8, L03: 8, L04: 20 },
-        }}
-        currentConfig={form ? {
-          l01MinPerDay: Number(form.l01MinPerDay ?? 1),
-          l01MaxPerDay: Number(form.l01MaxPerDay ?? 3),
-          l01MinPerWeek: Number(form.l01MinPerWeek ?? 2),
-          l01MaxPerWeek: Number(form.l01MaxPerWeek ?? 3),
-          l02MinPerDay: Number(form.l02MinPerDay ?? 1),
-          l02MaxPerDay: Number(form.l02MaxPerDay ?? 3),
-          l02MinPerWeek: Number(form.l02MinPerWeek ?? 2),
-          l02MaxPerWeek: Number(form.l02MaxPerWeek ?? 3),
-          l03MinPerDay: Number(form.l03MinPerDay ?? 1),
-          l03MaxPerDay: Number(form.l03MaxPerDay ?? 3),
-          l03MinPerWeek: Number(form.l03MinPerWeek ?? 2),
-          l03MaxPerWeek: Number(form.l03MaxPerWeek ?? 3),
-          l04MinPerDay: Number(form.l04MinPerDay ?? 1),
-          l04MaxPerDay: Number(form.l04MaxPerDay ?? 10),
-          l04MinPerWeek: Number(form.l04MinPerWeek ?? 4),
-          l04MaxPerWeek: Number(form.l04MaxPerWeek ?? 6),
-        } : null}
       />
     </div>
   );

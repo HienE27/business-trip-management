@@ -149,12 +149,12 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col min-w-0 leading-tight">
-                  <span className={`flex items-center gap-1 font-mono text-[10px] font-semibold px-1 py-0.5 rounded w-fit ${
+                  <span className={`flex items-center gap-1 font-mono text-[11px] font-bold px-1.5 py-0.5 rounded w-fit ${
                     param.endsWith("MinPerDay")
-                      ? "bg-secondary-container/70 text-on-secondary-container"
+                      ? "bg-emerald-50 text-emerald-700"
                       : param.endsWith("MaxPerDay")
-                      ? "bg-amber-100 text-amber-800"
-                      : "bg-error-container/70 text-on-error-container"
+                      ? "bg-yellow-50 text-yellow-700"
+                      : "bg-pink-50 text-pink-700"
                   }`}>
                     <span className="material-symbols-outlined text-[10px] shrink-0" aria-hidden="true">{iconName}</span>
                     {label}
@@ -173,7 +173,7 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
                       onChange={(v) => onChange(param, v)}
                     />
                   ) : (
-                    <span className="font-mono text-xs font-bold text-on-surface w-10 text-right shrink-0 tabular-nums">{display}</span>
+                    <span className="text-[15px] font-semibold text-on-surface text-right shrink-0 tabular-nums">{display}</span>
                   )}
                 </div>
               </div>
@@ -205,10 +205,10 @@ function getCrossFieldValidation(
   value: number,
   form: RuntimeConfig,
 ): ValidationResult | null {
-  const isMin = param.endsWith("MinPerDay") || param.endsWith("MinPerWeek");
-  const isMax = param.endsWith("MaxPerDay") || param.endsWith("MaxPerWeek");
+  const isMin = param.endsWith("MinPerDay");
+  const isMax = param.endsWith("MaxPerDay");
   if (!isMin && !isMax) return null;
-  const scope = param.endsWith("Day") ? "ngày" : "tuần";
+  const scope = "ngày";
   const counterpartKey = isMin
     ? param.replace("MinPer", "MaxPer")
     : param.replace("MaxPer", "MinPer");

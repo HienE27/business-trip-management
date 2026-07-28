@@ -8,8 +8,8 @@ type Props = {
 };
 
 const OPTIONS = [
-  { value: "SKIP", label: "SKIP — Bỏ qua" },
-  { value: "PARTIAL", label: "PARTIAL — Giảm" },
+  { value: "SKIP", label: "SKIP — Bỏ qua (0 ca ngày lễ)" },
+  { value: "PARTIAL", label: "PARTIAL — Xếp đủ như ngày thường" },
 ];
 
 export function HolidayModeField({ desc, value, editing, onChange }: Props) {

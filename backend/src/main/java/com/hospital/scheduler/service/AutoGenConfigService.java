@@ -45,14 +45,10 @@ public class AutoGenConfigService {
         crud.upsert(AlgorithmConfigService.AUTO_GEN_L02_MAX_PER_DAY, String.valueOf(config.l02MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L02 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
         crud.upsert(AlgorithmConfigService.AUTO_GEN_L03_MAX_PER_DAY, String.valueOf(config.l03MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L03 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
         crud.upsert(AlgorithmConfigService.AUTO_GEN_L04_MAX_PER_DAY, String.valueOf(config.l04MaxPerDay()), AlgorithmConfig.ValueType.NUMBER, "Trần khuyến nghị L04 mỗi ngày/chuyên khoa khi sinh mục tiêu. 0 = không đặt trần.");
-        crud.upsert(AlgorithmConfigService.AUTO_GEN_L01_MIN_PER_WEEK, String.valueOf(config.l01MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L01 tối thiểu mỗi người mỗi tuần.");
-        crud.upsert(AlgorithmConfigService.AUTO_GEN_L02_MIN_PER_WEEK, String.valueOf(config.l02MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L02 tối thiểu mỗi người mỗi tuần.");
-        crud.upsert(AlgorithmConfigService.AUTO_GEN_L03_MIN_PER_WEEK, String.valueOf(config.l03MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L03 tối thiểu mỗi người mỗi tuần.");
-        crud.upsert(AlgorithmConfigService.AUTO_GEN_L04_MIN_PER_WEEK, String.valueOf(config.l04MinPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L04 tối thiểu mỗi người mỗi tuần.");
-        crud.upsert(AlgorithmConfigService.AUTO_GEN_L01_MAX_PER_WEEK, String.valueOf(config.l01MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L01 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        crud.upsert(AlgorithmConfigService.AUTO_GEN_L02_MAX_PER_WEEK, String.valueOf(config.l02MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L02 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        crud.upsert(AlgorithmConfigService.AUTO_GEN_L03_MAX_PER_WEEK, String.valueOf(config.l03MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L03 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        crud.upsert(AlgorithmConfigService.AUTO_GEN_L04_MAX_PER_WEEK, String.valueOf(config.l04MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Số ca L04 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
+        crud.upsert(AlgorithmConfigService.AUTO_GEN_L01_MAX_PER_WEEK, String.valueOf(config.l01MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Trần tối đa số ca L01 mỗi nhân sự trong 1 tuần. 0 = không giới hạn.");
+        crud.upsert(AlgorithmConfigService.AUTO_GEN_L02_MAX_PER_WEEK, String.valueOf(config.l02MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Trần tối đa số ca L02 mỗi nhân sự trong 1 tuần. 0 = không giới hạn.");
+        crud.upsert(AlgorithmConfigService.AUTO_GEN_L03_MAX_PER_WEEK, String.valueOf(config.l03MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Trần tối đa số ca L03 mỗi nhân sự trong 1 tuần. 0 = không giới hạn.");
+        crud.upsert(AlgorithmConfigService.AUTO_GEN_L04_MAX_PER_WEEK, String.valueOf(config.l04MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER, "Trần tối đa số ca L04 mỗi nhân sự trong 1 tuần. 0 = không giới hạn.");
         crud.upsert(AlgorithmConfigService.AUTO_GEN_HOLIDAY_MODE, config.holidayMode(), AlgorithmConfig.ValueType.STRING,
                 "Xử lý ngày lễ: SKIP = bỏ qua, PARTIAL = giảm cường độ.");
         String removedCsv = config.removedShiftTypes() == null
@@ -87,10 +83,6 @@ public class AutoGenConfigService {
                 crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L02_MAX_PER_DAY, 0, cache),
                 crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L03_MAX_PER_DAY, 0, cache),
                 crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L04_MAX_PER_DAY, 0, cache),
-                crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L01_MIN_PER_WEEK, 1, cache),
-                crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L02_MIN_PER_WEEK, 2, cache),
-                crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L03_MIN_PER_WEEK, 1, cache),
-                crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L04_MIN_PER_WEEK, 1, cache),
                 crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L01_MAX_PER_WEEK, 0, cache),
                 crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L02_MAX_PER_WEEK, 0, cache),
                 crud.getIntValue(AlgorithmConfigService.AUTO_GEN_L03_MAX_PER_WEEK, 0, cache),
@@ -99,7 +91,7 @@ public class AutoGenConfigService {
                 crud.getStringListValue(AlgorithmConfigService.AUTO_GEN_REMOVED_SHIFT_TYPES, cache),
                 // L01/L02/L03: không có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
                 // L04: có specialty config
-                crud.getBooleanValue(AlgorithmConfigService.AUTO_GEN_L04_CROSS_SPECIALTY, true, cache),
+                crud.getBooleanValue(AlgorithmConfigService.AUTO_GEN_L04_CROSS_SPECIALTY, false, cache),
                 crud.getFloatValue(AlgorithmConfigService.AUTO_GEN_L04_CROSS_SPECIALTY_RATIO, 0.5f, cache),
                 crud.getStringListValue(AlgorithmConfigService.AUTO_GEN_L04_ALLOWED_SPECIALTIES, cache),
                 crud.getStringValue(AlgorithmConfigService.AUTO_GEN_L04_BALANCE_STRATEGY, AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE, cache)

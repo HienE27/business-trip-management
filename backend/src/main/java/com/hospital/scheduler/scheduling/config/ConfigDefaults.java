@@ -40,26 +40,18 @@ public final class ConfigDefaults {
     // COVERAGE - L01
     public static final int     L01_MIN_PER_DAY               = 1;
     public static final int     L01_MAX_PER_DAY               = 10;
-    public static final int     L01_MIN_PER_WEEK              = 1;
-    public static final int     L01_MAX_PER_WEEK              = 3;
 
     // COVERAGE - L02
     public static final int     L02_MIN_PER_DAY               = 1;
     public static final int     L02_MAX_PER_DAY               = 10;
-    public static final int     L02_MIN_PER_WEEK              = 1;
-    public static final int     L02_MAX_PER_WEEK              = 3;
 
     // COVERAGE - L03
     public static final int     L03_MIN_PER_DAY               = 1;
     public static final int     L03_MAX_PER_DAY               = 10;
-    public static final int     L03_MIN_PER_WEEK              = 1;
-    public static final int     L03_MAX_PER_WEEK              = 3;
 
     // COVERAGE - L04
     public static final int     L04_MIN_PER_DAY               = 1;
     public static final int     L04_MAX_PER_DAY               = 10;
-    public static final int     L04_MIN_PER_WEEK              = 1;
-    public static final int     L04_MAX_PER_WEEK              = 3;
 
     // L04 CROSS-SPECIALTY
     public static final boolean L04_CROSS_SPECIALTY_ENABLED   = false;
@@ -73,7 +65,7 @@ public final class ConfigDefaults {
     public static final int     MIN_STAFF_PER_SHIFT           = 0;
     public static final int     MAX_STAFF_PER_SHIFT           = 0;
     public static final int     MIN_SHIFTS_PER_STAFF          = 0;
-    public static final int     MAX_SHIFTS_PER_STAFF          = 0;
+    public static final int     MAX_SHIFTS_PER_STAFF          = 30;
 
     // PERFORMANCE
     public static final int     TIME_LIMIT_SECONDS            = 60;
@@ -106,13 +98,9 @@ public final class ConfigDefaults {
                 .cvWorst(CV_WORST)
                 .weekendWeight(WEEKEND_WEIGHT)
                 .l01MinPerDay(L01_MIN_PER_DAY).l01MaxPerDay(L01_MAX_PER_DAY)
-                .l01MinPerWeek(L01_MIN_PER_WEEK).l01MaxPerWeek(L01_MAX_PER_WEEK)
                 .l02MinPerDay(L02_MIN_PER_DAY).l02MaxPerDay(L02_MAX_PER_DAY)
-                .l02MinPerWeek(L02_MIN_PER_WEEK).l02MaxPerWeek(L02_MAX_PER_WEEK)
                 .l03MinPerDay(L03_MIN_PER_DAY).l03MaxPerDay(L03_MAX_PER_DAY)
-                .l03MinPerWeek(L03_MIN_PER_WEEK).l03MaxPerWeek(L03_MAX_PER_WEEK)
                 .l04MinPerDay(L04_MIN_PER_DAY).l04MaxPerDay(L04_MAX_PER_DAY)
-                .l04MinPerWeek(L04_MIN_PER_WEEK).l04MaxPerWeek(L04_MAX_PER_WEEK)
                 .l04CrossSpecialtyEnabled(L04_CROSS_SPECIALTY_ENABLED)
                 .l04CrossSpecialtyRatio(L04_CROSS_SPECIALTY_RATIO)
                 .l04AllowedSpecialties(L04_ALLOWED_SPECIALTIES)

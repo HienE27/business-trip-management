@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -18,9 +20,12 @@ import java.util.stream.Collectors;
  * - Tuesday duty    → Wednesday (next day)
  * - Wednesday duty  → Thursday (next day)
  * - Thursday duty   → Friday (next day)
- * - Friday duty     → Tuesday NEXT WEEK (skip Mon, skip Fri)
- * - Saturday duty   → Tuesday NEXT WEEK (skip Mon, skip Fri)
+ * - Friday duty     → Tuesday/Wednesday/Thursday NEXT WEEK (skip Mon, skip Fri)
+ * - Saturday duty   → Tuesday/Wednesday/Thursday NEXT WEEK (skip Mon, skip Fri)
  * - Sunday duty     → Monday (next day)
+ *
+ * {@link #calculate(LocalDate)} returns the default day (Tuesday for Fri/Sat).
+ * {@link #calculateAll(LocalDate)} returns ALL valid options for flexibility.
  *
  * If the computed compensation date falls on a holiday:
  * - For Mon–Thu/Sun duty: shift to next non-holiday weekday (Mon/Fri are allowed)
@@ -33,13 +38,44 @@ public class CompensationDateCalculator {
     private final HolidayRepository holidayRepository;
 
     /**
-     * Calculate compensation date for a given shift date.
+     * Calculate the default compensation date for a given shift date.
+     * For Fri/Sat duty this returns Tuesday of next week (the most common choice).
      * Handles holiday avoidance per spec.
      */
     public LocalDate calculate(LocalDate shiftDate) {
         LocalDate raw = computeBase(shiftDate);
         boolean isFriOrSatDuty = isFriOrSatDuty(shiftDate);
-        return advancePastHolidayOrInvalidDay(raw, isFriOrSatDuty);
+        return advancePastHolidayOrInvalidDay(raw, isFriOrSatDuty, null);
+    }
+
+    /**
+     * Calculate ALL valid compensation dates for a given shift date.
+     * For Fri/Sat duty this returns {Tue, Wed, Thu} of next week.
+     * For Mon–Thu/Sun duty this returns a single-element set (same as
+     * {@link #calculate}).
+     *
+     * <p>Use by scheduling algorithms that want to pick the best option
+     * based on load (e.g. least-conflicted day).
+     */
+    public Set<LocalDate> calculateAll(LocalDate shiftDate) {
+        Set<LocalDate> bases = computeBases(shiftDate);
+        if (bases.isEmpty()) return Collections.emptySet();
+        boolean isFriOrSatDuty = isFriOrSatDuty(shiftDate);
+
+        Set<LocalDate> holidays = holidayRepository
+                .findActiveHolidaysBetween(
+                        bases.iterator().next(),
+                        bases.iterator().next().plusYears(1))
+                .stream()
+                .map(Holiday::getHolidayDate)
+                .collect(Collectors.toSet());
+
+        Set<LocalDate> result = new LinkedHashSet<>();
+        for (LocalDate raw : bases) {
+            LocalDate adjusted = advancePastHolidayOrInvalidDay(raw, isFriOrSatDuty, holidays);
+            result.add(adjusted);
+        }
+        return result;
     }
 
     /**
@@ -61,28 +97,46 @@ public class CompensationDateCalculator {
 
     /**
      * Core base-date computation — no holiday awareness.
-     * Per spec:
-     * - Mon/Tue/Wed/Thu duty → next day (same week)
-     * - Friday duty → Tuesday of NEXT week (skip Mon, skip Fri of current week)
-     * - Saturday duty → Tuesday of NEXT week (skip Mon, skip Fri)
-     * - Sunday duty → Monday next day
+     * Returns the single default date.
      */
     private LocalDate computeBase(LocalDate shiftDate) {
         DayOfWeek dow = shiftDate.getDayOfWeek();
         return switch (dow) {
             case MONDAY, TUESDAY, WEDNESDAY, THURSDAY -> shiftDate.plusDays(1);
-            case FRIDAY -> {
-                // Friday → Thứ 3 TUẦN SAU (spec: "Thứ 3 tuần sau - bỏ T2, T6")
-                // Jun 5 (Fri) + 4 days = Jun 9 (Tue next week)
-                yield findNextDayOfWeek(shiftDate.plusDays(4), DayOfWeek.TUESDAY);
-            }
-            case SATURDAY -> {
-                // Saturday → Thứ 3 TUẦN SAU (spec: "Thứ 3 tuần sau - bỏ T2, T6")
-                // Jun 6 (Sat) + 3 days = Jun 9 (Tue next week)
-                yield findNextDayOfWeek(shiftDate.plusDays(3), DayOfWeek.TUESDAY);
-            }
+            case FRIDAY -> findNextDayOfWeek(shiftDate.plusDays(4), DayOfWeek.TUESDAY);
+            case SATURDAY -> findNextDayOfWeek(shiftDate.plusDays(3), DayOfWeek.TUESDAY);
             case SUNDAY -> findNextDayOfWeek(shiftDate.plusDays(1), DayOfWeek.MONDAY);
         };
+    }
+
+    /**
+     * Return ALL valid base compensation dates (no holiday awareness).
+     * For Fri/Sat duty: Tue, Wed, Thu of next week (Mon and Fri excluded).
+     * For others: same as {@link #computeBase} (single option).
+     */
+    private Set<LocalDate> computeBases(LocalDate shiftDate) {
+        DayOfWeek dow = shiftDate.getDayOfWeek();
+        Set<LocalDate> result = new LinkedHashSet<>();
+        switch (dow) {
+            case MONDAY, TUESDAY, WEDNESDAY, THURSDAY, SUNDAY -> result.add(computeBase(shiftDate));
+            case FRIDAY -> {
+                // Next-week Monday, then add Tue, Wed, Thu (skip Mon is excluded anyway)
+                LocalDate nextMonday = shiftDate.plusDays(3); // Sat → Sun → Mon
+                // Actually Fri + 3 = Mon next week
+                LocalDate monday = shiftDate.plusDays(3);
+                for (int i = 1; i <= 3; i++) { // Tue(1), Wed(2), Thu(3)
+                    result.add(monday.plusDays(i));
+                }
+            }
+            case SATURDAY -> {
+                // Sat + 2 = Mon next week
+                LocalDate monday = shiftDate.plusDays(2);
+                for (int i = 1; i <= 3; i++) { // Tue(1), Wed(2), Thu(3)
+                    result.add(monday.plusDays(i));
+                }
+            }
+        }
+        return result;
     }
 
     /**
@@ -105,28 +159,25 @@ public class CompensationDateCalculator {
      * Guard: if the raw date is itself invalid, advance once and re-validate.
      * Outer loop handles chained holidays.
      */
-    private LocalDate advancePastHolidayOrInvalidDay(LocalDate raw, boolean isFriOrSatDuty) {
-        Set<LocalDate> holidays = holidayRepository
-                .findActiveHolidaysBetween(raw, raw.plusYears(1))
-                .stream()
-                .map(Holiday::getHolidayDate)
-                .collect(Collectors.toSet());
+    private LocalDate advancePastHolidayOrInvalidDay(LocalDate raw, boolean isFriOrSatDuty,
+                                                     Set<LocalDate> holidays) {
+        if (holidays == null) {
+            holidays = holidayRepository
+                    .findActiveHolidaysBetween(raw, raw.plusYears(1))
+                    .stream()
+                    .map(Holiday::getHolidayDate)
+                    .collect(Collectors.toSet());
+        }
 
         LocalDate current = raw;
         for (int outer = 0; outer < 365; outer++) {
             LocalDate next = advanceOneStep(current, holidays, isFriOrSatDuty);
-            if (next.equals(current)) return current; // stable
+            if (next.equals(current)) return current;
             current = next;
         }
-        return current; // safety net
+        return current;
     }
 
-    /**
-     * Advance by exactly one step from the given date.
-     * Returns the same date unchanged if it is already valid
-     * (used as a sentinel so the outer loop can detect stability).
-     * Throws IllegalStateException if no valid day is found within 60 iterations.
-     */
     private LocalDate advanceOneStep(LocalDate date, Set<LocalDate> holidays, boolean isFriOrSatDuty) {
         if (!isInvalidDay(date, holidays, isFriOrSatDuty)) return date;
 
@@ -135,15 +186,11 @@ public class CompensationDateCalculator {
             if (!isInvalidDay(cursor, holidays, isFriOrSatDuty)) return cursor;
             cursor = cursor.plusDays(1);
         }
-        // Safety: throw exception instead of looping forever or returning unchanged date
         throw new IllegalStateException(
             "CompensationDateCalculator: No valid compensation day found within 60 days of " + date +
             ". Check holiday configuration and weekday rules.");
     }
 
-    /**
-     * Returns true if the given date must be skipped.
-     */
     private boolean isInvalidDay(LocalDate date, Set<LocalDate> holidays, boolean isFriOrSatDuty) {
         if (holidays.contains(date)) return true;
         DayOfWeek dow = date.getDayOfWeek();

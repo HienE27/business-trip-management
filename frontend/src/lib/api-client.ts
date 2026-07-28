@@ -56,9 +56,10 @@ import type {
   ReplayExplanation,
   ConfigVersion,
   ConfigVersionDiff,
-  ScenarioResponse,
-  ScenarioComparison,
-} from "@/types/api";
+	  ScenarioResponse,
+	  ScenarioComparison,
+	  ConfigCalculatorResponse,
+	} from "@/types/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
 const LOGIN_PATH = "/login";
@@ -1103,10 +1104,6 @@ class ApiClient {
     maxStaffPerShift: number;
     minShiftsPerStaff: number;
     maxShiftsPerStaff: number;
-    l01MaxPerWeek: number;
-    l02MaxPerWeek: number;
-    l03MaxPerWeek: number;
-    l04MaxPerWeek: number;
   }>> {
     return this.request<{
       weekendWeight: number;
@@ -1117,10 +1114,6 @@ class ApiClient {
       maxStaffPerShift: number;
       minShiftsPerStaff: number;
       maxShiftsPerStaff: number;
-      l01MaxPerWeek: number;
-      l02MaxPerWeek: number;
-      l03MaxPerWeek: number;
-      l04MaxPerWeek: number;
     }>("/auto-schedule/runtime-config");
   }
 
@@ -1133,10 +1126,6 @@ class ApiClient {
     maxStaffPerShift?: number;
     minShiftsPerStaff?: number;
     maxShiftsPerStaff?: number;
-    l01MaxPerWeek?: number;
-    l02MaxPerWeek?: number;
-    l03MaxPerWeek?: number;
-    l04MaxPerWeek?: number;
   }): Promise<ApiResponse<{
     weekendWeight: number;
     overnightRecoveryHours: number;
@@ -1146,10 +1135,6 @@ class ApiClient {
     maxStaffPerShift: number;
     minShiftsPerStaff: number;
     maxShiftsPerStaff: number;
-    l01MaxPerWeek: number;
-    l02MaxPerWeek: number;
-    l03MaxPerWeek: number;
-    l04MaxPerWeek: number;
   }>> {
     return this.request<{
       weekendWeight: number;
@@ -1160,10 +1145,6 @@ class ApiClient {
       maxStaffPerShift: number;
       minShiftsPerStaff: number;
       maxShiftsPerStaff: number;
-      l01MaxPerWeek: number;
-      l02MaxPerWeek: number;
-      l03MaxPerWeek: number;
-      l04MaxPerWeek: number;
     }>("/auto-schedule/runtime-config", {
       method: "PUT",
       body: JSON.stringify(data),
@@ -1174,21 +1155,19 @@ class ApiClient {
     enabled: boolean;
     l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
     l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
-    l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
     l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
-    holidayMode: string;
-    removedShiftTypes: string[];
-    l01AllowedSpecialties?: string[] | null;
-    l02AllowedSpecialties?: string[] | null;
-    l03AllowedSpecialties?: string[] | null;
-    l04AllowedSpecialties?: string[] | null;
-  }>> {
-    return this.request<{
-      enabled: boolean;
-      l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
-      l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
-      l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
-      l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
+	    holidayMode: string;
+	    removedShiftTypes: string[];
+	    l01AllowedSpecialties?: string[] | null;
+	    l02AllowedSpecialties?: string[] | null;
+	    l03AllowedSpecialties?: string[] | null;
+	    l04AllowedSpecialties?: string[] | null;
+	  }>> {
+	    return this.request<{
+	      enabled: boolean;
+	      l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
+	      l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
+	      l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
       holidayMode: string;
       removedShiftTypes: string[];
       l01AllowedSpecialties?: string[] | null;
@@ -1202,7 +1181,6 @@ class ApiClient {
     enabled: boolean;
     l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
     l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
-    l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
     l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
     holidayMode: string;
     removedShiftTypes: string[];
@@ -1213,7 +1191,6 @@ class ApiClient {
     enabled: boolean;
     l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
     l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
-    l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
     l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
     holidayMode: string;
     removedShiftTypes: string[];
@@ -1225,7 +1202,6 @@ class ApiClient {
       enabled: boolean;
       l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
       l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
-      l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
       l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
       holidayMode: string;
       removedShiftTypes: string[];
@@ -1251,27 +1227,23 @@ class ApiClient {
       enabled: boolean;
       l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
       l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
-      l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
-      l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
-      holidayMode: string;
-      removedShiftTypes: string[];
-      l04CrossSpecialty: boolean;
-      l04CrossSpecialtyRatio: number;
-      l04AllowedSpecialties: string[];
-      l01AllowedSpecialties: string[];
-      l02AllowedSpecialties: string[];
-      l03AllowedSpecialties: string[];
-    };
-    totalShiftsExpected: number;
-    rationale: string;
-  }>> {
-    return this.request<{
-      recommendedConfig: {
-        enabled: boolean;
-        l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
-        l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
-        l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
-        l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
+	    holidayMode: string;
+	    removedShiftTypes: string[];
+	    l04CrossSpecialty: boolean;
+	    l04CrossSpecialtyRatio: number;
+	    l04AllowedSpecialties: string[];
+	    l01AllowedSpecialties: string[];
+	    l02AllowedSpecialties: string[];
+	    l03AllowedSpecialties: string[];
+	  };
+	    totalShiftsExpected: number;
+	    rationale: string;
+	  }>> {
+	    return this.request<{
+	      recommendedConfig: {
+	        enabled: boolean;
+	        l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
+	        l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
         holidayMode: string;
         removedShiftTypes: string[];
         l04CrossSpecialty: boolean;
@@ -1284,6 +1256,21 @@ class ApiClient {
       totalShiftsExpected: number;
       rationale: string;
     }>("/auto-schedule/auto-gen-config/recommend", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ── Configuration Calculator ────────────────────────────────────────
+
+  async configCalculator(data: {
+    mode: number;
+    periodId: number;
+    algorithmType?: string;
+    targetShifts?: Record<string, number>;
+    configOverride?: Record<string, unknown>;
+  }): Promise<ApiResponse<ConfigCalculatorResponse>> {
+    return this.request<ConfigCalculatorResponse>("/config-calculator/analyze", {
       method: "POST",
       body: JSON.stringify(data),
     });

@@ -328,6 +328,34 @@ public class GlobalExceptionHandler {
                 "Bản ghi đang bị khoá bởi thao tác khác, vui lòng thử lại sau vài giây");
     }
 
+    // ── Client abort (browser disconnected mid-response) ────────────────────
+    // No response needed — client is gone. Log at WARN, not ERROR, because
+    // this is expected for long-running preview requests (>60s).
+    @ExceptionHandler(org.apache.catalina.connector.ClientAbortException.class)
+    public void handleClientAbort(
+            org.apache.catalina.connector.ClientAbortException ex, HttpServletRequest request) {
+        log.warn("Client aborted connection on {} {} ({}): {}",
+                request.getMethod(), request.getRequestURI(),
+                request.getHeader("X-Request-Id"), ex.getMessage());
+        // Do NOT write a response — the output stream is already broken.
+        // Spring will skip the response body because this method returns void.
+    }
+
+    /**
+     * AsyncRequestNotUsableException wraps ClientAbortException when the request is
+     * in async mode (Spring @Async or deferred result). The underlying cause is
+     * always a client disconnect — same handling as ClientAbortException.
+     */
+    @ExceptionHandler(org.springframework.web.context.request.async.AsyncRequestNotUsableException.class)
+    public void handleAsyncRequestNotUsable(
+            org.springframework.web.context.request.async.AsyncRequestNotUsableException ex,
+            HttpServletRequest request) {
+        log.warn("Async request aborted on {} {} ({}): {}",
+                request.getMethod(), request.getRequestURI(),
+                request.getHeader("X-Request-Id"), ex.getMessage());
+        // Do NOT write a response — the output stream is already broken.
+    }
+
     // ── Catch-all (SECURITY: never echo ex.getMessage() to client) ─────────────
 
     @ExceptionHandler(Exception.class)

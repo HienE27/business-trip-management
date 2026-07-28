@@ -72,32 +72,28 @@ public final class ConfigMapper {
             Map.entry("acceptanceStrategy.gdMinLevel",         "scheduling_gd_min_level"),
 
             // FAIRNESS
-            Map.entry("fairness.cvTarget",    "balance_score_target"),
+            Map.entry("fairness.cvTarget",    "balance_score_min"),
             Map.entry("fairness.cvWorst",      "balance_score_worst"),
             Map.entry("fairness.weekendWeight","weekend_weight"),
 
             // COVERAGE - L01
             Map.entry("coverage.l01.minPerDay",  "auto_gen_l01_min_per_day"),
             Map.entry("coverage.l01.maxPerDay",  "auto_gen_l01_max_per_day"),
-            Map.entry("coverage.l01.minPerWeek", "auto_gen_l01_min_per_week"),
             Map.entry("coverage.l01.maxPerWeek", "auto_gen_l01_max_per_week"),
 
             // COVERAGE - L02
             Map.entry("coverage.l02.minPerDay",  "auto_gen_l02_min_per_day"),
             Map.entry("coverage.l02.maxPerDay",  "auto_gen_l02_max_per_day"),
-            Map.entry("coverage.l02.minPerWeek", "auto_gen_l02_min_per_week"),
             Map.entry("coverage.l02.maxPerWeek", "auto_gen_l02_max_per_week"),
 
             // COVERAGE - L03
             Map.entry("coverage.l03.minPerDay",  "auto_gen_l03_min_per_day"),
             Map.entry("coverage.l03.maxPerDay",  "auto_gen_l03_max_per_day"),
-            Map.entry("coverage.l03.minPerWeek", "auto_gen_l03_min_per_week"),
             Map.entry("coverage.l03.maxPerWeek", "auto_gen_l03_max_per_week"),
 
             // COVERAGE - L04
             Map.entry("coverage.l04.minPerDay",  "auto_gen_l04_min_per_day"),
             Map.entry("coverage.l04.maxPerDay",  "auto_gen_l04_max_per_day"),
-            Map.entry("coverage.l04.minPerWeek", "auto_gen_l04_min_per_week"),
             Map.entry("coverage.l04.maxPerWeek", "auto_gen_l04_max_per_week"),
 
             // L04 CROSS-SPECIALTY
@@ -173,25 +169,21 @@ public final class ConfigMapper {
         // COVERAGE - L01
         put(result, "coverage.l01.minPerDay",  String.valueOf(d.l01MinPerDay()));
         put(result, "coverage.l01.maxPerDay",  String.valueOf(d.l01MaxPerDay()));
-        put(result, "coverage.l01.minPerWeek", String.valueOf(d.l01MinPerWeek()));
         put(result, "coverage.l01.maxPerWeek", String.valueOf(d.l01MaxPerWeek()));
 
         // COVERAGE - L02
         put(result, "coverage.l02.minPerDay",  String.valueOf(d.l02MinPerDay()));
         put(result, "coverage.l02.maxPerDay",  String.valueOf(d.l02MaxPerDay()));
-        put(result, "coverage.l02.minPerWeek", String.valueOf(d.l02MinPerWeek()));
         put(result, "coverage.l02.maxPerWeek", String.valueOf(d.l02MaxPerWeek()));
 
         // COVERAGE - L03
         put(result, "coverage.l03.minPerDay",  String.valueOf(d.l03MinPerDay()));
         put(result, "coverage.l03.maxPerDay",  String.valueOf(d.l03MaxPerDay()));
-        put(result, "coverage.l03.minPerWeek", String.valueOf(d.l03MinPerWeek()));
         put(result, "coverage.l03.maxPerWeek", String.valueOf(d.l03MaxPerWeek()));
 
         // COVERAGE - L04
         put(result, "coverage.l04.minPerDay",  String.valueOf(d.l04MinPerDay()));
         put(result, "coverage.l04.maxPerDay",  String.valueOf(d.l04MaxPerDay()));
-        put(result, "coverage.l04.minPerWeek", String.valueOf(d.l04MinPerWeek()));
         put(result, "coverage.l04.maxPerWeek", String.valueOf(d.l04MaxPerWeek()));
 
         // L04 CROSS-SPECIALTY
@@ -258,25 +250,21 @@ public final class ConfigMapper {
         // COVERAGE - L01
         b.l01MinPerDay(intOf(paramMap, "coverage.l01.minPerDay", 1));
         b.l01MaxPerDay(intOf(paramMap, "coverage.l01.maxPerDay", 10));
-        b.l01MinPerWeek(intOf(paramMap, "coverage.l01.minPerWeek", 1));
         b.l01MaxPerWeek(intOf(paramMap, "coverage.l01.maxPerWeek", 3));
 
         // COVERAGE - L02
         b.l02MinPerDay(intOf(paramMap, "coverage.l02.minPerDay", 1));
         b.l02MaxPerDay(intOf(paramMap, "coverage.l02.maxPerDay", 10));
-        b.l02MinPerWeek(intOf(paramMap, "coverage.l02.minPerWeek", 1));
         b.l02MaxPerWeek(intOf(paramMap, "coverage.l02.maxPerWeek", 3));
 
         // COVERAGE - L03
         b.l03MinPerDay(intOf(paramMap, "coverage.l03.minPerDay", 1));
         b.l03MaxPerDay(intOf(paramMap, "coverage.l03.maxPerDay", 10));
-        b.l03MinPerWeek(intOf(paramMap, "coverage.l03.minPerWeek", 1));
         b.l03MaxPerWeek(intOf(paramMap, "coverage.l03.maxPerWeek", 3));
 
         // COVERAGE - L04
         b.l04MinPerDay(intOf(paramMap, "coverage.l04.minPerDay", 1));
         b.l04MaxPerDay(intOf(paramMap, "coverage.l04.maxPerDay", 10));
-        b.l04MinPerWeek(intOf(paramMap, "coverage.l04.minPerWeek", 1));
         b.l04MaxPerWeek(intOf(paramMap, "coverage.l04.maxPerWeek", 3));
 
         // L04 CROSS-SPECIALTY
@@ -291,7 +279,7 @@ public final class ConfigMapper {
         b.minStaffPerShift(intOf(paramMap, "constraints.minStaffPerShift", 0));
         b.maxStaffPerShift(intOf(paramMap, "constraints.maxStaffPerShift", 0));
         b.minShiftsPerStaff(intOf(paramMap, "constraints.minShiftsPerStaff", 0));
-        b.maxShiftsPerStaff(intOf(paramMap, "constraints.maxShiftsPerStaff", 0));
+        b.maxShiftsPerStaff(intOf(paramMap, "constraints.maxShiftsPerStaff", 30));
 
         // PERFORMANCE
         b.timeLimitSeconds(intOf(paramMap, "performance.timeLimitSeconds", 60));

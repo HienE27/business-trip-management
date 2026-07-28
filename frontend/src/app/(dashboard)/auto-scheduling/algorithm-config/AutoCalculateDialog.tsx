@@ -60,11 +60,11 @@ export type AutoCalculateInput = {
 };
 
 export type AutoCalculateResult = {
-  l01MinPerDay: number; l01MaxPerDay: number; l01MinPerWeek: number; l01MaxPerWeek: number;
-  l02MinPerDay: number; l02MaxPerDay: number; l02MinPerWeek: number; l02MaxPerWeek: number;
-  l03MinPerDay: number; l03MaxPerDay: number; l03MinPerWeek: number; l03MaxPerWeek: number;
-  l04MinPerDay: number; l04MaxPerDay: number; l04MinPerWeek: number; l04MaxPerWeek: number;
-};
+l01MinPerDay: number; l01MaxPerDay: number;
+  l02MinPerDay: number; l02MaxPerDay: number;
+  l03MinPerDay: number; l03MaxPerDay: number;
+  l04MinPerDay: number; l04MaxPerDay: number;
+	};
 
 type Props = {
   open: boolean;
@@ -326,15 +326,11 @@ function computeConfig(input: AutoCalculateInput): AutoCalculateResult {
     const days = Math.max(1, input.periodDays);
     const weeks = Math.max(1, input.periodWeeks);
 
-    const minPerDay = Math.max(1, Math.floor((targetPerStaff * eligible) / days));
-    const minPerWeek = Math.max(1, Math.round(targetPerStaff / weeks));
-    const maxPerWeek = Math.max(minPerWeek + 1, Math.round((targetPerStaff / weeks) * 1.5));
-    const maxPerDay = Math.max(minPerDay, Math.ceil(maxPerWeek * 1.2));
+	    const minPerDay = Math.max(1, Math.floor((targetPerStaff * eligible) / days));
+	    const maxPerDay = Math.max(minPerDay, Math.ceil(minPerDay * 1.2));
 
-    out[`${tid.toLowerCase()}MinPerDay`] = minPerDay;
-    out[`${tid.toLowerCase()}MaxPerDay`] = maxPerDay;
-    out[`${tid.toLowerCase()}MinPerWeek`] = minPerWeek;
-    out[`${tid.toLowerCase()}MaxPerWeek`] = maxPerWeek;
+	    out[`${tid.toLowerCase()}MinPerDay`] = minPerDay;
+	    out[`${tid.toLowerCase()}MaxPerDay`] = maxPerDay;
   }
   return out as unknown as AutoCalculateResult;
 }
@@ -511,10 +507,8 @@ function DiffView({
           <thead>
             <tr className="border-b border-outline-variant">
               <th className="text-left py-2 px-2 font-medium text-on-surface-variant">Loại</th>
-              <th className="text-center py-2 px-2 font-medium text-on-surface-variant">Min/ngày</th>
-              <th className="text-center py-2 px-2 font-medium text-on-surface-variant">Max/ngày</th>
-              <th className="text-center py-2 px-2 font-medium text-on-surface-variant">Min/tuần</th>
-              <th className="text-center py-2 px-2 font-medium text-on-surface-variant">Max/tuần</th>
+	              <th className="text-center py-2 px-2 font-medium text-on-surface-variant">Min/ngày</th>
+	              <th className="text-center py-2 px-2 font-medium text-on-surface-variant">Max/ngày</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant">
@@ -528,22 +522,14 @@ function DiffView({
                 currentConfig[`${tid.toLowerCase()}MaxPerDay` as keyof AutoCalculateResult] as number,
                 computed[`${tid.toLowerCase()}MaxPerDay` as keyof AutoCalculateResult] as number
               );
-              const minWeek = getDiff(
-                currentConfig[`${tid.toLowerCase()}MinPerWeek` as keyof AutoCalculateResult] as number,
-                computed[`${tid.toLowerCase()}MinPerWeek` as keyof AutoCalculateResult] as number
-              );
-              const maxWeek = getDiff(
-                currentConfig[`${tid.toLowerCase()}MaxPerWeek` as keyof AutoCalculateResult] as number,
-                computed[`${tid.toLowerCase()}MaxPerWeek` as keyof AutoCalculateResult] as number
-              );
-              const hasChange = [minDay, maxDay, minWeek, maxWeek].some(d => d.diff !== "same");
+	              const hasChange = [minDay, maxDay].some(d => d.diff !== "same");
 
-              return (
-                <tr key={tid} className={hasChange ? "bg-primary-fixed/20" : ""}>
-                  <td className="py-2 px-2">
-                    <span className={`font-mono font-bold ${meta.color}`}>{tid}</span>
-                  </td>
-                  {[minDay, maxDay, minWeek, maxWeek].map((d, i) => (
+	              return (
+	                <tr key={tid} className={hasChange ? "bg-primary-fixed/20" : ""}>
+	                  <td className="py-2 px-2">
+	                    <span className={`font-mono font-bold ${meta.color}`}>{tid}</span>
+	                  </td>
+	                  {[minDay, maxDay].map((d, i) => (
                     <td key={i} className="py-2 px-2 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <span className={`font-mono ${
@@ -660,26 +646,23 @@ function PresetCompareModal({
                         <th className="py-2 px-3 text-left font-medium text-on-surface-variant">Loại</th>
                         <th className="py-2 px-3 text-center font-medium text-on-surface-variant">Đủ ĐK</th>
                         <th className="py-2 px-3 text-center font-medium text-on-surface-variant">Ca/kỳ</th>
-                        <th className="py-2 px-3 text-center font-medium text-on-surface-variant">Min/ngày</th>
-                        <th className="py-2 px-3 text-center font-medium text-on-surface-variant">Max/ngày</th>
-                        <th className="py-2 px-3 text-center font-medium text-on-surface-variant">Min/tuần</th>
-                        <th className="py-2 px-3 text-center font-medium text-on-surface-variant">Max/tuần</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-outline-variant">
-                      {(["L01", "L02", "L03", "L04"] as ShiftTypeId[]).map((tid) => {
-                        const meta = SHIFT_META[tid];
-                        return (
-                          <tr key={tid}>
-                            <td className="py-2 px-3">
-                              <span className={`font-mono font-bold ${meta.color}`}>{tid}</span>
-                            </td>
-                            <td className="py-2 px-3 text-center font-mono">{preset.config.eligibleStaff[tid]}</td>
-                            <td className="py-2 px-3 text-center font-mono">{preset.config.targetsPerStaffPerMonth[tid]}</td>
-                            <td className="py-2 px-3 text-center font-mono">{computed[`${tid.toLowerCase()}MinPerDay` as keyof AutoCalculateResult]}</td>
+	                        <th className="py-2 px-3 text-center font-medium text-on-surface-variant">Min/ngày</th>
+	                        <th className="py-2 px-3 text-center font-medium text-on-surface-variant">Max/ngày</th>
+	                        <th className="py-2 px-3 text-center font-medium text-on-surface-variant">Max/tuần</th>
+	                      </tr>
+	                    </thead>
+	                    <tbody className="divide-y divide-outline-variant">
+	                      {(["L01", "L02", "L03", "L04"] as ShiftTypeId[]).map((tid) => {
+	                        const meta = SHIFT_META[tid];
+	                        return (
+	                          <tr key={tid}>
+	                            <td className="py-2 px-3">
+	                              <span className={`font-mono font-bold ${meta.color}`}>{tid}</span>
+	                            </td>
+	                            <td className="py-2 px-3 text-center font-mono">{preset.config.eligibleStaff[tid]}</td>
+	                            <td className="py-2 px-3 text-center font-mono">{preset.config.targetsPerStaffPerMonth[tid]}</td>
+<td className="py-2 px-3 text-center font-mono">{computed[`${tid.toLowerCase()}MinPerDay` as keyof AutoCalculateResult]}</td>
                             <td className="py-2 px-3 text-center font-mono">{computed[`${tid.toLowerCase()}MaxPerDay` as keyof AutoCalculateResult]}</td>
-                            <td className="py-2 px-3 text-center font-mono">{computed[`${tid.toLowerCase()}MinPerWeek` as keyof AutoCalculateResult]}</td>
-                            <td className="py-2 px-3 text-center font-mono">{computed[`${tid.toLowerCase()}MaxPerWeek` as keyof AutoCalculateResult]}</td>
                           </tr>
                         );
                       })}
@@ -1742,27 +1725,13 @@ export function AutoCalculateDialog({
                           <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
                         </Tooltip>
                       </th>
-                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
-                        Min/tuần
-                        <Tooltip content="Ít nhất bao nhiêu ca mỗi tuần">
-                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
-                        </Tooltip>
-                      </th>
-                      <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
-                        Max/tuần
-                        <Tooltip content="Nhiều nhất bao nhiêu ca mỗi tuần">
-                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
-                        </Tooltip>
-                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant">
                     {shiftIds.map((tid) => {
                       const c = recommendation?.config ?? computed;
-                      const minDay = c[`${tid.toLowerCase()}MinPerDay` as keyof AutoCalculateResult] as number;
-                      const maxDay = c[`${tid.toLowerCase()}MaxPerDay` as keyof AutoCalculateResult] as number;
-                      const minWeek = c[`${tid.toLowerCase()}MinPerWeek` as keyof AutoCalculateResult] as number;
-                      const maxWeek = c[`${tid.toLowerCase()}MaxPerWeek` as keyof AutoCalculateResult] as number;
+	                      const minDay = c[`${tid.toLowerCase()}MinPerDay` as keyof AutoCalculateResult] as number;
+	                      const maxDay = c[`${tid.toLowerCase()}MaxPerDay` as keyof AutoCalculateResult] as number;
                       const meta = SHIFT_META[tid];
                       const isFromAI = !!recommendation;
                       return (
@@ -1785,16 +1754,6 @@ export function AutoCalculateDialog({
                             <span className={`font-mono font-semibold tabular-nums ${
                               isFromAI ? "text-secondary" : "text-on-surface"
                             }`}>{maxDay}</span>
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <span className={`font-mono font-semibold tabular-nums ${
-                              isFromAI ? "text-secondary" : "text-on-surface"
-                            }`}>{minWeek}</span>
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <span className={`font-mono font-semibold tabular-nums ${
-                              isFromAI ? "text-secondary" : "text-on-surface"
-                            }`}>{maxWeek}</span>
                           </td>
                         </tr>
                       );

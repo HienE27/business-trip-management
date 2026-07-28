@@ -22,6 +22,7 @@ import com.hospital.scheduler.service.AutoSchedulingService;
 import com.hospital.scheduler.service.ScheduleTemplateService;
 import com.hospital.scheduler.service.AlgorithmMetricsService;
 import com.hospital.scheduler.service.scheduling.SchedulingFeasibilityAnalyzer;
+import com.hospital.scheduler.service.scheduling.SchedulingLockService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -52,6 +53,7 @@ public class AutoSchedulingController {
     private final AlgorithmConfigService configService;
     private final AlgorithmMetricsService metricsService;
     private final AlgorithmProgressTracker progressTracker;
+    private final SchedulingLockService lockService;
     private final AlgorithmConfigAuditRepository auditRepository;
     private final ObjectMapper objectMapper;
     private final SchedulingFeasibilityAnalyzer feasibilityAnalyzer;
@@ -88,7 +90,7 @@ public class AutoSchedulingController {
                     "Xem trước lịch thành công", serializeToJson(result));
             return ResponseEntity.ok(ApiResponse.success(result, "Xem trước lịch"));
         } catch (Exception e) {
-            log.error("Preview failed for period {}: {}", request.getPeriodId(), e.getMessage(), e);
+            log.error("Preview FAILED for period {}: {} — type: {}", request.getPeriodId(), e.getMessage(), e.getClass().getName(), e);
             progressTracker.fail(request.getPeriodId(), runToken, e.getMessage());
             throw e;
         }
@@ -429,5 +431,30 @@ public class AutoSchedulingController {
         var result = auditRepository.search(paramKey, pageable)
                 .map(AlgorithmConfigAuditDTO::from);
         return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    // ============================================================
+    // Lock cleanup (admin only)
+    // ============================================================
+
+    /**
+     * Force-unlock a period and clear its progress entry.
+     * Use when a scheduling run crashed mid-execution and left a stale lock.
+     */
+    @RequestMapping(path = "/cancel/{periodId}", method = {RequestMethod.GET, RequestMethod.POST})
+    @Operation(summary = "Force-cancel and unlock a stuck scheduling run")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_RUN + "')")
+    public ResponseEntity<ApiResponse<Void>> cancelScheduling(@PathVariable Integer periodId) {
+        try {
+            lockService.cancel(periodId);
+        } catch (Exception e) {
+            log.warn("lockService.cancel failed for period {}: {}", periodId, e.getMessage(), e);
+        }
+        try {
+            progressTracker.clear(periodId);
+        } catch (Exception e) {
+            log.warn("progressTracker.clear failed for period {}: {}", periodId, e.getMessage(), e);
+        }
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

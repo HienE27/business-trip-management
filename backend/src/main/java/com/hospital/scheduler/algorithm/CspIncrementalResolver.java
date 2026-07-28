@@ -91,7 +91,7 @@ class CspIncrementalResolver {
         if (previousResult != null && !previousResult.getAssignments().isEmpty()) {
             for (String key : previousResult.getAssignments().keySet()) {
                 String[] parts = key.split("_");
-                if (parts.length == 2) {
+                if (parts.length >= 2) {
                     LocalDate date = LocalDate.parse(parts[1]);
                     if (startDate == null || date.isBefore(startDate)) startDate = date;
                     if (endDate == null || date.isAfter(endDate)) endDate = date;
@@ -150,20 +150,20 @@ class CspIncrementalResolver {
 
     private void applyDeltaChanges(IncrementalState state, ScheduleChange deltaChanges) {
         for (ScheduleChange.AssignmentDelta rem : deltaChanges.getRemoved()) {
-            String key = rem.getStaffId() + "_" + rem.getDate();
+            String key = rem.getStaffId() + "_" + rem.getDate() + "_" + rem.getShiftType();
             state.assignments.remove(key);
             state.affectedVars.add(rem.getDate() + "|" + rem.getShiftType());
         }
         for (ScheduleChange.AssignmentDelta add : deltaChanges.getAdded()) {
-            String key = add.getStaffId() + "_" + add.getDate();
+            String key = add.getStaffId() + "_" + add.getDate() + "_" + add.getShiftType();
             state.assignments.put(key, add.getShiftType());
             state.affectedVars.add(add.getDate() + "|" + add.getShiftType());
         }
         for (ScheduleChange.AssignmentDelta mod : deltaChanges.getModified()) {
             if (mod.getOldStaffId() != null) {
-                state.assignments.remove(mod.getOldStaffId() + "_" + mod.getDate());
+                state.assignments.remove(mod.getOldStaffId() + "_" + mod.getDate() + "_" + mod.getShiftType());
             }
-            state.assignments.put(mod.getStaffId() + "_" + mod.getDate(), mod.getShiftType());
+            state.assignments.put(mod.getStaffId() + "_" + mod.getDate() + "_" + mod.getShiftType(), mod.getShiftType());
             state.affectedVars.add(mod.getDate() + "|" + mod.getShiftType());
         }
         for (ScheduleChange.LeaveDelta leave : deltaChanges.getAddedLeaves()) {
@@ -227,7 +227,7 @@ class CspIncrementalResolver {
         // BR-01/02: same-day shift conflicts
         for (Map.Entry<String, String> entry : state.assignments.entrySet()) {
             String[] keyParts = entry.getKey().split("_");
-            if (keyParts.length != 2) continue;
+            if (keyParts.length < 2) continue;
             Integer otherStaffId = Integer.parseInt(keyParts[0]);
             LocalDate otherDate = LocalDate.parse(keyParts[1]);
             if (otherStaffId.equals(staffId) && otherDate.equals(date)) {
@@ -237,14 +237,26 @@ class CspIncrementalResolver {
             }
         }
 
-        // BR-03: L01 comp-day conflict
+        // BR-03: L01 comp-day conflict — check ALL possible compensation days
         if (shiftType.equals(DIRECT_24H)) {
-            LocalDate compDate = compensationDateCalculator.calculate(date);
-            String compKey = staffId + "_" + compDate;
-            for (String key : state.assignments.keySet()) {
-                if (key.equals(compKey) || key.startsWith(staffId + "_" + compDate)) {
-                    return "Compensation day conflict";
+            Set<LocalDate> compOptions = compensationDateCalculator.calculateAll(date);
+            boolean anyFree = false;
+            for (LocalDate compDate : compOptions) {
+                String compKey = staffId + "_" + compDate;
+                boolean hasConflict = false;
+                for (String key : state.assignments.keySet()) {
+                    if (key.equals(compKey) || key.startsWith(staffId + "_" + compDate)) {
+                        hasConflict = true;
+                        break;
+                    }
                 }
+                if (!hasConflict) {
+                    anyFree = true;
+                    break;
+                }
+            }
+            if (!anyFree && !compOptions.isEmpty()) {
+                return "No free compensation day among options";
             }
         }
 
@@ -309,7 +321,7 @@ class CspIncrementalResolver {
     private Integer findStaffForSlot(IncrementalState state, LocalDate date, String shiftType) {
         for (Map.Entry<String, String> entry : state.assignments.entrySet()) {
             String[] keyParts = entry.getKey().split("_");
-            if (keyParts.length == 2 && keyParts[1].equals(date.toString()) && entry.getValue().equals(shiftType)) {
+            if (keyParts.length >= 2 && keyParts[1].equals(date.toString()) && entry.getValue().equals(shiftType)) {
                 return Integer.parseInt(keyParts[0]);
             }
         }
@@ -317,11 +329,17 @@ class CspIncrementalResolver {
     }
 
     private void removeAssignment(IncrementalState state, Integer staffId, LocalDate date) {
-        state.assignments.remove(staffId + "_" + date);
+        // Remove ALL assignments for this staff+date (any shiftType).
+        // With multi-shift support, iterate to find and remove matching entries.
+        state.assignments.keySet().removeIf(k -> k.startsWith(staffId + "_" + date + "_"));
+    }
+
+    private void removeAssignment(IncrementalState state, Integer staffId, LocalDate date, String shiftType) {
+        state.assignments.remove(staffId + "_" + date + "_" + shiftType);
     }
 
     private void addAssignment(IncrementalState state, Integer staffId, LocalDate date, String shiftType) {
-        state.assignments.put(staffId + "_" + date, shiftType);
+        state.assignments.put(staffId + "_" + date + "_" + shiftType, shiftType);
     }
 
     private SchedulingResult buildResultFromIncrementalState(
@@ -330,11 +348,15 @@ class CspIncrementalResolver {
         Set<String> compensationDays = new HashSet<>();
         for (Map.Entry<String, String> entry : state.assignments.entrySet()) {
             String[] keyParts = entry.getKey().split("_");
-            if (keyParts.length == 2 && entry.getValue().equals(DIRECT_24H)) {
+            if (keyParts.length >= 2 && entry.getValue().equals(DIRECT_24H)) {
                 Integer staffId = Integer.parseInt(keyParts[0]);
                 LocalDate workDate = LocalDate.parse(keyParts[1]);
-                LocalDate compDate = compensationDateCalculator.calculate(workDate);
-                compensationDays.add(staffId + "_" + compDate);
+                // Pick first valid option from calculateAll
+                Set<LocalDate> compOptions = compensationDateCalculator.calculateAll(workDate);
+                LocalDate compDate = compOptions.isEmpty() ? null : compOptions.iterator().next();
+                if (compDate != null) {
+                    compensationDays.add(staffId + "_" + compDate);
+                }
             }
         }
 

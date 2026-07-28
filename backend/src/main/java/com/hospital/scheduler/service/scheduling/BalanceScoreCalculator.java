@@ -1,10 +1,7 @@
 package com.hospital.scheduler.service.scheduling;
 
 import com.hospital.scheduler.entity.*;
-import com.hospital.scheduler.repository.*;
-import com.hospital.scheduler.service.AlgorithmConfigService;
-import com.hospital.scheduler.service.ConflictDetectionService;
-import com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility;
+import com.hospital.scheduler.algorithm.scoring.ShiftTypeWeights;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -14,8 +11,13 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Computes balance score from a generated schedule list using per-type CV
- * (coefficient of variation). L04 is computed per-specialty for fairness.
+ * Computes balance score from a generated schedule list using CV
+ * (coefficient of variation) of total weighted volume per staff.
+ *
+ * L01 weight=2 (24h shift + compensation day), L02/L03/L04 weight=1.
+ * This ensures the score reflects actual calendar-day workload, not
+ * raw shift count — preventing unfair concentration of L01 shifts
+ * on a subset of staff.
  */
 @Slf4j
 @Component
@@ -24,116 +26,42 @@ public class BalanceScoreCalculator {
     public BigDecimal calculateBalanceScore(List<Schedule> schedules, int totalStaff) {
         if (schedules.isEmpty()) return BigDecimal.ZERO;
 
-        Map<Integer, Long> staffScheduleCount = schedules.stream()
-                .collect(Collectors.groupingBy(s -> s.getStaff().getId(), Collectors.counting()));
+        // Per-staff weighted volume
+        Map<Integer, Double> weightedVolume = new HashMap<>();
+        for (Schedule s : schedules) {
+            double w = ShiftTypeWeights.of(s.getShiftType().getId());
+            weightedVolume.merge(s.getStaff().getId(), w, Double::sum);
+        }
 
-        if (staffScheduleCount.size() <= 1) {
-            log.debug("Balance score 0: only {} staff assigned", staffScheduleCount.size());
+        if (weightedVolume.size() <= 1) {
+            log.debug("Balance score 0: only {} staff assigned", weightedVolume.size());
             return BigDecimal.valueOf(0);
         }
 
-        // Filter active staff by L01/L02/L03 eligibility so KTV/Dược staff
-        // (L04-only) don't artificially inflate variance.
-        Set<Integer> lxxEligibleStaffIds = staffScheduleCount.keySet().stream()
-                .filter(id -> {
-                    Schedule s0 = schedules.stream().filter(s -> s.getStaff().getId().equals(id)).findFirst().orElse(null);
-                    if (s0 == null) return false;
-                    return StaffShiftTypeEligibility.isEligible(s0.getStaff(), ConflictDetectionService.SHIFT_TYPE_L01, null);
-                })
-                .collect(Collectors.toSet());
+        // Pool size = total active staff (including zero-load staff)
+        int poolSize = Math.max(totalStaff, weightedVolume.size());
+        double totalVolume = weightedVolume.values().stream().mapToDouble(Double::doubleValue).sum();
+        double mean = totalVolume / poolSize;
 
-        List<String> shiftTypes = List.of(
-                ConflictDetectionService.SHIFT_TYPE_L01,
-                ConflictDetectionService.SHIFT_TYPE_L02,
-                ConflictDetectionService.SHIFT_TYPE_L03,
-                ConflictDetectionService.SHIFT_TYPE_L04);
-
-        double totalWeightedCv = 0.0;
-        int typesWithDemand = 0;
-
-        for (String typeId : shiftTypes) {
-            // L04 is specialty-bound; compute per-specialty
-            if (ConflictDetectionService.SHIFT_TYPE_L04.equals(typeId)) {
-                Map<Integer, List<Schedule>> bySpecialty = schedules.stream()
-                        .filter(s -> typeId.equals(s.getShiftType().getId()))
-                        .collect(Collectors.groupingBy(s -> {
-                            if (s.getRequirement() != null && s.getRequirement().getSpecialty() != null) {
-                                return s.getRequirement().getSpecialty().getId();
-                            }
-                            return -1;
-                        }));
-
-                if (bySpecialty.isEmpty()) continue;
-                typesWithDemand++;
-
-                double totalWeightedCvL04 = 0.0;
-                int totalEligibleL04Staff = 0;
-
-                for (Map.Entry<Integer, List<Schedule>> entry : bySpecialty.entrySet()) {
-                    List<Schedule> specSchedules = entry.getValue();
-                    Set<Integer> specStaffIds = specSchedules.stream()
-                            .map(s -> s.getStaff().getId())
-                            .collect(Collectors.toSet());
-
-                    int specPool = specStaffIds.size();
-                    if (specPool == 0) continue;
-
-                    Map<Integer, Long> specPerStaff = specSchedules.stream()
-                            .collect(Collectors.groupingBy(s -> s.getStaff().getId(), Collectors.counting()));
-
-                    long totalSpec = specPerStaff.values().stream().mapToLong(Long::longValue).sum();
-                    double avgSpec = (double) totalSpec / specPool;
-
-                    double sumSqSpec = specPerStaff.values().stream()
-                            .mapToDouble(Long::doubleValue)
-                            .map(c -> (c - avgSpec) * (c - avgSpec))
-                            .sum();
-                    sumSqSpec += (specPool - specPerStaff.size()) * avgSpec * avgSpec;
-
-                    double stdDevSpec = Math.sqrt(sumSqSpec / specPool);
-                    double cvSpec = avgSpec > 0 ? (stdDevSpec / avgSpec) * 100 : 0.0;
-
-                    totalWeightedCvL04 += cvSpec * specPool;
-                    totalEligibleL04Staff += specPool;
-                }
-
-                double avgCvL04 = totalEligibleL04Staff > 0 ? totalWeightedCvL04 / totalEligibleL04Staff : 0.0;
-                totalWeightedCv += avgCvL04;
-                continue;
-            }
-
-            int effectiveTotalStaff = Math.max(lxxEligibleStaffIds.size(), 1);
-            Map<Integer, Long> perTypeCount = schedules.stream()
-                    .filter(s -> typeId.equals(s.getShiftType().getId()))
-                    .filter(s -> lxxEligibleStaffIds.contains(s.getStaff().getId()))
-                    .collect(Collectors.groupingBy(s -> s.getStaff().getId(), Collectors.counting()));
-
-            if (perTypeCount.isEmpty()) continue;
-            typesWithDemand++;
-
-            int staffWithType = perTypeCount.size();
-            long totalType = perTypeCount.values().stream().mapToLong(Long::longValue).sum();
-            double avgType = (double) totalType / effectiveTotalStaff;
-
-            if (avgType <= 0) continue;
-
-            double sumSq = perTypeCount.values().stream()
-                    .mapToDouble(Long::doubleValue)
-                    .map(c -> (c - avgType) * (c - avgType))
-                    .sum();
-            sumSq += (effectiveTotalStaff - staffWithType) * avgType * avgType;
-
-            double stdDevType = Math.sqrt(sumSq / effectiveTotalStaff);
-            double cvType = (stdDevType / avgType) * 100;
-
-            totalWeightedCv += cvType;
+        // Variance: include zero-load staff
+        double sumSq = 0.0;
+        for (Map.Entry<Integer, Double> e : weightedVolume.entrySet()) {
+            double diff = e.getValue() - mean;
+            sumSq += diff * diff;
+        }
+        int zeroCount = poolSize - weightedVolume.size();
+        if (zeroCount > 0) {
+            sumSq += zeroCount * mean * mean;
         }
 
-        double avgCv = typesWithDemand > 0 ? totalWeightedCv / typesWithDemand : 0;
-        double score = Math.max(0, 100 - avgCv);
+        double variance = sumSq / poolSize;
+        double stdDev = Math.sqrt(variance);
+        double cv = mean > 0 ? (stdDev / mean) * 100 : 0.0;
 
-        if (avgCv > 30) {
-            log.warn("Balance WARNING: avg per-type CV={}% > 30%", String.format("%.2f", avgCv));
+        double score = Math.max(0, 100 - cv);
+
+        if (cv > 30) {
+            log.warn("Balance WARNING: weighted-volume CV={}% > 30%", String.format("%.2f", cv));
         }
 
         return BigDecimal.valueOf(score).setScale(2, RoundingMode.HALF_UP);

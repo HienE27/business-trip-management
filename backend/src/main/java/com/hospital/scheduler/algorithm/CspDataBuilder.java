@@ -30,18 +30,18 @@ import static com.hospital.scheduler.algorithm.CspConstants.getShiftIdx;
  */
 @Component
 @RequiredArgsConstructor
-class CspDataBuilder {
+public class CspDataBuilder {
 
     private final CompensationDateCalculator compensationDateCalculator;
     private final CspAc3Engine ac3Engine;
     private final CspConstraints constraints;
 
-    ProblemData build(
+    public ProblemData build(
             List<Staff> staffList,
             List<LocalDate> dates,
             List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
-        return build(staffList, dates, requirements, leaveRequests, null, null, null);
+        return build(staffList, dates, requirements, leaveRequests, null, null, null, false);
     }
 
     /**
@@ -68,17 +68,17 @@ class CspDataBuilder {
      *       {@link CspConstants#SHIFT_ORDER} is used.</li>
      * </ul>
      */
-    ProblemData build(
+    public ProblemData build(
             List<Staff> staffList,
             List<LocalDate> dates,
             List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests,
             List<String> l04AllowedSpecialties) {
         return build(staffList, dates, requirements, leaveRequests,
-                l04AllowedSpecialties, null, null);
+                l04AllowedSpecialties, null, null, false, 0);
     }
 
-    ProblemData build(
+    public ProblemData build(
             List<Staff> staffList,
             List<LocalDate> dates,
             List<ShiftRequirementInfo> requirements,
@@ -86,6 +86,33 @@ class CspDataBuilder {
             List<String> l04AllowedSpecialties,
             int[] minShiftsPerWeekByShift,
             Set<String> activeShiftTypeIds) {
+        return build(staffList, dates, requirements, leaveRequests,
+                l04AllowedSpecialties, minShiftsPerWeekByShift, activeShiftTypeIds, false, 0);
+    }
+
+    public ProblemData build(
+            List<Staff> staffList,
+            List<LocalDate> dates,
+            List<ShiftRequirementInfo> requirements,
+            List<LeaveRequest> leaveRequests,
+            List<String> l04AllowedSpecialties,
+            int[] minShiftsPerWeekByShift,
+            Set<String> activeShiftTypeIds,
+            boolean l04CrossSpecialty) {
+        return build(staffList, dates, requirements, leaveRequests,
+                l04AllowedSpecialties, minShiftsPerWeekByShift, activeShiftTypeIds, l04CrossSpecialty, 0);
+    }
+
+    public ProblemData build(
+            List<Staff> staffList,
+            List<LocalDate> dates,
+            List<ShiftRequirementInfo> requirements,
+            List<LeaveRequest> leaveRequests,
+            List<String> l04AllowedSpecialties,
+            int[] minShiftsPerWeekByShift,
+            Set<String> activeShiftTypeIds,
+            boolean l04CrossSpecialty,
+            int maxShiftsOverride) {
 
         int numDays = dates.size();
         int numShifts = SHIFT_ORDER.length;
@@ -102,15 +129,16 @@ class CspDataBuilder {
 
         boolean[][] leaveMatrix = buildLeaveMatrix(staffList, dates, numDays, numStaff, leaveRequests);
         boolean[] holidayDays = detectHolidayDays(slotCount, numDays, numShifts);
-        int[] staffMaxShifts = maxShiftsPerStaff(staffList, numStaff);
+        int[] staffMaxShifts = maxShiftsPerStaff(staffList, numStaff, maxShiftsOverride);
 
         Set<String> l04Allowed = (l04AllowedSpecialties != null && !l04AllowedSpecialties.isEmpty())
                 ? new HashSet<>(l04AllowedSpecialties)
                 : StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES;
 
         BitSet[] domains = buildInitialDomains(varCount, varDay, varShift, varSpecialty, slotCount, numDays, numStaff,
-                leaveMatrix, holidayDays, staffList, l04Allowed);
-        List<Integer>[] constraintGraph = buildConstraintGraph(varDay, varShift, varCount, slotCount, dates);
+                leaveMatrix, holidayDays, staffList, l04Allowed, l04CrossSpecialty);
+        int[] compDayIdx = buildCompDayIdx(slotCount, dates, numDays, numShifts);
+        List<Integer>[] constraintGraph = buildConstraintGraph(varDay, varShift, varCount, slotCount, dates, compDayIdx, numDays);
 
         applySymmetryBreaking(domains, varCount);
 
@@ -151,6 +179,7 @@ class CspDataBuilder {
                 .adjacentL01PairCount(adjacentPairs.length / 2)
                 .shiftTypeIds(shiftTypeIds)
                 .varsByDay(varsByDay)
+                .compDayIdx(compDayIdx)
                 .build();
 
         // Initial AC-3 prunes domains using BR-01, BR-02 and BR-03 arcs
@@ -251,7 +280,7 @@ class CspDataBuilder {
             for (int d = 0; d < numDays; d++) {
                 long dayEpoch = dayEpochs[d];
                 if (dayEpoch >= startEpoch && dayEpoch <= endEpoch) {
-                    leaveMatrix[staffIdx][d] = true;
+                    leaveMatrix[staffIdx][d] = false;
                 }
             }
         }
@@ -268,18 +297,23 @@ class CspDataBuilder {
         return holidayDays;
     }
 
-    private int[] maxShiftsPerStaff(List<Staff> staffList, int numStaff) {
+    private int[] maxShiftsPerStaff(List<Staff> staffList, int numStaff, int maxShiftsOverride) {
         int[] staffMaxShifts = new int[numStaff];
-        for (int i = 0; i < numStaff; i++) {
-            staffMaxShifts[i] = staffList.get(i).getMaxShiftsPerMonth() != null
-                    ? staffList.get(i).getMaxShiftsPerMonth() : 5;
+        if (maxShiftsOverride > 0) {
+            java.util.Arrays.fill(staffMaxShifts, maxShiftsOverride);
+        } else {
+            for (int i = 0; i < numStaff; i++) {
+                staffMaxShifts[i] = staffList.get(i).getMaxShiftsPerMonth() != null
+                        ? staffList.get(i).getMaxShiftsPerMonth() : 5;
+            }
         }
         return staffMaxShifts;
     }
 
     private BitSet[] buildInitialDomains(int varCount, int[] varDay, int[] varShift, int[] varSpecialty, int[][] slotCount,
                                          int numDays, int numStaff, boolean[][] leaveMatrix, boolean[] holidayDays,
-                                         List<Staff> staffList, Set<String> l04AllowedSpecialties) {
+                                         List<Staff> staffList, Set<String> l04AllowedSpecialties,
+                                         boolean l04CrossSpecialty) {
         // Pre-compute eligibility flags per staff per shift type.
         //
         // IMPORTANT: keep this in sync with {@link StaffShiftTypeEligibility}:
@@ -319,23 +353,24 @@ class CspDataBuilder {
             int s = varShift[v];
             if (slotCount[d][s] > 0 && !holidayDays[d]) {
                 boolean[] shiftEligibility = eligibilityMatrix.get(s);
-                // Per-variable specialty filter for L04 vars — the shift-level
-                // eligibility matrix only knows whether staff.specialty.name is
-                // in the L04-allowed set; without this extra check, an L04 Mắt
-                // variable would admit staff from Ngoại / Nội / Sản / Nhi / Răng
-                // too, and the search engine would explore thousands of wrong
-                // assignments before backtracking out (often exceeding the
-                // preview timeout).
-                int requiredSpecialtyId = (varSpecialty != null && s == 3) ? varSpecialty[v] : 0;
-                for (int staffIdx = 0; staffIdx < numStaff; staffIdx++) {
-                    if (!leaveMatrix[staffIdx][d]) continue;
-                    if (!shiftEligibility[staffIdx]) continue;
-                    if (requiredSpecialtyId != 0) {
-                        Specialty sp = staffList.get(staffIdx).getSpecialty();
-                        if (sp == null || sp.getId() == null || sp.getId() != requiredSpecialtyId) continue;
-                    }
-                    domains[v].set(staffIdx);
-                }
+		                // Per-variable specialty filter for L04 vars.
+		                // Khi l04CrossSpecialty = false: chỉ cho staff đúng chuyên khoa
+		                // (requiredSpecialtyId) vào domain — domain nhỏ, search nhanh.
+		                // Khi l04CrossSpecialty = true: bỏ strict filter, cho tất cả
+		                // staff thuộc l04AllowedSpecialties vào domain. Domain lớn hơn
+		                // nhưng search engine vẫn xử lý được nhờ AC-3 + forward checking.
+		                // Eligibility matrix ở trên đã filter theo l04AllowedSpecialties
+		                // nên chỉ staff từ specialty được phép mới vào domain.
+		                int requiredSpecialtyId = (varSpecialty != null && s == 3) ? varSpecialty[v] : 0;
+		                for (int staffIdx = 0; staffIdx < numStaff; staffIdx++) {
+		                    if (!leaveMatrix[staffIdx][d]) continue;
+		                    if (!shiftEligibility[staffIdx]) continue;
+		                    if (requiredSpecialtyId != 0 && !l04CrossSpecialty) {
+		                        Specialty sp = staffList.get(staffIdx).getSpecialty();
+		                        if (sp == null || sp.getId() == null || sp.getId() != requiredSpecialtyId) continue;
+		                    }
+		                    domains[v].set(staffIdx);
+		                }
             }
         }
         return domains;
@@ -347,7 +382,8 @@ class CspDataBuilder {
      * "L01(day) blocks any shift on its compensation day" (BR-03).
      */
     private List<Integer>[] buildConstraintGraph(int[] varDay, int[] varShift, int varCount,
-                                                 int[][] slotCount, List<LocalDate> dates) {
+                                                 int[][] slotCount, List<LocalDate> dates,
+                                                 int[] compDayIdx, int numDays) {
         @SuppressWarnings("unchecked")
         List<Integer>[] graph = new ArrayList[varCount];
         for (int i = 0; i < varCount; i++) {
@@ -374,15 +410,11 @@ class CspDataBuilder {
             if (!SHIFT_ORDER[varShift[v]].equals(DIRECT_24H)) continue;
 
             int dayIdx = varDay[v];
-            LocalDate workDate = dates.get(dayIdx);
-            LocalDate compDate = compensationDateCalculator.calculate(workDate);
-            long offset = ChronoUnit.DAYS.between(dates.get(0), compDate);
-
-            if (offset < 0 || offset >= dates.size()) continue;
-            int compDayIdx = (int) offset;
+            int compDayIdxVal = (dayIdx >= 0 && dayIdx < numDays) ? compDayIdx[dayIdx] : -1;
+            if (compDayIdxVal < 0 || compDayIdxVal >= numDays) continue;
 
             for (int u = 0; u < varCount; u++) {
-                if (varDay[u] == compDayIdx && u != v) {
+                if (varDay[u] == compDayIdxVal && u != v) {
                     graph[v].add(u);
                     graph[u].add(v);
                 }
@@ -406,6 +438,65 @@ class CspDataBuilder {
             if (d >= 0 && d < numDays) out[d].add(v);
         }
         return out;
+    }
+
+    /**
+     * Pre-compute the best compensation day index for each day.
+     * For Fri/Sat duty, picks the option (Tue/Wed/Thu of next week) with the
+     * lowest total required staff count (least-loaded day → best day to be off).
+     * For other days, uses the single default compensation day.
+     * Returns -1 for days with no L01 requirement or when comp day falls outside
+     * the period.
+     */
+    private int[] buildCompDayIdx(int[][] slotCount, List<LocalDate> dates, int numDays, int numShifts) {
+        int l01ShiftIdx = -1;
+        for (int s = 0; s < numShifts; s++) {
+            if (DIRECT_24H.equals(SHIFT_ORDER[s])) {
+                l01ShiftIdx = s;
+                break;
+            }
+        }
+        if (l01ShiftIdx < 0) return new int[numDays]; // all -1
+
+        // Pre-compute daily total load (sum across all shift types)
+        int[] dailyLoad = new int[numDays];
+        for (int d = 0; d < numDays; d++) {
+            int total = 0;
+            for (int s = 0; s < numShifts; s++) {
+                total += slotCount[d][s];
+            }
+            dailyLoad[d] = total;
+        }
+
+        int[] compDayIdx = new int[numDays];
+        java.util.Arrays.fill(compDayIdx, -1);
+
+        for (int d = 0; d < numDays; d++) {
+            if (slotCount[d][l01ShiftIdx] <= 0) continue; // no L01 on this day
+
+            LocalDate workDate = dates.get(d);
+            Set<LocalDate> options = compensationDateCalculator.calculateAll(workDate);
+            if (options == null || options.isEmpty()) continue;
+
+            LocalDate bestDate = null;
+            int bestLoad = Integer.MAX_VALUE;
+            for (LocalDate opt : options) {
+                long optOffset = ChronoUnit.DAYS.between(dates.get(0), opt);
+                if (optOffset < 0 || optOffset >= numDays) continue;
+                int load = dailyLoad[(int) optOffset];
+                if (load < bestLoad) {
+                    bestLoad = load;
+                    bestDate = opt;
+                }
+            }
+            if (bestDate != null) {
+                long offset = ChronoUnit.DAYS.between(dates.get(0), bestDate);
+                if (offset >= 0 && offset < numDays) {
+                    compDayIdx[d] = (int) offset;
+                }
+            }
+        }
+        return compDayIdx;
     }
 
     /**

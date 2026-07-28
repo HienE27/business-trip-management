@@ -242,10 +242,10 @@ public class ConfigController {
                 config.cvTarget(),
                 config.cvWorst(),
                 config.weekendWeight(),
-                config.l01MinPerDay(), config.l01MaxPerDay(), config.l01MinPerWeek(), config.l01MaxPerWeek(),
-                config.l02MinPerDay(), config.l02MaxPerDay(), config.l02MinPerWeek(), config.l02MaxPerWeek(),
-                config.l03MinPerDay(), config.l03MaxPerDay(), config.l03MinPerWeek(), config.l03MaxPerWeek(),
-                config.l04MinPerDay(), config.l04MaxPerDay(), config.l04MinPerWeek(), config.l04MaxPerWeek(),
+                config.l01MinPerDay(), config.l01MaxPerDay(), config.l01MaxPerWeek(),
+                config.l02MinPerDay(), config.l02MaxPerDay(), config.l02MaxPerWeek(),
+                config.l03MinPerDay(), config.l03MaxPerDay(), config.l03MaxPerWeek(),
+                config.l04MinPerDay(), config.l04MaxPerDay(), config.l04MaxPerWeek(),
                 config.l04CrossSpecialtyEnabled(),
                 config.l04CrossSpecialtyRatio(),
                 config.l04AllowedSpecialties(),
@@ -284,10 +284,10 @@ public class ConfigController {
                 dto.cvTarget,
                 dto.cvWorst,
                 dto.weekendWeight,
-                dto.l01MinPerDay, dto.l01MaxPerDay, dto.l01MinPerWeek, dto.l01MaxPerWeek,
-                dto.l02MinPerDay, dto.l02MaxPerDay, dto.l02MinPerWeek, dto.l02MaxPerWeek,
-                dto.l03MinPerDay, dto.l03MaxPerDay, dto.l03MinPerWeek, dto.l03MaxPerWeek,
-                dto.l04MinPerDay, dto.l04MaxPerDay, dto.l04MinPerWeek, dto.l04MaxPerWeek,
+                dto.l01MinPerDay, dto.l01MaxPerDay, dto.l01MaxPerWeek,
+                dto.l02MinPerDay, dto.l02MaxPerDay, dto.l02MaxPerWeek,
+                dto.l03MinPerDay, dto.l03MaxPerDay, dto.l03MaxPerWeek,
+                dto.l04MinPerDay, dto.l04MaxPerDay, dto.l04MaxPerWeek,
                 dto.l04CrossSpecialtyEnabled,
                 dto.l04CrossSpecialtyRatio,
                 dto.l04AllowedSpecialties,
@@ -343,7 +343,6 @@ public class ConfigController {
                     yield switch (fieldPath) {
                         case "coverage.l01.minPerDay" -> config.l01MinPerDay();
                         case "coverage.l01.maxPerDay" -> config.l01MaxPerDay();
-                        case "coverage.l01.minPerWeek" -> config.l01MinPerWeek();
                         case "coverage.l01.maxPerWeek" -> config.l01MaxPerWeek();
                         default -> null;
                     };
@@ -352,7 +351,6 @@ public class ConfigController {
                     yield switch (fieldPath) {
                         case "coverage.l02.minPerDay" -> config.l02MinPerDay();
                         case "coverage.l02.maxPerDay" -> config.l02MaxPerDay();
-                        case "coverage.l02.minPerWeek" -> config.l02MinPerWeek();
                         case "coverage.l02.maxPerWeek" -> config.l02MaxPerWeek();
                         default -> null;
                     };
@@ -361,7 +359,6 @@ public class ConfigController {
                     yield switch (fieldPath) {
                         case "coverage.l03.minPerDay" -> config.l03MinPerDay();
                         case "coverage.l03.maxPerDay" -> config.l03MaxPerDay();
-                        case "coverage.l03.minPerWeek" -> config.l03MinPerWeek();
                         case "coverage.l03.maxPerWeek" -> config.l03MaxPerWeek();
                         default -> null;
                     };
@@ -370,7 +367,6 @@ public class ConfigController {
                     yield switch (fieldPath) {
                         case "coverage.l04.minPerDay" -> config.l04MinPerDay();
                         case "coverage.l04.maxPerDay" -> config.l04MaxPerDay();
-                        case "coverage.l04.minPerWeek" -> config.l04MinPerWeek();
                         case "coverage.l04.maxPerWeek" -> config.l04MaxPerWeek();
                         default -> null;
                     };
@@ -424,7 +420,6 @@ public class ConfigController {
                     switch (fieldPath) {
                         case "coverage.l01.minPerDay" -> bb.l01MinPerDay(v);
                         case "coverage.l01.maxPerDay" -> bb.l01MaxPerDay(v);
-                        case "coverage.l01.minPerWeek" -> bb.l01MinPerWeek(v);
                         case "coverage.l01.maxPerWeek" -> bb.l01MaxPerWeek(v);
                     }
                     yield bb.build();
@@ -435,7 +430,6 @@ public class ConfigController {
                     switch (fieldPath) {
                         case "coverage.l02.minPerDay" -> bb.l02MinPerDay(v);
                         case "coverage.l02.maxPerDay" -> bb.l02MaxPerDay(v);
-                        case "coverage.l02.minPerWeek" -> bb.l02MinPerWeek(v);
                         case "coverage.l02.maxPerWeek" -> bb.l02MaxPerWeek(v);
                     }
                     yield bb.build();
@@ -446,7 +440,6 @@ public class ConfigController {
                     switch (fieldPath) {
                         case "coverage.l03.minPerDay" -> bb.l03MinPerDay(v);
                         case "coverage.l03.maxPerDay" -> bb.l03MaxPerDay(v);
-                        case "coverage.l03.minPerWeek" -> bb.l03MinPerWeek(v);
                         case "coverage.l03.maxPerWeek" -> bb.l03MaxPerWeek(v);
                     }
                     yield bb.build();
@@ -457,7 +450,6 @@ public class ConfigController {
                     switch (fieldPath) {
                         case "coverage.l04.minPerDay" -> bb.l04MinPerDay(v);
                         case "coverage.l04.maxPerDay" -> bb.l04MaxPerDay(v);
-                        case "coverage.l04.minPerWeek" -> bb.l04MinPerWeek(v);
                         case "coverage.l04.maxPerWeek" -> bb.l04MaxPerWeek(v);
                     }
                     yield bb.build();
@@ -515,10 +507,10 @@ public class ConfigController {
             double cvTarget,
             double cvWorst,
             double weekendWeight,
-            int l01MinPerDay, int l01MaxPerDay, int l01MinPerWeek, int l01MaxPerWeek,
-            int l02MinPerDay, int l02MaxPerDay, int l02MinPerWeek, int l02MaxPerWeek,
-            int l03MinPerDay, int l03MaxPerDay, int l03MinPerWeek, int l03MaxPerWeek,
-            int l04MinPerDay, int l04MaxPerDay, int l04MinPerWeek, int l04MaxPerWeek,
+            int l01MinPerDay, int l01MaxPerDay, int l01MaxPerWeek,
+            int l02MinPerDay, int l02MaxPerDay, int l02MaxPerWeek,
+            int l03MinPerDay, int l03MaxPerDay, int l03MaxPerWeek,
+            int l04MinPerDay, int l04MaxPerDay, int l04MaxPerWeek,
             boolean l04CrossSpecialtyEnabled,
             double l04CrossSpecialtyRatio,
             String[] l04AllowedSpecialties,

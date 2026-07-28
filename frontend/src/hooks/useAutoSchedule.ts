@@ -30,9 +30,10 @@ export type AutoScheduleState = {
   message: string | null;
   algorithmType: "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC" | "V10_LOCAL_SEARCH";
   holidayMode: "SKIP" | "PARTIAL" | null;
-  /** Runtime override for max_shifts_per_month. null = use DB cap per staff. */
-  maxShiftsPerMonthOverride: number | null;
-};
+	  /** Runtime override for max_shifts_per_month. null = use DB cap per staff. */
+	  maxShiftsPerMonthOverride: number | null;
+	  skipExisting: boolean;
+	};
 
 export type AutoScheduleActions = {
   runPreview: (periodId: number | null, excludedStaffIds?: number[]) => Promise<void>;
@@ -58,8 +59,9 @@ export type AutoScheduleActions = {
   setMessage: (msg: string) => void;
   setAlgorithmType: (type: "GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC" | "V10_LOCAL_SEARCH") => void;
   setHolidayMode: (mode: "SKIP" | "PARTIAL" | null) => void;
-  setMaxShiftsPerMonthOverride: (cap: number | null) => void;
-};
+	  setMaxShiftsPerMonthOverride: (cap: number | null) => void;
+	  setSkipExisting: (skip: boolean) => void;
+	};
 
 function parseScheduleKey(key: string): PreviewScheduleEdit | null {
   const [workDate, shiftTypeId, staffIdRaw] = key.split("_");
@@ -121,8 +123,9 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [algorithmType, setAlgorithmType] = useState<"GREEDY" | "FAIR_GREEDY" | "CSP_MRV_FC" | "V10_LOCAL_SEARCH">("V10_LOCAL_SEARCH");
-  const [holidayMode, setHolidayMode] = useState<"SKIP" | "PARTIAL" | null>(null);
-  const [maxShiftsPerMonthOverride, setMaxShiftsPerMonthOverride] = useState<number | null>(null);
+	  const [holidayMode, setHolidayMode] = useState<"SKIP" | "PARTIAL" | null>(null);
+	  const [maxShiftsPerMonthOverride, setMaxShiftsPerMonthOverride] = useState<number | null>(null);
+	  const [skipExisting, setSkipExisting] = useState(false);
 
   const runPreview = useCallback(async (periodId: number | null, excludedStaffIds?: number[]) => {
     if (!periodId) return;
@@ -389,7 +392,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
   }, [setAlgorithmType]);
 
   return [
-    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType, holidayMode, maxShiftsPerMonthOverride },
-    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType, setHolidayMode: setHolidayMode, setMaxShiftsPerMonthOverride },
+    { previewResult, editedPreview, removedShifts, removedShiftTypes, applying, running, message, algorithmType, holidayMode, maxShiftsPerMonthOverride, skipExisting },
+    { runPreview, applyPreview, saveAsTemplate, loadTemplate, previewTemplate, applyTemplateWithEdits, editStaff, editShiftType, removeShift, resetEdits, clearPreview, clearMessage, setMessage: setMessage, setAlgorithmType: setAlgoType, setHolidayMode: setHolidayMode, setMaxShiftsPerMonthOverride, setSkipExisting },
   ];
 }

@@ -7,11 +7,14 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // ponytail: rewrite destination uses env var REWRITE_DEST (default localhost:8080
+  // for local dev). Docker compose sets REWRITE_DEST=http://backend:8080.
   async rewrites() {
+	    const dest = process.env.REWRITE_DEST || 'http://localhost:8081';
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1"}`.replace(/\/api\/v1$/, "/api") + '/:path*',
+        destination: `${dest}/api/:path*`,
       },
     ];
   },

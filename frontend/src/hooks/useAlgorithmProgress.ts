@@ -8,6 +8,8 @@ export type AlgorithmProgressData = {
   step: string;
   percent: number;
   message: string;
+  /** Server-side start timestamp (ISO). Frontend computes elapsed from this. */
+  startedAt?: string;
   resultJson?: string; // Cached result from backend
 };
 
@@ -51,6 +53,7 @@ export function useAlgorithmProgress(
           step: data.step ?? "",
           percent: data.percent ?? 0,
           message: data.message ?? "",
+          startedAt: data.startedAt,
           resultJson: data.resultJson,
         });
         

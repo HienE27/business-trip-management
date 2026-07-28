@@ -40,6 +40,15 @@ public final class SchedulingProblem {
     /** staffId → set of compensation dates (no shifts allowed) */
     private final Map<Integer, Set<LocalDate>> compensationDays;
 
+    /**
+     * Existing schedule conflicts: "date|shiftType" → set of staffIds.
+     * Used by {@link #getEligibleStaff(int)} to prevent assigning a shift type
+     * that conflicts with an existing schedule (BR-01 L01↔L02, BR-02 L03↔L04).
+     * V10-comp-day fix: without this, V10 assigns L04 to staff who already have
+     * L03 from an existing schedule — yielding 70 BR-02 hard violations.
+     */
+    private final Map<String, Set<Integer>> existingConflicts;
+
     private final SchedulingConfig config;
     /**
      * BUGFIX (M07-CROSSCONFIG-V10): Whether the L04 cross-specialty config is
@@ -61,7 +70,7 @@ public final class SchedulingProblem {
                               Map<Integer, Set<LocalDate>> compensationDays,
                               SchedulingConfig config) {
         this(staffList, staffById, requirements, requirementsById, leavesByStaff,
-                holidays, compensationDays, config, true);
+                holidays, compensationDays, config, true, new HashMap<>());
     }
 
     private SchedulingProblem(List<StaffNode> staffList,
@@ -73,6 +82,20 @@ public final class SchedulingProblem {
                               Map<Integer, Set<LocalDate>> compensationDays,
                               SchedulingConfig config,
                               boolean crossSpecialtyEnabled) {
+        this(staffList, staffById, requirements, requirementsById, leavesByStaff,
+                holidays, compensationDays, config, crossSpecialtyEnabled, new HashMap<>());
+    }
+
+    private SchedulingProblem(List<StaffNode> staffList,
+                              Map<Integer, StaffNode> staffById,
+                              List<ShiftRequirementInfo> requirements,
+                              Map<Integer, ShiftRequirementInfo> requirementsById,
+                              Map<Integer, Set<LocalDate>> leavesByStaff,
+                              Set<LocalDate> holidays,
+                              Map<Integer, Set<LocalDate>> compensationDays,
+                              SchedulingConfig config,
+                              boolean crossSpecialtyEnabled,
+                              Map<String, Set<Integer>> existingConflicts) {
         this.staffList = staffList;
         this.staffById = staffById;
         this.requirements = requirements;
@@ -82,6 +105,7 @@ public final class SchedulingProblem {
         this.compensationDays = compensationDays;
         this.config = config;
         this.crossSpecialtyEnabled = crossSpecialtyEnabled;
+        this.existingConflicts = existingConflicts != null ? existingConflicts : new HashMap<>();
     }
 
     /**
@@ -211,6 +235,8 @@ public final class SchedulingProblem {
             }
         }
 
+        // rawCompDays is a flat date set without staff association; per-staff comp days
+        // should use the Map overload below. For this overload, leave compDays empty.
         return new SchedulingProblem(
                 staffList, staffById,
                 v10Requirements, reqsById,
@@ -219,6 +245,94 @@ public final class SchedulingProblem {
                 new HashMap<>(),
                 config,
                 crossSpecialtyEnabled);
+    }
+
+    /**
+     * Overload of {@link #withRequirements} that accepts per-staff compensation days
+     * as a Map. BUGFIX (V10-comp-day): V10 search was building the problem with an
+     * empty compensation-day map, so {@link #getEligibleStaff(int)} never filtered
+     * out staff on comp days — yielding 400+ BR-03 hard violations.
+     */
+    public static SchedulingProblem withRequirements(List<Staff> rawStaff,
+                                                      List<ShiftRequirementInfo> v10Requirements,
+                                                      List<LeaveRequest> rawLeaves,
+                                                      Map<Integer, Set<LocalDate>> compDaysByStaff,
+                                                      Set<LocalDate> holidays,
+                                                      SchedulingConfig config,
+                                                      boolean crossSpecialtyEnabled) {
+        List<StaffNode> staffList = rawStaff.stream().map(StaffNode::from).toList();
+        Map<Integer, StaffNode> staffById = staffList.stream()
+                .collect(Collectors.toMap(StaffNode::getId, s -> s));
+
+        Map<Integer, ShiftRequirementInfo> reqsById = new HashMap<>();
+        for (ShiftRequirementInfo r : v10Requirements) {
+            reqsById.put(r.id(), r);
+        }
+
+        Map<Integer, Set<LocalDate>> leavesByStaff = new HashMap<>();
+        for (LeaveRequest leave : rawLeaves) {
+            if (leave.getStaff() == null || leave.getStartDate() == null) continue;
+            LocalDate end = leave.getEndDate() != null ? leave.getEndDate() : leave.getStartDate();
+            Set<LocalDate> dates = leavesByStaff.computeIfAbsent(
+                    leave.getStaff().getId(), k -> new HashSet<>());
+            for (LocalDate d = leave.getStartDate(); !d.isAfter(end); d = d.plusDays(1)) {
+                dates.add(d);
+            }
+        }
+
+        return new SchedulingProblem(
+                staffList, staffById,
+                v10Requirements, reqsById,
+                leavesByStaff,
+                holidays != null ? holidays : Collections.emptySet(),
+                compDaysByStaff != null ? compDaysByStaff : new HashMap<>(),
+                config,
+                crossSpecialtyEnabled);
+    }
+
+    /**
+     * Overload of {@link #withRequirements} that accepts per-staff compensation days
+     * AND existing schedule conflict data. BUGFIX (V10-existing-conflict): without
+     * existingConflicts, V10 may assign L04 to a staff who already has L03 from an
+     * existing schedule — yielding BR-02 hard violations.
+     */
+    public static SchedulingProblem withRequirements(List<Staff> rawStaff,
+                                                      List<ShiftRequirementInfo> v10Requirements,
+                                                      List<LeaveRequest> rawLeaves,
+                                                      Map<Integer, Set<LocalDate>> compDaysByStaff,
+                                                      Map<String, Set<Integer>> existingConflicts,
+                                                      Set<LocalDate> holidays,
+                                                      SchedulingConfig config,
+                                                      boolean crossSpecialtyEnabled) {
+        List<StaffNode> staffList = rawStaff.stream().map(StaffNode::from).toList();
+        Map<Integer, StaffNode> staffById = staffList.stream()
+                .collect(Collectors.toMap(StaffNode::getId, s -> s));
+
+        Map<Integer, ShiftRequirementInfo> reqsById = new HashMap<>();
+        for (ShiftRequirementInfo r : v10Requirements) {
+            reqsById.put(r.id(), r);
+        }
+
+        Map<Integer, Set<LocalDate>> leavesByStaff = new HashMap<>();
+        for (LeaveRequest leave : rawLeaves) {
+            if (leave.getStaff() == null || leave.getStartDate() == null) continue;
+            LocalDate end = leave.getEndDate() != null ? leave.getEndDate() : leave.getStartDate();
+            Set<LocalDate> dates = leavesByStaff.computeIfAbsent(
+                    leave.getStaff().getId(), k -> new HashSet<>());
+            for (LocalDate d = leave.getStartDate(); !d.isAfter(end); d = d.plusDays(1)) {
+                dates.add(d);
+            }
+        }
+
+        return new SchedulingProblem(
+                staffList, staffById,
+                v10Requirements, reqsById,
+                leavesByStaff,
+                holidays != null ? holidays : Collections.emptySet(),
+                compDaysByStaff != null ? compDaysByStaff : new HashMap<>(),
+                config,
+                crossSpecialtyEnabled,
+                existingConflicts != null ? existingConflicts : new HashMap<>());
     }
 
     /**

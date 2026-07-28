@@ -202,8 +202,9 @@ public class SchedulingFeasibilityAnalyzer {
             log.warn("Could not load L04 cross-specialty config, using defaults: {}", e.getMessage());
         }
 
-        // 4. Group requirements by date and shift type
+        // 4. Group requirements by date and shift type (defensive: skip null shiftType)
         Map<LocalDate, Map<String, List<ShiftRequirement>>> reqsByDateAndType = requirements.stream()
+                .filter(r -> r.getShiftType() != null)
                 .collect(Collectors.groupingBy(
                         ShiftRequirement::getWorkDate,
                         Collectors.groupingBy(r -> r.getShiftType().getId())
@@ -450,8 +451,11 @@ public class SchedulingFeasibilityAnalyzer {
                             Integer staffSpecId = s.getSpecialty() != null ? s.getSpecialty().getId() : null;
                             if (staffSpecId != null && requiredSpecIds.contains(staffSpecId)) return true;
 
-                            // HOẶC trong cross-specialty allowlist
-                            if (l04CrossSpecialty && l04AllowedSpecialties != null && !l04AllowedSpecialties.isEmpty()) {
+                            // Cross-specialty: empty allowed list = tất cả khoa được phép
+                            if (l04CrossSpecialty) {
+                                if (l04AllowedSpecialties == null || l04AllowedSpecialties.isEmpty()) {
+                                    return true; // empty = all specialties
+                                }
                                 String staffSpecName = s.getSpecialty() != null ? s.getSpecialty().getName() : null;
                                 if (staffSpecName != null && l04AllowedSpecialties.contains(staffSpecName)) {
                                     return true;
@@ -578,24 +582,28 @@ public class SchedulingFeasibilityAnalyzer {
         Set<Integer> poolIds = pool.stream().map(Staff::getId).collect(Collectors.toSet());
         Set<Integer> crossEligibleIds = new HashSet<>();
 
-        if ("L04".equals(shiftTypeId) && l04CrossSpecialty && !l04AllowedSpecialties.isEmpty()) {
-            crossEligibleIds = allActiveStaff.stream()
-                    .filter(s -> poolIds.contains(s.getId()))
-                    .filter(s -> l04AllowedSpecialties.contains(s.getSpecialty().getId()))
-                    .map(Staff::getId)
-                    .collect(Collectors.toSet());
-        }
+	        if ("L04".equals(shiftTypeId) && l04CrossSpecialty) {
+	            boolean allAllowed = l04AllowedSpecialties == null || l04AllowedSpecialties.isEmpty();
+	            crossEligibleIds = allActiveStaff.stream()
+	                    .filter(s -> poolIds.contains(s.getId()))
+	                    .filter(s -> s.getSpecialty() != null && (allAllowed || l04AllowedSpecialties.contains(s.getSpecialty().getName())))
+	                    .map(Staff::getId)
+	                    .collect(Collectors.toSet());
+	        }
 
-        // Backups = staff active but NOT in pool (on leave/comp)
-        // AND eligible via cross-specialty if L04
-        List<StaffBackup> backups = allActiveStaff.stream()
-                .filter(s -> !poolIds.contains(s.getId()))
-                .filter(s -> {
-                    if ("L04".equals(shiftTypeId)) {
-                        return l04CrossSpecialty && l04AllowedSpecialties.contains(s.getSpecialty().getId());
-                    }
-                    return true;
-                })
+	        // Backups = staff active but NOT in pool (on leave/comp)
+	        // AND eligible via cross-specialty if L04
+	        List<StaffBackup> backups = allActiveStaff.stream()
+	                .filter(s -> !poolIds.contains(s.getId()))
+	                .filter(s -> {
+	                    if ("L04".equals(shiftTypeId)) {
+	                        if (!l04CrossSpecialty) return false;
+	                        if (s.getSpecialty() == null) return false;
+	                        if (l04AllowedSpecialties == null || l04AllowedSpecialties.isEmpty()) return true; // all allowed
+	                        return l04AllowedSpecialties.contains(s.getSpecialty().getName());
+	                    }
+	                    return true;
+	                })
                 .map(s -> new StaffBackup(
                         s.getId(),
                         s.getFullName(),

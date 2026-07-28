@@ -65,4 +65,20 @@ public class AutoScheduleRequestDTO {
      */
     private Integer maxShiftsPerMonthOverride;
 
+    /**
+     * Preview-only flag: when true, ignore existing schedules in the period and
+     * return only what the algorithm would generate from scratch.
+     *
+     * - false (default): existing schedules are merged into the preview output
+     *   so the user sees the full picture (existing + new).
+     * - true: existing schedules are excluded from the preview output so the user
+     *   can see the algorithm's true distribution without being masked by stale
+     *   data from previous runs.
+     *
+     * This flag is ignored for the save (/auto-schedule POST) endpoint which is
+     * always destructive per its own overwriteExisting logic.
+     */
+    @Builder.Default
+    private Boolean skipExisting = false;
+
 }

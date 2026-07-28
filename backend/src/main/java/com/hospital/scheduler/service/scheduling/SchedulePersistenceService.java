@@ -134,4 +134,68 @@ public class SchedulePersistenceService {
             stateAccessor.addAllCompensationShiftDate(compKey);
         }
     }
+
+    /**
+     * Overload with an explicit compensation date (bypasses calculator).
+     * Used when the CSP has already chosen the best option among flexible
+     * compensation days (e.g. Tue/Wed/Thu for Fri/Sat duty).
+     */
+    public void createCompensationDayForAuto(
+            com.hospital.scheduler.repository.CompensationDayRepository compensationDayRepository,
+            Schedule schedule,
+            LocalDate compensationDate) {
+        if (schedule == null || schedule.getWorkDate() == null || compensationDate == null) {
+            log.warn("createCompensationDayForAuto(override): schedule or date is null");
+            return;
+        }
+        LocalDate shiftDate = schedule.getWorkDate();
+
+        log.info("createCompensationDayForAuto(override): staffId={}, shiftDate={}, compDate={}",
+                schedule.getStaff().getId(), shiftDate, compensationDate);
+
+        String compKey = schedule.getStaff().getId() + "_" + compensationDate.toString();
+
+        if (stateAccessor.getAllCompensationShiftDates().contains(compKey)) {
+            log.debug("Compensation day already tracked in memory for {}", compKey);
+            return;
+        }
+
+        if (compensationDayRepository.existsByStaffIdAndCompensationDate(
+                schedule.getStaff().getId(), compensationDate)) {
+            log.warn("Compensation day already exists in DB for staff {} on {}",
+                    schedule.getStaff().getId(), compensationDate);
+            stateAccessor.addAllCompensationShiftDate(compKey);
+            return;
+        }
+
+        if (schedule.getId() != null && compensationDayRepository.existsByScheduleId(schedule.getId())) {
+            log.warn("Schedule {} already has a compensation day", schedule.getId());
+            stateAccessor.addAllCompensationShiftDate(compKey);
+            return;
+        }
+
+        try {
+            int inserted = compensationDayRepository.insertIgnoreCompensationDay(
+                    schedule.getStaff().getId(),
+                    schedule.getPeriod().getId(),
+                    schedule.getId(),
+                    shiftDate,
+                    compensationDate,
+                    "Ngày nghỉ bù tự động từ ca L01"
+            );
+            if (inserted > 0) {
+                log.info("Compensation day INSERTED (override): staffId={}, compDate={}",
+                        schedule.getStaff().getId(), compensationDate);
+                stateAccessor.addAllCompensationShiftDate(compKey);
+            } else {
+                log.debug("Compensation day already existed (override): staffId={}, compDate={}",
+                        schedule.getStaff().getId(), compensationDate);
+                stateAccessor.addAllCompensationShiftDate(compKey);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to insert compensation day (override) for staff {} on {}: {}",
+                    schedule.getStaff().getId(), compensationDate, e.getMessage());
+            stateAccessor.addAllCompensationShiftDate(compKey);
+        }
+    }
 }

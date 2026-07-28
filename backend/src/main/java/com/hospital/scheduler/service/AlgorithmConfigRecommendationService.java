@@ -30,9 +30,7 @@ public class AlgorithmConfigRecommendationService {
      * <p>Formula:
      * <ul>
      *   <li>{@code minPerDay = ⌈(target × eligible) / periodDays⌋} — coverage</li>
-     *   <li>{@code minPerWeek = ⌈target / periodWeeks⌋} — weekly fair-share</li>
-     *   <li>{@code maxPerWeek = ⌈(target / periodWeeks) × 1.5⌉} — buffer 50%</li>
-     *   <li>{@code maxPerDay = ⌈maxPerWeek × 1.2⌉} — daily peak buffer</li>
+     *   <li>{@code maxPerDay = ⌈minPerDay × 1.2⌉} — daily peak buffer</li>
      * </ul>
      */
     public AutoGenConfigRecommendation recommendAutoGenConfig(
@@ -63,20 +61,10 @@ public class AlgorithmConfigRecommendationService {
         int l03MinPerDay = Math.max(1, (int) Math.ceil((double) (l03Target * l03Elig) / days));
         int l04MinPerDay = Math.max(1, (int) Math.ceil((double) (l04Target * l04Elig) / days));
 
-        int l01MinPerWeek = Math.max(1, (int) Math.ceil((double) l01Target / weeks));
-        int l02MinPerWeek = Math.max(1, (int) Math.ceil((double) l02Target / weeks));
-        int l03MinPerWeek = Math.max(1, (int) Math.ceil((double) l03Target / weeks));
-        int l04MinPerWeek = Math.max(1, (int) Math.ceil((double) l04Target / weeks));
-
-        int l01MaxPerWeek = Math.max(l01MinPerWeek + 1, (int) Math.ceil(((double) l01Target / weeks) * 1.5));
-        int l02MaxPerWeek = Math.max(l02MinPerWeek + 1, (int) Math.ceil(((double) l02Target / weeks) * 1.5));
-        int l03MaxPerWeek = Math.max(l03MinPerWeek + 1, (int) Math.ceil(((double) l03Target / weeks) * 1.5));
-        int l04MaxPerWeek = Math.max(l04MinPerWeek + 1, (int) Math.ceil(((double) l04Target / weeks) * 1.5));
-
-        int l01MaxPerDay = Math.max(l01MinPerDay, (int) Math.ceil(l01MaxPerWeek * 1.2));
-        int l02MaxPerDay = Math.max(l02MinPerDay, (int) Math.ceil(l02MaxPerWeek * 1.2));
-        int l03MaxPerDay = Math.max(l03MinPerDay, (int) Math.ceil(l03MaxPerWeek * 1.2));
-        int l04MaxPerDay = Math.max(l04MinPerDay, (int) Math.ceil(l04MaxPerWeek * 1.2));
+        int l01MaxPerDay = Math.max(l01MinPerDay, (int) Math.ceil(l01MinPerDay * 1.2));
+        int l02MaxPerDay = Math.max(l02MinPerDay, (int) Math.ceil(l02MinPerDay * 1.2));
+        int l03MaxPerDay = Math.max(l03MinPerDay, (int) Math.ceil(l03MinPerDay * 1.2));
+        int l04MaxPerDay = Math.max(l04MinPerDay, (int) Math.ceil(l04MinPerDay * 1.2));
 
         int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
                 + (l03Target * l03Elig) + (l04Target * l04Elig);
@@ -85,8 +73,7 @@ public class AlgorithmConfigRecommendationService {
                 current.enabled(),
                 l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
                 l01MaxPerDay, l02MaxPerDay, l03MaxPerDay, l04MaxPerDay,
-                l01MinPerWeek, l02MinPerWeek, l03MinPerWeek, l04MinPerWeek,
-                l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
+                0, 0, 0, 0,  // max/week (unused by algorithm, kept for future enforcement)
                 current.holidayMode(),
                 current.removedShiftTypes() != null ? current.removedShiftTypes() : List.of(),
                 // L04 only

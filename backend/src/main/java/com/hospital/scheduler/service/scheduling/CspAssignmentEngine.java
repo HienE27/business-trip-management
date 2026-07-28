@@ -81,7 +81,7 @@ public final class CspAssignmentEngine {
         for (Map.Entry<String, String> entry : cspResult.getAssignments().entrySet()) {
             if (!ConflictDetectionService.SHIFT_TYPE_L01.equals(entry.getValue())) continue;
             String[] parts = entry.getKey().split("\\|");
-            if (parts.length != 2) continue;
+            if (parts.length < 2) continue;
             LocalDate workDate = LocalDate.parse(parts[1]);
             LocalDate compDate = calculator.calculate(workDate);
             if (compDate != null) {

@@ -10,7 +10,9 @@ import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.HolidayRepository;
 import com.hospital.scheduler.scheduling.config.SchedulingConfig;
 import com.hospital.scheduler.service.AlgorithmConfigService;
+import com.hospital.scheduler.util.CompensationDateCalculator;
 import com.hospital.scheduler.scheduling.constraint.AdjacentL01Constraint;
+import com.hospital.scheduler.scheduling.constraint.CompensationDayConstraint;
 import com.hospital.scheduler.scheduling.constraint.Constraint;
 import com.hospital.scheduler.scheduling.constraint.ConstraintRegistry;
 import com.hospital.scheduler.scheduling.constraint.DuplicateShiftConstraint;
@@ -57,6 +59,7 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
 
     private final SchedulingConfig config;
     private final HolidayRepository holidayRepository;
+    private final CompensationDateCalculator compensationDateCalculator;
     /**
      * BUGFIX (M07-CROSSCONFIG-V10): injected so the V10 problem can read the
      * user's L04 cross-specialty toggle and apply it during candidate
@@ -94,11 +97,27 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
         List<com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo> v10Reqs =
                 convertRequirements(requirements);
 
+        // Convert flat "staffId_date" strings to per-staff date sets
+        Map<Integer, Set<LocalDate>> compDaysByStaff = new HashMap<>();
+        if (existingCompensationDays != null) {
+            for (String key : existingCompensationDays) {
+                String[] parts = key.split("_");
+                if (parts.length < 2) continue;
+                try {
+                    int staffId = Integer.parseInt(parts[0]);
+                    LocalDate compDate = LocalDate.parse(parts[1]);
+                    compDaysByStaff.computeIfAbsent(staffId, k -> new HashSet<>()).add(compDate);
+                } catch (Exception e) {
+                    log.warn("Skipping malformed existingCompDay key: {}", key);
+                }
+            }
+        }
+
         SchedulingProblem problem = SchedulingProblem.withRequirements(
                 activeStaff,
                 v10Reqs,
                 leaveRequests,
-                new HashSet<>(),
+                compDaysByStaff,
                 holidays,
                 config,
                 isL04CrossSpecialtyEnabled());
@@ -115,6 +134,7 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
         registry.register(new RestDayConstraint());
         registry.register(new AdjacentL01Constraint());
         registry.register(new MaxShiftsConstraint());
+        registry.register(new CompensationDayConstraint());
 
         // ── 4. Wire director + algorithm ──────────────────────────────────────
         ScoreDirector scoreDirector = new ScoreDirector(descriptor);
@@ -247,7 +267,20 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
             }
         }
         out.setAssignments(assignments);
-        out.setCompensationDays(new HashSet<>());
+
+        // Calculate compensation days from L01 assignments
+        Set<String> compDays = new HashSet<>();
+        if (src.getSolution() != null) {
+            for (var a : src.getSolution().getAssignments()) {
+                if (a.staffId > 0 && "L01".equals(a.shiftTypeId)) {
+                    LocalDate compDate = compensationDateCalculator.calculate(a.date);
+                    if (compDate != null) {
+                        compDays.add(a.staffId + "_" + compDate);
+                    }
+                }
+            }
+        }
+        out.setCompensationDays(compDays);
         out.setErrors(new java.util.ArrayList<>());
         out.setValid(src.getScore() != null && src.getScore().getHardViolations() == 0);
         out.setPartial(src.getScore() == null || src.getScore().getCoverage() < 0.999);

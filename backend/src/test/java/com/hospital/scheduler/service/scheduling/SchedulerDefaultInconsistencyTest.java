@@ -46,19 +46,19 @@ class SchedulerDefaultInconsistencyTest {
     @DisplayName("Path 1: AutoGenConfigService")
     class Path1_AutoGenConfigService {
 
-        @Test
-        @DisplayName("empty cache → l04CrossSpecialty enabled = true (fixed H1)")
-        void emptyCache_l04CrossSpecialtyEnabled() {
-            AlgorithmConfigCrudService crud = new MockCrud(Map.of());
-            AutoGenConfigService service = new AutoGenConfigService(crud);
+	    @Test
+	    @DisplayName("empty cache → l04CrossSpecialty enabled = false (aligned with UI default)")
+	    void emptyCache_l04CrossSpecialtyEnabled() {
+	        AlgorithmConfigCrudService crud = new MockCrud(Map.of());
+	        AutoGenConfigService service = new AutoGenConfigService(crud);
 
-            var config = service.getAutoGenConfig();
+	        var config = service.getAutoGenConfig();
 
-            assertThat(config).isPresent();
-            assertThat(config.get().l04CrossSpecialty())
-                    .as("After H1 fix: empty DB → cross ON by default, matching StaffEligibilityFilter.defaultEnabled()")
-                    .isTrue();
-        }
+	        assertThat(config).isPresent();
+	        assertThat(config.get().l04CrossSpecialty())
+	                .as("After H1 fix: empty DB → cross OFF by default, aligned with UI (ConfigMapper default=false)")
+	                .isFalse();
+	    }
 
         @Test
         @DisplayName("empty cache → l04CrossSpecialtyRatio = 0.5f")
@@ -91,16 +91,16 @@ class SchedulerDefaultInconsistencyTest {
     @DisplayName("Path 2: StaffEligibilityFilter (scheduler runtime eligibility)")
     class Path2_StaffEligibilityFilter {
 
-        @Test
-        @DisplayName("getCrossSpecialtyConfig(L04) → enabled = true when config missing")
-        void missingConfig_returnsDefaultEnabled() {
-            var cfg = StaffEligibilityFilter.CrossSpecialtyConfig.defaultEnabled();
+	    @Test
+	    @DisplayName("getCrossSpecialtyConfig(L04) → enabled = false when config missing")
+	    void missingConfig_returnsDefaultEnabled() {
+	        var cfg = StaffEligibilityFilter.CrossSpecialtyConfig.defaultEnabled();
 
-            assertThat(cfg.enabled()).isTrue();
-            assertThat(cfg.ratio()).isEqualTo(0.5f);
-            assertThat(cfg.allowedSpecialties()).isEmpty();
-            assertThat(cfg.balanceStrategy()).isEqualTo("FAIR_DISTRIBUTE");
-        }
+	        assertThat(cfg.enabled()).isFalse();
+	        assertThat(cfg.ratio()).isEqualTo(0.5f);
+	        assertThat(cfg.allowedSpecialties()).isEmpty();
+	        assertThat(cfg.balanceStrategy()).isEqualTo("FAIR_DISTRIBUTE");
+	    }
     }
 
     // ─── THE INCONSISTENCY TEST ─────────────────────────────────────────────
@@ -109,20 +109,20 @@ class SchedulerDefaultInconsistencyTest {
     @DisplayName("H1 — Inconsistency between two paths")
     class H1_Inconsistency {
 
-        @Test
-        @DisplayName("After H1 fix: AutoGenConfigService=true matches StaffEligibilityFilter.defaultEnabled=true → CONSISTENT")
-        void l04CrossSpecialtyEnabled_consistent_afterFix() {
-            AlgorithmConfigCrudService crud = new MockCrud(Map.of());
-            AutoGenConfigService service = new AutoGenConfigService(crud);
-            var autoGen = service.getAutoGenConfig();
+	    @Test
+	    @DisplayName("After H1 fix: AutoGenConfigService=false matches StaffEligibilityFilter.defaultEnabled=false → CONSISTENT")
+	    void l04CrossSpecialtyEnabled_consistent_afterFix() {
+	        AlgorithmConfigCrudService crud = new MockCrud(Map.of());
+	        AutoGenConfigService service = new AutoGenConfigService(crud);
+	        var autoGen = service.getAutoGenConfig();
 
-            var filterDefault = StaffEligibilityFilter.CrossSpecialtyConfig.defaultEnabled();
+	        var filterDefault = StaffEligibilityFilter.CrossSpecialtyConfig.defaultEnabled();
 
-            assertThat(autoGen).isPresent();
-            // After H1 fix: both paths return true when DB is empty
-            assertThat(autoGen.get().l04CrossSpecialty())
-                    .as("AutoGenConfigService now aligns with StaffEligibilityFilter.defaultEnabled()")
-                    .isEqualTo(filterDefault.enabled());
+	        assertThat(autoGen).isPresent();
+	        // After H1 fix: both paths return false when DB is empty (aligned with UI)
+	        assertThat(autoGen.get().l04CrossSpecialty())
+	                .as("AutoGenConfigService now aligns with StaffEligibilityFilter.defaultEnabled() — both false")
+	                .isEqualTo(filterDefault.enabled());
         }
 
         @Test
@@ -168,22 +168,22 @@ class SchedulerDefaultInconsistencyTest {
             assertThat(config.get().l04CrossSpecialtyRatio()).isEqualTo(0.3f);
         }
 
-        @Test
-        @DisplayName("After saving config with enabled=true → both paths agree")
-        void savedEnabledConfig_bothPathsAgree() {
-            Map<String, String> savedConfig = Map.of(
-                    "auto_gen_l04_cross_specialty", "true",
-                    "auto_gen_l04_cross_specialty_ratio", "0.7"
-            );
-            AlgorithmConfigCrudService crud = new MockCrud(savedConfig);
-            AutoGenConfigService service = new AutoGenConfigService(crud);
-            var config = service.getAutoGenConfig();
-            var filterDefault = StaffEligibilityFilter.CrossSpecialtyConfig.defaultEnabled();
+	    @Test
+	    @DisplayName("After saving config with enabled=true → AutoGenConfigService returns true")
+	    void savedEnabledConfig_bothPathsAgree() {
+	        Map<String, String> savedConfig = Map.of(
+	                "auto_gen_l04_cross_specialty", "true",
+	                "auto_gen_l04_cross_specialty_ratio", "0.7"
+	        );
+	        AlgorithmConfigCrudService crud = new MockCrud(savedConfig);
+	        AutoGenConfigService service = new AutoGenConfigService(crud);
+	        var config = service.getAutoGenConfig();
 
-            assertThat(config).isPresent();
-            assertThat(config.get().l04CrossSpecialty())
-                    .isEqualTo(filterDefault.enabled());
-        }
+	        assertThat(config).isPresent();
+	        // Saved value takes precedence over default
+	        assertThat(config.get().l04CrossSpecialty()).isTrue();
+	        assertThat(config.get().l04CrossSpecialtyRatio()).isEqualTo(0.7f);
+	    }
     }
 
     // ─── Mock AlgorithmConfigCrudService ───────────────────────────────────

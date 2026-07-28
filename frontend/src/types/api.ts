@@ -1322,3 +1322,68 @@ export type SandboxStatus =
 
 export type SimulationMode = "STEPPING" | "FULL" | "FAST_FORWARD" | "SINGLE_RUN" | "COMPARE" | "SENSITIVITY" | "WHAT_IF";
 
+// ── Configuration Calculator ─────────────────────────────────────────
+
+export interface ConfigCalculatorResponse {
+  mode: number;
+  feasible: boolean;
+  message?: string;
+  periodId?: number;
+  periodName?: string;
+  periodDays: number;
+  totalStaff: number;
+  totalRequirement: number;
+  totalCapacity: number;
+  totalAssigned: number;
+  perShiftType?: ShiftTypeCapacity[];
+  bottlenecks?: Bottleneck[];
+  holidayImpact?: HolidayImpact;
+  algorithmInfo?: AlgorithmInfo;
+  recommendedConfig?: Record<string, unknown>;
+  configChanges?: ConfigChange[];
+  recommendedAlgorithm?: string;
+  expectedCoverage?: number;
+  expectedFairness?: number;
+}
+
+export interface ShiftTypeCapacity {
+  shiftType: string;
+  requirement: number;
+  maxPossible: number;
+  assigned: number;
+  eligibleStaffCount: number;
+  avgDomainSize: number;
+  minDomainSize: number;
+  bottleneckCount: number;
+  perSpecialty?: Record<string, number>;
+}
+
+export interface Bottleneck {
+  type: string;
+  shiftType: string;
+  specialty?: string;
+  severity: string;
+  message: string;
+  suggestion?: string;
+}
+
+export interface HolidayImpact {
+  holidayDaysCount: number;
+  skippedShifts?: Record<string, number>;
+  mode: string;
+}
+
+export interface AlgorithmInfo {
+  type: string;
+  executionTimeMs: number;
+  terminatedBy: string;
+  varsExplored: number;
+  assignmentsMade: number;
+}
+
+export interface ConfigChange {
+  field: string;
+  fromValue: unknown;
+  toValue: unknown;
+  reason: string;
+}

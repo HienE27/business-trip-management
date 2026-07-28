@@ -23,7 +23,7 @@ import static com.hospital.scheduler.algorithm.CspConstants.conflicts;
  */
 @Component
 @RequiredArgsConstructor
-class CspAc3Engine {
+public class CspAc3Engine {
 
     private final CompensationDateCalculator compensationDateCalculator;
 
@@ -34,7 +34,7 @@ class CspAc3Engine {
      * Returns the same array passed in for fluent use. If a domain is wiped
      * out, the array is returned as-is — the caller decides how to react.
      */
-    BitSet[] runInitialAC3(
+    public BitSet[] runInitialAC3(
             BitSet[] domains,
             List<Integer>[] constraintGraph,
             int[] varDay,
@@ -115,8 +115,13 @@ class CspAc3Engine {
     /**
      * True if {@code otherDay} is the BR-03 compensation day of
      * {@code l01Day} AND both days fall inside the active period.
+     * Uses the pre-computed mapping from ProblemData (flexible for Fri/Sat duty).
      */
     private boolean compensationOverlap(ProblemData data, int l01Day, int otherDay) {
+        if (data.compDayIdx != null && l01Day >= 0 && l01Day < data.numDays) {
+            return data.compDayIdx[l01Day] == otherDay;
+        }
+        // Fallback (should not be reached when compDayIdx is properly built)
         LocalDate workDate = data.baseDate.plusDays(l01Day);
         LocalDate compDate = compensationDateCalculator.calculate(workDate);
         long offset = ChronoUnit.DAYS.between(data.baseDate, compDate);

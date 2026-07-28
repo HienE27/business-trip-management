@@ -62,38 +62,53 @@ public class RequirementPreparationService {
                     "Cấu hình auto-gen chưa được bật. Vui lòng bật auto_generate_requirements trong cấu hình thuật toán.");
         }
 
+        // Always generate fresh from current config so config changes (removedShiftTypes,
+        // min/max per day) take effect on preview, not only on save. The in-memory
+        // generated list reflects the current config; persistence happens only when save=true.
+        List<ShiftRequirement> generated = generateRequirementsFromConfig(period, autoGenConfig, activeStaff);
         if (save) {
+            // Sync deletes stale rows (e.g. removed shift types) then persist the fresh set.
             syncExistingRequirementsWithConfig(period, autoGenConfig, activeStaff);
-            List<ShiftRequirement> generated = generateRequirementsFromConfig(period, autoGenConfig, activeStaff);
             return persistRequirementsIfTransient(generated);
-        } else {
-            List<ShiftRequirement> existing = requirementRepository.findByPeriodId(period.getId());
-            if (existing == null || existing.isEmpty()) {
-                // First run against a fresh period — fall back to in-memory generation without persisting
-                return generateRequirementsFromConfig(period, autoGenConfig, activeStaff);
-            }
-            return existing;
         }
+        return generated;
     }
 
     /**
      * Re-sync persisted requirements with current auto-gen config.
      * Keeps id (FK safety) but updates requiredStaffCount.
      */
-    public void syncExistingRequirementsWithConfig(SchedulePeriod period, AutoGenConfig config, List<Staff> activeStaff) {
-        List<ShiftRequirement> existing = requirementRepository.findByPeriodId(period.getId());
-        if (existing == null || existing.isEmpty()) return;
+	    public void syncExistingRequirementsWithConfig(SchedulePeriod period, AutoGenConfig config, List<Staff> activeStaff) {
+	        Set<String> removedShiftTypes = config.removedShiftTypes() == null
+	                ? Set.of()
+	                : config.removedShiftTypes().stream().map(String::toUpperCase).collect(Collectors.toSet());
 
-        Set<LocalDate> holidays = holidayRepository.findActiveHolidaysBetween(period.getStartDate(), period.getEndDate())
-                .stream()
-                .map(Holiday::getHolidayDate)
-                .collect(Collectors.toSet());
+	        // Xóa requirement cũ cho shift type bị bỏ qua (removedShiftTypes)
+	        if (!removedShiftTypes.isEmpty()) {
+	            requirementRepository.detachScheduleReferencesByPeriodNative(period.getId());
+	            int deleted = requirementRepository.deleteByPeriodIdAndShiftTypeIds(
+	                    period.getId(), removedShiftTypes);
+	            if (deleted > 0) {
+	                entityManager.flush();
+	                entityManager.clear();
+	                log.info("Deleted {} requirements for removed shift types {} from period {}",
+	                        deleted, removedShiftTypes, period.getId());
+	            }
+	        }
 
-        int generalPoolSize = Math.max(1, activeStaff.size());
-        boolean skipL03OnHoliday = !"PARTIAL".equalsIgnoreCase(config.holidayMode());
+	        List<ShiftRequirement> existing = requirementRepository.findByPeriodId(period.getId());
+	        if (existing == null || existing.isEmpty()) return;
 
-        boolean anyChanged = false;
-        for (ShiftRequirement req : existing) {
+	        Set<LocalDate> holidays = holidayRepository.findActiveHolidaysBetween(period.getStartDate(), period.getEndDate())
+	                .stream()
+	                .map(Holiday::getHolidayDate)
+	                .collect(Collectors.toSet());
+
+	        int generalPoolSize = Math.max(1, activeStaff.size());
+	        boolean skipL03OnHoliday = !"PARTIAL".equalsIgnoreCase(config.holidayMode());
+
+	        boolean anyChanged = false;
+	        for (ShiftRequirement req : existing) {
             if (req.getWorkDate() == null || req.getShiftType() == null) continue;
             boolean isHoliday = holidays.contains(req.getWorkDate());
             int newTarget;
@@ -220,6 +235,10 @@ public class RequirementPreparationService {
     }
 
     private int resolveSoftDailyTarget(int preferredMin, int preferredMax, int eligiblePoolSize) {
+        // Both 0 → no requirement for this shift type
+        if (preferredMax == 0 && preferredMin == 0) {
+            return 0;
+        }
         int target;
         if (preferredMax > 0) {
             target = Math.min(preferredMax, eligiblePoolSize);

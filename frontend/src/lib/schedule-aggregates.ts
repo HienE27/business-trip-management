@@ -16,6 +16,7 @@ export type StaffBalanceStatus = "balanced" | "caution" | "overloaded";
 export interface StaffAggregate {
   staffId: number;
   staffName: string;
+  specialtyName?: string | null;
   L01: number;
   L02: number;
   L03: number;
@@ -54,7 +55,7 @@ export function classifyRatio(ratio: number): StaffBalanceStatus {
  *   (để staff quá tải nhất luôn lên đầu)
  */
 export function aggregateByStaff(
-  schedules: Pick<AutoScheduleSummary, "staffId" | "staffName" | "shiftTypeId">[],
+  schedules: Pick<AutoScheduleSummary, "staffId" | "staffName" | "shiftTypeId" | "staffSpecialtyName">[],
 ): StaffAggregate[] {
   const map = new Map<number, StaffAggregate>();
 
@@ -65,6 +66,7 @@ export function aggregateByStaff(
       {
         staffId: s.staffId,
         staffName: s.staffName,
+        specialtyName: s.staffSpecialtyName,
         L01: 0,
         L02: 0,
         L03: 0,

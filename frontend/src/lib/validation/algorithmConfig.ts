@@ -80,30 +80,19 @@ export const PARAM_VALIDATIONS: Record<string, ValidationRule> = {
   /**
    * Per-shift-type min/max validations.
    * Logic: MinPerDay/MaxPerDay = tổng ca toàn khoa mỗi ngày.
-   *        MinPerWeek/MaxPerWeek = số ca mỗi nhân sự mỗi tuần.
-   * Validate: max >= min; min/ngày * ngày không vượt quá tổng ca khả thi;
-   * min/tuần hợp lý (1-7).
+   * Validate: max >= min; min/ngày không vượt quá tổng ca khả thi.
    */
-  l01MinPerDay: perShiftTypeValidation("day", "min"),
-  l02MinPerDay: perShiftTypeValidation("day", "min"),
-  l03MinPerDay: perShiftTypeValidation("day", "min"),
-  l04MinPerDay: perShiftTypeValidation("day", "min"),
-  l01MaxPerDay: perShiftTypeValidation("day", "max"),
-  l02MaxPerDay: perShiftTypeValidation("day", "max"),
-  l03MaxPerDay: perShiftTypeValidation("day", "max"),
-  l04MaxPerDay: perShiftTypeValidation("day", "max"),
-  l01MinPerWeek: perShiftTypeValidation("week", "min"),
-  l02MinPerWeek: perShiftTypeValidation("week", "min"),
-  l03MinPerWeek: perShiftTypeValidation("week", "min"),
-  l04MinPerWeek: perShiftTypeValidation("week", "min"),
-  l01MaxPerWeek: perShiftTypeValidation("week", "max"),
-  l02MaxPerWeek: perShiftTypeValidation("week", "max"),
-  l03MaxPerWeek: perShiftTypeValidation("week", "max"),
-  l04MaxPerWeek: perShiftTypeValidation("week", "max"),
+  l01MinPerDay: perShiftTypeValidation("min"),
+  l02MinPerDay: perShiftTypeValidation("min"),
+  l03MinPerDay: perShiftTypeValidation("min"),
+  l04MinPerDay: perShiftTypeValidation("min"),
+  l01MaxPerDay: perShiftTypeValidation("max"),
+  l02MaxPerDay: perShiftTypeValidation("max"),
+  l03MaxPerDay: perShiftTypeValidation("max"),
+  l04MaxPerDay: perShiftTypeValidation("max"),
 };
 
 function perShiftTypeValidation(
-  scope: "day" | "week",
   bound: "min" | "max",
 ): ValidationRule {
   return (v) => {
@@ -111,25 +100,12 @@ function perShiftTypeValidation(
     if (Number.isNaN(num) || num < 0) {
       return { level: "error", message: "Giá trị phải là số không âm." };
     }
-    if (scope === "day") {
-      // Tổng ca toàn khoa/ngày. L01 thường 1-3, L03/L04 có thể cao hơn (đa chuyên khoa).
-      if (bound === "min" && num > 0 && num < 1) {
-        return { level: "warning", message: "Min < 1 ca/ngày → mỗi ngày có thể không phát sinh ca nào." };
-      }
-      if (bound === "max" && num > 0 && num > 30) {
-        return { level: "warning", message: "Trần > 30 ca/ngày → bất thường. Kiểm tra lại eligibility." };
-      }
-    } else {
-      // Ca/người/tuần — 1 tuần tối đa 7 ngày.
-      if (bound === "min" && num > 7) {
-        return { level: "warning", message: "Không thể trên 7 ngày/tuần. Khuyến nghị ≤ 6 để đảm bảo cân bằng tải." };
-      }
-      if (bound === "max" && num > 0 && num > 7) {
-        const rec = num > 10
-          ? " Khuyến nghị ≤ 6 ca/tuần để đảm bảo cân bằng tải."
-          : " Khuyến nghị ≤ 6 ca/tuần.";
-        return { level: "warning", message: `Không thể vượt quá 1 ca/ngày (7/tuần).${rec}` };
-      }
+    // Tổng ca toàn khoa/ngày. L01 thường 1-3, L03/L04 có thể cao hơn (đa chuyên khoa).
+    if (bound === "min" && num > 0 && num < 1) {
+      return { level: "warning", message: "Min < 1 ca/ngày → mỗi ngày có thể không phát sinh ca nào." };
+    }
+    if (bound === "max" && num > 0 && num > 30) {
+      return { level: "warning", message: "Trần > 30 ca/ngày → bất thường. Kiểm tra lại eligibility." };
     }
     return null;
   };

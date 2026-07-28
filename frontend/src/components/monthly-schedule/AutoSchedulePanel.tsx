@@ -32,10 +32,12 @@ export type AutoSchedulePanelProps = {
   onResetEdits: () => void;
   onEditPreviewItem?: (item: import("@/types/api").AutoScheduleSummary) => void;
   onSetAlgorithmType: (type: AlgorithmType) => void;
-  onSaveTemplate?: () => void;
-  onApplyTemplate?: () => void;
-  isManager?: boolean;
-};
+	  onSaveTemplate?: () => void;
+	  onApplyTemplate?: () => void;
+	  isManager?: boolean;
+	  skipExisting?: boolean;
+	  onSetSkipExisting?: (skip: boolean) => void;
+	};
 
 /**
  * Thông tin hiển thị cho mỗi thuật toán. Tất cả dùng chung 1 bảng màu
@@ -51,6 +53,16 @@ const ALGO_CONFIG: Record<AlgorithmType, {
   CSP_MRV_FC:    { icon: "account_tree", label: "CSP-MRV-FC",   desc: "CSP + MRV + Forward Checking" },
   V10_LOCAL_SEARCH: { icon: "psychology", label: "v10 Local Search", desc: "Tabu + mẫu hóa + thống kê tăng dần" },
 };
+
+// ponytail: format milliseconds theo góc nhìn người dùng. <1s hiển thị ms, ngược lại giây 1 chữ số.
+function formatElapsed(ms: number): string {
+  if (ms < 0) return "0s";
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const m = Math.floor(ms / 60_000);
+  const s = Math.floor((ms % 60_000) / 1000);
+  return `${m}m${s}s`;
+}
 
 export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   previewResult,
@@ -88,6 +100,18 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
   // 8A.1: Real-time progress từ backend (thay simulate)
   const progress = useAlgorithmProgress(selectedPeriodId, runningAutoSchedule);
+
+  // Live elapsed counter: tick mỗi 500ms khi đang chạy để hiển thị số giây đếm được.
+  // ponytail: tick 500ms đủ mượt cho cảm giác real-time mà không tốn re-render.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!runningAutoSchedule) return;
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [runningAutoSchedule]);
+  const liveElapsedMs = runningAutoSchedule && progress.startedAt
+    ? Math.max(0, now - new Date(progress.startedAt).getTime())
+    : null;
 
   const unassignedDays = previewResult?.unassignedDays ?? [];
   const totalMissing = unassignedDays.reduce((sum: number, d: unknown) => sum + ((d as { missingCount?: number }).missingCount ?? 0), 0);
@@ -221,6 +245,20 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                 )}
               </Badge>
               </span>
+            )}
+            {liveElapsedMs !== null && (
+              <span role="status" aria-live="off" aria-label="Thời gian đã chạy">
+                <Badge tone="neutral" size="sm">
+                  <span className="material-symbols-outlined text-[12px]">timer</span>
+                  <span className="font-mono tabular-nums">{formatElapsed(liveElapsedMs)}</span>
+                </Badge>
+              </span>
+            )}
+            {!runningAutoSchedule && previewResult && previewResult.executionTimeMs > 0 && (
+              <Badge tone="neutral" size="sm" aria-label="Tổng thời gian thuật toán đã chạy">
+                <span className="material-symbols-outlined text-[12px]">timer</span>
+                <span className="font-mono tabular-nums">{formatElapsed(previewResult.executionTimeMs)}</span>
+              </Badge>
             )}
             {message && (
               <span role="status" aria-live="polite">
@@ -365,19 +403,21 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             }>)
               .filter((t) => t.coverageRate < 95)
               .sort((a, b) => a.coverageRate - b.coverageRate);
+            // ponytail: warning uses amber (not tertiary/orange) for intuitive
+            // yellow-amber severity distinct from ok=green and critical=red.
             const toneStyles = {
               ok: "bg-secondary-container/20 border-secondary/30",
-              warning: "bg-tertiary-container/20 border-tertiary/30",
+              warning: "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700",
               critical: "bg-error-container/20 border-error/30",
             };
             const iconStyles = {
               ok: "bg-secondary-container text-secondary",
-              warning: "bg-tertiary-container text-tertiary",
+              warning: "bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-200",
               critical: "bg-error-container text-error",
             };
             const textStyles = {
               ok: "text-secondary",
-              warning: "text-tertiary",
+              warning: "text-amber-700 dark:text-amber-300",
               critical: "text-error",
             };
             const iconName = tone === "ok" ? "check_circle" : tone === "warning" ? "warning" : "error";

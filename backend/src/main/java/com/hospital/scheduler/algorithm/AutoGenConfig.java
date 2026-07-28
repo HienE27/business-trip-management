@@ -1,6 +1,7 @@
 package com.hospital.scheduler.algorithm;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Cấu hình tự động sinh yêu cầu nhân sự khi mở kỳ lịch.
@@ -22,7 +23,6 @@ public record AutoGenConfig(
     boolean enabled,
     int l01MinPerDay, int l02MinPerDay, int l03MinPerDay, int l04MinPerDay,
     int l01MaxPerDay, int l02MaxPerDay, int l03MaxPerDay, int l04MaxPerDay,
-    int l01MinPerWeek, int l02MinPerWeek, int l03MinPerWeek, int l04MinPerWeek,
     int l01MaxPerWeek, int l02MaxPerWeek, int l03MaxPerWeek, int l04MaxPerWeek,
     String holidayMode,  // "SKIP" or "PARTIAL"
     List<String> removedShiftTypes,  // e.g. ["L03", "L04"] to skip when generating
@@ -44,7 +44,6 @@ public record AutoGenConfig(
             boolean enabled,
             int l01MinPerDay, int l02MinPerDay, int l03MinPerDay, int l04MinPerDay,
             int l01MaxPerDay, int l02MaxPerDay, int l03MaxPerDay, int l04MaxPerDay,
-            int l01MinPerWeek, int l02MinPerWeek, int l03MinPerWeek, int l04MinPerWeek,
             int l01MaxPerWeek, int l02MaxPerWeek, int l03MaxPerWeek, int l04MaxPerWeek,
             String holidayMode, List<String> removedShiftTypes,
             // L01/L02/L03 fields (ignored in new model)
@@ -61,7 +60,6 @@ public record AutoGenConfig(
                 enabled,
                 l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
                 l01MaxPerDay, l02MaxPerDay, l03MaxPerDay, l04MaxPerDay,
-                l01MinPerWeek, l02MinPerWeek, l03MinPerWeek, l04MinPerWeek,
                 l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
                 holidayMode, removedShiftTypes,
                 l04CrossSpecialty, l04CrossSpecialtyRatio, l04AllowedSpecialties, l04BalanceStrategy);
@@ -76,7 +74,6 @@ public record AutoGenConfig(
         private boolean enabled = true;
         private int l01MinPerDay = 1, l02MinPerDay = 1, l03MinPerDay = 1, l04MinPerDay = 1;
         private int l01MaxPerDay = 0, l02MaxPerDay = 0, l03MaxPerDay = 0, l04MaxPerDay = 0;
-        private int l01MinPerWeek = 1, l02MinPerWeek = 2, l03MinPerWeek = 1, l04MinPerWeek = 1;
         private int l01MaxPerWeek = 0, l02MaxPerWeek = 0, l03MaxPerWeek = 0, l04MaxPerWeek = 0;
         private String holidayMode = "SKIP";
         private List<String> removedShiftTypes = List.of();
@@ -94,15 +91,19 @@ public record AutoGenConfig(
         public Builder l02MaxPerDay(int v) { this.l02MaxPerDay = v; return this; }
         public Builder l03MaxPerDay(int v) { this.l03MaxPerDay = v; return this; }
         public Builder l04MaxPerDay(int v) { this.l04MaxPerDay = v; return this; }
-        public Builder l01MinPerWeek(int v) { this.l01MinPerWeek = v; return this; }
-        public Builder l02MinPerWeek(int v) { this.l02MinPerWeek = v; return this; }
-        public Builder l03MinPerWeek(int v) { this.l03MinPerWeek = v; return this; }
-        public Builder l04MinPerWeek(int v) { this.l04MinPerWeek = v; return this; }
         public Builder l01MaxPerWeek(int v) { this.l01MaxPerWeek = v; return this; }
         public Builder l02MaxPerWeek(int v) { this.l02MaxPerWeek = v; return this; }
         public Builder l03MaxPerWeek(int v) { this.l03MaxPerWeek = v; return this; }
         public Builder l04MaxPerWeek(int v) { this.l04MaxPerWeek = v; return this; }
-        public Builder holidayMode(String v) { this.holidayMode = v; return this; }
+        public Builder holidayMode(String v) {
+            if (v == null || Set.of(AutoGenConstants.HOLIDAY_MODE_SKIP, AutoGenConstants.HOLIDAY_MODE_PARTIAL).contains(v)) {
+                this.holidayMode = v;
+            } else {
+                throw new IllegalArgumentException(
+                    "holidayMode phải là 'SKIP' hoặc 'PARTIAL', nhận được: " + v);
+            }
+            return this;
+        }
         public Builder removedShiftTypes(List<String> v) { this.removedShiftTypes = v; return this; }
         public Builder l04CrossSpecialty(boolean v) { this.l04CrossSpecialty = v; return this; }
         public Builder l04CrossSpecialtyRatio(float v) { this.l04CrossSpecialtyRatio = v; return this; }
@@ -114,7 +115,6 @@ public record AutoGenConfig(
                     enabled,
                     l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
                     l01MaxPerDay, l02MaxPerDay, l03MaxPerDay, l04MaxPerDay,
-                    l01MinPerWeek, l02MinPerWeek, l03MinPerWeek, l04MinPerWeek,
                     l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
                     holidayMode, removedShiftTypes,
                     l04CrossSpecialty, l04CrossSpecialtyRatio, l04AllowedSpecialties, l04BalanceStrategy);

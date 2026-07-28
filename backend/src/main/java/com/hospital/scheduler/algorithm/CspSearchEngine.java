@@ -8,9 +8,11 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -117,79 +119,228 @@ class CspSearchEngine {
         return Result.builder().valid(false).errors(List.of("Không tìm được lịch hợp lệ")).build();
     }
 
+    /**
+     * Per-frame state for iterative backtracking (replaces JVM call stack).
+     * Stores everything needed to resume from a "recursive call" return:
+     * the variable, its candidates, the committed staff index, trail pointer,
+     * and side-effect state (week tracker, rest days) for clean undo.
+     */
+    private static final class SearchFrame {
+        final int var;
+        final int shiftIdx;
+        final int dayIdx;
+        final String shiftType;
+        final List<Integer> candidates;
+        final int week;
+        final int compDayIdx;     // compensation day for DIRECT_24H, -1 otherwise
+        final boolean hasWeekTracker;
+
+        int nextCandidateIdx;     // next index to try in candidates
+        int staffIdx;             // committed staff, -1 if not yet committed
+        int trailBefore;          // trail pointer at commit time
+        boolean committed;        // true = assigned + propagate OK (waiting for child)
+
+        SearchFrame(int var, int shiftIdx, int dayIdx, String shiftType,
+                    List<Integer> candidates, int week, int compDayIdx,
+                    boolean hasWeekTracker) {
+            this.var = var;
+            this.shiftIdx = shiftIdx;
+            this.dayIdx = dayIdx;
+            this.shiftType = shiftType;
+            this.candidates = candidates;
+            this.week = week;
+            this.compDayIdx = compDayIdx;
+            this.hasWeekTracker = hasWeekTracker;
+            this.nextCandidateIdx = 0;
+            this.staffIdx = -1;
+            this.trailBefore = -1;
+            this.committed = false;
+        }
+
+        boolean isDirect24h() { return DIRECT_24H.equals(shiftType); }
+    }
+
+    /**
+     * Iterative MRV-FC backtracking search.
+     *
+     * Replaces the original recursive implementation to avoid StackOverflowError
+     * on deep problems (30-day × 23-staff with 4 shift types generates ~900+
+     * variables). Uses an explicit {@link Deque} of {@link SearchFrame} as the
+     * backtracking stack. The search tree, variable ordering (MRV+DH), candidate
+     * ordering (per-type workload), AC-3 propagation, nogood learning, and
+     * constraint checking are identical to the recursive version — only the
+     * frame management mechanism differs.
+     *
+     * <p>Each outer-loop iteration either:
+     * <ol>
+     *   <li>Selects a new unassigned variable and pushes a {@link SearchFrame}
+     *       ({@link SearchFrame#committed committed} = false), or</li>
+     *   <li>Tries the next candidate for the current top frame (the candidate
+     *       loop inside the recursive version's {@code for (int staffIdx : candidates)}).</li>
+     * </ol>
+     * When a candidate passes all checks and propagation succeeds, the frame is
+     * marked {@link SearchFrame#committed committed} = true and control returns
+     * to step 1 to assign the next variable. When all candidates for a frame are
+     * exhausted, the frame is popped; its parent is un-committed (nogood learned,
+     * trail rolled back, assignment undone) and the parent's next candidate is
+     * tried — exactly matching the recursive unwind.
+     */
     private SearchOutcome search(
             BitSet[] domains, int[] assignment, int[] staffWorkload, int[][] staffShiftWorkload,
             BitSet[] restDays, int[] trailVar, int[] trailStaff, int[] trailPtr,
             ProblemData data, long startTime, CspConstraints.MinWeekTracker weekTracker,
             long timeoutMs) {
 
-        if (System.currentTimeMillis() - startTime > timeoutMs) return SearchOutcome.TIMED_OUT;
-        if (isGoal(domains, assignment, data)) return SearchOutcome.FOUND;
+        // Explicit backtracking stack: one frame per selected variable.
+        Deque<SearchFrame> stack = new ArrayDeque<>();
 
-        int var = selectMRV(domains, assignment, data);
-        if (var < 0) return SearchOutcome.FOUND;
-
-        int dayIdx = data.varDay[var];
-        int shiftIdx = data.varShift[var];
-        String shiftType = SHIFT_ORDER[shiftIdx];
-
-        // Sort candidates: fewest of THIS shift type first, then fewest total — ensures even per-type distribution
-        List<Integer> candidates = getCandidates(domains[var], staffWorkload, staffShiftWorkload, shiftIdx,
-                weekTracker, dayIdx, shiftIdx);
-
-        for (int staffIdx : candidates) {
-            if (nogoodStore.violatesNogood(assignment, var, staffIdx, data.numVars)) continue;
-            if (!isConsistent(staffIdx, var, assignment, restDays, staffWorkload, data)) continue;
-
-            int trailBefore = trailPtr[0];
-            assignment[var] = staffIdx;
-            staffWorkload[staffIdx]++;
-            staffShiftWorkload[staffIdx][shiftIdx]++;
-            int week = data.dayToWeek == null ? -1 : data.dayToWeek[dayIdx];
-            if (weekTracker != null) weekTracker.increment(staffIdx, shiftIdx, week);
-
-            if (shiftType.equals(DIRECT_24H)) {
-                int compDayIdx = getCompensationDayIdx(dayIdx, data);
-                if (compDayIdx >= 0 && compDayIdx < data.numDays) restDays[staffIdx].set(compDayIdx);
+        while (true) {
+            // Timeout check — same frequency as the recursive entry check.
+            if (System.currentTimeMillis() - startTime > timeoutMs) {
+                return SearchOutcome.TIMED_OUT;
             }
 
-            if (propagate(staffIdx, var, domains, restDays, assignment,
-                    trailVar, trailStaff, trailPtr, trailBefore, data)) {
-
-                SearchOutcome child = search(domains, assignment, staffWorkload, staffShiftWorkload, restDays,
-                        trailVar, trailStaff, trailPtr, data, startTime, weekTracker, timeoutMs);
-                if (child == SearchOutcome.FOUND) return SearchOutcome.FOUND;
-                if (child == SearchOutcome.TIMED_OUT) return SearchOutcome.TIMED_OUT;
-            }
-
-            // Learn from failure before rolling back
-            Set<int[]> conflict = new java.util.HashSet<>();
-            conflict.add(new int[]{var, staffIdx});
-            for (int i = 0; i < trailPtr[0]; i++) {
-                int tVar = trailVar[i];
-                if (tVar >= 0 && tVar < data.numVars && assignment[tVar] >= 0) {
-                    conflict.add(new int[]{tVar, assignment[tVar]});
+            // ── Step 1: Select next variable if top frame is committed or stack empty ──
+            SearchFrame top = stack.peek();
+            if (top == null || top.committed) {
+                int var = selectMRV(domains, assignment, data);
+                if (var < 0) {
+                    return SearchOutcome.FOUND;
                 }
-            }
-            if (!conflict.isEmpty()) {
-                nogoodStore.addNogood(conflict, "Domain wipeout or constraint violation");
+                int dayIdx = data.varDay[var];
+                int shiftIdx = data.varShift[var];
+                String shiftType = SHIFT_ORDER[shiftIdx];
+                // Sort candidates: fewest of THIS shift type first, then fewest total
+                List<Integer> candidates = getCandidates(domains[var], staffWorkload,
+                        staffShiftWorkload, shiftIdx, weekTracker, dayIdx, shiftIdx);
+                int week = data.dayToWeek == null ? -1 : data.dayToWeek[dayIdx];
+                int compDayIdxVal = shiftType.equals(DIRECT_24H)
+                        ? getCompensationDayIdx(dayIdx, data) : -1;
+                stack.push(new SearchFrame(var, shiftIdx, dayIdx, shiftType,
+                        candidates, week, compDayIdxVal, weekTracker != null));
+                continue;
             }
 
-            // Rollback
-            while (trailPtr[0] > trailBefore) {
-                trailPtr[0]--;
-                domains[trailVar[trailPtr[0]]].set(trailStaff[trailPtr[0]]);
+            // ── Step 2: Try next candidate for the current (uncommitted) top frame ──
+            SearchFrame frame = top; // alias, guaranteed !committed
+            boolean found = false;
+
+            while (frame.nextCandidateIdx < frame.candidates.size()) {
+                int staffIdx = frame.candidates.get(frame.nextCandidateIdx);
+                frame.nextCandidateIdx++;
+
+                // Nogood check
+                if (nogoodStore.violatesNogood(assignment, frame.var, staffIdx, data.numVars)) continue;
+                // Consistency check (BR-01/02/03/04/06)
+                if (!isConsistent(staffIdx, frame.var, assignment, restDays, staffWorkload, data)) continue;
+
+                // ── Commit candidate ──
+                frame.trailBefore = trailPtr[0];
+                frame.staffIdx = staffIdx;
+                assignment[frame.var] = staffIdx;
+                staffWorkload[staffIdx]++;
+                staffShiftWorkload[staffIdx][frame.shiftIdx]++;
+                if (frame.hasWeekTracker) {
+                    weekTracker.increment(staffIdx, frame.shiftIdx, frame.week);
+                }
+                if (frame.isDirect24h() && frame.compDayIdx >= 0 && frame.compDayIdx < data.numDays) {
+                    restDays[staffIdx].set(frame.compDayIdx);
+                }
+
+                // Propagate constraints (AC-3 style forward checking)
+                if (propagate(staffIdx, frame.var, domains, restDays, assignment,
+                        trailVar, trailStaff, trailPtr, frame.trailBefore, data)) {
+                    // Propagation succeeded — variable is fully assigned
+                    frame.committed = true;
+                    found = true;
+                    break;
+                }
+
+                // Propagate failed → learn nogood, rollback, try next candidate
+                learnConflictClause(frame.var, staffIdx, assignment, trailVar, trailPtr, data);
+                rollback(frame, domains, assignment, staffWorkload, staffShiftWorkload,
+                        restDays, trailVar, trailStaff, trailPtr, weekTracker, data);
             }
-            assignment[var] = -1;
-            staffWorkload[staffIdx]--;
-            staffShiftWorkload[staffIdx][shiftIdx]--;
-            if (weekTracker != null) weekTracker.decrement(staffIdx, shiftIdx, week);
-            if (shiftType.equals(DIRECT_24H)) {
-                int compDayIdx = getCompensationDayIdx(dayIdx, data);
-                if (compDayIdx >= 0 && compDayIdx < data.numDays) restDays[staffIdx].clear(compDayIdx);
+
+            if (found) {
+                continue; // committed → go to Step 1 for next variable
+            }
+
+            // ── All candidates exhausted — backtrack ──
+            stack.pop();
+            if (stack.isEmpty()) {
+                return SearchOutcome.DEAD_END;
+            }
+
+            // Undo the parent frame's commitment (nogood learning + rollback + unassign)
+            SearchFrame parent = stack.peek();
+            learnConflictClause(parent.var, parent.staffIdx, assignment, trailVar, trailPtr, data);
+            rollback(parent, domains, assignment, staffWorkload, staffShiftWorkload,
+                    restDays, trailVar, trailStaff, trailPtr, weekTracker, data);
+            parent.committed = false;
+            // frame.nextCandidateIdx already advanced past the exhausted candidate
+        }
+    }
+
+    /**
+     * Learn a conflict clause from a failure: the failing (var, staffIdx) pair
+     * plus all trail entries whose variables are currently assigned.
+     * Mirrors the nogood-learning block from the recursive search.
+     */
+    private void learnConflictClause(
+            int var, int staffIdx, int[] assignment,
+            int[] trailVar, int[] trailPtr, ProblemData data) {
+        Set<int[]> conflict = new java.util.HashSet<>();
+        conflict.add(new int[]{var, staffIdx});
+        for (int i = 0; i < trailPtr[0]; i++) {
+            int tVar = trailVar[i];
+            if (tVar >= 0 && tVar < data.numVars && assignment[tVar] >= 0) {
+                conflict.add(new int[]{tVar, assignment[tVar]});
             }
         }
-        return SearchOutcome.DEAD_END;
+        if (!conflict.isEmpty()) {
+            nogoodStore.addNogood(conflict, "Domain wipeout or constraint violation");
+        }
+    }
+
+    /**
+     * Rollback a committed frame: restore domain values cleared during
+     * propagation, unassign the variable, and undo all side effects
+     * (workload counters, week tracker, rest days).
+     *
+     * @param frame  the frame whose commitment to undo (must have trailBefore >= 0)
+     */
+    private void rollback(
+            SearchFrame frame, BitSet[] domains, int[] assignment,
+            int[] staffWorkload, int[][] staffShiftWorkload, BitSet[] restDays,
+            int[] trailVar, int[] trailStaff, int[] trailPtr,
+            CspConstraints.MinWeekTracker weekTracker, ProblemData data) {
+        int staffIdx = frame.staffIdx;
+        if (staffIdx < 0) return;
+
+        // Restore domain entries cleared during propagation
+        while (trailPtr[0] > frame.trailBefore) {
+            trailPtr[0]--;
+            domains[trailVar[trailPtr[0]]].set(trailStaff[trailPtr[0]]);
+        }
+
+        // Unassign the variable
+        assignment[frame.var] = -1;
+        staffWorkload[staffIdx]--;
+        staffShiftWorkload[staffIdx][frame.shiftIdx]--;
+
+        // Undo week tracker
+        if (frame.hasWeekTracker) {
+            weekTracker.decrement(staffIdx, frame.shiftIdx, frame.week);
+        }
+
+        // Undo rest day (DIRECT_24H compensation)
+        if (frame.isDirect24h() && frame.compDayIdx >= 0 && frame.compDayIdx < data.numDays) {
+            restDays[staffIdx].clear(frame.compDayIdx);
+        }
+
+        frame.staffIdx = -1;
+        frame.trailBefore = -1;
     }
 
     private boolean propagate(
@@ -375,8 +526,13 @@ class CspSearchEngine {
     /**
      * Compensation day index for a given work-day index, or -1 if the
      * compensation day falls outside the active period.
+     * Uses the pre-computed mapping from ProblemData (flexible for Fri/Sat duty).
      */
     int getCompensationDayIdx(int dayIdx, ProblemData data) {
+        if (data.compDayIdx != null && dayIdx >= 0 && dayIdx < data.numDays) {
+            return data.compDayIdx[dayIdx];
+        }
+        // Fallback (should not be reached when compDayIdx is properly built)
         LocalDate workDate = data.baseDate.plusDays(dayIdx);
         LocalDate compDate = compensationDateCalculator.calculate(workDate);
         long offset = ChronoUnit.DAYS.between(data.baseDate, compDate);

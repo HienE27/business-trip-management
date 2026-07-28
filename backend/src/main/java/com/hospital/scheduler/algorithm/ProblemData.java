@@ -1,6 +1,7 @@
 package com.hospital.scheduler.algorithm;
 
 import lombok.Builder;
+import lombok.Getter;
 
 import java.time.LocalDate;
 import java.util.BitSet;
@@ -11,7 +12,8 @@ import java.util.List;
  * Shared between the AC-3 engine and the search engine.
  */
 @Builder
-class ProblemData {
+@Getter
+public class ProblemData {
     int numDays;
     int numShifts;
     int numStaff;
@@ -55,4 +57,14 @@ class ProblemData {
      * for BR-03 / BR-06 same-day checks.
      */
     List<Integer>[] varsByDay;
+
+    // ───── BR-03: flexible compensation day mapping ─────
+    /**
+     * Pre-computed compensation day index for each day.
+     * {@code compDayIdx[dayIdx]} = the compensation day index for an L01 on that day,
+     * or -1 if the compensation day falls outside the period.
+     * For Fri/Sat duty, the best option (least-loaded) among Tue/Wed/Thu is selected
+     * at problem-build time based on slotCount.
+     */
+    int[] compDayIdx;
 }

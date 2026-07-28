@@ -13,6 +13,8 @@ export type EditingConfig = Partial<Pick<ConfigEntry, "paramValue" | "descriptio
 export type BalanceStrategy = "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
 
 export type RuntimeConfig = {
+  /** Từ AutoGenConfig response — có cho phép auto-gen không */
+  enabled?: boolean;
   weekendWeight: number;
   overnightRecoveryHours: number;
   greedyCoverageThreshold: number;
@@ -23,7 +25,6 @@ export type RuntimeConfig = {
   maxShiftsPerStaff: number;
   l01MinPerDay?: number; l02MinPerDay?: number; l03MinPerDay?: number; l04MinPerDay?: number;
   l01MaxPerDay?: number; l02MaxPerDay?: number; l03MaxPerDay?: number; l04MaxPerDay?: number;
-  l01MinPerWeek?: number; l02MinPerWeek?: number; l03MinPerWeek?: number; l04MinPerWeek?: number;
   l01MaxPerWeek?: number; l02MaxPerWeek?: number; l03MaxPerWeek?: number; l04MaxPerWeek?: number;
   holidayMode?: string;
   removedShiftTypes?: string[];
@@ -67,8 +68,6 @@ export type AutoGenConfigPayload = {
   holidayMode: string;
   l01MinPerDay: number; l02MinPerDay: number; l03MinPerDay: number; l04MinPerDay: number;
   l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
-  l01MinPerWeek: number; l02MinPerWeek: number; l03MinPerWeek: number; l04MinPerWeek: number;
-  l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
   removedShiftTypes: string[];
   // Cross-specialty cho L01
   l01CrossSpecialty?: boolean;
@@ -96,12 +95,13 @@ export type TabKey = "config" | "history" | "audit" | "reference";
 
 /** Keys mà auto-gen payload ghi đè runtime config khi load */
 export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([
+  "enabled",
   "holidayMode",
   "removedShiftTypes",
-  "l01MinPerDay", "l01MaxPerDay", "l01MinPerWeek", "l01MaxPerWeek",
-  "l02MinPerDay", "l02MaxPerDay", "l02MinPerWeek", "l02MaxPerWeek",
-  "l03MinPerDay", "l03MaxPerDay", "l03MinPerWeek", "l03MaxPerWeek",
-  "l04MinPerDay", "l04MaxPerDay", "l04MinPerWeek", "l04MaxPerWeek",
+	  "l01MinPerDay", "l01MaxPerDay", "l01MaxPerWeek",
+	  "l02MinPerDay", "l02MaxPerDay", "l02MaxPerWeek",
+	  "l03MinPerDay", "l03MaxPerDay", "l03MaxPerWeek",
+	  "l04MinPerDay", "l04MaxPerDay", "l04MaxPerWeek",
   // L01 cross-specialty
   "l01CrossSpecialty",
   "l01CrossSpecialtyRatio",

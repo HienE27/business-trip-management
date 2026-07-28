@@ -457,18 +457,6 @@ export const PresetSelector = memo(function PresetSelector({
             >
               <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">upload</span>
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!compareA) setCompareA(builtInKeys[0]);
-                if (!compareB) setCompareB(builtInKeys[1]);
-                setShowComparison(true);
-              }}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-low border border-outline-variant hover:border-primary/40 hover:bg-surface-container transition-colors text-[12px]"
-            >
-              <span className="material-symbols-outlined text-[16px]" aria-hidden="true">compare</span>
-              So sánh
-            </button>
           </div>
         </div>
       </div>

@@ -119,9 +119,17 @@ public class SampledMoveSelector implements MoveSelector {
 
     /**
      * Pick a staff for {@code slot} from {@code candidates} while avoiding BR-04
-     * violations (adjacent L01). If all candidates would create a BR-04 violation,
-     * returns the least-loaded candidate anyway — the hard-fence in the search
-     * loop will reject any move that increases hard violations.
+     * violations (adjacent L01) and preferring fatigue-aware selection
+     * (staff with a rest day before the requirement date).
+     *
+     * <p>Sort priority:
+     * <ol>
+     *   <li>BR-04 safe (non-adjacent L01)</li>
+     *   <li>Fatigue: has rest day before req date (gap >= 1)</li>
+     *   <li>Lowest workload</li>
+     * </ol>
+     * If all candidates would create a BR-04 violation, falls back to the
+     * least-loaded candidate — hard-fence in search loop rejects bad moves.
      */
     private int pickStaffForSlot(WorkingSolution solution, int slotId,
                                  ShiftRequirementInfo req, List<Integer> candidates) {
@@ -129,38 +137,56 @@ public class SampledMoveSelector implements MoveSelector {
         LocalDate reqDate = req.date();
 
         int bestStaff = -1;
-        int bestLoad = Integer.MAX_VALUE;
+        long bestScore = Long.MAX_VALUE;
         int fallbackStaff = -1;
-        int fallbackLoad = Integer.MAX_VALUE;
+        long fallbackScore = Long.MAX_VALUE;
 
         for (int staffId : candidates) {
             int load = solution.getShiftCount(staffId);
+            boolean adjacent = false;
+            boolean consecutive = false; // no rest day before req date
 
             if (isL01) {
-                boolean adjacent = false;
                 for (int otherSlot : solution.getSlotsAssignedTo(staffId)) {
                     MutableAssignment other = solution.getAssignment(otherSlot);
-                    if (other != null && "L01".equals(other.shiftTypeId)
-                            && other.date != null && reqDate != null) {
-                        if (other.date.plusDays(1).equals(reqDate)
-                                || other.date.minusDays(1).equals(reqDate)) {
-                            adjacent = true;
-                            break;
-                        }
+                    if (other == null || other.date == null || reqDate == null) continue;
+                    long gap = Math.abs(java.time.temporal.ChronoUnit.DAYS.between(other.date, reqDate));
+
+                    if ("L01".equals(other.shiftTypeId) && gap <= 1) {
+                        adjacent = true;
+                        // continue scanning for fatigue even if adjacent L01 found
+                    }
+                    if (gap == 0 || gap == 1) {
+                        consecutive = true; // working consecutive days (any shift type)
                     }
                 }
-                if (!adjacent && load < bestLoad) {
-                    bestStaff = staffId;
-                    bestLoad = load;
-                } else if (adjacent && load < fallbackLoad) {
-                    fallbackStaff = staffId;
-                    fallbackLoad = load;
-                }
             } else {
-                if (load < bestLoad) {
-                    bestStaff = staffId;
-                    bestLoad = load;
+                // Non-L01: check consecutive days
+                for (int otherSlot : solution.getSlotsAssignedTo(staffId)) {
+                    MutableAssignment other = solution.getAssignment(otherSlot);
+                    if (other == null || other.date == null || reqDate == null) continue;
+                    long gap = Math.abs(java.time.temporal.ChronoUnit.DAYS.between(other.date, reqDate));
+                    if (gap == 0 || gap == 1) {
+                        consecutive = true;
+                        break;
+                    }
                 }
+            }
+
+            // Score: lower is better
+            // BR-04 violation → highest penalty (100_000)
+            // consecutive (no rest) → medium penalty (10_000)
+            // then tiebreak by load
+            long adjPenalty = adjacent ? 100_000L : 0L;
+            long fatiguePenalty = (!adjacent && consecutive) ? 10_000L : 0L;
+            long score = adjPenalty + fatiguePenalty + load;
+
+            if (!adjacent && score < bestScore) {
+                bestStaff = staffId;
+                bestScore = score;
+            } else if (adjacent && score < fallbackScore) {
+                fallbackStaff = staffId;
+                fallbackScore = score;
             }
         }
 

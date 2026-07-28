@@ -44,10 +44,6 @@ public class RuntimeConfigService {
                 .maxStaffPerShift(crud.getIntValue(AlgorithmConfigService.MAX_STAFF_PER_SHIFT, 0, cache))
                 .minShiftsPerStaff(crud.getIntValue(AlgorithmConfigService.MIN_SHIFTS_PER_STAFF, 0, cache))
                 .maxShiftsPerStaff(crud.getIntValue(AlgorithmConfigService.MAX_SHIFTS_PER_STAFF, 99, cache))
-                .l01MaxPerWeek(autoGenConfig.map(com.hospital.scheduler.algorithm.AutoGenConfig::l01MaxPerWeek).orElse(0))
-                .l02MaxPerWeek(autoGenConfig.map(com.hospital.scheduler.algorithm.AutoGenConfig::l02MaxPerWeek).orElse(0))
-                .l03MaxPerWeek(autoGenConfig.map(com.hospital.scheduler.algorithm.AutoGenConfig::l03MaxPerWeek).orElse(0))
-                .l04MaxPerWeek(autoGenConfig.map(com.hospital.scheduler.algorithm.AutoGenConfig::l04MaxPerWeek).orElse(0))
                 .build();
     }
 

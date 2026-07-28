@@ -281,20 +281,12 @@ public class ConfigService {
         if (override.weekendWeight() > 0) b.weekendWeight(override.weekendWeight());
         if (override.l01MinPerDay() > 0) b.l01MinPerDay(override.l01MinPerDay());
         if (override.l01MaxPerDay() > 0) b.l01MaxPerDay(override.l01MaxPerDay());
-        if (override.l01MinPerWeek() > 0) b.l01MinPerWeek(override.l01MinPerWeek());
-        if (override.l01MaxPerWeek() > 0) b.l01MaxPerWeek(override.l01MaxPerWeek());
         if (override.l02MinPerDay() > 0) b.l02MinPerDay(override.l02MinPerDay());
         if (override.l02MaxPerDay() > 0) b.l02MaxPerDay(override.l02MaxPerDay());
-        if (override.l02MinPerWeek() > 0) b.l02MinPerWeek(override.l02MinPerWeek());
-        if (override.l02MaxPerWeek() > 0) b.l02MaxPerWeek(override.l02MaxPerWeek());
         if (override.l03MinPerDay() > 0) b.l03MinPerDay(override.l03MinPerDay());
         if (override.l03MaxPerDay() > 0) b.l03MaxPerDay(override.l03MaxPerDay());
-        if (override.l03MinPerWeek() > 0) b.l03MinPerWeek(override.l03MinPerWeek());
-        if (override.l03MaxPerWeek() > 0) b.l03MaxPerWeek(override.l03MaxPerWeek());
         if (override.l04MinPerDay() > 0) b.l04MinPerDay(override.l04MinPerDay());
         if (override.l04MaxPerDay() > 0) b.l04MaxPerDay(override.l04MaxPerDay());
-        if (override.l04MinPerWeek() > 0) b.l04MinPerWeek(override.l04MinPerWeek());
-        if (override.l04MaxPerWeek() > 0) b.l04MaxPerWeek(override.l04MaxPerWeek());
         if (override.l04CrossSpecialtyEnabled() != base.l04CrossSpecialtyEnabled())
             b.l04CrossSpecialtyEnabled(override.l04CrossSpecialtyEnabled());
         if (override.l04CrossSpecialtyRatio() > 0) b.l04CrossSpecialtyRatio(override.l04CrossSpecialtyRatio());
@@ -411,8 +403,6 @@ public class ConfigService {
                     yield switch (fieldPath) {
                         case "coverage.l01.minPerDay" -> b.l01MinPerDay(v);
                         case "coverage.l01.maxPerDay" -> b.l01MaxPerDay(v);
-                        case "coverage.l01.minPerWeek" -> b.l01MinPerWeek(v);
-                        case "coverage.l01.maxPerWeek" -> b.l01MaxPerWeek(v);
                         default -> b;
                     };
                 }
@@ -421,8 +411,6 @@ public class ConfigService {
                     yield switch (fieldPath) {
                         case "coverage.l02.minPerDay" -> b.l02MinPerDay(v);
                         case "coverage.l02.maxPerDay" -> b.l02MaxPerDay(v);
-                        case "coverage.l02.minPerWeek" -> b.l02MinPerWeek(v);
-                        case "coverage.l02.maxPerWeek" -> b.l02MaxPerWeek(v);
                         default -> b;
                     };
                 }
@@ -431,8 +419,6 @@ public class ConfigService {
                     yield switch (fieldPath) {
                         case "coverage.l03.minPerDay" -> b.l03MinPerDay(v);
                         case "coverage.l03.maxPerDay" -> b.l03MaxPerDay(v);
-                        case "coverage.l03.minPerWeek" -> b.l03MinPerWeek(v);
-                        case "coverage.l03.maxPerWeek" -> b.l03MaxPerWeek(v);
                         default -> b;
                     };
                 }
@@ -441,8 +427,6 @@ public class ConfigService {
                     yield switch (fieldPath) {
                         case "coverage.l04.minPerDay" -> b.l04MinPerDay(v);
                         case "coverage.l04.maxPerDay" -> b.l04MaxPerDay(v);
-                        case "coverage.l04.minPerWeek" -> b.l04MinPerWeek(v);
-                        case "coverage.l04.maxPerWeek" -> b.l04MaxPerWeek(v);
                         default -> b;
                     };
                 }

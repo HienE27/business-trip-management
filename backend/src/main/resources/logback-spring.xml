@@ -75,7 +75,7 @@
     </springProfile>
 
     <!-- Spring profiles (default/dev/local/mysql: console only — no file appenders to avoid permission issues) -->
-    <springProfile name="default,dev,local,mysql">
+    <springProfile name="default,dev,local,mysql,docker,benchmark,h2">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
         </root>

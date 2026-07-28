@@ -310,20 +310,44 @@ public final class StaffShiftTypeEligibility {
      */
     public static Map<Integer, Set<Integer>> getL04EligibilityBySpecialty(List<Staff> staffList,
                                                                          java.util.List<String> allowedSpecialties) {
+        return getL04EligibilityBySpecialty(staffList, allowedSpecialties, false);
+    }
+
+    /**
+     * L04 eligibility với tùy chọn cross-specialty.
+     *
+     * @param allowedSpecialties Danh sách specialties được phép (null/empty = tất cả)
+     * @param l04CrossSpecialty  Nếu true, mỗi specialty key chứa staff từ TẤT CẢ specialty được allowed
+     * @return Map&lt;specialtyId, Set&lt;staffId&gt;&gt;
+     */
+    public static Map<Integer, Set<Integer>> getL04EligibilityBySpecialty(List<Staff> staffList,
+                                                                         java.util.List<String> allowedSpecialties,
+                                                                         boolean l04CrossSpecialty) {
         if (staffList == null) return Map.of();
         Set<String> allowed = allowedSpecialties != null && !allowedSpecialties.isEmpty()
             ? new HashSet<>(allowedSpecialties)
             : new HashSet<>(getAllEligibleSpecialtyNames());
 
-        Map<Integer, Set<Integer>> result = new HashMap<>();
+        // Build all eligible staff (by specialty)
+        Map<Integer, Set<Integer>> bySpec = new HashMap<>();
+        // Also collect the union of ALL eligible staff for cross-specialty mode
+        Set<Integer> allEligible = new HashSet<>();
         for (Staff s : staffList) {
             if (s == null || !Boolean.TRUE.equals(s.getIsActive()) || s.getSpecialty() == null) continue;
             if (!allowed.contains(s.getSpecialty().getName())) continue;
-            result
+            allEligible.add(s.getId());
+            bySpec
                 .computeIfAbsent(s.getSpecialty().getId(), k -> new HashSet<>())
                 .add(s.getId());
         }
-        return result;
+
+        // Cross-specialty: ghi đè mỗi specialty key bằng UNION tất cả staff eligible
+        if (l04CrossSpecialty) {
+            for (Map.Entry<Integer, Set<Integer>> entry : bySpec.entrySet()) {
+                entry.getValue().addAll(allEligible);
+            }
+        }
+        return bySpec;
     }
 
     /**

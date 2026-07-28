@@ -177,7 +177,8 @@ public class AlgorithmConfigCrudService {
 
     public boolean getBooleanValue(String paramKey, boolean defaultValue, Map<String, String> cache) {
         String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
-        return raw != null && Boolean.parseBoolean(raw);
+        if (raw == null) return defaultValue;
+        return Boolean.parseBoolean(raw);
     }
 
     public float getFloatValue(String paramKey, float defaultValue, Map<String, String> cache) {
@@ -214,12 +215,17 @@ public class AlgorithmConfigCrudService {
     }
 
     /**
-     * Bulk upsert from ConfigMapper — all entries saved as STRING type.
+     * Bulk upsert from ConfigMapper — preserves existing valueType and description.
      * Used by ConfigService to persist full ConfigDomain.
+     * BUGFIX (V25): was overwriting every row to ValueType.STRING + "" description,
+     * destroying the legacy UI's ability to render correct controls (toggle/slider/text).
      */
     public void upsertAll(Map<String, String> paramKeyToValue) {
         for (Map.Entry<String, String> e : paramKeyToValue.entrySet()) {
-            upsert(e.getKey(), e.getValue(), AlgorithmConfig.ValueType.STRING, "");
+            AlgorithmConfig existing = configRepository.findByParamKey(e.getKey()).orElse(null);
+            AlgorithmConfig.ValueType vt = existing != null ? existing.getValueType() : AlgorithmConfig.ValueType.STRING;
+            String desc = existing != null ? existing.getDescription() : "";
+            upsert(e.getKey(), e.getValue(), vt, desc);
         }
     }
 

@@ -48,6 +48,7 @@ class CspResultBuilder {
 
         Map<String, String> assignments = new HashMap<>();
         Set<String> compensationDays = new java.util.HashSet<>();
+        Map<String, LocalDate> l01CompMap = new java.util.HashMap<>();
 
         for (String key : solution.getAssignment().keySet()) {
             String[] parts = key.split("\\|");
@@ -60,11 +61,20 @@ class CspResultBuilder {
             LocalDate workDate = dates.get(dayIdx);
             String shiftType = SHIFT_ORDER[shiftIdx];
 
-            assignments.put(staffId + "|" + workDate, shiftType);
+            assignments.put(staffId + "|" + workDate + "|" + shiftType, shiftType);
 
             if (shiftType.equals(DIRECT_24H)) {
-                LocalDate compDate = compensationDateCalculator.calculate(workDate);
+                // Use pre-computed compDayIdx from ProblemData (flexible for Fri/Sat)
+                int compDayIdxVal = (data.compDayIdx != null && dayIdx >= 0 && dayIdx < data.numDays)
+                        ? data.compDayIdx[dayIdx] : -1;
+                LocalDate compDate;
+                if (compDayIdxVal >= 0 && compDayIdxVal < data.numDays) {
+                    compDate = dates.get(compDayIdxVal);
+                } else {
+                    compDate = compensationDateCalculator.calculate(workDate);
+                }
                 compensationDays.add(staffId + "|" + compDate);
+                l01CompMap.put(staffId + "|" + workDate, compDate);
             }
         }
 
@@ -80,6 +90,7 @@ class CspResultBuilder {
                 .partial(solution.isPartial())
                 .assignments(assignments)
                 .compensationDays(compensationDays)
+                .l01CompensationDateMap(l01CompMap)
                 .errors(Collections.emptyList())
                 .fairnessScore(BigDecimal.valueOf(fairness).setScale(2, RoundingMode.HALF_UP))
                 .fatigueScore(BigDecimal.valueOf(100).setScale(2, RoundingMode.HALF_UP))
@@ -135,7 +146,7 @@ class CspResultBuilder {
         Map<String, Map<Integer, Integer>> typeStaffCounts = new HashMap<>();
         for (Map.Entry<String, String> e : assignments.entrySet()) {
             String[] parts = e.getKey().split("\\|");
-            if (parts.length != 2) continue;
+            if (parts.length < 2) continue;
             int staffId = Integer.parseInt(parts[0]);
             LocalDate workDate = LocalDate.parse(parts[1]);
             String shiftType = e.getValue();
@@ -152,8 +163,9 @@ class CspResultBuilder {
                 }
             }
             
+            int w = com.hospital.scheduler.algorithm.scoring.ShiftTypeWeights.of(shiftType);
             typeStaffCounts.computeIfAbsent(balanceKey, k -> new HashMap<>())
-                    .merge(staffId, 1, Integer::sum);
+                    .merge(staffId, w, Integer::sum);
         }
         
         if (typeStaffCounts.isEmpty()) return 100;
@@ -259,7 +271,7 @@ class CspResultBuilder {
         List<Map<String, Object>> assignmentList = new ArrayList<>();
         for (Map.Entry<String, String> e : assignments.entrySet()) {
             String[] parts = e.getKey().split("\\|");
-            if (parts.length != 2) continue;
+            if (parts.length < 2) continue;
             int staffId = Integer.parseInt(parts[0]);
             LocalDate workDate = LocalDate.parse(parts[1]);
             String shiftType = e.getValue();
@@ -291,7 +303,7 @@ class CspResultBuilder {
             stat.put("dayOfWeek", date.getDayOfWeek().toString());
             int count = 0;
             for (String key : assignments.keySet()) {
-                if (key.endsWith("|" + date.toString())) count++;
+                if (key.contains("|" + date.toString())) count++;
             }
             stat.put("totalAssignments", count);
             dayStats.add(stat);

@@ -288,32 +288,24 @@ public final class ConfigMetadataRegistry {
                 "Số ca trực 24/24 tối thiểu được phân mỗi ngày.", 1, 20));
         put(m, l01Bounds("maxPerDay", "L01 - Tối đa/ngày",
                 "Số ca trực 24/24 tối đa được phân mỗi ngày.", 1, 50));
-        put(m, l01Bounds("maxPerWeek", "L01 - Tối đa/tuần",
-                "Số ca trực 24/24 tối đa mỗi nhân sự mỗi tuần.", 1, 7));
 
         // L02
         put(m, l02Bounds("minPerDay", "L02 - Tối thiểu/ngày",
                 "Số ca thông tầm tối thiểu được phân mỗi ngày.", 1, 20));
         put(m, l02Bounds("maxPerDay", "L02 - Tối đa/ngày",
                 "Số ca thông tầm tối đa được phân mỗi ngày.", 1, 50));
-        put(m, l02Bounds("maxPerWeek", "L02 - Tối đa/tuần",
-                "Số ca thông tầm tối đa mỗi nhân sự mỗi tuần.", 1, 7));
 
         // L03
         put(m, l03Bounds("minPerDay", "L03 - Tối thiểu/ngày",
                 "Số ca dịch vụ tối thiểu được phân mỗi ngày.", 1, 20));
         put(m, l03Bounds("maxPerDay", "L03 - Tối đa/ngày",
                 "Số ca dịch vụ tối đa được phân mỗi ngày.", 1, 50));
-        put(m, l03Bounds("maxPerWeek", "L03 - Tối đa/tuần",
-                "Số ca dịch vụ tối đa mỗi nhân sự mỗi tuần.", 1, 7));
 
         // L04
         put(m, l04Bounds("minPerDay", "L04 - Tối thiểu/ngày",
                 "Số ca chuyên gia tối thiểu được phân mỗi ngày.", 1, 20));
         put(m, l04Bounds("maxPerDay", "L04 - Tối đa/ngày",
                 "Số ca chuyên gia tối đa được phân mỗi ngày.", 1, 50));
-        put(m, l04Bounds("maxPerWeek", "L04 - Tối đa/tuần",
-                "Số ca chuyên gia tối đa mỗi nhân sự mỗi tuần.", 1, 7));
 
         // ═══════════════════════════════════════════════════════════════════════
         // L04 - Expert Clinic specific

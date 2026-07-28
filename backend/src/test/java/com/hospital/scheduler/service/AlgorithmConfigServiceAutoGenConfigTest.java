@@ -54,8 +54,9 @@ class AlgorithmConfigServiceAutoGenConfigTest {
     void emptyCache_delegatesAndReturnsDelegateResult() {
         when(configRepository.findAllAsKeyValuePairs()).thenReturn(List.of());
         // AutoGenConfigService would build a default config (enabled=true)
-        AutoGenConfig delegateResult = new AutoGenConfig(true, 1, 1, 1, 1, 0, 0, 0, 0,
-                1, 2, 1, 1, 0, 0, 0, 0, "SKIP", null, true, 0.5f, null, "FAIR_DISTRIBUTE");
+	        AutoGenConfig delegateResult = new AutoGenConfig(true, 1, 1, 1, 1, 0, 0, 0, 0,
+	                0, 0, 0, 0,  // max/week
+	                "SKIP", null, true, 0.5f, null, "FAIR_DISTRIBUTE");
         when(autoGenConfigService.getAutoGenConfig()).thenReturn(Optional.of(delegateResult));
 
         Optional<AutoGenConfig> result = service.getAutoGenConfig();
@@ -68,8 +69,9 @@ class AlgorithmConfigServiceAutoGenConfigTest {
     @Test
     @DisplayName("AUTO_GEN_ENABLED=false → delegate called, present Optional with enabled=false returned")
     void disabledFlag_delegatesAndReturnsEnabledFalse() {
-        AutoGenConfig delegateResult = new AutoGenConfig(false, 1, 1, 1, 1, 0, 0, 0, 0,
-                1, 2, 1, 1, 0, 0, 0, 0, "SKIP", null, true, 0.5f, null, "FAIR_DISTRIBUTE");
+	        AutoGenConfig delegateResult = new AutoGenConfig(false, 1, 1, 1, 1, 0, 0, 0, 0,
+	                0, 0, 0, 0,  // max/week
+	                "SKIP", null, true, 0.5f, null, "FAIR_DISTRIBUTE");
         when(autoGenConfigService.getAutoGenConfig()).thenReturn(Optional.of(delegateResult));
 
         Optional<AutoGenConfig> result = service.getAutoGenConfig();
@@ -84,8 +86,9 @@ class AlgorithmConfigServiceAutoGenConfigTest {
     @Test
     @DisplayName("configured values → delegate called, values returned unchanged")
     void configuredValues_delegatesAndReturnsDelegateResult() {
-        AutoGenConfig delegateResult = new AutoGenConfig(true, 3, 1, 1, 1, 0, 0, 0, 0,
-                1, 2, 1, 1, 0, 0, 0, 0, "PARTIAL", null, true, 0.5f, null, "FAIR_DISTRIBUTE");
+	        AutoGenConfig delegateResult = new AutoGenConfig(true, 3, 1, 1, 1, 0, 0, 0, 0,
+	                0, 0, 0, 0,  // max/week
+	                "PARTIAL", null, true, 0.5f, null, "FAIR_DISTRIBUTE");
         when(autoGenConfigService.getAutoGenConfig()).thenReturn(Optional.of(delegateResult));
 
         Optional<AutoGenConfig> result = service.getAutoGenConfig();

@@ -108,45 +108,37 @@ public record ConfigDomain(
 
         // ═══════════════════════════════════════════════════════════════════
         // COVERAGE - per shift type bounds
-        // Each shift type (L01-L04) has:
-        //   minPerDay / maxPerDay  - total shifts assigned per day
-        //   minPerWeek / maxPerWeek - shifts per staff per week
+        // Each shift type (L01-L04) has minPerDay / maxPerDay — total shifts
+        // assigned per day. Per-staff weekly cap is enforced via
+        // maxShiftsPerStaff (CONSTRAINTS block), not per-shift-type.
         // ═══════════════════════════════════════════════════════════════════
 
         /** L01: Minimum total shifts assigned per day. */
         int l01MinPerDay,
         /** L01: Maximum total shifts assigned per day. */
         int l01MaxPerDay,
-        /** L01: Minimum shifts per staff per week. */
-        int l01MinPerWeek,
-        /** L01: Maximum shifts per staff per week. */
+        /** L01: Maximum shifts per staff per week for this shift type (0 = no limit). */
         int l01MaxPerWeek,
 
         /** L02: Minimum total shifts assigned per day. */
         int l02MinPerDay,
         /** L02: Maximum total shifts assigned per day. */
         int l02MaxPerDay,
-        /** L02: Minimum shifts per staff per week. */
-        int l02MinPerWeek,
-        /** L02: Maximum shifts per staff per week. */
+        /** L02: Maximum shifts per staff per week for this shift type (0 = no limit). */
         int l02MaxPerWeek,
 
         /** L03: Minimum total shifts assigned per day. */
         int l03MinPerDay,
         /** L03: Maximum total shifts assigned per day. */
         int l03MaxPerDay,
-        /** L03: Minimum shifts per staff per week. */
-        int l03MinPerWeek,
-        /** L03: Maximum shifts per staff per week. */
+        /** L03: Maximum shifts per staff per week for this shift type (0 = no limit). */
         int l03MaxPerWeek,
 
         /** L04: Minimum total shifts assigned per day. */
         int l04MinPerDay,
         /** L04: Maximum total shifts assigned per day. */
         int l04MaxPerDay,
-        /** L04: Minimum shifts per staff per week. */
-        int l04MinPerWeek,
-        /** L04: Maximum shifts per staff per week. */
+        /** L04: Maximum shifts per staff per week for this shift type (0 = no limit). */
         int l04MaxPerWeek,
 
         // ═══════════════════════════════════════════════════════════════════
@@ -250,32 +242,6 @@ public record ConfigDomain(
     }
 
     /**
-     * Returns the minPerWeek for a given shift type.
-     */
-    public int getMinPerWeek(String shiftTypeId) {
-        return switch (shiftTypeId) {
-            case "L01" -> l01MinPerWeek;
-            case "L02" -> l02MinPerWeek;
-            case "L03" -> l03MinPerWeek;
-            case "L04" -> l04MinPerWeek;
-            default -> throw new IllegalArgumentException("Unknown shift type: " + shiftTypeId);
-        };
-    }
-
-    /**
-     * Returns the maxPerWeek for a given shift type.
-     */
-    public int getMaxPerWeek(String shiftTypeId) {
-        return switch (shiftTypeId) {
-            case "L01" -> l01MaxPerWeek;
-            case "L02" -> l02MaxPerWeek;
-            case "L03" -> l03MaxPerWeek;
-            case "L04" -> l04MaxPerWeek;
-            default -> throw new IllegalArgumentException("Unknown shift type: " + shiftTypeId);
-        };
-    }
-
-    /**
      * Check if a shift type is removed from auto-generation.
      */
     public boolean isShiftTypeRemoved(String shiftTypeId) {
@@ -317,10 +283,10 @@ public record ConfigDomain(
         private double cvWorst = 0;
         private double weekendWeight = 0;
 
-        private int l01MinPerDay = 0, l01MaxPerDay = 0, l01MinPerWeek = 0, l01MaxPerWeek = 0;
-        private int l02MinPerDay = 0, l02MaxPerDay = 0, l02MinPerWeek = 0, l02MaxPerWeek = 0;
-        private int l03MinPerDay = 0, l03MaxPerDay = 0, l03MinPerWeek = 0, l03MaxPerWeek = 0;
-        private int l04MinPerDay = 0, l04MaxPerDay = 0, l04MinPerWeek = 0, l04MaxPerWeek = 0;
+        private int l01MinPerDay = 0, l01MaxPerDay = 0, l01MaxPerWeek = 0;
+        private int l02MinPerDay = 0, l02MaxPerDay = 0, l02MaxPerWeek = 0;
+        private int l03MinPerDay = 0, l03MaxPerDay = 0, l03MaxPerWeek = 0;
+        private int l04MinPerDay = 0, l04MaxPerDay = 0, l04MaxPerWeek = 0;
 
         private boolean l04CrossSpecialtyEnabled = false;
         private double l04CrossSpecialtyRatio = 0;
@@ -359,19 +325,15 @@ public record ConfigDomain(
             this.weekendWeight = other.weekendWeight;
             this.l01MinPerDay = other.l01MinPerDay;
             this.l01MaxPerDay = other.l01MaxPerDay;
-            this.l01MinPerWeek = other.l01MinPerWeek;
             this.l01MaxPerWeek = other.l01MaxPerWeek;
             this.l02MinPerDay = other.l02MinPerDay;
             this.l02MaxPerDay = other.l02MaxPerDay;
-            this.l02MinPerWeek = other.l02MinPerWeek;
             this.l02MaxPerWeek = other.l02MaxPerWeek;
             this.l03MinPerDay = other.l03MinPerDay;
             this.l03MaxPerDay = other.l03MaxPerDay;
-            this.l03MinPerWeek = other.l03MinPerWeek;
             this.l03MaxPerWeek = other.l03MaxPerWeek;
             this.l04MinPerDay = other.l04MinPerDay;
             this.l04MaxPerDay = other.l04MaxPerDay;
-            this.l04MinPerWeek = other.l04MinPerWeek;
             this.l04MaxPerWeek = other.l04MaxPerWeek;
             this.l04CrossSpecialtyEnabled = other.l04CrossSpecialtyEnabled;
             this.l04CrossSpecialtyRatio = other.l04CrossSpecialtyRatio;
@@ -414,19 +376,15 @@ public record ConfigDomain(
 
         public Builder l01MinPerDay(int v) { this.l01MinPerDay = v; return this; }
         public Builder l01MaxPerDay(int v) { this.l01MaxPerDay = v; return this; }
-        public Builder l01MinPerWeek(int v) { this.l01MinPerWeek = v; return this; }
         public Builder l01MaxPerWeek(int v) { this.l01MaxPerWeek = v; return this; }
         public Builder l02MinPerDay(int v) { this.l02MinPerDay = v; return this; }
         public Builder l02MaxPerDay(int v) { this.l02MaxPerDay = v; return this; }
-        public Builder l02MinPerWeek(int v) { this.l02MinPerWeek = v; return this; }
         public Builder l02MaxPerWeek(int v) { this.l02MaxPerWeek = v; return this; }
         public Builder l03MinPerDay(int v) { this.l03MinPerDay = v; return this; }
         public Builder l03MaxPerDay(int v) { this.l03MaxPerDay = v; return this; }
-        public Builder l03MinPerWeek(int v) { this.l03MinPerWeek = v; return this; }
         public Builder l03MaxPerWeek(int v) { this.l03MaxPerWeek = v; return this; }
         public Builder l04MinPerDay(int v) { this.l04MinPerDay = v; return this; }
         public Builder l04MaxPerDay(int v) { this.l04MaxPerDay = v; return this; }
-        public Builder l04MinPerWeek(int v) { this.l04MinPerWeek = v; return this; }
         public Builder l04MaxPerWeek(int v) { this.l04MaxPerWeek = v; return this; }
 
         public Builder l04CrossSpecialtyEnabled(boolean v) { this.l04CrossSpecialtyEnabled = v; return this; }
@@ -453,10 +411,10 @@ public record ConfigDomain(
                     saInitialTemperature, saCoolingRate, saTemperatureMin,
                     laMemorySize, gdInitialLevel, gdDecayRate, gdMinLevel,
                     cvTarget, cvWorst, weekendWeight,
-                    l01MinPerDay, l01MaxPerDay, l01MinPerWeek, l01MaxPerWeek,
-                    l02MinPerDay, l02MaxPerDay, l02MinPerWeek, l02MaxPerWeek,
-                    l03MinPerDay, l03MaxPerDay, l03MinPerWeek, l03MaxPerWeek,
-                    l04MinPerDay, l04MaxPerDay, l04MinPerWeek, l04MaxPerWeek,
+                    l01MinPerDay, l01MaxPerDay, l01MaxPerWeek,
+                    l02MinPerDay, l02MaxPerDay, l02MaxPerWeek,
+                    l03MinPerDay, l03MaxPerDay, l03MaxPerWeek,
+                    l04MinPerDay, l04MaxPerDay, l04MaxPerWeek,
                     l04CrossSpecialtyEnabled, l04CrossSpecialtyRatio,
                     l04AllowedSpecialties, l04BalanceStrategy,
                     overnightRecoveryHours, greedyCoverageThreshold,

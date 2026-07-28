@@ -5,6 +5,8 @@ import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import com.hospital.scheduler.algorithm.AutoGenConfig;
+import com.hospital.scheduler.service.AlgorithmConfigService;
+import com.hospital.scheduler.service.HospitalSpecialtyRegistry;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -42,9 +45,12 @@ public class DataSeeder implements CommandLineRunner {
     private final com.hospital.scheduler.repository.ScheduleExchangeRepository scheduleExchangeRepository;
     private final com.hospital.scheduler.repository.NotificationRepository notificationRepository;
     private final com.hospital.scheduler.repository.AuditHistoryRepository auditHistoryRepository;
+    private final ShiftRequirementRepository shiftRequirementRepository;
     private final CompensationDateCalculator compensationDateCalculator;
     private final HolidayRepository holidayRepository;
-    private final com.hospital.scheduler.service.AlgorithmConfigService algorithmConfigService;
+    private final AlgorithmConfigRepository algorithmConfigRepository;
+    private final AlgorithmConfigService algorithmConfigService;
+    private final HospitalSpecialtyRegistry hospitalSpecialtyRegistry;
     private static final Logger log = LoggerFactory.getLogger(DataSeeder.class);
 
     // ⚠️  Muốn re-seed (thêm staff mới) → drop database + restart backend
@@ -189,6 +195,10 @@ public class DataSeeder implements CommandLineRunner {
         specialtyRepository.save(Specialty.builder().name("Mắt").description("Khoa Mắt").isActive(true).build());
         specialtyRepository.save(Specialty.builder().name("Răng").description("Khoa Răng hàm mặt").isActive(true).build());
 
+        // BUGFIX: Evict HospitalSpecialtyRegistry cache so StaffShiftTypeEligibility
+        // picks up the freshly-seeded specialties instead of the empty @PostConstruct set.
+        hospitalSpecialtyRegistry.evictCache();
+
         log.info("✅ Seeded specialties: Ngoại, Nội, Sản, Nhi, Mắt, Răng");
     }
 
@@ -244,16 +254,15 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void seedAlgorithmConfig() {
-        // Only seed if config table is empty
-        var existing = algorithmConfigService.getAutoGenConfig();
-        if (existing.isPresent()) {
+        // Check trực tiếp table count thay vì getAutoGenConfig() (luôn return present)
+        if (algorithmConfigRepository.count() > 0) {
             log.info("Algorithm config already exists, skipping seed");
             return;
         }
 
         // Seed auto-gen config with defaults
         AutoGenConfig defaults = new AutoGenConfig(
-                false,  // enabled = false by default
+                true,   // enabled = true (auto-gen sẵn sàng ngay khi seed)
                 // min per day
                 1,      // l01MinPerDay
                 1,      // l02MinPerDay
@@ -264,12 +273,7 @@ public class DataSeeder implements CommandLineRunner {
                 0,      // l02MaxPerDay
                 0,      // l03MaxPerDay
                 0,      // l04MaxPerDay
-                // min per week
-                1,      // l01MinPerWeek
-                2,      // l02MinPerWeek
-                1,      // l03MinPerWeek
-                1,      // l04MinPerWeek
-                // max per week (0 = unlimited)
+                // max per week (0 = unlimited) — fairness cap per staff per week
                 0,      // l01MaxPerWeek
                 0,      // l02MaxPerWeek
                 0,      // l03MaxPerWeek
@@ -476,7 +480,9 @@ public class DataSeeder implements CommandLineRunner {
                         .staff(conflictStaff).shiftType(l04).hasConflict(true).build());
             }
 
-            log.info("✅ Seeded published period June 2026 (full 30-day schedule + 1 conflict)");
+            // Seed ShiftRequirement cho June (khớp với schedule đã tạo)
+            seedShiftRequirementsForPeriod(savedPeriod, l01, l02, l03, l04, ngoai, noi);
+            log.info("✅ Seeded published period June 2026 (full 30-day schedule + 1 conflict + requirements)");
         }
 
         // ── 2. July 2026 — DRAFT (for M07 auto-scheduling) ─────────────────
@@ -491,8 +497,42 @@ public class DataSeeder implements CommandLineRunner {
                     .build();
             SchedulePeriod savedDraftPeriod = periodRepository.save(draftPeriod);
 
+            // Seed ShiftRequirement cho July draft
+            seedShiftRequirementsForPeriod(savedDraftPeriod, l01, l02, l03, l04, ngoai, noi);
             log.info("✅ Seeded draft period July 2026 with full requirements");
         }
+    }
+
+    /** Seed ShiftRequirement rows khớp với cấu trúc schedule mẫu. */
+    private void seedShiftRequirementsForPeriod(SchedulePeriod period, ShiftType l01, ShiftType l02,
+                                                 ShiftType l03, ShiftType l04, Specialty ngoai, Specialty noi) {
+        if (shiftRequirementRepository.findByPeriodId(period.getId()).size() > 0) return;
+
+        // Chỉ seed cho 1 chuyên khoa (Ngoại) để tránh feasibility timeout
+        List<Specialty> l04Specialties = List.of(ngoai);
+        List<ShiftRequirement> reqs = new ArrayList<>();
+        LocalDate date = period.getStartDate();
+        while (!date.isAfter(period.getEndDate())) {
+            if (date.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) { date = date.plusDays(1); continue; }
+
+            reqs.add(buildReq(period, l01, date, null, 2));
+            reqs.add(buildReq(period, l02, date, null, 2));
+            reqs.add(buildReq(period, l03, date, null, 1));
+            // L04: chỉ seed 1 chuyên khoa (Ngoại) cho gọn, khớp schedule mẫu
+            reqs.add(buildReq(period, l04, date, ngoai, 1));
+            date = date.plusDays(1);
+        }
+        shiftRequirementRepository.saveAll(reqs);
+        log.info("Seeded {} shift requirements for period {}", reqs.size(), period.getId());
+    }
+
+    private ShiftRequirement buildReq(SchedulePeriod period, ShiftType shiftType, LocalDate date,
+                                       Specialty specialty, int count) {
+        return ShiftRequirement.builder()
+                .period(period).shiftType(shiftType).workDate(date)
+                .specialty(specialty).requiredStaffCount(count)
+                .note("SEEDED")
+                .build();
     }
 
     private void seedLeaveRequests() {

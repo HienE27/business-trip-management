@@ -169,37 +169,31 @@ export const SHIFT_TYPE_GROUPS: readonly ShiftTypeGroup[] = [
     id: "l01", label: "L01", subtitle: "Trực 24/24", icon: "emergency",
     color: "text-red-600", colorBg: "bg-red-50", borderColor: "border-red-400",
     description: "Ca trực liên tục 24h, có nghỉ bù",
-    params: ["l01MinPerDay", "l01MaxPerDay", "l01MaxPerWeek"],
-    hiddenParams: ["l01MinPerWeek"], // Reserved — not used in v1.0 scheduler
+	    params: ["l01MinPerDay", "l01MaxPerDay"],
   },
   {
     id: "l02", label: "L02", subtitle: "Thông tầm", icon: "schedule",
     color: "text-blue-600", colorBg: "bg-blue-50", borderColor: "border-blue-400",
     description: "Ca ngày, không nghỉ trưa",
-    params: ["l02MinPerDay", "l02MaxPerDay", "l02MaxPerWeek"],
-    hiddenParams: ["l02MinPerWeek"], // Reserved — not used in v1.0 scheduler
+	    params: ["l02MinPerDay", "l02MaxPerDay"],
   },
   {
     id: "l03", label: "L03", subtitle: "PK Dịch vụ", icon: "medical_services",
     color: "text-green-600", colorBg: "bg-green-50", borderColor: "border-green-400",
     description: "Ca khám dịch vụ, buổi sáng hoặc chiều",
-    params: ["l03MinPerDay", "l03MaxPerDay", "l03MaxPerWeek"],
-    hiddenParams: ["l03MinPerWeek"], // Reserved — not used in v1.0 scheduler
+	    params: ["l03MinPerDay", "l03MaxPerDay"],
   },
   {
     id: "l04", label: "L04", subtitle: "PK Chuyên gia", icon: "stethoscope",
     color: "text-purple-600", colorBg: "bg-purple-50", borderColor: "border-purple-400",
     description: "Ca khám chuyên sâu, thời gian dài hơn",
-    params: ["l04MinPerDay", "l04MaxPerDay", "l04MaxPerWeek"],
-    hiddenParams: ["l04MinPerWeek"], // Reserved — not used in v1.0 scheduler
+	    params: ["l04MinPerDay", "l04MaxPerDay"],
   },
 ] as const;
 
 const SHIFT_PARAM_LABELS: Record<string, { label: string; icon: string }> = {
   MinPerDay: { label: "Nhu cầu/ngày", icon: "target" },
   MaxPerDay: { label: "Trần ca/ngày", icon: "block" },
-  MinPerWeek: { label: "Tối thiểu/người/tuần", icon: "trending_up" },
-  MaxPerWeek: { label: "Tối đa/người/tuần", icon: "person_remove" },
 };
 
 const SHIFT_PARAM_TOOLTIPS: Record<string, string> = {
@@ -207,17 +201,11 @@ const SHIFT_PARAM_TOOLTIPS: Record<string, string> = {
     "Nhu cầu nhân sự L0X mỗi ngày. Scheduler dùng giá trị này để sinh yêu cầu — không phải ràng buộc cứng.",
   MaxPerDay:
     "Số ca tối đa mỗi ngày. Scheduler không tạo quá số lượng này. 0 = không giới hạn.",
-  MinPerWeek:
-    "Mỗi nhân sự tối thiểu X ca L0X trong 1 tuần — đảm bảo chia đều, tránh bỏ sót. [Reserved — chưa dùng trong scheduler v1.0]",
-  MaxPerWeek:
-    "HARD CONSTRAINT: Nhân sự đạt giới hạn sẽ không được xếp thêm loại lịch này trong tuần. 0 = không giới hạn.",
 };
 
 const SHIFT_PARAM_UNITS: Record<string, string> = {
   MinPerDay: "ca/ngày (toàn khoa)",
   MaxPerDay: "ca/ngày (toàn khoa)",
-  MinPerWeek: "ca/người/tuần",
-  MaxPerWeek: "ca/người/tuần",
 };
 
 export function getShiftRowLabel(param: string): string {

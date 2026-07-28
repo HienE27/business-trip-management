@@ -276,6 +276,22 @@ public class ConfigValidator {
     // ─── Tier 1: Single field validation ─────────────────────────────────
 
     private Violation validateSingleField(ConfigMetadata meta, Object value) {
+        // Required check for arrays (length 0 = empty)
+        if (value instanceof String[]) {
+            String[] arr = (String[]) value;
+            if (meta.required() && arr.length == 0) {
+                return new Violation(meta.fieldPath(),
+                        "Trường '" + meta.labelVi() + "' không được để trống",
+                        ConfigMetadata.ValidationSeverity.ERROR);
+            }
+            // BUGFIX (V25): skip enum/numeric validation for arrays —
+            // value.toString() on a Java array gives a hash string like
+            // "[Ljava.lang.String;@...", not the actual content. Multi-select
+            // fields (removedShiftTypes, l04AllowedSpecialties) are validated
+            // at the input level by the controller/DTO.
+            return null;
+        }
+
         // Required check
         if (meta.required() && isEmpty(value)) {
             return new Violation(meta.fieldPath(),
@@ -334,13 +350,9 @@ public class ConfigValidator {
 
     private void checkCoverageBounds(List<Violation> errors, ConfigDomain config) {
         checkMinMax(errors, "coverage.l01.minPerDay",  "L01 min/ngày",  config.l01MinPerDay(),  config.l01MaxPerDay());
-        checkMinMax(errors, "coverage.l01.minPerWeek", "L01 min/tuần",  config.l01MinPerWeek(), config.l01MaxPerWeek());
         checkMinMax(errors, "coverage.l02.minPerDay",  "L02 min/ngày",  config.l02MinPerDay(),  config.l02MaxPerDay());
-        checkMinMax(errors, "coverage.l02.minPerWeek", "L02 min/tuần",  config.l02MinPerWeek(), config.l02MaxPerWeek());
         checkMinMax(errors, "coverage.l03.minPerDay",  "L03 min/ngày",  config.l03MinPerDay(),  config.l03MaxPerDay());
-        checkMinMax(errors, "coverage.l03.minPerWeek", "L03 min/tuần",  config.l03MinPerWeek(), config.l03MaxPerWeek());
         checkMinMax(errors, "coverage.l04.minPerDay",  "L04 min/ngày",  config.l04MinPerDay(),  config.l04MaxPerDay());
-        checkMinMax(errors, "coverage.l04.minPerWeek", "L04 min/tuần",  config.l04MinPerWeek(), config.l04MaxPerWeek());
     }
 
     private void checkMinMax(List<Violation> errors, String fieldPath, String label,

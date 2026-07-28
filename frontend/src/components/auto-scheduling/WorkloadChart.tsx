@@ -143,6 +143,7 @@ function HorizontalBarChart({ data }: { data: WorkloadChartData }) {
   const buildContent = (staff: WorkloadStaffData) => (
     <span>
       <strong>{staff.staffName}</strong>
+      {staff.specialty ? <span className="text-on-surface-variant"> · {staff.specialty}</span> : null}
       <br />
       {staff.totalShifts} ca — {staff.totalShifts > avgShift ? "cao hơn TB" : "dưới TB"}
     </span>
@@ -164,14 +165,17 @@ function HorizontalBarChart({ data }: { data: WorkloadChartData }) {
               onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
               onFocus={(e) => setTooltip({ visible: true, ...pointFromEvent(e), content: buildContent(staff) })}
               onBlur={() => setTooltip((t) => ({ ...t, visible: false }))}
-              aria-label={`${staff.staffName}: ${staff.totalShifts} ca, ${staff.totalShifts > avgShift ? "cao hơn" : "dưới"} trung bình`}
+              aria-label={`${staff.staffName}${staff.specialty ? ` (${staff.specialty})` : ""}: ${staff.totalShifts} ca, ${staff.totalShifts > avgShift ? "cao hơn" : "dưới"} trung bình`}
               className="grid grid-cols-[minmax(0,1fr)_56px] sm:grid-cols-[160px_minmax(0,1fr)_64px] items-center gap-3 rounded-lg p-1 hover:bg-surface-container-low/50 focus-within:bg-surface-container-low/50 transition-colors"
             >
               <span
                 title={staff.staffName}
-                className="text-label-sm font-medium text-on-surface truncate hidden sm:block"
+                className="text-label-sm font-medium text-on-surface truncate hidden sm:flex sm:flex-col sm:gap-0"
               >
-                {staff.staffName}
+                <span className="truncate">{staff.staffName}</span>
+                {staff.specialty && (
+                  <span className="text-[10px] text-on-surface-variant font-normal truncate">{staff.specialty}</span>
+                )}
               </span>
               <span className="text-label-sm font-medium text-on-surface truncate sm:hidden col-span-2">
                 {staff.staffName}
@@ -252,10 +256,16 @@ function StackedBarChart({ data }: { data: WorkloadChartData }) {
               onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
               onFocus={(e) => setTooltip({ visible: true, ...pointFromEvent(e), content })}
               onBlur={() => setTooltip((t) => ({ ...t, visible: false }))}
-              aria-label={`${staff.staffName}: ${parts.map((p) => `${SHIFT_LABELS[p.key]} ${p.count}`).join(", ")}`}
+              aria-label={`${staff.staffName}${staff.specialty ? ` (${staff.specialty})` : ""}: ${parts.map((p) => `${SHIFT_LABELS[p.key]} ${p.count}`).join(", ")}`}
               className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-[160px_minmax(0,1fr)] items-center gap-3 rounded-lg p-1 hover:bg-surface-container-low/50 focus-within:bg-surface-container-low/50 transition-colors"
             >
-              <span title={staff.staffName} className="text-label-sm font-medium text-on-surface truncate">
+              <span title={staff.staffName} className="text-label-sm font-medium text-on-surface truncate hidden sm:flex sm:flex-col sm:gap-0">
+                <span className="truncate">{staff.staffName}</span>
+                {staff.specialty && (
+                  <span className="text-[10px] text-on-surface-variant font-normal truncate">{staff.specialty}</span>
+                )}
+              </span>
+              <span className="text-label-sm font-medium text-on-surface truncate sm:hidden">
                 {staff.staffName}
               </span>
               <div className="flex rounded-full h-8 bg-surface-container-low overflow-hidden col-span-2 sm:col-span-1">
@@ -493,7 +503,7 @@ function buildFromPreview(schedules: AutoScheduleSummary[]): WorkloadChartData {
     staffWorkloadData: aggregates.map((s) => ({
       staffId: s.staffId,
       staffName: s.staffName,
-      specialty: null,
+      specialty: s.specialtyName ?? null,
       totalShifts: s.total,
       L01: s.L01,
       L02: s.L02,

@@ -41,13 +41,12 @@ public class StaffEligibilityFilter {
         }
 
         /**
-         * Default config when no DB entry exists. Cross-specialty is ENABLED
-         * with shortage threshold = 0.5 (cross when strict shortage >= 50%).
-         * Required for L04 coverage when specialty pools are uneven
-         * (e.g. Mắt = 1 staff, Sản = 2 staff).
+         * Default config when no DB entry exists. Cross-specialty is DISABLED
+         * (aligned with UI default). Kept for backward compatibility of the
+         * deprecated filter path.
          */
         public static CrossSpecialtyConfig defaultEnabled() {
-            return new CrossSpecialtyConfig(true, 0.5f, List.of(), AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE);
+            return new CrossSpecialtyConfig(false, 0.5f, List.of(), AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE);
         }
     }
 
@@ -85,7 +84,6 @@ public class StaffEligibilityFilter {
             int maxShiftsPerTypeLimit,
             String fairShareKey,
             Map<Integer, Map<String, Long>> runningCounts,
-            Map<Integer, Map<String, Integer>> weeklyCounts,
             AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
             List<Staff> allActiveStaff,
             Integer maxShiftsPerMonthOverride) {
@@ -196,16 +194,6 @@ public class StaffEligibilityFilter {
                 if (totalCurrent >= effectiveMaxShifts) continue;
             }
 
-            // 8. Per-type weekly max cap (l0XMaxPerWeek from config)
-            if (weeklyCounts != null && runtimeConfig != null) {
-                int weeklyMax = getWeeklyMax(shiftTypeId, runtimeConfig);
-                if (weeklyMax > 0) {
-                    Map<String, Integer> staffWeekly = weeklyCounts.get(staff.getId());
-                    int currentWeekly = staffWeekly != null ? staffWeekly.getOrDefault(shiftTypeId, 0) : 0;
-                    if (currentWeekly >= weeklyMax) continue;
-                }
-            }
-
             if (isStrictMatch) {
                 strictMatches.add(staff);
             } else {
@@ -218,14 +206,43 @@ public class StaffEligibilityFilter {
 
         List<Staff> eligible = new ArrayList<>(strictMatches.size() + crossMatches.size());
         int required = Math.max(1, req.getRequiredStaffCount());
-        // A + Shortage Logic: chỉ ưu tiên cross khi strict không đủ theo ratio threshold.
-        if (crossEnabled && !crossMatches.isEmpty() && !strictMatches.isEmpty()
-                && shouldPreferCrossSpecialty(req, strictMatches.size(), required, crossConfig.ratio())) {
-            eligible.addAll(crossMatches);
+
+        // ── Balance strategy ─────────────────────────────────────────────────
+        // Implemented here so the UI dropdown has real effect. Previously
+        // reserved/not-applied. Fix: V10-balance-strategy.
+        String balanceStrategy = crossConfig.balanceStrategy();
+
+        if (AutoGenConstants.BALANCE_STRATEGY_STRICT_MATCH_ONLY.equals(balanceStrategy)) {
+            // STRICT_MATCH_ONLY: never include cross-specialty staff
             eligible.addAll(strictMatches);
+            // crossMatches discarded entirely → L04 may go unfilled if strict pool insufficient
+
+        } else if (AutoGenConstants.BALANCE_STRATEGY_WEIGHTED_FAIR.equals(balanceStrategy)) {
+            // WEIGHTED_FAIR: interleave strict + cross sorted by workload so
+            // underloaded staff (regardless of specialty) get priority.
+            List<Staff> combined = new ArrayList<>(strictMatches.size() + crossMatches.size());
+            combined.addAll(strictMatches);
+            combined.addAll(crossMatches);
+            combined.sort(Comparator
+                    .comparingLong((Staff s) -> {
+                        Map<String, Long> counts = periodData.staffShiftTypeCounts().get(s.getId());
+                        if (counts == null) return 0L;
+                        return counts.values().stream().mapToLong(Long::longValue).sum();
+                    })
+                    .thenComparing(s -> strictMatches.contains(s) ? 0 : 1) // strict still preferred as tiebreak
+                    .thenComparing(sortComparator != null ? sortComparator : Comparator.comparing(Staff::getId)));
+            eligible.addAll(combined);
+
         } else {
-            eligible.addAll(strictMatches);
-            eligible.addAll(crossMatches);
+            // FAIR_DISTRIBUTE (default): A + Shortage Logic
+            if (crossEnabled && !crossMatches.isEmpty() && !strictMatches.isEmpty()
+                    && shouldPreferCrossSpecialty(req, strictMatches.size(), required, crossConfig.ratio())) {
+                eligible.addAll(crossMatches);
+                eligible.addAll(strictMatches);
+            } else {
+                eligible.addAll(strictMatches);
+                eligible.addAll(crossMatches);
+            }
         }
         return eligible;
     }
@@ -500,18 +517,5 @@ public class StaffEligibilityFilter {
         
         // Check if staff's specialty is in the allowed list
         return allowed.contains(staffSpecialtyName);
-    }
-
-    private int getWeeklyMax(String shiftTypeId, AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig) {
-        if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId)) {
-            return runtimeConfig.getL01MaxPerWeek();
-        } else if (ConflictDetectionService.SHIFT_TYPE_L02.equals(shiftTypeId)) {
-            return runtimeConfig.getL02MaxPerWeek();
-        } else if (ConflictDetectionService.SHIFT_TYPE_L03.equals(shiftTypeId)) {
-            return runtimeConfig.getL03MaxPerWeek();
-        } else if (ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
-            return runtimeConfig.getL04MaxPerWeek();
-        }
-        return 0;
     }
 }

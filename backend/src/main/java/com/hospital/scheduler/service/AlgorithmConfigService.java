@@ -51,10 +51,6 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_L02_MAX_PER_DAY = "auto_gen_l02_max_per_day";
     public static final String AUTO_GEN_L03_MAX_PER_DAY = "auto_gen_l03_max_per_day";
     public static final String AUTO_GEN_L04_MAX_PER_DAY = "auto_gen_l04_max_per_day";
-    public static final String AUTO_GEN_L01_MIN_PER_WEEK = "auto_gen_l01_min_per_week";
-    public static final String AUTO_GEN_L02_MIN_PER_WEEK = "auto_gen_l02_min_per_week";
-    public static final String AUTO_GEN_L03_MIN_PER_WEEK = "auto_gen_l03_min_per_week";
-    public static final String AUTO_GEN_L04_MIN_PER_WEEK = "auto_gen_l04_min_per_week";
     public static final String AUTO_GEN_L01_MAX_PER_WEEK = "auto_gen_l01_max_per_week";
     public static final String AUTO_GEN_L02_MAX_PER_WEEK = "auto_gen_l02_max_per_week";
     public static final String AUTO_GEN_L03_MAX_PER_WEEK = "auto_gen_l03_max_per_week";
@@ -65,10 +61,11 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_L04_CROSS_SPECIALTY_RATIO = "auto_gen_l04_cross_specialty_ratio";
     public static final String AUTO_GEN_L04_ALLOWED_SPECIALTIES = "auto_gen_l04_allowed_specialties";
     public static final String AUTO_GEN_L04_BALANCE_STRATEGY = "auto_gen_l04_balance_strategy";
-    // PR-002A: kept uppercase to match existing DB rows seeded by the legacy
-    // upsert path. Migrating this row to lowercase is intentionally deferred —
-    // it would change behavior outside the scope of the delegation refactor.
-    public static final String AUTO_GEN_REMOVED_SHIFT_TYPES = "AUTO_GEN_REMOVED_SHIFT_TYPES";
+    // PR-002A + key-mismatch fix: align with ConfigMapper.SWITCH which reads
+    // "auto_gen_removed_shift_types" (lowercase). Prior uppercase key caused
+    // config-calculator to see empty removedShiftTypes even after algorithm-config
+    // page saved values, leading to "remove L01 but L02 also excluded" confusion.
+    public static final String AUTO_GEN_REMOVED_SHIFT_TYPES = "auto_gen_removed_shift_types";
 
     // Algorithm runtime config param keys
     public static final String WEEKEND_WEIGHT = "weekend_weight";
@@ -314,18 +311,6 @@ public class AlgorithmConfigService {
         upsert(AUTO_GEN_L04_MIN_PER_DAY, getStringValue(AUTO_GEN_L04_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Mục tiêu nhân sự L04 (Phòng khám chuyên gia) mỗi ngày/chuyên khoa. Đây là mục tiêu mềm của thuật toán.");
         map.put(AUTO_GEN_L04_MIN_PER_DAY, "OK");
-        upsert(AUTO_GEN_L01_MIN_PER_WEEK, getStringValue(AUTO_GEN_L01_MIN_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L01 tối thiểu mỗi người trong 1 tuần. Giúp đảm bảo công bằng phân bổ trực đêm cho nhân sự.");
-        map.put(AUTO_GEN_L01_MIN_PER_WEEK, "OK");
-        upsert(AUTO_GEN_L02_MIN_PER_WEEK, getStringValue(AUTO_GEN_L02_MIN_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L02 tối thiểu mỗi người trong 1 tuần. Đảm bảo mỗi người có đủ ca ngày theo quy định.");
-        map.put(AUTO_GEN_L02_MIN_PER_WEEK, "OK");
-        upsert(AUTO_GEN_L03_MIN_PER_WEEK, getStringValue(AUTO_GEN_L03_MIN_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L03 tối thiểu mỗi người trong 1 tuần.");
-        map.put(AUTO_GEN_L03_MIN_PER_WEEK, "OK");
-        upsert(AUTO_GEN_L04_MIN_PER_WEEK, getStringValue(AUTO_GEN_L04_MIN_PER_WEEK, "1"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L04 tối thiểu mỗi người trong 1 tuần.");
-        map.put(AUTO_GEN_L04_MIN_PER_WEEK, "OK");
         upsert(AUTO_GEN_L01_MAX_PER_DAY, getStringValue(AUTO_GEN_L01_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Trần khuyến nghị L01 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
         map.put(AUTO_GEN_L01_MAX_PER_DAY, "OK");
@@ -338,18 +323,6 @@ public class AlgorithmConfigService {
         upsert(AUTO_GEN_L04_MAX_PER_DAY, getStringValue(AUTO_GEN_L04_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Trần khuyến nghị L04 mỗi ngày/chuyên khoa khi sinh mục tiêu. 0 = không đặt trần.");
         map.put(AUTO_GEN_L04_MAX_PER_DAY, "OK");
-        upsert(AUTO_GEN_L01_MAX_PER_WEEK, getStringValue(AUTO_GEN_L01_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L01 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
-        map.put(AUTO_GEN_L01_MAX_PER_WEEK, "OK");
-        upsert(AUTO_GEN_L02_MAX_PER_WEEK, getStringValue(AUTO_GEN_L02_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L02 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
-        map.put(AUTO_GEN_L02_MAX_PER_WEEK, "OK");
-        upsert(AUTO_GEN_L03_MAX_PER_WEEK, getStringValue(AUTO_GEN_L03_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L03 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
-        map.put(AUTO_GEN_L03_MAX_PER_WEEK, "OK");
-        upsert(AUTO_GEN_L04_MAX_PER_WEEK, getStringValue(AUTO_GEN_L04_MAX_PER_WEEK, "0"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L04 tối đa mỗi người trong 1 tuần. 0 = không giới hạn.");
-        map.put(AUTO_GEN_L04_MAX_PER_WEEK, "OK");
                 upsert(AUTO_GEN_HOLIDAY_MODE, getStringValue(AUTO_GEN_HOLIDAY_MODE, AutoGenConstants.HOLIDAY_MODE_SKIP), AlgorithmConfig.ValueType.STRING,
                 "Xử lý khi gặp ngày lễ: SKIP = bỏ qua ngày lễ (không xếp lịch), PARTIAL = vẫn xếp lịch nhưng giảm cường độ.");
         map.put(AUTO_GEN_HOLIDAY_MODE, "OK");
@@ -362,20 +335,20 @@ public class AlgorithmConfigService {
         upsert(GREEDY_COVERAGE_THRESHOLD, getStringValue(GREEDY_COVERAGE_THRESHOLD, "0.85"), AlgorithmConfig.ValueType.NUMBER,
                 "[v1.0] Chỉ dùng để giám sát/logging. Scheduler luôn gán 100% slot khi có thể. Không ảnh hưởng đến kết quả.");
         map.put(GREEDY_COVERAGE_THRESHOLD, "OK");
-        upsert(BALANCE_SCORE_MIN, getStringValue(BALANCE_SCORE_MIN, "0.75"), AlgorithmConfig.ValueType.NUMBER,
+        upsert(BALANCE_SCORE_MIN, getStringValue(BALANCE_SCORE_MIN, "0.70"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
         map.put(BALANCE_SCORE_MIN, "OK");
         upsert(MIN_STAFF_PER_SHIFT, getStringValue(MIN_STAFF_PER_SHIFT, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng theo dõi số nhân sự tối thiểu mỗi ca; dùng cho đánh giá/chất lượng, không ép thuật toán phá ràng buộc cứng.");
         map.put(MIN_STAFF_PER_SHIFT, "OK");
-        upsert(MAX_STAFF_PER_SHIFT, getStringValue(MAX_STAFF_PER_SHIFT, "5"), AlgorithmConfig.ValueType.NUMBER,
-                "Số nhân sự tối đa cho mỗi ca trực. Giới hạn tránh quá tải một ca.");
+        upsert(MAX_STAFF_PER_SHIFT, getStringValue(MAX_STAFF_PER_SHIFT, "0"), AlgorithmConfig.ValueType.NUMBER,
+                "Số nhân sự tối đa mỗi ca. Đặt 0 để không giới hạn. Giới hạn này chỉ áp dụng khi yêu cầu ca có requiredStaffCount > maxStaffPerShift.");
         map.put(MAX_STAFF_PER_SHIFT, "OK");
         upsert(MIN_SHIFTS_PER_STAFF, getStringValue(MIN_SHIFTS_PER_STAFF, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng theo dõi số ca tối thiểu mỗi nhân sự trong kỳ; dùng để đánh giá cân bằng, không ép tạo ca giả.");
         map.put(MIN_SHIFTS_PER_STAFF, "OK");
-        upsert(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "35"), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca tối đa mỗi nhân sự trong kỳ lịch. Spec M07-F01 yêu cầu phân bổ đều không giới hạn cố định, nhưng đặt trần hợp lý để bảo vệ nhân sự khỏi bị quá tải. Default 35 (≈1 ca/ngày + buffer cho L04 đa chuyên khoa).");
+        upsert(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "30"), AlgorithmConfig.ValueType.NUMBER,
+                "Số ca tối đa mỗi nhân sự trong kỳ lịch. Đặt 0 để dùng maxShiftsPerMonth của nhân sự. Default 30.");
         map.put(MAX_SHIFTS_PER_STAFF, "OK");
         // ─── Scheduling metaheuristic params (config-ui visibility fix 2026-07-24) ───
         upsert(SCHEDULING_MAX_ITERATIONS, getStringValue(SCHEDULING_MAX_ITERATIONS, "500"), AlgorithmConfig.ValueType.NUMBER,
@@ -493,33 +466,19 @@ public class AlgorithmConfigService {
                 .minStaffPerShift(getIntValue(MIN_STAFF_PER_SHIFT, 1, cache))
                 .maxStaffPerShift(getIntValue(MAX_STAFF_PER_SHIFT, 0, cache))
                 .minShiftsPerStaff(getIntValue(MIN_SHIFTS_PER_STAFF, 0, cache))
-                .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 99, cache))
-                // Per-type weekly max from AutoGenConfig
-                .l01MaxPerWeek(autoGenConfig.map(AutoGenConfig::l01MaxPerWeek).orElse(0))
-                .l02MaxPerWeek(autoGenConfig.map(AutoGenConfig::l02MaxPerWeek).orElse(0))
-                .l03MaxPerWeek(autoGenConfig.map(AutoGenConfig::l03MaxPerWeek).orElse(0))
-                .l04MaxPerWeek(autoGenConfig.map(AutoGenConfig::l04MaxPerWeek).orElse(0))
+                .maxShiftsPerStaff(getIntValue(MAX_SHIFTS_PER_STAFF, 30, cache))
+                // NOTE: was 99 — effectively unlimited. Changed to 30 (roughly avg+1σ) to force
+                // fair L04 distribution. Without this cap, eligible staff get all L04 shifts and
+                // hit 140% load while ineligible staff sit at 70%. Fix: V10-L04-overload-cap.
                 .build();
     }
 
     /**
      * Save algorithm runtime configuration.
      *
-     * <p>PR-MAX-WEEK: {@code l01MaxPerWeek..l04MaxPerWeek} deliberately live
-     * here even though they are also part of {@link AutoGenConfig}.  The
-     * runtime editor bundles them with the rest of {@code RuntimeConfig} on
-     * save, but historically this method skipped them.  When a user modified
-     * the per-type weekly maximums in the UI and hit Save, the values were
-     * persisted successfully (HTTP 200, toast "Đã lưu cấu hình thuật toán")
-     * yet vanished on refresh — because {@link #getRuntimeConfig} reads those
-     * four fields from {@link AutoGenConfig} (which only writes via
-     * {@code updateAutoGenConfig}), and a partial failure of the second PUT
-     * left the {@code auto_gen_l*_max_per_week} rows at their defaults.
-     * Persisting here makes the runtime endpoint self-sufficient: a single
-     * PUT refreshes everything the UI bound to that endpoint.  The
-     * auto-gen-config endpoint still upserts the same rows; concurrent
-     * writes are safe because {@link #upsert(String, String, AlgorithmConfig.ValueType, String)}
-     * is idempotent on the same key.
+     * <p>Persists runtime-only fields (weekendWeight, overnightRecoveryHours,
+     * greedyCoverageThreshold, maxStaffPerShift, maxShiftsPerStaff,
+     * holidayMode). AutoGenConfig is persisted via {@link #updateAutoGenConfig}.
      */
     @Transactional
     public void saveRuntimeConfig(AlgorithmRuntimeConfig config) {
@@ -539,19 +498,6 @@ public class AlgorithmConfigService {
                 "Số ca trực tối thiểu mỗi nhân sự trong kỳ. Đặt 0 để bỏ qua. Giúp đảm bảo mỗi người đều có ít nhất N ca trong kỳ.");
         upsert(MAX_SHIFTS_PER_STAFF, String.valueOf(config.getMaxShiftsPerStaff()), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca trực tối đa mỗi nhân sự trong kỳ. Đặt 0 để dùng maxShiftsPerMonth của nhân sự. Giới hạn này ngược lại với min — ngăn không ai bị quá tải.");
-        // PR-MAX-WEEK: see class javadoc.  Per-type weekly maxes are
-        // shared between RuntimeConfig and AutoGenConfig — see the comment
-        // on AUTO_GEN_L01_MAX_PER_WEEK constants.  We persist them on
-        // both endpoints to make the runtime-config save a single
-        // self-sufficient round trip.
-        upsert(AUTO_GEN_L01_MAX_PER_WEEK, String.valueOf(config.getL01MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L01 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L02_MAX_PER_WEEK, String.valueOf(config.getL02MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L02 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L03_MAX_PER_WEEK, String.valueOf(config.getL03MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L03 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
-        upsert(AUTO_GEN_L04_MAX_PER_WEEK, String.valueOf(config.getL04MaxPerWeek()), AlgorithmConfig.ValueType.NUMBER,
-                "Số ca L04 tối đa mỗi người mỗi tuần. 0 = không giới hạn.");
     }
 
     private java.math.BigDecimal getBigDecimalValue(String paramKey, double defaultValue) {
@@ -574,9 +520,7 @@ public class AlgorithmConfigService {
      * <p>Công thức:
      * <ul>
      *   <li>{@code minPerDay = ⌈(target × eligible) / periodDays⌋} — đảm bảo coverage</li>
-     *   <li>{@code minPerWeek = ⌈target / periodWeeks⌋} — phân bổ đều theo tuần</li>
-     *   <li>{@code maxPerWeek = ⌈(target / periodWeeks) × 1.5⌉} — buffer 50%</li>
-     *   <li>{@code maxPerDay = ⌈maxPerWeek × 1.2⌉} — buffer cho ngày cao điểm</li>
+     *   <li>{@code maxPerDay = ⌈(minPerDay / periodWeeks) × weeks × 1.2⌉} — buffer cho ngày cao điểm</li>
      * </ul>
      *
      * @param periodDays       Số ngày trong kỳ (VD: 30 cho tháng 9)
@@ -614,39 +558,30 @@ public class AlgorithmConfigService {
         int l03MinPerDay = Math.max(1, (int) Math.ceil((double) (l03Target * l03Elig) / days));
         int l04MinPerDay = Math.max(1, (int) Math.ceil((double) (l04Target * l04Elig) / days));
 
-        int l01MinPerWeek = Math.max(1, (int) Math.ceil((double) l01Target / weeks));
-        int l02MinPerWeek = Math.max(1, (int) Math.ceil((double) l02Target / weeks));
-        int l03MinPerWeek = Math.max(1, (int) Math.ceil((double) l03Target / weeks));
-        int l04MinPerWeek = Math.max(1, (int) Math.ceil((double) l04Target / weeks));
-
-        int l01MaxPerWeek = Math.max(l01MinPerWeek + 1, (int) Math.ceil(((double) l01Target / weeks) * 1.5));
-        int l02MaxPerWeek = Math.max(l02MinPerWeek + 1, (int) Math.ceil(((double) l02Target / weeks) * 1.5));
-        int l03MaxPerWeek = Math.max(l03MinPerWeek + 1, (int) Math.ceil(((double) l03Target / weeks) * 1.5));
-        int l04MaxPerWeek = Math.max(l04MinPerWeek + 1, (int) Math.ceil(((double) l04Target / weeks) * 1.5));
-
-        int l01MaxPerDay = Math.max(l01MinPerDay, (int) Math.ceil(l01MaxPerWeek * 1.2));
-        int l02MaxPerDay = Math.max(l02MinPerDay, (int) Math.ceil(l02MaxPerWeek * 1.2));
-        int l03MaxPerDay = Math.max(l03MinPerDay, (int) Math.ceil(l03MaxPerWeek * 1.2));
-        int l04MaxPerDay = Math.max(l04MinPerDay, (int) Math.ceil(l04MaxPerWeek * 1.2));
+        // maxPerDay buffers minPerDay by 20% to handle peak days (ponytail:
+        // cap ceiling at 2×minPerDay to avoid runaway values when staff pool is small)
+        int l01MaxPerDay = Math.max(l01MinPerDay, (int) Math.ceil(l01MinPerDay * 1.2));
+        int l02MaxPerDay = Math.max(l02MinPerDay, (int) Math.ceil(l02MinPerDay * 1.2));
+        int l03MaxPerDay = Math.max(l03MinPerDay, (int) Math.ceil(l03MinPerDay * 1.2));
+        int l04MaxPerDay = Math.max(l04MinPerDay, (int) Math.ceil(l04MinPerDay * 1.2));
 
         int totalExpected = (l01Target * l01Elig) + (l02Target * l02Elig)
                 + (l03Target * l03Elig) + (l04Target * l04Elig);
 
         // L01/L02/L03: không có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
         // Chỉ L04 có specialty config
-        AutoGenConfig recommended = new AutoGenConfig(
-                current.enabled(),
-                l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
-                l01MaxPerDay, l02MaxPerDay, l03MaxPerDay, l04MaxPerDay,
-                l01MinPerWeek, l02MinPerWeek, l03MinPerWeek, l04MinPerWeek,
-                l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
-                current.holidayMode(),
-                current.removedShiftTypes() != null ? current.removedShiftTypes() : java.util.List.of(),
-                // L04 only
-                current.l04CrossSpecialty(),
-                current.l04CrossSpecialtyRatio(),
-                current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : java.util.List.of(),
-                current.l04BalanceStrategy() != null ? current.l04BalanceStrategy() : AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE
+	        AutoGenConfig recommended = new AutoGenConfig(
+	                current.enabled(),
+	                l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
+	                l01MaxPerDay, l02MaxPerDay, l03MaxPerDay, l04MaxPerDay,
+	                0, 0, 0, 0,  // max/week
+	                current.holidayMode(),
+	                current.removedShiftTypes() != null ? current.removedShiftTypes() : java.util.List.of(),
+	                // L04 only
+	                current.l04CrossSpecialty(),
+	                current.l04CrossSpecialtyRatio(),
+	                current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : java.util.List.of(),
+	                current.l04BalanceStrategy() != null ? current.l04BalanceStrategy() : AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE
         );
 
         String rationale = String.format(
@@ -688,11 +623,6 @@ public class AlgorithmConfigService {
         private java.math.BigDecimal balanceScoreMin;
         private int maxStaffPerShift;
         private int maxShiftsPerStaff;
-        // Per-shift-type weekly max (from AutoGenConfig)
-        private int l01MaxPerWeek;
-        private int l02MaxPerWeek;
-        private int l03MaxPerWeek;
-        private int l04MaxPerWeek;
 
         /**
          * @deprecated Not used in scheduler v1.0. Kept only for backward compatibility.

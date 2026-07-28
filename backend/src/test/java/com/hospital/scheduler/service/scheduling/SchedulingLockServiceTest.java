@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
+import java.util.concurrent.Semaphore;
 
 import static org.junit.jupiter.api.Assertions.*;
 /**
@@ -19,17 +19,17 @@ class SchedulingLockServiceTest {
     private final SchedulingLockService lockService = new SchedulingLockService();
 
     @Test
-    void acquirePeriodLock_returnsSameLockForSamePeriod() {
-        Lock lock1 = lockService.acquirePeriodLock(1);
-        Lock lock2 = lockService.acquirePeriodLock(1);
-        assertSame(lock1, lock2, "Same period must reuse the same Lock instance");
+    void acquirePeriodLock_returnsSameSemaphoreForSamePeriod() {
+        Semaphore sem1 = lockService.acquirePeriodLock(1);
+        Semaphore sem2 = lockService.acquirePeriodLock(1);
+        assertSame(sem1, sem2, "Same period must reuse the same Semaphore instance");
     }
 
     @Test
-    void acquirePeriodLock_returnsDistinctLocksForDifferentPeriods() {
-        Lock lock1 = lockService.acquirePeriodLock(1);
-        Lock lock2 = lockService.acquirePeriodLock(2);
-        assertNotSame(lock1, lock2, "Different periods must have independent locks");
+    void acquirePeriodLock_returnsDistinctSemaphoresForDifferentPeriods() {
+        Semaphore sem1 = lockService.acquirePeriodLock(1);
+        Semaphore sem2 = lockService.acquirePeriodLock(2);
+        assertNotSame(sem1, sem2, "Different periods must have independent semaphores");
     }
 
     @Test
@@ -41,9 +41,8 @@ class SchedulingLockServiceTest {
     @Test
     void tryLock_failsWhenAlreadyHeld() throws InterruptedException {
         assertTrue(lockService.tryLock(101));
-        // Same-thread reentrance is allowed by ReentrantLock — verify contention
-        // from a different thread, which is what the production caller (Tomcat
-        // worker thread A vs Tomcat worker thread B) actually cares about.
+        // Verify contention from a different thread, which is what the production
+        // caller (Tomcat worker thread A vs Tomcat worker thread B) actually cares about.
         AtomicInteger otherResult = new AtomicInteger(-1);
         Thread other = new Thread(() -> otherResult.set(lockService.tryLock(101) ? 1 : 0));
         other.start();
@@ -79,23 +78,22 @@ class SchedulingLockServiceTest {
         int threadCount = 4;
         CountDownLatch startGate = new CountDownLatch(1);
         CountDownLatch finishGate = new CountDownLatch(threadCount);
-        AtomicInteger concurrentPeaks = new AtomicInteger();
-        AtomicInteger currentConcurrent = new AtomicInteger();
         AtomicInteger maxConcurrent = new AtomicInteger();
+        AtomicInteger currentConcurrent = new AtomicInteger();
 
         for (int i = 0; i < threadCount; i++) {
             new Thread(() -> {
                 try {
                     startGate.await();
-                    Lock lock = lockService.acquirePeriodLock(periodId);
-                    lock.lock();
+                    Semaphore sem = lockService.acquirePeriodLock(periodId);
+                    sem.acquire();
                     try {
                         int now = currentConcurrent.incrementAndGet();
                         maxConcurrent.updateAndGet(prev -> Math.max(prev, now));
                         Thread.sleep(50);
                     } finally {
                         currentConcurrent.decrementAndGet();
-                        lock.unlock();
+                        sem.release();
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
