@@ -613,6 +613,20 @@ public class AutoSchedulingService {
             throw new BadRequestException(
                     "Cấu hình auto-gen chưa được bật. Vui lòng bật auto_generate_requirements trong cấu hình thuật toán.");
         }
+        // Derive removedShiftTypes once so the same set is used to (a) filter the
+        // requirement list before dispatch and (b) filter the response schedules.
+        // Without this, stale shift_requirement rows persisted before the user
+        // toggled a type off would still feed the algorithm and produce L02/etc.
+        // assignments even though the UI shows the toggle as enabled.
+        Set<String> removedShiftTypes = autoGenConfig.get().removedShiftTypes() == null
+                ? java.util.Set.of()
+                : autoGenConfig.get().removedShiftTypes().stream()
+                        .filter(java.util.Objects::nonNull)
+                        .map(String::toUpperCase)
+                        .collect(Collectors.toSet());
+        if (!removedShiftTypes.isEmpty()) {
+            log.info("Filtering out removed shift types from dispatch: {}", removedShiftTypes);
+        }
         // CRITICAL: Re-sync existing requirements with current config so changes to min/max per day
         // take effect on the next preview run. Without this, the scheduler would re-use stale
         // requiredCount values persisted by a previous run with older config.
@@ -624,6 +638,23 @@ public class AutoSchedulingService {
         // sync + persist happen or the result stays transient.
         requirements = requirementPreparationService.prepareRequirements(period, save, activeStaff);
         log.info("Prepared {} requirements (save={}) for period {}", requirements.size(), save, period.getId());
+
+        // Defensive filter: drop any requirement whose shift type is in removedShiftTypes.
+        // RequirementPreparationService already filters when generating fresh, but the DB may
+        // still hold stale rows from a prior run with a different config. Without this filter
+        // the algorithm would still see (and assign) L02 rows even though the user toggled L02
+        // off in the Configuration Calculator.
+        if (!removedShiftTypes.isEmpty()) {
+            int before = requirements.size();
+            requirements = requirements.stream()
+                    .filter(r -> r.getShiftType() == null
+                            || !removedShiftTypes.contains(r.getShiftType().getId().toUpperCase()))
+                    .collect(Collectors.toList());
+            if (requirements.size() != before) {
+                log.info("Dropped {} stale requirements for removed shift types {} (period {})",
+                        before - requirements.size(), removedShiftTypes, period.getId());
+            }
+        }
 
         // Pre-load existing compensation days from the same period so greedy doesn't assign L01 on a day
         // that is already someone's compensation day (confirmed day off — cannot assign L01)
@@ -912,8 +943,16 @@ public class AutoSchedulingService {
         }
 
         // ── Build schedule summaries (deduplicated) ───────────────────────────────
+        // Filter out any shift type the user has marked as removed so the response
+        // never surfaces L02/etc. assignments even when stale state (existing in-memory
+        // assignments, fall-through assignments from balance-score fallback, etc.) would
+        // otherwise include them. The shift_requirement list was already filtered above,
+        // but this guards the response shape itself so the UI cannot accidentally display
+        // a removed type.
         Set<String> seen = new java.util.LinkedHashSet<>();
         List<AutoScheduleResponse.ScheduleSummary> scheduleSummaries = createdSchedules.stream()
+                .filter(s -> s.getShiftType() == null
+                        || !removedShiftTypes.contains(s.getShiftType().getId().toUpperCase()))
                 .filter(s -> {
                     String key = s.getStaff().getId() + "_" + s.getWorkDate() + "_" + s.getShiftType().getId();
                     return seen.add(key);

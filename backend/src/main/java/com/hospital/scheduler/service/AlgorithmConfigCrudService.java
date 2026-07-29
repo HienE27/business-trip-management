@@ -140,7 +140,13 @@ public class AlgorithmConfigCrudService {
         Map<String, String> cache = new HashMap<>();
         for (com.hospital.scheduler.repository.AlgorithmConfigKeyValue kv
                 : configRepository.findAllAsKeyValuePairs()) {
-            cache.put(kv.getParamKey(), kv.getParamValue());
+            // Normalize paramKey to lowercase so lookup by Java constants
+            // (e.g. AUTO_GEN_REMOVED_SHIFT_TYPES = "auto_gen_removed_shift_types")
+            // matches regardless of how the row was originally inserted.
+            // MySQL's default ci collation lets findByParamKey match mixed-case
+            // writes, so this cache normalization is the only line of defense
+            // against future rows being saved with the wrong case.
+            cache.put(kv.getParamKey().toLowerCase(), kv.getParamValue());
         }
         return cache;
     }
