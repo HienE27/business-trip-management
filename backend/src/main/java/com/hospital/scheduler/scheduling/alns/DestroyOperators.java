@@ -38,21 +38,24 @@ public final class DestroyOperators {
         };
     }
 
-    /** Worst removal — unassigns slots with the worst score contribution. */
-    public static DestroyOperator worst(java.util.function.ToIntFunction<com.hospital.scheduler.scheduling.solution.WorkingSolution> slotCost) {
+    /** Worst removal — unassigns slots with the highest cost contribution. */
+    public static DestroyOperator worst(java.util.function.IntUnaryOperator slotCost) {
         return new DestroyOperator() {
             @Override public String name() { return "worst"; }
             @Override public int destroy(WorkingSolution solution, int removeCount) {
                 int removed = 0;
                 List<Integer> indices = new ArrayList<>(solution.getAssignments().size());
                 for (int i = 0; i < solution.getAssignments().size(); i++) {
-                    var a = solution.getAssignment(i);
+                    var a = solution.getAssignments().get(i);
                     if (a != null && a.staffId > 0) indices.add(i);
                 }
-                indices.sort((x, y) -> Integer.compare(slotCost.applyAsInt(solution), slotCost.applyAsInt(solution)));
+                indices.sort((x, y) -> {
+                    int byCost = Integer.compare(slotCost.applyAsInt(y), slotCost.applyAsInt(x));
+                    return byCost != 0 ? byCost : Integer.compare(x, y);
+                });
                 for (int idx : indices) {
                     if (removed >= removeCount) break;
-                    var a = solution.getAssignment(idx);
+                    var a = solution.getAssignments().get(idx);
                     if (a != null && a.staffId > 0) {
                         solution.unassign(a.slotId);
                         removed++;
