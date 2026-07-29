@@ -34,6 +34,9 @@ public class PostAssignmentOptimizer {
 
     public record RebalanceMove(Schedule schedule, Staff toStaff) {}
 
+    /** Phase 5D: 2-way swap between two staff on the same rebalance key. */
+    public record SwapPair(Schedule scheduleA, Schedule scheduleB) {}
+
     /**
      * Local search fairness optimizer (reassigns loaded → underloaded staff,
      * keep L01 fixed because compensation-day side effects).
@@ -52,6 +55,21 @@ public class PostAssignmentOptimizer {
 
         for (int round = 0; round < maxRounds; round++) {
             Map<String, Map<Integer, Long>> counts = buildSafeRebalanceCounts(schedules, activeStaff);
+
+            // Phase 5D: try 2-way swap first (reduces 2 moves in 1 round, higher benefit).
+            SwapPair swap = findSafeSwapPair(schedules, staffById, counts, stateAccessor);
+            if (swap != null) {
+                Staff staffForA = swap.scheduleB().getStaff();
+                Staff staffForB = swap.scheduleA().getStaff();
+                swap.scheduleA().setStaff(staffForA);
+                swap.scheduleB().setStaff(staffForB);
+                if (swap.scheduleA().getId() != null) scheduleRepository.save(swap.scheduleA());
+                if (swap.scheduleB().getId() != null) scheduleRepository.save(swap.scheduleB());
+                moves += 2;
+                continue;
+            }
+
+            // Fallback: 1-way reassign
             RebalanceMove move = findBestSafeRebalanceMove(schedules, activeStaff, staffById, counts, stateAccessor);
             if (move == null) break;
 
@@ -207,23 +225,36 @@ public class PostAssignmentOptimizer {
                                                     Map<String, Map<Integer, Long>> counts,
                                                     SchedulingStateAccessor stateAccessor) {
         RebalanceMove best = null;
-        long bestGap = 1;
+        double bestGap = 0.5;
 
         for (Map.Entry<String, Map<Integer, Long>> entry : counts.entrySet()) {
             String key = entry.getKey();
             Map<Integer, Long> perStaff = entry.getValue();
             if (perStaff.isEmpty()) continue;
 
-            Integer overloadedStaffId = perStaff.entrySet().stream()
+            // Phase 5D: compute load score per staff, then pick max/min by load.
+            // The map key (e.g. "L02" or "L04:7") is the same shift type, so
+            // weightOf for the lead shift type is constant within this entry.
+            String leadTypeId = key.startsWith("L04:") ? "L04"
+                    : (key.startsWith("L0") ? key.substring(0, 3) : key);
+            double weight = LoadScoreCalculator.weightOf(leadTypeId);
+
+            Map<Integer, Double> loadByStaff = new HashMap<>();
+            for (Map.Entry<Integer, Long> kv : perStaff.entrySet()) {
+                loadByStaff.put(kv.getKey(), kv.getValue() * weight);
+            }
+
+            Integer overloadedStaffId = loadByStaff.entrySet().stream()
                     .max(Map.Entry.comparingByValue())
                     .map(Map.Entry::getKey).orElse(null);
-            Integer underloadedStaffId = perStaff.entrySet().stream()
+            Integer underloadedStaffId = loadByStaff.entrySet().stream()
                     .min(Map.Entry.comparingByValue())
                     .map(Map.Entry::getKey).orElse(null);
             if (overloadedStaffId == null || underloadedStaffId == null || overloadedStaffId.equals(underloadedStaffId))
                 continue;
 
-            long gap = perStaff.getOrDefault(overloadedStaffId, 0L) - perStaff.getOrDefault(underloadedStaffId, 0L);
+            double gap = loadByStaff.getOrDefault(overloadedStaffId, 0.0)
+                    - loadByStaff.getOrDefault(underloadedStaffId, 0.0);
             if (gap <= bestGap) continue;
 
             Staff toStaff = staffById.get(underloadedStaffId);
@@ -238,6 +269,78 @@ public class PostAssignmentOptimizer {
             if (movable.isPresent()) {
                 best = new RebalanceMove(movable.get(), toStaff);
                 bestGap = gap;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Phase 5D: 2-way swap. Find a pair of schedules (both under same rebalance key L02/L03/L04)
+     * where swapping their staff reduces load variance for BOTH staff simultaneously.
+     * That's strictly better than a 1-way move because it counts as 2 rebalance units per round.
+     * <p>Candidate pattern: schedule A (overloaded staff X, type T1) and schedule B (underloaded staff Y,
+     * same key) such that after swap: X has -1 count of T1, Y has +1 count of T1.
+     * Symmetric swap (A↔B) needs to keep both safe — checked via isSafeLocalSearchReassignment
+     * with the hypothetical owner swap.
+     */
+    private SwapPair findSafeSwapPair(List<Schedule> schedules,
+                                       Map<Integer, Staff> staffById,
+                                       Map<String, Map<Integer, Long>> counts,
+                                       SchedulingStateAccessor stateAccessor) {
+        SwapPair best = null;
+        double bestLoadImprovement = 0.5;
+
+        for (Map.Entry<String, Map<Integer, Long>> entry : counts.entrySet()) {
+            String key = entry.getKey();
+            Map<Integer, Long> perStaff = entry.getValue();
+            if (perStaff.size() < 2) continue;
+
+            String leadTypeId = key.startsWith("L04:") ? "L04"
+                    : (key.startsWith("L0") ? key.substring(0, 3) : key);
+            double weight = LoadScoreCalculator.weightOf(leadTypeId);
+
+            // Find overloaded + underloaded staff (same key)
+            Integer overloadedId = null, underloadedId = null;
+            long maxCount = Long.MIN_VALUE, minCount = Long.MAX_VALUE;
+            for (Map.Entry<Integer, Long> kv : perStaff.entrySet()) {
+                if (kv.getValue() > maxCount) { maxCount = kv.getValue(); overloadedId = kv.getKey(); }
+                if (kv.getValue() < minCount) { minCount = kv.getValue(); underloadedId = kv.getKey(); }
+            }
+            if (overloadedId == null || underloadedId == null || overloadedId.equals(underloadedId)) continue;
+            long countGap = maxCount - minCount;
+            if (countGap < 2) continue;  // need at least 2-count gap to make swap worthwhile
+
+            // Find a schedule for each staff matching the same key
+            Schedule overloadedSchedule = null, underloadedSchedule = null;
+            for (Schedule s : schedules) {
+                if (!key.equals(rebalanceKey(s))) continue;
+                if (s.getStaff().getId() == overloadedId && overloadedSchedule == null) {
+                    overloadedSchedule = s;
+                } else if (s.getStaff().getId() == underloadedId && underloadedSchedule == null) {
+                    underloadedSchedule = s;
+                }
+            }
+            if (overloadedSchedule == null || underloadedSchedule == null) continue;
+
+            // Safety check: both moves must be safe after the swap.
+            // Simulate: assign overloadedSchedule's pivot to underloaded staff, and vice versa.
+            Staff overloadedStaff = staffById.get(underloadedId);
+            Staff underloadedStaff = staffById.get(overloadedId);
+            if (overloadedStaff == null || underloadedStaff == null) continue;
+
+            // Hypothetical swap: overloadedSchedule's slot is taken by underloadedId staff,
+            // and underloadedSchedule's slot is taken by overloadedId staff.
+            // Use isSafeLocalSearchReassignment on both directions.
+            // Note: we run the safety check twice but with each candidate applied to the other's slot.
+            boolean safeMoveA = isSafeLocalSearchReassignment(overloadedSchedule, overloadedStaff, schedules, stateAccessor);
+            boolean safeMoveB = isSafeLocalSearchReassignment(underloadedSchedule, underloadedStaff, schedules, stateAccessor);
+            if (!safeMoveA || !safeMoveB) continue;
+
+            // Load improvement: each side moves ±1 count → gap reduces by 2*weight.
+            double loadImprovement = 2.0 * weight;
+            if (loadImprovement > bestLoadImprovement) {
+                best = new SwapPair(overloadedSchedule, underloadedSchedule);
+                bestLoadImprovement = loadImprovement;
             }
         }
         return best;
