@@ -116,8 +116,6 @@ export function Mode2Panel({
           l04MaxPerWeek: num(rec.l04MaxPerWeek, 0),
           holidayMode: str(rec.holidayMode, "SKIP"),
           removedShiftTypes: arr(rec.removedShiftTypes),
-          l04CrossSpecialty: Boolean(rec.l04CrossSpecialty),
-          l04CrossSpecialtyRatio: num(rec.l04CrossSpecialtyRatio, 0),
           l04BalanceStrategy: str(rec.l04BalanceStrategy, "FAIR_DISTRIBUTE") as
             | "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR",
         }),

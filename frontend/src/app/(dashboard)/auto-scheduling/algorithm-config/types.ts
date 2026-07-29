@@ -43,9 +43,7 @@ export type RuntimeConfig = {
   l03CrossSpecialtyRatio?: number;
   l03AllowedSpecialties?: string[];
   l03BalanceStrategy?: BalanceStrategy;
-  // Cross-specialty cho L04
-  l04CrossSpecialty?: boolean;
-  l04CrossSpecialtyRatio?: number;
+  // L04 — chỉ allowedSpecialties + balanceStrategy (bỏ toggle cross-specialty)
   l04AllowedSpecialties?: string[];
   l04BalanceStrategy?: BalanceStrategy;
 };
@@ -84,9 +82,7 @@ export type AutoGenConfigPayload = {
   l03CrossSpecialtyRatio?: number;
   l03AllowedSpecialties?: string[];
   l03BalanceStrategy?: BalanceStrategy;
-  // Cross-specialty cho L04
-  l04CrossSpecialty?: boolean;
-  l04CrossSpecialtyRatio?: number;
+  // L04 — chỉ allowedSpecialties + balanceStrategy (bỏ toggle cross-specialty)
   l04AllowedSpecialties?: string[];
   l04BalanceStrategy?: BalanceStrategy;
 };
@@ -117,9 +113,7 @@ export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([
   "l03CrossSpecialtyRatio",
   "l03AllowedSpecialties",
   "l03BalanceStrategy",
-  // L04 cross-specialty
-  "l04CrossSpecialty",
-  "l04CrossSpecialtyRatio",
+  // L04 — chỉ allowedSpecialties + balanceStrategy
   "l04AllowedSpecialties",
   "l04BalanceStrategy",
 ]);

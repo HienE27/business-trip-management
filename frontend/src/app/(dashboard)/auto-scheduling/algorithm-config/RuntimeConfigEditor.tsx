@@ -24,8 +24,6 @@ import {
 import { ShiftTypeGroupCard } from "./ShiftTypeGroupCard";
 import { HolidayModeField } from "./HolidayModeField";
 import { RemovedShiftTypesField } from "./RemovedShiftTypesField";
-import { ShiftTypeCrossSpecialtyCard } from "./ShiftTypeCrossSpecialtyCard";
-import { sanitizeAllowedSpecialties } from "./crossSpecialty";
 import { BusinessRulesCard } from "./BusinessRulesCard";
 import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
@@ -225,13 +223,11 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l03MaxPerWeek: (form as any).l03MaxPerWeek ?? 0,
         l04MaxPerWeek: (form as any).l04MaxPerWeek ?? 0,
         removedShiftTypes: form.removedShiftTypes ?? [],
-        // L04 cross-specialty (L01/L02/L03 reserved for future use — currently unused).
-        // Strip any "__NONE__" sentinel that may have leaked into form state
-        // from legacy saves so the persisted allowlist only contains real
-        // specialty names.
-        l04CrossSpecialty: form.l04CrossSpecialty ?? false,
-        l04CrossSpecialtyRatio: form.l04CrossSpecialtyRatio ?? 0.3,
-        l04AllowedSpecialties: sanitizeAllowedSpecialties(form.l04AllowedSpecialties),
+        // L04 chỉ dùng allowedSpecialties (lọc staff theo chuyên khoa).
+        // Toggle cross-specialty đã bỏ — để allowedSpecialties rỗng = mở.
+        l04AllowedSpecialties: (form.l04AllowedSpecialties ?? []).filter(
+          (s) => typeof s === "string" && s !== ""
+        ),
         l04BalanceStrategy: form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE",
       };
       // Runtime config: only the fields the backend DTO accepts
@@ -469,21 +465,66 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             );
           })}
         <AutoCompensationCard />
-        {/* L04 Cross-specialty — business config, giữ nguyên */}
-        <ShiftTypeCrossSpecialtyCard
-          shiftType="L04"
-          shiftTypeName="PK Chuyên gia"
-          enabled={form.l04CrossSpecialty ?? false}
-          ratio={form.l04CrossSpecialtyRatio ?? 0.3}
-          allowedSpecialties={sanitizeAllowedSpecialties(form.l04AllowedSpecialties)}
-          allSpecialties={allSpecialties}
-          editing={editing}
-          balanceStrategy={form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE"}
-          showSpecialtyConfig={true}
-          onChange={(enabled, ratio, allowedSpecialties, balanceStrategy) => {
-            setForm(prev => prev ? { ...prev, l04CrossSpecialty: enabled, l04CrossSpecialtyRatio: ratio, l04AllowedSpecialties: allowedSpecialties, l04BalanceStrategy: balanceStrategy } : prev);
-          }}
-        />
+        {/* L04 specialty allowlist — chỉ dùng allowedSpecialties, bỏ toggle cross-specialty.
+            Để rỗng = cho tất cả chuyên khoa đủ điều kiện. */}
+        <div className="rounded-xl border border-outline-variant p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-purple-600">medical_services</span>
+              <h3 className="text-label-md font-semibold">L04 — PK Chuyên gia</h3>
+            </div>
+            <span className="text-[11px] text-on-surface-variant">
+              {editing ? "Có thể chỉnh" : "Chỉ xem"}
+            </span>
+          </div>
+          <div className="space-y-2">
+            <label className="text-[11px] font-medium text-on-surface-variant">
+              Allowed Specialties (để rỗng = tất cả)
+            </label>
+            <div className="flex gap-1.5 flex-wrap p-2 rounded-lg border border-outline-variant min-h-[36px]">
+              {allSpecialties.length === 0 && (
+                <span className="text-[11px] text-on-surface-variant/60">đang tải...</span>
+              )}
+              {allSpecialties.map((sp) => {
+                const selected = (form.l04AllowedSpecialties ?? []).includes(sp);
+                return (
+                  <button key={sp} type="button" disabled={!editing}
+                    onClick={() => {
+                      setForm(prev => {
+                        if (!prev) return prev;
+                        const cur = prev.l04AllowedSpecialties ?? [];
+                        return {
+                          ...prev,
+                          l04AllowedSpecialties: cur.includes(sp)
+                            ? cur.filter(x => x !== sp)
+                            : [...cur, sp],
+                        };
+                      });
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
+                      selected
+                        ? "bg-primary text-on-primary border-primary"
+                        : "bg-surface-container text-on-surface-variant border-outline-variant"
+                    } ${!editing ? "opacity-60 cursor-not-allowed" : ""}`}>
+                    {sp}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-[11px] font-medium text-on-surface-variant">Balance Strategy</label>
+            <select
+              disabled={!editing}
+              value={form.l04BalanceStrategy ?? "FAIR_DISTRIBUTE"}
+              onChange={(e) => setForm(prev => prev ? { ...prev, l04BalanceStrategy: e.target.value as any } : prev)}
+              className="w-full h-9 px-3 rounded-lg border border-outline-variant text-[13px] bg-surface">
+              <option value="STRICT_MATCH_ONLY">STRICT_MATCH_ONLY</option>
+              <option value="FAIR_DISTRIBUTE">FAIR_DISTRIBUTE</option>
+              <option value="WEIGHTED_FAIR">WEIGHTED_FAIR</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div>

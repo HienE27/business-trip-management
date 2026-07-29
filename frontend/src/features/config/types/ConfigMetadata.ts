@@ -133,8 +133,6 @@ export interface ConfigDomain {
 	  l03MaxPerDay: number;
 	  l04MinPerDay: number;
 	  l04MaxPerDay: number;
-  l04CrossSpecialtyEnabled: boolean;
-  l04CrossSpecialtyRatio: number;
   l04AllowedSpecialties: string[];
   l04BalanceStrategy: string;
   overnightRecoveryHours: number;
