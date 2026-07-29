@@ -85,6 +85,7 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
   const [report, setReport] = useState<FeasibilityReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const checkFeasibility = useCallback(async () => {
     if (!periodId) return;
@@ -93,6 +94,7 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
     try {
       const result = await api.checkFeasibility(periodId);
       setReport(result);
+      setLastUpdated(new Date());
     } catch (err) {
       setError("Không thể kiểm tra tính khả thi");
       console.error(err);
@@ -102,10 +104,22 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
   }, [periodId]);
 
   useEffect(() => {
-    if (periodId) {
-      checkFeasibility();
-    }
-  }, [periodId, checkFeasibility]);
+    if (!periodId) return;
+    checkFeasibility();
+    const onFocus = () => {
+      // refetch khi user quay lại tab — tự khắc phục state cũ sau backend restart
+      if (!loading) checkFeasibility();
+    };
+    window.addEventListener("focus", onFocus);
+    // ponytail: 60s refetch khi tab visible; ceiling=interval rút gọn hoặc SWR, upgrade khi thấy stale ở ≥3 nơi
+    const id = window.setInterval(() => {
+      if (!document.hidden && !loading) checkFeasibility();
+    }, 60_000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(id);
+    };
+  }, [periodId, checkFeasibility, loading]);
 
   if (!periodId) {
     return (
@@ -409,11 +423,16 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
       )}
 
       {/* Actions */}
-      <div className="px-4 pb-4 flex gap-2">
+      <div className="px-4 pb-4 flex items-center gap-2">
         <Button variant="ghost" size="sm" onClick={checkFeasibility}>
           <span className="material-symbols-outlined text-[16px]">refresh</span>
           Kiểm tra lại
         </Button>
+        {lastUpdated && (
+          <span className="text-label-xs text-on-surface-variant opacity-75" title={lastUpdated.toISOString()}>
+            Cập nhật lúc {lastUpdated.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          </span>
+        )}
         {!report.feasible && onRunScheduling && (
           <Button variant="primary" size="sm" onClick={onRunScheduling}>
             <span className="material-symbols-outlined text-[16px]">play_arrow</span>
