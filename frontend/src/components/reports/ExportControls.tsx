@@ -83,7 +83,17 @@ export function ExportControls({
   const [format, setFormat] = useState<ExportFormat>(pinFormat ?? defaultFormat);
   const [loading, setLoading] = useState(false);
   const [optionsLoaded, setOptionsLoaded] = useState(false);
+  const [dateError, setDateError] = useState<string | null>(null);
   const lastPeriodId = useRef<number | null>(null);
+
+  // Validate date range; the export endpoints treat startDate > endDate as empty results.
+  useEffect(() => {
+    if (startDate && endDate && startDate > endDate) {
+      setDateError('"Từ ngày" phải nhỏ hơn hoặc bằng "Đến ngày".');
+    } else {
+      setDateError(null);
+    }
+  }, [startDate, endDate]);
 
   const formats = useMemo<ExportFormat[]>(() => {
     if (pinFormat) return [pinFormat];
@@ -130,6 +140,7 @@ export function ExportControls({
 
   const handleExport = useCallback(async () => {
     if (!periodId || loading) return;
+    if (dateError) return;
     setLoading(true);
     try {
       const filters: ExportControlsFilters = {};
@@ -174,6 +185,7 @@ export function ExportControls({
   }, [
     periodId,
     loading,
+    dateError,
     shiftTypeId,
     staffId,
     startDate,
@@ -261,11 +273,24 @@ export function ExportControls({
             id={`${uid}-end`}
             type="date"
             value={endDate}
+            min={startDate || undefined}
             onChange={(e) => setEndDate(e.target.value)}
             disabled={loading}
-            className="h-9 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-[13px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            aria-invalid={Boolean(dateError) || undefined}
+            aria-describedby={dateError ? `${uid}-date-error` : undefined}
+            className="h-9 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-[13px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 aria-[invalid=true]:border-error"
           />
         </label>
+
+        {dateError && (
+          <p
+            id={`${uid}-date-error`}
+            role="alert"
+            className="text-[12px] font-medium text-error"
+          >
+            {dateError}
+          </p>
+        )}
 
         {hasFilters && (
           <button
@@ -311,7 +336,7 @@ export function ExportControls({
           variant="primary"
           size="sm"
           onClick={handleExport}
-          disabled={loading || !periodId}
+          disabled={loading || !periodId || Boolean(dateError)}
           icon={
             <span className="material-symbols-outlined text-[16px]">
               download

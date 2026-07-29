@@ -134,7 +134,7 @@ function ReportsConflictsContent() {
       </section>
 
       {message && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error" role="alert">
           {message}
         </div>
       )}
@@ -145,7 +145,7 @@ function ReportsConflictsContent() {
           <p className="text-on-surface-variant">Chọn một kỳ lịch để kiểm tra xung đột.</p>
         </div>
       ) : loading || checking ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant bg-surface-container-lowest py-20 gap-4">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant bg-surface-container-lowest py-20 gap-4" role="status" aria-live="polite">
           <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           <p className="text-on-surface-variant">{loading ? "Đang tải kỳ lịch..." : "Đang kiểm tra xung đột..."}</p>
         </div>
@@ -179,7 +179,13 @@ function ReportsConflictsContent() {
                 <span className="material-symbols-outlined p-1.5 rounded-md bg-tertiary-fixed text-tertiary text-[18px]">groups</span>
               </div>
               <p className="mt-3 text-display-lg font-bold text-on-surface">
-                {new Set(conflictData.conflicts.map((c) => c.staffName)).size}
+                {new Set(
+                  conflictData.conflicts.map((c) =>
+                    c.originalStaffId !== undefined
+                      ? `id:${c.originalStaffId}`
+                      : `name:${c.staffName ?? ""}`,
+                  ),
+                ).size}
               </p>
               <p className="mt-1 text-[12px] text-on-surface-variant">Người có xung đột lịch</p>
             </article>

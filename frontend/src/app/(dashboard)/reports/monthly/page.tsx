@@ -273,7 +273,7 @@ function ReportsMonthlyContent() {
       <BackButton href="/reports" variant="full" label="Quay lại" className="mb-4" />
 
       {message && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error" role="alert">
           {message}
         </div>
       )}
@@ -320,7 +320,7 @@ function ReportsMonthlyContent() {
           <p className="text-on-surface-variant">Chọn một kỳ lịch để xem báo cáo.</p>
         </div>
       ) : loading ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant bg-surface py-20 gap-4">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant bg-surface py-20 gap-4" role="status" aria-live="polite">
           <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           <p className="text-on-surface-variant">Đang tải kỳ lịch...</p>
         </div>
@@ -417,8 +417,9 @@ function ReportsMonthlyContent() {
 
           {/* Shift Breakdown */}
           {checking ? (
-            <div className="flex items-center justify-center rounded-xl border border-outline-variant bg-surface py-16">
+            <div className="flex items-center justify-center rounded-xl border border-outline-variant bg-surface py-16" role="status" aria-live="polite">
               <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <span className="sr-only">Đang kiểm tra phân bổ</span>
             </div>
           ) : stats ? (
             <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">

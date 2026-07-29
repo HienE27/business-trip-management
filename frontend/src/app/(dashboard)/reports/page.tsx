@@ -46,7 +46,7 @@ export default function ReportsPage() {
       <section className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-label-sm text-on-surface-variant flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[16px]">dashboard</span>
+            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">dashboard</span>
             Trung tâm báo cáo
           </p>
           <h1 className="mt-1 text-headline-lg font-semibold text-on-surface">Báo cáo vận hành</h1>
@@ -65,7 +65,7 @@ export default function ReportsPage() {
           >
             {/* Icon */}
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-fixed text-primary shadow-sm transition-transform duration-200 group-hover:scale-105">
-              <span className="material-symbols-outlined text-[22px]">
+              <span className="material-symbols-outlined text-[22px]" aria-hidden="true">
                 {card.icon}
               </span>
             </div>
@@ -86,7 +86,7 @@ export default function ReportsPage() {
               className="mt-4 inline-flex w-fit items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md font-medium text-on-primary shadow-sm transition-all duration-200 hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             >
               {card.cta}
-              <span className="material-symbols-outlined text-[16px] transition-transform duration-200 group-hover:translate-x-0.5">
+              <span className="material-symbols-outlined text-[16px] transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true">
                 arrow_forward
               </span>
             </Link>

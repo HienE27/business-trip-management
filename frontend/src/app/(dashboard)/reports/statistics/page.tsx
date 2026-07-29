@@ -104,7 +104,7 @@ function StatisticsReportContent() {
       <BackButton href="/reports" variant="full" label="Quay lại" className="mb-4" />
 
       {message && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error" role="alert">
           {message}
         </div>
       )}
@@ -212,31 +212,31 @@ function StatisticsReportContent() {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-surface-container-low border-b border-outline-variant">
-                <th className="px-4 py-3 text-label-sm text-on-surface-variant uppercase tracking-wide">
+                <th className="px-4 py-3 text-label-sm text-on-surface-variant uppercase tracking-wide" scope="col">
                   Nhân sự
                 </th>
-                <th className="px-4 py-3 text-label-sm text-on-surface-variant uppercase tracking-wide">
+                <th className="px-4 py-3 text-label-sm text-on-surface-variant uppercase tracking-wide" scope="col">
                   Mã NV
                 </th>
-                <th className="px-4 py-3 text-label-sm text-on-surface-variant uppercase tracking-wide">
+                <th className="px-4 py-3 text-label-sm text-on-surface-variant uppercase tracking-wide" scope="col">
                   Chuyên khoa
                 </th>
-                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide">
+                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide" scope="col">
                   L01
                 </th>
-                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide">
+                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide" scope="col">
                   L02
                 </th>
-                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide">
+                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide" scope="col">
                   L03
                 </th>
-                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide">
+                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide" scope="col">
                   L04
                 </th>
-                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide">
+                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide" scope="col">
                   Tổng
                 </th>
-                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide">
+                <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide" scope="col">
                   Giờ
                 </th>
                 <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide min-w-[120px]">
@@ -402,7 +402,7 @@ function Badge({ count, color }: { count: number; color: string }) {
 
 function LoadingState({ message }: { message: string }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant bg-surface py-20 gap-4">
+    <div className="flex flex-col items-center justify-center rounded-xl border border-outline-variant bg-surface py-20 gap-4" role="status" aria-live="polite">
       <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       <p className="text-on-surface-variant">{message}</p>
     </div>
