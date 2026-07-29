@@ -204,8 +204,11 @@ class CspSearchEngine {
             SearchFrame top = stack.peek();
             if (top == null || top.committed) {
                 int var = selectMRV(domains, assignment, data);
-                if (var < 0) {
+                if (var == -1) {
                     return SearchOutcome.FOUND;
+                }
+                if (var == -2) {
+                    return SearchOutcome.DEAD_END;
                 }
                 int dayIdx = data.varDay[var];
                 int shiftIdx = data.varShift[var];
@@ -462,7 +465,7 @@ class CspSearchEngine {
         for (int v = 0; v < data.numVars; v++) {
             if (assignment[v] >= 0) continue;
             int size = domains[v].cardinality();
-            if (size == 0) return -1;
+            if (size == 0) return -2;
             // MRV primary: smaller domain first. Tie-break: degree heuristic
             // (more unassigned neighbors = more constrained = should be picked
             // before peers to expose dead-ends earlier). This is a classic CSP
