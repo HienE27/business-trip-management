@@ -20,14 +20,7 @@ export type AppSectionKey =
   | "notifications"
   | "audit-history"
   | "compensation-days"
-  | "settings"
-  | "benchmark"
-  | "governance"
-  | "digital-twin-compare"
-  | "digital-twin-decision"
-  | "digital-twin-live"
-  | "digital-twin-replay"
-  | "digital-twin-what-if";
+  | "settings";
 
 export type AppSectionDefinition = {
   key: AppSectionKey;
@@ -191,62 +184,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     description: "Cấu hình hệ thống.",
     requiredPermissions: ["APP_CONFIG_VIEW"],
   },
-  {
-    key: "benchmark",
-    label: "Benchmark",
-    href: "/benchmark",
-    icon: "speed",
-    description: "Đo hiệu năng thuật toán trên các kịch bản khác nhau.",
-    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
-  },
-  {
-    key: "governance",
-    label: "Quản trị",
-    href: "/governance",
-    icon: "admin_panel_settings",
-    description: "Phê duyệt cấu hình, audit và chính sách.",
-    requiredPermissions: ["APP_CONFIG_VIEW"],
-  },
-  {
-    key: "digital-twin-compare",
-    label: "So sánh",
-    href: "/digital-twin/compare",
-    icon: "compare",
-    description: "So sánh hai phiên sandbox.",
-    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
-  },
-  {
-    key: "digital-twin-what-if",
-    label: "What-If",
-    href: "/digital-twin/what-if",
-    icon: "explore",
-    description: "Phân tích kịch bản what-if.",
-    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
-  },
-  {
-    key: "digital-twin-live",
-    label: "Live",
-    href: "/digital-twin/live",
-    icon: "play_circle",
-    description: "Theo dõi search trực tiếp.",
-    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
-  },
-  {
-    key: "digital-twin-decision",
-    label: "Quyết định",
-    href: "/digital-twin/decision",
-    icon: "account_tree",
-    description: "Đồ thị quyết định của search.",
-    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
-  },
-  {
-    key: "digital-twin-replay",
-    label: "Phát lại",
-    href: "/digital-twin/replay",
-    icon: "replay",
-    description: "Phát lại lịch sử search.",
-    requiredPermissions: ["AUTO_SCHEDULE_VIEW"],
-  },
 ];
 
 export function getNavigationItems(activeSection: AppSectionKey): NavigationItem[] {
@@ -297,14 +234,7 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/compensation-days": "compensation-days",
   "/settings": "settings",
   "/settings/roles": "settings",
-  "/benchmark": "benchmark",
-  "/governance": "governance",
   "/config-profiles": "config-profiles",
-  "/digital-twin/compare": "digital-twin-compare",
-  "/digital-twin/decision": "digital-twin-decision",
-  "/digital-twin/live": "digital-twin-live",
-  "/digital-twin/replay": "digital-twin-replay",
-  "/digital-twin/what-if": "digital-twin-what-if",
 };
 
 export function resolveSectionKey(pathname: string): AppSectionKey {
