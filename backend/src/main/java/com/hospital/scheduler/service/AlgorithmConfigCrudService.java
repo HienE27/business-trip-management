@@ -158,7 +158,7 @@ public class AlgorithmConfigCrudService {
     }
 
     public int getIntValue(String paramKey, int defaultValue, Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        String raw = (cache != null) ? cache.get(paramKey.toLowerCase()) : lookupRaw(paramKey);
         if (raw == null) return defaultValue;
         try {
             return Integer.parseInt(raw);
@@ -168,12 +168,12 @@ public class AlgorithmConfigCrudService {
     }
 
     public String getStringValue(String paramKey, String defaultValue, Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        String raw = (cache != null) ? cache.get(paramKey.toLowerCase()) : lookupRaw(paramKey);
         return raw != null ? raw : defaultValue;
     }
 
     public List<String> getStringListValue(String paramKey, Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        String raw = (cache != null) ? cache.get(paramKey.toLowerCase()) : lookupRaw(paramKey);
         if (raw == null || raw.isBlank()) return List.of();
         return java.util.Arrays.stream(raw.split(","))
                 .map(String::trim)
@@ -182,13 +182,13 @@ public class AlgorithmConfigCrudService {
     }
 
     public boolean getBooleanValue(String paramKey, boolean defaultValue, Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        String raw = (cache != null) ? cache.get(paramKey.toLowerCase()) : lookupRaw(paramKey);
         if (raw == null) return defaultValue;
         return Boolean.parseBoolean(raw);
     }
 
     public float getFloatValue(String paramKey, float defaultValue, Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        String raw = (cache != null) ? cache.get(paramKey.toLowerCase()) : lookupRaw(paramKey);
         if (raw == null) return defaultValue;
         try {
             return Float.parseFloat(raw);
@@ -199,7 +199,7 @@ public class AlgorithmConfigCrudService {
 
     public java.math.BigDecimal getBigDecimalValue(String paramKey, double defaultValue,
                                                     Map<String, String> cache) {
-        String raw = (cache != null) ? cache.get(paramKey) : lookupRaw(paramKey);
+        String raw = (cache != null) ? cache.get(paramKey.toLowerCase()) : lookupRaw(paramKey);
         if (raw == null) return java.math.BigDecimal.valueOf(defaultValue);
         try {
             return new java.math.BigDecimal(raw);

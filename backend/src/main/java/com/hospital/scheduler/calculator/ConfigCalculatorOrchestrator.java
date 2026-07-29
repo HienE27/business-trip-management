@@ -66,9 +66,11 @@ public class ConfigCalculatorOrchestrator {
                     config, autoGenConfig, request.getAlgorithmType());
             case 2 -> mode2(period, activeStaff, approvedLeaves, holidays, specialties, shiftTypes,
                     config, autoGenConfig, request.getAlgorithmType(), request.getTargetShifts(),
-                    request.getEnabledGroups());
+                    request.getEnabledGroups(), request.getTargetTotalRequirement(),
+                    request.getTargetCoverage());
             case 3 -> mode3(period, activeStaff, approvedLeaves, holidays, specialties, shiftTypes,
-                    config, autoGenConfig, request.getTargetShifts(), request.getEnabledGroups());
+                    config, autoGenConfig, request.getTargetShifts(), request.getEnabledGroups(),
+                    request.getTargetTotalRequirement(), request.getTargetCoverage());
             default -> throw new IllegalArgumentException("mode không hợp lệ: " + request.getMode());
         };
     }
@@ -100,7 +102,19 @@ public class ConfigCalculatorOrchestrator {
                                             List<Specialty> specialties, List<ShiftType> shiftTypes,
                                             ConfigDomain currentConfig, AutoGenConfig currentAutoGen,
                                             String algorithmType, Map<String, Integer> targets,
-                                            java.util.Set<String> enabledGroups) {
+                                            java.util.Set<String> enabledGroups,
+                                            Integer targetTotalRequirement,
+                                            Double targetCoverage) {
+
+        // ── Aggregate input path: totalRequirement → derive L01-L04 targets ──
+        boolean hasAggregate = targetTotalRequirement != null && targetTotalRequirement > 0
+                && (targets == null || targets.isEmpty());
+        if (hasAggregate) {
+            return mode2FromAggregate(period, staff, leaves, holidays, specialties, shiftTypes,
+                    currentConfig, currentAutoGen, algorithmType, enabledGroups,
+                    targetTotalRequirement, targetCoverage);
+        }
+        // ── Legacy per-shift targets path (original logic) ──
 
         String algo = algorithmType != null ? algorithmType.toUpperCase() : "GREEDY";
         AlgorithmCapacityAnalyzer analyzer = findAnalyzer(algo);
@@ -213,7 +227,9 @@ public class ConfigCalculatorOrchestrator {
                                             List<Specialty> specialties, List<ShiftType> shiftTypes,
                                             ConfigDomain currentConfig, AutoGenConfig currentAutoGen,
                                             Map<String, Integer> targets,
-                                            java.util.Set<String> enabledGroups) {
+                                            java.util.Set<String> enabledGroups,
+                                            Integer targetTotalRequirement,
+                                            Double targetCoverage) {
 
         // Try each algorithm in priority order
         String[] algoPriority = {"GREEDY", "FAIR_GREEDY", "CSP_MRV_FC", "V10_LOCAL_SEARCH"};
@@ -226,7 +242,8 @@ public class ConfigCalculatorOrchestrator {
 
             // Run Mode 2 for this algorithm
             ConfigCalculatorResponse mode2Resp = mode2(period, staff, leaves, holidays, specialties,
-                    shiftTypes, currentConfig, currentAutoGen, algo, targets, enabledGroups);
+                    shiftTypes, currentConfig, currentAutoGen, algo, targets, enabledGroups,
+                    targetTotalRequirement, targetCoverage);
 
             if (mode2Resp.isFeasible()) {
                 int changeCount = mode2Resp.getConfigChanges() != null ? mode2Resp.getConfigChanges().size() : 0;
@@ -245,7 +262,8 @@ public class ConfigCalculatorOrchestrator {
 
         // No algorithm feasible — return best effort
         ConfigCalculatorResponse fallback = mode2(period, staff, leaves, holidays, specialties,
-                shiftTypes, currentConfig, currentAutoGen, "GREEDY", targets, enabledGroups);
+                shiftTypes, currentConfig, currentAutoGen, "GREEDY", targets, enabledGroups,
+                targetTotalRequirement, targetCoverage);
         fallback.setMode(3);
         fallback.setMessage("Không thuật toán nào đạt được target. Dưới đây là kết quả tốt nhất với GREEDY.");
         return fallback;
@@ -306,7 +324,7 @@ public class ConfigCalculatorOrchestrator {
                 config.l01MaxPerDay(), config.l02MaxPerDay(), config.l03MaxPerDay(), config.l04MaxPerDay(),
                 config.l01MaxPerWeek(), config.l02MaxPerWeek(), config.l03MaxPerWeek(), config.l04MaxPerWeek(),
                 config.holidayMode(),
-                config.removedShiftTypes() != null ? List.of(config.removedShiftTypes()) : List.of(),
+                java.util.List.of(), // removedShiftTypes — luôn rỗng để không skip L01-L04
                 config.l04CrossSpecialtyEnabled(),
                 (float) config.l04CrossSpecialtyRatio(),
                 config.l04AllowedSpecialties() != null ? List.of(config.l04AllowedSpecialties()) : List.of(),
@@ -350,6 +368,67 @@ public class ConfigCalculatorOrchestrator {
 
     private boolean hasL04Target(Map<String, Integer> targets) {
         return targets != null && targets.getOrDefault("L04", 0) > 0;
+    }
+
+    // ── Mode 2 aggregate path: totalRequirement → derive L01-L04 targets → Config ──
+
+    private ConfigCalculatorResponse mode2FromAggregate(SchedulePeriod period, List<Staff> staff,
+                                                         List<LeaveRequest> leaves, List<Holiday> holidays,
+                                                         List<Specialty> specialties, List<ShiftType> shiftTypes,
+                                                         ConfigDomain currentConfig, AutoGenConfig currentAutoGen,
+                                                         String algorithmType, java.util.Set<String> enabledGroups,
+                                                         Integer targetTotalRequirement, Double targetCoverage) {
+
+        String algo = algorithmType != null ? algorithmType.toUpperCase() : "GREEDY";
+        AlgorithmCapacityAnalyzer analyzer = findAnalyzer(algo);
+        if (analyzer == null) analyzer = findAnalyzer("GREEDY");
+
+        // Step 1: Run Mode 1 once to get current L01-L04 distribution ratio
+        CapacityAnalysis baseline = analyzer.analyze(period, staff, leaves, holidays, specialties,
+                shiftTypes, currentConfig, currentAutoGen);
+
+        if (baseline.getPerShiftType() == null || baseline.getPerShiftType().isEmpty()) {
+            ConfigCalculatorResponse resp = toResponse(baseline, currentConfig, algo, 2);
+            resp.setFeasible(false);
+            resp.setMessage("Không có dữ liệu phân bổ L01-L04 từ cấu hình hiện tại để làm baseline.");
+            return resp;
+        }
+
+        // Step 2: Derive L01-L04 targets proportionally from totalRequirement
+        int totalReq = baseline.getTotalRequirement();
+        Map<String, Integer> derivedTargets = new java.util.LinkedHashMap<>();
+        java.util.Map<String, Integer> rawTargets = new java.util.LinkedHashMap<>();
+
+        for (var st : baseline.getPerShiftType()) {
+            String key = st.shiftType();
+            int assigned = st.assigned() > 0 ? st.assigned() : st.requirement();
+            rawTargets.put(key, assigned);
+        }
+
+        if (totalReq > 0) {
+            // Proportional allocation
+            for (var entry : rawTargets.entrySet()) {
+                double ratio = (double) entry.getValue() / totalReq;
+                int derived = (int) Math.round(ratio * targetTotalRequirement);
+                // minimum 1 per shift type if it had any requirement in baseline
+                if (entry.getValue() > 0 && derived == 0) derived = 1;
+                derivedTargets.put(entry.getKey(), Math.max(0, derived));
+            }
+        } else {
+            // Fallback: equal distribution across L01-L04
+            int equalShare = targetTotalRequirement / 4;
+            for (String st : new String[]{"L01", "L02", "L03", "L04"}) {
+                derivedTargets.put(st, equalShare);
+            }
+        }
+
+        // Step 3: Run the existing iterative Mode 2 tuner with derived targets
+        ConfigCalculatorResponse resp = mode2(period, staff, leaves, holidays, specialties, shiftTypes,
+                currentConfig, currentAutoGen, algo, derivedTargets, enabledGroups, null, null);
+
+        // Step 4: Attach trace info
+        resp.setDerivedTargetShifts(derivedTargets);
+        return resp;
     }
 
     private ConfigCalculatorResponse toResponse(CapacityAnalysis analysis, ConfigDomain config,

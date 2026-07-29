@@ -37,6 +37,9 @@ public class ConfigCalculatorResponse {
     private List<ConfigChange> configChanges;
     private String recommendedAlgorithm; // mode 3 only
 
+    // ── Mode 2 aggregate path: auto-derived L01-L04 targets ──
+    private Map<String, Integer> derivedTargetShifts;
+
     // ── Expected quality ──
     private Double expectedCoverage;
     private Double expectedFairness;
@@ -211,6 +214,9 @@ public class ConfigCalculatorResponse {
     public void setConfigChanges(List<ConfigChange> configChanges) { this.configChanges = configChanges; }
     public String getRecommendedAlgorithm() { return recommendedAlgorithm; }
     public void setRecommendedAlgorithm(String recommendedAlgorithm) { this.recommendedAlgorithm = recommendedAlgorithm; }
+
+    public Map<String, Integer> getDerivedTargetShifts() { return derivedTargetShifts; }
+    public void setDerivedTargetShifts(Map<String, Integer> derivedTargetShifts) { this.derivedTargetShifts = derivedTargetShifts; }
 
     public Double getExpectedCoverage() { return expectedCoverage; }
     public void setExpectedCoverage(Double expectedCoverage) { this.expectedCoverage = expectedCoverage; }

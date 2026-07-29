@@ -3,7 +3,7 @@
 import { memo, useState, useCallback, useMemo } from "react";
 import { useToast } from "@/hooks/useToast";
 
-export type PresetKey = "balanced" | "fast" | "quality" | "conservative" | "custom";
+export type PresetKey = "balanced" | "fast" | "quality";
 
 export type PresetConfig = {
   label: string;
@@ -120,16 +120,12 @@ export const PresetSelector = memo(function PresetSelector({
       balanced: 0,
       fast: 0,
       quality: 0,
-      conservative: 0,
-      custom: 0,
     };
 
     const reasons: Record<PresetKey, SuggestionReason[]> = {
       balanced: [],
       fast: [],
       quality: [],
-      conservative: [],
-      custom: [],
     };
 
     // Speed priority: deadline gần
@@ -150,12 +146,6 @@ export const PresetSelector = memo(function PresetSelector({
 
     // Balance: trung bình
     scores.balanced += 15;
-
-    // Conservative: có lịch ổn định
-    if (coverageRatio >= 0.85 && loadPerStaff < 0.6) {
-      scores.conservative += 25;
-      reasons.conservative.push({ type: "balance", message: "Lịch ổn định - ít thay đổi", score: 25 });
-    }
 
     // Fast: nhân sự đủ
     if (totalStaff >= 15) {
@@ -901,7 +891,6 @@ function analyzePresetHealth(presetKey: PresetKey, config: RuntimeConfig) {
     balanced: { threshold: 0.90, balance: 0.75 },
     fast: { threshold: 0.75, balance: 0.60 },
     quality: { threshold: 0.95, balance: 0.85 },
-    conservative: { threshold: 0.60, balance: 0.50 },
   };
 
   const expected = presets[presetKey];

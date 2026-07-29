@@ -50,7 +50,6 @@ export function Mode1Panel({
   const [minStaffPerShift, setMinStaffPerShift] = useState(0);
   const [holidayMode, setHolidayMode] = useState("SKIP");
   const [l04Cross, setL04Cross] = useState(false);
-  const [removedShiftTypes, setRemovedShiftTypes] = useState<string[]>([]);
 
   // Per-shift-type config: { minPerDay, maxPerDay, maxPerWeek }
   const [shiftConfig, setShiftConfig] = useState<Record<string, { min: number; max: number; week: number }>>({
@@ -85,9 +84,6 @@ export function Mode1Panel({
           setMinStaffPerShift(Number(runtime.minStaffPerShift));
         }
         if (autoGen?.holidayMode) setHolidayMode(autoGen.holidayMode);
-        if (Array.isArray(autoGen?.removedShiftTypes)) {
-          setRemovedShiftTypes(autoGen.removedShiftTypes);
-        }
         if (autoGen?.l04CrossSpecialty != null) {
           setL04Cross(Boolean(autoGen.l04CrossSpecialty));
         }
@@ -140,12 +136,6 @@ export function Mode1Panel({
     };
   }, []);
 
-  const toggleRemoved = (st: string) => {
-    setRemovedShiftTypes((prev) =>
-      prev.includes(st) ? prev.filter((x) => x !== st) : [...prev, st]
-    );
-  };
-
   function updateShiftConfig(st: string, field: "min" | "max" | "week", value: number) {
     setShiftConfig((prev) => ({
       ...prev,
@@ -172,7 +162,6 @@ export function Mode1Panel({
           l04CrossSpecialtyRatio: l04Ratio,
           l04AllowedSpecialties: l04Specialties,
           l04BalanceStrategy: l04Strategy,
-          removedShiftTypes,
           l01MinPerDay: sc.L01.min, l01MaxPerDay: sc.L01.max, l01MaxPerWeek: sc.L01.week,
           l02MinPerDay: sc.L02.min, l02MaxPerDay: sc.L02.max, l02MaxPerWeek: sc.L02.week,
           l03MinPerDay: sc.L03.min, l03MaxPerDay: sc.L03.max, l03MaxPerWeek: sc.L03.week,
@@ -219,7 +208,7 @@ export function Mode1Panel({
           l01MaxPerWeek: sc.L01.week, l02MaxPerWeek: sc.L02.week,
           l03MaxPerWeek: sc.L03.week, l04MaxPerWeek: sc.L04.week,
           holidayMode,
-          removedShiftTypes,
+          removedShiftTypes: [], // luôn rỗng
           l04CrossSpecialty: l04Cross,
           l04CrossSpecialtyRatio: l04Ratio,
           l04BalanceStrategy: l04Strategy as "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR",
@@ -324,21 +313,6 @@ export function Mode1Panel({
             </div>
           </>
         )}
-        <div className="space-y-1 min-w-[200px]">
-          <label className="text-[11px] font-medium text-on-surface-variant">Removed Shift Types</label>
-          <div className="flex gap-1.5 flex-wrap">
-            {SHIFT_TYPES.map((st) => (
-              <button key={st} onClick={() => toggleRemoved(st)}
-                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
-                  removedShiftTypes.includes(st)
-                    ? "bg-red-100 text-red-700 border-red-300"
-                    : "bg-surface-container text-on-surface-variant border-outline-variant"
-                }`}>
-                {st} {removedShiftTypes.includes(st) ? "✕" : "✓"}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Per Shift Type Config Table */}

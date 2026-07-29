@@ -7,15 +7,11 @@ import { useToast } from "@/hooks/useToast";
 import { getErrorMessage } from "@/lib/errors";
 import type { SchedulePeriod } from "@/types/api";
 import { Mode1Panel } from "./Mode1Panel";
-import { Mode2Panel } from "./Mode2Panel";
-
-type TabKey = "mode1" | "mode2";
 
 export default function ConfigurationCalculatorPage() {
   const { success, error: toastError } = useToast();
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>("mode1");
 
   useEffect(() => {
     api.getAllPeriods().then((res) => {
@@ -55,27 +51,6 @@ export default function ConfigurationCalculatorPage() {
           </div>
         </div>
 
-        {/* Tab bar */}
-        <div className="flex border-b border-outline-variant px-5">
-          {([
-            { key: "mode1" as const, label: "Cấu hình → Công suất", icon: "settings_applications" },
-            { key: "mode2" as const, label: "Mục tiêu → Cấu hình", icon: "track_changes" },
-          ]).map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-[12px] font-medium border-b-2 transition-colors ${
-                activeTab === tab.key
-                  ? "border-primary text-primary"
-                  : "border-transparent text-on-surface-variant hover:text-on-surface"
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
         {/* Content */}
         <div className="p-5">
           {!selectedPeriodId ? (
@@ -83,10 +58,8 @@ export default function ConfigurationCalculatorPage() {
               <span className="material-symbols-outlined text-[48px] block mb-3">calendar_month</span>
               <p className="text-[14px]">Chọn kỳ lịch để bắt đầu phân tích</p>
             </div>
-          ) : activeTab === "mode1" ? (
-            <Mode1Panel periodId={selectedPeriodId} period={period} />
           ) : (
-            <Mode2Panel periodId={selectedPeriodId} period={period} />
+            <Mode1Panel periodId={selectedPeriodId} period={period} />
           )}
         </div>
       </div>

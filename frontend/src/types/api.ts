@@ -1344,6 +1344,8 @@ export interface ConfigCalculatorResponse {
   recommendedAlgorithm?: string;
   expectedCoverage?: number;
   expectedFairness?: number;
+  /** Mode 2 aggregate path: auto-derived L01-L04 targets from totalRequirement input */
+  derivedTargetShifts?: Record<string, number>;
 }
 
 export interface ShiftTypeCapacity {

@@ -1,9 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { PresetKey, RuntimeConfig as PresetRuntimeConfig } from "@/components/algorithm-config/PresetSelector";
-import { PresetSelector } from "@/components/algorithm-config/PresetSelector";
-import { PresetSandboxModal, type PresetEntry } from "@/components/algorithm-config/PresetSandboxModal";
 import { Button } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -11,7 +8,6 @@ import { getParamValidation } from "@/lib/validation/algorithmConfig";
 import { useToast } from "@/hooks/useToast";
 import type { RuntimeConfig } from "./types";
 import { PARAM_KEY_TO_CFG } from "./types";
-import { ALGORITHM_PRESETS, detectPreset } from "./presets";
 import {
   PARAM_GROUPS,
   SHIFT_TYPE_GROUPS,
@@ -23,14 +19,14 @@ import {
 } from "./paramConfig";
 import { ShiftTypeGroupCard } from "./ShiftTypeGroupCard";
 import { HolidayModeField } from "./HolidayModeField";
-import { RemovedShiftTypesField } from "./RemovedShiftTypesField";
 import { ShiftTypeCrossSpecialtyCard } from "./ShiftTypeCrossSpecialtyCard";
 import { sanitizeAllowedSpecialties } from "./crossSpecialty";
 import { BusinessRulesCard } from "./BusinessRulesCard";
-import { ConfigDiffModal } from "./ConfigDiffModal";
-import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
-import type { DashboardData, DashboardSummary, ShiftStatistics } from "@/types/api";
+import { getChangedKeys } from "./diff";
+import { ConfigDiffModal } from "./ConfigDiffModal";
+import { ALGORITHM_PRESETS } from "./presets";
+import type { PresetKey } from "@/components/algorithm-config/PresetSelector";
 
 type Props = { onSaved?: () => void };
 
@@ -41,39 +37,24 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<RuntimeConfig | null>(null);
-  const [activePreset, setActivePreset] = useState<PresetKey | null>(null);
-  const [customPresets, setCustomPresets] = useState<Record<string, { label: string; tagline: string; config: Partial<RuntimeConfig> }>>({});
-  const [showDiff, setShowDiff] = useState(false);
-  const [sandboxOpen, setSandboxOpen] = useState(false);
   const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
-  const [scheduleStats, setScheduleStats] = useState<{
-    totalStaff: number;
-    avgShiftsPerStaff: number;
-    coverageDays: number;
-    periodDays: number;
-  } | null>(null);
+  const [showDiff, setShowDiff] = useState(false);
+  const [activePreset, setActivePreset] = useState<PresetKey | null>(null);
+  const [customPresets, setCustomPresets] = useState<Record<PresetKey, RuntimeConfig>>({} as any);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-	      const [runtimeResp, autoGenResp, specialtiesRes, dashboardRes] = await Promise.all([
-	        api.getRuntimeConfig(),
-	        api.getAutoGenConfig(),
-	        api.getActiveSpecialties(),
-	        api.getDashboard(),
-	      ]);
-	      // BUG-CARD-NO-PERSIST fix: unwrap ApiResponse.data envelope.
-	      // The api-client methods return the FULL ApiResponse<T> (with .data wrapping),
-	      // not T directly — so we must read .data to get the actual config object.
-	      // `as any` is safe here because we know the runtime shape at runtime even
-	      // though the TypeScript return types are under-specified.
-	      const resAny = runtimeResp as any;
-	      const data = (resAny.data ?? resAny) as RuntimeConfig;
-	      const autoGenAny = autoGenResp as any;
-	      const autoGen = (autoGenAny.data ?? autoGenAny) as RuntimeConfig;
-      const specialties = ((specialtiesRes as { data?: Array<{ name: string }> })?.data ?? []).map((s) => s.name);
-      const summary = (dashboardRes as { summary?: { totalStaff: number } })?.summary ?? { totalStaff: 0 };
-      const shiftStats = (dashboardRes as { shiftStatistics?: ShiftStatistics })?.shiftStatistics;
+		      const [runtimeResp, autoGenResp, specialtiesRes] = await Promise.all([
+		        api.getRuntimeConfig(),
+		        api.getAutoGenConfig(),
+		        api.getActiveSpecialties(),
+		      ]);
+		      const resAny = runtimeResp as any;
+		      const data = (resAny.data ?? resAny) as RuntimeConfig;
+		      const autoGenAny = autoGenResp as any;
+		      const autoGen = (autoGenAny.data ?? autoGenAny) as RuntimeConfig;
+	      const specialties = ((specialtiesRes as { data?: Array<{ name: string }> })?.data ?? []).map((s) => s.name);
 
       setAllSpecialties(specialties);
       const merged = mergeRuntimeAndAutoGen(data, autoGen);
@@ -103,18 +84,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       };
       setConfig(mergedSanitized);
       setForm(mergedSanitized);
-
-      // Calculate schedule stats for suggestion algorithm
-      if (summary && shiftStats) {
-        const totalShifts = shiftStats.L01Count + shiftStats.L02Count + shiftStats.L03Count + shiftStats.L04Count;
-        const avgShifts = summary.totalStaff > 0 ? totalShifts / summary.totalStaff : 0;
-        setScheduleStats({
-          totalStaff: summary.totalStaff,
-          avgShiftsPerStaff: Math.round(avgShifts * 10) / 10,
-          coverageDays: Math.round(avgShifts * 4), // rough estimate
-          periodDays: 30,
-        });
-      }
     } catch {
       error("Không thể tải cấu hình runtime");
     } finally {
@@ -123,26 +92,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   }, [error]);
 
   useEffect(() => { void load(); }, [load]);
-
-  // Re-detect preset khi form thay đổi
-  useEffect(() => {
-    if (form) {
-      const detected = detectPreset(form);
-      if (detected) {
-        setActivePreset(detected);
-      } else {
-        // Check custom presets too
-        const customMatch = Object.keys(customPresets).find(key => {
-          const cp = customPresets[key];
-          return (
-            form.weekendWeight === cp.config.weekendWeight &&
-            form.greedyCoverageThreshold === cp.config.greedyCoverageThreshold
-          );
-        });
-        setActivePreset((customMatch as PresetKey | undefined) || null);
-      }
-    }
-  }, [form, customPresets]);
 
   // Keyboard shortcuts: Ctrl+S = save, Ctrl+Z = reset, Escape = cancel edit
   useEffect(() => {
@@ -179,21 +128,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [editing, form]);
-
-  function applyPreset(key: PresetKey, presetConfig?: Partial<RuntimeConfig>) {
-    const preset = key.startsWith("custom_")
-      ? customPresets[key]
-      : ALGORITHM_PRESETS[key];
-
-    if (!preset) return;
-
-    const newConfig = 'config' in preset ? preset.config : {};
-    const configToApply = presetConfig ?? newConfig;
-
-    setForm(prev => prev ? { ...prev, ...configToApply } : prev);
-    setActivePreset(key);
-    setEditing(true);
-  }
 
   function handleReset() {
     if (config) {
@@ -278,57 +212,8 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
     setForm(prev => prev ? { ...prev, [key]: value } : prev);
   }
 
-  function handleSaveCustomPreset(key: PresetKey, name: string, config: Partial<RuntimeConfig>) {
-    setCustomPresets(prev => ({
-      ...prev,
-      [key]: { label: name, tagline: "Preset tùy chỉnh", config },
-    }));
-    success(`Đã tạo preset "${name}"`);
-  }
-
-  function handleDeleteCustomPreset(key: PresetKey) {
-    const name = customPresets[key]?.label || "Preset";
-    setCustomPresets(prev => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-    if (activePreset === key) {
-      setActivePreset(null);
-    }
-    success(`Đã xóa preset "${name}"`);
-  }
-
-  // Copy current config to clipboard
-  function handleCopyConfig() {
-    const json = JSON.stringify(form, null, 2);
-    void navigator.clipboard.writeText(json).then(() => {
-      success("Đã copy cấu hình vào clipboard");
-    }).catch(() => {
-      error("Không thể copy clipboard");
-    });
-  }
-
-  // Paste config from clipboard
-  async function handlePasteConfig() {
-    try {
-      const text = await navigator.clipboard.readText();
-      const parsed = JSON.parse(text);
-      if (parsed && typeof parsed === "object") {
-        setForm(prev => prev ? { ...prev, ...parsed } : prev);
-        setEditing(true);
-        success("Đã paste cấu hình từ clipboard");
-      }
-    } catch {
-      error("Không thể paste: clipboard rỗng hoặc định dạng không hợp lệ");
-    }
-  }
-
   if (loading) return <EditorSkeleton />;
   if (!config || !form) return null;
-
-  const changes = getChangedKeys(config, form);
-  const isDirty = changes.length > 0;
 
   return (
     <div className="space-y-5">
@@ -356,101 +241,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           <kbd className="px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant font-mono text-[10px]">Esc</kbd>
           <span>Hủy</span>
         </span>
-      </div>
-
-      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-5">
-        <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">bookmark</span>
-            <p className="text-title-sm font-semibold text-on-surface">Cấu hình nhanh</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSandboxOpen(true)}
-              icon={<span className="material-symbols-outlined text-[12px]" aria-hidden="true">science</span>}
-              className="rounded-full !bg-primary-fixed !text-primary !border !border-primary/20 hover:!bg-primary/10 px-2 py-0.5 text-[11px]"
-              title="Mở sandbox so sánh preset"
-            >
-              Sandbox
-            </Button>
-            {isDirty && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-tertiary-container text-tertiary border border-tertiary/20">
-                <span className="material-symbols-outlined text-[12px]">edit</span>
-                Tùy chỉnh
-              </span>
-            )}
-            {editing && changes.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowDiff(true)}
-                icon={<span className="material-symbols-outlined text-[12px]" aria-hidden="true">difference</span>}
-                iconPosition="right"
-                className="rounded-full !bg-tertiary-container !text-tertiary !border !border-tertiary/30 hover:!bg-tertiary-container/80 px-2.5 py-1 text-[11px]"
-                title="Xem chi tiết thay đổi"
-              >
-                {changes.length} thay đổi
-              </Button>
-            )}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Quick actions */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCopyConfig}
-              icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">content_copy</span>}
-              className="text-[11px]"
-              title="Copy cấu hình"
-            >
-              Copy
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handlePasteConfig}
-              icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">content_paste</span>}
-              className="text-[11px]"
-              title="Paste cấu hình"
-            >
-              Paste
-            </Button>
-            <div className="w-px h-6 bg-outline-variant mx-1" />
-            {editing ? (
-              <>
-                <Button variant="secondary" size="sm" onClick={handleReset}>Hủy bỏ</Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => void handleSave()}
-                  disabled={saving}
-                  loading={saving}
-                  icon={!saving ? <span className="material-symbols-outlined text-[16px]" aria-hidden="true">save</span> : undefined}
-                >
-                  Lưu thay đổi
-                </Button>
-              </>
-            ) : (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setEditing(true)}
-                icon={<span className="material-symbols-outlined text-[16px]" aria-hidden="true">edit</span>}
-              >
-                Chỉnh sửa
-              </Button>
-            )}
-          </div>
-        </div>
-        <PresetSelector
-          presets={{ ...ALGORITHM_PRESETS, ...customPresets }}
-          activePreset={activePreset}
-          currentConfig={form}
-          onApply={applyPreset}
-          onSaveCustomPreset={handleSaveCustomPreset}
-          onDeleteCustomPreset={handleDeleteCustomPreset}
-          scheduleStats={scheduleStats || undefined}
-        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -529,13 +319,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         onApply={() => { setShowDiff(false); void handleSave(); }}
       />
 
-      <PresetSandboxModal
-        open={sandboxOpen}
-        onClose={() => setSandboxOpen(false)}
-        presets={ALGORITHM_PRESETS as unknown as Record<string, PresetEntry>}
-        currentConfig={(form ?? config) as unknown as Record<string, number | boolean | string>}
-        onApply={(preset) => applyPreset(preset.key as PresetKey)}
-      />
     </div>
   );
 }
@@ -764,17 +547,6 @@ function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: P
       />
     );
   }
-  if (param === "removed_shift_types") {
-    return (
-      <RemovedShiftTypesField
-        desc={desc}
-        current={form.removedShiftTypes ?? []}
-        editing={editing}
-        onChange={(v) => onChange("removedShiftTypes", v)}
-      />
-    );
-  }
-
   const numVal = typeof form[cfgKey] === "number" ? (form[cfgKey] as number) : 0;
   const { min, max, step } = getParamBounds(param);
   const display = formatParamDisplay(param, numVal);

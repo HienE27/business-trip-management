@@ -76,25 +76,6 @@ export const PARAM_GROUPS: readonly ParamGroup[] = [
       },
     },
   },
-  {
-    id: "excluded",
-    label: "Loại lịch bỏ qua",
-    icon: "block",
-    color: "text-red-600",
-    bg: "bg-red-50",
-    progressColor: "bg-red-500",
-    accent: "border-l-4 border-l-red-500",
-    category: "business",
-    groupDesc: "Các loại lịch bị bỏ qua khi tự động tạo yêu cầu cho kỳ mới",
-    params: ["removed_shift_types"],
-    descriptions: {
-      removed_shift_types: {
-        label: "removed_shift_types",
-        desc: "Các mã loại lịch (L01..L04) bị bỏ qua khi tự động tạo yêu cầu cho kỳ mới.",
-        hint: "Nhấn chip để bật/tắt · Mặc định: rỗng · Đang áp dụng",
-      },
-    },
-  },
   // ── INTERNAL: Ẩn hoàn toàn ──────────────────────────────────────────
   {
     id: "internal",

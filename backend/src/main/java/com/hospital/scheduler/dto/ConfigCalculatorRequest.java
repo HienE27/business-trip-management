@@ -56,6 +56,17 @@ public class ConfigCalculatorRequest {
      */
     private Set<String> enabledGroups;
 
+    // ── Inverse Mode 2 inputs (aggregate targets) ──
+    // When set alongside targetShifts, targetShifts takes precedence.
+    // When set alone, backend derives targetShifts by proportional allocation
+    // based on the current config's L01-L04 distribution.
+
+    /** Target total requirement across all shift types, e.g. 1519. */
+    private Integer targetTotalRequirement;
+
+    /** Target coverage as a fraction, e.g. 1.0 for 100%. */
+    private Double targetCoverage;
+
     public ConfigCalculatorRequest() {}
 
     public ConfigCalculatorRequest(int mode, Integer periodId, String algorithmType,
@@ -84,4 +95,10 @@ public class ConfigCalculatorRequest {
 
     public Set<String> getEnabledGroups() { return enabledGroups; }
     public void setEnabledGroups(Set<String> enabledGroups) { this.enabledGroups = enabledGroups; }
+
+    public Integer getTargetTotalRequirement() { return targetTotalRequirement; }
+    public void setTargetTotalRequirement(Integer targetTotalRequirement) { this.targetTotalRequirement = targetTotalRequirement; }
+
+    public Double getTargetCoverage() { return targetCoverage; }
+    public void setTargetCoverage(Double targetCoverage) { this.targetCoverage = targetCoverage; }
 }
