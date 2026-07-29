@@ -259,45 +259,6 @@ export function Mode1Panel({
           </select>
         </div>
         <div className="space-y-1 min-w-[200px]">
-          <label className="text-[11px] font-medium text-on-surface-variant">L04 Strategy</label>
-          <select value={l04Strategy} onChange={(e) => setL04Strategy(e.target.value)}
-            className="w-full h-9 px-3 rounded-lg border border-outline-variant text-[13px]">
-            <option value="STRICT_MATCH_ONLY">STRICT_MATCH_ONLY</option>
-            <option value="FAIR_DISTRIBUTE">FAIR_DISTRIBUTE</option>
-            <option value="WEIGHTED_FAIR">WEIGHTED_FAIR</option>
-          </select>
-        </div>
-        <div className="space-y-1 min-w-[280px]">
-          <label className="text-[11px] font-medium text-on-surface-variant">
-            L04 Allowed Specialties (để rỗng = tất cả)
-          </label>
-          <div className="flex gap-1.5 flex-wrap p-2 rounded-lg border border-outline-variant min-h-[36px]">
-            {specialtiesList.length === 0 && (
-              <span className="text-[11px] text-on-surface-variant/60">đang tải...</span>
-            )}
-            {specialtiesList.map((sp) => {
-              const selected = l04Specialties.includes(sp.name);
-              return (
-                <button key={sp.id} type="button"
-                  onClick={() => {
-                    setL04Specialties((prev) =>
-                      prev.includes(sp.name)
-                        ? prev.filter((x) => x !== sp.name)
-                        : [...prev, sp.name]
-                    );
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
-                    selected
-                      ? "bg-primary text-on-primary border-primary"
-                      : "bg-surface-container text-on-surface-variant border-outline-variant"
-                  }`}>
-                  {sp.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div className="space-y-1 min-w-[200px]">
           <label className="text-[11px] font-medium text-on-surface-variant">Removed Shift Types</label>
           <div className="flex gap-1.5 flex-wrap">
             {SHIFT_TYPES.map((st) => (
