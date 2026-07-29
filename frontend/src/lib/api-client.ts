@@ -1651,10 +1651,10 @@ class ApiClient {
   }
 
   // Statistics (M02-F05, M04-F05, M05-F05)
-  async getStaffStatistics(periodId: number, shiftTypeId?: string): Promise<StaffShiftStatistics[]> {
+  async getStaffStatistics(periodId: number, shiftTypeId?: string, requestInit?: Omit<RequestInit, "method" | "body">): Promise<StaffShiftStatistics[]> {
     const params = new URLSearchParams({ periodId: String(periodId) });
     if (shiftTypeId) params.set("shiftTypeId", shiftTypeId);
-    return this.get<StaffShiftStatistics[]>(`/statistics/staff?${params.toString()}`);
+    return this.get<StaffShiftStatistics[]>(`/statistics/staff?${params.toString()}`, undefined, requestInit);
   }
 
   // Config Profile CRUD (stubs — ConfigController CRUD endpoints TBD)

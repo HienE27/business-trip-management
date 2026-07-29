@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ExportControls } from "@/components/reports/ExportControls";
 import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -65,7 +65,17 @@ function ReportsMonthlyContent() {
     }
   }, []);
 
-  const fetchReport = useCallback(async (periodId: number) => {
+  // BUGFIX (was REPORTS#R1): the previous fetchReport wrote state without
+  // a staleness guard. If the user flipped between two periods and the
+  // earlier request happened to resolve last, its setState calls would
+  // overwrite the newer period's data. `reqIdRef` is bumped at the start
+  // of every call; any await that returns after a newer call started
+  // checks the token and bails before touching state.
+  const reqIdRef = useRef(0);
+
+  const fetchReport = useCallback(async (periodId: number, signal?: AbortSignal) => {
+    const reqId = ++reqIdRef.current;
+    const isStale = () => reqId !== reqIdRef.current || !!signal?.aborted;
     try {
       setChecking(true);
       setMessage(null);
@@ -75,9 +85,10 @@ function ReportsMonthlyContent() {
       // those KPIs only reflected the first page slice. Use the dedicated
       // single-period aggregate endpoint instead.
       const [statsRes, periodRes] = await Promise.allSettled([
-        api.get<ShiftStatistics>("/dashboard/shifts", { periodId }),
+        api.get<ShiftStatistics>("/dashboard/shifts", { periodId }, { signal }),
         api.getPeriodSummary(periodId),
       ]);
+      if (isStale()) return;
       if (statsRes.status === "fulfilled") {
         setStats(statsRes.value ?? null);
       }
@@ -116,6 +127,7 @@ function ReportsMonthlyContent() {
             dailyCoverage?: Record<string, unknown>;
           };
         }>(`/periods/${periodId}/publish/dry-run`);
+        if (isStale()) return;
         const sc = dryRun?.staffingCoverage;
         if (sc) {
           const distinctShiftTypes = sc.dailyCoverage
@@ -139,14 +151,16 @@ function ReportsMonthlyContent() {
           }
         }
       } catch (err) {
+        if (isStale()) return;
         // Coverage is a secondary KPI; surface failure via the toast but keep the
         // primary schedule-driven KPIs intact.
         setMessage(getErrorMessage(err, "Không tải được tỷ lệ phủ."));
       }
     } catch (err) {
+      if (isStale()) return;
       setMessage(getErrorMessage(err, "Lỗi tải báo cáo kỳ lịch."));
     } finally {
-      setChecking(false);
+      if (!isStale()) setChecking(false);
     }
   }, []);
 
@@ -155,7 +169,10 @@ function ReportsMonthlyContent() {
   }, [fetchPeriods]);
 
   useEffect(() => {
-    if (selectedPeriod) void fetchReport(selectedPeriod.id);
+    if (!selectedPeriod) return;
+    const controller = new AbortController();
+    void fetchReport(selectedPeriod.id, controller.signal);
+    return () => controller.abort();
   }, [selectedPeriod, fetchReport]);
 
   useAutoDismiss(message, () => setMessage(null));

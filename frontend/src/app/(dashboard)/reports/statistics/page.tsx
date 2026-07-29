@@ -56,17 +56,19 @@ function StatisticsReportContent() {
     }
   }, []);
 
-  const fetchStats = useCallback(async (periodId: number, shiftTypeId?: string) => {
+  const fetchStats = useCallback(async (periodId: number, shiftTypeId?: string, signal?: AbortSignal) => {
     try {
       setFetching(true);
       setMessage(null);
       const data = await api.getStaffStatistics(periodId, shiftTypeId);
+      if (signal?.aborted) return;
       setStats(data ?? []);
     } catch (err) {
+      if (signal?.aborted) return;
       setMessage(getErrorMessage(err, "Lỗi tải thống kê nhân sự."));
       toastError("Không thể tải thống kê");
     } finally {
-      setFetching(false);
+      if (!signal?.aborted) setFetching(false);
     }
   }, [toastError]);
 
@@ -75,10 +77,11 @@ function StatisticsReportContent() {
   }, [fetchPeriods]);
 
   useEffect(() => {
-    if (selectedPeriod) {
-      setVisibleCount(20);
-      void fetchStats(selectedPeriod.id, shiftTypeFilter || undefined);
-    }
+    if (!selectedPeriod) return;
+    setVisibleCount(20);
+    const controller = new AbortController();
+    void fetchStats(selectedPeriod.id, shiftTypeFilter || undefined, controller.signal);
+    return () => controller.abort();
   }, [selectedPeriod, shiftTypeFilter, fetchStats]);
 
   const summaryStats = useMemo(() => {

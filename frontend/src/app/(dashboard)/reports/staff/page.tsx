@@ -9,8 +9,7 @@ import { BackButton } from "@/components/ui/BackButton";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { Staff, SchedulePeriod, StaffWorkloadStatistics } from "@/types/api";
-import type { Page } from "@/types/api";
+import type { SchedulePeriod, StaffWorkloadStatistics } from "@/types/api";
 import {
   computeSummary,
   pickCap,
@@ -42,7 +41,6 @@ export default function ReportsStaffPage() {
 
 function ReportsStaffContent() {
   const { success: toastSuccess, error: toastError } = useToast();
-  const [staffList, setStaffList] = useState<Staff[]>([]);
   const [workloads, setWorkloads] = useState<StaffWorkloadStatistics[]>([]);
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
@@ -77,9 +75,8 @@ function ReportsStaffContent() {
     }
   }, [selectedPeriodId]);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     if (!selectedPeriodId) {
-      setStaffList([]);
       setWorkloads([]);
       setLoading(false);
       return;
@@ -87,24 +84,24 @@ function ReportsStaffContent() {
     try {
       setLoading(true);
       setMessage(null);
-      const [staffRes, workloadRes] = await Promise.allSettled([
-        api.get<Staff[]>("/staff/active"),
-        api.getPage<StaffWorkloadStatistics>(
-          `/dashboard/workload/period/${selectedPeriodId}/page`,
-          { page, size: pageSize, sort: "scheduleCount,desc" },
-        ),
-      ]);
-      if (staffRes.status === "fulfilled") setStaffList(staffRes.value ?? []);
-      if (workloadRes.status === "fulfilled") {
-        const result = workloadRes.value;
-        setWorkloads(result.content ?? []);
-        setTotalPages(result.totalPages ?? 0);
-        setTotalElements(result.totalElements ?? 0);
-      }
+      // BUGFIX (REPORTS-STAFF-001): the workload page is now the sole source
+      // of rows. Previously the page also fetched the full /staff/active list
+      // and left-joined it with the current workload page, which inflated the
+      // table with every active staff member and broke pagination semantics.
+      const workloadRes = await api.getPage<StaffWorkloadStatistics>(
+        `/dashboard/workload/period/${selectedPeriodId}/page`,
+        { page, size: pageSize, sort: "scheduleCount,desc" },
+        { signal },
+      );
+      if (signal?.aborted) return;
+      setWorkloads(workloadRes.content ?? []);
+      setTotalPages(workloadRes.totalPages ?? 0);
+      setTotalElements(workloadRes.totalElements ?? 0);
     } catch (err) {
+      if (signal?.aborted) return;
       setMessage(getErrorMessage(err, "Lỗi tải dữ liệu nhân sự."));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [selectedPeriodId, page, pageSize]);
 
@@ -114,26 +111,25 @@ function ReportsStaffContent() {
   }, []);
 
   useEffect(() => {
-    if (selectedPeriodId) {
-      void fetchData();
-    }
+    if (!selectedPeriodId) return;
+    const controller = new AbortController();
+    void fetchData(controller.signal);
+    return () => controller.abort();
   }, [fetchData, selectedPeriodId]);
 
   useAutoDismiss(message, () => setMessage(null));
 
   const enriched = useMemo(() => {
-    const workMap = new Map(workloads.map((w) => [w.staffId, w]));
-    return staffList
-      .map((s) => {
-        const w = workMap.get(s.id);
-        const L01 = w?.L01Count ?? 0;
-        const L02 = w?.L02Count ?? 0;
-        const L03 = w?.L03Count ?? 0;
-        const L04 = w?.L04Count ?? 0;
-        const total = w?.scheduleCount ?? 0;
+    return workloads
+      .map((w) => {
+        const L01 = w.L01Count;
+        const L02 = w.L02Count;
+        const L03 = w.L03Count;
+        const L04 = w.L04Count;
+        const total = w.scheduleCount;
         const shiftCount = pickShiftCount(
           {
-            staff: { id: s.id, fullName: s.fullName, maxShiftsPerMonth: s.maxShiftsPerMonth ?? null },
+            staff: { id: w.staffId, fullName: w.staffName, maxShiftsPerMonth: null },
             L01,
             L02,
             L03,
@@ -143,27 +139,30 @@ function ReportsStaffContent() {
           view,
         );
         return {
-          staff: s,
+          staff: {
+            id: w.staffId,
+            fullName: w.staffName,
+            // username/specialty are not in the workload page response; the
+            // table renders "—" when missing and pickCap falls back to 6.
+            username: "",
+            specialty: null as { name: string } | null,
+            maxShiftsPerMonth: null,
+          },
           total,
           L01,
           L02,
           L03,
           L04,
           shiftCount,
-          leaveDays: w?.leaveDays ?? 0,
+          leaveDays: w.leaveDays,
         };
       })
       .filter((item) => {
         if (!search.trim()) return true;
-        const kw = search.toLowerCase();
-        return (
-          item.staff.fullName.toLowerCase().includes(kw) ||
-          item.staff.username.toLowerCase().includes(kw) ||
-          (item.staff.specialty?.name ?? "").toLowerCase().includes(kw)
-        );
+        return item.staff.fullName.toLowerCase().includes(search.toLowerCase());
       })
       .sort((a, b) => b.shiftCount - a.shiftCount);
-  }, [staffList, workloads, search, view]);
+  }, [workloads, search, view]);
 
   const summary = useMemo(() => {
     const rows = enriched.map((e) => ({
@@ -187,6 +186,21 @@ function ReportsStaffContent() {
     if (pct >= 70) return "bg-primary";
     return "bg-secondary";
   }
+
+  // Stable callbacks (REPORTS-EXPORT-002) so ExportControls doesn't re-render
+  // just because the parent re-rendered. Replaces the inline arrow functions
+  // that previously created a fresh reference on every render.
+  const handleExportSuccess = useCallback(
+    (m: string) => toastSuccess(m),
+    [toastSuccess],
+  );
+  const handleExportError = useCallback(
+    (m: string) => {
+      setMessage(m);
+      toastError(m);
+    },
+    [toastError],
+  );
 
   return (
     <>
@@ -222,11 +236,8 @@ function ReportsStaffContent() {
           <ExportControls
             periodId={selectedPeriodId}
             pinFormat="excel-workload"
-            onSuccess={(m) => toastSuccess(m)}
-            onError={(m) => {
-              setMessage(m);
-              toastError(m);
-            }}
+            onSuccess={handleExportSuccess}
+            onError={handleExportError}
           />
         )}
       </section>
@@ -249,19 +260,11 @@ function ReportsStaffContent() {
         ))}
       </div>
 
-      {selectedPeriodId && (
-        <div className="flex justify-end">
-          <a
-            href={`/api/v1/dashboard/export/workload/${selectedPeriodId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-2.5 text-[13px] font-medium text-primary hover:bg-primary-fixed transition-colors shadow-sm"
-          >
-            <span className="material-symbols-outlined text-[16px]">table_view</span>
-            Xuất Excel
-          </a>
-        </div>
-      )}
+      {/* BUGFIX (REPORTS-EXPORT-001): the bare <a> below was removed.
+          It pointed directly at the backend export endpoint without attaching
+          the auth header, so users got redirected to /login when the
+          cookie/session was missing. ExportControls above already exposes the
+          authenticated excel-workload export — no second button needed. */}
 
       {/* Balance chart (M07-F09) — visible whenever there is at least one
           staff member in scope; mirrors the active view filter. */}

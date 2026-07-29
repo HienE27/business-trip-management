@@ -44,28 +44,44 @@ function ReportsConflictsContent() {
     void fetchPeriods();
   }, [fetchPeriods]);
 
-  const checkConflicts = useCallback(async (periodId: number) => {
+  const checkConflicts = useCallback(async (periodId: number, signal?: AbortSignal) => {
     try {
       setChecking(true);
       setMessage(null);
-      const data = await api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`);
+      const data = await api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`, undefined, { signal });
       setConflictData(data);
     } catch (err) {
+      if (signal?.aborted) return;
       setMessage(getErrorMessage(err, "Lỗi kiểm tra xung đột."));
       setConflictData(null);
     } finally {
-      setChecking(false);
+      if (!signal?.aborted) setChecking(false);
     }
   }, []);
 
   useEffect(() => {
-    if (selectedPeriod) {
-      setExpandedGroups(new Set());
-      void checkConflicts(selectedPeriod.id);
-    }
+    if (!selectedPeriod) return;
+    setExpandedGroups(new Set());
+    const controller = new AbortController();
+    void checkConflicts(selectedPeriod.id, controller.signal);
+    return () => controller.abort();
   }, [selectedPeriod, checkConflicts]);
 
   useAutoDismiss(message, () => setMessage(null));
+
+  // Stable export callbacks (REPORTS-EXPORT-002) — inline arrows used to
+  // churn ExportControls' props on every render of the parent.
+  const handleExportSuccess = useCallback(
+    (m: string) => toastSuccess(m),
+    [toastSuccess],
+  );
+  const handleExportError = useCallback(
+    (m: string) => {
+      setMessage(m);
+      toastError(m);
+    },
+    [toastError],
+  );
 
   const conflictsByType = useMemo(() => {
     if (!conflictData) return {};
@@ -168,11 +184,8 @@ function ReportsConflictsContent() {
           {selectedPeriod && (
             <ExportControls
               periodId={selectedPeriod.id}
-              onSuccess={(m) => toastSuccess(m)}
-              onError={(m) => {
-                setMessage(m);
-                toastError(m);
-              }}
+              onSuccess={handleExportSuccess}
+              onError={handleExportError}
             />
           )}
 
