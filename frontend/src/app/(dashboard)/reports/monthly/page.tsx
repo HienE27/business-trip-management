@@ -38,6 +38,15 @@ function ReportsMonthlyContent() {
   const [stats, setStats] = useState<ShiftStatistics | null>(null);
   const [scheduleCount, setScheduleCount] = useState(0);
   const [staffCount, setStaffCount] = useState(0);
+  // Server-side coverage rate (0-100 inclusive). Kept in its own state so that
+  // a slow down-stream call (the publish-dry-run endpoint) does not block the
+  // primary schedule KPI row. UI treats `null` as "not yet loaded".
+  const [coverageRate, setCoverageRate] = useState<number | null>(null);
+  // Tracks whether the schedule fetch completed successfully. When false, KPIs
+  // that depend on schedule data (staff count, coverage) show "—" instead of
+  // the misleading "0" that previously made the report look broken whenever
+  // the user wasn't authenticated or the API was unreachable.
+  const [scheduleLoaded, setScheduleLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -64,20 +73,86 @@ function ReportsMonthlyContent() {
         api.get<ShiftStatistics>("/dashboard/shifts", { periodId }),
         api.get<unknown>(`/schedules/period/${periodId}`),
       ]);
-      if (statsRes.status === "fulfilled") setStats(statsRes.value ?? null);
+      if (statsRes.status === "fulfilled") {
+        setStats(statsRes.value ?? null);
+      }
       if (scheduleData.status === "fulfilled") {
         // Extract schedules from paginated response if needed
         const scheduleValue = scheduleData.value;
-        const schedulesArray = (scheduleValue && typeof scheduleValue === 'object' && 'content' in scheduleValue)
+        const schedulesArray = (scheduleValue && typeof scheduleValue === "object" && "content" in scheduleValue)
           ? (scheduleValue as { content: unknown[] }).content ?? []
           : Array.isArray(scheduleValue) ? scheduleValue : [];
         setScheduleCount(schedulesArray.length);
-        // Staff count from active endpoint filtered by period is approximated via schedule unique staff
+        // Staff count from active endpoint filtered by period is approximated via schedule unique staff.
+        // BUGFIX: the Schedule object nests the staff under `.staff` (an object with `.id`),
+        // not as a top-level `.staffId`. We therefore read both with a fallback so the KPI
+        // shows the real assigned-staff total instead of `0` whenever the server
+        // returns the nested shape (the documented one).
         const uniqueStaff = new Set<string>();
         for (const s of schedulesArray as Record<string, unknown>[]) {
-          if (s["staffId"] != null) uniqueStaff.add(String(s["staffId"]));
+          const direct = s["staffId"];
+          const nested = (s["staff"] as { id?: number | string } | undefined)?.id;
+          const id = direct ?? nested;
+          if (id != null) uniqueStaff.add(String(id));
         }
         setStaffCount(uniqueStaff.size);
+        setScheduleLoaded(true);
+      } else {
+        // Failed to load schedules — show "—" in dependent KPIs instead of
+        // stale or zero values from a previous period. Do NOT clear
+        // scheduleCount/staffCount here so a partial render before the
+        // second fetch still has a sensible value, but do flip the flag so
+        // the UI knows to display the placeholder.
+        setScheduleLoaded(false);
+      }
+      // Coverage rate is computed server-side via SchedulePeriodService.dryRunPublish()
+      // (which calls ConflictDetectionService.validateStaffingCoverage). The endpoint
+      // GET /api/v1/periods/{id}/publish/dry-run returns a PublishDryRunResponse whose
+      // `staffingCoverage.overallCoverageRate` is computed as
+      //   totalAssigned / totalRequired, capped at 100% (ConflictDetectionService line 855).
+      //
+      // BUGFIX: that overall metric is misleading. When one shift type has over-assignment
+      // (e.g. L04 = 259 vs required 180) its surplus hides under-assignment in another
+      // type (e.g. L01 = 141 vs required 150, four understaffed days). The result
+      // rendered as 100% even though 4×4=16 of the 30×4=120 (day × shift_type) coverage
+      // cells are short-staffed. We therefore derive a calendar-aware coverage on the FE:
+      //   (fullyCoveredDays ÷ (totalDays × distinctShiftTypes)) × 100
+      // which matches the cell-level interpretation of "Tỷ lệ phủ".
+      try {
+        const dryRun = await api.get<{
+          staffingCoverage?: {
+            overallCoverageRate?: number | string;
+            fullyCoveredDays?: number;
+            totalDays?: number;
+            dailyCoverage?: Record<string, unknown>;
+          };
+        }>(`/periods/${periodId}/publish/dry-run`);
+        const sc = dryRun?.staffingCoverage;
+        if (sc) {
+          const distinctShiftTypes = sc.dailyCoverage
+            ? Object.values(sc.dailyCoverage).reduce<number>((max, byDay) => {
+                const n = byDay ? Object.keys(byDay).length : 0;
+                return n > max ? n : max;
+              }, 0)
+            : 0;
+          const totalCells = (sc.totalDays ?? 0) * distinctShiftTypes;
+          const covered = sc.fullyCoveredDays ?? 0;
+          if (totalCells > 0) {
+            setCoverageRate(Math.round((covered / totalCells) * 100));
+          } else {
+            // Fall back to the server-supplied ratio (still 0-100) when we cannot
+            // derive cell counts (older server payloads, missing daily map, etc.).
+            const raw = sc.overallCoverageRate;
+            if (raw != null) {
+              const numeric = typeof raw === "string" ? Number(raw) : raw;
+              if (Number.isFinite(numeric)) setCoverageRate(Math.round(numeric));
+            }
+          }
+        }
+      } catch (err) {
+        // Coverage is a secondary KPI; surface failure via the toast but keep the
+        // primary schedule-driven KPIs intact.
+        setMessage(getErrorMessage(err, "Không tải được tỷ lệ phủ."));
       }
     } catch (err) {
       setMessage(getErrorMessage(err, "Lỗi tải báo cáo kỳ lịch."));
@@ -107,17 +182,37 @@ function ReportsMonthlyContent() {
 
   const shiftItems = useMemo(() => {
     if (!stats) return [];
+    // BUGFIX: backend Jackson serializes L0nCount as l0nCount (lowercase first
+    // letter). Fall back to the lowercase key so /reports/monthly renders
+    // correct counts instead of NaN/undefined. The `(stats as Record<string, unknown>)`
+    // cast keeps TypeScript strict mode happy without weakening the typed
+    // `ShiftStatistics` interface for the rest of the app.
+    const raw = stats as ShiftStatistics & Record<string, unknown>;
+    const l01 = (stats.L01Count ?? (raw.l01Count as number | undefined) ?? 0) as number;
+    const l02 = (stats.L02Count ?? (raw.l02Count as number | undefined) ?? 0) as number;
+    const l03 = (stats.L03Count ?? (raw.l03Count as number | undefined) ?? 0) as number;
+    const l04 = (stats.L04Count ?? (raw.l04Count as number | undefined) ?? 0) as number;
     return [
-      { key: "L01", label: SHIFT_LABELS.L01.label, color: SHIFT_LABELS.L01.color, bg: SHIFT_LABELS.L01.bg, count: stats.L01Count },
-      { key: "L02", label: SHIFT_LABELS.L02.label, color: SHIFT_LABELS.L02.color, bg: SHIFT_LABELS.L02.bg, count: stats.L02Count },
-      { key: "L03", label: SHIFT_LABELS.L03.label, color: SHIFT_LABELS.L03.color, bg: SHIFT_LABELS.L03.bg, count: stats.L03Count },
-      { key: "L04", label: SHIFT_LABELS.L04.label, color: SHIFT_LABELS.L04.color, bg: SHIFT_LABELS.L04.bg, count: stats.L04Count },
+      { key: "L01", label: SHIFT_LABELS.L01.label, color: SHIFT_LABELS.L01.color, bg: SHIFT_LABELS.L01.bg, count: l01 },
+      { key: "L02", label: SHIFT_LABELS.L02.label, color: SHIFT_LABELS.L02.color, bg: SHIFT_LABELS.L02.bg, count: l02 },
+      { key: "L03", label: SHIFT_LABELS.L03.label, color: SHIFT_LABELS.L03.color, bg: SHIFT_LABELS.L03.bg, count: l03 },
+      { key: "L04", label: SHIFT_LABELS.L04.label, color: SHIFT_LABELS.L04.color, bg: SHIFT_LABELS.L04.bg, count: l04 },
     ];
   }, [stats]);
 
   const totalShift = useMemo(() => {
     if (!stats) return 0;
-    return stats.L01Count + stats.L02Count + stats.L03Count + stats.L04Count;
+    // BUGFIX: backend Jackson serializes `L01Count` as `l01Count` (default
+    // ObjectMapper naming), so the frontend property access must also be
+    // case-insensitive. Without this guard, every L-count resolves to
+    // undefined and the sum is NaN, which React then refuses to render as
+    // a child ("Received NaN for the `children` attribute").
+    const raw = stats as ShiftStatistics & Record<string, unknown>;
+    const l01 = (stats.L01Count ?? (raw.l01Count as number | undefined) ?? 0) as number;
+    const l02 = (stats.L02Count ?? (raw.l02Count as number | undefined) ?? 0) as number;
+    const l03 = (stats.L03Count ?? (raw.l03Count as number | undefined) ?? 0) as number;
+    const l04 = (stats.L04Count ?? (raw.l04Count as number | undefined) ?? 0) as number;
+    return l01 + l02 + l03 + l04;
   }, [stats]);
 
   const maxShift = useMemo(() => Math.max(...shiftItems.map((i) => i.count), 1), [shiftItems]);
@@ -230,13 +325,17 @@ function ReportsMonthlyContent() {
               },
               {
                 label: "Nhân sự được phân",
-                value: checking ? "—" : staffCount,
+                // Show "—" until the schedule fetch resolves; otherwise the
+                // stale 0 makes the report look like no staff were assigned.
+                value: checking || !scheduleLoaded ? "—" : staffCount,
                 icon: "groups",
                 accent: "bg-secondary-container text-secondary",
               },
               {
                 label: "Tỷ lệ phủ (%)",
-                value: checking ? "—" : `${totalShift > 0 && staffCount > 0 ? Math.round((totalShift / (staffCount * 4)) * 100) : 0}%`,
+                value: checking || !scheduleLoaded || coverageRate === null
+                  ? "—"
+                  : `${coverageRate}%`,
                 icon: "donut_large",
                 accent: "bg-tertiary-fixed text-tertiary",
               },

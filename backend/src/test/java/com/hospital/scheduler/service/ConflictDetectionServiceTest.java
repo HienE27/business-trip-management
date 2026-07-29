@@ -860,4 +860,133 @@ class ConflictDetectionServiceTest {
             verify(conflictBroadcastService, never()).broadcastConflict(any(), any());
         }
     }
+
+    // ==================== M02-L04: L01↔L04 COEXIST (same-day) ====================
+    // Regression test for fix in `detectShiftTypeConflict` (single-call AND batch paths).
+    //
+    // Spec: PROJECT_CONTEXT.md / SPEC.md only list L01↔L02 and L03↔L04 as same-day
+    // conflicts. L01 (overnight 24/24 trực) and L04 (phòng khám chuyên gia daytime)
+    // are different clinical workflows and CAN coexist on the same date for the same
+    // staff. The previous implementation flagged any overnight-vs-non-overnight pair
+    // (L01↔L03, L01↔L04) as conflict, which dropped L04 coverage on days when the
+    // only specialty-eligible staff also had L01 (see eligible=0 log spikes for L04
+    // 12-31 July 2026 in backend.out.log).
+    //
+    // These tests pin the corrected semantics so future refactors can't silently
+    // re-introduce the over-broad conflict.
+    @Nested
+    @DisplayName("M02/M05: L01 (trực 24/24) + L04 (phòng khám chuyên gia) cùng ngày — KHÔNG conflict")
+    class L01AndL04Coexist {
+
+        @Test
+        @DisplayName("Single-call detectAllConflicts: L01 existing + check L04 → KHÔNG conflict")
+        void l01Existing_checkL04_shouldNotConflict() {
+            // Existing schedule is L01 (overnight 24/24).
+            Schedule existingL01 = Schedule.builder()
+                    .id(700)
+                    .staff(testStaff)
+                    .workDate(monday)
+                    .shiftType(shiftL01)
+                    .period(period1)
+                    .build();
+            when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
+                    .thenReturn(List.of(existingL01));
+
+            // We want to assign L04 to the same staff on the same date.
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    testStaff.getId(), monday, "L04", null);
+
+            assertThat(conflicts)
+                    .as("L01↔L04 must NOT be flagged as conflict (see PROJECT_CONTEXT.md)")
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("Single-call detectAllConflicts: L04 existing + check L01 → KHÔNG conflict")
+        void l04Existing_checkL01_shouldNotConflict() {
+            Schedule existingL04 = Schedule.builder()
+                    .id(701)
+                    .staff(testStaff)
+                    .workDate(monday)
+                    .shiftType(shiftL04)
+                    .period(period1)
+                    .build();
+            when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
+                    .thenReturn(List.of(existingL04));
+
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    testStaff.getId(), monday, "L01", null);
+
+            assertThat(conflicts)
+                    .as("L01↔L04 must NOT be flagged as conflict (symmetric to L04→L01 check)")
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("Single-call: L01 + L02 cùng ngày vẫn phải reject (regression guard)")
+        void l01AndL02SameDay_stillMustReject() {
+            // Sanity check: shrinking L01↔L04 must NOT accidentally clear L01↔L02.
+            Schedule existingL01 = Schedule.builder()
+                    .id(702)
+                    .staff(testStaff)
+                    .workDate(monday)
+                    .shiftType(shiftL01)
+                    .period(period1)
+                    .build();
+            when(scheduleRepository.findByStaffIdAndWorkDate(testStaff.getId(), monday))
+                    .thenReturn(List.of(existingL01));
+
+            List<String> conflicts = conflictDetectionService.detectAllConflicts(
+                    testStaff.getId(), monday, "L02", null);
+
+            assertThat(conflicts)
+                    .as("L01↔L02 must STILL be flagged as conflict (spec invariant)")
+                    .hasSize(1)
+                    .anyMatch(c -> c.contains("Lịch thông tầm") || c.contains("L02"))
+                    .anyMatch(c -> c.contains("Lịch trực 24/24") || c.contains("L01"));
+        }
+
+        @Test
+        @DisplayName("Batch path: L01 + L04 cùng ngày → checkPeriodConflicts phát hiện 0 conflict")
+        void l01AndL04SameDay_batchCheck_noConflict() {
+            Schedule sameDayL01 = Schedule.builder()
+                    .id(710)
+                    .staff(testStaff)
+                    .workDate(monday)
+                    .shiftType(shiftL01)
+                    .period(period1)
+                    .build();
+            Schedule sameDayL04 = Schedule.builder()
+                    .id(711)
+                    .staff(testStaff)
+                    .workDate(monday)
+                    .shiftType(shiftL04)
+                    .period(period1)
+                    .build();
+
+            // Batch-aware path uses findByWorkDateWithDetails to load same-day schedules.
+            when(scheduleRepository.findByWorkDateWithDetails(monday))
+                    .thenReturn(List.of(sameDayL01, sameDayL04));
+            when(scheduleRepository.findByWorkDateWithDetails(monday.minusDays(1)))
+                    .thenReturn(Collections.emptyList());
+            when(scheduleRepository.findByWorkDateWithDetails(monday.plusDays(1)))
+                    .thenReturn(Collections.emptyList());
+            // No pre-existing unresolved conflicts (would otherwise suppress broadcasts).
+            when(scheduleConflictRepository.findByScheduleIdAndIsResolvedFalse(any()))
+                    .thenReturn(Collections.emptyList());
+            when(scheduleConflictRepository.save(any(ScheduleConflict.class)))
+                    .thenAnswer(inv -> {
+                        ScheduleConflict c = inv.getArgument(0);
+                        c.setId(9100);
+                        return c;
+                    });
+
+            ConflictCheckResponse response = conflictDetectionService.checkPeriodConflicts(period1.getId());
+
+            assertThat(response.getTotalConflicts())
+                    .as("L01↔L04 on same day must NOT be counted as conflict by batch path")
+                    .isZero();
+            verify(conflictBroadcastService, never()).broadcastConflict(any(), any());
+        }
+    }
 }

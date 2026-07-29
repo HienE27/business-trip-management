@@ -256,10 +256,23 @@ public class AutoSchedulingService {
             throw new BadRequestException("Chỉ có thể áp dụng bản nháp khi kỳ lịch ở trạng thái DRAFT");
         }
 
-        // Xóa tất cả lịch cũ của period trước khi áp dụng bản preview mới
+        // BUGFIX (coverage drift): spec for AutoScheduleApplyPreviewRequestDTO says
+        // overwriteExisting=false should throw BadRequestException if the period already
+        // has schedules — protecting manual assignments from being silently deleted.
+        // Previously this branch unconditionally wiped all schedules, causing the
+        // "preview 69% → applied 58%" mismatch: every successive apply re-wiped the
+        // previous run, so the dashboard saw a smaller savedCount than the preview's
+        // totalAssigned.
         List<Schedule> oldSchedules = scheduleRepository.findByPeriodId(period.getId());
+        if (!oldSchedules.isEmpty() && !Boolean.TRUE.equals(request.getOverwriteExisting())) {
+            throw new BadRequestException(
+                "Kỳ lịch đã có " + oldSchedules.size()
+                + " lịch hiện tại. Vui lòng xác nhận ghi đè trước khi áp dụng (overwriteExisting=true) "
+                + "để tránh mất dữ liệu thủ công.");
+        }
         if (!oldSchedules.isEmpty()) {
-            log.info("Deleting {} old schedules for period {} before applying preview", oldSchedules.size(), period.getId());
+            log.info("Deleting {} old schedules for period {} before applying preview (overwriteExisting=true)",
+                    oldSchedules.size(), period.getId());
             List<Integer> scheduleIds = oldSchedules.stream().map(Schedule::getId).toList();
             scheduleConflictRepository.deleteByScheduleIds(scheduleIds);
             compensationDayRepository.deleteAllByPeriodId(period.getId());
@@ -268,6 +281,13 @@ public class AutoSchedulingService {
             entityManager.flush();
         }
 
+        int totalReceived = 0;
+        int savedCount = 0;
+        int skipConflict = 0;
+        int skipExists = 0;
+        int skipInLoop = 0;
+        int skipNoStaff = 0;
+        int skipNoShiftType = 0;
         List<Schedule> savedSchedules = new ArrayList<>();
         long startTime = System.currentTimeMillis();
 
@@ -349,12 +369,63 @@ public class AutoSchedulingService {
                 } else if (candidates.size() == 1) {
                     requirement = candidates.get(0);
                 } else {
-                    throw new BadRequestException(
-                            "Có nhiều requirement cho (workDate=" + item.getWorkDate()
-                                    + ", shiftTypeId=" + item.getShiftTypeId()
-                                    + ") — client phải gửi requirementId để chọn đúng (ID ứng viên: "
-                                    + candidates.stream().map(r -> String.valueOf(r.getId())).collect(Collectors.joining(", "))
-                                    + ").");
+                    // BUGFIX (M07 #8 follow-up): disambiguate by staff.specialty before
+                    // throwing. Old behavior was to fail loudly so clients learned to
+                    // populate requirementId; in practice the preview path cannot
+                    // populate requirementId for legacy schedule rows that were saved
+                    // before the FK was populated, so we silently pick the requirement
+                    // whose required specialty matches the assigned staff. Only fall
+                    // through to the explicit error if there is no single best match
+                    // (e.g. two requirements with the same specialty, or the staff
+                    // has no specialty AND no catch-all (specialty IS NULL) row exists).
+                    ShiftRequirement matched = null;
+                    ShiftRequirement catchAll = null; // specialty IS NULL — applies to any staff
+                    Integer staffSpecId = staff.getSpecialty() != null ? staff.getSpecialty().getId() : null;
+                    if (staffSpecId != null) {
+                        int matchCount = 0;
+                        for (ShiftRequirement c : candidates) {
+                            if (c.getSpecialty() == null) {
+                                catchAll = c;
+                            } else if (staffSpecId.equals(c.getSpecialty().getId())) {
+                                matched = c;
+                                matchCount++;
+                            }
+                        }
+                        if (matchCount == 1) {
+                            log.info("Auto-resolved requirement {} for (workDate={}, shiftType={}, staffSpec={}) — FE forwarder missed requirementId for legacy row",
+                                    matched.getId(), item.getWorkDate(), item.getShiftTypeId(), staffSpecId);
+                        } else if (matchCount == 0) {
+                            // Staff's specialty isn't covered by any specialty-specific requirement.
+                            // Fall back to the catch-all (specialty IS NULL) requirement if present —
+                            // this is the slot that covers "any specialty". Without this fallback,
+                            // staff like specialty_id=11 (not in {7,8,9,10,12}) fail to apply even
+                            // though a valid requirement (specialty IS NULL) exists.
+                            matched = catchAll;
+                            if (matched != null) {
+                                log.info("Auto-resolved requirement {} (catch-all) for (workDate={}, shiftType={}, staffSpec={}) — no specialty-specific candidate covered staff",
+                                        matched.getId(), item.getWorkDate(), item.getShiftTypeId(), staffSpecId);
+                            }
+                        }
+                    } else {
+                        // Staff has no specialty — pick the catch-all (specialty IS NULL) if available.
+                        for (ShiftRequirement c : candidates) {
+                            if (c.getSpecialty() == null) {
+                                catchAll = c;
+                                break;
+                            }
+                        }
+                        matched = catchAll;
+                    }
+                    if (matched != null) {
+                        requirement = matched;
+                    } else {
+                        throw new BadRequestException(
+                                "Có nhiều requirement cho (workDate=" + item.getWorkDate()
+                                        + ", shiftTypeId=" + item.getShiftTypeId()
+                                        + ") — client phải gửi requirementId để chọn đúng (ID ứng viên: "
+                                        + candidates.stream().map(r -> String.valueOf(r.getId())).collect(Collectors.joining(", "))
+                                        + ").");
+                    }
                 }
             }
             ShiftType shiftType = requirement != null ? requirement.getShiftType() : null;
@@ -371,9 +442,11 @@ public class AutoSchedulingService {
 
             // Pre-check the in-loop assignments so we never save a sibling conflict
             // (e.g. L01 then L02 in the same preview for the same staff+date).
+            totalReceived++;
             if (hasInLoopConflict(inApplyLoop, staff.getId(), workDate, shiftType.getId())) {
-                throw new ConflictException("Xung đột trong bản nháp: nhân sự " + staff.getId()
-                        + " đã được phân công ca xung khắc ngày " + workDate);
+                skipInLoop++;
+                log.warn("SKIP (in-loop): staffId={}, workDate={}, shiftType={}", staff.getId(), workDate, shiftType.getId());
+                continue;
             }
 
             // Re-validate against persisted state. The auto-scheduling algorithm may have
@@ -388,8 +461,8 @@ public class AutoSchedulingService {
             // Skip schedule if conflict detected instead of throwing to allow partial save.
             if (conflictDetectionService.hasAnyConflict(
                     staff.getId(), workDate, shiftType.getId(), null, false, false)) {
-                log.warn("Conflict when applying schedule, skipping: staffId={}, workDate={}, shiftType={}, periodId={}",
-                        staff.getId(), workDate, shiftType.getId(), period.getId());
+                skipConflict++;
+                log.warn("SKIP (conflict): staffId={}, workDate={}, shiftType={}", staff.getId(), workDate, shiftType.getId());
                 continue;
             }
 
@@ -406,12 +479,23 @@ public class AutoSchedulingService {
             boolean exists = scheduleRepository.existsByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
                     period.getId(), staff.getId(), shiftType.getId(), workDate);
             if (exists) {
-                log.warn("Schedule already exists, skipping: staffId={}, workDate={}, shiftType={}",
-                        staff.getId(), workDate, shiftType.getId());
+                skipExists++;
+                log.warn("SKIP (exists): staffId={}, workDate={}, shiftType={}", staff.getId(), workDate, shiftType.getId());
                 continue;
             }
 
             Schedule saved = scheduleRepository.save(schedule);
+            savedCount++;
+            // BUGFIX (duplicate-add bug): only push to savedSchedules ONCE per save.
+            // The previous code called savedSchedules.add(saved) twice (once after
+            // save and again after audit logging) which made savedSchedules.size()
+            // return 2× the actual count. That doubled:
+            //   - AutoScheduleResponse.totalSchedulesCreated
+            //   - byShiftType.totalAssigned per shift type
+            //   - the schedules[] payload sent to the FE
+            // and polluted algorithm_metrics.total_schedules_created with the wrong
+            // value (e.g. 1600 instead of 800 for period 2 on 2026-07-29 21:04).
+            savedSchedules.add(saved);
             inApplyLoop.computeIfAbsent(staff.getId() + "_" + workDate, k -> new HashSet<>())
                     .add(shiftType.getId());
             if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftType.getId())) {
@@ -425,7 +509,6 @@ public class AutoSchedulingService {
                 entityManager.flush();
             }
             auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
-            savedSchedules.add(saved);
         }
 
         List<AutoScheduleResponse.ScheduleSummary> summaries = savedSchedules.stream()
@@ -442,6 +525,10 @@ public class AutoSchedulingService {
                         .requirementId(s.getRequirement() != null ? s.getRequirement().getId() : null)
                         .build())
                 .toList();
+
+        log.info("APPLY PREVIEW SUMMARY for period {}: totalReceived={}, savedCount={}, skipInLoop={}, skipConflict={}, skipExists={}, diff={}",
+                period.getId(), totalReceived, savedCount, skipInLoop, skipConflict, skipExists,
+                totalReceived - savedCount - skipInLoop - skipConflict - skipExists);
 
         // Notify each staff about their auto-assigned shifts (one notification per staff, not per schedule)
         var staffScheduleMap = savedSchedules.stream()
@@ -711,7 +798,7 @@ public class AutoSchedulingService {
         // CSP variant → runCsp (with fallback to Greedy on empty/partial), default → runGreedy.
         // Returns the initial createdSchedules + the GA fairness score if any.
         AlgorithmDispatchResult initialDispatch = dispatchAlgorithm(period, requirements, activeStaff, save, runtimeConfig, request);
-        List<Schedule> createdSchedules = initialDispatch.schedules();
+        List<Schedule> createdSchedules = filterHardConstrainedSchedules(initialDispatch.schedules());
         BigDecimal lastFairnessScore = initialDispatch.fairnessScore();
         String algorithmType = initialDispatch.algorithmType();
 
@@ -870,6 +957,20 @@ public class AutoSchedulingService {
             }
         }
 
+        // FINAL HARD-CONSTRAINT FILTER (was M07 #9): re-run the L01↔L02 / L03↔L04
+        // in-loop conflict filter after all post-processing phases have completed.
+        // Earlier the filter ran only once after the initial dispatch, but
+        // Fair-Greedy fallback (line 838), Local-Search fairness rebalance (line 894),
+        // Simulated Annealing (line 920) and the HARD GUARANTEE pass above can each
+        // mutate `createdSchedules` and re-introduce sibling shift-type conflicts.
+        // Without this final filter, the apply path would later skip those slots via
+        // `hasInLoopConflict`, shrinking the persisted set vs. what preview showed
+        // the user. Re-filtering here keeps preview count == apply count == DB count.
+        int finalDropped = reapplyHardConstraintFilter(createdSchedules);
+        if (finalDropped > 0) {
+            log.info("Final hard-constraint filter dropped {} assignments introduced by post-processing phases", finalDropped);
+        }
+
         // Notify staff on successful Greedy / Fair-Greedy / CSP save paths.
         if (save && !createdSchedules.isEmpty()) {
             var staffMap = createdSchedules.stream()
@@ -949,6 +1050,17 @@ public class AutoSchedulingService {
         // otherwise include them. The shift_requirement list was already filtered above,
         // but this guards the response shape itself so the UI cannot accidentally display
         // a removed type.
+        //
+        // BUGFIX (was M07 #8 follow-up): backfill missing `requirement` association on
+        // any schedule that was persisted before the FK was populated (legacy rows or
+        // rows imported without a requirement_id). Without this, the preview summary
+        // returns `requirementId: null` for those rows, and the apply-preview back-end
+        // then refuses to resolve which L04 to bind to because multiple specialties
+        // share the same (date, shiftTypeId). We resolve by staff.specialty first
+        // (deterministic), and only fail loudly if there is no single best match —
+        // matching the same policy the apply-preview resolver already implements below.
+        backfillMissingRequirements(createdSchedules, requirements);
+
         Set<String> seen = new java.util.LinkedHashSet<>();
         List<AutoScheduleResponse.ScheduleSummary> scheduleSummaries = createdSchedules.stream()
                 .filter(s -> s.getShiftType() == null
@@ -2541,11 +2653,167 @@ public class AutoSchedulingService {
     }
 
     /**
+     * For each Schedule in the list whose {@link Schedule#getRequirement()} is null,
+     * find the matching {@link ShiftRequirement} by (workDate, shiftTypeId) from the
+     * caller-supplied period requirements and pin it on the schedule in memory.
+     *
+     * <p>This is a preview-time fixup only — we never mutate the DB row here, so the
+     * legacy {@code requirement_id IS NULL} state stays intact for audit purposes.
+     * The goal is to round-trip {@code requirementId} through the preview response so
+     * {@link #applyPreviewSchedule} can disambiguate multi-specialty L04 slots with
+     * the same (date, shiftTypeId) keys. Rows that still have multiple candidates
+     * after the staff-specialty filter are left as-is: the apply-preview resolver
+     * will surface a clear error in that case, instead of silently picking the wrong
+     * requirement.
+     *
+     * @param schedules       candidate schedule list (mutated in place)
+     * @param requirements    all ShiftRequirement rows for the period
+     */
+    private void backfillMissingRequirements(List<Schedule> schedules,
+                                             List<ShiftRequirement> requirements) {
+        if (schedules == null || schedules.isEmpty() || requirements == null || requirements.isEmpty()) {
+            return;
+        }
+        // Index requirements once so the per-row resolver runs in O(1) and supports
+        // both the (date, shiftType) lookup and the staff.specialty tiebreaker.
+        Map<String, List<ShiftRequirement>> byDateShift = new HashMap<>();
+        for (ShiftRequirement r : requirements) {
+            if (r == null || r.getWorkDate() == null || r.getShiftType() == null) continue;
+            String key = r.getWorkDate().toString() + "|" + r.getShiftType().getId();
+            byDateShift.computeIfAbsent(key, k -> new ArrayList<>()).add(r);
+        }
+        int backfilled = 0;
+        int unresolvedMulti = 0;
+        for (Schedule s : schedules) {
+            if (s == null || s.getRequirement() != null) continue;
+            // BUGFIX (V25 follow-up): skip schedules that have already been persisted
+            // (s.getId() != null). The requirement list passed in is detached from the
+            // current persistence context; attaching it back to an existing schedule
+            // triggers TransientObjectException at flush time because Hibernate treats
+            // the requirement as a fresh entity. Existing schedules had their
+            // requirement_id resolved at the time of save, so they don't need
+            // backfill. New schedules (id == null) are safe to backfill because they
+            // are still transient themselves and will be inserted together with the
+            // chosen requirement.
+            if (s.getId() != null) continue;
+            if (s.getWorkDate() == null || s.getShiftType() == null) continue;
+            String key = s.getWorkDate().toString() + "|" + s.getShiftType().getId();
+            List<ShiftRequirement> candidates = byDateShift.get(key);
+            if (candidates == null || candidates.isEmpty()) {
+                continue;
+            }
+            ShiftRequirement chosen = null;
+            if (candidates.size() == 1) {
+                chosen = candidates.get(0);
+            } else {
+                // Tie-break by staff.specialty — same policy as applyPreviewSchedule below.
+                Integer staffSpecId = (s.getStaff() != null && s.getStaff().getSpecialty() != null)
+                        ? s.getStaff().getSpecialty().getId()
+                        : null;
+                if (staffSpecId != null) {
+                    int matches = 0;
+                    for (ShiftRequirement c : candidates) {
+                        if (c.getSpecialty() != null && staffSpecId.equals(c.getSpecialty().getId())) {
+                            chosen = c;
+                            matches++;
+                        }
+                    }
+                    if (matches != 1) {
+                        // Cannot pick a single best match — leave unfixed so the
+                        // apply-preview path will surface the explicit error.
+                        chosen = null;
+                        unresolvedMulti++;
+                    }
+                }
+            }
+            if (chosen != null) {
+                s.setRequirement(chosen);
+                backfilled++;
+            }
+        }
+        if (backfilled > 0 || unresolvedMulti > 0) {
+            log.info("Backfill missing requirement association: {} schedules resolved, {} still ambiguous (will fail loudly on apply)",
+                    backfilled, unresolvedMulti);
+        }
+    }
+
+    /**
      * Same conflict rules as {@link #hasInMemoryConflict(Integer, LocalDate, String)} but
      * reads from a caller-provided map. Used by {@link #applyPreviewSchedule} to detect
      * collisions between sibling preview items since the ThreadLocal assignments from
      * {@link #runScheduling} are no longer in scope.
      */
+    /**
+     * BUGFIX (preview-vs-apply drift): CSP solver does not enforce the L01↔L02
+     * (overnight vs non-overnight) or L03↔L04 hard constraints while building
+     * the search space. As a result preview payloads include assignments that
+     * the apply path will later skip via {@link ConflictDetectionService},
+     * producing the misleading "preview N → apply M (M < N)" discrepancy.
+     *
+     * <p>This filter applies the same hard rules to the preview/in-memory
+     * {@code createdSchedules} list so the {@link
+     * com.hospital.scheduler.algorithm.scoring.ScheduleQualityScorer} and the
+     * coverage KPIs reported to the FE match what the apply path will save.
+     * Skipped entries are logged at INFO so capacity audits can still trace
+     * which slots the constraint ruled out.
+     */
+    private List<Schedule> filterHardConstrainedSchedules(List<Schedule> createdSchedules) {
+        if (createdSchedules == null || createdSchedules.isEmpty()) return createdSchedules;
+        return applyInLoopConflictFilter(createdSchedules, "Preview filter");
+    }
+
+    /**
+     * In-place variant of {@link #filterHardConstrainedSchedules}. Returns the number
+     * of assignments removed. Used as a final safety net after post-processing phases
+     * (Fair Greedy fallback, Local Search, SA, HARD GUARANTEE) have had a chance to
+     * re-introduce L01↔L02 or L03↔L04 conflicts into {@code createdSchedules}.
+     */
+    private int reapplyHardConstraintFilter(List<Schedule> createdSchedules) {
+        if (createdSchedules == null || createdSchedules.isEmpty()) return 0;
+        List<Schedule> kept = applyInLoopConflictFilter(createdSchedules, "Final hard-constraint filter");
+        int dropped = createdSchedules.size() - kept.size();
+        if (dropped > 0) {
+            createdSchedules.clear();
+            createdSchedules.addAll(kept);
+        }
+        return dropped;
+    }
+
+    /**
+     * Shared implementation behind {@link #filterHardConstrainedSchedules} and
+     * {@link #reapplyHardConstraintFilter}. Walks the input list in order, dropping
+     * any assignment that conflicts with an earlier-kept one for the same staff+date.
+     * Logs each drop with {@code phase} so capacity audits can tell which phase
+     * produced the conflict.
+     */
+    private List<Schedule> applyInLoopConflictFilter(List<Schedule> createdSchedules, String phase) {
+        Map<String, Set<String>> inApplyLoop = new HashMap<>();
+        List<Schedule> kept = new ArrayList<>(createdSchedules.size());
+        int dropped = 0;
+        for (Schedule s : createdSchedules) {
+            if (s == null || s.getStaff() == null || s.getWorkDate() == null
+                    || s.getShiftType() == null || s.getShiftType().getId() == null) {
+                continue;
+            }
+            Integer staffId = s.getStaff().getId();
+            String shiftTypeId = s.getShiftType().getId();
+            LocalDate workDate = s.getWorkDate();
+            if (hasInLoopConflict(inApplyLoop, staffId, workDate, shiftTypeId)) {
+                dropped++;
+                log.info("{} dropped hard-conflict assignment: staffId={}, workDate={}, shiftType={}",
+                        phase, staffId, workDate, shiftTypeId);
+                continue;
+            }
+            inApplyLoop.computeIfAbsent(staffId + "_" + workDate, k -> new HashSet<>()).add(shiftTypeId);
+            kept.add(s);
+        }
+        if (dropped > 0) {
+            log.info("{} dropped {} assignments that would have been skipped by apply due to hard constraints (L01↔L02 / L03↔L04)",
+                    phase, dropped);
+        }
+        return kept;
+    }
+
     private boolean hasInLoopConflict(Map<String, Set<String>> inApplyLoop, Integer staffId,
                                       LocalDate workDate, String shiftTypeId) {
         String key = staffId + "_" + workDate;
@@ -2555,9 +2823,18 @@ public class AutoSchedulingService {
                 if (existingId.equals(shiftTypeId)) {
                     continue;
                 }
+                // L01↔L02 conflict only (per SPEC.md / PROJECT_CONTEXT.md).
+                // L01 (overnight trực 24/24) and L04 (phòng khám chuyên gia daytime) are
+                // different clinical workflows and CAN coexist on the same date for the same
+                // staff. The previous `newIsOvernight != existingIsOvernight` check
+                // over-reported L01↔L04 as conflict, dropping L04 coverage on days when the
+                // only specialty-eligible staff also had L01.
                 boolean newIsOvernight = ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftTypeId);
                 boolean existingIsOvernight = ConflictDetectionService.SHIFT_TYPE_L01.equals(existingId);
-                if (newIsOvernight != existingIsOvernight) {
+                if (newIsOvernight && "L02".equals(existingId)) {
+                    return true;
+                }
+                if (existingIsOvernight && "L02".equals(shiftTypeId)) {
                     return true;
                 }
                 if (!newIsOvernight) {
@@ -2822,6 +3099,128 @@ public class AutoSchedulingService {
 
     public List<AlgorithmMetricsDTO> getMetricsByPeriod(Integer periodId) {
         return metricsService.getMetricsByPeriod(periodId);
+    }
+
+    /**
+     * BUGFIX (coverage drift + UX): compute coverage rate from the live schedule
+     * and requirement tables. The cached {@code algorithm_metrics.coverage_rate}
+     * can disagree with the DB because {@code total_schedules_created} was
+     * logged before a transaction rolled back, or because successive apply runs
+     * delete + insert rather than accumulate.
+     *
+     * <p>Now also returns per-shift-type and per-day breakdowns so the UI can
+     * display actionable KPIs (e.g. "L01: 22/30 ca (73%)") instead of a single
+     * low percentage that hides which shift type is understaffed.
+     */
+    @Transactional(readOnly = true)
+    public com.hospital.scheduler.dto.response.LiveCoverageDTO getLiveCoverage(Integer periodId) {
+        com.hospital.scheduler.entity.SchedulePeriod period = periodRepository.findById(periodId)
+                .orElseThrow(() -> new com.hospital.scheduler.exception.ResourceNotFoundException(
+                        "Không tìm thấy kỳ lịch với ID: " + periodId));
+        java.util.List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
+        java.util.List<ShiftRequirement> reqs = requirementRepository.findByPeriodId(periodId);
+        java.util.List<ShiftType> shiftTypes = shiftTypeRepository.findAll();
+
+        long totalSchedules = schedules.size();
+        long totalRequiredCapacity = reqs.stream()
+                .mapToLong(r -> Math.max(0, r.getRequiredStaffCount()))
+                .sum();
+        java.math.BigDecimal coverageRate = totalRequiredCapacity > 0
+                ? java.math.BigDecimal.valueOf((double) totalSchedules / (double) totalRequiredCapacity * 100.0)
+                        .setScale(2, java.math.RoundingMode.HALF_UP)
+                : java.math.BigDecimal.ZERO.setScale(2);
+
+        // Per-shift-type aggregation. ShiftType.id is a String (e.g. "L01"), so we
+        // key the breakdown by String to match what /auto-schedule/coverage
+        // consumers already key against.
+        java.util.Map<String, String> shiftTypeNameByStringId = new java.util.HashMap<>();
+        java.util.Map<String, Long> requiredByStringId = new java.util.HashMap<>();
+        java.util.Map<String, Long> assignedByStringId = new java.util.HashMap<>();
+        for (ShiftType st : shiftTypes) {
+            shiftTypeNameByStringId.put(st.getId(), st.getName());
+            requiredByStringId.put(st.getId(), 0L);
+            assignedByStringId.put(st.getId(), 0L);
+        }
+        for (ShiftRequirement r : reqs) {
+            String sid = r.getShiftType() != null ? r.getShiftType().getId() : null;
+            if (sid != null) {
+                requiredByStringId.merge(sid, (long) Math.max(0, r.getRequiredStaffCount()), Long::sum);
+            }
+        }
+        for (Schedule s : schedules) {
+            String sid = s.getShiftType() != null ? s.getShiftType().getId() : null;
+            if (sid != null) {
+                assignedByStringId.merge(sid, 1L, Long::sum);
+            }
+        }
+        java.util.Map<String, com.hospital.scheduler.dto.response.LiveCoverageDTO.ShiftTypeCoverage> byShiftType =
+                new java.util.LinkedHashMap<>();
+        for (java.util.Map.Entry<String, Long> e : requiredByStringId.entrySet()) {
+            String sid = e.getKey();
+            long req = e.getValue();
+            long asn = assignedByStringId.getOrDefault(sid, 0L);
+            java.math.BigDecimal pct = req > 0
+                    ? java.math.BigDecimal.valueOf((double) asn / (double) req * 100.0)
+                            .setScale(2, java.math.RoundingMode.HALF_UP)
+                    : java.math.BigDecimal.ZERO.setScale(2);
+            byShiftType.put(sid, com.hospital.scheduler.dto.response.LiveCoverageDTO.ShiftTypeCoverage.builder()
+                    .shiftTypeId(sid)
+                    .shiftTypeName(shiftTypeNameByStringId.getOrDefault(sid, sid))
+                    .requiredCapacity(req)
+                    .assignedCount(asn)
+                    .shortfall(Math.max(0L, req - asn))
+                    .coverageRate(pct)
+                    .build());
+        }
+
+        // Per-day aggregation
+        java.util.Map<java.time.LocalDate, long[]> requiredByDate = new java.util.HashMap<>(); // [req, asn]
+        for (ShiftRequirement r : reqs) {
+            long[] acc = requiredByDate.computeIfAbsent(r.getWorkDate(), k -> new long[2]);
+            acc[0] += Math.max(0, r.getRequiredStaffCount());
+        }
+        for (Schedule s : schedules) {
+            long[] acc = requiredByDate.computeIfAbsent(s.getWorkDate(), k -> new long[2]);
+            acc[1] += 1;
+        }
+        java.util.Map<String, com.hospital.scheduler.dto.response.LiveCoverageDTO.DayCoverage> byDay =
+                new java.util.TreeMap<>();
+        for (java.util.Map.Entry<java.time.LocalDate, long[]> e : requiredByDate.entrySet()) {
+            long req = e.getValue()[0];
+            long asn = e.getValue()[1];
+            java.math.BigDecimal pct = req > 0
+                    ? java.math.BigDecimal.valueOf((double) asn / (double) req * 100.0)
+                            .setScale(2, java.math.RoundingMode.HALF_UP)
+                    : java.math.BigDecimal.ZERO.setScale(2);
+            byDay.put(e.getKey().toString(),
+                    com.hospital.scheduler.dto.response.LiveCoverageDTO.DayCoverage.builder()
+                            .workDate(e.getKey().toString())
+                            .requiredCapacity(req)
+                            .assignedCount(asn)
+                            .shortfall(Math.max(0L, req - asn))
+                            .coverageRate(pct)
+                            .build());
+        }
+
+        long distinctDaysWithSchedules = schedules.stream()
+                .map(Schedule::getWorkDate)
+                .distinct()
+                .count();
+        long totalPeriodDays = period.getStartDate() != null && period.getEndDate() != null
+                ? (java.time.temporal.ChronoUnit.DAYS.between(period.getStartDate(), period.getEndDate()) + 1)
+                : 0L;
+
+        return com.hospital.scheduler.dto.response.LiveCoverageDTO.builder()
+                .periodId(periodId)
+                .totalSchedules(totalSchedules)
+                .totalRequiredCapacity(totalRequiredCapacity)
+                .coverageRate(coverageRate)
+                .byShiftType(byShiftType)
+                .byDay(byDay)
+                .distinctDaysWithSchedules(distinctDaysWithSchedules)
+                .totalPeriodDays(totalPeriodDays)
+                .computedAt(java.time.LocalDateTime.now())
+                .build();
     }
 
     public List<AlgorithmMetricsDTO> getAllMetrics() {

@@ -99,6 +99,13 @@ export default function AutoSchedulingPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingStaffIds, setEditingStaffIds] = useState<Map<string | number, number>>(new Map());
   const [previewEditItem, setPreviewEditItem] = useState<import("@/types/api").AutoScheduleSummary | null>(null);
+  // BUGFIX (M07 #8 follow-up): requirement lookup for the selected period.
+  // Keyed by `${workDate}|${shiftTypeId}` so the apply-preview fallback can
+  // disambiguate L04 multi-specialty slots when the preview summary returns
+  // `requirementId: null` for legacy schedule rows.
+  const [requirementsLookup, setRequirementsLookup] = useState<
+    Map<string, Array<{ id: number; specialtyId: number | null }>> | null
+  >(null);
 
   const loadWorkspace = useCallback(async () => {
     try {
@@ -157,6 +164,45 @@ export default function AutoSchedulingPage() {
     }).catch(() => {});
   }, [selectedPeriodId]);
 
+  // BUGFIX (M07 #8 follow-up): load shift requirements for the selected period
+  // so handleApplyPreview can backfill missing requirementId on legacy rows.
+  // Best-effort: silently swallow errors so a transient API hiccup never blocks
+  // a fully-populated preview from being applied.
+  useEffect(() => {
+    let cancelled = false;
+    const periodId = selectedPeriodId;
+    if (!periodId) {
+      setRequirementsLookup(null);
+      return;
+    }
+    void (async () => {
+      try {
+        type RequirementLite = {
+          id: number;
+          workDate: string;
+          shiftTypeId: string;
+          specialtyId?: number | null;
+        };
+        const rows = await api.get<RequirementLite[]>(
+          `/shift-requirements/period/${periodId}`,
+        );
+        if (cancelled) return;
+        const map = new Map<string, Array<{ id: number; specialtyId: number | null }>>();
+        for (const r of rows ?? []) {
+          if (!r?.id || !r.workDate || !r.shiftTypeId) continue;
+          const key = `${r.workDate}|${r.shiftTypeId}`;
+          const arr = map.get(key) ?? [];
+          arr.push({ id: r.id, specialtyId: r.specialtyId ?? null });
+          map.set(key, arr);
+        }
+        setRequirementsLookup(map);
+      } catch {
+        if (!cancelled) setRequirementsLookup(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedPeriodId]);
+
   // Refresh auto-gen status when the user comes back to this tab (e.g. after toggling
   // the switch in /algorithm-config). Avoids stale "disabled" warnings.
   useEffect(() => {
@@ -201,29 +247,143 @@ export default function AutoSchedulingPage() {
   const handleApplyPreview = async () => {
     if (!previewResult || !selectedPeriodId) return;
     const removedKeys = new Set(removedShiftTypes);
-    const editedKeys = new Set(editedPreview.map((s) => `${s.workDate}_${s.shiftTypeId}`));
-    const baseSchedules = previewResult.schedules
-      .map((s) => ({
-        workDate: s.workDate,
-        shiftTypeId: s.shiftTypeId,
-        staffId: s.staffId,
+    // Local type matching useAutoSchedule.PreviewScheduleEdit (not exported).
+    type LocalPreviewEdit = { workDate: string; shiftTypeId: string; staffId: number; oldShiftTypeId?: string; requirementId?: number | null };
+    // BUGFIX (M07 #8 follow-up): the backend preview may return
+    // `requirementId: null` for legacy schedule rows that were saved before the
+    // FK was populated, or when the preview was generated from existing rows
+    // without backfilling. The apply-preview endpoint then refuses with "Có
+    // nhiều requirement" because (workDate, shiftTypeId) maps to multiple rows
+    // for L04. To avoid the user having to re-run the preview after a backend
+    // redeploy we look up ShiftRequirement rows for the period here and
+    // disambiguate by staff.specialty before forwarding — same policy the
+    // back-end now uses as its primary resolver.
+    type PendingSchedule = { workDate: string; shiftTypeId: string; staffId: number; requirementId?: number };
+    const lookupRequirementId = (
+      workDate: string,
+      shiftTypeId: string,
+      staffId: number,
+    ): number | undefined => {
+      if (!requirementsLookup) return undefined;
+      const baseKey = `${workDate}|${shiftTypeId}`;
+      const candidates = requirementsLookup.get(baseKey);
+      if (!candidates || candidates.length === 0) return undefined;
+      if (candidates.length === 1) return candidates[0].id;
+      // Multi-specialty L04 case — tie-break using staff.specialty against the
+      // candidate's required specialty. Falls through to undefined so the back
+      // end surfaces the explicit error rather than silently picking wrong slot.
+      const staff = activeStaff.find((s) => s.id === staffId);
+      const staffSpecId = staff?.specialty?.id ?? null;
+      if (staffSpecId == null) return undefined;
+      const matches = candidates.filter(
+        (c) => c.specialtyId === staffSpecId,
+      );
+      return matches.length === 1 ? matches[0].id : undefined;
+    };
+    // BUGFIX (critical): we must drop from baseSchedules every entry that conflicts
+    // with an edit, identified by its OLD state (date + oldShiftTypeId).
+    //
+    // Two edit modes generate different "old" keys:
+    //   A. editShiftType (L04→L02, same staff):  old = (date, L04)
+    //      → drop entry where date + shiftTypeId == L04
+    //   B. editStaff (A→B, same shiftType L04):  old = (date, L04)
+    //      → drop entry where date + shiftTypeId == L04  (same pattern!)
+    //
+    // For both modes, the old shiftTypeId is always the shiftTypeId IN baseSchedules
+    // (before the edit), so the filter key is always `${date}_${shiftTypeId}`.
+    // The complication is that the editedPreview stores the NEW state (L02), not
+    // the old (L04), so we cannot directly build the "old" key from editedPreview.
+    //
+    // Solution: record the (date, shiftTypeId) of every baseSchedules entry that has
+    // a corresponding edit. We iterate baseSchedules FIRST and mark entries that are
+    // covered by an edit — then pass that set into the filter.
+    //
+    // We need the OLD shiftTypeId to identify which base entry to drop:
+    //   - editShiftType:  oldShiftTypeId = slot.oldShiftTypeId (from the edit)
+    //   - editStaff:      oldShiftTypeId = slot.shiftTypeId (from the slot itself,
+    //                     since only the staff changed)
+    //
+    // Final dedup: if any edit covers a base entry's (date, staffId), that entry
+    // is already excluded above. A secondary reverse-iteration dedup guards against
+    // any remaining duplicates from the raw baseSchedules.
+    const baseSchedules: PendingSchedule[] = previewResult.schedules
+      .map((s) => {
         // BUGFIX (M07 #8): forward requirementId so apply-preview can
         // disambiguate L04 slots with multi-specialty requirements.
         // PreviewScheduleEdit.requirementId is number | null | undefined;
         // the apply payload expects number | undefined, so coerce null → undefined.
-        requirementId: s.requirementId == null ? undefined : s.requirementId,
-      }))
+        let rid: number | undefined = s.requirementId == null ? undefined : s.requirementId;
+        if (rid == null) {
+          rid = lookupRequirementId(s.workDate, s.shiftTypeId, s.staffId);
+        }
+        return {
+          workDate: s.workDate,
+          shiftTypeId: s.shiftTypeId,
+          staffId: s.staffId,
+          requirementId: rid,
+        };
+      });
+
+    // Build the set of (date, staffId) pairs covered by an edit so we can exclude
+    // their old base entries. An edit covers a base entry when:
+    //   - editShiftType: same (date, oldShiftTypeId)
+    //   - editStaff: same (date, staffId) — the base entry has the OLD staffId
+    const slotsCoveredByEdit = new Set<string>();
+    // editShiftType covers base entries by (date, oldShiftTypeId)
+    const shiftTypeEdits = new Map<string, LocalPreviewEdit>();
+    for (const edit of editedPreview as LocalPreviewEdit[]) {
+      if ("oldShiftTypeId" in edit && edit.oldShiftTypeId != null) {
+        const key = `${edit.workDate}_${edit.oldShiftTypeId}`;
+        shiftTypeEdits.set(key, edit);
+      }
+      // editStaff covers base entry by (date, staffId) where base has the old staff
+      if (edit.staffId != null) {
+        slotsCoveredByEdit.add(`${edit.workDate}_${edit.staffId}`);
+      }
+    }
+    // For editShiftType: a base entry is covered if its (date, shiftTypeId) matches
+    // the oldShiftTypeId of any edit with the same staffId (the base entry's staffId
+    // is the pre-edit staff; we need to match by both date+oldShiftType+sameStaffId)
+    for (const slot of baseSchedules) {
+      const key = `${slot.workDate}_${slot.shiftTypeId}`;
+      const edit = shiftTypeEdits.get(key);
+      if (edit != null && edit.staffId === slot.staffId) {
+        slotsCoveredByEdit.add(`${slot.workDate}_${slot.staffId}`);
+      }
+    }
+
+    const filteredBase = baseSchedules
       .filter((s) => !removedKeys.has(`${s.workDate}_${s.shiftTypeId}_${s.staffId}`))
-      .filter((s) => !editedKeys.has(`${s.workDate}_${s.shiftTypeId}`));
-    const cleanedEdited: Array<{ workDate: string; shiftTypeId: string; staffId: number; requirementId?: number }> =
-      editedPreview.map((s) => ({
-        ...s,
-        requirementId: s.requirementId == null ? undefined : s.requirementId,
-      }));
-    const merged: Array<{ workDate: string; shiftTypeId: string; staffId: number; requirementId?: number }> = [
-      ...baseSchedules,
-      ...cleanedEdited,
-    ];
+      .filter((s) => !slotsCoveredByEdit.has(`${s.workDate}_${s.staffId}`));
+
+    const cleanedEdited: PendingSchedule[] = editedPreview.map((s) => {
+      let rid = s.requirementId == null ? undefined : s.requirementId;
+      if (rid == null) {
+        rid = lookupRequirementId(s.workDate, s.shiftTypeId, s.staffId);
+      }
+      return { workDate: s.workDate, shiftTypeId: s.shiftTypeId, staffId: s.staffId, requirementId: rid };
+    });
+
+    // Final safety dedup: if any entry still leaks through (shouldn't happen, but
+    // defensive), prefer the edited version by processing mergedRaw in reverse.
+    // BUGFIX (M07 #apply-dedup): key MUST include shiftTypeId, because the same
+    // (workDate, staffId) pair can carry multiple shiftType rows in the preview
+    // (e.g. one staff may have L01+L02+L03 across different days, AND cross-staff
+    // the preview may legitimately assign two different shiftTypes to the same
+    // slot on adjacent days). Dedup-by-date+staff throws away those rows and
+    // causes APPLY to save fewer schedules than preview (569 instead of 727).
+    const mergedRaw: PendingSchedule[] = [...filteredBase, ...cleanedEdited];
+    const mergedDeduped: PendingSchedule[] = [];
+    const seenKeys = new Set<string>();
+    for (let i = mergedRaw.length - 1; i >= 0; i--) {
+      const s = mergedRaw[i];
+      const key = `${s.workDate}_${s.staffId}_${s.shiftTypeId}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        mergedDeduped.unshift(s);
+      }
+    }
+    const merged: PendingSchedule[] = mergedDeduped;
     await applyPreview(selectedPeriodId, merged, () => {
       setApplyModalOpen(false);
       void loadWorkspace();

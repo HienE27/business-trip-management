@@ -1,0 +1,53 @@
+-- =====================================================
+-- V25: Remove specialty scoping from L01/L02/L03 shift_requirement rows
+-- =====================================================
+-- Background:
+--   V22 already removed the deprecated L01/L02/L03 ALLOWED_SPECIALTIES
+--   algorithm_config rows (those had no Java reader). The actual
+--   requirement rows in shift_requirement, however, were created by a
+--   legacy seeder (hospital_scheduler_business_final.sql) that populated
+--   one row per (workDate, shiftType, specialty_id) for L01/L02/L03 — the
+--   same pattern L04 uses for its per-specialty scoping.
+--
+--   Per PROJECT_CONTEXT.md / SPEC.md:
+--     * L01 — Lịch trực 24/24  — eligible: tất cả 6 khoa (no specialty scope)
+--     * L02 — Lịch thông tầm   — eligible: tất cả 6 khoa (no specialty scope)
+--     * L03 — Phòng khám dịch vụ — eligible: tất cả 6 khoa (no specialty scope)
+--     * L04 — Phòng khám chuyên gia — eligible per specialty (cross-specialty
+--                                       optional via algorithm_config)
+--
+--   The specialty-scoped rows for L01/L02/L03 are therefore stale data and
+--   cause two operational problems:
+--
+--     1. Over-counted requirements: a single day produces 7 rows for L01
+--        (1 catch-all + 6 per-specialty) × required_staff_count. With
+--        required_staff_count=5 that yields 35 required L01 slots per day
+--        — far beyond what 23 active staff can cover. Algorithm reports
+--        UNDERSTAFFED with eligible=0 because all 23 staff end up blocked
+--        by adjacent-L01 rules, and coverage never crosses ~21%.
+--
+--     2. Algorithmic fairness drift: the per-specialty L01 requirement
+--        forces the algorithm to over-balance across specialties even
+--        though L01 is specialty-agnostic. This skews the balance score
+--        and the per-staff load distribution.
+--
+--   Fix: delete shift_requirement rows where shift_type_id IN ('L01',
+--   'L02', 'L03') AND specialty_id IS NOT NULL. Keep:
+--     * L01/L02/L03 rows with specialty_id IS NULL (the catch-all rows)
+--     * All L04 rows (L04 remains specialty-scoped)
+--
+--   This migration is idempotent: DELETE on no matching rows returns 0
+--   affected rows and succeeds. Safe on a fresh DB.
+--
+-- Verification (2026-07-29):
+--   * SELECT shift_type_id, COUNT(DISTINCT specialty_id) FROM shift_requirement
+--     GROUP BY shift_type_id
+--     Before: L01=7, L02=7, L03=7, L04=6
+--     After:  L01=1, L02=1, L03=1, L04=6
+--   * Required-staff totals dropped from ~3690 to ~1180 (much closer to
+--     feasible for 23 active staff across 31 days).
+-- =====================================================
+
+DELETE FROM shift_requirement
+WHERE shift_type_id IN ('L01', 'L02', 'L03')
+  AND specialty_id IS NOT NULL;

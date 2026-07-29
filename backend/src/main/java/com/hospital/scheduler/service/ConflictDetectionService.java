@@ -116,13 +116,26 @@ public class ConflictDetectionService {
                 boolean existingIsOvernight = existingShiftType != null
                         && Boolean.TRUE.equals(existingShiftType.getIsOvernight());
 
-                // L01↔L02 conflict (overnight vs non-overnight) — use shared helper
-                // so the batch path and single-call path emit identical messages.
-                if (newIsOvernight != existingIsOvernight) {
-                    conflicts.add(buildShiftTypeConflictMessage(
-                            newShiftType, shiftTypeId,
-                            existingShiftType, existingId));
-                    break;
+                // L01↔L02 conflict (overnight vs L02 only — see single-call path for rationale).
+                // SPEC.md / PROJECT_CONTEXT.md: only L01↔L02 and L03↔L04 are same-day conflicts.
+                // L01 (overnight 24/24) and L04 (phòng khám chuyên gia daytime) are different
+                // clinical workflows and CAN coexist on the same date for the same staff.
+                if (newIsOvernight && !existingIsOvernight) {
+                    if ("L02".equals(existingId)) {
+                        conflicts.add(buildShiftTypeConflictMessage(
+                                newShiftType, shiftTypeId,
+                                existingShiftType, existingId));
+                        break;
+                    }
+                }
+                if (!newIsOvernight && existingIsOvernight) {
+                    String nid = newShiftType != null ? newShiftType.getId() : "";
+                    if ("L02".equals(nid)) {
+                        conflicts.add(buildShiftTypeConflictMessage(
+                                newShiftType, nid,
+                                existingShiftType, existingId));
+                        break;
+                    }
                 }
                 // L03↔L04 conflict (both non-overnight service shifts) — same helper.
                 if (!newIsOvernight && !existingIsOvernight) {
@@ -540,13 +553,30 @@ public class ConflictDetectionService {
 
             boolean existingIsOvernight = s.getShiftType() != null && Boolean.TRUE.equals(s.getShiftType().getIsOvernight());
 
-            // L01↔L02 conflict (overnight vs non-overnight)
-            if (newIsOvernight != existingIsOvernight) {
-                // Delegate message-formatting to the shared helper so both this
-                // single-call path and the batch path produce identical output.
-                return java.util.Optional.of(buildShiftTypeConflictMessage(
-                        newShiftType, shiftTypeId,
-                        s.getShiftType(), s.getShiftType().getId()));
+            // L01↔L02 conflict (overnight vs L02 only — not L03/L04, see PROJECT_CONTEXT.md).
+            // Per project spec, only L01↔L02 and L03↔L04 are SAME-DAY conflicts. L01 (overnight
+            // trực 24/24) and L04 (phòng khám chuyên gia daytime) are different clinical workflows
+            // and CAN coexist on the same date for the same staff. The previous version falsely
+            // flagged L01↔L04 as conflict via `newIsOvernight != existingIsOvernight`, which
+            // meant once a staff took L01 they were ineligible for L04 the same day — dropping
+            // L04 coverage on days when L01 was already assigned to the same specialty pool.
+            // Fix: only treat L01↔L02 as conflict; L03↔L04 still rules via the second branch.
+            if (newIsOvernight && !existingIsOvernight) {
+                String eid = s.getShiftType() != null ? s.getShiftType().getId() : "";
+                if ("L02".equals(eid)) {
+                    return java.util.Optional.of(buildShiftTypeConflictMessage(
+                            newShiftType, shiftTypeId,
+                            s.getShiftType(), eid));
+                }
+            }
+            // Symmetric: L01 already scheduled, new shift is L02 → conflict.
+            if (!newIsOvernight && existingIsOvernight) {
+                String nid = newShiftType != null ? newShiftType.getId() : "";
+                if ("L02".equals(nid)) {
+                    return java.util.Optional.of(buildShiftTypeConflictMessage(
+                            newShiftType, nid,
+                            s.getShiftType(), s.getShiftType().getId()));
+                }
             }
 
             // L03↔L04 conflict (both non-overnight service shifts)
@@ -676,16 +706,24 @@ public class ConflictDetectionService {
             // M07-F01 "không giới hạn cố định". The sort comparator places over-limit staff
             // last so they are only assigned when necessary.
 
-            // Same-day shift-type conflict: L01↔L02 or L03↔L04
+            // Same-day shift-type conflict: L01↔L02 or L03↔L04 only (see single-call path).
             List<Schedule> daySchedules = schedulesByStaff.get(staff.getId());
             if (daySchedules != null) {
                 boolean hasConflict = false;
                 for (Schedule s : daySchedules) {
+                    String eid = s.getShiftType() != null ? s.getShiftType().getId() : "";
+                    String nid = shiftType != null ? shiftType.getId() : "";
                     boolean existingIsOvernight = s.getShiftType() != null && Boolean.TRUE.equals(s.getShiftType().getIsOvernight());
-                    if (newIsOvernight != existingIsOvernight) { hasConflict = true; break; }
+                    boolean isL01 = "L01".equals(nid);
+                    boolean isL02 = "L02".equals(nid);
+                    boolean existingIsL01 = "L01".equals(eid);
+                    boolean existingIsL02 = "L02".equals(eid);
+                    // L01↔L02 conflict only.
+                    if ((isL01 && existingIsL02) || (isL02 && existingIsL01)) {
+                        hasConflict = true; break;
+                    }
+                    // L03↔L04 conflict (both non-overnight).
                     if (!newIsOvernight && !existingIsOvernight) {
-                        String nid = shiftType != null ? shiftType.getId() : "";
-                        String eid = s.getShiftType() != null ? s.getShiftType().getId() : "";
                         if (("L03".equals(nid) && "L04".equals(eid)) || ("L04".equals(nid) && "L03".equals(eid))) {
                             hasConflict = true; break;
                         }

@@ -195,8 +195,44 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
               // requirement even when L04 has multiple specialties.
               requirementId: s.requirementId ?? null,
             }));
-        await api.applyPreview({ periodId, algorithmType, schedules, removedSchedules });
-        setMessage("Đã áp dụng phương án phân công.");
+        // BUGFIX (coverage drift): pass overwriteExisting=true so the backend
+        // is allowed to delete the existing 805 schedules for this period before
+        // inserting the new preview. Without this flag the backend now throws
+        // BadRequestException to protect manual assignments — which is the
+        // correct behaviour but breaks the apply flow. The ConfirmDialog already
+        // shown by the page gives the user the same opt-in moment.
+        await api.applyPreview({
+          periodId,
+          algorithmType,
+          schedules,
+          removedSchedules,
+          overwriteExisting: true,
+        });
+
+        // BUGFIX (coverage drift): re-read the live coverage from the DB so the
+        // success toast / metrics we surface reflect what was actually persisted,
+        // not the cached algorithm_metrics.coverage_rate which can disagree
+        // when an apply was interrupted or when successive runs overwrite each
+        // other.
+        let liveCoverageNote = "";
+        try {
+          const live = await api.getLiveCoverage(periodId);
+          // BUGFIX (UX): show per-shift-type breakdown so the user can see which
+          // shift type is understaffed instead of staring at a misleading
+          // single low percentage.
+          const breakdown = Object.values(live.byShiftType ?? {})
+            .sort((a, b) => a.shiftTypeId.localeCompare(b.shiftTypeId))
+            .map(
+              (s) =>
+                `${s.shiftTypeId}: ${s.assignedCount}/${s.requiredCapacity} (${s.coverageRate.toFixed(0)}%)`
+            )
+            .join(" · ");
+          liveCoverageNote = ` — đã lưu ${live.totalSchedules}/${live.totalRequiredCapacity} ca (${live.coverageRate.toFixed(2)}% theo DB). ${breakdown}`;
+        } catch (e) {
+          console.warn("[applyPreview] live coverage fetch failed:", e);
+        }
+
+        setMessage(`Đã áp dụng phương án phân công${liveCoverageNote}.`);
         setPreviewResult(null);
         setEditedPreview([]);
         setRemovedShifts(new Set());

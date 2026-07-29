@@ -384,6 +384,7 @@ function ReportsStaffContent() {
                   <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L02</th>
                   <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L03</th>
                   <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant text-center">L04</th>
+                  <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant text-center">Ngày nghỉ</th>
                   <th scope="col" className="px-5 py-3 text-label-sm text-on-surface-variant">Tải trọng</th>
                 </tr>
               </thead>
@@ -444,6 +445,18 @@ function ReportsStaffContent() {
                       {[item.L01, item.L02, item.L03, item.L04].map((count, i) => (
                         <td key={i} className="px-5 py-3 text-center text-[13px] text-on-surface-variant">{count}</td>
                       ))}
+                      <td className="px-5 py-3 text-center">
+                        <span
+                          className={`inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-[12px] font-semibold ${
+                            item.leaveDays > 0
+                              ? "bg-tertiary-fixed text-on-tertiary-fixed-variant"
+                              : "bg-surface-container text-outline"
+                          }`}
+                          title={item.leaveDays > 0 ? `Số ngày nghỉ được duyệt trong kỳ` : "Không có ngày nghỉ"}
+                        >
+                          {item.leaveDays}
+                        </span>
+                      </td>
                       <td className="px-5 py-3 min-w-[140px]">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 bg-surface-variant rounded-full h-2">

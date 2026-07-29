@@ -181,8 +181,19 @@ function DashboardContent() {
         </div>
       </div>
 
-      {/* KPI strip from latest run */}
-      <KpiStrip latestRun={latestRun} loading={latestRunLoading} />
+      {/* KPI strip */}
+      {/* BUGFIX (dashboard live-vs-cache drift): the strip below pulls its
+          primary "Schedule Coverage" value from the LIVE /auto-schedule/coverage
+          endpoint so it reflects what is actually in the DB right now. The
+          previous behaviour read algorithm_metrics.coverage_rate which can be
+          stale by hours when successive apply runs overwrite each other or when
+          a transaction rolled back. We still show the cached value (runToken +
+          relative time) but explicitly mark it as "lần chạy gần nhất". */}
+      <KpiStripLatest
+        latestRun={latestRun}
+        loading={latestRunLoading}
+        periodId={selectedPeriodId}
+      />
 
       {/* Widgets in priority order */}
       <section aria-label="Kiểm tra tính khả thi">
@@ -288,6 +299,224 @@ function KpiStrip({ latestRun, loading }: KpiStripProps) {
         icon="schedule"
         caption={latestRun.runToken ? `runToken ${latestRun.runToken.slice(0, 8)}…` : latestRun.algorithmType}
       />
+    </div>
+  );
+}
+
+/**
+ * BUGFIX (dashboard live coverage): KPI strip that sources Schedule Coverage
+ * from the live /auto-schedule/coverage/{periodId} endpoint (matches DB row
+ * count) instead of the cached algorithm_metrics.coverage_rate. Adds an extra
+ * "Live from DB" KPI showing the per-shift-type breakdown so the user can see
+ * which shift type is understaffed.
+ */
+interface KpiStripLatestProps {
+  latestRun: AlgorithmMetrics | null;
+  loading: boolean;
+  periodId: number | null;
+}
+
+interface LiveCoverageByShiftType {
+  shiftTypeId: string;
+  shiftTypeName: string;
+  requiredCapacity: number;
+  assignedCount: number;
+  shortfall: number;
+  coverageRate: number;
+}
+
+interface LiveCoverage {
+  periodId: number;
+  totalSchedules: number;
+  totalRequiredCapacity: number;
+  coverageRate: number;
+  byShiftType: Record<string, LiveCoverageByShiftType>;
+  byDay: Record<string, unknown>;
+  distinctDaysWithSchedules: number;
+  totalPeriodDays: number;
+  computedAt: string;
+}
+
+function KpiStripLatest({ latestRun, loading, periodId }: KpiStripLatestProps) {
+  const [live, setLive] = useState<LiveCoverage | null>(null);
+  const [liveLoading, setLiveLoading] = useState(false);
+
+  useEffect(() => {
+    if (periodId === null) {
+      setLive(null);
+      return;
+    }
+    let cancelled = false;
+    setLiveLoading(true);
+    (async () => {
+      try {
+        const res = (await api.getLiveCoverage(periodId)) as LiveCoverage;
+        if (!cancelled) setLive(res);
+      } catch (e) {
+        if (!cancelled) {
+          console.warn("[dashboard] live coverage fetch failed:", e);
+          setLive(null);
+        }
+      } finally {
+        if (!cancelled) setLiveLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [periodId]);
+
+  if (loading && !live) {
+    return (
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+      </div>
+    );
+  }
+
+  const liveCoverage = live?.coverageRate ?? latestRun?.coverageRate ?? 0;
+  const liveTone = liveCoverage >= 90 ? "success" : liveCoverage >= 70 ? "info" : liveCoverage >= 50 ? "warning" : "error";
+  const balance = parseNumber(latestRun?.balanceScore ?? 0);
+  const balanceTone = balance >= 75 ? "success" : balance >= 50 ? "warning" : "error";
+
+  const breakdownEntries = live
+    ? Object.values(live.byShiftType).sort((a, b) =>
+        a.shiftTypeId.localeCompare(b.shiftTypeId)
+      )
+    : [];
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <KpiTile
+        // BUGFIX (UX): this label now reads "Coverage (live)" to make it
+        // obvious that the value comes from the DB snapshot at page load, not
+        // from the cached algorithm_metrics row.
+        label="Coverage (live DB)"
+        value={`${Number(liveCoverage).toFixed(1)}%`}
+        tone={liveTone}
+        icon="check_circle"
+        tooltip="Tỷ lệ slot requirement đã có ca trong DB. Tính trực tiếp từ bảng schedule + shift_requirement; không phụ thuộc cache algorithm_metrics. Cập nhật mỗi khi mở Dashboard."
+        caption={
+          live
+            ? `${live.totalSchedules}/${live.totalRequiredCapacity} ca`
+            : liveLoading
+            ? "đang tải…"
+            : "—"
+        }
+      />
+      <KpiTile
+        label="Fairness (lần chạy gần nhất)"
+        value={latestRun ? Number(latestRun.balanceScore ?? 0).toFixed(1) : "—"}
+        tone={balanceTone}
+        icon="balance"
+        caption={latestRun?.algorithmType ?? ""}
+      />
+      <KpiTile
+        label="Conflicts"
+        value={String(latestRun?.conflictCount ?? 0)}
+        tone={(latestRun?.conflictCount ?? 0) === 0 ? "success" : "error"}
+        icon="gpp_maybe"
+        caption="từ lần chạy gần nhất"
+      />
+      {/* BUGFIX (UX): new card that surfaces the per-shift-type breakdown
+          inline so the user can see WHICH shift type is understaffed instead
+          of staring at one misleading low percentage. */}
+      <KpiTile
+        label="Ngày có lịch"
+        value={
+          live
+            ? `${live.distinctDaysWithSchedules}/${live.totalPeriodDays}`
+            : "—"
+        }
+        tone={
+          live && live.distinctDaysWithSchedules >= live.totalPeriodDays
+            ? "success"
+            : "warning"
+        }
+        icon="calendar_month"
+        tooltip="Số ngày trong kỳ có ít nhất 1 schedule được lưu trong DB."
+      />
+      <KpiTile
+        label="Lần chạy gần nhất"
+        value={latestRun ? formatRelativeTime(latestRun.createdAt) : "—"}
+        tone={latestRun?.runToken ? "info" : "neutral"}
+        icon="schedule"
+        caption={
+          latestRun?.runToken
+            ? `runToken ${latestRun.runToken.slice(0, 8)}…`
+            : latestRun?.algorithmType ?? ""
+        }
+      />
+      {breakdownEntries.length > 0 ? (
+        <div className="col-span-2 lg:col-span-5 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="font-label-md text-label-md text-on-surface">
+              Phân bổ ca theo loại lịch (live DB)
+            </h3>
+            <span className="font-body-sm text-body-sm text-on-surface-variant">
+              {live ? `${live.totalSchedules}/${live.totalRequiredCapacity} ca tổng` : ""}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {breakdownEntries.map((s) => {
+              const pct = s.requiredCapacity > 0
+                ? Math.round((s.assignedCount / s.requiredCapacity) * 100)
+                : 0;
+              const tone =
+                pct >= 90 ? "success" : pct >= 70 ? "info" : pct >= 50 ? "warning" : "error";
+              return (
+                <div
+                  key={s.shiftTypeId}
+                  className="rounded-lg border border-outline-variant bg-surface-container-low p-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-label-md text-label-md text-on-surface">
+                      {s.shiftTypeId}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 font-label-sm text-label-sm ${
+                        tone === "success"
+                          ? "bg-secondary-container text-on-secondary-container"
+                          : tone === "info"
+                          ? "bg-primary-fixed text-primary"
+                          : tone === "warning"
+                          ? "bg-tertiary-container text-on-tertiary-container"
+                          : "bg-error-container text-on-error-container"
+                      }`}
+                    >
+                      {pct}%
+                    </span>
+                  </div>
+                  <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
+                    {s.shiftTypeName}
+                  </p>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="font-headline-md text-headline-md text-on-surface">
+                      {s.assignedCount}
+                    </span>
+                    <span className="font-body-sm text-body-sm text-on-surface-variant">
+                      / {s.requiredCapacity} cần
+                    </span>
+                  </div>
+                  {s.shortfall > 0 ? (
+                    <p className="mt-1 font-body-sm text-body-sm text-error">
+                      Thiếu {s.shortfall} ca
+                    </p>
+                  ) : (
+                    <p className="mt-1 font-body-sm text-body-sm text-secondary">
+                      Đủ ca
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

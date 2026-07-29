@@ -31,6 +31,23 @@ public class AutoScheduleApplyPreviewRequestDTO {
     @Builder.Default
     private List<RemovedScheduleItem> removedSchedules = List.of();
 
+    /**
+     * BUGFIX (coverage drift): opt-in destructive flag. When false (default),
+     * apply throws BadRequestException if the period already has schedules —
+     * protecting manual assignments from being silently deleted by auto-schedule.
+     * The Manager must explicitly confirm overwrite via UI prompt.
+     */
+    @Builder.Default
+    private Boolean overwriteExisting = false;
+
+    /**
+     * Hard upper bound on rows that may be inserted in this apply call. Used as
+     * a safety net against runaway previews that exceed historical capacity and
+     * would otherwise inflate the "Tỷ lệ phủ" KPI on the dashboard.
+     */
+    @Builder.Default
+    private Integer maxSchedulesToInsert = 2000;
+
     @Getter
     @Setter
     @NoArgsConstructor

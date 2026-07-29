@@ -242,6 +242,31 @@ public class AutoSchedulingController {
         return ResponseEntity.ok(ApiResponse.success(autoSchedulingService.getMetricsByPeriod(periodId)));
     }
 
+    /**
+     * BUGFIX (coverage drift): returns the live coverage rate for a period,
+     * computed from the current {@code schedule} and {@code shift_requirement}
+     * tables. The {@link #getMetricsByPeriod} endpoint can return stale values
+     * when an apply run was interrupted (e.g. transaction rolled back) or when
+     * {@code total_schedules_created} was inflated by tests/duplicate applies.
+     *
+     * <p>Body shape:
+     * <pre>
+     * {
+     *   "periodId": 2,
+     *   "totalSchedules": 805,
+     *   "totalRequiredCapacity": 3690,
+     *   "coverageRate": 21.82,
+     *   "computedAt": "2026-07-29T20:00:00"
+     * }
+     * </pre>
+     */
+    @GetMapping("/coverage/{periodId}")
+    @Operation(summary = "Tỷ lệ phủ theo thời gian thực (tính từ DB, không dùng algorithm_metrics cache)")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
+    public ResponseEntity<ApiResponse<com.hospital.scheduler.dto.response.LiveCoverageDTO>> getLiveCoverage(@PathVariable Integer periodId) {
+        return ResponseEntity.ok(ApiResponse.success(autoSchedulingService.getLiveCoverage(periodId)));
+    }
+
     @GetMapping("/metrics")
     @Operation(summary = "Lấy tất cả lịch sử chạy thuật toán")
     @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")

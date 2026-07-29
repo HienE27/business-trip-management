@@ -852,6 +852,10 @@ class ApiClient {
       shiftTypeId: string;
       staffId: number;
     }>;
+    // BUGFIX (coverage drift): opt-in destructive flag. When false (default)
+    // the backend throws BadRequestException if the period already has schedules.
+    // The frontend page already shows a ConfirmDialog, so it sets this true.
+    overwriteExisting?: boolean;
   }): Promise<ApiResponse<void>> {
     return this.request<void>("/auto-schedule/apply-preview", {
       method: "POST",
@@ -914,6 +918,43 @@ class ApiClient {
 
   async getMetricsByPeriod(periodId: number): Promise<AlgorithmMetrics[]> {
     return this.get<AlgorithmMetrics[]>(`/auto-schedule/metrics/period/${periodId}`);
+  }
+
+  /**
+   * BUGFIX (coverage drift + UX): live coverage rate computed from the actual
+   * DB state. The cached {@code algorithm_metrics.coverage_rate} can disagree
+   * with persisted schedules when an apply transaction was interrupted or
+   * when successive runs delete + insert rather than accumulate.
+   *
+   * <p>Now also returns per-shift-type and per-day breakdowns so the dashboard
+   * can render actionable cards (e.g. "L01: 22/30 (73%)") instead of a single
+   * misleading low percentage.
+   */
+  async getLiveCoverage(periodId: number): Promise<{
+    periodId: number;
+    totalSchedules: number;
+    totalRequiredCapacity: number;
+    coverageRate: number;
+    distinctDaysWithSchedules: number;
+    totalPeriodDays: number;
+    computedAt: string;
+    byShiftType: Record<string, {
+      shiftTypeId: string;
+      shiftTypeName: string;
+      requiredCapacity: number;
+      assignedCount: number;
+      shortfall: number;
+      coverageRate: number;
+    }>;
+    byDay: Record<string, {
+      workDate: string;
+      requiredCapacity: number;
+      assignedCount: number;
+      shortfall: number;
+      coverageRate: number;
+    }>;
+  }> {
+    return this.get(`/auto-schedule/coverage/${periodId}`);
   }
 
   /** Server-paginated variant of {@link getAllMetrics}. */
