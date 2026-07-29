@@ -110,4 +110,13 @@ public interface StaffRepository extends JpaRepository<Staff, Integer> {
            "JOIN sr.role r " +
            "WHERE s.isActive = true AND r.name = 'ADMIN'")
     long countActiveAdmins();
+
+    /**
+     * Count staff grouped by specialty name for dashboard cards.
+     * Returns rows [specialtyName, count]; staff with null specialty appear under "Chưa phân khoa".
+     */
+    @Query("SELECT COALESCE(sp.name, 'Chưa phân khoa'), COUNT(s) " +
+           "FROM Staff s LEFT JOIN s.specialty sp " +
+           "GROUP BY sp.name ORDER BY sp.name")
+    java.util.List<Object[]> countBySpecialty();
 }

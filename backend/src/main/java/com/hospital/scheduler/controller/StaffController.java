@@ -55,6 +55,13 @@ public class StaffController {
         return ResponseEntity.ok(ApiResponse.success(staffService.getStatusCounts()));
     }
 
+    @GetMapping("/specialty-counts")
+    @Operation(summary = "Đếm nhân sự theo chuyên khoa (toàn DB, không phân trang)")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> getSpecialtyCounts() {
+        return ResponseEntity.ok(ApiResponse.success(staffService.getSpecialtyCounts()));
+    }
+
     @GetMapping("/search")
     @Operation(summary = "Tìm kiếm và lọc nhân sự")
     @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW_ALL + "')")

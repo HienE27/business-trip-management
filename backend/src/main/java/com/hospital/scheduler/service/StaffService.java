@@ -119,6 +119,20 @@ public class StaffService {
         return counts;
     }
 
+    /**
+     * Aggregate counts grouped by specialty name for dashboard cards.
+     * Counts the entire table; includes a "Chưa phân khoa" bucket for staff without specialty.
+     */
+    public Map<String, Long> getSpecialtyCounts() {
+        Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        for (Object[] row : staffRepository.countBySpecialty()) {
+            String name = (String) row[0];
+            Long count = (Long) row[1];
+            counts.put(name, count);
+        }
+        return counts;
+    }
+
     public StaffResponse getStaffById(Integer id) {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));

@@ -145,6 +145,7 @@ export function StaffCrudPanel() {
     ON_LEAVE: number;
     INACTIVE: number;
   }>({ total: 0, ACTIVE: 0, ON_LEAVE: 0, INACTIVE: 0 });
+  const [specialtyCounts, setSpecialtyCounts] = useState<Record<string, number>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
   const { can } = usePermissions();
@@ -186,9 +187,19 @@ export function StaffCrudPanel() {
     }
   }, []);
 
+  const fetchSpecialtyCounts = useCallback(async () => {
+    try {
+      const res = await api.getStaffSpecialtyCounts();
+      setSpecialtyCounts((res?.data ?? {}) as Record<string, number>);
+    } catch {
+      // Fall back silently — table still works.
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatusCounts();
-  }, [fetchStatusCounts]);
+    fetchSpecialtyCounts();
+  }, [fetchStatusCounts, fetchSpecialtyCounts]);
 
   const fetchStaff = useCallback(async () => {
     try {
@@ -827,6 +838,25 @@ export function StaffCrudPanel() {
           </div>
         ))}
       </section>
+
+      {Object.keys(specialtyCounts).length > 0 && (
+        <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+          <h3 className="text-label-md font-semibold text-on-surface-variant mb-3">
+            Nhân sự theo chuyên khoa
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {Object.entries(specialtyCounts).map(([name, count]) => (
+              <div
+                key={name}
+                className="flex items-center justify-between rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
+              >
+                <span className="text-label-sm text-on-surface-variant truncate">{name}</span>
+                <span className="text-label-md font-bold text-on-surface">{String(count).padStart(2, "0")}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm flex flex-wrap lg:flex-nowrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
