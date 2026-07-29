@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/exhaustive-deps */
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
@@ -149,6 +149,10 @@ export function StaffCrudPanel() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
   const { can } = usePermissions();
+  // BUGFIX (FE#5): latest-request counter — increments on every fetch
+  // trigger; the in-flight request whose counter no longer matches the
+  // current value drops its result on the floor.
+  const latestRequestRef = useRef(0);
 
   // Sync global search ?q= URL param to local search state
   useEffect(() => {
@@ -201,18 +205,25 @@ export function StaffCrudPanel() {
     fetchSpecialtyCounts();
   }, [fetchStatusCounts, fetchSpecialtyCounts]);
 
-  const fetchStaff = useCallback(async () => {
+// BUGFIX (FE#5): fetchStaff now takes an AbortSignal so concurrent calls
+  // are cancelled by the latest-request guard instead of racing. A request
+  // counter stamps every call; only the response whose counter matches the
+  // current value is allowed to commit to state.
+  const fetchStaff = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoading(true);
-      const result = await api.searchStaffsPage({
-        keyword: searchKeyword.trim() || undefined,
-        status: statusFilter || undefined,
-        role: roleFilter || undefined,
-        specialtyId: (specialtyFilter || undefined) as number | undefined,
-        position: positionFilter.trim() || undefined,
-        page: currentPage,
-        size: pageSize,
-      });
+      const result = await api.searchStaffsPage(
+        {
+          keyword: searchKeyword.trim() || undefined,
+          status: statusFilter || undefined,
+          role: roleFilter || undefined,
+          specialtyId: (specialtyFilter || undefined) as number | undefined,
+          position: positionFilter.trim() || undefined,
+          page: currentPage,
+          size: pageSize,
+        },
+        signal ? { signal } : undefined,
+      );
       // searchStaffsPage returns the stricter exported `Staff` type. The
       // local `StaffApiResponse` view also requires hireDate — both shapes
       // align at runtime, so cast through unknown to bridge them.
@@ -221,7 +232,9 @@ export function StaffCrudPanel() {
       setRecords(normalizedData);
       setTotalPages(result.totalPages ?? 0);
       setTotalElements(result.totalElements ?? 0);
-    } catch {
+    } catch (err) {
+      // Aborted fetches are intentional — don't toast.
+      if ((err as { name?: string })?.name === "AbortError") return;
       toast.error("Không thể tải danh sách nhân sự. Vui lòng kiểm tra kết nối backend.");
       setRecords([]);
     } finally {
@@ -233,22 +246,22 @@ export function StaffCrudPanel() {
     fetchSpecialties();
   }, [fetchSpecialties]);
 
-  // BUGFIX (was FE#5): The previous version wrapped fetchStaff() in
-  // setTimeout(...0) + clearTimeout(timer) inside the effect cleanup.
-// That pattern only debounces a single tick before firing — and worse,
-  // the cleanup ran `clearTimeout(timer)` BEFORE the timeout callback
-  // executed, so on rapid filter changes the previous fetch was being
-  // cancelled while a new one started. Call fetchStaff() directly: the
-  // effect's dependency tracking already ensures we only run when inputs
-  // change, and concurrent in-flight requests are cancelled via the
-  // AbortController inside fetchStaff (when the caller passes it).
+  // BUGFIX (FE#5): debounce free-text filters (keyword + position) by 250ms
+  // and abort any in-flight request when the user keeps typing. Latest-
+  // request guard (counter) ensures stale responses can't overwrite fresh
+  // state if the abort arrives after the network call already returned.
   useEffect(() => {
-    fetchStaff();
+    const controller = new AbortController();
+    const token = ++latestRequestRef.current;
+    const handle = window.setTimeout(() => {
+      if (token !== latestRequestRef.current) return;
+      fetchStaff(controller.signal);
+    }, 250);
+    return () => {
+      controller.abort();
+      window.clearTimeout(handle);
+    };
   }, [fetchStaff]);
-
-  useEffect(() => {
-    setCurrentPage(0);
-  }, [searchKeyword, statusFilter, roleFilter, specialtyFilter, positionFilter]);
 
   // Safety net: ensure form is closed on initial mount
   // This fixes hydration/SSR edge cases where form might appear open
@@ -303,6 +316,31 @@ export function StaffCrudPanel() {
 
   function handlePageSizeChange(size: number) {
     setPageSize(size);
+    setCurrentPage(0);
+  }
+
+  // BUGFIX (FE#5): wrap each filter setter so changing a filter resets the
+  // page to 0 immediately (instead of resetting inside a separate useEffect
+  // that runs after the fetch — which kept the previous page visible for one
+  // extra render).
+  function setSearchKeywordDebounced(value: string) {
+    setSearchKeyword(value);
+    setCurrentPage(0);
+  }
+  function setStatusFilterWithReset(value: string) {
+    setStatusFilter(value);
+    setCurrentPage(0);
+  }
+  function setRoleFilterWithReset(value: string) {
+    setRoleFilter(value);
+    setCurrentPage(0);
+  }
+  function setSpecialtyFilterWithReset(value: number | "") {
+    setSpecialtyFilter(value);
+    setCurrentPage(0);
+  }
+  function setPositionFilterDebounced(value: string) {
+    setPositionFilter(value);
     setCurrentPage(0);
   }
 

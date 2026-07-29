@@ -104,6 +104,20 @@ export interface ScheduleExportFilters {
   endDate?: string;
 }
 
+/**
+ * Typed contract for POST /staff/import. Backend wraps this in ApiResponse<...>
+ * and api.importStaff unwraps before returning to callers.
+ */
+export interface StaffImportResponse {
+  imported: number;
+  inserted: number;
+  updated: number;
+  failed: number;
+  total: number;
+  errors: string[];
+  message: string;
+}
+
 function buildScheduleExportQuery(filters: ScheduleExportFilters): string {
   const parts: string[] = [];
   if (filters.shiftTypeId) parts.push(`shiftTypeId=${encodeURIComponent(filters.shiftTypeId)}`);
@@ -435,8 +449,9 @@ class ApiClient {
    */
   async searchStaffsPage(
     params: StaffSearchParams & { page: number; size: number },
+    requestInit?: Omit<RequestInit, "method" | "body">,
   ): Promise<Page<Staff>> {
-    return this.getPage<Staff>("/staff/search-page", { ...params });
+    return this.getPage<Staff>("/staff/search-page", { ...params }, requestInit);
   }
 
   async getStaffById(id: number): Promise<ApiResponse<Staff>> {
@@ -465,7 +480,7 @@ class ApiClient {
     return this.request<void>(`/staff/${id}`, { method: "DELETE" });
   }
 
-  async importStaff(file: File): Promise<{ imported: number; errors: string[] }> {
+  async importStaff(file: File): Promise<StaffImportResponse> {
     const token = getStoredToken();
     const formData = new FormData();
     formData.append("file", file);
@@ -484,7 +499,45 @@ class ApiClient {
       throw new Error(`Import failed (${response.status}): ${text}`);
     }
 
-    return response.json();
+    // Backend now wraps the typed StaffImportResponse in ApiResponse<{success,data,message,timestamp}>.
+    // Unwrap here so callers receive the typed payload directly.
+    const envelope = (await response.json()) as
+      | { data?: StaffImportResponse }
+      | StaffImportResponse;
+    if (envelope && typeof envelope === "object" && "data" in envelope && envelope.data) {
+      return envelope.data as StaffImportResponse;
+    }
+    return envelope as StaffImportResponse;
+  }
+
+  /**
+   * CSV export — same filters as /staff/search. Returns a Blob so the caller
+   * can drive a createObjectURL + anchor download. Throws on non-2xx with the
+   * raw text payload.
+   */
+  async exportStaffCsv(filter: StaffSearchParams = {}): Promise<Blob> {
+    const qs = new URLSearchParams();
+    if (filter.keyword) qs.set("keyword", filter.keyword);
+    if (filter.specialtyId) qs.set("specialtyId", String(filter.specialtyId));
+    if (filter.status) qs.set("status", filter.status);
+    const token = getStoredToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const response = await fetch(
+      `${API_BASE}/staff/export?${qs.toString()}`,
+      { headers, credentials: "include" },
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => "Unknown error");
+      throw new Error(`Export CSV failed (${response.status}): ${text}`);
+    }
+    return response.blob();
+  }
+
+  /** Reactivate a soft-deleted staff member — counterpart to deleteStaff. */
+  async reactivateStaff(id: number): Promise<Staff> {
+    const res = await this.request<Staff>(`/staff/${id}/reactivate`, { method: "POST" });
+    return res.data as unknown as Staff;
   }
 
   // Schedule

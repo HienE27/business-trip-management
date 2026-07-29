@@ -29,6 +29,8 @@ public final class Permissions {
   public static final String STAFF_UPDATE = "STAFF_UPDATE";
   public static final String STAFF_DELETE = "STAFF_DELETE";
   public static final String STAFF_IMPORT = "STAFF_IMPORT";
+  public static final String STAFF_EXPORT = "STAFF_EXPORT";
+  public static final String STAFF_REACTIVATE = "STAFF_REACTIVATE";
 
     // ── Role / Permission matrix ────────────────────────────────────────
     public static final String ROLE_VIEW = "ROLE_VIEW";
@@ -116,6 +118,8 @@ public final class Permissions {
         m.put(STAFF_UPDATE,            "Cập nhật thông tin nhân sự");
         m.put(STAFF_DELETE,            "Xóa / vô hiệu hóa nhân sự");
         m.put(STAFF_IMPORT,            "Import nhân sự từ Excel/CSV");
+        m.put(STAFF_EXPORT,            "Xuất danh sách nhân sự ra CSV");
+        m.put(STAFF_REACTIVATE,        "Kích hoạt lại nhân sự đã vô hiệu hóa");
 
         m.put(ROLE_VIEW,               "Xem ma trận phân quyền");
         m.put(ROLE_EDIT,               "Sửa ma trận phân quyền");

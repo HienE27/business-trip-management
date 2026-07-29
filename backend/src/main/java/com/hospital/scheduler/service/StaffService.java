@@ -3,6 +3,7 @@ package com.hospital.scheduler.service;
 import com.hospital.scheduler.dto.request.NotificationDTO;
 import com.hospital.scheduler.dto.request.StaffRequest;
 import com.hospital.scheduler.dto.request.StaffSearchRequest;
+import com.hospital.scheduler.dto.response.StaffImportResponse;
 import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.entity.AppRole;
 import com.hospital.scheduler.entity.AuditHistory;
@@ -536,7 +537,7 @@ public class StaffService {
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
     @Transactional
-    public Map<String, Object> importStaffs(MultipartFile file) {
+    public StaffImportResponse importStaffs(MultipartFile file) {
         if (file.isEmpty()) {
             throw new BadRequestException("Tệp tải lên không được để trống");
         }
@@ -831,18 +832,103 @@ public class StaffService {
         result.put("inserted", inserted);
         result.put("updated", updated);
         result.put("failed", rowErrors.size());
+        String message;
         if (!rowErrors.isEmpty()) {
             result.put("rowErrors", rowErrors);
-            result.put("message",
-                    "Nhập thành công " + allSaved.size() + " nhân sự (" + inserted
-                            + " mới, " + updated + " cập nhật). "
-                            + rowErrors.size() + " dòng bị lỗi - xem chi tiết trong 'rowErrors'.");
+            message = "Nhập thành công " + allSaved.size() + " nhân sự (" + inserted
+                    + " mới, " + updated + " cập nhật). "
+                    + rowErrors.size() + " dòng bị lỗi - xem chi tiết trong 'rowErrors'.";
         } else {
-            result.put("message", "Nhập thành công " + allSaved.size() + " nhân sự ("
-                    + inserted + " mới, " + updated + " cập nhật).");
+            message = "Nhập thành công " + allSaved.size() + " nhân sự ("
+                    + inserted + " mới, " + updated + " cập nhật).";
         }
         cacheEvictor.evictDashboard();
-        return result;
+        return StaffImportResponse.of(inserted, updated, rowErrors.size(),
+                rowErrors.isEmpty() ? List.of() : List.copyOf(rowErrors), message);
+    }
+
+    /**
+     * Reactivate a soft-deleted (isActive=false / status=INACTIVE) staff member.
+     * Symmetric to {@link #deleteStaff(Integer)}; flips the flags back and
+     * audit-logs as UPDATE so the admin's history shows who was brought back.
+     */
+    @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
+    public StaffResponse reactivateStaff(Integer id) {
+        Staff staff = staffRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
+
+        Staff oldStaff = Staff.builder()
+                .username(staff.getUsername())
+                .isActive(staff.getIsActive())
+                .status(staff.getStatus())
+                .build();
+
+        staff.setIsActive(true);
+        staff.setStatus(StaffStatus.ACTIVE);
+        staff.setUpdatedAt(java.time.LocalDateTime.now());
+        Staff saved = staffRepository.save(staff);
+
+        auditHistoryService.logAction("staff", id, AuditHistory.ActionType.UPDATE,
+                oldStaff, saved, resolveCurrentStaffIdSafely());
+        cacheEvictor.evictDashboard();
+        return toResponse(saved);
+    }
+
+    /**
+     * CSV export of the same filter set used by {@link #searchStaffs(StaffSearchRequest)}.
+     * Emits a UTF-8 BOM so Excel-on-Windows auto-detects encoding, and prefixes
+     * any cell starting with {@code =}, {@code +}, {@code -}, or {@code @}
+     * with a single quote so the cell is not parsed as a formula (CSV
+     * formula-injection hardening — same idea as the {@code cleanString}
+     * import path).
+     */
+    public byte[] exportStaffCsv(StaffSearchRequest request) {
+        String keyword = (request.getKeyword() != null && !request.getKeyword().isBlank()) ? request.getKeyword() : null;
+        String status = (request.getStatus() != null && !request.getStatus().isBlank()) ? request.getStatus().toUpperCase() : null;
+        String role = (request.getRole() != null && !request.getRole().isBlank()) ? request.getRole().toUpperCase() : null;
+        String position = (request.getPosition() != null && !request.getPosition().isBlank()) ? request.getPosition() : null;
+
+        List<Staff> rows = staffRepository.searchStaffs(
+                keyword, request.getSpecialtyId(), status, role, position);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append('\uFEFF'); // UTF-8 BOM
+        sb.append("staffCode,username,fullName,email,phone,position,specialty,status,roles\n");
+        for (Staff s : rows) {
+            String specialtyName = s.getSpecialty() != null ? s.getSpecialty().getName() : "";
+            String rolesCsv = s.getStaffRoles().stream()
+                    .map(sr -> sr.getRole() != null ? sr.getRole().getName().name() : "")
+                    .filter(r -> !r.isEmpty())
+                    .collect(Collectors.joining("|"));
+            sb.append(csvCell(s.getStaffCode())).append(',')
+              .append(csvCell(s.getUsername())).append(',')
+              .append(csvCell(s.getFullName())).append(',')
+              .append(csvCell(s.getEmail())).append(',')
+              .append(csvCell(s.getPhone())).append(',')
+              .append(csvCell(s.getPosition())).append(',')
+              .append(csvCell(specialtyName)).append(',')
+              .append(csvCell(s.getStatus().name())).append(',')
+              .append(csvCell(rolesCsv)).append('\n');
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** Escape a CSV cell: quote if it contains comma/quote/newline; prefix with
+     *  single quote if it starts with a formula trigger (=, +, -, @) so Excel
+     *  does not execute it. */
+    private static String csvCell(String value) {
+        if (value == null) return "";
+        String v = value;
+        char first = v.isEmpty() ? '\0' : v.charAt(0);
+        if (first == '=' || first == '+' || first == '-' || first == '@') {
+            v = "'" + v;
+        }
+        boolean needsQuoting = v.indexOf(',') >= 0 || v.indexOf('"') >= 0
+                || v.indexOf('\n') >= 0 || v.indexOf('\r') >= 0;
+        if (needsQuoting) {
+            v = "\"" + v.replace("\"", "\"\"") + "\"";
+        }
+        return v;
     }
 
     private void parseCsvFile(MultipartFile file, List<StaffRequest> requests, List<String> errorMessages) {

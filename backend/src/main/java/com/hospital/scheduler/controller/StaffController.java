@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.request.StaffRequest;
 import com.hospital.scheduler.dto.request.StaffSearchRequest;
 import com.hospital.scheduler.dto.response.ResetPasswordResponse;
+import com.hospital.scheduler.dto.response.StaffImportResponse;
 import com.hospital.scheduler.dto.response.StaffResponse;
 import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.AuthService;
@@ -169,9 +170,49 @@ public class StaffController {
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Nhập danh sách nhân sự từ Excel hoặc CSV")
     @PreAuthorize("hasAuthority('" + Permissions.STAFF_IMPORT + "')")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> importStaffs(
+    public ResponseEntity<ApiResponse<StaffImportResponse>> importStaffs(
             @RequestParam("file") MultipartFile file) {
-        Map<String, Object> result = staffService.importStaffs(file);
-        return ResponseEntity.ok(ApiResponse.success(result, (String) result.get("message")));
+        StaffImportResponse result = staffService.importStaffs(file);
+        return ResponseEntity.ok(ApiResponse.success(result, result.message()));
+    }
+
+    /**
+     * Reactivate a soft-deleted staff member. Counterpart to DELETE; the staff
+     * goes back to ACTIVE + isActive=true so the list view shows them again.
+     * Requires {@code STAFF_REACTIVATE}.
+     */
+    @PostMapping("/{id}/reactivate")
+    @Operation(summary = "Kích hoạt lại nhân sự đã vô hiệu hóa")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_REACTIVATE + "')")
+    public ResponseEntity<ApiResponse<StaffResponse>> reactivateStaff(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.success(staffService.reactivateStaff(id), "Kích hoạt lại nhân sự thành công"));
+    }
+
+    /**
+     * CSV export of filtered staff list. Writes UTF-8 BOM so Excel on Windows
+     * auto-detects the encoding when the user opens the downloaded file.
+     * Requires {@code STAFF_EXPORT}.
+     */
+    @GetMapping("/export")
+    @Operation(summary = "Xuất danh sách nhân sự ra CSV")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_EXPORT + "')")
+    public ResponseEntity<byte[]> exportStaffCsv(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer specialtyId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String position) {
+        StaffSearchRequest request = StaffSearchRequest.builder()
+                .keyword(keyword)
+                .specialtyId(specialtyId)
+                .status(status)
+                .role(role)
+                .position(position)
+                .build();
+        byte[] csv = staffService.exportStaffCsv(request);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .header("Content-Disposition", "attachment; filename=\"staff_export.csv\"")
+                .body(csv);
     }
 }
