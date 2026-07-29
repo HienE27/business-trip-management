@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Semaphore;
 
@@ -70,6 +71,70 @@ class SchedulingLockServiceTest {
         Integer periodId = 301;
         // Never acquired on this thread — must not throw or acquire.
         assertDoesNotThrow(() -> lockService.unlock(periodId));
+    }
+
+    @Test
+    void cancel_interruptsOwnerButKeepsSamePeriodLockedUntilOwnerFinallyReleases() throws Exception {
+        Integer periodId = 400;
+        Semaphore semaphore = lockService.acquirePeriodLock(periodId);
+        CountDownLatch ownerReady = new CountDownLatch(1);
+        CountDownLatch allowOwnerFinally = new CountDownLatch(1);
+        CountDownLatch ownerDone = new CountDownLatch(1);
+        AtomicBoolean interrupted = new AtomicBoolean();
+
+        Thread owner = new Thread(() -> {
+            try {
+                semaphore.acquire();
+                lockService.registerRunningThread(periodId);
+                ownerReady.countDown();
+                try {
+                    allowOwnerFinally.await();
+                } catch (InterruptedException e) {
+                    interrupted.set(true);
+                    try {
+                        allowOwnerFinally.await();
+                    } catch (InterruptedException ignored) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                lockService.unregisterRunningThread(periodId);
+                semaphore.release();
+                ownerDone.countDown();
+            }
+        });
+        owner.start();
+        assertTrue(ownerReady.await(2, TimeUnit.SECONDS));
+
+        lockService.cancel(periodId);
+        assertTrue(interrupted.get());
+        assertSame(semaphore, lockService.acquirePeriodLock(periodId));
+        assertFalse(lockService.tryLock(periodId), "next same-period request must wait for owner finally");
+        assertTrue(lockService.tryLock(periodId + 1), "different periods must remain independent");
+        lockService.unlock(periodId + 1);
+        assertFalse(lockService.forceReleaseStaleLock(periodId), "cleanup must not release a live owner's permit");
+
+        allowOwnerFinally.countDown();
+        assertTrue(ownerDone.await(2, TimeUnit.SECONDS));
+        assertTrue(lockService.tryLock(periodId));
+        assertEquals(0, semaphore.availablePermits(), "owner finally must release exactly one permit");
+        lockService.unlock(periodId);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void staleCleanupDoesNotReplaceUnregisteredHeldSemaphore() {
+        Integer periodId = 401;
+        Semaphore semaphore = lockService.acquirePeriodLock(periodId);
+        assertTrue(semaphore.tryAcquire());
+
+        assertFalse(lockService.forceReleaseStaleLock(periodId));
+        assertSame(semaphore, lockService.acquirePeriodLock(periodId));
+        assertEquals(0, semaphore.availablePermits());
+
+        semaphore.release();
     }
 
     @Test

@@ -53,45 +53,30 @@ public class SchedulingLockService {
         runningThreads.put(periodId, Thread.currentThread());
     }
 
-    /** Unregister the running thread for this period. Idempotent. */
+    /** Unregister the current running thread for this period. Idempotent. */
     public void unregisterRunningThread(Integer periodId) {
-        runningThreads.remove(periodId);
+        runningThreads.remove(periodId, Thread.currentThread());
     }
 
     /**
      * Cancel a running scheduling operation for the given period.
-     * 1. Interrupts the running thread (if any).
-     * 2. Removes the semaphore from the map and releases it, so a new
-     *    request can immediately acquire a fresh semaphore.
-     *
-     * <p>Unlike the old ReentrantLock-based forceUnlock, this does NOT
-     * wait for the previous thread to finish — it allows a new scheduling
-     * request to start right away while the old thread is still winding down.
+     * Interrupt only: the owner keeps the semaphore until its finally block releases it.
      */
     public void cancel(Integer periodId) {
         if (periodId == null) {
             log.warn("cancel called with null periodId — ignoring");
             return;
         }
-        // Interrupt the running thread so it stops wasting resources
-        Thread thread = runningThreads.remove(periodId);
+        Thread thread = runningThreads.get(periodId);
         if (thread != null && thread.isAlive()) {
             thread.interrupt();
             log.info("Interrupted running scheduling thread for period {}", periodId);
         }
-        // Release the lock so a new request can proceed immediately.
-        // Removing the entry first means the next caller gets a fresh Semaphore(1).
-        Semaphore sem = periodLocks.remove(periodId);
-        if (sem != null) {
-            sem.release();
-            log.info("Released scheduling lock for period {}", periodId);
-        }
     }
 
     /**
-     * Force-unlock for admin cleanup of stale locks (e.g. after a crashed scheduling run).
-     * @deprecated Use {@link #cancel(Integer)} instead — it interrupts the running thread
-     *             and releases the lock without waiting.
+     * Cancel a scheduling run by interrupting its owner.
+     * @deprecated Use {@link #cancel(Integer)} instead.
      */
     @Deprecated
     public void forceUnlock(Integer periodId) {
@@ -110,14 +95,26 @@ public class SchedulingLockService {
         if (thread != null && thread.isAlive()) {
             return false; // thread still alive — lock is valid
         }
-        // No thread or dead thread — remove and release the semaphore
-        Semaphore sem = periodLocks.remove(periodId);
-        if (sem != null) {
-            sem.release();
-            log.info("Force-released stale lock for period {} (thread={})", periodId,
-                    thread == null ? "none" : "dead");
-            return true;
+        Semaphore sem = periodLocks.get(periodId);
+        if (sem == null) {
+            return false;
         }
-        return false; // no semaphore to release
+        // No registered owner plus an unavailable permit may be a live thread between
+        // acquire and registration. Never replace or release its semaphore.
+        if (thread == null && sem.availablePermits() == 0) {
+            return false;
+        }
+        if (!periodLocks.remove(periodId, sem)) {
+            return false;
+        }
+        if (thread != null) {
+            runningThreads.remove(periodId, thread);
+        }
+        if (thread != null && sem.availablePermits() == 0) {
+            sem.release();
+        }
+        log.info("Removed stale lock for period {} (thread={})", periodId,
+                thread == null ? "none" : "dead");
+        return true;
     }
 }
