@@ -34,6 +34,40 @@ public class AuditHistoryService {
                 .map(AuditHistoryResponse::fromEntity);
     }
 
+    /**
+     * Filtered listing of audit history. All filter args are optional.
+     * Delegates to {@link AuditHistoryRepository#findAllFiltered} so the DB owns
+     * the WHERE clause — pagination + totals reflect the filtered set, not just
+     * the slice currently visible to the client.
+     */
+    public Page<AuditHistoryResponse> getAllAuditHistoryFiltered(
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            String tableName,
+            String actionRaw,
+            String search,
+            int page,
+            int size) {
+        String normalizedTable = (tableName == null || tableName.trim().isEmpty()) ? null : tableName.trim();
+        String normalizedSearch = (search == null || search.trim().isEmpty()) ? null : search.trim();
+        AuditHistory.ActionType actionEnum = null;
+        if (actionRaw != null && !actionRaw.isBlank()) {
+            // Mirror the summary endpoint's CREATE→INSERT mapping so the FE
+            // can keep using the user-facing labels (Tạo mới/Cập nhật/Xóa).
+            String normalized = actionRaw.trim().toUpperCase();
+            if (normalized.equals("CREATE")) normalized = "INSERT";
+            try {
+                actionEnum = AuditHistory.ActionType.valueOf(normalized);
+            } catch (IllegalArgumentException ignored) {
+                // Unknown action → ignore filter rather than 400.
+            }
+        }
+        Pageable pageable = PageRequest.of(page, size);
+        return auditHistoryRepository.findAllFiltered(
+                startDate, endDate, normalizedTable, actionEnum, normalizedSearch, pageable)
+                .map(AuditHistoryResponse::fromEntity);
+    }
+
     public List<AuditHistoryResponse> getAuditHistoryByTableAndRecord(String tableName, Object recordId) {
         Integer id = recordId instanceof Integer ? (Integer) recordId
                   : recordId instanceof String ? Integer.parseInt((String) recordId) : null;
@@ -83,6 +117,16 @@ public class AuditHistoryService {
      */
     public AuditHistorySummaryResponse getActionCountsBetween(LocalDateTime start, LocalDateTime end) {
         return buildSummary(auditHistoryRepository.countGroupedByActionBetween(start, end));
+    }
+
+    /**
+     * Distinct tableName values across the entire audit_history table.
+     * BUGFIX (was BE#C): feed the modules filter dropdown with the real set
+     * of modules so users can filter by table that may not appear on the
+     * current page slice.
+     */
+    public List<String> getDistinctTableNames() {
+        return auditHistoryRepository.findDistinctTableNames();
     }
 
     /**

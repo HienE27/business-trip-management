@@ -93,6 +93,14 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getPeriodSummaries()));
     }
 
+    @GetMapping("/periods/{periodId}")
+    @Operation(summary = "Lấy tóm tắt 1 kỳ lịch (scheduleCount + staffCount aggregate) — dùng cho KPI page")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_VIEW + "')")
+    public ResponseEntity<ApiResponse<DashboardResponse.PeriodSummary>> getPeriodSummary(
+            @PathVariable Integer periodId) {
+        return ResponseEntity.ok(ApiResponse.success(dashboardService.getPeriodSummary(periodId)));
+    }
+
     @GetMapping("/heatmap/period/{periodId}")
     @Operation(summary = "Lấy dữ liệu heatmap lịch trực")
     @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_AGGREGATE + "')")

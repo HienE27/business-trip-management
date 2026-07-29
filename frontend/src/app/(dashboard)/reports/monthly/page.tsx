@@ -69,37 +69,26 @@ function ReportsMonthlyContent() {
     try {
       setChecking(true);
       setMessage(null);
-      const [statsRes, scheduleData] = await Promise.allSettled([
+      // BUGFIX (was BE#7): the previous code fetched the full paginated
+      // schedule list and read its length to derive `scheduleCount` /
+      // `staffCount` — for any period with more than one page of schedules
+      // those KPIs only reflected the first page slice. Use the dedicated
+      // single-period aggregate endpoint instead.
+      const [statsRes, periodRes] = await Promise.allSettled([
         api.get<ShiftStatistics>("/dashboard/shifts", { periodId }),
-        api.get<unknown>(`/schedules/period/${periodId}`),
+        api.getPeriodSummary(periodId),
       ]);
       if (statsRes.status === "fulfilled") {
         setStats(statsRes.value ?? null);
       }
-      if (scheduleData.status === "fulfilled") {
-        // Extract schedules from paginated response if needed
-        const scheduleValue = scheduleData.value;
-        const schedulesArray = (scheduleValue && typeof scheduleValue === "object" && "content" in scheduleValue)
-          ? (scheduleValue as { content: unknown[] }).content ?? []
-          : Array.isArray(scheduleValue) ? scheduleValue : [];
-        setScheduleCount(schedulesArray.length);
-        // Staff count from active endpoint filtered by period is approximated via schedule unique staff.
-        // BUGFIX: the Schedule object nests the staff under `.staff` (an object with `.id`),
-        // not as a top-level `.staffId`. We therefore read both with a fallback so the KPI
-        // shows the real assigned-staff total instead of `0` whenever the server
-        // returns the nested shape (the documented one).
-        const uniqueStaff = new Set<string>();
-        for (const s of schedulesArray as Record<string, unknown>[]) {
-          const direct = s["staffId"];
-          const nested = (s["staff"] as { id?: number | string } | undefined)?.id;
-          const id = direct ?? nested;
-          if (id != null) uniqueStaff.add(String(id));
-        }
-        setStaffCount(uniqueStaff.size);
+      if (periodRes.status === "fulfilled" && periodRes.value) {
+        const summary = periodRes.value;
+        setScheduleCount(summary.scheduleCount ?? 0);
+        setStaffCount(summary.staffCount ?? 0);
         setScheduleLoaded(true);
       } else {
-        // Failed to load schedules — show "—" in dependent KPIs instead of
-        // stale or zero values from a previous period. Do NOT clear
+        // Failed to load period summary — show "—" in dependent KPIs instead
+        // of stale or zero values from a previous period. Do NOT clear
         // scheduleCount/staffCount here so a partial render before the
         // second fetch still has a sensible value, but do flip the flag so
         // the UI knows to display the placeholder.

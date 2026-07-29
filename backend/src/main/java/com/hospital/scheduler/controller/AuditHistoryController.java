@@ -26,12 +26,28 @@ public class AuditHistoryController {
     private final AuditHistoryService auditHistoryService;
 
     @GetMapping
-    @Operation(summary = "Lấy tất cả lịch sử thay đổi (có phân trang)")
+    @Operation(summary = "Lấy tất cả lịch sử thay đổi (có phân trang, hỗ trợ filter)")
     @PreAuthorize("hasAuthority('" + Permissions.AUDIT_VIEW + "')")
     public ResponseEntity<ApiResponse<Page<AuditHistoryResponse>>> getAll(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        return ResponseEntity.ok(ApiResponse.success(auditHistoryService.getAllAuditHistory(page, size)));
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(required = false) String module,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String search) {
+        // BUGFIX (BE#A): all filter args are optional. If every filter is null
+        // we still fall back to the unfiltered listing so the legacy call
+        // `GET /audit-history?page=&size=` keeps working unchanged.
+        boolean noFilter = startDate == null && endDate == null
+                && (module == null || module.isBlank())
+                && (action == null || action.isBlank())
+                && (search == null || search.isBlank());
+        Page<AuditHistoryResponse> result = noFilter
+                ? auditHistoryService.getAllAuditHistory(page, size)
+                : auditHistoryService.getAllAuditHistoryFiltered(
+                        startDate, endDate, module, action, search, page, size);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     @GetMapping("/table/{tableName}/record/{recordId}")
@@ -72,6 +88,13 @@ public class AuditHistoryController {
         }
         return ResponseEntity.ok(ApiResponse.success(
                 auditHistoryService.getAuditHistoryByDateRange(startDate, endDate, page, size)));
+    }
+
+    @GetMapping("/modules")
+    @Operation(summary = "Lấy danh sách module (tableName) duy nhất có audit history")
+    @PreAuthorize("hasAuthority('" + Permissions.AUDIT_VIEW + "')")
+    public ResponseEntity<ApiResponse<List<String>>> getModules() {
+        return ResponseEntity.ok(ApiResponse.success(auditHistoryService.getDistinctTableNames()));
     }
 
     @GetMapping("/summary")

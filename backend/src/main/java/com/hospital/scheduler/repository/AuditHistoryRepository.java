@@ -35,6 +35,50 @@ public interface AuditHistoryRepository extends JpaRepository<AuditHistory, Inte
            countQuery = "SELECT COUNT(ah) FROM AuditHistory ah")
     Page<AuditHistory> findAllWithChangedBy(Pageable pageable);
 
+    /**
+     * Filtered listing of audit history with all client-side filters pushed to the DB layer
+     * so pagination + totals stay accurate (MIRRORS the page/search experience).
+     *
+     * All filter parameters are nullable: pass null to skip a filter. Date range is
+     * inclusive start, exclusive end (matches the summary endpoint convention).
+     * Search matches LIKE %term% across user name, user id, table name, action type, record id.
+     */
+    @Query(value = "SELECT ah FROM AuditHistory ah LEFT JOIN FETCH ah.changedBy " +
+                   "WHERE (:start IS NULL OR ah.createdAt >= :start) " +
+                   "AND (:end IS NULL OR ah.createdAt < :end) " +
+                   "AND (:tableName IS NULL OR ah.tableName = :tableName) " +
+                   "AND (:action IS NULL OR ah.actionType = :action) " +
+                   "AND (" +
+                   "  :search IS NULL OR :search = '' OR " +
+                   "  LOWER(COALESCE(ah.changedBy.fullName, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                   "  CAST(ah.changedBy.id AS string) LIKE CONCAT('%', :search, '%') OR " +
+                   "  LOWER(ah.tableName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                   "  LOWER(CAST(ah.actionType AS string)) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                   "  CAST(ah.recordId AS string) LIKE CONCAT('%', :search, '%')" +
+                   ") " +
+                   "ORDER BY ah.createdAt DESC",
+           countQuery = "SELECT COUNT(ah) FROM AuditHistory ah " +
+                   "LEFT JOIN ah.changedBy cb " +
+                   "WHERE (:start IS NULL OR ah.createdAt >= :start) " +
+                   "AND (:end IS NULL OR ah.createdAt < :end) " +
+                   "AND (:tableName IS NULL OR ah.tableName = :tableName) " +
+                   "AND (:action IS NULL OR ah.actionType = :action) " +
+                   "AND (" +
+                   "  :search IS NULL OR :search = '' OR " +
+                   "  LOWER(COALESCE(cb.fullName, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                   "  CAST(cb.id AS string) LIKE CONCAT('%', :search, '%') OR " +
+                   "  LOWER(ah.tableName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                   "  LOWER(CAST(ah.actionType AS string)) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                   "  CAST(ah.recordId AS string) LIKE CONCAT('%', :search, '%')" +
+                   ")")
+    Page<AuditHistory> findAllFiltered(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("tableName") String tableName,
+            @Param("action") AuditHistory.ActionType action,
+            @Param("search") String search,
+            Pageable pageable);
+
     @Query("SELECT ah FROM AuditHistory ah WHERE ah.tableName = :tableName AND ah.recordId = :recordId ORDER BY ah.createdAt DESC")
     Page<AuditHistory> findByTableNameAndRecordId(
             @Param("tableName") String tableName,
@@ -45,6 +89,16 @@ public interface AuditHistoryRepository extends JpaRepository<AuditHistory, Inte
     Page<AuditHistory> findByChangedBy(@Param("changedById") Integer changedById, Pageable pageable);
 
     List<AuditHistory> findAllByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    /**
+     * Distinct table names recorded in the audit log.
+     * BUGFIX (was BE#C): the modules filter dropdown used to be derived from
+     * the current page slice, which hid modules absent from the visible page.
+     * This query covers the whole table so the user can pick any module they
+     * have audit history for.
+     */
+    @Query("SELECT DISTINCT ah.tableName FROM AuditHistory ah ORDER BY ah.tableName ASC")
+    List<String> findDistinctTableNames();
 
     /**
      * Count audit history records grouped by action type.

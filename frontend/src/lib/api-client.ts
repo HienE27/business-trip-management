@@ -404,6 +404,14 @@ class ApiClient {
     return this.request<Record<string, number>>("/staff/status-counts");
   }
 
+  /**
+   * Aggregate counts grouped by specialty name (entire DB, no pagination).
+   * Returns `{ "Ngoại": 5, "Nội": 4, ... }` for specialty dashboard cards.
+   */
+  async getStaffSpecialtyCounts(): Promise<ApiResponse<Record<string, number>>> {
+    return this.request<Record<string, number>>("/staff/specialty-counts");
+  }
+
   async searchStaff(params: StaffSearchParams): Promise<ApiResponse<Staff[]>> {
     const query = new URLSearchParams();
     if (params.keyword) query.set("keyword", params.keyword);
@@ -632,6 +640,17 @@ class ApiClient {
 
   async getPeriodSummaries(): Promise<ApiResponse<PeriodSummary[]>> {
     return this.request<PeriodSummary[]>("/dashboard/periods");
+  }
+
+  /**
+   * Single-period summary with `scheduleCount` + `staffCount` computed from a
+   * single aggregate query. BUGFIX (was BE#7): the /reports/monthly page used
+   * to fetch the full schedule list and read its length, which only counted
+   * the first page slice. Use this for accurate KPIs instead.
+   */
+  async getPeriodSummary(periodId: number): Promise<PeriodSummary> {
+    const res = await this.request<PeriodSummary>(`/dashboard/periods/${periodId}`);
+    return res.data as unknown as PeriodSummary;
   }
 
   async getHeatmapData(periodId: number): Promise<ApiResponse<Record<string, unknown>>> {
@@ -1211,8 +1230,6 @@ class ApiClient {
     l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
     holidayMode: string;
     removedShiftTypes: string[];
-    l04CrossSpecialty?: boolean;
-    l04CrossSpecialtyRatio?: number;
     l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
   }): Promise<ApiResponse<{
     enabled: boolean;
@@ -1221,8 +1238,6 @@ class ApiClient {
     l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
     holidayMode: string;
     removedShiftTypes: string[];
-    l04CrossSpecialty?: boolean;
-    l04CrossSpecialtyRatio?: number;
     l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
   }>> {
     return this.request<{
@@ -1232,8 +1247,6 @@ class ApiClient {
       l01MaxPerWeek: number; l02MaxPerWeek: number; l03MaxPerWeek: number; l04MaxPerWeek: number;
       holidayMode: string;
       removedShiftTypes: string[];
-      l04CrossSpecialty?: boolean;
-      l04CrossSpecialtyRatio?: number;
       l04BalanceStrategy?: "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR";
     }>("/auto-schedule/auto-gen-config", {
       method: "PUT",
@@ -1256,8 +1269,6 @@ class ApiClient {
       l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
 	    holidayMode: string;
 	    removedShiftTypes: string[];
-	    l04CrossSpecialty: boolean;
-	    l04CrossSpecialtyRatio: number;
 	    l04AllowedSpecialties: string[];
 	    l01AllowedSpecialties: string[];
 	    l02AllowedSpecialties: string[];
@@ -1483,12 +1494,38 @@ class ApiClient {
   }
 
   // Audit History
-  async getAuditHistory(page = 0, size = 50): Promise<AuditHistoryPage> {
+  /**
+   * Paginated audit listing with optional server-side filters. BUGFIX (was
+   * BE#A): every filter is forwarded as query params so pagination + totals
+   * reflect the filtered set, not just the slice currently in memory. Pass
+   * `null` / `undefined` / empty for any field to skip that filter.
+   *
+   * Action mapping is handled on the backend (CREATE → INSERT) so the
+   * frontend can keep using the user-facing labels.
+   */
+  async getAuditHistory(
+    page = 0,
+    size = 50,
+    filters?: {
+      startDate?: string;
+      endDate?: string;
+      module?: string;
+      action?: string;
+      search?: string;
+    },
+  ): Promise<AuditHistoryPage> {
+    const qs = new URLSearchParams();
+    qs.set("page", String(page));
+    qs.set("size", String(size));
+    if (filters?.startDate) qs.set("startDate", filters.startDate);
+    if (filters?.endDate)   qs.set("endDate",   filters.endDate);
+    if (filters?.module?.trim())    qs.set("module", filters.module.trim());
+    if (filters?.action?.trim())    qs.set("action", filters.action.trim());
+    if (filters?.search?.trim())    qs.set("search", filters.search.trim());
     // Backend returns ApiResponse<Page<AuditHistoryResponse>> with Spring Data Page structure:
     // { success: true, data: { content: [], totalElements, totalPages, number, size, first, last, empty }, timestamp }
-    // The `request` method already returns the parsed ApiResponse wrapper, so res.data is the Page object.
     const res = await this.request<{ content: AuditHistory[]; totalElements: number; totalPages: number; number: number; size: number; first: boolean; last: boolean; empty: boolean }>(
-      `/audit-history?page=${page}&size=${size}`
+      `/audit-history?${qs.toString()}`
     );
     return res.data as unknown as AuditHistoryPage;
   }
@@ -1529,6 +1566,17 @@ class ApiClient {
 
   async deleteAuditHistory(id: number): Promise<void> {
     await this.request<void>(`/audit-history/${id}`, { method: "DELETE" });
+  }
+
+  /**
+   * Distinct `tableName` values across the entire audit_history table.
+   * BUGFIX (was BE#C): used to populate the modules dropdown so users can
+   * pick any module that has audit history — not just the ones visible on
+   * the current page slice.
+   */
+  async getAuditHistoryModules(): Promise<string[]> {
+    const res = await this.request<string[]>(`/audit-history/modules`);
+    return (res.data ?? res) as unknown as string[];
   }
 
   async deleteMultipleAuditHistory(ids: number[]): Promise<number> {

@@ -226,18 +226,28 @@ function ReportsConflictsContent() {
                           </div>
                         ))}
                       </div>
-                      {hiddenCount > 0 && (
+                      {/* BUGFIX (was FE#9): the toggle button used to only add to
+                          `expandedGroups`, so once expanded there was no way to
+                          collapse without reloading. Now we toggle add/remove
+                          and switch the label + icon between "Hiện thêm" and
+                          "Thu gọn" so the action is symmetrical. */}
+                      {(hiddenCount > 0 || isExpanded) && (
                         <button
                           type="button"
                           onClick={() => setExpandedGroups(prev => {
                             const next = new Set(prev);
-                            next.add(type);
+                            if (next.has(type)) next.delete(type);
+                            else next.add(type);
                             return next;
                           })}
                           className="mt-3 w-full flex items-center justify-center gap-1.5 text-[12px] font-medium text-primary hover:bg-primary/5 rounded-md py-2 transition-colors"
                         >
-                          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">expand_more</span>
-                          Hiện thêm {hiddenCount} xung đột
+                          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                            {isExpanded ? "expand_less" : "expand_more"}
+                          </span>
+                          {isExpanded
+                            ? "Thu gọn"
+                            : `Hiện thêm ${hiddenCount} xung đột`}
                         </button>
                       )}
                     </div>

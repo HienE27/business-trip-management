@@ -1,5 +1,6 @@
 package com.hospital.scheduler.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import java.time.LocalDate;
 import java.util.Map;
@@ -37,9 +38,13 @@ public class DashboardResponse {
     @AllArgsConstructor
     @Builder
     public static class ShiftStatistics {
+        @JsonProperty("L01Count")
         private long L01Count;
+        @JsonProperty("L02Count")
         private long L02Count;
+        @JsonProperty("L03Count")
         private long L03Count;
+        @JsonProperty("L04Count")
         private long L04Count;
     }
 
@@ -64,9 +69,13 @@ public class DashboardResponse {
         private Integer staffId;
         private String staffName;
         private long scheduleCount;
+        @JsonProperty("L01Count")
         private long L01Count;
+        @JsonProperty("L02Count")
         private long L02Count;
+        @JsonProperty("L03Count")
         private long L03Count;
+        @JsonProperty("L04Count")
         private long L04Count;
         private long leaveDays;
     }

@@ -1,5 +1,6 @@
 package com.hospital.scheduler.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -31,15 +32,19 @@ public class StaffShiftStatistics {
     private int totalShifts;
 
     @Schema(description = "Number of L01 shifts (24/24 duty)", example = "5")
+    @JsonProperty("L01Count")
     private int L01Count;
 
     @Schema(description = "Number of L02 shifts (thông tầm)", example = "4")
+    @JsonProperty("L02Count")
     private int L02Count;
 
     @Schema(description = "Number of L03 shifts (phòng khám dịch vụ)", example = "3")
+    @JsonProperty("L03Count")
     private int L03Count;
 
     @Schema(description = "Number of L04 shifts (phòng khám chuyên gia)", example = "3")
+    @JsonProperty("L04Count")
     private int L04Count;
 
     @Schema(description = "Total hours worked (L01=24h, L02=8h, L03=4h, L04=4h)", example = "168.0")

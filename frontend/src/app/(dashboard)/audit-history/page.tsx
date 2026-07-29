@@ -111,6 +111,33 @@ function getDateRange(range: DateRange): { from?: string; to?: string } {
   }
 }
 
+/**
+ * Build the [startDate, endDate) pair the backend expects from an inclusive
+ * YYYY-MM-DD range. The backend's filter is half-open (`createdAt >= :start
+ * AND createdAt < :end`), so we shift `to` forward by one day.
+ *
+ * BUGFIX (was FE#4): the previous inline implementation in both
+ * `activeFilters` and `fetchSummary` relied on JavaScript's `Date` constructor
+ * rolling over (e.g. `new Date(2024, 11, 32)` → "2025-01-01"). That works
+ * for all valid dates but is hard to read and easy to get wrong on review.
+ * Centralising it here also dedupes the two call sites and gives a single
+ * place to attach a comment explaining the inclusive-end convention.
+ */
+function toBackendDateRange(from?: string, to?: string): { startDate?: string; endDate?: string } {
+  if (!from || !to) return {};
+  // Shift `to` forward by one day using UTC math so the JS Date constructor
+  // doesn't depend on the user's local timezone (and leap years roll over
+  // correctly: 2024-02-29 + 1 day → 2024-03-01).
+  const [y, m, d] = to.split("-").map(Number);
+  const next = new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1));
+  next.setUTCDate(next.getUTCDate() + 1);
+  const endIso = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+  return {
+    startDate: `${from}T00:00:00`,
+    endDate:   `${endIso}T00:00:00`,
+  };
+}
+
 function subDateStr(days: number) {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -451,7 +478,9 @@ export default function AuditHistoryPage() {
   const [pageSize, setPageSize] = useState(50);
   const [selected, setSelected] = useState<AuditHistory | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // BUGFIX (was FE#5): the previous `searchRef` here was a redundant 300ms
+  // debounce on setPage(0) — the page-reset useEffect below already resets
+  // the page when `debouncedSearch` changes, so this ref was dead code.
   const toast = useToast();
 
   // selected items for bulk delete
@@ -488,10 +517,47 @@ export default function AuditHistoryPage() {
     return () => document.removeEventListener("keydown", handler);
   }, [deleteDialogType, deleting]);
 
+  // Computed date-range — declared BEFORE any callbacks that read `df` so the
+  // hook order is stable and React's "used before defined" check passes.
+  const df = useMemo(() =>
+    dateRange === "custom" ? { from: dateFrom, to: dateTo } : getDateRange(dateRange),
+    [dateRange, dateFrom, dateTo]);
+
+  // BUGFIX (was FE#5): the previous two parallel debounces (summarySearch +
+  // searchRef) collapsed into a single `debouncedSearch` that drives BOTH the
+  // list and the summary. A 7-keystroke typing burst like "Nguyễn" now
+  // produces one backend roundtrip instead of seven. Declared BEFORE
+  // activeFilters + fetchData so they can read it in their deps.
+  const debouncedSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
+    debouncedSearchRef.current = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => {
+      if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
+    };
+  }, [search]);
+
+  // BUGFIX (was BE#A): the list endpoint now accepts every filter so pagination
+  // + totals are calculated against the filtered set, not the current page slice.
+  // `activeFilters` is the memoized snapshot of the active filter state and is a
+  // dep of the `fetchData` callback so any filter change rebinds it and the
+  // existing `[page, pageSize, fetchData]` effect re-fires below.
+  const activeFilters = useMemo(() => {
+    const f: { startDate?: string; endDate?: string; module?: string; action?: string; search?: string } = {
+      ...toBackendDateRange(df.from, df.to),
+    };
+    if (module.trim()) f.module = module.trim();
+    if (action)        f.action = action;
+    if (debouncedSearch.trim()) f.search = debouncedSearch.trim();
+    return f;
+  }, [df.from, df.to, module, action, debouncedSearch]);
+
   const fetchData = useCallback(async (pageNum: number, size: number, refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     try {
-      const data = await api.getAuditHistory(pageNum, size);
+      const data = await api.getAuditHistory(pageNum, size, activeFilters);
       setPageData(data ?? null);
     } catch (err) {
       toast.error(getErrorMessage(err, "Không thể tải nhật ký."));
@@ -500,33 +566,14 @@ export default function AuditHistoryPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [toast]);
-
-  // Computed date-range — declared BEFORE fetchSummary so the callback can
-  // depend on df.from / df.to without tripping React's "used before defined"
-  // hook order check.
-  const df = useMemo(() =>
-    dateRange === "custom" ? { from: dateFrom, to: dateTo } : getDateRange(dateRange),
-    [dateRange, dateFrom, dateTo]);
+  }, [toast, activeFilters]);
 
   // KPI summary is independent of pagination. The summary must mirror every
   // filter on the page (date range + module + action + search) so the tiles
   // stay accurate as the user narrows the result set.
   //
-  // Search input is debounced via a ref-held timer so each keystroke does not
-  // fire a separate request — only the value after ~300ms of idle is fetched.
-  const summarySearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [summarySearch, setSummarySearch] = useState("");
-
-  // Push the current `search` text into `summarySearch` with a debounce so
-  // typing "Nguyễn" only fires one summary request, not seven.
-  useEffect(() => {
-    if (summarySearchRef.current) clearTimeout(summarySearchRef.current);
-    summarySearchRef.current = setTimeout(() => setSummarySearch(search), 300);
-    return () => {
-      if (summarySearchRef.current) clearTimeout(summarySearchRef.current);
-    };
-  }, [search]);
+  // (debouncedSearch + its ref are declared above; this section just consumes
+  //  the value inside fetchSummary so the request body mirrors the list.)
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -536,20 +583,11 @@ export default function AuditHistoryPage() {
         module?: string;
         action?: string;
         search?: string;
-      } = {};
+      } = { ...toBackendDateRange(df.from, df.to) };
 
-      if (df.from && df.to) {
-        // Backend treats endDate as exclusive — pass the day after so the
-        // inclusive end date still shows up in the totals.
-        const [y, m, d] = df.to.split("-").map(Number);
-        const endDate = new Date(y!, (m ?? 1) - 1, (d ?? 1) + 1);
-        const endIso = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
-        params.startDate = `${df.from}T00:00:00`;
-        params.endDate = `${endIso}T00:00:00`;
-      }
       if (module.trim()) params.module = module.trim();
       if (action)        params.action = action;
-      if (summarySearch.trim()) params.search = summarySearch.trim();
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
 
       const data = await api.getAuditHistorySummaryFiltered(params);
       setSummaryData(data);
@@ -557,7 +595,7 @@ export default function AuditHistoryPage() {
       // Don't toast — KPI is non-critical. Just zero out so the UI doesn't lie.
       setSummaryData(null);
     }
-  }, [df.from, df.to, module, action, summarySearch]);
+  }, [df.from, df.to, module, action, debouncedSearch]);
 
   useEffect(() => {
     fetchData(page, pageSize);
@@ -588,15 +626,6 @@ useEffect(() => {
     });
   }, [records, search, module, action, df]);
 
-  const grouped = useMemo(() => {
-    const g: Record<string, AuditHistory[]> = {};
-    for (const r of filtered) {
-      const dk = r.createdAt.split("T")[0];
-      (g[dk] ??= []).push(r);
-    }
-    return Object.entries(g).sort(([a], [b]) => b.localeCompare(a));
-  }, [filtered]);
-
   // Build a per-page date-grouped view from the *current* page only.
   // `records` is already paginated by the backend (page * size).
   // No need to slice again — backend returns exactly `size` items for this page.
@@ -623,8 +652,42 @@ useEffect(() => {
     delete: summaryData?.delete ?? 0,
   }), [summaryData]);
 
-  const modules = useMemo(() => Array.from(new Set(records.map((r) => r.tableName))), [records]);
-  const hasFilters = !!(search || module || action || dateRange !== "30d");
+  // BUGFIX (was BE#C): module dropdown options used to come from the current
+  // page slice, so a module absent from page N was hidden in the dropdown —
+  // making it impossible to filter by it without first scrolling pages.
+  // Now we fetch the full distinct `tableName` set once on mount (and after
+  // a "delete all" wipes the table).
+  const [availableModules, setAvailableModules] = useState<string[]>([]);
+  const fetchModules = useCallback(async () => {
+    try {
+      const list = await api.getAuditHistoryModules();
+      setAvailableModules(Array.isArray(list) ? list : []);
+    } catch {
+      // Non-critical: fall back to whatever modules are visible on the
+      // current page so the dropdown never goes empty.
+      setAvailableModules([]);
+    }
+  }, []);
+  useEffect(() => {
+    void fetchModules();
+  }, [fetchModules]);
+  // Defer to the DB-derived list; fall back to whatever the current page
+  // happens to contain while the network call is in flight (or if it fails).
+  const modules = availableModules.length > 0
+    ? availableModules
+    : Array.from(new Set(records.map((r) => r.tableName)));
+
+  // BUGFIX (was FE#6): `dateRange === "30d"` is the default, so it must not
+  // count as a filter. For "custom", the user has to actually enter BOTH dates
+  // before it counts (otherwise the dropdown shows the "Xóa bộ lọc" button +
+  // empty-state copy even though the user hasn't picked anything yet).
+  const hasFilters = !!(
+    search.trim() ||
+    module ||
+    action ||
+    (dateRange !== "30d" && dateRange !== "custom") ||
+    (dateRange === "custom" && dateFrom && dateTo)
+  );
 
   function clearFilters() {
     setSearch(""); setModule(""); setAction(""); setDateRange("30d");
@@ -632,9 +695,10 @@ useEffect(() => {
   }
 
   function onSearch(val: string) {
+    // BUGFIX (was FE#5): dropped the redundant 300ms debounce on setPage(0).
+    // The page-reset useEffect below watches `debouncedSearch` and handles
+    // the reset on its own.
     setSearch(val);
-    if (searchRef.current) clearTimeout(searchRef.current);
-    searchRef.current = setTimeout(() => setPage(0), 300);
   }
 
   function toggleGroup(dateKey: string) {
@@ -658,6 +722,9 @@ useEffect(() => {
     setDeleteDialogType("single");
   }
 
+  // BUGFIX (was BE#B): every delete path now refreshes the KPI summary so the
+  // tiles stop showing stale totals after a row is removed. Was previously
+  // missing for single / bulk / date-range deletes — only "all" refreshed.
   async function handleConfirmDelete() {
     if (!deleteDialogType || deleting) return;
     setDeleting(true);
@@ -668,6 +735,7 @@ useEffect(() => {
         setDeleteDialogType(null);
         setDeleteTargetId(null);
         await fetchData(page, pageSize);
+        await fetchSummary();
       } else if (deleteDialogType === "bulk") {
         const ids = Array.from(selectedIds);
         const count = await api.deleteMultipleAuditHistory(ids);
@@ -675,6 +743,7 @@ useEffect(() => {
         setDeleteDialogType(null);
         setSelectedIds(new Set());
         await fetchData(page, pageSize);
+        await fetchSummary();
       } else if (deleteDialogType === "date-range") {
         const count = await api.deleteAuditHistoryByDateRange(deleteDateFrom, deleteDateTo);
         toast.success(`Đã xóa ${count} bản ghi nhật ký.`);
@@ -682,6 +751,7 @@ useEffect(() => {
         setDeleteDateFrom("");
         setDeleteDateTo("");
         await fetchData(page, pageSize);
+        await fetchSummary();
       } else if (deleteDialogType === "all") {
         const count = await api.deleteAllAuditHistory();
         toast.success(`Đã xóa toàn bộ ${count} bản ghi nhật ký.`);
@@ -690,6 +760,9 @@ useEffect(() => {
         setSelectedIds(new Set());
         await fetchData(page, pageSize);
         await fetchSummary();
+        // BUGFIX (was BE#C): whole-table wipe invalidates the cached modules
+        // list — re-fetch so the dropdown reflects the now-empty table.
+        await fetchModules();
       }
     } catch (err) {
       toast.error(getErrorMessage(err, "Lỗi xóa nhật ký."));
@@ -715,7 +788,11 @@ useEffect(() => {
     setSelectedIds(new Set());
   }
 
-  useEffect(() => { setPage(0); }, [search, module, action, dateRange, dateFrom, dateTo]);
+  // BUGFIX (was FE#5): page reset now waits for the debounced search instead
+  // of the raw value, so a 7-keystroke typing burst resets the page once
+  // (after 300ms idle) rather than 7 times. Other filter changes still
+  // reset immediately because they typically change via click, not typing.
+  useEffect(() => { setPage(0); }, [debouncedSearch, module, action, dateRange, dateFrom, dateTo]);
 
   const DATE_OPTS: Array<{ v: DateRange; l: string }> = [
     { v: "today",     l: "Hôm nay" },
@@ -802,6 +879,9 @@ useEffect(() => {
                       setDeleteDateFrom("");
                       setDeleteDateTo("");
                       await fetchData(page, pageSize);
+                      // BUGFIX (was BE#B): refresh KPI summary alongside the
+                      // data list so the tiles don't lag behind reality.
+                      await fetchSummary();
                     } catch (err) {
                       toast.error(getErrorMessage(err, "Lỗi xóa."));
                     } finally {

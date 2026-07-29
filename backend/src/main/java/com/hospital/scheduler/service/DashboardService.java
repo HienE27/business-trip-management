@@ -7,6 +7,7 @@ import com.hospital.scheduler.dto.response.StaffDailyCount;
 import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.entity.Schedule;
 import com.hospital.scheduler.entity.ScheduleExchange;
+import com.hospital.scheduler.entity.SchedulePeriod;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.*;
 import jakarta.annotation.PostConstruct;
@@ -275,6 +276,38 @@ public class DashboardService {
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * BUGFIX (was BE#7): the /reports/monthly page used to fetch the full
+     * schedule list (page slice) and derive scheduleCount + staffCount from
+     * it. For a period with thousands of schedules that returns only the
+     * first page's worth. This endpoint serves the aggregate directly so the
+     * KPIs always reflect the entire period.
+     */
+    public DashboardResponse.PeriodSummary getPeriodSummary(int periodId) {
+        SchedulePeriod period = periodRepository.findById(periodId)
+                .orElseThrow(() -> new com.hospital.scheduler.exception.ResourceNotFoundException(
+                        "Không tìm thấy kỳ lịch với id: " + periodId));
+
+        long totalSchedules = 0;
+        long distinctStaff = 0;
+        for (Object[] row : scheduleRepository.aggregateByPeriod()) {
+            if (((Number) row[0]).intValue() == periodId) {
+                totalSchedules = ((Number) row[1]).longValue();
+                distinctStaff = ((Number) row[2]).longValue();
+                break;
+            }
+        }
+        return DashboardResponse.PeriodSummary.builder()
+                .periodId(period.getId())
+                .periodName(period.getPeriodName())
+                .startDate(period.getStartDate())
+                .endDate(period.getEndDate())
+                .status(period.getStatus().name())
+                .scheduleCount((int) totalSchedules)
+                .staffCount((int) distinctStaff)
+                .build();
     }
 
     public Map<String, Object> getScheduleHeatmapData(Integer periodId) {
