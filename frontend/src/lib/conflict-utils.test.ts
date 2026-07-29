@@ -6,6 +6,7 @@ import {
   filterConflictsBySeverity,
   sortConflictsBySeverity,
   groupConflictsByStaff,
+  normalizeConflictReasons,
 } from "./conflict-utils";
 import type { ConflictItem } from "@/types/schedule";
 
@@ -194,5 +195,33 @@ describe("groupConflictsByStaff", () => {
     expect(result.has("Bs. B")).toBe(true);
     expect(result.has("Bs. C")).toBe(true);
     expect(result.size).toBe(3);
+  });
+});
+
+// REPORTS-CONFLICT-001: normalizeConflictReasons must sort + deduplicate so
+// the same conflict set collapses into one bucket regardless of order.
+describe("normalizeConflictReasons", () => {
+  it("sorts reasons alphabetically using Vietnamese collation", () => {
+    expect(normalizeConflictReasons(["B", "A", "C"])).toEqual(["A", "B", "C"]);
+  });
+
+  it("deduplicates repeated reasons", () => {
+    expect(normalizeConflictReasons(["A", "A", "B"])).toEqual(["A", "B"]);
+  });
+
+  it("trims whitespace and drops empty strings", () => {
+    expect(normalizeConflictReasons(["  A  ", "", "  ", "B"])).toEqual(["A", "B"]);
+  });
+
+  it("returns identical arrays for the same set in different orders (REPORTS-CONFLICT-001)", () => {
+    const a = normalizeConflictReasons(["Trực 24/24", "Nghỉ phép", "Back-to-back"]);
+    const b = normalizeConflictReasons(["Back-to-back", "Trực 24/24", "Nghỉ phép"]);
+    expect(a).toEqual(b);
+    expect(a.join(" + ")).toBe(b.join(" + "));
+  });
+
+  it("returns empty array for empty / undefined input", () => {
+    expect(normalizeConflictReasons(undefined)).toEqual([]);
+    expect(normalizeConflictReasons([])).toEqual([]);
   });
 });

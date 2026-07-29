@@ -47,6 +47,13 @@ function ReportsMonthlyContent() {
   // the misleading "0" that previously made the report look broken whenever
   // the user wasn't authenticated or the API was unreachable.
   const [scheduleLoaded, setScheduleLoaded] = useState(false);
+  // REPORTS-ERROR-001: distinguish "fully loaded", "partial" (some endpoints
+  // succeeded), "empty" (everything loaded but zero rows) and "error"
+  // (everything failed) so the message banner can describe exactly what is
+  // missing.
+  const [reportState, setReportState] = useState<"loading" | "ready" | "partial" | "empty" | "error">(
+    "loading",
+  );
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -76,6 +83,19 @@ function ReportsMonthlyContent() {
   const fetchReport = useCallback(async (periodId: number, signal?: AbortSignal) => {
     const reqId = ++reqIdRef.current;
     const isStale = () => reqId !== reqIdRef.current || !!signal?.aborted;
+    // REPORTS-MONTHLY-002: clear every dependent field up-front so the
+    // previous period's numbers can never leak through while the new fetch
+    // is in flight. Without this, switching from a busy period to an empty
+    // one would briefly show the old scheduleCount / staffCount.
+    setStats(null);
+    setScheduleCount(0);
+    setStaffCount(0);
+    setCoverageRate(null);
+    setScheduleLoaded(false);
+    setReportState("loading");
+    let statsError: string | null = null;
+    let periodError: string | null = null;
+    let coverageErrorMsg: string | null = null;
     try {
       setChecking(true);
       setMessage(null);
@@ -86,11 +106,13 @@ function ReportsMonthlyContent() {
       // single-period aggregate endpoint instead.
       const [statsRes, periodRes] = await Promise.allSettled([
         api.get<ShiftStatistics>("/dashboard/shifts", { periodId }, { signal }),
-        api.getPeriodSummary(periodId),
+        api.getPeriodSummary(periodId, { signal }),
       ]);
       if (isStale()) return;
       if (statsRes.status === "fulfilled") {
         setStats(statsRes.value ?? null);
+      } else {
+        statsError = getErrorMessage(statsRes.reason, "Không tải được thống kê ca trực.");
       }
       if (periodRes.status === "fulfilled" && periodRes.value) {
         const summary = periodRes.value;
@@ -98,12 +120,10 @@ function ReportsMonthlyContent() {
         setStaffCount(summary.staffCount ?? 0);
         setScheduleLoaded(true);
       } else {
-        // Failed to load period summary — show "—" in dependent KPIs instead
-        // of stale or zero values from a previous period. Do NOT clear
-        // scheduleCount/staffCount here so a partial render before the
-        // second fetch still has a sensible value, but do flip the flag so
-        // the UI knows to display the placeholder.
-        setScheduleLoaded(false);
+        periodError = getErrorMessage(
+          periodRes.status === "rejected" ? periodRes.reason : undefined,
+          "Không tải được tóm tắt kỳ lịch.",
+        );
       }
       // Coverage rate is computed server-side via SchedulePeriodService.dryRunPublish()
       // (which calls ConflictDetectionService.validateStaffingCoverage). The endpoint
@@ -126,7 +146,7 @@ function ReportsMonthlyContent() {
             totalDays?: number;
             dailyCoverage?: Record<string, unknown>;
           };
-        }>(`/periods/${periodId}/publish/dry-run`);
+        }>(`/periods/${periodId}/publish/dry-run`, undefined, { signal });
         if (isStale()) return;
         const sc = dryRun?.staffingCoverage;
         if (sc) {
@@ -152,12 +172,37 @@ function ReportsMonthlyContent() {
         }
       } catch (err) {
         if (isStale()) return;
-        // Coverage is a secondary KPI; surface failure via the toast but keep the
-        // primary schedule-driven KPIs intact.
-        setMessage(getErrorMessage(err, "Không tải được tỷ lệ phủ."));
+        coverageErrorMsg = getErrorMessage(err, "Không tải được tỷ lệ phủ.");
+      }
+
+      if (isStale()) return;
+      // REPORTS-ERROR-001: classify the overall outcome.
+      const failedCount = [statsError, periodError, coverageErrorMsg].filter(Boolean).length;
+      if (failedCount === 0) {
+        const empty =
+          (!stats || (stats.L01Count === 0 && stats.L02Count === 0 && stats.L03Count === 0 && stats.L04Count === 0)) &&
+          scheduleCount === 0 &&
+          coverageRate === null;
+        setReportState(empty ? "empty" : "ready");
+        setMessage(null);
+      } else if (failedCount === 3) {
+        setReportState("error");
+        setMessage(
+          `${getErrorMessage(new Error(""), "Không tải được báo cáo kỳ lịch.")} Lỗi: thống kê, tóm tắt, tỷ lệ phủ đều thất bại.`,
+        );
+      } else {
+        setReportState("partial");
+        const parts: string[] = [];
+        if (statsError) parts.push("thống kê ca trực");
+        if (periodError) parts.push("tóm tắt kỳ lịch");
+        if (coverageErrorMsg) parts.push("tỷ lệ phủ");
+        setMessage(
+          `Dữ liệu một phần: không tải được ${parts.join(", ")} (${periodError || statsError || coverageErrorMsg}).`,
+        );
       }
     } catch (err) {
       if (isStale()) return;
+      setReportState("error");
       setMessage(getErrorMessage(err, "Lỗi tải báo cáo kỳ lịch."));
     } finally {
       if (!isStale()) setChecking(false);

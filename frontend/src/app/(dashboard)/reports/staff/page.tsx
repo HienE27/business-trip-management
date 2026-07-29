@@ -295,6 +295,15 @@ function ReportsStaffContent() {
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             />
+            {/* REPORTS-STAFF-002: the workload endpoint has no `keyword`
+                parameter, so the search box is a CLIENT-SIDE filter on the
+                current page slice. Reset to page 0 on every keystroke and
+                show this hint so users don't expect a global filter. */}
+            {search.trim() && (
+              <p className="mt-1 text-[11px] text-on-surface-variant" data-testid="staff-search-hint">
+                Lọc trên trang hiện tại — backend chưa hỗ trợ tìm kiếm toàn kỳ.
+              </p>
+            )}
           </div>
           {/* View-mode tabs */}
           <div role="tablist" aria-label="Chọn loại lịch cần thống kê" className="flex flex-wrap gap-1 rounded-lg bg-surface-container p-1">

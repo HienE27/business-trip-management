@@ -8,6 +8,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { BackButton } from "@/components/ui/BackButton";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import type { SchedulePeriod, ConflictCheckResponse, ConflictDetail } from "@/types/api";
+import { normalizeConflictReasons } from "@/lib/conflict-utils";
 
 export default function ReportsConflictsPage() {
   return <ReportsConflictsContent />;
@@ -87,7 +88,10 @@ function ReportsConflictsContent() {
     if (!conflictData) return {};
     const grouped: Record<string, ConflictDetail[]> = {};
     for (const c of conflictData.conflicts) {
-      const key = c.conflictReasons.join(" + ") || "Không xác định";
+      // REPORTS-CONFLICT-001: sort+Set the reasons so conflicts with the
+      // same set of reasons in a different order collapse into one bucket.
+      const normalized = normalizeConflictReasons(c.conflictReasons);
+      const key = normalized.length === 0 ? "Không xác định" : normalized.join(" + ");
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(c);
     }
@@ -219,8 +223,17 @@ function ReportsConflictsContent() {
                         </span>
                       </div>
                       <div className="space-y-2">
-                        {visibleItems.map((c) => (
-                          <div key={c.scheduleId} className="flex items-center justify-between rounded-lg bg-surface-container-lowest px-3 py-2">
+                        {visibleItems.map((c, idx) => {
+                          // REPORTS-CONFLICT-002: composite key (scheduleId +
+                          // normalized reasons + date). Fall back to the
+                          // array index when scheduleId is missing so React
+                          // keys remain unique.
+                          const normalized = normalizeConflictReasons(c.conflictReasons);
+                          const rowKey = c.scheduleId != null
+                            ? `${c.scheduleId}|${normalized.join("|")}|${c.workDate ?? ""}`
+                            : `idx-${idx}`;
+                          return (
+                          <div key={rowKey} className="flex items-center justify-between rounded-lg bg-surface-container-lowest px-3 py-2">
                             <div>
                               <p className="text-[13px] font-medium text-on-surface">{c.staffName}</p>
                               <p className="text-[12px] text-on-surface-variant">
@@ -237,7 +250,8 @@ function ReportsConflictsContent() {
                               </p>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       {/* BUGFIX (was FE#9): the toggle button used to only add to
                           `expandedGroups`, so once expanded there was no way to

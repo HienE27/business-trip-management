@@ -60,7 +60,7 @@ function StatisticsReportContent() {
     try {
       setFetching(true);
       setMessage(null);
-      const data = await api.getStaffStatistics(periodId, shiftTypeId);
+      const data = await api.getStaffStatistics(periodId, shiftTypeId, { signal });
       if (signal?.aborted) return;
       setStats(data ?? []);
     } catch (err) {
@@ -240,13 +240,20 @@ function StatisticsReportContent() {
                   Giờ
                 </th>
                 <th className="px-4 py-3 text-center text-label-sm text-on-surface-variant uppercase tracking-wide min-w-[120px]">
-                  Tỷ lệ
+                  {/* REPORTS-STATS-002: when a shift type is filtered the
+                      workload percentage column represents that type, so
+                      rename it to avoid implying an "all types" ratio. */}
+                  {shiftTypeFilter ? `Tỷ lệ ${shiftTypeFilter}` : "Tỷ lệ"}
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant">
               {stats.slice(0, visibleCount).map((s) => {
                 const shiftTypeInfo = shiftTypeFilter ? SHIFT_TYPE_COLORS[shiftTypeFilter] : null;
+                // REPORTS-STATS-002: dim the L0nCount cells that aren't part
+                // of the active shiftTypeFilter so the focused column stands
+                // out without losing the cross-type totals entirely.
+                const dimmedCls = shiftTypeFilter ? "opacity-40" : "";
                 return (
                   <tr
                     key={s.staffId}
@@ -261,16 +268,16 @@ function StatisticsReportContent() {
                     <td className="px-4 py-3">
                       <span className="text-[13px] text-on-surface-variant">{s.specialtyName ?? "—"}</span>
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className={`px-4 py-3 text-center ${dimmedCls}`}>
                       <Badge count={s.L01Count} color="bg-red-100 text-red-800" />
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className={`px-4 py-3 text-center ${dimmedCls}`}>
                       <Badge count={s.L02Count} color="bg-blue-100 text-blue-800" />
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className={`px-4 py-3 text-center ${dimmedCls}`}>
                       <Badge count={s.L03Count} color="bg-green-100 text-green-800" />
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className={`px-4 py-3 text-center ${dimmedCls}`}>
                       <Badge count={s.L04Count} color="bg-purple-100 text-purple-800" />
                     </td>
                     <td className="px-4 py-3 text-center">

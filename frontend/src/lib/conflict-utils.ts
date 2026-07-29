@@ -178,3 +178,24 @@ export function groupConflictsByStaff(conflicts: ConflictItem[]): Map<string, Co
   }
   return grouped;
 }
+
+/**
+ * Normalize a list of conflict-reason strings so two conflicts with the same
+ * reasons in different orders or with duplicates collide on the same key.
+ * Used by /reports/conflicts to group conflicts by reason set without
+ * producing duplicate buckets (REPORTS-CONFLICT-001).
+ *
+ * @param reasons raw conflictReasons array from the backend
+ * @returns sorted, deduplicated, trimmed list
+ */
+export function normalizeConflictReasons(reasons: readonly string[] | undefined): string[] {
+  if (!reasons || reasons.length === 0) return [];
+  const set = new Set<string>();
+  for (const reason of reasons) {
+    if (typeof reason === "string") {
+      const trimmed = reason.trim();
+      if (trimmed.length > 0) set.add(trimmed);
+    }
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "vi"));
+}

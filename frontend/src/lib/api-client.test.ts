@@ -353,6 +353,47 @@ it('should handle null data in response', async () => {
   });
 });
 
+describe('Aborting an in-flight request via signal (REPORTS-STATS-001 / MONTHLY-001)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorageMock.getItem.mockReturnValue(null);
+    mockFetch.mockReset();
+  });
+
+  it('aborts the fetch when the caller-provided signal aborts', async () => {
+    const controller = new AbortController();
+    mockFetch.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          controller.signal.addEventListener(
+            'abort',
+            () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+            { once: true },
+          );
+        }),
+    );
+
+    const { api } = await import('@/lib/api');
+    const promise = api.get('/dashboard/periods/1', undefined, { signal: controller.signal });
+    controller.abort();
+
+    await expect(promise).rejects.toThrow();
+  });
+
+  it('treats an already-aborted signal as an immediate abort', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    mockFetch.mockRejectedValueOnce(
+      Object.assign(new Error('aborted'), { name: 'AbortError' }),
+    );
+
+    const { api } = await import('@/lib/api');
+    await expect(
+      api.get('/dashboard/periods/1', undefined, { signal: controller.signal }),
+    ).rejects.toThrow();
+  });
+});
+
 describe('getErrorMessage', () => {
   it('should return error message when error has message', async () => {
     const { getErrorMessage } = await import('@/lib/errors');

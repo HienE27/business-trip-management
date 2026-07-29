@@ -180,6 +180,12 @@ class ApiClient {
     const timeout = options.timeout ?? 60000;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const externalSignal = options.signal;
+    const abortExternal = () => controller.abort();
+    if (externalSignal) {
+      if (externalSignal.aborted) controller.abort();
+      else externalSignal.addEventListener("abort", abortExternal, { once: true });
+    }
 
     let response: Response;
     try {
@@ -191,6 +197,8 @@ class ApiClient {
       });
     } catch (error) {
       clearTimeout(timeoutId);
+      externalSignal?.removeEventListener("abort", abortExternal);
+      if (externalSignal?.aborted) throw error;
       if (error instanceof Error && error.name === "AbortError") {
         throw new Error(`Yêu cầu hết thời gian chờ (${Math.round(timeout / 1000)}s). Thuật toán có thể đang chạy quá lâu.`);
       }
@@ -198,6 +206,7 @@ class ApiClient {
       throw error;
     }
     clearTimeout(timeoutId);
+    externalSignal?.removeEventListener("abort", abortExternal);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({} as { message?: string; code?: string }));
@@ -648,8 +657,14 @@ class ApiClient {
    * to fetch the full schedule list and read its length, which only counted
    * the first page slice. Use this for accurate KPIs instead.
    */
-  async getPeriodSummary(periodId: number): Promise<PeriodSummary> {
-    const res = await this.request<PeriodSummary>(`/dashboard/periods/${periodId}`);
+  async getPeriodSummary(
+    periodId: number,
+    requestInit?: Omit<RequestInit, "method" | "body">,
+  ): Promise<PeriodSummary> {
+    const res = await this.request<PeriodSummary>(`/dashboard/periods/${periodId}`, {
+      method: "GET",
+      ...requestInit,
+    });
     return res.data as unknown as PeriodSummary;
   }
 
