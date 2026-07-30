@@ -1646,7 +1646,10 @@ public class AutoSchedulingService {
                 excludedStaffIds != null ? excludedStaffIds : new HashSet<>());
 
         // Rehydrate Map-based assignments → JPA entities, then persist if save=true.
-        SchedulingResultWithFairness rehydrated = runCspWithResult(result, period, requirements);
+        // BUGFIX (V25 #3): pass strict=false so V10's mostly-valid plan (all slots
+        // filled, a few hard violations) is rehydrated for preview/apply instead of
+        // being discarded → "0% coverage". Hard violations surface as schedule_conflicts.
+        SchedulingResultWithFairness rehydrated = runCspWithResult(result, period, requirements, false);
 
         // ── Filter out assignments that conflict with existing schedules ─────
         // V10 doesn't know about existing schedules; after rehydration, remove
@@ -3888,9 +3891,18 @@ public class AutoSchedulingService {
      * receives {@code requirementId=null} and BUG-UI-001 strikes for L04 multi-specialty
      * slots ("Có nhiều requirement cho (workDate, shiftTypeId)").</p>
      */
+    /**
+     * Overload that defaults to strict validity checking (used by CSP).
+     */
     private SchedulingResultWithFairness runCspWithResult(SchedulingResult result, SchedulePeriod period,
                                                            List<ShiftRequirement> requirements) {
-        if (result == null || !result.isValid() || result.getAssignments() == null || result.getAssignments().isEmpty()) {
+        return runCspWithResult(result, period, requirements, true);
+    }
+
+    private SchedulingResultWithFairness runCspWithResult(SchedulingResult result, SchedulePeriod period,
+                                                           List<ShiftRequirement> requirements,
+                                                           boolean strict) {
+        if (result == null || result.getAssignments() == null || result.getAssignments().isEmpty()) {
             // BUGFIX (M07-PREVIEW-UOE): returning List.of() here is an immutable
             // empty list. The preview path in runScheduling() then tries
             // `createdSchedules.add(existing)` to fold in pre-existing schedules
@@ -3898,6 +3910,14 @@ public class AutoSchedulingService {
             // every time V10 returns an empty result (e.g. period 1 with the
             // current V10 weights, valid=false). Return a mutable empty list so
             // both the save and preview callers can safely append.
+            return new SchedulingResultWithFairness(new ArrayList<>(), BigDecimal.ZERO);
+        }
+        // BUGFIX (V25 #3): V10's round-robin initial + search may fill all slots
+        // but leave a few hard violations (e.g. max-shifts exceeded for 2-3 staff).
+        // Strict mode rejects the entire result → 0 schedules → "0% coverage" UX.
+        // Lenient mode still rehydrates the mostly-valid assignments so the preview
+        // shows the plan with conflicts highlighted via the detection pipeline.
+        if (strict && !result.isValid()) {
             return new SchedulingResultWithFairness(new ArrayList<>(), BigDecimal.ZERO);
         }
         Map<Integer, Staff> staffById = new HashMap<>();
@@ -3922,20 +3942,31 @@ public class AutoSchedulingService {
         }
         List<Schedule> rehydrated = new ArrayList<>();
         for (Map.Entry<String, String> e : result.getAssignments().entrySet()) {
-            String[] parts = e.getKey().split("_");
-            // Support both key formats:
-            //   CSP:  "staffId_date"           → parts=[staffId, date]
-            //   V10:  "staffId_date_shiftType"  → parts=[staffId, date, shiftType]
-            if (parts.length < 2) continue;
+            // BUGFIX (V25 #3): V10 uses "|" separator to avoid ISO dates breaking
+            // under underscore split. Use indexOf to locate first separator (| or _)
+            // and extract staffId + date from the raw key so LocalDate.parse sees the
+            // full ISO string regardless of internal hyphens.
+            String raw = e.getKey();
+            int sep = raw.indexOf('|');
+            if (sep < 0) sep = raw.indexOf('_');
+            if (sep < 0) continue;
             try {
-                Integer staffId = Integer.parseInt(parts[0]);
-                LocalDate workDate = LocalDate.parse(parts[1]);
-                // For V10 keys, the embedded shiftType in parts[2] must match the value
-                String keyShiftType = parts.length >= 3 ? parts[2] : null;
+                Integer staffId = Integer.parseInt(raw.substring(0, sep));
+                // The remaining part is the date (and optional "|shiftType" suffix).
+                String dateAndMaybeType = raw.substring(sep + 1);
                 String valueShiftType = e.getValue();
+                // Extract date: the part before any "|TYPE" suffix (e.g. "2026-07-01" or "2026-07-01|L01")
+                String dateStr = dateAndMaybeType;
+                String keyShiftType = null;
+                int sep2 = dateAndMaybeType.indexOf('|');
+                if (sep2 >= 0) {
+                    dateStr = dateAndMaybeType.substring(0, sep2);
+                    keyShiftType = dateAndMaybeType.substring(sep2 + 1);
+                }
+                LocalDate workDate = LocalDate.parse(dateStr);
                 // Sanity: if both are present they must agree
                 if (keyShiftType != null && !keyShiftType.equals(valueShiftType)) {
-                    log.warn("Assignment key/value shiftType mismatch: key={}, value={}", e.getKey(), valueShiftType);
+                    log.warn("Assignment key/value shiftType mismatch: key={}, value={}", raw, valueShiftType);
                     continue;
                 }
                 ShiftType shiftType = shiftTypeRepository.findById(valueShiftType).orElse(null);
@@ -3959,8 +3990,12 @@ public class AutoSchedulingService {
                     }
                 }
                 if (req == null) {
+                    // BUGFIX (BUG#3): null-safe comparator — in preview (save=false)
+                    // requirements are in-memory objects with null IDs.
+                    // Comparator.comparing throws NPE when the key extractor returns null.
                     req = candidates.stream()
-                            .min(Comparator.comparing(ShiftRequirement::getId))
+                            .min(Comparator.comparing(ShiftRequirement::getId,
+                                    Comparator.nullsLast(Comparator.naturalOrder())))
                             .orElse(null);
                 }
                 if (req == null) continue;

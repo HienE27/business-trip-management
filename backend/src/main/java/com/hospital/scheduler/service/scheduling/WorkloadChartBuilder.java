@@ -135,21 +135,22 @@ public class WorkloadChartBuilder {
 
     private double calculateAverageWorkload(List<Staff> activeStaff, List<Map<String, Object>> staffWorkloadData) {
         if (activeStaff.isEmpty()) return 0.0;
-        double totalUtil = staffWorkloadData.stream()
-                .mapToDouble(m -> ((Number) m.get("workloadPercentage")).doubleValue())
+        // BUGFIX (BUG#1): use totalShifts (shift count) instead of workloadPercentage
+        double totalShifts = staffWorkloadData.stream()
+                .mapToDouble(m -> ((Number) m.get("totalShifts")).doubleValue())
                 .sum();
-        return Math.round(totalUtil / activeStaff.size() * 100.0) / 100.0;
+        return Math.round(totalShifts / activeStaff.size() * 100.0) / 100.0;
     }
 
     private long calculateMaxWorkload(List<Map<String, Object>> staffWorkloadData) {
         return (long) Math.round(staffWorkloadData.stream()
-                .mapToDouble(m -> ((Number) m.get("workloadPercentage")).doubleValue())
+                .mapToDouble(m -> ((Number) m.get("totalShifts")).doubleValue())
                 .max().orElse(0.0));
     }
 
     private long calculateMinWorkload(List<Map<String, Object>> staffWorkloadData) {
         return (long) Math.round(staffWorkloadData.stream()
-                .mapToDouble(m -> ((Number) m.get("workloadPercentage")).doubleValue())
+                .mapToDouble(m -> ((Number) m.get("totalShifts")).doubleValue())
                 .min().orElse(0.0));
     }
 }

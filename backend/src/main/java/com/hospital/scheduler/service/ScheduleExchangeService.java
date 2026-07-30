@@ -51,6 +51,7 @@ public class ScheduleExchangeService {
     private final ShiftRequirementRepository shiftRequirementRepository;
     private final CSPScheduler cspScheduler;
     private final SchedulingResultLoader schedulingResultLoader;
+    private final ScheduleConflictRepository scheduleConflictRepository;
 
     public List<ScheduleExchangeResponse> getAllExchanges() {
         return exchangeRepository.findAll().stream()
@@ -678,6 +679,16 @@ public class ScheduleExchangeService {
                                              Integer reviewerId) {
         Schedule before = cloneForAudit(original);
         Integer originalId = original.getId();
+
+        // BUGFIX (BUG#5): delete schedule_conflict rows that reference this
+        // schedule BEFORE deleting the schedule itself — otherwise the FK
+        // constraint fails and the DB throws DataIntegrityViolationException,
+        // which surfaces as the cryptic "dữ liệu đang được sử dụng ở nơi khác".
+        try {
+            scheduleConflictRepository.deleteByScheduleIds(List.of(originalId));
+        } catch (Exception e) {
+            log.warn("Failed to delete schedule_conflicts for schedule id={}: {}", originalId, e.getMessage());
+        }
 
         // Delete comp-day rows that reference this schedule. The FK is
         // non-nullable so we can't just null it; the caller will recreate

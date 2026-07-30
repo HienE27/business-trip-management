@@ -269,6 +269,9 @@ function SwapRequestsContent() {
       await fetchExchanges();
     } catch (err) {
       if (ignoreRef.current) return;
+      // BUGFIX (BUG#5): close detail modal on error so the error message
+      // banner (rendered below the modal tree) is visible to the user.
+      closeDetailModal();
       setMessage(getErrorMessage(err, "Lỗi duyệt yêu cầu."));
     } finally {
       if (!ignoreRef.current) setProcessing(null);

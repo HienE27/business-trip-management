@@ -35,8 +35,8 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: "manager",
     label: "Quản lý lịch",
-    username: "manager",
-    password: "manager123",
+    username: "manager1",
+    password: "123456",
     description: "Xếp & duyệt lịch",
     role: "MANAGER",
     icon: "event_available",
@@ -47,8 +47,8 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: "staff",
     label: "Nhân viên",
-    username: "teststaff",
-    password: "p88LMcrNhc",
+    username: "nvminh",
+    password: "123456",
     description: "Chỉ xem lịch cá nhân",
     role: "STAFF",
     icon: "person",
