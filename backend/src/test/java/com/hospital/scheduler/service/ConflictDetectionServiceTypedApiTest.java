@@ -48,6 +48,7 @@ class ConflictDetectionServiceTypedApiTest {
     @Mock private ScheduleConflictRepository scheduleConflictRepository;
     @Mock private StaffRepository staffRepository;
     @Mock private ShiftRequirementRepository shiftRequirementRepository;
+    @Mock private SchedulePeriodRepository schedulePeriodRepository;
     @Mock private ShiftTypeRepository shiftTypeRepository;
     @Mock private AuthContextService authContextService;
     @Mock private EmailService emailService;
@@ -60,7 +61,7 @@ class ConflictDetectionServiceTypedApiTest {
         service = new ConflictDetectionService(
                 leaveRequestRepository, compensationDayRepository, scheduleRepository,
                 scheduleConflictRepository, staffRepository, shiftRequirementRepository,
-                shiftTypeRepository, authContextService, emailService,
+                schedulePeriodRepository, shiftTypeRepository, authContextService, emailService,
                 conflictBroadcastService);
 
         // Default: no leaves, no comp days, no schedules on the requested date

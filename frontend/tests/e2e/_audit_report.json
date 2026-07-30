@@ -1,0 +1,410 @@
+{
+  "table": {
+    "exists": true,
+    "headers": 8,
+    "rows": 10,
+    "headerLabels": [
+      "Nhân viên",
+      "Mã NV",
+      "Chức vụ",
+      "Vai trò",
+      "Khoa/Phòng",
+      "SĐT",
+      "Trạng thái",
+      "Thao tác"
+    ]
+  },
+  "search": {
+    "calls": 0,
+    "keywords": []
+  },
+  "filter": {
+    "calls": 3,
+    "lastRole": "STAFF"
+  },
+  "tab": {
+    "urlAfterSpecialty": "http://localhost:3001/staff",
+    "tabChangeOk": false,
+    "backOk": true,
+    "forwardOk": false,
+    "reloadOk": false
+  },
+  "addLink": {
+    "href": "/staff/create",
+    "ok": true
+  },
+  "export": {
+    "download": null,
+    "size": 0,
+    "endpointHit": false,
+    "preview": ""
+  },
+  "import": {
+    "fileChooserOk": true,
+    "calls": 1,
+    "urls": [
+      "/api/v1/staff/import"
+    ]
+  },
+  "a11y": {
+    "selectAriaLabels": [
+      {
+        "name": "Lọc theo vai trò",
+        "value": ""
+      },
+      {
+        "name": "Lọc theo khoa phòng",
+        "value": ""
+      },
+      {
+        "name": "Lọc theo trạng thái",
+        "value": ""
+      },
+      {
+        "name": "Hàng mới trang",
+        "value": "10"
+      }
+    ],
+    "inputAriaLabels": [
+      {
+        "name": "Tìm chức năng trong sidebar"
+      },
+      {
+        "name": "Tìm kiếm toàn cục"
+      },
+      {
+        "name": "Tìm kiếm nhân sự"
+      },
+      {
+        "name": "Lọc theo chức vụ"
+      }
+    ],
+    "errorRoleCount": 2,
+    "statusRoleCount": 0,
+    "ariaHiddenIconCount": 74
+  },
+  "network": [
+    {
+      "url": "/api/v1/staff/me",
+      "method": "GET",
+      "status": 401,
+      "latencyMs": -3,
+      "startTime": 1785370639980
+    },
+    {
+      "url": "/api/v1/auth/login",
+      "method": "POST",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370642215
+    },
+    {
+      "url": "/api/v1/staff/me",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370642342
+    },
+    {
+      "url": "/api/v1/periods",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370642867
+    },
+    {
+      "url": "/api/v1/staff/active",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -3,
+      "startTime": 1785370643073
+    },
+    {
+      "url": "/api/v1/specialties",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370643167
+    },
+    {
+      "url": "/api/v1/schedules/conflicts/check/1",
+      "method": "GET",
+      "status": "FAIL",
+      "latencyMs": 0,
+      "startTime": 1785370643329
+    },
+    {
+      "url": "/api/v1/dashboard",
+      "method": "GET",
+      "status": "FAIL",
+      "latencyMs": 0,
+      "startTime": 1785370643330
+    },
+    {
+      "url": "/api/v1/schedules/compensation-days/1",
+      "method": "GET",
+      "status": "FAIL",
+      "latencyMs": 0,
+      "startTime": 1785370643331
+    },
+    {
+      "url": "/api/v1/schedules/period/1",
+      "method": "GET",
+      "status": "FAIL",
+      "latencyMs": 0,
+      "startTime": 1785370643331
+    },
+    {
+      "url": "/api/v1/staff/me",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -7,
+      "startTime": 1785370643580
+    },
+    {
+      "url": "/api/v1/specialties/active",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -3,
+      "startTime": 1785370643881
+    },
+    {
+      "url": "/api/v1/staff/search-page?page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370643903
+    },
+    {
+      "url": "/api/v1/staff/status-counts",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370643913
+    },
+    {
+      "url": "/api/v1/staff/search-page?keyword=abc&page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370649105
+    },
+    {
+      "url": "/api/v1/staff/search-page?keyword=a&page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370649143
+    },
+    {
+      "url": "/api/v1/staff/search-page?page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -3,
+      "startTime": 1785370649145
+    },
+    {
+      "url": "/api/v1/staff/search-page?keyword=ab&page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370649171
+    },
+    {
+      "url": "/api/v1/staff/search-page?role=ADMIN&page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370649756
+    },
+    {
+      "url": "/api/v1/staff/search-page?role=MANAGER&page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370649869
+    },
+    {
+      "url": "/api/v1/staff/search-page?role=STAFF&page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370649990
+    },
+    {
+      "url": "/api/v1/staff/search-page?page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370651014
+    },
+    {
+      "url": "/api/v1/specialties/status-counts",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370651664
+    },
+    {
+      "url": "/api/v1/specialties/page?page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370651680
+    },
+    {
+      "url": "/api/v1/staff/me",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370652231
+    },
+    {
+      "url": "/api/v1/dashboard",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370652285
+    },
+    {
+      "url": "/api/v1/specialties",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370652300
+    },
+    {
+      "url": "/api/v1/periods",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370652310
+    },
+    {
+      "url": "/api/v1/staff/active",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370652319
+    },
+    {
+      "url": "/api/v1/schedules/compensation-days/1",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370652438
+    },
+    {
+      "url": "/api/v1/schedules/conflicts/check/1",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370652438
+    },
+    {
+      "url": "/api/v1/schedules/period/1",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370652439
+    },
+    {
+      "url": "/api/v1/dashboard?periodId=1",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370652509
+    },
+    {
+      "url": "/api/v1/staff/me",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370652789
+    },
+    {
+      "url": "/api/v1/staff/status-counts",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370652856
+    },
+    {
+      "url": "/api/v1/specialties/active",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370652864
+    },
+    {
+      "url": "/api/v1/staff/search-page?page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370652952
+    },
+    {
+      "url": "/api/v1/staff/me",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370653361
+    },
+    {
+      "url": "/api/v1/staff/status-counts",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370653417
+    },
+    {
+      "url": "/api/v1/specialties/active",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370653435
+    },
+    {
+      "url": "/api/v1/staff/search-page?page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -2,
+      "startTime": 1785370653498
+    },
+    {
+      "url": "/api/v1/staff/import",
+      "method": "POST",
+      "status": 400,
+      "latencyMs": -2,
+      "startTime": 1785370661395
+    },
+    {
+      "url": "/api/v1/staff/search-page?page=0&size=10",
+      "method": "GET",
+      "status": 200,
+      "latencyMs": -1,
+      "startTime": 1785370661453
+    }
+  ],
+  "console": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "warning",
+      "text": "WebSocket connection to 'ws://localhost:8080/ws/conflicts?token=eyJhbGciOiJIUzI1NiJ9.eyJwZXJtaXNzaW9ucyI6WyJTVEFGRl9WSUVXIiwiU0NIRURVTEVfVklFVyIsIlNDSEVEVUxFX0NSRUFURSIsIlNDSEVEVUxFX0RFTEVURSIsIlNDSEVEVUxFX1BVQkxJU0giLCJFWENIQU5HRV9WSUVXIiwiRVhDSEFOR0VfQ1JFQVRFIiwiRVhDSEFOR0VfQVBQUk9WRSIsIlJFUE9SVF9WSUVXIiwiQVBQX0NPTkZJR19WSUVXIiwiUk9MRV9WSUVXIiwiQVVESVRfVklFVyIsIk5PVElGSUNBVElPTl9WSUVXIiwiREFTSEJPQVJEX1ZJRVciLCJEQVNIQk9BUkRfQUdHUkVHQVRFIiwiUEVSSU9EX1ZJRVciLCJTQ0hFRFVMRV9VUERBVEUiLCJTQ0hFRFVMRV9FWFBPUlQiLCJBVVRPX1NDSEVEVUxFX1ZJRVc...0giLCJQRVJJT0RfQVJDSElWRSIsIkFVVE9fU0NIRURVTEVfQ09ORklHX0VESVQiLCJIT0xJREFZX0NSRUFURSIsIkhPTElEQVlfVVBEQVRFIiwiSE9MSURBWV9ERUxFVEUiLCJOT1RJRklDQVRJT05fQ1JFQVRFIiwiTk9USUZJQ0FUSU9OX0JST0FEQ0FTVCIsIkFVRElUX0RFTEVURSIsIlNQRUNJQUxUWV9NQU5BR0UiLCJTSElGVF9UWVBFX01BTkFHRSIsIlNDSEVEVUxFX1RFTVBMQVRFX01BTkFHRSJdLCJyb2xlcyI6WyJNQU5BR0VSIiwiQURNSU4iXSwidG9rZW5UeXBlIjoiYWNjZXNzIiwicGVybVZlciI6MTc4NDAyMDAwMDAwMCwic3ViIjoiYWRtaW4iLCJpYXQiOjE3ODUzNzA2NDEsImV4cCI6MTc4NTQ1NzA0MX0.1cDkmBZqHxzcnxM1Gtsqb9wVh1JoPSOUpbfkcb1NMv0' failed: WebSocket is closed before the connection is established."
+    },
+    {
+      "type": "warning",
+      "text": "WebSocket connection to 'ws://localhost:8080/ws/notifications?token=eyJhbGciOiJIUzI1NiJ9.eyJwZXJtaXNzaW9ucyI6WyJTVEFGRl9WSUVXIiwiU0NIRURVTEVfVklFVyIsIlNDSEVEVUxFX0NSRUFURSIsIlNDSEVEVUxFX0RFTEVURSIsIlNDSEVEVUxFX1BVQkxJU0giLCJFWENIQU5HRV9WSUVXIiwiRVhDSEFOR0VfQ1JFQVRFIiwiRVhDSEFOR0VfQVBQUk9WRSIsIlJFUE9SVF9WSUVXIiwiQVBQX0NPTkZJR19WSUVXIiwiUk9MRV9WSUVXIiwiQVVESVRfVklFVyIsIk5PVElGSUNBVElPTl9WSUVXIiwiREFTSEJPQVJEX1ZJRVciLCJEQVNIQk9BUkRfQUdHUkVHQVRFIiwiUEVSSU9EX1ZJRVciLCJTQ0hFRFVMRV9VUERBVEUiLCJTQ0hFRFVMRV9FWFBPUlQiLCJBVVRPX1NDSEVEVUxFX1Z...0giLCJQRVJJT0RfQVJDSElWRSIsIkFVVE9fU0NIRURVTEVfQ09ORklHX0VESVQiLCJIT0xJREFZX0NSRUFURSIsIkhPTElEQVlfVVBEQVRFIiwiSE9MSURBWV9ERUxFVEUiLCJOT1RJRklDQVRJT05fQ1JFQVRFIiwiTk9USUZJQ0FUSU9OX0JST0FEQ0FTVCIsIkFVRElUX0RFTEVURSIsIlNQRUNJQUxUWV9NQU5BR0UiLCJTSElGVF9UWVBFX01BTkFHRSIsIlNDSEVEVUxFX1RFTVBMQVRFX01BTkFHRSJdLCJyb2xlcyI6WyJNQU5BR0VSIiwiQURNSU4iXSwidG9rZW5UeXBlIjoiYWNjZXNzIiwicGVybVZlciI6MTc4NDAyMDAwMDAwMCwic3ViIjoiYWRtaW4iLCJpYXQiOjE3ODUzNzA2NDEsImV4cCI6MTc4NTQ1NzA0MX0.1cDkmBZqHxzcnxM1Gtsqb9wVh1JoPSOUpbfkcb1NMv0' failed: WebSocket is closed before the connection is established."
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    }
+  ],
+  "pageErrors": [],
+  "finalUrl": "http://localhost:3001/staff?tab=staff",
+  "timestamp": "2026-07-30T00:17:44.112Z"
+}

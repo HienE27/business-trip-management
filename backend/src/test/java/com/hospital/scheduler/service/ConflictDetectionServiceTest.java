@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.dto.response.ConflictCheckResponse;
+import com.hospital.scheduler.dto.response.CoverageReportDTO;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.ConflictException;
 import com.hospital.scheduler.repository.*;
@@ -41,6 +42,8 @@ class ConflictDetectionServiceTest {
     private ShiftTypeRepository shiftTypeRepository;
     @Mock
     private ShiftRequirementRepository shiftRequirementRepository;
+    @Mock
+    private SchedulePeriodRepository schedulePeriodRepository;
     @Mock
     private ConflictBroadcastService conflictBroadcastService;
     @Mock
@@ -106,6 +109,19 @@ class ConflictDetectionServiceTest {
         // Default: no shift requirements for any period (checkPeriodConflicts calls
         // detectCoverageGaps → shiftRequirementRepository.findByPeriodId at the end).
         when(shiftRequirementRepository.findByPeriodId(anyInt())).thenReturn(Collections.emptyList());
+    }
+
+    @Test
+    @DisplayName("Coverage phải xử lý kỳ hợp lệ chưa có lịch")
+    void validateStaffingCoverage_shouldAcceptPeriodWithoutSchedules() {
+        when(schedulePeriodRepository.findById(period1.getId())).thenReturn(Optional.of(period1));
+        when(scheduleRepository.findByPeriodId(period1.getId())).thenReturn(Collections.emptyList());
+
+        CoverageReportDTO result = conflictDetectionService.validateStaffingCoverage(period1.getId());
+
+        assertThat(result.getPeriodId()).isEqualTo(period1.getId());
+        assertThat(result.getPeriodName()).isEqualTo(period1.getPeriodName());
+        assertThat(result.getTotalDays()).isEqualTo(30);
     }
 
     // ==================== M02: L01 vs L02 ====================

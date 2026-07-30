@@ -1,0 +1,55 @@
+ M backend/src/main/java/com/hospital/scheduler/controller/LegacyPathAliasController.java
+ D backend/src/main/java/com/hospital/scheduler/explain/controller/ExplainController.java
+ D backend/src/main/java/com/hospital/scheduler/explain/dto/AssignmentExplanation.java
+ D backend/src/main/java/com/hospital/scheduler/explain/dto/CandidateRankingExplanation.java
+ D backend/src/main/java/com/hospital/scheduler/explain/dto/ExplainQueryRequest.java
+ D backend/src/main/java/com/hospital/scheduler/explain/dto/ExplainQueryResponse.java
+ D backend/src/main/java/com/hospital/scheduler/explain/dto/ReplayExplanation.java
+ D backend/src/main/java/com/hospital/scheduler/explain/dto/WhyNotExplanation.java
+ D backend/src/main/java/com/hospital/scheduler/explain/formatter/NaturalLanguageFormatter.java
+ D backend/src/main/java/com/hospital/scheduler/explain/service/ExplainService.java
+ D backend/src/main/java/com/hospital/scheduler/governance/controller/GovernanceController.java
+ D backend/src/main/java/com/hospital/scheduler/governance/dto/AuditEventDTO.java
+ D backend/src/main/java/com/hospital/scheduler/governance/dto/ConfigVersionDTO.java
+ D backend/src/main/java/com/hospital/scheduler/governance/entity/ApprovalRequest.java
+ D backend/src/main/java/com/hospital/scheduler/governance/entity/AuditEvent.java
+ D backend/src/main/java/com/hospital/scheduler/governance/entity/ConfigVersion.java
+ D backend/src/main/java/com/hospital/scheduler/governance/entity/GovernancePolicy.java
+ D backend/src/main/java/com/hospital/scheduler/governance/repository/ApprovalRequestRepository.java
+ D backend/src/main/java/com/hospital/scheduler/governance/repository/AuditEventRepository.java
+ D backend/src/main/java/com/hospital/scheduler/governance/repository/ConfigVersionRepository.java
+ D backend/src/main/java/com/hospital/scheduler/governance/repository/GovernancePolicyRepository.java
+ D backend/src/main/java/com/hospital/scheduler/governance/service/ApprovalWorkflowService.java
+ D backend/src/main/java/com/hospital/scheduler/governance/service/GovernanceService.java
+ M backend/src/main/java/com/hospital/scheduler/service/ConflictDetectionService.java
+ D backend/src/main/java/com/hospital/scheduler/whatif/controller/WhatifScenarioController.java
+ D backend/src/main/java/com/hospital/scheduler/whatif/dto/ImpactAnalysis.java
+ D backend/src/main/java/com/hospital/scheduler/whatif/dto/Recommendation.java
+ D backend/src/main/java/com/hospital/scheduler/whatif/dto/ScenarioComparison.java
+ D backend/src/main/java/com/hospital/scheduler/whatif/dto/ScenarioRequest.java
+ D backend/src/main/java/com/hospital/scheduler/whatif/dto/ScenarioResponse.java
+ D backend/src/main/java/com/hospital/scheduler/whatif/dto/SensitivityAnalysis.java
+ D backend/src/main/java/com/hospital/scheduler/whatif/entity/WhatifScenario.java
+ D backend/src/main/java/com/hospital/scheduler/whatif/repository/WhatifScenarioRepository.java
+ D backend/src/main/java/com/hospital/scheduler/whatif/service/WhatifScenarioService.java
+ M backend/src/test/java/com/hospital/scheduler/service/ConflictDetectionServiceTest.java
+ M backend/src/test/java/com/hospital/scheduler/service/ConflictDetectionServiceTypedApiTest.java
+ D frontend/src/components/explain/AssignmentExplainCard.tsx
+ D frontend/src/components/explain/CandidateRankingCard.tsx
+ D frontend/src/components/explain/ExplainPanel.tsx
+ D frontend/src/components/explain/ReplayExplainCard.tsx
+ D frontend/src/components/explain/WhyNotExplainCard.tsx
+ M frontend/src/hooks/useAutoSchedule.ts
+ M frontend/src/lib/api-client.ts
+ M frontend/src/types/api.ts
+?? backend/src/main/java/com/hospital/scheduler/service/scheduling/ApplyPreviewValidator.java
+?? backup.patch
+?? before-dryrun-root-cause.patch
+?? before-dryrun-root-cause.status
+?? frontend/playwright.audit.config.ts
+?? frontend/tests/e2e/_audit_report.json
+?? frontend/tests/e2e/staff-audit.spec.ts
+?? frontend/tests/e2e/staff-audit2.spec.ts
+?? gui-test-screenshots/
+?? nul
+?? tmp_bench/

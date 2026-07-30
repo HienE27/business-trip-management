@@ -218,7 +218,6 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/auto-scheduling/dashboard": "auto-scheduling",
   "/auto-scheduling/live": "auto-scheduling",
   "/auto-scheduling/history": "auto-scheduling",
-  "/auto-scheduling/replay": "auto-scheduling",
   "/conflict-check": "monthly-schedule",
   "/leave-requests": "leave-requests",
   "/swap-requests": "shift-swaps",

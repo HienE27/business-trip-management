@@ -321,13 +321,21 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const handleBulkDatesSelected = useCallback((dates: string[]) => {
     if (dates.length === 1) {
       // Single date → open QuickAddModal with that date
+      // BUGFIX (BUG#2): close BOTH pickers to prevent half-open state.
+      // handleBulkDatesSelected is shared by BulkDatePickerModal (bulkPickerOpen)
+      // and the quick single-date picker (quickPickerOpen). Previously only
+      // setBulkPickerOpen(false) was called, so when the user entered via
+      // the quick picker, quickPickerOpen stayed true and its modal remained
+      // mounted under the QuickAddModal → zombie backdrop + block all interaction.
       setBulkPickerOpen(false);
+      setQuickPickerOpen(false);
       const [y, m, d] = dates[0]!.split("-").map(Number);
       setAddModalDate(new Date(y!, m! - 1, d!));
     } else {
       // Multiple dates → open bulk modal
       setBulkSelectedDates(dates);
       setBulkPickerOpen(false);
+      setQuickPickerOpen(false);
       setBulkModalOpen(true);
     }
   }, []);

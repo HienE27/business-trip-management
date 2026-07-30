@@ -7,6 +7,8 @@ import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.scheduling.config.ConfigDomain;
 import com.hospital.scheduler.scheduling.config.ConfigService;
+import com.hospital.scheduler.scheduling.config.ConfigValidator;
+import com.hospital.scheduler.scheduling.config.ConfigValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ public class ConfigCalculatorOrchestrator {
     private final SpecialtyRepository specialtyRepository;
     private final ShiftTypeRepository shiftTypeRepository;
     private final ConfigService configService;
+    private final ConfigValidator configValidator;
 
     private final List<AlgorithmCapacityAnalyzer> analyzers;
 
@@ -57,20 +60,20 @@ public class ConfigCalculatorOrchestrator {
         List<Specialty> specialties = specialtyRepository.findByIsActiveTrue();
         List<ShiftType> shiftTypes = shiftTypeRepository.findAll();
 
+        if (request.getMode() != 1) {
+            throw new IllegalArgumentException("Chỉ hỗ trợ Configuration Calculator Mode 1");
+        }
+
         // Resolve config
         ConfigDomain config = resolveConfig(request);
+        ConfigValidator.ValidationResult validation = configValidator.validate(config);
+        if (validation.hasErrors()) {
+            throw new ConfigValidationException(validation);
+        }
         AutoGenConfig autoGenConfig = toAutoGenConfig(config);
 
-        return switch (request.getMode()) {
-            case 1 -> mode1(period, activeStaff, approvedLeaves, holidays, specialties, shiftTypes,
-                    config, autoGenConfig, request.getAlgorithmType());
-            case 2 -> mode2(period, activeStaff, approvedLeaves, holidays, specialties, shiftTypes,
-                    config, autoGenConfig, request.getAlgorithmType(), request.getTargetShifts(),
-                    request.getEnabledGroups());
-            case 3 -> mode3(period, activeStaff, approvedLeaves, holidays, specialties, shiftTypes,
-                    config, autoGenConfig, request.getTargetShifts(), request.getEnabledGroups());
-            default -> throw new IllegalArgumentException("mode không hợp lệ: " + request.getMode());
-        };
+        return mode1(period, activeStaff, approvedLeaves, holidays, specialties, shiftTypes,
+                config, autoGenConfig, request.getAlgorithmType());
     }
 
     // ── Mode 1: Config + Algorithm → Capacity ──
@@ -91,164 +94,6 @@ public class ConfigCalculatorOrchestrator {
                 shiftTypes, config, autoGenConfig);
 
         return toResponse(result, config, algo, 1);
-    }
-
-    // ── Mode 2: Target + Algorithm → Config ──
-
-    private ConfigCalculatorResponse mode2(SchedulePeriod period, List<Staff> staff,
-                                            List<LeaveRequest> leaves, List<Holiday> holidays,
-                                            List<Specialty> specialties, List<ShiftType> shiftTypes,
-                                            ConfigDomain currentConfig, AutoGenConfig currentAutoGen,
-                                            String algorithmType, Map<String, Integer> targets,
-                                            java.util.Set<String> enabledGroups) {
-
-        String algo = algorithmType != null ? algorithmType.toUpperCase() : "GREEDY";
-        AlgorithmCapacityAnalyzer analyzer = findAnalyzer(algo);
-        if (analyzer == null) analyzer = findAnalyzer("GREEDY");
-
-        ConfigDomain workingConfig = currentConfig;
-        List<CapacityAnalysis.ConfigChange> changes = new ArrayList<>();
-
-        // If enabledGroups is null/empty → all groups tunable (back-compat).
-        // Otherwise → only groups in the set are tunable.
-        boolean allEnabled = enabledGroups == null || enabledGroups.isEmpty();
-
-        // Iterative parameter tuning
-        for (int iteration = 0; iteration < 20; iteration++) {
-            CapacityAnalysis analysis = analyzer.analyze(period, staff, leaves, holidays, specialties,
-                    shiftTypes, workingConfig, toAutoGenConfig(workingConfig));
-
-            if (meetsTarget(analysis, targets)) {
-                ConfigCalculatorResponse resp = toResponse(analysis, workingConfig, algo, 2);
-                resp.setRecommendedConfig(workingConfig);
-                resp.setConfigChanges(changes.stream()
-                        .map(c -> new ConfigCalculatorResponse.ConfigChange(c.field(), c.fromValue(), c.toValue(), c.reason()))
-                        .toList());
-                resp.setFeasible(true);
-                return resp;
-            }
-
-            // Try tuning: maxShiftsPerStaff → l04CrossSpecialty → holidayMode → per-shift bounds
-            boolean tuned = false;
-
-            // Priority 1: increase maxShiftsPerStaff (group: staffing)
-            if ((allEnabled || enabledGroups.contains("staffing")) && workingConfig.maxShiftsPerStaff() < 15) {
-                int newVal = Math.min(workingConfig.maxShiftsPerStaff() + 2, 15);
-                changes.add(new CapacityAnalysis.ConfigChange("maxShiftsPerStaff",
-                        workingConfig.maxShiftsPerStaff(), newVal,
-                        "Tăng capacity để đạt target"));
-                workingConfig = ConfigDomain.builder().from(workingConfig).maxShiftsPerStaff(newVal).build();
-                tuned = true;
-            }
-
-            // Priority 2: enable l04CrossSpecialty if L04 target not met (group: l04)
-            if (!tuned && (allEnabled || enabledGroups.contains("l04"))
-                    && !workingConfig.l04CrossSpecialtyEnabled() && hasL04Target(targets)) {
-                changes.add(new CapacityAnalysis.ConfigChange("l04CrossSpecialtyEnabled",
-                        false, true,
-                        "Bật cross-specialty để tăng L04 capacity"));
-                workingConfig = ConfigDomain.builder().from(workingConfig).l04CrossSpecialtyEnabled(true).build();
-                tuned = true;
-            }
-
-            // Priority 3: switch holidayMode to PARTIAL (group: holiday)
-            if (!tuned && (allEnabled || enabledGroups.contains("holiday"))
-                    && !"PARTIAL".equals(workingConfig.holidayMode())) {
-                changes.add(new CapacityAnalysis.ConfigChange("holidayMode",
-                        workingConfig.holidayMode(), "PARTIAL",
-                        "Chuyển sang PARTIAL để tận dụng ngày lễ"));
-                workingConfig = ConfigDomain.builder().from(workingConfig).holidayMode("PARTIAL").build();
-                tuned = true;
-            }
-
-            // Priority 4: increase per-shift-type maxPerDay (group: perShift)
-            if (!tuned && (allEnabled || enabledGroups.contains("perShift"))) {
-                for (String st : new String[]{"L01", "L02", "L03", "L04"}) {
-                    int target = targets.getOrDefault(st, 0);
-                    int currentMax = switch (st) {
-                        case "L01" -> workingConfig.l01MaxPerDay();
-                        case "L02" -> workingConfig.l02MaxPerDay();
-                        case "L03" -> workingConfig.l03MaxPerDay();
-                        case "L04" -> workingConfig.l04MaxPerDay();
-                        default -> 0;
-                    };
-                    if (target > 0 && currentMax < 15) {
-                        int newMax = currentMax + 2;
-                        ConfigDomain.Builder b = ConfigDomain.builder().from(workingConfig);
-                        switch (st) {
-                            case "L01" -> b.l01MaxPerDay(newMax);
-                            case "L02" -> b.l02MaxPerDay(newMax);
-                            case "L03" -> b.l03MaxPerDay(newMax);
-                            case "L04" -> b.l04MaxPerDay(newMax);
-                        }
-                        changes.add(new CapacityAnalysis.ConfigChange(st + "MaxPerDay", currentMax, newMax,
-                                "Tăng giới hạn " + st + " để đạt target " + target));
-                        workingConfig = b.build();
-                        tuned = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!tuned) break; // All params maxed out OR all enabled groups already tuned
-        }
-
-        // Infeasible — return best effort analysis
-        CapacityAnalysis finalAnalysis = analyzer.analyze(period, staff, leaves, holidays, specialties,
-                shiftTypes, workingConfig, toAutoGenConfig(workingConfig));
-        ConfigCalculatorResponse resp = toResponse(finalAnalysis, workingConfig, algo, 2);
-        resp.setFeasible(false);
-        resp.setRecommendedConfig(workingConfig);
-        resp.setConfigChanges(changes.stream()
-                .map(c -> new ConfigCalculatorResponse.ConfigChange(c.field(), c.fromValue(), c.toValue(), c.reason()))
-                .toList());
-        resp.setMessage("Không thể đạt target với thuật toán " + algo + ". Đã điều chỉnh tối đa các tham số được phép.");
-        return resp;
-    }
-
-    // ── Mode 3: Target → Config + Algorithm (best combo) ──
-
-    private ConfigCalculatorResponse mode3(SchedulePeriod period, List<Staff> staff,
-                                            List<LeaveRequest> leaves, List<Holiday> holidays,
-                                            List<Specialty> specialties, List<ShiftType> shiftTypes,
-                                            ConfigDomain currentConfig, AutoGenConfig currentAutoGen,
-                                            Map<String, Integer> targets,
-                                            java.util.Set<String> enabledGroups) {
-
-        // Try each algorithm in priority order
-        String[] algoPriority = {"GREEDY", "FAIR_GREEDY", "CSP_MRV_FC", "V10_LOCAL_SEARCH"};
-        ConfigCalculatorResponse bestResponse = null;
-        int bestConfigChanges = Integer.MAX_VALUE;
-
-        for (String algo : algoPriority) {
-            AlgorithmCapacityAnalyzer analyzer = findAnalyzer(algo);
-            if (analyzer == null) continue;
-
-            // Run Mode 2 for this algorithm
-            ConfigCalculatorResponse mode2Resp = mode2(period, staff, leaves, holidays, specialties,
-                    shiftTypes, currentConfig, currentAutoGen, algo, targets, enabledGroups);
-
-            if (mode2Resp.isFeasible()) {
-                int changeCount = mode2Resp.getConfigChanges() != null ? mode2Resp.getConfigChanges().size() : 0;
-                if (changeCount < bestConfigChanges) {
-                    bestConfigChanges = changeCount;
-                    bestResponse = mode2Resp;
-                    bestResponse.setRecommendedAlgorithm(algo);
-                    bestResponse.setMode(3);
-                }
-            }
-        }
-
-        if (bestResponse != null) {
-            return bestResponse;
-        }
-
-        // No algorithm feasible — return best effort
-        ConfigCalculatorResponse fallback = mode2(period, staff, leaves, holidays, specialties,
-                shiftTypes, currentConfig, currentAutoGen, "GREEDY", targets, enabledGroups);
-        fallback.setMode(3);
-        fallback.setMessage("Không thuật toán nào đạt được target. Dưới đây là kết quả tốt nhất với GREEDY.");
-        return fallback;
     }
 
     // ── Helpers ──

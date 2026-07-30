@@ -201,13 +201,16 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         // BadRequestException to protect manual assignments — which is the
         // correct behaviour but breaks the apply flow. The ConfirmDialog already
         // shown by the page gives the user the same opt-in moment.
+        // BUGFIX (BUG#4): add 120s timeout for apply so the dialog "Đang áp
+        // dụng..." is guaranteed to unstick even when the backend is slow to
+        // persist a large schedule set or the network is congested.
         await api.applyPreview({
           periodId,
           algorithmType,
           schedules,
           removedSchedules,
           overwriteExisting: true,
-        });
+        }, { timeout: 120000 });
 
         // BUGFIX (coverage drift): re-read the live coverage from the DB so the
         // success toast / metrics we surface reflect what was actually persisted,
@@ -243,8 +246,13 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         }
         onSuccess();
       } catch (error) {
-        console.error("[applyPreview] Error:", error);
-        setMessage(getErrorMessage(error, "Không thể áp dụng phương án."));
+        // BUGFIX (UX): surface the real backend reason verbatim so the user
+        // can see WHY apply fails (e.g. "Có nhiều requirement cho (date, L04) —
+        // client phải gửi requirementId"). Generic fallback only kicks in
+        // when the error has no message at all.
+        const detail = getErrorMessage(error, "Không thể áp dụng phương án.");
+        console.error("[applyPreview] backend said:", detail, error);
+        setMessage(`Lỗi áp dụng: ${detail}`);
       } finally {
         setApplying(false);
       }

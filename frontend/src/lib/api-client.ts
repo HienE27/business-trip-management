@@ -38,16 +38,10 @@ import type {
   CompensationDay,
   ConfigProfile,
   CreateProfileRequest,
-  ExplainQueryRequest,
-  ExplainQueryResponse,
-  AssignmentExplanation,
-  WhyNotExplanation,
-  CandidateRankingExplanation,
-  ReplayExplanation,
   ConfigCalculatorResponse,
 } from "@/types/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+const API_BASE = "/api/v1";
 const LOGIN_PATH = "/login";
 const TOKEN_STORAGE_KEY = "medschedule.token";
 const REFRESH_TOKEN_STORAGE_KEY = "medschedule.refreshToken";
@@ -929,10 +923,11 @@ class ApiClient {
     // the backend throws BadRequestException if the period already has schedules.
     // The frontend page already shows a ConfirmDialog, so it sets this true.
     overwriteExisting?: boolean;
-  }): Promise<ApiResponse<void>> {
+  }, options?: { timeout?: number }): Promise<ApiResponse<void>> {
     return this.request<void>("/auto-schedule/apply-preview", {
       method: "POST",
       body: JSON.stringify(data),
+      timeout: options?.timeout ?? 120000,
     });
   }
 
@@ -1798,26 +1793,6 @@ class ApiClient {
     return this.get(`/auto-schedule/balance-breakdown/${periodId}`);
   }
 
-  // Explain / AI Explanation
-  async getAssignmentExplanation(assignmentId: number, _params?: { slotId?: number; staffId?: number }): Promise<AssignmentExplanation> {
-    return this.get<AssignmentExplanation>(`/explain/assignment/${assignmentId}`);
-  }
-
-  async getWhyNotExplanation(slotId: number, staffId: number, _params?: { sessionKey?: string }): Promise<WhyNotExplanation> {
-    return this.get<WhyNotExplanation>(`/explain/why-not/${slotId}/${staffId}`);
-  }
-
-  async getCandidateRanking(slotId: number, _sessionKey?: string): Promise<CandidateRankingExplanation> {
-    return this.get<CandidateRankingExplanation>(`/explain/candidates/${slotId}`);
-  }
-
-  async getReplayExplanation(sessionKey: string, iteration: number): Promise<ReplayExplanation> {
-    return this.get<ReplayExplanation>(`/explain/replay/${sessionKey}/${iteration}`);
-  }
-
-  async postExplainQuery(query: ExplainQueryRequest): Promise<ExplainQueryResponse> {
-    return this.post<ExplainQueryResponse>("/explain/query", query);
-  }
 }
 
 export const api = new ApiClient();

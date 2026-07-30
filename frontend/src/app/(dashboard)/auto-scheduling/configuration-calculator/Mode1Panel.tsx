@@ -38,11 +38,6 @@ export function Mode1Panel({
   const [result, setResult] = useState<ConfigCalculatorResponse | null>(null);
   const [configLoaded, setConfigLoaded] = useState(false);
 
-  // L04 advanced
-  const [l04Specialties, setL04Specialties] = useState<string[]>([]);
-  const [l04Strategy, setL04Strategy] = useState("FAIR_DISTRIBUTE");
-  const [specialtiesList, setSpecialtiesList] = useState<Array<{ id: number; name: string }>>([]);
-
   // Global config
   const [maxShiftsPerStaff, setMaxShiftsPerStaff] = useState(5);
   const [maxStaffPerShift, setMaxStaffPerShift] = useState(0);
@@ -63,16 +58,13 @@ export function Mode1Panel({
     let cancelled = false;
     async function loadCurrentConfig() {
       try {
-        const [runtimeResp, autoGenResp, specialtiesResp] = await Promise.all([
+        const [runtimeResp, autoGenResp] = await Promise.all([
           api.getRuntimeConfig(),
           api.getAutoGenConfig(),
-          api.getActiveSpecialties(),
         ]);
         if (cancelled) return;
         const runtime: any = (runtimeResp as any).data ?? runtimeResp;
         const autoGen: any = (autoGenResp as any).data ?? autoGenResp;
-        const specialtiesRespData: any = (specialtiesResp as any).data ?? specialtiesResp;
-        const specialtiesArr = Array.isArray(specialtiesRespData) ? specialtiesRespData : [];
         if (runtime?.maxShiftsPerStaff != null) {
           setMaxShiftsPerStaff(Number(runtime.maxShiftsPerStaff));
         }
@@ -86,18 +78,6 @@ export function Mode1Panel({
         if (Array.isArray(autoGen?.removedShiftTypes)) {
           setRemovedShiftTypes(autoGen.removedShiftTypes);
         }
-        if (autoGen?.l04BalanceStrategy) {
-          setL04Strategy(String(autoGen.l04BalanceStrategy));
-        }
-        if (Array.isArray(autoGen?.l04AllowedSpecialties)) {
-          setL04Specialties(autoGen.l04AllowedSpecialties.filter((x: unknown) => typeof x === "string"));
-        }
-        setSpecialtiesList(
-          specialtiesArr.map((s: any) => ({
-            id: Number(s.id),
-            name: String(s.name ?? ""),
-          }))
-        );
         setShiftConfig({
           L01: {
             min: Number(autoGen?.l01MinPerDay ?? 1),
@@ -136,6 +116,7 @@ export function Mode1Panel({
     setRemovedShiftTypes((prev) =>
       prev.includes(st) ? prev.filter((x) => x !== st) : [...prev, st]
     );
+    invalidateResult();
   };
 
   function updateShiftConfig(st: string, field: "min" | "max" | "week", value: number) {
@@ -143,9 +124,37 @@ export function Mode1Panel({
       ...prev,
       [st]: { ...prev[st], [field]: value },
     }));
+    invalidateResult();
+  }
+
+  const validationError = (() => {
+    const globals = [maxShiftsPerStaff, maxStaffPerShift, minStaffPerShift];
+    if (globals.some((value) => !Number.isFinite(value) || value < 0 || value > 100)) {
+      return "Giá trị cấu hình chung phải nằm trong khoảng 0–100.";
+    }
+    for (const st of SHIFT_TYPES) {
+      const cfg = shiftConfig[st];
+      if ([cfg.min, cfg.max].some((value) => !Number.isFinite(value) || value < 0 || value > 50)) {
+        return `${st}: nhu cầu và trần ca/ngày phải nằm trong khoảng 0–50.`;
+      }
+      if (!Number.isFinite(cfg.week) || cfg.week < 0 || cfg.week > 20) {
+        return `${st}: tối đa/người/tuần phải nằm trong khoảng 0–20.`;
+      }
+      if (cfg.min > cfg.max) return `${st}: nhu cầu/ngày phải ≤ trần ca/ngày.`;
+    }
+    return null;
+  })();
+
+  function invalidateResult() {
+    setResult(null);
+    setError(null);
   }
 
   async function handleCalculate() {
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -160,8 +169,6 @@ export function Mode1Panel({
           maxStaffPerShift,
           minStaffPerShift,
           holidayMode,
-          l04AllowedSpecialties: l04Specialties,
-          l04BalanceStrategy: l04Strategy,
           removedShiftTypes,
           l01MinPerDay: sc.L01.min, l01MaxPerDay: sc.L01.max, l01MaxPerWeek: sc.L01.week,
           l02MinPerDay: sc.L02.min, l02MaxPerDay: sc.L02.max, l02MaxPerWeek: sc.L02.week,
@@ -178,6 +185,10 @@ export function Mode1Panel({
   }
 
   async function handleApply() {
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     setApplying(true);
     setError(null);
     try {
@@ -210,7 +221,6 @@ export function Mode1Panel({
           l03MaxPerWeek: sc.L03.week, l04MaxPerWeek: sc.L04.week,
           holidayMode,
           removedShiftTypes,
-          l04BalanceStrategy: l04Strategy as "STRICT_MATCH_ONLY" | "FAIR_DISTRIBUTE" | "WEIGHTED_FAIR",
         }),
       ]);
       success("Đã áp dụng cấu hình vào thuật toán");
@@ -231,7 +241,11 @@ export function Mode1Panel({
             maxShiftsPerStaff {!configLoaded && <span className="text-on-surface-variant/60">(đang tải...)</span>}
           </label>
           <input type="number" min={0} max={100} value={maxShiftsPerStaff}
-            onChange={(e) => setMaxShiftsPerStaff(Number(e.target.value))}
+            onChange={(e) => {
+              const value = e.currentTarget.valueAsNumber;
+              setMaxShiftsPerStaff(value);
+              invalidateResult();
+            }}
             className="w-full h-9 px-3 rounded-lg border border-outline-variant text-[13px]" />
         </div>
         <div className="space-y-1 min-w-[140px]">
@@ -239,7 +253,7 @@ export function Mode1Panel({
             maxStaffPerShift (mỗi ca)
           </label>
           <input type="number" min={0} max={100} value={maxStaffPerShift}
-            onChange={(e) => setMaxStaffPerShift(Number(e.target.value))}
+            onChange={(e) => { setMaxStaffPerShift(Number(e.target.value)); invalidateResult(); }}
             className="w-full h-9 px-3 rounded-lg border border-outline-variant text-[13px]" />
         </div>
         <div className="space-y-1 min-w-[140px]">
@@ -247,12 +261,12 @@ export function Mode1Panel({
             minStaffPerShift (mỗi ca)
           </label>
           <input type="number" min={0} max={100} value={minStaffPerShift}
-            onChange={(e) => setMinStaffPerShift(Number(e.target.value))}
+            onChange={(e) => { setMinStaffPerShift(Number(e.target.value)); invalidateResult(); }}
             className="w-full h-9 px-3 rounded-lg border border-outline-variant text-[13px]" />
         </div>
         <div className="space-y-1 min-w-[140px]">
           <label className="text-[11px] font-medium text-on-surface-variant">Holiday Mode</label>
-          <select value={holidayMode} onChange={(e) => setHolidayMode(e.target.value)}
+          <select value={holidayMode} onChange={(e) => { setHolidayMode(e.target.value); invalidateResult(); }}
             className="w-full h-9 px-3 rounded-lg border border-outline-variant text-[13px]">
             <option value="SKIP">SKIP — bỏ qua ngày lễ</option>
             <option value="PARTIAL">PARTIAL — sinh có giới hạn</option>
@@ -334,12 +348,18 @@ export function Mode1Panel({
         );
       })()}
 
+      {validationError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-[12px] text-red-700">
+          <span className="font-medium">⚠ Lỗi cấu hình:</span> {validationError}
+        </div>
+      )}
+
       <div className="flex items-center gap-3 flex-wrap">
-        <Button onClick={handleCalculate} disabled={loading}
+        <Button onClick={handleCalculate} disabled={loading || Boolean(validationError)}
           icon={<span className="material-symbols-outlined text-[18px]">calculate</span>}>
           {loading ? "Đang tính toán..." : "Tính toán capacity"}
         </Button>
-        <Button onClick={handleApply} disabled={applying} variant="primary"
+        <Button onClick={handleApply} disabled={applying || Boolean(validationError)} variant="primary"
           icon={<span className="material-symbols-outlined text-[18px]">check_circle</span>}>
           {applying ? "Đang áp dụng..." : "Áp dụng cấu hình"}
         </Button>

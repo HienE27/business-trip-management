@@ -28,6 +28,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Set environment variables for build
+ARG REWRITE_DEST=http://backend:8080
+ENV REWRITE_DEST=$REWRITE_DEST
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build the application

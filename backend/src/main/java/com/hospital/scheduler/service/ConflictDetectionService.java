@@ -37,6 +37,7 @@ public class ConflictDetectionService {
     private final ScheduleConflictRepository scheduleConflictRepository;
     private final StaffRepository staffRepository;
     private final ShiftRequirementRepository shiftRequirementRepository;
+    private final SchedulePeriodRepository schedulePeriodRepository;
     private final ShiftTypeRepository shiftTypeRepository;
     private final AuthContextService authContextService;
     @Lazy
@@ -776,14 +777,9 @@ public class ConflictDetectionService {
 
     @Transactional(readOnly = true)
     public CoverageReportDTO validateStaffingCoverage(Integer periodId) {
-        SchedulePeriod period = scheduleRepository.findByPeriodId(periodId).stream()
-                .findFirst()
-                .map(Schedule::getPeriod)
-                .orElse(null);
-
-        if (period == null) {
-            throw new IllegalArgumentException("Không tìm thấy kỳ lịch với ID: " + periodId);
-        }
+        SchedulePeriod period = schedulePeriodRepository.findById(periodId)
+                .orElseThrow(() -> new com.hospital.scheduler.exception.ResourceNotFoundException(
+                        "Không tìm thấy kỳ lịch với ID: " + periodId));
 
         List<ShiftRequirement> requirements = shiftRequirementRepository.findByPeriodId(periodId);
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);

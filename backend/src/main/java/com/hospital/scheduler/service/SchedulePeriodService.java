@@ -231,7 +231,6 @@ public class SchedulePeriodService {
      * than a 500. The response still carries {@code hasConflicts} and
      * {@code canPublish} derived from whatever subset succeeded.
      */
-    @Transactional(readOnly = true)
     public PublishDryRunResponse dryRunPublish(Integer id) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));

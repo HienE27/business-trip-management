@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { PresetKey, RuntimeConfig as PresetRuntimeConfig } from "@/components/algorithm-config/PresetSelector";
 import { PresetSelector } from "@/components/algorithm-config/PresetSelector";
-import { PresetSandboxModal, type PresetEntry } from "@/components/algorithm-config/PresetSandboxModal";
 import { Button } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -55,7 +54,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const [activePreset, setActivePreset] = useState<PresetKey | null>(null);
   const [customPresets, setCustomPresets] = useState<Record<string, { label: string; tagline: string; config: Partial<RuntimeConfig> }>>({});
   const [showDiff, setShowDiff] = useState(false);
-  const [sandboxOpen, setSandboxOpen] = useState(false);
   const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
   const [scheduleStats, setScheduleStats] = useState<{
     totalStaff: number;
@@ -372,16 +370,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">bookmark</span>
             <p className="text-title-sm font-semibold text-on-surface">Cấu hình nhanh</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSandboxOpen(true)}
-              icon={<span className="material-symbols-outlined text-[12px]" aria-hidden="true">science</span>}
-              className="rounded-full !bg-primary-fixed !text-primary !border !border-primary/20 hover:!bg-primary/10 px-2 py-0.5 text-[11px]"
-              title="Mở sandbox so sánh preset"
-            >
-              Sandbox
-            </Button>
             {isDirty && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-tertiary-container text-tertiary border border-tertiary/20">
                 <span className="material-symbols-outlined text-[12px]">edit</span>
@@ -581,14 +569,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         config={config}
         form={form}
         onApply={() => { setShowDiff(false); void handleSave(); }}
-      />
-
-      <PresetSandboxModal
-        open={sandboxOpen}
-        onClose={() => setSandboxOpen(false)}
-        presets={ALGORITHM_PRESETS as unknown as Record<string, PresetEntry>}
-        currentConfig={(form ?? config) as unknown as Record<string, number | boolean | string>}
-        onApply={(preset) => applyPreset(preset.key as PresetKey)}
       />
     </div>
   );

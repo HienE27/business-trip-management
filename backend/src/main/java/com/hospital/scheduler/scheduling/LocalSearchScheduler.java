@@ -261,7 +261,10 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
         if (src.getSolution() != null) {
             for (var a : src.getSolution().getAssignments()) {
                 if (a.staffId > 0) {
-                    assignments.put(a.staffId + "_" + a.date, a.shiftTypeId);
+                    // BUGFIX (V25 #3): use "|" separator so split("\\|") in
+                    // runCspWithResult correctly yields [staffId, date, shiftTypeId].
+                    // underscore split would break ISO dates (2026-07-01 → 4 parts).
+                    assignments.put(a.staffId + "|" + a.date, a.shiftTypeId);
                     scheduleCount++;
                 }
             }

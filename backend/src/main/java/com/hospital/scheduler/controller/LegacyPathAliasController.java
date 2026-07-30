@@ -4,7 +4,6 @@ import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.dto.response.DashboardResponse;
 import com.hospital.scheduler.dto.response.RolePermissionMatrixResponse;
 import com.hospital.scheduler.dto.response.StaffShiftStatistics;
-import com.hospital.scheduler.governance.service.ApprovalWorkflowService;
 import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.AlgorithmMetricsService;
 import com.hospital.scheduler.service.AutoSchedulingService;
@@ -53,7 +52,6 @@ public class LegacyPathAliasController {
     private final StatisticsService statisticsService;
     private final AlgorithmMetricsService metricsService;
     private final AutoSchedulingService autoSchedulingService;
-    private final ApprovalWorkflowService approvalService;
     private final SchedulingFeasibilityAnalyzer feasibilityAnalyzer;
 
     // ── /api/v1/schedule-periods ────────────────────────────────────────────
@@ -203,21 +201,6 @@ public class LegacyPathAliasController {
         return ResponseEntity.ok(ApiResponse.success(autoSchedulingService.getAllMetrics()));
     }
 
-    // ── /api/v1/scheduling/replay ───────────────────────────────────────────
-    @GetMapping("/api/v1/scheduling/replay")
-    @Operation(summary = "Alias root cho replay — cần sessionKey")
-    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> schedulingReplayRootAlias() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("available", true);
-        body.put("endpoints", Map.of(
-                "session", "/api/v1/sandbox/{sessionKey}/replay",
-                "frame", "/api/v1/sandbox/{sessionKey}/replay/{iteration}",
-                "explain", "/api/v1/explain/replay/{sessionKey}/{iteration}"
-        ));
-        return ResponseEntity.ok(ApiResponse.success(body));
-    }
-
     // ── /api/v1/auto-schedule/periods ───────────────────────────────────────
     @GetMapping("/api/v1/auto-schedule/periods")
     @Operation(summary = "Alias của GET /api/v1/periods")
@@ -251,63 +234,4 @@ public class LegacyPathAliasController {
         return ResponseEntity.ok(ApiResponse.success(body));
     }
 
-    // ── /api/v1/explain/algorithms ──────────────────────────────────────────
-    @GetMapping("/api/v1/explain/algorithms")
-    @Operation(summary = "Alias — liệt kê các thuật toán mà Explain module hỗ trợ")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> explainAlgorithmsAlias() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("explainableAlgorithms", List.of(
-                "GREEDY", "FAIR_GREEDY", "CSP_MRV_FC", "V10_LOCAL_SEARCH"
-        ));
-        body.put("endpoints", Map.of(
-                "assignment", "/api/v1/explain/assignment/{assignmentId}",
-                "whyNot", "/api/v1/explain/why-not?slotId=&staffId=",
-                "ranking", "/api/v1/explain/ranking/{slotId}?sessionKey=",
-                "replay", "/api/v1/explain/replay/{sessionKey}/{iteration}",
-                "query", "POST /api/v1/explain/query"
-        ));
-        return ResponseEntity.ok(ApiResponse.success(body));
-    }
-
-    // ── /api/v1/explain (root) ──────────────────────────────────────────────
-    @GetMapping("/api/v1/explain")
-    @Operation(summary = "Alias root cho module explain")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> explainRootAlias() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("available", true);
-        body.put("module", "explain");
-        body.put("endpoints", Map.of(
-                "algorithms", "/api/v1/explain/algorithms",
-                "assignment", "/api/v1/explain/assignment/{assignmentId}",
-                "whyNot", "/api/v1/explain/why-not",
-                "ranking", "/api/v1/explain/ranking/{slotId}",
-                "replay", "/api/v1/explain/replay/{sessionKey}/{iteration}",
-                "query", "POST /api/v1/explain/query"
-        ));
-        return ResponseEntity.ok(ApiResponse.success(body));
-    }
-
-    // ── /api/v1/governance (root) ───────────────────────────────────────────
-    @GetMapping("/api/v1/governance")
-    @Operation(summary = "Alias root cho module governance — trả tổng quan + endpoint chính")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> governanceRootAlias() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("available", true);
-        body.put("module", "governance");
-        body.put("endpoints", Map.of(
-                "auditSearch", "/api/v1/governance/audit",
-                "auditSummary", "/api/v1/governance/audit/summary",
-                "approvalPending", "/api/v1/governance/approval/pending",
-                "approvalPendingCount", "/api/v1/governance/approval/pending/count",
-                "configVersions", "/api/v1/governance/config/versions",
-                "configVersionsHistory", "/api/v1/governance/config/versions/period/{periodId}"
-        ));
-        try {
-            long pending = approvalService.countPending();
-            body.put("pendingApprovalCount", pending);
-        } catch (Exception e) {
-            body.put("pendingApprovalCount", 0);
-        }
-        return ResponseEntity.ok(ApiResponse.success(body));
-    }
 }
