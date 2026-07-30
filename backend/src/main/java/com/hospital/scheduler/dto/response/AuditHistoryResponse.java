@@ -43,12 +43,13 @@ public class AuditHistoryResponse {
     }
 
     public static AuditHistoryResponse fromEntity(AuditHistory entity) {
+        AuditHistory.ActionType entityAction = entity.getActionType();
         AuditHistoryResponse response = AuditHistoryResponse.builder()
                 .id(entity.getId())
                 .tableName(entity.getTableName())
                 .recordId(entity.getRecordId())
-                .actionType(ActionType.valueOf(entity.getActionType().name()))
-                .action(switch (entity.getActionType()) {
+                .actionType(toResponseActionType(entityAction))
+                .action(switch (entityAction) {
                     case INSERT -> "CREATE";
                     case UPDATE -> "UPDATE";
                     case DELETE -> "DELETE";
@@ -58,6 +59,7 @@ public class AuditHistoryResponse {
                     case CANCEL -> "CANCEL";
                     case BULK_DELETE -> "BULK_DELETE";
                     case BULK_UPDATE -> "BULK_UPDATE";
+                    case REQUIREMENT_MIGRATION_NULL_TO_ANY -> "REQUIREMENT_MIGRATION";
                 })
                 .oldData(entity.getOldData())
                 .newData(entity.getNewData())
@@ -74,5 +76,20 @@ public class AuditHistoryResponse {
             response.setUserName(entity.getChangedBy().getFullName());
         }
         return response;
+    }
+
+    private static ActionType toResponseActionType(AuditHistory.ActionType entityAction) {
+        return switch (entityAction) {
+            case INSERT -> ActionType.INSERT;
+            case UPDATE -> ActionType.UPDATE;
+            case DELETE -> ActionType.DELETE;
+            case PUBLISH -> ActionType.PUBLISH;
+            case APPROVE -> ActionType.APPROVE;
+            case REJECT -> ActionType.REJECT;
+            case CANCEL -> ActionType.CANCEL;
+            case BULK_DELETE -> ActionType.BULK_DELETE;
+            case BULK_UPDATE -> ActionType.BULK_UPDATE;
+            case REQUIREMENT_MIGRATION_NULL_TO_ANY -> ActionType.INSERT;
+        };
     }
 }

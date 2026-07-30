@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -103,23 +103,35 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
     }
   }, [periodId]);
 
+  // BUGFIX (M07 #feasibility-loop): keep `loading` out of the effect deps.
+  // Previously the effect listed `[periodId, checkFeasibility, loading]`, so
+  // every setLoading(true)/setLoading(false) flip recreated the interval and
+  // re-ran the initial checkFeasibility(), producing 17/65/83/26 request
+  // bursts per cycle instead of one fetch per 60s.
+  // We read the latest loading value via a ref so the interval skips re-fetch
+  // while a request is already in-flight without re-subscribing.
+  const loadingRef = useRef(false);
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
   useEffect(() => {
     if (!periodId) return;
-    checkFeasibility();
+    void checkFeasibility();
     const onFocus = () => {
       // refetch khi user quay lại tab — tự khắc phục state cũ sau backend restart
-      if (!loading) checkFeasibility();
+      if (!loadingRef.current) void checkFeasibility();
     };
     window.addEventListener("focus", onFocus);
     // ponytail: 60s refetch khi tab visible; ceiling=interval rút gọn hoặc SWR, upgrade khi thấy stale ở ≥3 nơi
     const id = window.setInterval(() => {
-      if (!document.hidden && !loading) checkFeasibility();
+      if (!document.hidden && !loadingRef.current) void checkFeasibility();
     }, 60_000);
     return () => {
       window.removeEventListener("focus", onFocus);
       window.clearInterval(id);
     };
-  }, [periodId, checkFeasibility, loading]);
+  }, [periodId, checkFeasibility]);
 
   if (!periodId) {
     return (

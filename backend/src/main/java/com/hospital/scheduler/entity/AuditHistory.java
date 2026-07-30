@@ -56,6 +56,7 @@ public class AuditHistory {
         INSERT, UPDATE, DELETE,
         PUBLISH,
         APPROVE, REJECT, CANCEL,
-        BULK_DELETE, BULK_UPDATE
+        BULK_DELETE, BULK_UPDATE,
+        REQUIREMENT_MIGRATION_NULL_TO_ANY
     }
 }

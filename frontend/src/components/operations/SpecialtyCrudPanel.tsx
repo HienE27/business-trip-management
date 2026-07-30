@@ -5,7 +5,7 @@ import { FormInput, FormTextarea, Button, ConfirmDialog, Pagination } from "@/co
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/useToast";
-import type { ApiResponse, Page, Specialty } from "@/types/api";
+import type { Page, Specialty } from "@/types/api";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -67,12 +67,12 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
 
   const fetchStatusCounts = useCallback(async () => {
     try {
-      const res = await api.get<ApiResponse<Record<string, number>>>("/specialties/status-counts");
-      const data = (res?.data ?? {}) as Record<string, number>;
+      const res = await api.get<Record<string, number>>("/specialties/status-counts");
+      // api.get<T>() unwraps ApiResponse.data → res is the map {total, ACTIVE, INACTIVE}
       setStatusCounts({
-        total: data.total ?? 0,
-        ACTIVE: data.ACTIVE ?? 0,
-        INACTIVE: data.INACTIVE ?? 0,
+        total: res.total ?? 0,
+        ACTIVE: res.ACTIVE ?? 0,
+        INACTIVE: res.INACTIVE ?? 0,
       });
     } catch {
       // Fall back to zeros — UI gracefully degrades.
