@@ -131,10 +131,12 @@ export function StaffCrudPanel() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [specialtyFilter, setSpecialtyFilter] = useState<number | "">("");
   const [positionFilter, setPositionFilter] = useState("");
+  const [debouncedPosition, setDebouncedPosition] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
@@ -209,16 +211,16 @@ export function StaffCrudPanel() {
   // are cancelled by the latest-request guard instead of racing. A request
   // counter stamps every call; only the response whose counter matches the
   // current value is allowed to commit to state.
-  const fetchStaff = useCallback(async (signal?: AbortSignal) => {
+  const fetchStaff = useCallback(async (signal?: AbortSignal, requestToken?: number) => {
     try {
       setLoading(true);
       const result = await api.searchStaffsPage(
         {
-          keyword: searchKeyword.trim() || undefined,
+          keyword: debouncedKeyword.trim() || undefined,
           status: statusFilter || undefined,
           role: roleFilter || undefined,
           specialtyId: (specialtyFilter || undefined) as number | undefined,
-          position: positionFilter.trim() || undefined,
+          position: debouncedPosition.trim() || undefined,
           page: currentPage,
           size: pageSize,
         },
@@ -227,6 +229,7 @@ export function StaffCrudPanel() {
       // searchStaffsPage returns the stricter exported `Staff` type. The
       // local `StaffApiResponse` view also requires hireDate — both shapes
       // align at runtime, so cast through unknown to bridge them.
+      if (requestToken !== undefined && requestToken !== latestRequestRef.current) return;
       const rawContent = (result.content ?? []) as unknown as StaffApiResponse[];
       const normalizedData = rawContent.map(normalizeStaffRecord);
       setRecords(normalizedData);
@@ -238,29 +241,32 @@ export function StaffCrudPanel() {
       toast.error("Không thể tải danh sách nhân sự. Vui lòng kiểm tra kết nối backend.");
       setRecords([]);
     } finally {
-      setLoading(false);
+      if (requestToken === undefined || requestToken === latestRequestRef.current) {
+        setLoading(false);
+      }
     }
-  }, [searchKeyword, statusFilter, roleFilter, specialtyFilter, positionFilter, currentPage, pageSize, toast]);
+  }, [debouncedKeyword, statusFilter, roleFilter, specialtyFilter, debouncedPosition, currentPage, pageSize, toast]);
 
   useEffect(() => {
     fetchSpecialties();
   }, [fetchSpecialties]);
 
-  // BUGFIX (FE#5): debounce free-text filters (keyword + position) by 250ms
-  // and abort any in-flight request when the user keeps typing. Latest-
-  // request guard (counter) ensures stale responses can't overwrite fresh
-  // state if the abort arrives after the network call already returned.
+  // Debounce text only. Select filters and pagination fetch immediately.
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedKeyword(searchKeyword), 300);
+    return () => window.clearTimeout(handle);
+  }, [searchKeyword]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedPosition(positionFilter), 300);
+    return () => window.clearTimeout(handle);
+  }, [positionFilter]);
+
   useEffect(() => {
     const controller = new AbortController();
     const token = ++latestRequestRef.current;
-    const handle = window.setTimeout(() => {
-      if (token !== latestRequestRef.current) return;
-      fetchStaff(controller.signal);
-    }, 250);
-    return () => {
-      controller.abort();
-      window.clearTimeout(handle);
-    };
+    void fetchStaff(controller.signal, token);
+    return () => controller.abort();
   }, [fetchStaff]);
 
   // Safety net: ensure form is closed on initial mount
@@ -344,31 +350,26 @@ export function StaffCrudPanel() {
     setCurrentPage(0);
   }
 
-  function handleExportExcel() {
-    const rows = [
-      ["Họ tên", "Tên đăng nhập", "Vai trò", "Chuyên khoa", "SĐT", "Email", "Trạng thái"],
-      ...dedupedRecords.map((r) => [
-        r.fullName,
-        r.username,
-        getRoleLabel(r.roles),
-        r.specialty?.name ?? "Chưa phân khoa",
-        r.phone || "-",
-        r.email || "-",
-        getStatusLabel(r),
-      ]),
-    ];
-    const csv = rows
-      .map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-      )
-      .join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `danh-sach-nhan-su-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  async function handleExportExcel() {
+    try {
+      const blob = await api.exportStaffCsv({
+        keyword: debouncedKeyword.trim() || undefined,
+        status: statusFilter || undefined,
+        role: roleFilter || undefined,
+        specialtyId: (specialtyFilter || undefined) as number | undefined,
+        position: debouncedPosition.trim() || undefined,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `danh-sach-nhan-su-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Xuất danh sách nhân sự thất bại"));
+    }
   }
 
   async function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -382,7 +383,7 @@ export function StaffCrudPanel() {
       } else {
         toast.success(`Đã nhập thành công ${result.imported} nhân sự.`);
       }
-      await fetchStaff();
+      await Promise.all([fetchStaff(), fetchStatusCounts(), fetchSpecialtyCounts()]);
     } catch (err) {
       toast.error(getErrorMessage(err, "Lỗi nhập file"));
     } finally {
@@ -559,7 +560,7 @@ export function StaffCrudPanel() {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab("specialties")}
+          onClick={() => setTab("specialties")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all ${
             isSpecialtiesTab
               ? "bg-primary text-on-primary shadow-md"

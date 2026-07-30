@@ -47,17 +47,13 @@ export function useConflictStream({ enabled }: { enabled: boolean }): void {
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) ?? undefined;
     const url = resolveConflictWsUrl();
 
-    // Build a WebSocket factory so @stomp/stompjs v7 can create the connection.
-    // Attach the token in the URL query param; the backend reads it from the handshake.
-    const wsUrl = token ? `${url}?token=${encodeURIComponent(token)}` : url;
-
+    // Never put JWTs in URLs: proxies and error trackers commonly log them.
+    // STOMP sends the token in its CONNECT Authorization header; the WebSocket
+    // handshake itself uses the existing secure auth cookie.
     const client = createConflictClient({
-      url: wsUrl,
+      url,
       token,
-      webSocketFactory: () => {
-        const ws = new WebSocket(wsUrl);
-        return ws;
-      },
+      webSocketFactory: () => new WebSocket(url),
     });
     const unsubscribe = client.onEvent((event: ConflictEvent) => {
       applyEventRef.current(event);
