@@ -134,17 +134,7 @@ public class DashboardService {
 
     public List<DashboardResponse.StaffWorkloadStatistics> getStaffWorkloadByPeriod(Integer periodId) {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
-
-        Map<Integer, List<Schedule>> staffSchedules = schedules.stream()
-                .collect(Collectors.groupingBy(s -> s.getStaff().getId()));
-
-        List<DashboardResponse.StaffWorkloadStatistics> result = new ArrayList<>();
-
-        for (Map.Entry<Integer, List<Schedule>> entry : staffSchedules.entrySet()) {
-            result.add(buildWorkloadStatistic(entry.getValue()));
-        }
-
-        return result;
+        return buildWorkloadStatistics(schedules, /*includeAllStaff=*/ false);
     }
 
     /**
@@ -166,6 +156,47 @@ public class DashboardService {
         return new org.springframework.data.domain.PageImpl<>(slice, pageable, all.size());
     }
 
+    /**
+     * Period-wide workload summary used by Reports/Staff KPI cards. Aggregates
+     * shift counts in a single pass so the KPI numbers agree with the page rows,
+     * even when the user paginates.
+     */
+    public WorkloadSummary getStaffWorkloadSummary(Integer periodId) {
+        List<DashboardResponse.StaffWorkloadStatistics> all = getStaffWorkloadByPeriod(periodId);
+        long total = all.stream().mapToLong(DashboardResponse.StaffWorkloadStatistics::getScheduleCount).sum();
+        long overCap = all.stream()
+                .filter(w -> w.getMaxShiftsPerMonth() != null && w.getScheduleCount() > w.getMaxShiftsPerMonth())
+                .count();
+        long underCap = all.stream()
+                .filter(w -> w.getMaxShiftsPerMonth() != null && w.getScheduleCount() < w.getMaxShiftsPerMonth())
+                .count();
+        long balanced = all.stream()
+                .filter(w -> w.getMaxShiftsPerMonth() != null && w.getScheduleCount() == w.getMaxShiftsPerMonth())
+                .count();
+        long noCap = all.stream().filter(w -> w.getMaxShiftsPerMonth() == null).count();
+        return new WorkloadSummary(all.size(), total, overCap, underCap, balanced, noCap);
+    }
+
+    public record WorkloadSummary(
+            int activeStaff,
+            long totalAssignments,
+            long overCapStaff,
+            long underCapStaff,
+            long balancedStaff,
+            long noCapStaff) {}
+
+    private List<DashboardResponse.StaffWorkloadStatistics> buildWorkloadStatistics(
+            List<Schedule> schedules, boolean includeAllStaff) {
+        Map<Integer, List<Schedule>> staffSchedules = schedules.stream()
+                .collect(Collectors.groupingBy(s -> s.getStaff().getId()));
+
+        List<DashboardResponse.StaffWorkloadStatistics> result = new ArrayList<>();
+        for (Map.Entry<Integer, List<Schedule>> entry : staffSchedules.entrySet()) {
+            result.add(buildWorkloadStatistic(entry.getValue()));
+        }
+        return result;
+    }
+
     private DashboardResponse.StaffWorkloadStatistics buildWorkloadStatistic(List<Schedule> staffScheduleList) {
         Staff staff = staffScheduleList.get(0).getStaff();
 
@@ -182,6 +213,7 @@ public class DashboardService {
                 .filter(s -> ConflictDetectionService.SHIFT_TYPE_L04.equals(s.getShiftType().getId()))
                 .count();
 
+        Integer cap = staff.getMaxShiftsPerMonth();
         return DashboardResponse.StaffWorkloadStatistics.builder()
                 .staffId(staff.getId())
                 .staffName(staff.getFullName())
@@ -190,6 +222,8 @@ public class DashboardService {
                 .L02Count(L02Count)
                 .L03Count(L03Count)
                 .L04Count(L04Count)
+                .maxShiftsPerMonth(cap)
+                .underCap(cap != null && staffScheduleList.size() < cap)
                 .build();
     }
 

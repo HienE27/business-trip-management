@@ -78,6 +78,10 @@ public class DashboardResponse {
         @JsonProperty("L04Count")
         private long L04Count;
         private long leaveDays;
+        /** Monthly cap from staff record; null if legacy record without the field. */
+        private Integer maxShiftsPerMonth;
+        /** true when this staff still has zero or partial schedule data for the period. */
+        private boolean underCap;
     }
 
     @Getter

@@ -110,7 +110,6 @@ function ToastItem({
   return (
     <div
       role={toast.type === "error" || toast.type === "warning" ? "alert" : "status"}
-      aria-live={toast.type === "error" ? "assertive" : "polite"}
       className={cn(
         "flex items-center gap-3 bg-surface-container-lowest border border-outline-variant",
         "rounded-xl px-4 py-3 shadow-xl min-w-72 max-w-[420px]",
@@ -201,6 +200,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
       {/* Toast container — bottom-right desktop, bottom-center mobile */}
       <div
+        role="region"
         aria-label="Thông báo"
         className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 pointer-events-none sm:right-6 sm:left-auto left-1/2 sm:translate-x-0 -translate-x-1/2"
       >

@@ -75,6 +75,14 @@ public class DashboardController {
                 dashboardService.getStaffWorkloadByPeriodPage(periodId, pageable)));
     }
 
+    @GetMapping("/workload/period/{periodId}/summary")
+    @Operation(summary = "Tóm tắt workload toàn kỳ (KPI cards page /reports/staff)")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_AGGREGATE + "')")
+    public ResponseEntity<ApiResponse<DashboardService.WorkloadSummary>> getStaffWorkloadSummary(
+            @PathVariable Integer periodId) {
+        return ResponseEntity.ok(ApiResponse.success(dashboardService.getStaffWorkloadSummary(periodId)));
+    }
+
     @GetMapping("/shift-type/{shiftTypeId}/statistics")
     @Operation(summary = "Thống kê chi tiết theo loại ca (L03/L04) theo tuần hoặc tháng — phục vụ M04-F05 và M05-F05")
     @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_AGGREGATE + "')")
@@ -150,8 +158,9 @@ public class DashboardController {
             @PathVariable Integer periodId,
             @RequestParam(required = false) String shiftTypeId,
             @RequestParam(required = false) Integer staffId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate) throws Exception {
-        byte[] excelData = reportExportService.exportWorkloadReportToExcel(periodId, shiftTypeId, staffId, startDate);
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) throws Exception {
+        byte[] excelData = reportExportService.exportWorkloadReportToExcel(periodId, shiftTypeId, staffId, startDate, endDate);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
         headers.setContentDispositionFormData("attachment", "thong_ke_tai_" + periodId + ".xlsx");

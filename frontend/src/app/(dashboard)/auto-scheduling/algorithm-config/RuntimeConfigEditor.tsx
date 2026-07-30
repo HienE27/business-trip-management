@@ -30,6 +30,19 @@ import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
 import type { DashboardData, DashboardSummary, ShiftStatistics } from "@/types/api";
 
+// Strip legacy "__NONE__" sentinels that may have leaked into persisted
+// allowlists via the older "Bỏ chọn tất cả" button. The backend treats an
+// empty list as "all eligible", so a sentinel-only list maps back to [].
+function sanitizeAllowedSpecialties(
+  values: string[] | null | undefined,
+): string[] {
+  if (!Array.isArray(values)) return [];
+  const LEGACY_NONE_SENTINEL = "__NONE__";
+  return values.filter(
+    (v) => v !== LEGACY_NONE_SENTINEL && typeof v === "string",
+  );
+}
+
 type Props = { onSaved?: () => void };
 
 export function RuntimeConfigEditor({ onSaved }: Props) {

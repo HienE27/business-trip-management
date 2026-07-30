@@ -2,6 +2,7 @@ package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.entity.Schedule;
 import com.hospital.scheduler.entity.Staff;
+import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
@@ -22,12 +23,33 @@ public class ReportExportService {
 
     private final ScheduleRepository scheduleRepository;
 
+    /**
+     * Excel interprets cells starting with {@code = + - @ \t} as formulas or control
+     * sequences. Prefix any untrusted user-sourced string with a single quote
+     * so the cell renders as literal text in spreadsheet apps.
+     */
+    static String sanitizeForExcel(Object value) {
+        if (!(value instanceof String s) || s.isEmpty()) return "";
+        char first = s.charAt(0);
+        if (first == '=' || first == '+' || first == '-' || first == '@' || first == '\t' || first == '\r') {
+            return "'" + s;
+        }
+        return s;
+    }
+
+    static void validateDateRange(java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new BadRequestException("startDate phải nhỏ hơn hoặc bằng endDate");
+        }
+    }
+
     public byte[] exportScheduleToExcel(Integer periodId) throws IOException {
         return exportScheduleToExcel(periodId, null, null, null, null);
     }
 
     public byte[] exportScheduleToExcel(Integer periodId, String shiftTypeId, Integer staffId,
                                         java.time.LocalDate startDate, java.time.LocalDate endDate) throws IOException {
+        validateDateRange(startDate, endDate);
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
 
         // Apply additional filters
@@ -113,11 +135,17 @@ public class ReportExportService {
     }
 
     public byte[] exportWorkloadReportToExcel(Integer periodId) throws IOException {
-        return exportWorkloadReportToExcel(periodId, null, null, null);
+        return exportWorkloadReportToExcel(periodId, null, null, null, null);
     }
 
     public byte[] exportWorkloadReportToExcel(Integer periodId, String shiftTypeId, Integer staffId,
                                             java.time.LocalDate startDate) throws IOException {
+        return exportWorkloadReportToExcel(periodId, shiftTypeId, staffId, startDate, null);
+    }
+
+    public byte[] exportWorkloadReportToExcel(Integer periodId, String shiftTypeId, Integer staffId,
+                                            java.time.LocalDate startDate, java.time.LocalDate endDate) throws IOException {
+        validateDateRange(startDate, endDate);
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
 
         if (shiftTypeId != null && !shiftTypeId.isBlank()) {
@@ -133,6 +161,11 @@ public class ReportExportService {
         if (startDate != null) {
             schedules = schedules.stream()
                     .filter(s -> !s.getWorkDate().isBefore(startDate))
+                    .toList();
+        }
+        if (endDate != null) {
+            schedules = schedules.stream()
+                    .filter(s -> !s.getWorkDate().isAfter(endDate))
                     .toList();
         }
 
@@ -211,7 +244,7 @@ public class ReportExportService {
     private void createCell(Row row, int column, Object value, CellStyle style) {
         Cell cell = row.createCell(column);
         if (value instanceof String) {
-            cell.setCellValue((String) value);
+            cell.setCellValue(sanitizeForExcel(value));
         } else if (value instanceof Integer) {
             cell.setCellValue((Integer) value);
         } else if (value instanceof Long) {

@@ -1,6 +1,7 @@
 package com.hospital.scheduler.service;
 
 import com.hospital.scheduler.entity.Schedule;
+import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.repository.ScheduleRepository;
 import com.lowagie.text.Document;
 import com.lowagie.text.FontFactory;
@@ -32,6 +33,9 @@ public class SchedulePdfExportService {
 
     public byte[] exportScheduleToPdf(Integer periodId, String shiftTypeId, Integer staffId,
                                       java.time.LocalDate startDate, java.time.LocalDate endDate) throws IOException {
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new BadRequestException("startDate phải nhỏ hơn hoặc bằng endDate");
+        }
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
 
         // Apply the same filters as the Excel export for consistency.

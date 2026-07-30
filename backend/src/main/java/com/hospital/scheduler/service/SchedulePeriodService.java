@@ -6,6 +6,8 @@ import com.hospital.scheduler.dto.response.BulkPeriodResponse;
 import com.hospital.scheduler.dto.response.ConflictCheckResponse;
 import com.hospital.scheduler.dto.response.CoverageReportDTO;
 import com.hospital.scheduler.dto.response.PublishDryRunResponse;
+import java.util.Collections;
+import java.util.List;
 import com.hospital.scheduler.dto.response.SchedulePeriodResponse;
 import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.CompensationDay;
@@ -223,16 +225,26 @@ public class SchedulePeriodService {
     /**
      * Perform a dry-run publish check without persisting anything.
      * Runs conflict detection and staffing coverage validation.
+     *
+     * <p>Hardened against upstream failures: each downstream call is wrapped
+     * so a throw from a single sub-check surfaces as a partial result rather
+     * than a 500. The response still carries {@code hasConflicts} and
+     * {@code canPublish} derived from whatever subset succeeded.
      */
     @Transactional(readOnly = true)
     public PublishDryRunResponse dryRunPublish(Integer id) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));
 
-        // M02-F03 "Xem trước khi phát hành": dry-run MUST be read-only.
-        // Use checkPeriodConflictsReadOnly so we don't mutate schedule.hasConflict,
-        // don't create ScheduleConflict rows, don't send emails, and don't broadcast.
-        ConflictCheckResponse conflictCheck = conflictDetectionService.checkPeriodConflictsReadOnly(id);
+        ConflictCheckResponse conflictCheck = null;
+        try {
+            // M02-F03 "Xem trước khi phát hành": dry-run MUST be read-only.
+            // Use checkPeriodConflictsReadOnly so we don't mutate schedule.hasConflict,
+            // don't create ScheduleConflict rows, don't send emails, and don't broadcast.
+            conflictCheck = conflictDetectionService.checkPeriodConflictsReadOnly(id);
+        } catch (RuntimeException e) {
+            log.warn("dryRunPublish: conflict check failed for period {}: {}", id, e.getMessage());
+        }
         CoverageReportDTO staffingCoverage = null;
         try {
             staffingCoverage = conflictDetectionService.validateStaffingCoverage(id);
@@ -240,16 +252,27 @@ public class SchedulePeriodService {
             log.warn("Could not generate staffing coverage for period {}: {}", id, e.getMessage());
         }
 
+        boolean hasConflicts = conflictCheck != null && conflictCheck.isHasConflicts();
+        int conflictCount = conflictCheck != null ? conflictCheck.getTotalConflicts() : 0;
+        List<com.hospital.scheduler.dto.response.ConflictCheckResponse.ConflictDetail> conflicts =
+                conflictCheck != null && conflictCheck.getConflicts() != null
+                        ? conflictCheck.getConflicts()
+                        : Collections.emptyList();
+        boolean hasCoverageGaps = conflictCheck != null && conflictCheck.isHasCoverageGaps();
+        List<String> coverageGaps = conflictCheck != null && conflictCheck.getCoverageGaps() != null
+                ? conflictCheck.getCoverageGaps()
+                : Collections.emptyList();
+
         return PublishDryRunResponse.builder()
                 .periodId(id)
                 .periodName(period.getPeriodName())
-                .hasConflicts(conflictCheck.isHasConflicts())
-                .conflictCount(conflictCheck.getTotalConflicts())
-                .conflicts(conflictCheck.getConflicts())
-                .hasCoverageGaps(conflictCheck.isHasCoverageGaps())
-                .coverageGaps(conflictCheck.getCoverageGaps())
+                .hasConflicts(hasConflicts)
+                .conflictCount(conflictCount)
+                .conflicts(conflicts)
+                .hasCoverageGaps(hasCoverageGaps)
+                .coverageGaps(coverageGaps)
                 .staffingCoverage(staffingCoverage)
-                .canPublish(!conflictCheck.isHasConflicts())
+                .canPublish(conflictCheck != null && !hasConflicts)
                 .build();
     }
 

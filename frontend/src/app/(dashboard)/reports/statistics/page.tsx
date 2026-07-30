@@ -295,7 +295,7 @@ function StatisticsReportContent() {
                             className={`h-1.5 rounded-full transition-all ${
                               shiftTypeInfo?.bg ?? "bg-primary"
                             }`}
-                            style={{ width: `${Math.max(s.workloadPercentage ?? 0, 1)}%` }}
+                            style={{ width: `${Math.min(100, Math.max(s.workloadPercentage ?? 0, 1))}%` }}
                           />
                         </div>
                         <span className="text-[12px] text-on-surface-variant min-w-[40px]">
