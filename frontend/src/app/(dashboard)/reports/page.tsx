@@ -72,9 +72,9 @@ export default function ReportsPage() {
 
             {/* Content */}
             <div className="mt-4 flex flex-1 flex-col">
-              <h3 className="text-title-lg font-semibold text-on-surface leading-tight">
+              <h2 className="text-title-lg font-semibold text-on-surface leading-tight">
                 {card.title}
-              </h3>
+              </h2>
               <p className="mt-2 flex-1 text-label-sm leading-5 text-on-surface-variant">
                 {card.description}
               </p>

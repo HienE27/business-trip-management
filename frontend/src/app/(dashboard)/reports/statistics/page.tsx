@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/ui/BackButton";
 import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -20,13 +21,16 @@ export default function StatisticsReportPage() {
 
 function StatisticsReportContent() {
   const { error: toastError } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [periods, setPeriods] = useState<SchedulePeriod[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<SchedulePeriod | null>(null);
   const [stats, setStats] = useState<StaffShiftStatistics[]>([]);
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
-  const [shiftTypeFilter, setShiftTypeFilter] = useState<string>("");
+  const initialShiftTypeFilter = searchParams.get("shift") ?? "";
+  const [shiftTypeFilter, setShiftTypeFilter] = useState<string>(initialShiftTypeFilter);
   const [message, setMessage] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(20);
 
@@ -83,6 +87,16 @@ function StatisticsReportContent() {
     void fetchStats(selectedPeriod.id, shiftTypeFilter || undefined, controller.signal);
     return () => controller.abort();
   }, [selectedPeriod, shiftTypeFilter, fetchStats]);
+
+  // Sync the shift filter with the URL so back/forward and reload preserve it.
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (shiftTypeFilter) params.set("shift", shiftTypeFilter);
+    else params.delete("shift");
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) router.replace(`?${next}`, { scroll: false });
+  }, [shiftTypeFilter, router, searchParams]);
 
   const summaryStats = useMemo(() => {
     if (stats.length === 0) return null;

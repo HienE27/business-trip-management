@@ -230,14 +230,17 @@ function ReportsConflictsContent() {
                       </div>
                       <div className="space-y-2">
                         {visibleItems.map((c, idx) => {
-                          // REPORTS-CONFLICT-002: composite key (scheduleId +
-                          // normalized reasons + date). Fall back to the
-                          // array index when scheduleId is missing so React
-                          // keys remain unique.
+                          // REPORTS-CONFLICT-002: composite key uses scheduleId,
+                          // staff id, shift id, normalized reasons, date, and a
+                          // last-mile occurrence index so React keys remain
+                          // unique even when the backend omits scheduleId.
                           const normalized = normalizeConflictReasons(c.conflictReasons);
-                          const rowKey = c.scheduleId != null
-                            ? `${c.scheduleId}|${normalized.join("|")}|${c.workDate ?? ""}`
-                            : `idx-${idx}`;
+                          const idPart = c.scheduleId != null ? `sid:${c.scheduleId}` : "sid:?";
+                          const staffPart = c.originalStaffId != null
+                            ? `stf:${c.originalStaffId}`
+                            : `nm:${c.staffName ?? ""}`;
+                          const shiftPart = c.shiftTypeId ? `sh:${c.shiftTypeId}` : "sh:?";
+                          const rowKey = `${idPart}|${staffPart}|${shiftPart}|${normalized.join("|")}|${c.workDate ?? ""}|#${idx}`;
                           return (
                           <div key={rowKey} className="flex items-center justify-between rounded-lg bg-surface-container-lowest px-3 py-2">
                             <div>
