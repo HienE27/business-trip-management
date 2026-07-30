@@ -563,5 +563,9 @@ class CspSearchEngine {
         boolean partial;
         Map<String, Boolean> assignment;
         List<String> errors;
+
+        int getScheduleCount() {
+            return assignment != null ? assignment.size() : 0;
+        }
     }
 }

@@ -442,7 +442,11 @@ public class AlgorithmConfigService {
     private java.util.Map<String, String> loadConfigCache() {
         java.util.Map<String, String> cache = new java.util.HashMap<>();
         for (com.hospital.scheduler.repository.AlgorithmConfigKeyValue kv : configRepository.findAllAsKeyValuePairs()) {
-            cache.put(kv.getParamKey(), kv.getParamValue());
+            // Normalize paramKey to lowercase so lookup by Java constants
+            // (e.g. WEEKEND_WEIGHT = "weekend_weight") matches regardless of
+            // how the DB row was originally inserted. Consistent with
+            // AlgorithmConfigCrudService#loadConfigCache().
+            cache.put(kv.getParamKey().toLowerCase(), kv.getParamValue());
         }
         return cache;
     }

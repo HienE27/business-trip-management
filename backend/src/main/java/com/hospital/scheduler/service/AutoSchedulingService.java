@@ -1402,12 +1402,17 @@ public class AutoSchedulingService {
                             // Soft cap: deprioritize if already at soft cap
                             return typeCount >= softCapPerType ? 1 : 0;
                         })
+                        // Tier 2b: STRONG ROTATION — prevent same staff being picked multiple consecutive days.
+                        // Staff never picked (value 0) stay TOP priority. Staff picked longest ago
+                        // (smallest value) preferred over those picked more recently.
+                        // Elevated ABOVE Tier 3 to actively rotate through the pool.
+                        .thenComparingInt(s -> lastPickedForType.getOrDefault(s.getId(), 0))
                         // Tier 3: Fewest of THIS shift type/specialty — primary per-type fairness signal
                         .thenComparingLong((Staff s) -> {
                             return getStaffCountForKey(s.getId(), capturedFairShareKey,
                                     periodData.staffShiftTypeCounts(), capturedRunningCounts);
                         })
-                        // Tier 4 (stronger): Penalty for staff whose total shifts exceed the running average.
+                        // Tier 4: Penalty for staff whose total shifts exceed the running average.
                         // Squared term amplifies imbalance so the algorithm aggressively prefers under-loaded staff.
                         .thenComparingDouble(s -> {
                             Map<String, Long> counts = periodData.staffShiftTypeCounts().get(s.getId());
@@ -1435,15 +1440,7 @@ public class AutoSchedulingService {
                                     : 0L;
                             return totalShifts * runtimeConfig.getWeekendWeight().doubleValue();
                         })
-                        // Tier 7: Rotation tiebreaker — prefer staff picked the LONGEST ago (smallest last-pick value).
-                        // Using lastPickedForType (not cumulative count) means never-picked staff (value 0)
-                        // stay top priority until everyone has been picked once. This produces true round-robin
-                        // and fixes the 7-vs-16 imbalance where first N staff in input list dominate.
-                        .thenComparingInt(s -> lastPickedForType.getOrDefault(s.getId(), 0))
-                        // Tier 8 (ENHANCED GREEDY): Fatigue awareness — prefer staff with rest before today.
-                        // Penalty = daysSinceLastWork * 100 + (consecutive ? 1000 : 0).
-                        // Staff never assigned get priority (lastWorkDate == null → score 0).
-                        // This is a soft preference only; if no rested staff available, tired staff still picked.
+                        // Tier 7: Fatigue awareness — prefer staff with rest before today
                         .thenComparingLong((Staff s) -> {
                             LocalDate last = staffLastWorkDate.get(s.getId());
                             if (last == null) return 0L; // never worked → best candidate

@@ -3,6 +3,7 @@ package com.hospital.scheduler.algorithm;
 import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.entity.Staff;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -36,6 +37,7 @@ import java.util.Set;
  *   <li>BR-06: DIRECT_24H max 1 per day</li>
  * </ul>
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class CSPScheduler implements SchedulingAlgorithm {
@@ -133,6 +135,9 @@ public class CSPScheduler implements SchedulingAlgorithm {
 
 		ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests, l04AllowedSpecialties, null, null, l04CrossSpecialty, maxShiftsPerStaff);
         CspSearchEngine.Result solution = searchEngine.solve(data, startTime);
+        long elapsedMs = System.currentTimeMillis() - startTime;
+        log.info("CSP solve completed in {}ms: valid={} partial={} assignments={}",
+                elapsedMs, solution.isValid(), solution.isPartial(), solution.getScheduleCount());
         return resultBuilder.build(solution, data, activeStaff, dates, startTime);
     }
 
@@ -188,9 +193,18 @@ public class CSPScheduler implements SchedulingAlgorithm {
         // The preview path used to cap at 8s but Period 5 (23 staff, 6
         // specialties, ~899 required slots) needs more time to make a
         // meaningful first plan before falling back to Greedy. Bumped to
-        // 45s — empirically enough to commit several hundred slots across
-        // L01-L04 without forcing the user to wait for a 60s+ cold path.
-        CspSearchEngine.Result solution = searchEngine.solve(data, startTime, 45_000L);
+        // 30s for faster UX on preview, with option to increase for apply.
+        CspSearchEngine.Result solution = searchEngine.solve(data, startTime, 30_000L);
+        long elapsedMs = System.currentTimeMillis() - startTime;
+        if (solution.isPartial()) {
+            log.info("CSP solveForPreview: partial after {}ms, {} assignments (timeout hit)",
+                    elapsedMs, solution.getScheduleCount());
+        } else if (solution.isValid()) {
+            log.info("CSP solveForPreview: complete in {}ms, {} assignments",
+                    elapsedMs, solution.getScheduleCount());
+        } else {
+            log.warn("CSP solveForPreview: no solution found after {}ms", elapsedMs);
+        }
         return resultBuilder.build(solution, data, activeStaff, dates, startTime);
     }
 
