@@ -130,9 +130,12 @@ class CspSchedulerSmokeTest {
                     .isGreaterThanOrEqualTo(2);
 
             // Indirect BR-01 check: no staff can have TWO shifts on the same day.
-            // Each "staffId|date" key must appear at most once.
+            // CspResultBuilder keys are "staffId|workDate|shiftType" so we match on
+            // the contained workDate, not the trailing suffix (which is shiftType).
             long mondayAssignments = result.getAssignments().keySet().stream()
-                    .filter(k -> k.endsWith("|" + monday))
+                    .filter(k -> k.contains("|" + monday + "|"))
+                    .map(k -> k.substring(0, k.indexOf("|")))
+                    .distinct()
                     .count();
             assertThat(mondayAssignments)
                     .as("Two shifts on the same day must use two distinct staff keys")
