@@ -19,6 +19,8 @@ import com.hospital.scheduler.exception.BadRequestException;
 import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.*;
 import com.hospital.scheduler.util.CompensationDateCalculator;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -52,6 +54,9 @@ public class ScheduleExchangeService {
     private final CSPScheduler cspScheduler;
     private final SchedulingResultLoader schedulingResultLoader;
     private final ScheduleConflictRepository scheduleConflictRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public List<ScheduleExchangeResponse> getAllExchanges() {
         return exchangeRepository.findAll().stream()
@@ -215,15 +220,17 @@ public class ScheduleExchangeService {
         // constraint is violated. Returns the inputs needed for the swap.
         SwapContext ctx = validateSwapConstraints(exchange, requesterSchedule, targetSchedule);
 
-        // Detach the exchange's FK references to the soon-to-be-deleted schedule rows.
-        // The helper's flush() will trigger Hibernate to dirty-check the entire
-        // persistence context, including the managed ScheduleExchange. If we
-        // leave exchange.requesterSchedule pointing at a deleted Schedule, the
-        // flush will fail with TransientPropertyValueException. Setting them to
-        // null here is safe — they're reassigned to the freshly-persisted rows
-        // in the SwapResult below.
-        exchange.setRequesterSchedule(null);
-        exchange.setTargetSchedule(null);
+        // Detach the exchange from the persistence context before the swap.
+        // The helper's flush() dirty-checks the ENTIRE context, and the old
+        // schedule rows are deleted mid-swap. Nulling the FK references first
+        // (previous code) made Hibernate emit
+        // `UPDATE schedule_exchange SET requester_schedule_id=NULL` — but the
+        // columns are NOT NULL in the DB, so MySQL rejected it with error 1048,
+        // which surfaced as the cryptic "dữ liệu đang được sử dụng ở nơi khác".
+        // Detaching keeps Hibernate from dirty-checking the exchange during the
+        // swap; the FK references are re-pointed at the freshly-persisted rows
+        // below and the entity is re-merged on save.
+        entityManager.detach(exchange);
 
         // P8: extracted execution phase — deletes old comp days, swaps staff,
         // creates new comp days, persists atomically. Returns the freshly-
@@ -233,9 +240,7 @@ public class ScheduleExchangeService {
         try {
             swapResult = executeSwap(ctx, reviewerId);
         } catch (Exception ex) {
-            Throwable root = ex;
-            while (root.getCause() != null && root.getCause() != root) { root = root.getCause(); }
-            log.error("DEBUG Bug#5: executeSwap failed (rootCause={}): {}", root.getMessage(), ex);
+            log.error("executeSwap failed for exchange {}: {}", exchangeId, ex.getMessage(), ex);
             throw ex;
         }
 
@@ -335,42 +340,21 @@ public class ScheduleExchangeService {
      *  3. Create new comp days for the new L01 assignments (audit each).
      */
     private SwapResult executeSwap(SwapContext ctx, Integer reviewerId) {
-        // The helper now owns comp-day lifecycle for each swapped schedule
-        // (delete-orphan-then-recreate via the caller). We only handle
-        // schedule-row swapping here.
-
+        // Same-slot swaps (both schedules on the same date+shift) collide on the
+        // (period_id, staff_id, shift_type_id, work_date) UNIQUE constraint if either
+        // replacement is inserted while the other old row still exists. So delete
+        // BOTH old rows first (single flush), then insert both replacements (single
+        // flush). Comp-day orphans are deleted before their schedule (FK order).
         SchedulePeriod period = ctx.period();
-        // Bug #5d: rewrite both schedule rows. The helper now does
-        // DELETE-then-INSERT per row (with comp-day orphans deleted first to
-        // satisfy the non-nullable FK). Both helpers flush between phases so
-        // each one sees a clean slate. The order doesn't matter because each
-        // helper touches its own PK row only.
-        copyCompensationFkAndDelete(ctx.requesterSchedule(), ctx.targetOldStaff(), ctx.requesterWorkDate(),
-                period, reviewerId);
-        copyCompensationFkAndDelete(ctx.targetSchedule(), ctx.requesterOldStaff(), ctx.targetWorkDate(),
-                period, reviewerId);
+        SwapDeletePlan requesterPlan = prepareSwapDelete(
+                ctx.requesterSchedule(), ctx.targetOldStaff(), ctx.requesterWorkDate(), period);
+        SwapDeletePlan targetPlan = prepareSwapDelete(
+                ctx.targetSchedule(), ctx.requesterOldStaff(), ctx.targetWorkDate(), period);
+        scheduleRepository.flush(); // comp-day deletes then schedule deletes, in queue order
 
-        // Re-fetch the swapped schedules so the new comp days FK-reference the
-        // freshly-persisted staff ids (the rows are the same PK, just with
-        // updated staff_id).
-        Schedule requesterAfterSwap = scheduleRepository
-                .findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
-                        period.getId(),
-                        ctx.targetOldStaff().getId(),
-                        ctx.requesterSchedule().getShiftType().getId(),
-                        ctx.requesterWorkDate())
-                .orElseThrow(() -> new IllegalStateException(
-                        "Swap persisted but new requester schedule row not found for staff="
-                                + ctx.targetOldStaff().getId() + " date=" + ctx.requesterWorkDate()));
-        Schedule targetAfterSwap = scheduleRepository
-                .findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
-                        period.getId(),
-                        ctx.requesterOldStaff().getId(),
-                        ctx.targetSchedule().getShiftType().getId(),
-                        ctx.targetWorkDate())
-                .orElseThrow(() -> new IllegalStateException(
-                        "Swap persisted but new target schedule row not found for staff="
-                                + ctx.requesterOldStaff().getId() + " date=" + ctx.targetWorkDate()));
+        Schedule requesterAfterSwap = insertSwapReplacement(requesterPlan, reviewerId);
+        Schedule targetAfterSwap = insertSwapReplacement(targetPlan, reviewerId);
+        scheduleRepository.flush();
 
         // Create new compensation days for the new L01 assignments.
         // Bug #5c: if a comp day already exists for (staff, compensation_date)
@@ -639,44 +623,16 @@ public class ScheduleExchangeService {
     }
 
     /**
-     * Swap a schedule's staff by recreating the row — required to side-step the
-     * (period_id, staff_id, shift_type_id, work_date) UNIQUE constraint when both
-     * sides of the swap target the same slot. The old row is deleted only after the
-     * new row is persisted and any compensation-day FK is rewired.
+     * Queue the deletion of one swapped schedule row: delete its schedule_conflict
+     * rows (bulk, immediate) and its compensation-day orphans, then queue the
+     * schedule delete. The caller flushes once after BOTH sides are queued so the
+     * UNIQUE (period_id, staff_id, shift_type_id, work_date) constraint never sees
+     * a replacement inserted while the other old row is still present.
      *
-     * <p>Atomicity: both the new schedule insert and the old row delete happen in
-     * the surrounding {@code @Transactional}. A failure on the second delete (after
-     * the first insert) rolls back the first insert automatically.
+     * @param before snapshot captured for the audit log (also holds shiftType/requirement)
      */
-    /**
-     * Swap a schedule's staff. Both sides of the swap target the same slot
-     * (date + shift_type) when this helper runs in pairs, so any direct UPDATE
-     * collides with the OTHER side of the swap because that side hasn't moved
-     * yet. The fix is to do all DELETEs first, flush, then do all INSERTs —
-     * but the {@code compensation_day.schedule} FK (non-nullable) blocks the
-     * DELETE.
-     *
-     * <p>Strategy used here:
-     * <ol>
-     *   <li>Delete the compensation-day rows that reference this schedule
-     *       (they will be re-created from {@code executeSwap} based on the
-     *       NEW schedule id).</li>
-     *   <li>Delete the original schedule row.</li>
-     *   <li>Insert the replacement schedule row with the new staff.</li>
-     * </ol>
-     *
-     * <p>The caller is responsible for re-creating comp-day rows tied to the
-     * freshly-persisted schedule id (it reads {@code saved.getId()} afterwards).
-     *
-     * @param original the loaded Schedule entity (its row will be deleted and recreated)
-     * @param newStaff the staff to assign on the recreated row
-     * @param workDate the work date (typically {@code original.workDate})
-     * @param period the period (unused but kept for signature symmetry)
-     * @param reviewerId for audit logging
-     */
-    private void copyCompensationFkAndDelete(Schedule original, Staff newStaff,
-                                             LocalDate workDate, SchedulePeriod period,
-                                             Integer reviewerId) {
+    private SwapDeletePlan prepareSwapDelete(Schedule original, Staff newStaff,
+                                             LocalDate workDate, SchedulePeriod period) {
         Schedule before = cloneForAudit(original);
         Integer originalId = original.getId();
 
@@ -697,33 +653,43 @@ public class ScheduleExchangeService {
         for (CompensationDay cd : orphanComps) {
             compensationDayRepository.delete(cd);
         }
-        compensationDayRepository.flush();
-
-        // Now delete the original schedule row.
         scheduleRepository.delete(original);
-        scheduleRepository.flush();
 
-        // Insert the replacement schedule row.
+        return new SwapDeletePlan(before, newStaff, workDate, period, originalId);
+    }
+
+    /**
+     * Insert the replacement schedule row with the swapped staff, then audit.
+     * Runs after BOTH old rows are deleted (see {@link #executeSwap}).
+     */
+    private Schedule insertSwapReplacement(SwapDeletePlan plan, Integer reviewerId) {
         Schedule replacement = Schedule.builder()
-                .period(original.getPeriod())
-                .staff(newStaff)
-                .shiftType(original.getShiftType())
-                .workDate(workDate)
-                .requirement(original.getRequirement())
+                .period(plan.period())
+                .staff(plan.newStaff())
+                .shiftType(plan.before().getShiftType())
+                .workDate(plan.workDate())
+                .requirement(plan.before().getRequirement())
                 .hasConflict(false)
-                .isPreview(original.getIsPreview())
+                .isPreview(plan.before().getIsPreview())
                 .build();
         Schedule saved = scheduleRepository.save(replacement);
-        scheduleRepository.flush();
 
         // Best-effort audit — never fail the swap for an audit miss.
         try {
             auditHistoryService.logAction("schedule", saved.getId(),
-                    AuditHistory.ActionType.UPDATE, before, saved, reviewerId);
+                    AuditHistory.ActionType.UPDATE, plan.before(), saved, reviewerId);
         } catch (Exception auditEx) {
-            log.warn("Audit for schedule swap (id={}) skipped: {}", originalId, auditEx.getMessage());
+            log.warn("Audit for schedule swap (id={}) skipped: {}", plan.originalId(), auditEx.getMessage());
         }
+        return saved;
     }
+
+    /**
+     * Snapshot of one swapped schedule's pre-delete state plus the inputs needed
+     * to build its replacement row (see {@link #prepareSwapDelete}).
+     */
+    private record SwapDeletePlan(Schedule before, Staff newStaff, LocalDate workDate,
+                                  SchedulePeriod period, Integer originalId) {}
 
     /**
      * Build a shallow, detached copy of a Schedule for audit diffs.

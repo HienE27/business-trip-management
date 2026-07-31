@@ -460,7 +460,7 @@ function DetailModal({ record, onClose }: { record: AuditHistory; onClose: () =>
 
 export default function AuditHistoryPage() {
   const { can } = usePermissions();
-  const canExport = can(Permission.AUDIT_EXPORT);
+  const canExport = can(Permission.AUDIT_VIEW);
   const canDelete = can(Permission.AUDIT_DELETE);
   const [pageData, setPageData] = useState<AuditHistoryPage | null>(null);
   const [loading, setLoading] = useState(true);

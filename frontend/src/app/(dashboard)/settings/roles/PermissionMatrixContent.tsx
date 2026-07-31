@@ -3,8 +3,8 @@
 /**
  * M01-F05 — Phân quyền hệ thống (UI/UX Pro Max)
  *
- * Hiển thị ma trận vai trò × quyền hệ thống (52 permissions).
- * ADMIN có thể toggle từng cell để cấp/thu hồi quyền.
+ * Hiển thị ma trận vai trò × quyền hệ thống (số lượng lấy từ backend, không
+ * hardcode — BUG#6 fix). ADMIN có thể toggle từng cell để cấp/thu hồi quyền.
  *
  * Features:
  * - Collapsible groups với summary
@@ -42,14 +42,17 @@ const ROLE_COLORS: Record<string, { bg: string; text: string; border: string; ic
   STAFF:   { bg: "bg-secondary-container", text: "text-on-secondary-container", border: "border-on-secondary-container/30", icon: "person" },
 };
 
-/* ─── Permission labels (52 permissions) ─── */
+/* ─── Permission labels (count = backend app_permission registry, BUG#6) ─── */
 const PERM_LABELS: Record<string, string> = {
   [Permission.DASHBOARD_VIEW]:            "Xem dashboard tổng quan",
   [Permission.DASHBOARD_AGGREGATE]:      "Xem chỉ số tổng hợp toàn hệ thống",
   [Permission.STAFF_VIEW]:               "Xem thông tin nhân sự",
+  [Permission.STAFF_VIEW_ALL]:           "Xem danh sách nhân sự toàn phòng",
+  [Permission.STAFF_VIEW_SELF]:          "Xem thông tin cá nhân của chính mình",
   [Permission.STAFF_CREATE]:             "Tạo nhân sự mới",
   [Permission.STAFF_UPDATE]:            "Cập nhật thông tin nhân sự",
   [Permission.STAFF_DELETE]:            "Xóa / vô hiệu hóa nhân sự",
+  [Permission.STAFF_REACTIVATE]:        "Kích hoạt lại nhân sự đã vô hiệu hóa",
   [Permission.STAFF_IMPORT]:            "Import nhân sự từ Excel/CSV",
   [Permission.STAFF_EXPORT]:            "Xuất danh sách nhân sự ra Excel/CSV",
   [Permission.ROLE_VIEW]:               "Xem ma trận phân quyền",
@@ -102,7 +105,7 @@ const PERM_LABELS: Record<string, string> = {
 /* ─── Permission groups ─── */
 const PERM_GROUPS = [
   { label: "Tổng quan",      icon: "dashboard",    keys: [Permission.DASHBOARD_VIEW, Permission.DASHBOARD_AGGREGATE] },
-  { label: "Nhân sự",        icon: "groups",       keys: [Permission.STAFF_VIEW, Permission.STAFF_CREATE, Permission.STAFF_UPDATE, Permission.STAFF_DELETE, Permission.STAFF_IMPORT, Permission.STAFF_EXPORT] },
+  { label: "Nhân sự",        icon: "groups",       keys: [Permission.STAFF_VIEW, Permission.STAFF_VIEW_ALL, Permission.STAFF_VIEW_SELF, Permission.STAFF_CREATE, Permission.STAFF_UPDATE, Permission.STAFF_DELETE, Permission.STAFF_REACTIVATE, Permission.STAFF_IMPORT, Permission.STAFF_EXPORT] },
   { label: "Phân quyền",     icon: "security",     keys: [Permission.ROLE_VIEW, Permission.ROLE_EDIT] },
   { label: "Kỳ lịch",        icon: "event_note",   keys: [Permission.PERIOD_VIEW, Permission.PERIOD_CREATE, Permission.PERIOD_UPDATE, Permission.PERIOD_DELETE, Permission.PERIOD_PUBLISH, Permission.PERIOD_ARCHIVE] },
   { label: "Lịch trực",     icon: "calendar_month", keys: [Permission.SCHEDULE_VIEW, Permission.SCHEDULE_CREATE, Permission.SCHEDULE_UPDATE, Permission.SCHEDULE_DELETE, Permission.SCHEDULE_PUBLISH, Permission.SCHEDULE_EXPORT] },
@@ -459,11 +462,25 @@ export function PermissionMatrixContent() {
   }, [matrix]);
 
   /* ── Filter groups by search ── */
+  // Groups come from PERM_GROUPS plus a fallback "Khác" group for any BE
+  // permission not covered there, so new backend permissions never disappear
+  // from the matrix (BUG#6 — FE list used to drift from the BE registry).
+  const extraPermKeys = useMemo(() => {
+    if (!matrix) return [];
+    const covered = new Set<string>(PERM_GROUPS.flatMap((g) => g.keys));
+    return matrix.permissions.map((p) => p.name).filter((name) => !covered.has(name));
+  }, [matrix]);
+
+  const allGroups = useMemo(() => {
+    if (extraPermKeys.length === 0) return PERM_GROUPS;
+    return [...PERM_GROUPS, { label: "Khác", icon: "more_horiz", keys: extraPermKeys }];
+  }, [extraPermKeys]);
+
   const filteredGroups = useMemo(() => {
-    if (!searchQuery.trim()) return PERM_GROUPS;
-    
+    if (!searchQuery.trim()) return allGroups;
+
     const query = searchQuery.toLowerCase();
-    return PERM_GROUPS.map((group) => ({
+    return allGroups.map((group) => ({
       ...group,
       keys: group.keys.filter((key) => {
         const label = PERM_LABELS[key]?.toLowerCase() ?? "";
@@ -471,19 +488,21 @@ export function PermissionMatrixContent() {
         return label.includes(query) || keyLower.includes(query);
       }),
     })).filter((group) => group.keys.length > 0);
-  }, [searchQuery]);
+  }, [searchQuery, allGroups]);
 
   /* ── Role summary stats ── */
+  // Total = authoritative permission count from the BE matrix endpoint, not a
+  // hardcoded FE list (BUG#6: FE said 52/53 while DB had 56).
+  const totalPermCount = matrix?.permissions.length ?? 0;
   const roleStats = useMemo(() => {
     return roles.map((r) => {
       let granted = 0;
-      const total = Object.keys(PERM_LABELS).length;
-      Object.keys(PERM_LABELS).forEach((key) => {
-        if (matrixLookup.get(`${r.id}|${key}`)) granted++;
+      matrixLookup.forEach((value, key) => {
+        if (value && key.startsWith(`${r.id}|`)) granted++;
       });
-      return { role: r, granted, total };
+      return { role: r, granted, total: totalPermCount };
     });
-  }, [roles, matrixLookup]);
+  }, [roles, matrixLookup, totalPermCount]);
 
   /* ── Toggle handler ── */
   const handleToggle = useCallback(
@@ -601,7 +620,7 @@ export function PermissionMatrixContent() {
           </h2>
                 <p className="text-[13px] text-on-surface-variant">
             {isAdmin
-                    ? "Quản lý 52 quyền hệ thống cho 3 vai trò · Nhấn Cmd+F để tìm kiếm"
+                    ? `Quản lý ${totalPermCount} quyền hệ thống cho 3 vai trò · Nhấn Cmd+F để tìm kiếm`
                     : "Xem ma trận phân quyền · Chỉ Quản trị viên mới có thể chỉnh sửa"}
           </p>
         </div>
@@ -715,7 +734,7 @@ export function PermissionMatrixContent() {
             Toggle quyền
           </span>
         </div>
-        <span className="text-[11px] text-on-surface-variant/60 font-mono">M01-F05 · {Object.keys(PERM_LABELS).length} quyền</span>
+        <span className="text-[11px] text-on-surface-variant/60 font-mono">M01-F05 · {totalPermCount} quyền</span>
       </div>
 
       {/* Confirm Dialog for Single Toggle */}

@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -51,6 +52,7 @@ class ScheduleExchangeServiceTest {
     @Mock private ShiftRequirementRepository shiftRequirementRepository;
     @Mock private CSPScheduler cspScheduler;
     @Mock private SchedulingResultLoader schedulingResultLoader;
+    @Mock private jakarta.persistence.EntityManager entityManager;
 
     @InjectMocks
     private ScheduleExchangeService exchangeService;
@@ -99,6 +101,10 @@ class ScheduleExchangeServiceTest {
                 .build();
 
         when(exchangeRepository.findByIdWithLock(1)).thenReturn(Optional.of(testExchange));
+
+        // entityManager is a @PersistenceContext field (not constructor-injected),
+        // so @InjectMocks leaves it null — wire the mock explicitly.
+        ReflectionTestUtils.setField(exchangeService, "entityManager", entityManager);
     }
 
     /**
