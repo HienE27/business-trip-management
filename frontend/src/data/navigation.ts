@@ -14,7 +14,6 @@ export type AppSectionKey =
   | "shift-swaps"
   | "auto-scheduling"
   | "config-profiles"
-  | "configuration-calculator"
   | "reports"
   | "holidays"
   | "notifications"
@@ -102,14 +101,6 @@ export const APP_SECTIONS: AppSectionDefinition[] = [
     href: "/auto-scheduling",
     icon: "auto_mode",
     description: "Thuật toán tạo phương án phân công.",
-    requiredPermissions: ["AUTO_SCHEDULE_VIEW", "SCHEDULE_VIEW"],
-  },
-  {
-    key: "configuration-calculator",
-    label: "Configuration Calculator",
-    href: "/auto-scheduling/configuration-calculator",
-    icon: "calculate",
-    description: "Phân tích capacity dựa trên thuật toán thật.",
     requiredPermissions: ["AUTO_SCHEDULE_VIEW", "SCHEDULE_VIEW"],
   },
   {
@@ -214,7 +205,6 @@ const LEGACY_ROUTE_MAP: Record<string, AppSectionKey> = {
   "/periods": "periods",
   "/auto-scheduling": "auto-scheduling",
   "/auto-scheduling/algorithm-config": "config-profiles",
-  "/auto-scheduling/configuration-calculator": "configuration-calculator",
   "/auto-scheduling/dashboard": "auto-scheduling",
   "/auto-scheduling/live": "auto-scheduling",
   "/auto-scheduling/history": "auto-scheduling",

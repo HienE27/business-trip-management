@@ -534,16 +534,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             <span className="material-symbols-outlined text-on-surface-variant text-[16px]" aria-hidden="true">calendar_view_month</span>
             <p className="text-label-sm font-medium text-on-surface-variant">Giới hạn theo loại lịch</p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => window.location.href = "/auto-scheduling/configuration-calculator"}
-            icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">calculate</span>}
-            className="rounded-full !bg-primary-fixed !text-primary !border !border-primary/20 hover:!bg-primary/10 px-2.5 py-1 text-[11px]"
-            title="Mở Configuration Calculator để phân tích capacity dựa trên thuật toán thật"
-          >
-            Configuration Calculator
-          </Button>
         </div>
         <div className="flex flex-wrap gap-3">
           {SHIFT_TYPE_GROUPS.map(group => (

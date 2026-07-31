@@ -159,9 +159,9 @@ export default function AutoSchedulingPage() {
   // Fire-and-forget: no need to await or handle errors.
   useEffect(() => {
     if (!selectedPeriodId) return;
-    fetch(`/api/v1/auto-schedule/cancel/${selectedPeriodId}`, {
-      method: "GET", credentials: "include",
-    }).catch(() => {});
+    // Use the api client so the Bearer token is attached — raw fetch()
+    // omitted it and the cancel endpoint returned 401 (lock never released).
+    api.get(`/auto-schedule/cancel/${selectedPeriodId}`).catch(() => {});
   }, [selectedPeriodId]);
 
   // BUGFIX (M07 #8 follow-up): load shift requirements for the selected period
@@ -235,9 +235,7 @@ export default function AutoSchedulingPage() {
     // rapid double-clicks before the React re-render propagates.
     // Cancel any running scheduling first so the lock is released immediately
     try {
-      await fetch(`/api/v1/auto-schedule/cancel/${selectedPeriodId}`, {
-        method: "GET", credentials: "include",
-      });
+      await api.get(`/auto-schedule/cancel/${selectedPeriodId}`);
     } catch {
       // Ignore cancel errors — the subsequent preview will surface any real issue
     }

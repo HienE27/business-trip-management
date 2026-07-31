@@ -299,6 +299,18 @@ public class AutoSchedulingService {
             throw new BadRequestException("Chỉ có thể áp dụng bản nháp khi kỳ lịch ở trạng thái DRAFT");
         }
 
+        // BUGFIX (apply fails on weekend shifts): the preview run generates
+        // requirements in-memory from auto-gen config for EVERY day of the period
+        // (including Sundays), but the DB may only hold rows persisted by an
+        // earlier save=true run (or seeded Mon–Sat-only rows). The
+        // (workDate, shiftType) → requirement resolver below then finds nothing
+        // for Sunday and apply throws "Không tìm thấy ca trực phù hợp cho ngày …".
+        // Re-prepare + persist the requirement set from the same single source of
+        // truth the preview used, so the applied plan and the persisted
+        // requirements always agree (atomic: rolls back with the apply txn).
+        requirementPreparationService.prepareRequirements(
+                period, true, staffRepository.findByIsActiveTrue());
+
         // BUGFIX (coverage drift): spec for AutoScheduleApplyPreviewRequestDTO says
         // overwriteExisting=false should throw BadRequestException if the period already
         // has schedules — protecting manual assignments from being silently deleted.

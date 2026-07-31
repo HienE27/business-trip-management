@@ -38,7 +38,6 @@ import type {
   CompensationDay,
   ConfigProfile,
   CreateProfileRequest,
-  ConfigCalculatorResponse,
 } from "@/types/api";
 
 const API_BASE = "/api/v1";
@@ -1357,21 +1356,6 @@ class ApiClient {
       totalShiftsExpected: number;
       rationale: string;
     }>("/auto-schedule/auto-gen-config/recommend", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  // ── Configuration Calculator ────────────────────────────────────────
-
-  async configCalculator(data: {
-    mode: number;
-    periodId: number;
-    algorithmType?: string;
-    targetShifts?: Record<string, number>;
-    configOverride?: Record<string, unknown>;
-  }): Promise<ApiResponse<ConfigCalculatorResponse>> {
-    return this.request<ConfigCalculatorResponse>("/config-calculator/analyze", {
       method: "POST",
       body: JSON.stringify(data),
     });
