@@ -271,6 +271,11 @@ function ReportsStaffContent() {
       {enriched.length > 0 && (
         <WorkloadBalanceChart
           view={view}
+          // BUGFIX (REPORTS-STAFF-003): the chart defaulted to limit=12 and
+          // silently dropped everyone else — the page header read "12 nhân sự"
+          // even when the table listed 20. Pass the real scope so the chart
+          // always mirrors the table.
+          limit={enriched.length}
           data={enriched.map((e) => ({
             staffId: e.staff.id,
             staffName: e.staff.fullName,
