@@ -27,6 +27,17 @@ public class SearchDirector {
     private WorkingSolution bestSolution;
     private ScoreSnapshot bestScore;
 
+    /**
+     * BUGFIX (M08-BALANCE-V10): per-staff L01/L02/L03 mix deviation of the
+     * stored best solution. The acceptance rule now treats coverage-flat
+     * mix-improving moves as "improving", so onNewBest must not blindly
+     * overwrite the best — a mix-up move applied after coverage-dropping
+     * sideways churn would otherwise record a WORSE solution as the new best.
+     * Best is replaced only when coverage strictly rises, or coverage is equal
+     * and the mix deviation narrowed.
+     */
+    private double bestMixDeviation = Double.MAX_VALUE;
+
     private final ScoreDirector scoreDirector;
     private final IncrementalStatisticsHub statisticsHub;
     private final SearchEventPublisher eventPublisher;
@@ -52,6 +63,24 @@ public class SearchDirector {
 
     /** Called by the algorithm when a new best score is found. */
     public void onNewBest(WorkingSolution solution) {
+        // BUGFIX (M08-BALANCE-V10): gate — only replace the best when this
+        // solution genuinely beats it (coverage up, or equal coverage with a
+        // narrower L01/L02/L03 mix deviation). Coverage is read from the
+        // solution itself (bestSolution), not from the score snapshot, which
+        // only refreshes on recomputeFull() and would pin coverage at the
+        // initial-greedy value.
+        double cov = solution.getCoverage();
+        double mix = solution.mixDeviation();
+        if (bestSolution != null && bestScore != null) {
+            double bestCov = bestSolution.getCoverage();
+            if (cov < bestCov - 1e-9) {
+                return; // strictly worse coverage — not a new best
+            }
+            if (Math.abs(cov - bestCov) <= 1e-9 && mix >= bestMixDeviation) {
+                return; // equal coverage, not better mix — not a new best
+            }
+        }
+        bestMixDeviation = mix;
         // Deep-copy via toImmutable on each assignment
         this.bestSolution = copySolution(solution);
         this.bestScore = scoreDirector.getCurrent().toImmutable();

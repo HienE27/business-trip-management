@@ -134,7 +134,18 @@ public class LocalSearchAlgorithm {
     private boolean processMove(WorkingSolution solution, Move move) {
         // Snapshot pre-move score for "improving" check
         int preHard = scoreDirector.getCurrent().toImmutable().getHardViolations();
-        double preCoverage = scoreDirector.getCurrent().toImmutable().getCoverage();
+        // BUGFIX (M08-EXPAND-V10): coverage must come from the solution itself.
+        // scoreDirector.getCurrent().getCoverage() is only set once in
+        // recomputeFull() — constraint deltas carry coverageDelta=0 — so the
+        // old postCoverage > preCoverage check was always false and the search
+        // could never accept an AssignMove (it only dropped coverage). Reading
+        // solution.getCoverage() makes assigning a slot genuinely "improving".
+        double preCoverage = solution.getCoverage();
+        // BUGFIX (M08-BALANCE-V10): soft per-type MIX fairness tiebreak — a
+        // move that keeps coverage flat but narrows each staff's L01/L02/L03
+        // deviation from the average mix is "improving" too, so the search
+        // actively rebalances the mix per staff instead of only top-up filling.
+        double preBalance = solution.mixDeviation();
 
         // Apply move + statistics
         move.doMove(solution);
@@ -150,7 +161,8 @@ public class LocalSearchAlgorithm {
 
         // Decide
         int postHard = scoreDirector.getCurrent().toImmutable().getHardViolations();
-        double postCoverage = scoreDirector.getCurrent().toImmutable().getCoverage();
+        double postCoverage = solution.getCoverage();
+        double postBalance = solution.mixDeviation();
 
         // RULE 1 (hard-fence): never accept a move that grows hard violations.
         // The tabu acceptor exists to escape local optima for soft (fairness)
@@ -165,9 +177,18 @@ public class LocalSearchAlgorithm {
             return false;
         }
 
-        // RULE 2: improving = hard unchanged AND coverage went up. Aspiration: always accept.
-        boolean improving = (postHard < preHard)
-                || (postHard == preHard && postCoverage > preCoverage);
+        // RULE 2: improving = hard unchanged AND (coverage went up, OR
+        // coverage stayed flat AND the per-type balance gap narrowed).
+        // Aspiration: always accept. The balance tiebreak must NOT cost
+        // coverage — an UnassignMove that drops coverage is still not
+        // improving and goes to tabu (which is why unassign stays L04-only
+        // in the selector).
+        double coverageDelta = postCoverage - preCoverage;
+        boolean coverageUp = postHard == preHard && coverageDelta > 1e-9;
+        boolean balanceUp = postHard == preHard
+                && Math.abs(coverageDelta) <= 1e-9
+                && postBalance < preBalance;
+        boolean improving = (postHard < preHard) || coverageUp || balanceUp;
         boolean accept = improving;
         boolean tabu = false;
         if (!improving && moveAcceptor instanceof TabuAcceptor tabuAcceptor) {

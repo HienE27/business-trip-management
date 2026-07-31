@@ -8,6 +8,7 @@ import com.hospital.scheduler.entity.Holiday;
 import com.hospital.scheduler.entity.LeaveRequest;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.HolidayRepository;
+import com.hospital.scheduler.scheduling.config.ConfigService;
 import com.hospital.scheduler.scheduling.config.SchedulingConfig;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
@@ -68,6 +69,14 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
      * "Cross L04" KPI even when the toggle is OFF.
      */
     private final AlgorithmConfigService algorithmConfigService;
+    /**
+     * BUGFIX (M08-DBCONFIG-V10): DB-backed config source. The static
+     * {@link SchedulingConfig} bean only carries application.properties/Java
+     * defaults, while the UI writes {@code scheduling_*} params to the
+     * algorithm_config table via this service — without reloading here, every
+     * UI config edit silently had no effect on the search.
+     */
+    private final ConfigService configService;
 
     @Override
     public SchedulingResult solve(List<Staff> staffList,
@@ -79,6 +88,10 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                                    Set<Integer> excludedStaffIds) {
         log.info("v10 LocalSearchScheduler.solve called: {} staff, {} requirements",
                 staffList.size(), requirements.size());
+
+        // BUGFIX (M08-DBCONFIG-V10): rebuild config from DB per solve so UI
+        // edits to scheduling_* params take effect on the next run.
+        SchedulingConfig effectiveConfig = loadEffectiveConfig();
 
         // ── 1. Build SchedulingProblem ────────────────────────────────────────
         List<Staff> activeStaff = staffList.stream()
@@ -97,6 +110,21 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
         List<com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo> v10Reqs =
                 convertRequirements(requirements);
 
+        // BUGFIX (M08-COMPDAY-V10): precompute duty-date → compensation-date
+        // once per solve (unique dates only, holiday-adjusted via the shared
+        // calculator) so the search can derive comp days from L01 slots placed
+        // during THIS run and enforce BR-03 while searching — doc 1.4: no
+        // shift of any kind on a comp day.
+        Map<LocalDate, LocalDate> compDayOfDutyDate = new HashMap<>();
+        for (com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo r : v10Reqs) {
+            if ("L01".equals(r.shiftTypeId()) && r.date() != null) {
+                LocalDate comp = compensationDateCalculator.calculate(r.date());
+                if (comp != null) {
+                    compDayOfDutyDate.putIfAbsent(r.date(), comp);
+                }
+            }
+        }
+
         // Convert flat "staffId_date" strings to per-staff date sets
         Map<Integer, Set<LocalDate>> compDaysByStaff = new HashMap<>();
         if (existingCompensationDays != null) {
@@ -113,13 +141,14 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
             }
         }
 
-        SchedulingProblem problem = SchedulingProblem.withRequirements(
+        SchedulingProblem problem = SchedulingProblem.withRequirementsAndCompDayMap(
                 activeStaff,
                 v10Reqs,
                 leaveRequests,
                 compDaysByStaff,
+                compDayOfDutyDate,
                 holidays,
-                config,
+                effectiveConfig,
                 isL04CrossSpecialtyEnabled());
 
         // ── 2. Build SolutionDescriptor + StatisticsHub ───────────────────────
@@ -139,16 +168,16 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
         // ── 4. Wire director + algorithm ──────────────────────────────────────
         ScoreDirector scoreDirector = new ScoreDirector(descriptor);
         SearchDirector searchDirector = new SearchDirector(scoreDirector, hub);
-        SampledMoveSelector selector = new SampledMoveSelector(descriptor, config);
-        TabuAcceptor acceptor = new TabuAcceptor(config);
-        CompositeTermination termination = new CompositeTermination(config);
+        SampledMoveSelector selector = new SampledMoveSelector(descriptor, effectiveConfig);
+        TabuAcceptor acceptor = new TabuAcceptor(effectiveConfig);
+        CompositeTermination termination = new CompositeTermination(effectiveConfig);
 
         LocalSearchAlgorithm algo = new LocalSearchAlgorithm(
-                config, selector, acceptor, termination, searchDirector,
+                effectiveConfig, selector, acceptor, termination, searchDirector,
                 scoreDirector, registry, hub);
 
         // ── 5. Build initial solution (round-robin greedy for unassigned slots) ──
-        WorkingSolution initial = buildInitialSolution(problem, descriptor);
+        WorkingSolution initial = buildInitialSolution(problem, descriptor, effectiveConfig);
 
         // ── 6. Run search ─────────────────────────────────────────────────────
         LocalSearchAlgorithm.SearchResult result = algo.search(initial);
@@ -204,52 +233,107 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
     /**
      * Convert algorithm-package {@link com.hospital.scheduler.algorithm.ShiftRequirementInfo}
      * to v10-package equivalent.
+     *
+     * <p>BUGFIX (M08-EXPAND-V10): each requirement demands {@code requiredCount}
+     * staff (3-5 per shift), but the search model is 1 slot = 1 staff. Expand
+     * each requirement into that many slots so the search targets the real
+     * demand instead of capping at 1 staff per requirement.
      */
     private List<com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo> convertRequirements(
             List<ShiftRequirementInfo> src) {
         java.util.concurrent.atomic.AtomicInteger seq = new java.util.concurrent.atomic.AtomicInteger(1);
-        return src.stream().map(sr ->
-                new com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo(
-                        seq.getAndIncrement(),   // v10 needs an int id; assign synthetic
+        List<com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo> out = new java.util.ArrayList<>();
+        for (ShiftRequirementInfo sr : src) {
+            int need = Math.max(1, sr.requiredCount());
+            for (int k = 0; k < need; k++) {
+                out.add(new com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo(
+                        seq.getAndIncrement(),   // synthetic slot id, unique per expanded slot
                         sr.workDate(),
                         sr.shiftTypeId(),
                         sr.specialtyId(),
-                        Math.max(1, sr.requiredCount())))
-                .collect(Collectors.toList());
+                        1));                     // each expanded slot needs exactly 1 staff
+            }
+        }
+        return out;
     }
 
     /**
-     * Build the initial solution: for each unassigned slot, assign the
-     * round-robin least-loaded eligible staff. Round-robin seed keeps
-     * fairness initial state simple.
+     * Build the initial solution in STAGES, in the priority order required by
+     * the spec (QuanLyLichCongTac_v5.md, M07-B3): 24/24 duty (L01) →
+     * thong-tam (L02) → phong-kham-dich-vu (L03) → phong-kham-chuyen-gia (L04).
+     *
+     * <p>Each stage assigns its slots to the eligible staff with the FEWEST
+     * shifts of that same type first (M07-F02: "số ngày trực đều nhau"), tie-
+     * broken by lowest total load (M07-F01: "phân bổ đều số ngày cho 20 nhân
+     * sự"), skipping anyone who would introduce a hard violation.
+     *
+     * <p>BUGFIX (M08-COMPDAY-V10): the old single-pass greedy processed slots
+     * in list order and the search then unassigned high-priority types to make
+     * room for L04 — the preview showed L01=15 / L02=10 vs ~145 demanded.
+     * Staging by type priority guarantees L01/L02/L03 are saturated before L04
+     * consumes any staff, and L01 comp days derived during stage 1 block the
+     * same staff in later stages.
      */
-    private WorkingSolution buildInitialSolution(SchedulingProblem problem, SolutionDescriptor descriptor) {
-        WorkingSolution sol = WorkingSolution.fromProblem(config, descriptor);
-        int nextStaffIdx = 0;
-        int staffCount = problem.getStaffList().size();
-        for (com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo req
-                : problem.getRequirements()) {
-            List<Integer> eligible = problem.getEligibleStaff(req.id());
-            if (eligible.isEmpty()) continue;
-            // Pick the least-loaded eligible staff deterministically
-            int bestIdx = -1;
-            int bestLoad = Integer.MAX_VALUE;
-            // Try a few candidates starting from nextStaffIdx
-            for (int i = 0; i < Math.min(eligible.size(), 3); i++) {
-                int idx = (nextStaffIdx + i) % eligible.size();
-                int staffId = eligible.get(idx);
-                int load = sol.getShiftCount(staffId);
-                if (load < bestLoad) {
-                    bestLoad = load;
-                    bestIdx = staffId;
+    WorkingSolution buildInitialSolution(SchedulingProblem problem,
+                                          SolutionDescriptor descriptor,
+                                          SchedulingConfig effectiveConfig) {
+        WorkingSolution sol = WorkingSolution.fromProblem(effectiveConfig, descriptor);
+        for (String stageType : List.of("L01", "L02", "L03", "L04")) {
+            for (com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo req
+                    : problem.getRequirements()) {
+                if (!stageType.equals(req.shiftTypeId())) continue;
+                List<Integer> eligible = problem.getEligibleStaff(req.id());
+                if (eligible.isEmpty()) continue;
+                int bestStaff = -1;
+                int bestTypeCount = Integer.MAX_VALUE;
+                int bestTotal = Integer.MAX_VALUE;
+                for (int staffId : eligible) {
+                    if (wouldViolateHard(sol, staffId, req.date(), req.shiftTypeId())) continue;
+                    if (sol.isOnDerivedCompDay(staffId, req.date())) continue;
+                    int typeCount = sol.getShiftCountOfType(staffId, stageType);
+                    int total = sol.getShiftCount(staffId);
+                    if (typeCount < bestTypeCount
+                            || (typeCount == bestTypeCount && total < bestTotal)) {
+                        bestTypeCount = typeCount;
+                        bestTotal = total;
+                        bestStaff = staffId;
+                    }
                 }
-            }
-            if (bestIdx > 0) {
-                sol.assign(req.id(), bestIdx);
-                nextStaffIdx = (nextStaffIdx + 1) % Math.max(staffCount, 1);
+                if (bestStaff > 0) {
+                    sol.assign(req.id(), bestStaff);
+                }
             }
         }
         return sol;
+    }
+
+    /**
+     * True if assigning {@code shiftType} on {@code date} to {@code staffId}
+     * would break a HARD rule given the assignments already in {@code sol}:
+     * duplicate shift, L01↔L02 / L03↔L04 same day, adjacent L01, or a derived
+     * compensation day (L01 placed earlier in this run blocks the comp date).
+     */
+    private boolean wouldViolateHard(WorkingSolution sol, int staffId,
+                                     java.time.LocalDate date, String shiftType) {
+        if (sol.isOnDerivedCompDay(staffId, date)) return true;
+        for (int slotId : sol.getSlotsAssignedTo(staffId)) {
+            var a = sol.getAssignment(slotId);
+            if (a == null || a.staffId <= 0 || a.date == null) continue;
+            if (a.date.equals(date)) {
+                if (a.shiftTypeId.equals(shiftType)) return true;       // duplicate shift
+                if (isHardConflictPair(a.shiftTypeId, shiftType)) return true; // L01↔L02, L03↔L04
+            }
+            if ("L01".equals(shiftType) && "L01".equals(a.shiftTypeId)
+                    && (a.date.equals(date.minusDays(1)) || a.date.equals(date.plusDays(1)))) {
+                return true;                                             // adjacent L01
+            }
+        }
+        return false;
+    }
+
+    private static boolean isHardConflictPair(String a, String b) {
+        return ("L01".equals(a) && "L02".equals(b)) || ("L01".equals(b) && "L02".equals(a))
+                || ("L03".equals(a) && "L04".equals(b)) || ("L03".equals(b) && "L04".equals(a));
     }
 
     /** Convert {@link LocalSearchAlgorithm.SearchResult} to {@link SchedulingResult}. */
@@ -264,7 +348,12 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                     // BUGFIX (V25 #3): use "|" separator so split("\\|") in
                     // runCspWithResult correctly yields [staffId, date, shiftTypeId].
                     // underscore split would break ISO dates (2026-07-01 → 4 parts).
-                    assignments.put(a.staffId + "|" + a.date, a.shiftTypeId);
+                    // BUGFIX (M08-DISPLAY-V10): append shiftTypeId to the key —
+                    // the old "staffId|date" key silently dropped one shift when
+                    // the same staff legitimately holds two types the same day
+                    // (L01+L04, L02+L04 are allowed pairs), so previews showed
+                    // L01=15 / L02=10 instead of the ~145 the search produced.
+                    assignments.put(a.staffId + "|" + a.date + "|" + a.shiftTypeId, a.shiftTypeId);
                     scheduleCount++;
                 }
             }
@@ -300,6 +389,22 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
             out.setFairnessScore(java.math.BigDecimal.ZERO);
         }
         return out;
+    }
+
+    /**
+     * BUGFIX (M08-DBCONFIG-V10): build the effective {@link SchedulingConfig}
+     * from the DB-backed {@link ConfigService} so UI edits to {@code scheduling_*}
+     * params take effect on the next solve. Falls back to the static bean
+     * (application.properties/Java defaults) when the DB is unavailable.
+     */
+    private SchedulingConfig loadEffectiveConfig() {
+        try {
+            return SchedulingConfig.from(configService.load());
+        } catch (Exception ex) {
+            log.warn("Failed to load scheduling config from DB; falling back to static defaults: {}",
+                    ex.getMessage());
+            return config;
+        }
     }
 
     /**

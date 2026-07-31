@@ -49,6 +49,16 @@ public final class SchedulingProblem {
      */
     private final Map<String, Set<Integer>> existingConflicts;
 
+    /**
+     * BUGFIX (M08-COMPDAY-V10): duty date → compensation date, precomputed by
+     * the caller from {@link com.hospital.scheduler.util.CompensationDateCalculator}
+     * (holiday-adjusted, default option). Lets the search derive a staff's
+     * comp days from the L01 slots assigned IN THIS SOLUTION, so BR-03 can be
+     * enforced during search instead of only at result conversion. Empty when
+     * the caller does not supply it (existing overloads).
+     */
+    private final Map<LocalDate, LocalDate> compDayOfDutyDate;
+
     private final SchedulingConfig config;
     /**
      * BUGFIX (M07-CROSSCONFIG-V10): Whether the L04 cross-specialty config is
@@ -70,7 +80,7 @@ public final class SchedulingProblem {
                               Map<Integer, Set<LocalDate>> compensationDays,
                               SchedulingConfig config) {
         this(staffList, staffById, requirements, requirementsById, leavesByStaff,
-                holidays, compensationDays, config, true, new HashMap<>());
+                holidays, compensationDays, config, true, new HashMap<>(), new HashMap<>());
     }
 
     private SchedulingProblem(List<StaffNode> staffList,
@@ -83,7 +93,7 @@ public final class SchedulingProblem {
                               SchedulingConfig config,
                               boolean crossSpecialtyEnabled) {
         this(staffList, staffById, requirements, requirementsById, leavesByStaff,
-                holidays, compensationDays, config, crossSpecialtyEnabled, new HashMap<>());
+                holidays, compensationDays, config, crossSpecialtyEnabled, new HashMap<>(), new HashMap<>());
     }
 
     private SchedulingProblem(List<StaffNode> staffList,
@@ -96,6 +106,21 @@ public final class SchedulingProblem {
                               SchedulingConfig config,
                               boolean crossSpecialtyEnabled,
                               Map<String, Set<Integer>> existingConflicts) {
+        this(staffList, staffById, requirements, requirementsById, leavesByStaff,
+                holidays, compensationDays, config, crossSpecialtyEnabled, existingConflicts, new HashMap<>());
+    }
+
+    private SchedulingProblem(List<StaffNode> staffList,
+                              Map<Integer, StaffNode> staffById,
+                              List<ShiftRequirementInfo> requirements,
+                              Map<Integer, ShiftRequirementInfo> requirementsById,
+                              Map<Integer, Set<LocalDate>> leavesByStaff,
+                              Set<LocalDate> holidays,
+                              Map<Integer, Set<LocalDate>> compensationDays,
+                              SchedulingConfig config,
+                              boolean crossSpecialtyEnabled,
+                              Map<String, Set<Integer>> existingConflicts,
+                              Map<LocalDate, LocalDate> compDayOfDutyDate) {
         this.staffList = staffList;
         this.staffById = staffById;
         this.requirements = requirements;
@@ -106,6 +131,7 @@ public final class SchedulingProblem {
         this.config = config;
         this.crossSpecialtyEnabled = crossSpecialtyEnabled;
         this.existingConflicts = existingConflicts != null ? existingConflicts : new HashMap<>();
+        this.compDayOfDutyDate = compDayOfDutyDate != null ? compDayOfDutyDate : new HashMap<>();
     }
 
     /**
@@ -336,6 +362,58 @@ public final class SchedulingProblem {
     }
 
     /**
+     * Overload of {@link #withRequirements} that additionally accepts the
+     * duty-date → compensation-date map. BUGFIX (M08-COMPDAY-V10):
+     * {@link LocalSearchScheduler} precomputes this from
+     * {@code CompensationDateCalculator} so the search can derive a staff's
+     * comp days from L01 slots assigned in the CURRENT solution and enforce
+     * BR-03 during search (doc 1.4: no shift of any kind on a comp day).
+     *
+     * <p>Named distinctly because the existing
+     * {@code (…, Map, Map, …, boolean)} overload (existingConflicts) erases to
+     * the same signature — a generic-parameter name clash.
+     */
+    public static SchedulingProblem withRequirementsAndCompDayMap(List<Staff> rawStaff,
+                                                      List<ShiftRequirementInfo> v10Requirements,
+                                                      List<LeaveRequest> rawLeaves,
+                                                      Map<Integer, Set<LocalDate>> compDaysByStaff,
+                                                      Map<LocalDate, LocalDate> compDayOfDutyDate,
+                                                      Set<LocalDate> holidays,
+                                                      SchedulingConfig config,
+                                                      boolean crossSpecialtyEnabled) {
+        List<StaffNode> staffList = rawStaff.stream().map(StaffNode::from).toList();
+        Map<Integer, StaffNode> staffById = staffList.stream()
+                .collect(Collectors.toMap(StaffNode::getId, s -> s));
+
+        Map<Integer, ShiftRequirementInfo> reqsById = new HashMap<>();
+        for (ShiftRequirementInfo r : v10Requirements) {
+            reqsById.put(r.id(), r);
+        }
+
+        Map<Integer, Set<LocalDate>> leavesByStaff = new HashMap<>();
+        for (LeaveRequest leave : rawLeaves) {
+            if (leave.getStaff() == null || leave.getStartDate() == null) continue;
+            LocalDate end = leave.getEndDate() != null ? leave.getEndDate() : leave.getStartDate();
+            Set<LocalDate> dates = leavesByStaff.computeIfAbsent(
+                    leave.getStaff().getId(), k -> new HashSet<>());
+            for (LocalDate d = leave.getStartDate(); !d.isAfter(end); d = d.plusDays(1)) {
+                dates.add(d);
+            }
+        }
+
+        return new SchedulingProblem(
+                staffList, staffById,
+                v10Requirements, reqsById,
+                leavesByStaff,
+                holidays != null ? holidays : Collections.emptySet(),
+                compDaysByStaff != null ? compDaysByStaff : new HashMap<>(),
+                config,
+                crossSpecialtyEnabled,
+                new HashMap<>(),
+                compDayOfDutyDate);
+    }
+
+    /**
      * Eligible staff IDs for a slot, with leave/compensation/holiday already
      * filtered out. Specialty filtering for L04:
      * <ul>
@@ -392,5 +470,15 @@ public final class SchedulingProblem {
     public boolean isOnCompensation(int staffId, LocalDate date) {
         Set<LocalDate> dates = compensationDays.get(staffId);
         return dates != null && dates.contains(date);
+    }
+
+    /**
+     * Compensation date owed for an L01 duty on {@code dutyDate}, or null if
+     * unknown (caller did not supply the map / calculator returned null).
+     * BUGFIX (M08-COMPDAY-V10) — enables derived comp-day checks in
+     * {@link com.hospital.scheduler.scheduling.solution.WorkingSolution}.
+     */
+    public LocalDate compDayOf(LocalDate dutyDate) {
+        return dutyDate == null ? null : compDayOfDutyDate.get(dutyDate);
     }
 }

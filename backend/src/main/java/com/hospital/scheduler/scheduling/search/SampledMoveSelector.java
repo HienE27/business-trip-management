@@ -109,9 +109,24 @@ public class SampledMoveSelector implements MoveSelector {
                     if (a != b) moves.add(new SwapMove(a, b));
                 }
             } else if (!assignedSlots.isEmpty()) {
-                // UNASSIGN: clear an assigned slot
-                int slot = pickRandom(assignedSlots);
-                moves.add(new UnassignMove(slot));
+                // UNASSIGN: clear an assigned slot — but ONLY an L04 slot.
+                // BUGFIX (M08-PRIORITY-V10): the spec runs the algorithm in
+                // priority order L01→L02→L03→L04 (M07-B3). Letting the search
+                // unassign L01/L02/L03 made it "spend" staff on L04 instead —
+                // preview collapsed L01=15 / L02=10 vs ~145 demanded. L04 is
+                // the lowest-priority buffer type; churn there never steals a
+                // higher-priority slot, while AssignMove can still top up L04.
+                java.util.List<Integer> l04Slots = new ArrayList<>();
+                for (Integer s : assignedSlots) {
+                    ShiftRequirementInfo req = descriptor.getProblem()
+                            .getRequirementsById().get(s);
+                    if (req != null && "L04".equals(req.shiftTypeId())) {
+                        l04Slots.add(s);
+                    }
+                }
+                if (!l04Slots.isEmpty()) {
+                    moves.add(new UnassignMove(l04Slots.get(random.nextInt(l04Slots.size()))));
+                }
             }
         }
         return moves;
@@ -142,6 +157,11 @@ public class SampledMoveSelector implements MoveSelector {
         long fallbackScore = Long.MAX_VALUE;
 
         for (int staffId : candidates) {
+            // BUGFIX (M08-COMPDAY-V10): a staff whose L01 placed earlier in
+            // this run earns a comp day on reqDate cannot work any shift then.
+            // Filter here so the hard-fence is rarely hit, not never relied on.
+            if (solution.isOnDerivedCompDay(staffId, reqDate)) continue;
+
             int load = solution.getShiftCount(staffId);
             boolean adjacent = false;
             boolean consecutive = false; // no rest day before req date

@@ -6,6 +6,7 @@ import com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo;
 import com.hospital.scheduler.scheduling.domain.SolutionDescriptor;
 import lombok.Getter;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -134,6 +135,73 @@ public class WorkingSolution {
     public int getShiftCount(int staffId) {
         List<Integer> slots = slotsByStaff.get(staffId);
         return slots != null ? slots.size() : 0;
+    }
+
+    /** Number of {@code shiftType} slots currently assigned to {@code staffId}. */
+    public int getShiftCountOfType(int staffId, String shiftType) {
+        List<Integer> slots = slotsByStaff.get(staffId);
+        if (slots == null || slots.isEmpty()) return 0;
+        int count = 0;
+        for (int slotId : slots) {
+            MutableAssignment a = assignmentsBySlot.get(slotId);
+            if (a != null && shiftType.equals(a.shiftTypeId)) count++;
+        }
+        return count;
+    }
+
+    /**
+     * BUGFIX (M08-BALANCE-V10): per-staff MIX deviation for the priority types
+     * L01/L02/L03 — sum over types and staff of |count(staff, type) − avg(type)|,
+     * where avg(type) = total(type) / staffCount. Lower = every staff carries a
+     * similar L01:L02:L03 mix (doc M07-F01 "phân bổ đều số ngày cho 20 nhân
+     * sự", M07-F02 "số ngày trực đều nhau"). L04 is deliberately excluded —
+     * it is the residual buffer type filled after L01/L02/L03 per M07-B3, so
+     * its spread is feasibility-driven, not a fairness target.
+     *
+     * <p>Replaces the earlier balanceGap() (per-type max−min), which balanced
+     * each type's range independently but allowed compensating mixes — the
+     * preview showed corr(L01,L02) = −0.67 (staff with more L01 had fewer L02).
+     *
+     * <p>Used by the search acceptance rule as a soft tiebreak: a move that
+     * keeps hard=0 and coverage unchanged but narrows this deviation is
+     * "improving". O(types × staff × slots-per-staff) — trivial.
+     */
+    public double mixDeviation() {
+        var staffList = problem.getStaffList();
+        int n = staffList.size();
+        if (n == 0) return 0;
+        double dev = 0;
+        for (String type : new String[]{"L01", "L02", "L03"}) {
+            int total = 0;
+            for (var s : staffList) {
+                total += getShiftCountOfType(s.getId(), type);
+            }
+            double avg = (double) total / n;
+            for (var s : staffList) {
+                dev += Math.abs(getShiftCountOfType(s.getId(), type) - avg);
+            }
+        }
+        return dev;
+    }
+
+    /**
+     * BUGFIX (M08-COMPDAY-V10): true if {@code date} is a compensation day
+     * derived from an L01 slot assigned to {@code staffId} in THIS solution.
+     * Lets the greedy, the move selector and the BR-03 constraint block shifts
+     * on comp days the moment the L01 is placed — the previous code only knew
+     * about comp days that existed in the DB before the run.
+     */
+    public boolean isOnDerivedCompDay(int staffId, LocalDate date) {
+        if (date == null) return false;
+        List<Integer> slots = slotsByStaff.get(staffId);
+        if (slots == null || slots.isEmpty()) return false;
+        for (int slotId : slots) {
+            MutableAssignment a = assignmentsBySlot.get(slotId);
+            if (a == null || !"L01".equals(a.shiftTypeId) || a.date == null) continue;
+            LocalDate comp = problem.compDayOf(a.date);
+            if (comp != null && comp.equals(date)) return true;
+        }
+        return false;
     }
 
     /** All slot ids assigned to {@code staffId}. */
