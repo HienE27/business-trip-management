@@ -14,7 +14,6 @@ const BASE_TABS: TabDef[] = [
   { key: "config", label: "Cấu hình", icon: "tune" },
   { key: "history", label: "Lịch sử chạy", icon: "history" },
   { key: "audit", label: "Nhật ký thay đổi", icon: "manage_history" },
-  { key: "reference", label: "Tham khảo", icon: "info" },
 ];
 
 export function TabBar({ active, counts, onChange }: Props) {

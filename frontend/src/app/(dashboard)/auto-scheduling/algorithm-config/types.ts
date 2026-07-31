@@ -87,7 +87,7 @@ export type AutoGenConfigPayload = {
   l04BalanceStrategy?: BalanceStrategy;
 };
 
-export type TabKey = "config" | "history" | "audit" | "reference";
+export type TabKey = "config" | "history" | "audit";
 
 /** Keys mà auto-gen payload ghi đè runtime config khi load */
 export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([

@@ -12,7 +12,6 @@ import { ConfigAuditLog } from "@/components/algorithm-config/ConfigAuditLog";
 import { TabBar } from "./TabBar";
 import { RuntimeConfigEditor } from "./RuntimeConfigEditor";
 import { MetricsHistory } from "./MetricsHistory";
-import { ReferenceSection } from "./ReferenceSection";
 import { CreateConfigModal } from "./CreateConfigModal";
 import { CustomConfigsCard } from "./CustomConfigsCard";
 import { AccessDeniedCard } from "./AccessDeniedCard";
@@ -94,7 +93,6 @@ export default function AlgorithmConfigPage() {
 
       {activeTab === "history" && <MetricsHistory />}
       {activeTab === "audit" && <ConfigAuditLog />}
-      {activeTab === "reference" && <ReferenceSection />}
 
       <CreateConfigModal
         open={createModalOpen}
