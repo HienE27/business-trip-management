@@ -159,94 +159,137 @@ public class AutoSchedulingService {
             Map<Integer, Staff> staffMap
     ) {}
 
-    public AutoScheduleResponse previewSchedule(AutoScheduleRequestDTO request) {
-        // BUGFIX (was M07 #3): Same per-period lock as autoSchedule — a preview run
-        // also deletes-and-regenerates schedule rows, so it must not race with
-        // a concurrent autoSchedule or another preview on the same period.
-        // BUGFIX: force-release stale lock if owning thread is dead (prevents
-        // "period is being scheduled by another request" after a failed cancel).
-        lockService.forceReleaseStaleLock(request.getPeriodId());
-        java.util.concurrent.Semaphore periodSem = acquirePeriodLock(request.getPeriodId());
-        boolean acquired = false;
-        try {
-            acquired = periodSem.tryAcquire();
-            if (!acquired) {
-                throw new BadRequestException(
-                        "Kỳ lịch " + request.getPeriodId() + " đang được xếp tự động bởi một yêu cầu khác. "
-                                + "Vui lòng đợi yêu cầu trước hoàn tất rồi thử lại.");
-            }
-            lockService.registerRunningThread(request.getPeriodId());
-            inMemoryAssignments().clear();
-            inMemoryCompensationShiftDates().clear();
-            allCompensationShiftDates().clear();
-            swapPriorityStaffIds().clear();
-            try {
-                return runScheduling(request, false);
-            } finally {
-                clearSchedulingState();
-            }
-        } finally {
-            if (acquired) {
-                lockService.unregisterRunningThread(request.getPeriodId());
-                periodSem.release();
-            }
-        }
-    }
+	    public AutoScheduleResponse previewSchedule(AutoScheduleRequestDTO request) {
+	        int pid = request.getPeriodId();
+	        log.info("previewSchedule: attempting lock for period {}", pid);
+	        // BUGFIX (was M07 #3): Same per-period lock as autoSchedule — a preview run
+	        // also deletes-and-regenerates schedule rows, so it must not race with
+	        // a concurrent autoSchedule or another preview on the same period.
+	        // BUGFIX: force-release stale lock if owning thread is dead (prevents
+	        // "period is being scheduled by another request" after a failed cancel).
+	        lockService.forceReleaseStaleLock(pid);
+	        java.util.concurrent.Semaphore periodSem = acquirePeriodLock(pid);
+	        boolean acquired = false;
+	        try {
+	            acquired = periodSem.tryAcquire();
+	            if (!acquired) {
+	                log.warn("previewSchedule: lock NOT acquired for period {} (concurrent operation in progress)", pid);
+	                throw new BadRequestException(
+	                        "Kỳ lịch " + pid + " đang được xếp tự động bởi một yêu cầu khác. "
+	                                + "Vui lòng đợi yêu cầu trước hoàn tất rồi thử lại.");
+	            }
+	            log.info("previewSchedule: LOCK ACQUIRED for period {}", pid);
+	            lockService.registerRunningThread(pid);
+	            inMemoryAssignments().clear();
+	            inMemoryCompensationShiftDates().clear();
+	            allCompensationShiftDates().clear();
+	            swapPriorityStaffIds().clear();
+	            try {
+	                return runScheduling(request, false);
+	            } finally {
+	                clearSchedulingState();
+	            }
+	        } finally {
+	            if (acquired) {
+	                lockService.unregisterRunningThread(pid);
+	                periodSem.release();
+	                log.info("previewSchedule: lock RELEASED for period {}", pid);
+	            }
+	        }
+	    }
 
-    public AutoScheduleResponse autoSchedule(AutoScheduleRequestDTO request) {
-        // BUGFIX (was M07 #3): Acquire a per-period execution lock so two concurrent
-        // autoSchedule requests on the same period cannot interleave their
-        // delete-and-regenerate operations and produce duplicate or lost schedules.
-        // The V9 migration dropped the schedule UNIQUE constraint, so the only
-        // remaining defence is this lock. If the period is already locked, return 409
-        // so the client can retry once the first run completes.
-        // BUGFIX: force-release stale lock if owning thread is dead (prevents
-        // "period is being scheduled by another request" after a failed cancel).
-        lockService.forceReleaseStaleLock(request.getPeriodId());
-        java.util.concurrent.Semaphore periodSem = acquirePeriodLock(request.getPeriodId());
-        boolean acquired = false;
-        try {
-            acquired = periodSem.tryAcquire();
-            if (!acquired) {
-                throw new BadRequestException(
-                        "Kỳ lịch " + request.getPeriodId() + " đang được xếp tự động bởi một yêu cầu khác. "
-                                + "Vui lòng đợi yêu cầu trước hoàn tất rồi thử lại.");
-            }
-            lockService.registerRunningThread(request.getPeriodId());
-            inMemoryAssignments().clear();
-            inMemoryCompensationShiftDates().clear();
-            allCompensationShiftDates().clear();
-            swapPriorityStaffIds().clear();
-            try {
-                return runScheduling(request, true);
-            } finally {
-                clearSchedulingState();
-            }
-        } finally {
-            if (acquired) {
-                lockService.unregisterRunningThread(request.getPeriodId());
-                periodSem.release();
-            }
-        }
-    }
+	    public AutoScheduleResponse autoSchedule(AutoScheduleRequestDTO request) {
+	        int pid = request.getPeriodId();
+	        log.info("autoSchedule: attempting lock for period {}", pid);
+	        // BUGFIX (was M07 #3): Acquire a per-period execution lock so two concurrent
+	        // autoSchedule requests on the same period cannot interleave their
+	        // delete-and-regenerate operations and produce duplicate or lost schedules.
+	        // The V9 migration dropped the schedule UNIQUE constraint, so the only
+	        // remaining defence is this lock. If the period is already locked, return 409
+	        // so the client can retry once the first run completes.
+	        // BUGFIX: force-release stale lock if owning thread is dead (prevents
+	        // "period is being scheduled by another request" after a failed cancel).
+	        lockService.forceReleaseStaleLock(pid);
+	        java.util.concurrent.Semaphore periodSem = acquirePeriodLock(pid);
+	        boolean acquired = false;
+	        try {
+	            acquired = periodSem.tryAcquire();
+	            if (!acquired) {
+	                log.warn("autoSchedule: lock NOT acquired for period {} (concurrent operation in progress)", pid);
+	                throw new BadRequestException(
+	                        "Kỳ lịch " + pid + " đang được xếp tự động bởi một yêu cầu khác. "
+	                                + "Vui lòng đợi yêu cầu trước hoàn tất rồi thử lại.");
+	            }
+	            log.info("autoSchedule: LOCK ACQUIRED for period {}", pid);
+	            lockService.registerRunningThread(pid);
+	            inMemoryAssignments().clear();
+	            inMemoryCompensationShiftDates().clear();
+	            allCompensationShiftDates().clear();
+	            swapPriorityStaffIds().clear();
+	            try {
+	                return runScheduling(request, true);
+	            } finally {
+	                clearSchedulingState();
+	            }
+	        } finally {
+	            if (acquired) {
+	                lockService.unregisterRunningThread(pid);
+	                periodSem.release();
+	                log.info("autoSchedule: lock RELEASED for period {}", pid);
+	            }
+	        }
+	    }
 
-    public AutoScheduleResponse applyPreviewSchedule(com.hospital.scheduler.dto.request.AutoScheduleApplyPreviewRequestDTO request) {
-        // BUGFIX (was M07 #4): the apply path reads from the in-memory cache
-        // (allCompensationShiftDates, inMemoryAssignments, etc.) but never
-        // cleared it in a finally block. When Tomcat reuses a worker thread
-        // for a different request, the leftover snapshot could be observed by
-        // any code that touches these ThreadLocals. Initialize fresh values
-        // here and remove them on exit so the worker thread is left clean.
-        inMemoryAssignments().clear();
-        inMemoryCompensationShiftDates().clear();
-        allCompensationShiftDates().clear();
-        swapPriorityStaffIds().clear();
-        try {
-            return applyPreviewScheduleInternal(request);
-        } finally {
-            clearSchedulingState();
-        }
-    }
+	    public AutoScheduleResponse applyPreviewSchedule(com.hospital.scheduler.dto.request.AutoScheduleApplyPreviewRequestDTO request) {
+	        // BUGFIX (was M07 #4): the apply path reads from the in-memory cache
+	        // (allCompensationShiftDates, inMemoryAssignments, etc.) but never
+	        // cleared it in a finally block. When Tomcat reuses a worker thread
+	        // for a different request, the leftover snapshot could be observed by
+	        // any code that touches these ThreadLocals. Initialize fresh values
+	        // here and remove them on exit so the worker thread is left clean.
+	        // BUGFIX (HTTP 500 when apply races with preview): acquire the same
+	        // per-period lock that previewSchedule and autoSchedule use, so two
+	        // operations on the same period cannot interleave their
+	        // delete-and-regenerate sequences. Without this lock a concurrent
+	        // preview triggers a broken-pipe / lock-wait-timeout on the apply
+	        // connection, returning HTTP 500 to the client.
+	        int pid = request.getPeriodId();
+	        log.info("applyPreviewSchedule: attempting lock for period {}", pid);
+	        inMemoryAssignments().clear();
+	        inMemoryCompensationShiftDates().clear();
+	        allCompensationShiftDates().clear();
+	        swapPriorityStaffIds().clear();
+	        lockService.forceReleaseStaleLock(pid);
+	        java.util.concurrent.Semaphore periodSem = acquirePeriodLock(pid);
+	        boolean acquired = false;
+	        try {
+	            acquired = periodSem.tryAcquire();
+	            if (!acquired) {
+	                log.warn("applyPreviewSchedule: lock NOT acquired for period {} (concurrent operation in progress)", pid);
+	                throw new BadRequestException(
+	                        "Kỳ lịch " + pid + " đang được xử lý bởi một yêu cầu khác. "
+	                                + "Vui lòng đợi yêu cầu trước hoàn tất rồi thử lại.");
+	            }
+		            log.info("applyPreviewSchedule: LOCK ACQUIRED for period {}", pid);
+		            lockService.registerRunningThread(pid);
+		            try {
+		                AutoScheduleResponse result = applyPreviewScheduleInternal(request);
+		                log.info("applyPreviewScheduleInternal completed SUCCESSFULLY for period {}", pid);
+		                return result;
+		            } catch (Exception e) {
+		                log.error("applyPreviewScheduleInternal FAILED for period {}: {} — type: {}", pid, e.getMessage(), e.getClass().getName(), e);
+		                throw e;
+		            } finally {
+		                clearSchedulingState();
+		            }
+	        } finally {
+	            if (acquired) {
+	                lockService.unregisterRunningThread(pid);
+	                periodSem.release();
+	                log.info("applyPreviewSchedule: lock RELEASED for period {}", pid);
+	            }
+	        }
+	    }
 
     private AutoScheduleResponse applyPreviewScheduleInternal(com.hospital.scheduler.dto.request.AutoScheduleApplyPreviewRequestDTO request) {
         SchedulePeriod period = periodRepository.findById(request.getPeriodId())
@@ -331,6 +374,12 @@ public class AutoSchedulingService {
                         .map(item -> scheduleKey(item.getStaffId(), item.getWorkDate(), item.getShiftTypeId()))
                         .collect(Collectors.toSet());
 
+        // BUGFIX (HTTP 500 on large apply): batch flush every 50 compensation days
+        // instead of after every L01 insert, reducing ~100+ database round-trips to ~3
+        // for a full period. The flush is needed so the next iteration's conflict-detection
+        // reads can see compensation days inserted via native INSERT IGNORE.
+        int compDayFlushCounter = 0;
+        List<Object[]> compDayBatch = new ArrayList<>();
         for (var item : request.getSchedules()) {
             if (removedScheduleKeys.contains(scheduleKey(item.getStaffId(), item.getWorkDate(), item.getShiftTypeId()))) {
                 log.info("Skipping removed preview item: staffId={}, workDate={}, shiftType={}",
@@ -499,16 +548,37 @@ public class AutoSchedulingService {
             inApplyLoop.computeIfAbsent(staff.getId() + "_" + workDate, k -> new HashSet<>())
                     .add(shiftType.getId());
             if (ConflictDetectionService.SHIFT_TYPE_L01.equals(shiftType.getId())) {
-                createCompensationDayForAuto(saved);
-                // Force JPA flush so the next iteration's conflict-detection reads (which run
-                // inside the same @Transactional method) can see the compensation day we just
-                // inserted. Without this, detectCompensationConflict() in hasAnyConflict() may
-                // return false for a sibling schedule that lands on the new comp day, and the
-                // save slips through — only to surface as a conflict on the next monthly-schedule
-                // reload. Explicit flush guarantees same-transaction visibility.
-                entityManager.flush();
+                // BUGFIX (HTTP 500 on large apply): batch compensation day inserts — collect
+                // in list and flush via multi-row INSERT IGNORE every 50 L01s. The original
+                // code called createCompensationDayForAuto() which executes a native INSERT
+                // IGNORE per L01 (~200 round-trips for a full period). Batch reduces to ~4
+                // round-trips. The individual flush per row was the primary cause of the
+                // frontend 120s timeout: each L01 required 3 DB calls (exists check x2 +
+                // INSERT IGNORE) within the same @Transactional connection, making the apply
+                // slow enough to trigger ClientAbortException → HTTP 500 on the backend.
+                LocalDate compDate = compensationDateCalculator.calculate(workDate);
+                if (compDate != null) {
+                    String compKey = staff.getId() + "_" + compDate;
+                    if (!allCompensationShiftDates().contains(compKey)) {
+                        compDayBatch.add(new Object[]{staff.getId(), period.getId(), saved.getId(), workDate, compDate});
+                        allCompensationShiftDates().add(compKey);
+                    }
+                }
+                compDayFlushCounter++;
+                if (compDayFlushCounter % 50 == 0) {
+                    flushCompensationDayBatch(compDayBatch);
+                    entityManager.flush();
+                }
             }
             auditHistoryService.logAction("schedule", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, null);
+        }
+        // BUGFIX: flush remaining compensation day batch (rows that didn't hit the
+        // 50-row threshold inside the loop) and any pending schedule entity inserts.
+        log.info("Post-loop: flushing {} compensation days, totalReceived={}, savedCount={}, skipInLoop={}, skipConflict={}, skipExists={}",
+                compDayBatch.size(), totalReceived, savedCount, skipInLoop, skipConflict, skipExists);
+        flushCompensationDayBatch(compDayBatch);
+        if (compDayFlushCounter % 50 != 0) {
+            entityManager.flush();
         }
 
         List<AutoScheduleResponse.ScheduleSummary> summaries = savedSchedules.stream()
@@ -2969,6 +3039,46 @@ public class AutoSchedulingService {
      */
     private void createCompensationDayForAuto(Schedule schedule) {
         schedulePersistenceService.createCompensationDayForAuto(compensationDayRepository, schedule);
+    }
+
+    /**
+     * Execute a multi-row INSERT IGNORE for batched compensation days.
+     * Single SQL statement instead of N individual native queries, reducing
+     * round-trips from ~200 to ~4 for a full period with 200 L01 shifts.
+     * <p>
+     * Called from {@link #applyPreviewScheduleInternal} every 50 L01s and
+     * once after the loop to flush remaining rows.
+     */
+    private void flushCompensationDayBatch(List<Object[]> batch) {
+        if (batch == null || batch.isEmpty()) return;
+        int size = batch.size();
+        StringBuilder sql = new StringBuilder(200 + size * 120);
+        sql.append("INSERT IGNORE INTO compensation_day ")
+           .append("(staff_id, period_id, schedule_id, shift_date, compensation_date, note, created_at, updated_at) ")
+           .append("VALUES ");
+        List<Object> params = new ArrayList<>(size * 5);
+        for (int i = 0; i < size; i++) {
+            Object[] row = batch.get(i);
+            if (i > 0) sql.append(", ");
+            sql.append("(?, ?, ?, ?, ?, 'Ngày nghỉ bù tự động từ ca L01', NOW(), NOW())");
+            params.add(row[0]); // staff_id
+            params.add(row[1]); // period_id
+            params.add(row[2]); // schedule_id
+            params.add(row[3]); // shift_date
+            params.add(row[4]); // compensation_date
+        }
+        var query = entityManager.createNativeQuery(sql.toString());
+        for (int i = 0; i < params.size(); i++) {
+            query.setParameter(i + 1, params.get(i));
+        }
+        int inserted = query.executeUpdate();
+        if (inserted != size) {
+            log.info("Batch inserted {}/{} compensation days (INSERT IGNORE skipped {} duplicates)",
+                    inserted, size, size - inserted);
+        } else {
+            log.debug("Batch inserted {} compensation days", size);
+        }
+        batch.clear();
     }
 
     /**
