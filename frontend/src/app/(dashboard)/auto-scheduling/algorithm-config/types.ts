@@ -43,9 +43,6 @@ export type RuntimeConfig = {
   l03CrossSpecialtyRatio?: number;
   l03AllowedSpecialties?: string[];
   l03BalanceStrategy?: BalanceStrategy;
-  // L04 — chỉ allowedSpecialties + balanceStrategy (bỏ toggle cross-specialty)
-  l04AllowedSpecialties?: string[];
-  l04BalanceStrategy?: BalanceStrategy;
 };
 
 export type AlgorithmMetrics = {
@@ -82,9 +79,6 @@ export type AutoGenConfigPayload = {
   l03CrossSpecialtyRatio?: number;
   l03AllowedSpecialties?: string[];
   l03BalanceStrategy?: BalanceStrategy;
-  // L04 — chỉ allowedSpecialties + balanceStrategy (bỏ toggle cross-specialty)
-  l04AllowedSpecialties?: string[];
-  l04BalanceStrategy?: BalanceStrategy;
 };
 
 export type TabKey = "config" | "history" | "audit";
@@ -113,9 +107,6 @@ export const AUTO_GEN_OVERRIDE_KEYS = new Set<string>([
   "l03CrossSpecialtyRatio",
   "l03AllowedSpecialties",
   "l03BalanceStrategy",
-  // L04 — chỉ allowedSpecialties + balanceStrategy
-  "l04AllowedSpecialties",
-  "l04BalanceStrategy",
 ]);
 
 /** Map snake_case param key (URL/draft) sang camelCase RuntimeConfig field */

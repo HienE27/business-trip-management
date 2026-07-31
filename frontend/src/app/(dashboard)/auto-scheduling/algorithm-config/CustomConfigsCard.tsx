@@ -13,6 +13,15 @@ import { LEGACY_AUTO_GEN_KEYS } from "./types";
 type SortBy = "key" | "updatedAt";
 type SortDir = "asc" | "desc";
 
+// Params bị ẩn khỏi UI (feature đã gỡ — L04 specialty/cross-specialty config).
+// Chặn chỉnh sửa qua param editor thô; backend vẫn giữ giá trị hiện tại.
+const HIDDEN_PARAM_KEYS = new Set([
+  "auto_gen_l04_cross_specialty",
+  "auto_gen_l04_cross_specialty_ratio",
+  "auto_gen_l04_allowed_specialties",
+  "auto_gen_l04_balance_strategy",
+]);
+
 const VALUE_TYPE_BADGE: Record<ConfigEntry["valueType"], string> = {
   NUMBER: "bg-primary-fixed text-primary",
   BOOLEAN: "bg-secondary-container text-secondary",
@@ -53,6 +62,7 @@ export function CustomConfigsCard({ onCreate, refreshSignal }: { onCreate: () =>
     return configs
       .filter(c => {
         if (LEGACY_AUTO_GEN_KEYS.has(c.paramKey)) return false;
+        if (HIDDEN_PARAM_KEYS.has(c.paramKey)) return false;
         if (filterType !== "ALL" && c.valueType !== filterType) return false;
         if (!kw) return true;
         return c.paramKey.toLowerCase().includes(kw) || c.description.toLowerCase().includes(kw);
