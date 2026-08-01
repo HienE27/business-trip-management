@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
+import { Pagination } from "@/components/ui/Pagination";
 
 type AuditEntry = {
   id: number;
@@ -25,20 +26,48 @@ export function ConfigAuditLog() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterKey, setFilterKey] = useState("");
+  const [debouncedKey, setDebouncedKey] = useState("");
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
+  // Debounce filter input so we don't hammer the API on every keystroke.
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedKey(filterKey);
+      setPage(0);
+    }, 300);
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [filterKey]);
+
+  // Fetch with server-side filter + pagination.
+  const load = useCallback(async () => {
     let mounted = true;
     setLoading(true);
-    api.getAlgorithmConfigAudit(undefined, 0, 100)
-      .then(data => { if (mounted) setEntries(Array.isArray(data?.content) ? data.content : []); })
-      .catch(() => { if (mounted) setEntries([]); })
-      .finally(() => { if (mounted) setLoading(false); });
+    try {
+      const data = await api.getAlgorithmConfigAudit(
+        debouncedKey || undefined,
+        page,
+        50,
+      );
+      if (mounted) {
+        setEntries(Array.isArray(data?.content) ? data.content : []);
+        setTotalPages(data?.totalPages ?? 0);
+        setTotalElements(data?.totalElements ?? 0);
+      }
+    } catch {
+      if (mounted) setEntries([]);
+    } finally {
+      if (mounted) setLoading(false);
+    }
     return () => { mounted = false; };
-  }, []);
+  }, [debouncedKey, page]);
 
-  const filtered = entries.filter(e =>
-    !filterKey || e.paramKey.toLowerCase().includes(filterKey.toLowerCase())
-  );
+  useEffect(() => { void load(); }, [load]);
 
   return (
     <div className="space-y-4">
@@ -48,7 +77,7 @@ export function ConfigAuditLog() {
             <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">history</span>
             <p className="text-title-sm font-semibold text-on-surface">Lịch sử thay đổi</p>
             <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-primary-fixed text-primary border border-primary/20">
-              {filtered.length} mục
+              {totalElements} mục
             </span>
           </div>
           <div className="relative">
@@ -69,7 +98,7 @@ export function ConfigAuditLog() {
               <div key={i} className="h-12 rounded-xl bg-surface-container-low animate-pulse" />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : entries.length === 0 ? (
           <div className="text-center py-12">
             <span className="material-symbols-outlined text-[48px] text-on-surface-variant">inbox</span>
             <p className="text-body-sm text-on-surface-variant mt-2">Chưa có thay đổi nào được ghi nhận</p>
@@ -87,7 +116,7 @@ export function ConfigAuditLog() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">
-                {filtered.map(e => {
+                {entries.map(e => {
                   const tone = ACTION_TONES[e.action] ?? ACTION_TONES.UPDATE;
                   return (
                     <tr key={e.id} className="hover:bg-surface-container-low/50 transition-colors">
