@@ -1,12 +1,10 @@
 package com.hospital.scheduler.service.scheduling;
 
-import com.hospital.scheduler.algorithm.AutoGenConfig;
 import com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility;
 import com.hospital.scheduler.entity.ShiftRequirement;
 import com.hospital.scheduler.entity.ShiftType;
 import com.hospital.scheduler.entity.Specialty;
 import com.hospital.scheduler.entity.Staff;
-import com.hospital.scheduler.service.AlgorithmConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -15,28 +13,21 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
- * Cross-specialty fairness tests for {@link FairShareCalculator}.
+ * Fair share tests for {@link FairShareCalculator}.
  *
  * <p>Contract under test:
  *  - L01/L02/L03 use the full staff pool for fair share.
- *  - L04 uses a SPECIFIC-pool when cross-specialty is disabled (only staff
- *    matching the requirement's specialty count toward the L04 pool).
- *  - L04 uses the ELIGIBLE-pool (CORE specialties = Nội/Ngoại) when cross-
- *    specialty is enabled. Per-specialty demand is spread across that pool.
+ *  - L04 luôn strict-specialty (không cross): chỉ staff matching requirement's
+ *    specialty count toward the L04 pool.
  *  - The result exposes a per-specialty breakdown via keys like "L04:42".
  */
-@DisplayName("FairShareCalculator — M05 cross-specialty fairness")
+@DisplayName("FairShareCalculator — strict-specialty fairness")
 class FairShareCalculatorTest {
 
-    private AlgorithmConfigService algoConfig;
-    private StaffEligibilityFilter eligibilityFilter;
     private FairShareCalculator calculator;
 
     // Stable IDs for spec/staff so we can assert specific keys.
@@ -46,9 +37,7 @@ class FairShareCalculatorTest {
 
     @BeforeEach
     void setUp() {
-        algoConfig = mock(AlgorithmConfigService.class);
-        eligibilityFilter = mock(StaffEligibilityFilter.class);
-        calculator = new FairShareCalculator(algoConfig, eligibilityFilter);
+        calculator = new FairShareCalculator();
     }
 
     /** Build a staff with the given specialty, marked active + eligible for L04. */
@@ -114,22 +103,8 @@ class FairShareCalculatorTest {
     }
 
     @Nested
-    @DisplayName("L04 cross-specialty DISABLED — uses matching-spec pool only")
-    class L04Disabled {
-
-        @BeforeEach
-        void disableCrossSpecialty() {
-            when(algoConfig.getAutoGenConfig()).thenReturn(Optional.of(
-                    AutoGenConfig.builder()
-                            .l04CrossSpecialty(false)
-                            .l04CrossSpecialtyRatio(0.3f)
-                            .l04AllowedSpecialties(List.of())
-                            .l04BalanceStrategy("FAIR_DISTRIBUTE")
-                            .build()
-            ));
-            when(eligibilityFilter.getL04CrossSpecialtyConfig())
-                    .thenReturn(StaffEligibilityFilter.CrossSpecialtyConfig.disabled());
-        }
+    @DisplayName("L04 strict-specialty — uses matching-spec pool only")
+    class L04Strict {
 
         @Test
         @DisplayName("L04 demand split per specialty; only matching staff count toward pool")
@@ -161,69 +136,22 @@ class FairShareCalculatorTest {
                     .as("Ngoai staff share 2 L04 slots across 3 staff")
                     .isEqualTo(1);
         }
-    }
-
-    @Nested
-    @DisplayName("L04 cross-specialty ENABLED — uses eligible CORE pool (Nội/Ngoại)")
-    class L04Enabled {
-
-        @BeforeEach
-        void enableCrossSpecialty() {
-            when(algoConfig.getAutoGenConfig()).thenReturn(Optional.of(
-                    AutoGenConfig.builder()
-                            .l04CrossSpecialty(true)
-                            .l04CrossSpecialtyRatio(0.3f)
-                            .l04AllowedSpecialties(List.of("Nội", "Ngoại"))
-                            .l04BalanceStrategy("FAIR_DISTRIBUTE")
-                            .build()
-            ));
-            when(eligibilityFilter.getL04CrossSpecialtyConfig())
-                    .thenReturn(new StaffEligibilityFilter.CrossSpecialtyConfig(true, 0.3f,
-                            List.of("Nội", "Ngoại"), "FAIR_DISTRIBUTE"));
-        }
 
         @Test
-        @DisplayName("When cross enabled, only Nội/Ngoại staff count toward L04 pool")
-        void l04_usesEligibleCorePool() {
-            // Demand: 10 L04-Noi + 10 L04-Ngoai = 20 total
-            List<ShiftRequirement> reqs = List.of(
-                    req("L04", SPEC_NOI, 10, LocalDate.of(2026, 7, 1)),
-                    req("L04", SPEC_NGOAI, 10, LocalDate.of(2026, 7, 2))
-            );
+        @DisplayName("Khác-specialty staff never count toward L04 pool (strict-only)")
+        void l04_ignoresOtherSpecialty() {
+            // Demand: 2 L04-Noi slots; pool = 1 Noi + 4 Khác
+            List<ShiftRequirement> reqs = List.of(req("L04", SPEC_NOI, 2, LocalDate.of(2026, 7, 1)));
 
-            // 5 Nội + 5 Ngoại (eligible CORE) + 10 Khác (NOT eligible for L04 even when cross on)
             List<Staff> active = new ArrayList<>();
-            for (int i = 0; i < 5; i++) active.add(staff(100 + i, SPEC_NOI, "Nội"));
-            for (int i = 0; i < 5; i++) active.add(staff(200 + i, SPEC_NGOAI, "Ngoại"));
-            for (int i = 0; i < 10; i++) active.add(staff(300 + i, SPEC_OTHER, "Khác"));
+            active.add(staff(100, SPEC_NOI, "Nội"));
+            for (int i = 0; i < 4; i++) active.add(staff(300 + i, SPEC_OTHER, "Khác"));
 
             var result = calculator.computeFairSharePerTypeWithStaff(reqs, 99, active);
 
-            // Eligible CORE pool = 10 staff (5 Nội + 5 Ngoại) — Khác is filtered out
-            // because StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES contains only
-            // the configured cross-specialty allowed set when cross is on.
-            // Per the production rule: totalEligibleL04Staff counts staff whose specialty
-            // name ∈ ALL_ELIGIBLE_SPECIALTIES. The implementation reads ALL_ELIGIBLE_SPECIALTIES
-            // regardless of cross-flag for the "enabled" branch, so eligible = 10 here.
-            int totalEligible = 10;
-            int expectedL04Total = (int) Math.ceil((double) 20 / totalEligible);
-            assertThat(result.get("L04"))
-                    .as("L04 total = ceil(%d / %d)", 20, totalEligible)
-                    .isEqualTo(expectedL04Total);
-
-            // Per-spec breakdown should still exist (Noi, Ngoai keys)
-            assertThat(result).containsKey("L04:" + SPEC_NOI);
-            assertThat(result).containsKey("L04:" + SPEC_NGOAI);
-        }
-
-        @Test
-        @DisplayName("Sanity: ALL_ELIGIBLE_SPECIALTIES contains the expected core names")
-        void eligibleSpecialties_constant() {
-            // Guards against accidental rename / removal of the core specialty list.
-            // This constant drives the M05 cross-specialty fairness boundary.
-            assertThat(StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES)
-                    .as("Core L04-eligible specialties must include Nội and Ngoại")
-                    .contains("Nội", "Ngoại");
+            assertThat(result.get("L04:" + SPEC_NOI))
+                    .as("Nội pool = 1 staff → fair share = demand")
+                    .isEqualTo(2);
         }
     }
 

@@ -112,7 +112,7 @@ class LocalSearchSchedulerBalanceTest {
         }
         return SchedulingProblem.withRequirementsAndCompDayMap(
                 twentyStaff(), v10Reqs, List.of(), new HashMap<>(),
-                compDayOf, java.util.Set.of(), config, true);
+                compDayOf, java.util.Set.of(), config);
     }
 
     private static int countType(WorkingSolution sol, String type) {
@@ -148,7 +148,7 @@ class LocalSearchSchedulerBalanceTest {
     private LocalSearchScheduler scheduler(SchedulingConfig config, CompensationDateCalculator compCalc) {
         return new LocalSearchScheduler(config,
                 mock(HolidayRepository.class), compCalc,
-                mock(AlgorithmConfigService.class), mock(ConfigService.class));
+                mock(ConfigService.class));
     }
 
     @Test

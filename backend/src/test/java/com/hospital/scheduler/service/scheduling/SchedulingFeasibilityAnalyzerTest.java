@@ -2,7 +2,6 @@ package com.hospital.scheduler.service.scheduling;
 
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
-import com.hospital.scheduler.service.AlgorithmConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -29,7 +28,6 @@ class SchedulingFeasibilityAnalyzerTest {
     @Mock private LeaveRequestRepository leaveRequestRepository;
     @Mock private CompensationDayRepository compensationDayRepository;
     @Mock private HolidayRepository holidayRepository;
-    @Mock private AlgorithmConfigService algorithmConfigService;
 
     private SchedulingFeasibilityAnalyzer analyzer;
 
@@ -44,7 +42,7 @@ class SchedulingFeasibilityAnalyzerTest {
         analyzer = new SchedulingFeasibilityAnalyzer(
                 staffRepository, requirementRepository,
                 leaveRequestRepository, compensationDayRepository,
-                holidayRepository, algorithmConfigService);
+                holidayRepository);
 
         // Specialties
         specNgoai = makeSpecialty(1, "Ngoại");
@@ -153,20 +151,6 @@ class SchedulingFeasibilityAnalyzerTest {
         when(holidayRepository.findActiveHolidaysBetween(any(), any())).thenReturn(holidays);
     }
 
-    private void stubAutoGenConfig(boolean crossEnabled, List<String> allowed) {
-        var cfg = com.hospital.scheduler.algorithm.AutoGenConfig.builder()
-                .l04CrossSpecialty(crossEnabled)
-                .l04CrossSpecialtyRatio(0.3f)
-                .l04AllowedSpecialties(allowed != null ? allowed : List.of())
-                .l04BalanceStrategy("FAIR_DISTRIBUTE")
-                .build();
-        when(algorithmConfigService.getAutoGenConfig()).thenReturn(Optional.of(cfg));
-    }
-
-    private void stubNoAutoGenConfig() {
-        when(algorithmConfigService.getAutoGenConfig()).thenReturn(Optional.empty());
-    }
-
     // ── Tests ──────────────────────────────────────────────────────────────────
 
     @Nested
@@ -207,7 +191,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -234,7 +217,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -266,7 +248,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -293,7 +274,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -303,60 +283,6 @@ class SchedulingFeasibilityAnalyzerTest {
             assertEquals(2, l04.required());
             assertTrue(l04.isUnderstaffed());
             assertTrue(l04.issue().contains("Thiếu"));
-        }
-
-        @Test
-        @DisplayName("L04 with cross-specialty enabled → other specialty staff become eligible")
-        void l04CrossSpecialty() {
-            LocalDate d1 = LocalDate.of(2026, 7, 1);
-
-            // L04 for Nhi specialty, requires 3
-            List<ShiftRequirement> reqs = List.of(
-                    makeReq(1, period, lt04, specChild, d1, 3)
-            );
-            // Only 2 Nhi staff, cross-specialty will add Ngoại, Nội
-            stubActiveStaff(List.of(staffNgoai, staffNoi, staffChild1, staffChild2));
-            stubRequirements(reqs);
-            stubLeaves(Collections.emptyList());
-            stubCompDays(Collections.emptyList());
-            stubHolidays(Collections.emptyList());
-            // Cross-specialty: allow Ngoại and Nội
-            stubAutoGenConfig(true, List.of("Ngoại", "Nội"));
-
-            var report = analyzer.analyzeFeasibility(1);
-
-            var dayAnalysis = report.dailyAnalysis().get(0);
-            var l04 = dayAnalysis.shiftTypes().get("L04");
-            // 2 Nhi + 1 Ngoại + 1 Nội = 4 eligible (cross-specialty)
-            assertEquals(4, l04.eligibleStaff());
-            assertEquals(3, l04.required());
-            assertFalse(l04.isUnderstaffed());
-        }
-
-        @Test
-        @DisplayName("L04 cross-specialty when staff not in allowlist → excluded")
-        void l04CrossSpecialtyRestrictive() {
-            LocalDate d1 = LocalDate.of(2026, 7, 1);
-
-            List<ShiftRequirement> reqs = List.of(
-                    makeReq(1, period, lt04, specChild, d1, 4)
-            );
-            // 5 staff, cross-specialty only allows Ngoại
-            stubActiveStaff(List.of(staffNgoai, staffNoi, staffSan, staffChild1, staffChild2));
-            stubRequirements(reqs);
-            stubLeaves(Collections.emptyList());
-            stubCompDays(Collections.emptyList());
-            stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(true, List.of("Ngoại")); // Only Ngoại in allowlist
-
-            var report = analyzer.analyzeFeasibility(1);
-
-            var dayAnalysis = report.dailyAnalysis().get(0);
-            var l04 = dayAnalysis.shiftTypes().get("L04");
-            // Only 1 Ngoại (cross) + 2 Nhi (match) = 3 eligible, need 4
-            assertEquals(3, l04.eligibleStaff());
-            assertEquals(4, l04.required());
-            assertTrue(l04.isUnderstaffed());
         }
     }
 
@@ -378,7 +304,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(List.of(makeLeave(1, staffNgoai, d1, d1)));
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -401,7 +326,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(List.of(makeCompDay(1, staffNoi, d1)));
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -426,7 +350,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(List.of(makeLeave(1, staffNgoai, d1, d1)));
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -469,7 +392,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(List.of(h));
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -501,7 +423,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -523,7 +444,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -560,7 +480,6 @@ class SchedulingFeasibilityAnalyzerTest {
             ));
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -602,7 +521,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -636,7 +554,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubNoAutoGenConfig();
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -644,8 +561,8 @@ class SchedulingFeasibilityAnalyzerTest {
         }
 
         @Test
-        @DisplayName("L04 shortage + cross-specialty off → recommends enabling cross-specialty")
-        void l04ShortageRecommendsCrossSpecialty() {
+        @DisplayName("L04 shortage → no cross-specialty recommendation, generic reduce-required advice")
+        void l04ShortageRecommendsReduceRequired() {
             LocalDate d1 = LocalDate.of(2026, 7, 1);
 
             List<ShiftRequirement> reqs = List.of(
@@ -657,12 +574,13 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of()); // cross-specialty OFF
 
             var report = analyzer.analyzeFeasibility(1);
 
+            // Không còn gợi ý cross-specialty (đã gỡ) — chỉ gợi ý chung giảm required.
+            assertFalse(report.recommendations().stream().anyMatch(r -> r.contains("cross-specialty")));
             assertTrue(report.recommendations().stream()
-                    .anyMatch(r -> r.contains("cross-specialty") && r.contains("PK Chuyên gia")));
+                    .anyMatch(r -> r.contains("Giảm required count")));
         }
 
         @Test
@@ -680,7 +598,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -707,7 +624,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -738,7 +654,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -766,7 +681,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -794,7 +708,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -823,7 +736,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(List.of(makeLeave(3, staffSan, d1, d2)));
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var report = analyzer.analyzeFeasibility(1);
 
@@ -853,7 +765,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             assertTrue(analyzer.isPeriodFeasible(1));
         }
@@ -876,7 +787,6 @@ class SchedulingFeasibilityAnalyzerTest {
             stubLeaves(Collections.emptyList());
             stubCompDays(Collections.emptyList());
             stubHolidays(Collections.emptyList());
-            stubAutoGenConfig(false, List.of());
 
             var dates = analyzer.getUnderstaffedDates(1);
 

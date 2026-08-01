@@ -56,8 +56,7 @@ class CspTimeoutPartialRegressionTest {
         List<LocalDate> dates = new ArrayList<>();
         for (int i = 0; i < 7; i++) dates.add(start.plusDays(i));
 
-        ProblemData data = builder.build(staffList, dates, reqs, Collections.emptyList(),
-                List.of("Nội"));
+        ProblemData data = builder.build(staffList, dates, reqs, Collections.emptyList());
         CspSearchEngine engine = new CspSearchEngine(compCalc, new CspNogoodStore());
         CspSearchEngine.Result r = engine.solve(data, System.currentTimeMillis(), 5L);
 
@@ -85,8 +84,7 @@ class CspTimeoutPartialRegressionTest {
         );
         List<LocalDate> dates = List.of(start);
 
-        ProblemData data = builder.build(staffList, dates, reqs, Collections.emptyList(),
-                List.of("Nội"));
+        ProblemData data = builder.build(staffList, dates, reqs, Collections.emptyList());
         CspSearchEngine engine = new CspSearchEngine(compCalc, new CspNogoodStore());
         CspSearchEngine.Result r = engine.solve(data, System.currentTimeMillis(), 30_000L);
 

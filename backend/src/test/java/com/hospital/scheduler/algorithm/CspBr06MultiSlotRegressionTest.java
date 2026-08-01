@@ -52,8 +52,7 @@ class CspBr06MultiSlotRegressionTest {
                 new ShiftRequirementInfo("L01", start, l01Slots)
         );
         List<LocalDate> dates = List.of(start);
-        return builder.build(staffList, dates, reqs, Collections.emptyList(),
-                List.of("Nội"));
+        return builder.build(staffList, dates, reqs, Collections.emptyList());
     }
 
     private static CspSearchEngine.Result solve(int nStaff, int l01Slots) {

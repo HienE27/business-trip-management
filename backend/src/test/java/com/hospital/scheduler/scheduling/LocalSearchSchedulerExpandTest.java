@@ -39,11 +39,9 @@ class LocalSearchSchedulerExpandTest {
         HolidayRepository holidays = mock(HolidayRepository.class);
         when(holidays.findAll()).thenReturn(List.of());
         CompensationDateCalculator compCalc = mock(CompensationDateCalculator.class);
-        AlgorithmConfigService algoCfg = mock(AlgorithmConfigService.class);
-        when(algoCfg.getAutoGenConfig()).thenReturn(Optional.empty());
         ConfigService configService = mock(ConfigService.class);
         when(configService.load()).thenReturn(ConfigDefaults.withDefaults());
-        return new LocalSearchScheduler(config, holidays, compCalc, algoCfg, configService);
+        return new LocalSearchScheduler(config, holidays, compCalc, configService);
     }
 
     private Staff staff(int id) {

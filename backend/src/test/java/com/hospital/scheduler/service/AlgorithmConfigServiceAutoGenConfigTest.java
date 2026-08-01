@@ -56,7 +56,7 @@ class AlgorithmConfigServiceAutoGenConfigTest {
         // AutoGenConfigService would build a default config (enabled=true)
 	        AutoGenConfig delegateResult = new AutoGenConfig(true, 1, 1, 1, 1, 0, 0, 0, 0,
 	                0, 0, 0, 0,  // max/week
-	                "SKIP", null, true, 0.5f, null, "FAIR_DISTRIBUTE");
+	                "SKIP", null);
         when(autoGenConfigService.getAutoGenConfig()).thenReturn(Optional.of(delegateResult));
 
         Optional<AutoGenConfig> result = service.getAutoGenConfig();
@@ -71,7 +71,7 @@ class AlgorithmConfigServiceAutoGenConfigTest {
     void disabledFlag_delegatesAndReturnsEnabledFalse() {
 	        AutoGenConfig delegateResult = new AutoGenConfig(false, 1, 1, 1, 1, 0, 0, 0, 0,
 	                0, 0, 0, 0,  // max/week
-	                "SKIP", null, true, 0.5f, null, "FAIR_DISTRIBUTE");
+	                "SKIP", null);
         when(autoGenConfigService.getAutoGenConfig()).thenReturn(Optional.of(delegateResult));
 
         Optional<AutoGenConfig> result = service.getAutoGenConfig();
@@ -88,7 +88,7 @@ class AlgorithmConfigServiceAutoGenConfigTest {
     void configuredValues_delegatesAndReturnsDelegateResult() {
 	        AutoGenConfig delegateResult = new AutoGenConfig(true, 3, 1, 1, 1, 0, 0, 0, 0,
 	                0, 0, 0, 0,  // max/week
-	                "PARTIAL", null, true, 0.5f, null, "FAIR_DISTRIBUTE");
+	                "PARTIAL", null);
         when(autoGenConfigService.getAutoGenConfig()).thenReturn(Optional.of(delegateResult));
 
         Optional<AutoGenConfig> result = service.getAutoGenConfig();
