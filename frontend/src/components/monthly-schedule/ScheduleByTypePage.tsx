@@ -297,6 +297,12 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   }, [selectedPeriodId, reloadSchedules, toastSuccess, toastError]);
 
   const handleWorkflowStep = useCallback((stepId: WorkflowStepId) => {
+    // Guard against double-fires when a step is already in progress
+    if (stepId === "conflicts" && checkingConflicts) return;
+    if (stepId === "export" && exporting) return;
+    if (stepId === "notify" && notifying) return;
+    if (stepId === "publish" && publishing) return;
+
     if (stepId === "conflicts") {
       setSelectedPanel("conflicts");
       void handleDryRunPublish();
@@ -315,7 +321,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       return;
     }
     setSelectedPanel("summary");
-  }, [handleDryRunPublish, handleExport, handleSendNotifications, handlePublish]);
+  }, [checkingConflicts, exporting, notifying, publishing, handleDryRunPublish, handleExport, handleSendNotifications, handlePublish]);
 
   // Bulk schedule handlers
   const handleBulkDatesSelected = useCallback((dates: string[]) => {
