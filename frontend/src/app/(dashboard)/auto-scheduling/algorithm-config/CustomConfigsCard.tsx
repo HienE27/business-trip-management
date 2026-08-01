@@ -140,8 +140,8 @@ export function CustomConfigsCard({ onCreate, refreshSignal }: { onCreate: () =>
                 <ConfigRow
                   key={config.paramKey}
                   config={config}
-                  onSave={updated => setConfigs(prev => prev.map(c => c.paramKey === config.paramKey ? { ...c, ...updated } : c))}
-                  onDelete={() => setConfigs(prev => prev.filter(c => c.paramKey !== config.paramKey))}
+                  onSave={() => loadConfigs()}
+                  onDelete={() => loadConfigs()}
                 />
               ))}
             </tbody>

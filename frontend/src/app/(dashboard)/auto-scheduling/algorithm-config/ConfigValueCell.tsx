@@ -36,9 +36,9 @@ const VALUE_PRESETS: Record<string, ValuePreset[]> = {
   ],
 };
 
-type Props = { config: ConfigEntry };
+type Props = { config: ConfigEntry; onSave?: () => void };
 
-export function ConfigValueCell({ config }: Props) {
+export function ConfigValueCell({ config, onSave }: Props) {
   const { error: toastError } = useToast();
   // CRITICAL (bug-config-persist): `config.paramValue` may come back as
   // undefined/null when the backend serialises an entry whose column is
@@ -75,6 +75,7 @@ export function ConfigValueCell({ config }: Props) {
     try {
       await api.updateAlgorithmConfig(config.paramKey, { paramValue: safeValue, description: config.description });
       setEditing(false);
+      onSave?.();
     } catch (err) {
       toastError(getErrorMessage(err, "Lưu thất bại"));
       setValue(safeOriginal);
