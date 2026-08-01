@@ -60,6 +60,29 @@ public class SchedulingMetricsService {
         return page.map(this::metricsToDTO);
     }
 
+    /**
+     * Paginated query with optional keyword + algoType + coverage filters.
+     * BUGFIX #6: previously the frontend fetched ONE page and then filtered
+     * client-side, losing matches from other pages.
+     */
+    public Page<AlgorithmMetricsDTO> getMetricsPage(
+            Integer periodId,
+            String algoType,
+            String keyword,
+            java.math.BigDecimal coverageMin,
+            java.math.BigDecimal coverageMax,
+            Pageable pageable) {
+        boolean noFilters = (algoType == null || algoType.isBlank())
+                && (keyword == null || keyword.isBlank())
+                && coverageMin == null && coverageMax == null;
+        if (noFilters) {
+            return getMetricsPage(periodId, pageable);
+        }
+        String kw = (keyword == null || keyword.isBlank()) ? null : keyword;
+        return metricsRepository.findPageWithFilters(periodId, algoType, kw, coverageMin, coverageMax, pageable)
+                .map(this::metricsToDTO);
+    }
+
     private AlgorithmMetricsDTO metricsToDTO(AlgorithmMetrics m) {
         return AlgorithmMetricsDTO.builder()
                 .id(m.getId())

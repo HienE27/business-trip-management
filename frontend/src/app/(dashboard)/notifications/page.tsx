@@ -86,7 +86,7 @@ function NotificationsContent() {
       setLoading(true);
       setMessage("");
       const [result, unreadRes] = await Promise.all([
-        api.getNotificationsPage(page, pageSize),
+        api.getNotificationsPageWithTab(page, pageSize, activeTab === "all" ? undefined : activeTab),
         api.countMyUnreadNotifications(),
       ]);
       setNotifications(result.content ?? []);
@@ -103,7 +103,7 @@ function NotificationsContent() {
     } finally {
       setLoading(false);
     }
-  }, [refreshCount, userId, page, pageSize]);
+  }, [refreshCount, userId, page, pageSize, activeTab]);
 
   useEffect(() => {
     void fetchNotifications();
@@ -113,17 +113,8 @@ function NotificationsContent() {
     setPage(0);
   }, [activeTab]);
 
-  // Server already paginates; client-side filter further narrows the visible
-  // set on the current page (so filters still work without a server contract).
-  const filtered = notifications.filter((n) => {
-    if (activeTab === "all") return true;
-    if (activeTab === "unread") return !n.isRead;
-    if (activeTab === "conflict") return n.title.toLowerCase().includes("xung") || n.title.toLowerCase().includes("conflict");
-    if (activeTab === "exchange") return n.title.toLowerCase().includes("đổi") || n.title.toLowerCase().includes("swap");
-    if (activeTab === "published") return n.title.toLowerCase().includes("công bố") || n.title.toLowerCase().includes("lich");
-    if (activeTab === "system") return n.title.toLowerCase().includes("tự động") || n.title.toLowerCase().includes("auto");
-    return true;
-  });
+  // BUGFIX #6: server filters by tab — render the page slice as-is.
+  const filtered = notifications;
 
 // unreadCount comes from server aggregate so it stays accurate across all pages.
   // (Was previously derived from `notifications` slice, which only counted unread

@@ -69,6 +69,24 @@ public class ScheduleExchangeService {
                 .map(ScheduleExchangeResponse::fromEntity);
     }
 
+    /**
+     * Paginated query with optional server-side status + keyword filters.
+     * BUGFIX #6: previously the frontend fetched ONE page and then filtered
+     * client-side, losing matches from other pages.
+     */
+    public Page<ScheduleExchangeResponse> getExchangesPage(
+            ScheduleExchange.ExchangeStatus status,
+            String keyword,
+            Pageable pageable) {
+        if (status == null && (keyword == null || keyword.isBlank())) {
+            return exchangeRepository.findAll(pageable)
+                    .map(ScheduleExchangeResponse::fromEntity);
+        }
+        String kw = (keyword == null || keyword.isBlank()) ? null : keyword;
+        return exchangeRepository.findPageWithFilters(status, kw, pageable)
+                .map(ScheduleExchangeResponse::fromEntity);
+    }
+
     public java.util.Map<String, Long> getStatusCounts() {
         java.util.Map<String, Long> counts = new java.util.HashMap<>();
         for (ScheduleExchange.ExchangeStatus status : ScheduleExchange.ExchangeStatus.values()) {

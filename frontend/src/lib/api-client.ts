@@ -437,7 +437,7 @@ class ApiClient {
   }
 
   /**
-   * Server-paginated staff search — drives &lt;Pagination&gt; in StaffCrudPanel.
+   * Server-paginated variant — drives &lt;Pagination&gt; in StaffCrudPanel.
    * Mirrors {@link searchStaff} on the same filters but on `/staff/search/paginated`.
    */
   async searchStaffsPage(
@@ -445,6 +445,19 @@ class ApiClient {
     requestInit?: Omit<RequestInit, "method" | "body">,
   ): Promise<Page<Staff>> {
     return this.getPage<Staff>("/staff/search-page", { ...params }, requestInit);
+  }
+
+  /** Paginated with optional status + keyword filters (server-side). */
+  async getLeaveRequestsPageWithFilters(
+    page: number,
+    size: number,
+    status?: string,
+    keyword?: string,
+  ): Promise<Page<LeaveRequest>> {
+    const params: Record<string, string | number | boolean> = { page, size };
+    if (status) params.status = status;
+    if (keyword) params.keyword = keyword;
+    return this.getPage<LeaveRequest>("/leave-requests/page", params);
   }
 
   async getStaffById(id: number): Promise<ApiResponse<Staff>> {
@@ -626,6 +639,19 @@ class ApiClient {
   /** Server-paginated variant — newest startDate first. */
   async getPeriodsPage(page: number, size: number): Promise<Page<SchedulePeriod>> {
     return this.getPage<SchedulePeriod>("/periods/page", { page, size });
+  }
+
+  /** Paginated with optional status + keyword filters (server-side). */
+  async getPeriodsPageWithFilters(
+    page: number,
+    size: number,
+    status?: string,
+    keyword?: string,
+  ): Promise<Page<SchedulePeriod>> {
+    const params: Record<string, string | number | boolean> = { page, size };
+    if (status) params.status = status;
+    if (keyword) params.keyword = keyword;
+    return this.getPage<SchedulePeriod>("/periods/page", params);
   }
 
   async getPeriodsByStatus(status: string): Promise<ApiResponse<SchedulePeriod[]>> {
@@ -844,6 +870,19 @@ class ApiClient {
   /** Server-paginated variant — newest first. */
   async getExchangesPage(page: number, size: number): Promise<Page<ScheduleExchangeResponse>> {
     return this.getPage<ScheduleExchangeResponse>("/schedule-exchanges/page", { page, size });
+  }
+
+  /** Paginated with optional status + keyword filters (server-side). */
+  async getExchangesPageWithFilters(
+    page: number,
+    size: number,
+    status?: string,
+    keyword?: string,
+  ): Promise<Page<ScheduleExchangeResponse>> {
+    const params: Record<string, string | number | boolean> = { page, size };
+    if (status) params.status = status;
+    if (keyword) params.keyword = keyword;
+    return this.getPage<ScheduleExchangeResponse>("/schedule-exchanges/page", params);
   }
 
   /**
@@ -1442,6 +1481,13 @@ class ApiClient {
   /** Server-paginated variant for the current caller. */
   async getNotificationsPage(page: number, size: number): Promise<Page<Notification>> {
     return this.getPage<Notification>("/notifications/me/page", { page, size });
+  }
+
+  /** Paginated with optional tab filter (server-side). */
+  async getNotificationsPageWithTab(page: number, size: number, tab?: string): Promise<Page<Notification>> {
+    const params: Record<string, string | number | boolean> = { page, size };
+    if (tab) params.tab = tab;
+    return this.getPage<Notification>("/notifications/me/page", params);
   }
 
   async getUnreadNotifications(staffId: number): Promise<ApiResponse<Notification[]>> {

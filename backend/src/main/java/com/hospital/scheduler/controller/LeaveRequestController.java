@@ -5,6 +5,7 @@ import com.hospital.scheduler.dto.request.LeaveRequestDTO;
 import com.hospital.scheduler.dto.response.LeaveRequestResponse;
 import com.hospital.scheduler.dto.response.ReplacementProposal;
 import com.hospital.scheduler.entity.LeaveRequest;
+import jakarta.annotation.Nullable;
 import com.hospital.scheduler.security.Permissions;
 import com.hospital.scheduler.service.LeaveRequestService;
 import com.hospital.scheduler.security.AuthContextService;
@@ -39,10 +40,24 @@ public class LeaveRequestController {
     }
 
     @GetMapping("/page")
-    @Operation(summary = "Lấy danh sách yêu cầu nghỉ phép có phân trang")
+    @Operation(summary = "Lấy danh sách yêu cầu nghỉ phép có phân trang và filter")
     @PreAuthorize("hasAuthority('" + Permissions.LEAVE_VIEW + "')")
-    public ResponseEntity<ApiResponse<Page<LeaveRequestResponse>>> getLeaveRequestsPage(Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getLeaveRequestsPage(pageable)));
+    public ResponseEntity<ApiResponse<Page<LeaveRequestResponse>>> getLeaveRequestsPage(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            Pageable pageable) {
+        // If no filters, use the existing unfiltered pageable for optimal JPQL path
+        if ((status == null || status.isBlank()) && (keyword == null || keyword.isBlank())) {
+            return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getLeaveRequestsPage(pageable)));
+        }
+        LeaveRequest.LeaveStatus parsedStatus = (status == null || status.isBlank()) ? null
+                : LeaveRequest.LeaveStatus.valueOf(status.toUpperCase());
+        String kw = (keyword == null || keyword.isBlank()) ? null : keyword;
+        return ResponseEntity.ok(ApiResponse.success(
+                leaveRequestService.getLeaveRequestsPage(parsedStatus, kw,
+                        org.springframework.data.domain.PageRequest.of(page, Math.min(size, 200)))));
     }
 
     @GetMapping("/status-counts")

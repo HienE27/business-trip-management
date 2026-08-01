@@ -99,6 +99,27 @@ public class LeaveRequestService {
     }
 
     /**
+     * Paginated query with optional server-side status + keyword filters.
+     * BUGFIX #6: previously the frontend fetched ONE page and then filtered
+     * client-side; results from other pages were lost. Now we filter in SQL.
+     */
+    public Page<LeaveRequestResponse> getLeaveRequestsPage(
+            LeaveRequest.LeaveStatus status,
+            String keyword,
+            Pageable pageable) {
+        org.springframework.data.domain.Page<LeaveRequest> page =
+                leaveRequestRepository.findPageWithFilters(
+                        status,
+                        keyword,
+                        org.springframework.data.domain.PageRequest.of(
+                                pageable.getPageNumber(),
+                                pageable.getPageSize(),
+                                org.springframework.data.domain.Sort.by(
+                                        org.springframework.data.domain.Sort.Direction.DESC, "createdAt")));
+        return page.map(LeaveRequestResponse::fromEntity);
+    }
+
+    /**
      * Aggregate counts by {@link LeaveRequest.LeaveStatus} for the entire table.
      * Powers the dashboard summary cards so values stay accurate regardless
      * of which page the user is currently viewing.

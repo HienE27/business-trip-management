@@ -43,12 +43,18 @@ public class SpecialtyService {
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<SpecialtyResponse> getSpecialtiesPage(
             org.springframework.data.domain.Pageable pageable) {
-        return specialtyRepository.findAll(
-                org.springframework.data.domain.PageRequest.of(
-                        pageable.getPageNumber(),
-                        pageable.getPageSize(),
-                        org.springframework.data.domain.Sort.by(
-                                org.springframework.data.domain.Sort.Direction.DESC, "id")))
+        return getSpecialtiesPage(null, null, pageable);
+    }
+
+    /**
+     * Paginated query with optional keyword + status filters.
+     * BUGFIX #6: previously the frontend fetched ONE page and filtered client-side,
+     * losing matches from other pages.
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<SpecialtyResponse> getSpecialtiesPage(
+            String keyword, String status, org.springframework.data.domain.Pageable pageable) {
+        return specialtyRepository.findPageWithFilters(keyword, status, pageable)
                 .map(this::toResponse);
     }
 

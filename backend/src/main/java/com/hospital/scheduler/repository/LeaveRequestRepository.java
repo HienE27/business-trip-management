@@ -1,6 +1,8 @@
 package com.hospital.scheduler.repository;
 
 import com.hospital.scheduler.entity.LeaveRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,6 +13,25 @@ import java.util.List;
 
 @Repository
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Integer> {
+
+    /** Paginated query with optional status and keyword filters. */
+    @Query("SELECT lr FROM LeaveRequest lr LEFT JOIN FETCH lr.staff s " +
+           "WHERE (:status IS NULL OR lr.status = :status) " +
+           "AND (:keyword IS NULL OR LOWER(s.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR LOWER(lr.reason) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<LeaveRequest> findPageWithFilters(
+            @Param("status") LeaveRequest.LeaveStatus status,
+            @Param("keyword") String keyword,
+            Pageable pageable);
+
+    /** Count with optional status filter (for stats refresh). */
+    @Query("SELECT count(lr) FROM LeaveRequest lr " +
+           "WHERE (:status IS NULL OR lr.status = :status) AND " +
+           "(:keyword IS NULL OR LOWER(lr.staff.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR LOWER(lr.reason) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    long countWithFilters(
+            @Param("status") LeaveRequest.LeaveStatus status,
+            @Param("keyword") String keyword);
     @Query("SELECT lr FROM LeaveRequest lr LEFT JOIN FETCH lr.staff WHERE lr.staff.id = :staffId")
     List<LeaveRequest> findByStaffId(@Param("staffId") Integer staffId);
 

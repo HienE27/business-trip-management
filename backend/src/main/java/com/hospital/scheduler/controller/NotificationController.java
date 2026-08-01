@@ -86,14 +86,15 @@ public class NotificationController {
     }
 
     @GetMapping("/me/page")
-    @Operation(summary = "Lấy thông báo của tôi (phân trang)")
+    @Operation(summary = "Lấy thông báo của tôi (phân trang + filter tab)")
     @PreAuthorize("hasAuthority('" + Permissions.NOTIFICATION_MANAGE_SELF + "')")
     public ResponseEntity<ApiResponse<Page<NotificationResponse>>> getMyNotificationsPaginated(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String tab) {
         Integer staffId = authContextService.getCurrentStaff().getId();
         return ResponseEntity.ok(ApiResponse.success(
-                notificationService.getNotificationsByStaffPaginated(staffId, page, clampPageSize(size))));
+                notificationService.getNotificationsByStaffPaginated(staffId, page, clampPageSize(size), tab)));
     }
 
     @GetMapping("/staff/{staffId}/unread")

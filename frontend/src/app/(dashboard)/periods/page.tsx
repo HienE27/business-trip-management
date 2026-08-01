@@ -72,16 +72,25 @@ export default function PeriodsPage() {
   // Filter state
   const [statusFilter, setStatusFilter] = useState<"ALL" | "DRAFT" | "PUBLISHED" | "ARCHIVED">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  // BUGFIX #6: search debounce — filter sends to server after user stops typing
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
+  // Debounce search keyword → server-side filter (300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedKeyword(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
   const loadPeriods = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const result = await api.getPeriodsPage(page, pageSize);
+      // BUGFIX #6: server-side filter instead of client-side filter on page slice
+      const result = await api.getPeriodsPageWithFilters(page, pageSize, statusFilter === "ALL" ? undefined : statusFilter, debouncedKeyword || undefined);
       setPeriods(result.content ?? []);
       setTotalPages(result.totalPages ?? 0);
       setTotalElements(result.totalElements ?? 0);
@@ -90,7 +99,7 @@ export default function PeriodsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, statusFilter, debouncedKeyword]);
 
   useEffect(() => {
     void loadPeriods();
@@ -222,11 +231,12 @@ export default function PeriodsPage() {
     );
   };
 
-  const filteredPeriods = periods.filter((p) => {
-    const matchesStatus = statusFilter === "ALL" || p.status === statusFilter;
-    const matchesSearch = !searchQuery.trim() || p.periodName.toLowerCase().includes(searchQuery.trim().toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
+  // BUGFIX #6: server-side filter replaces client-side filter on page slice
+  // const filteredPeriods = periods.filter((p) => {
+  //   const matchesStatus = statusFilter === "ALL" || p.status === statusFilter;
+  //   const matchesSearch = !searchQuery.trim() || p.periodName.toLowerCase().includes(searchQuery.trim().toLowerCase());
+  //   return matchesStatus && matchesSearch;
+  // });
 
   return (
     <>
@@ -326,7 +336,7 @@ export default function PeriodsPage() {
                   ) : undefined
                 }
               />
-            ) : filteredPeriods.length === 0 ? (
+            ) : periods.length === 0 ? (
               <EmptyState
                 icon="filter_list_off"
                 title="Không có kỳ lịch nào khớp với bộ lọc"
@@ -356,7 +366,7 @@ export default function PeriodsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant">
-                    {filteredPeriods.map((p) => (
+                    {periods.map((p) => (
                       <tr key={p.id} className="hover:bg-surface-container-lowest transition-colors h-12">
                         <td className="py-2 px-4 text-on-surface font-label-md">{p.periodName}</td>
                         <td className="py-2 px-4 text-on-surface font-label-md">{formatDate(p.startDate)}</td>
@@ -440,7 +450,7 @@ export default function PeriodsPage() {
                 </table>
               </div>
             )}
-            {!loading && filteredPeriods.length > 0 && (
+            {!loading && periods.length > 0 && (
               <Pagination
                 currentPage={page + 1}
                 totalPages={totalPages}

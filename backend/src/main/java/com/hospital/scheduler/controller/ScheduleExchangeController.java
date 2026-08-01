@@ -38,10 +38,22 @@ public class ScheduleExchangeController {
     }
 
     @GetMapping("/page")
-    @Operation(summary = "Lấy danh sách yêu cầu đổi ca có phân trang")
+    @Operation(summary = "Lấy danh sách yêu cầu đổi ca có phân trang và filter")
     @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "')")
-    public ResponseEntity<ApiResponse<Page<ScheduleExchangeResponse>>> getExchangesPage(Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesPage(pageable)));
+    public ResponseEntity<ApiResponse<Page<ScheduleExchangeResponse>>> getExchangesPage(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            Pageable pageable) {
+        ScheduleExchange.ExchangeStatus parsedStatus = (status == null || status.isBlank()) ? null
+                : ScheduleExchange.ExchangeStatus.valueOf(status.toUpperCase());
+        String kw = (keyword == null || keyword.isBlank()) ? null : keyword;
+        if (parsedStatus == null && kw == null) {
+            return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesPage(pageable)));
+        }
+        return ResponseEntity.ok(ApiResponse.success(
+                exchangeService.getExchangesPage(parsedStatus, kw, pageable)));
     }
 
     @GetMapping("/status-counts")

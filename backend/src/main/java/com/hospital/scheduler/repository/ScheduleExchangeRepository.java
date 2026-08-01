@@ -22,6 +22,18 @@ public interface ScheduleExchangeRepository extends JpaRepository<ScheduleExchan
     List<ScheduleExchange> findByStatus(ScheduleExchange.ExchangeStatus status);
 
     long countByStatus(ScheduleExchange.ExchangeStatus status);
+
+    /** Paginated query with optional status and keyword filters. */
+    @org.springframework.data.jpa.repository.Query("SELECT e FROM ScheduleExchange e " +
+           "JOIN FETCH e.requester r JOIN FETCH e.target t " +
+           "WHERE (:status IS NULL OR e.status = :status) " +
+           "AND (:keyword IS NULL OR LOWER(r.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR LOWER(t.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR LOWER(e.reason) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    org.springframework.data.domain.Page<ScheduleExchange> findPageWithFilters(
+            @org.springframework.data.repository.query.Param("status") ScheduleExchange.ExchangeStatus status,
+            @org.springframework.data.repository.query.Param("keyword") String keyword,
+            org.springframework.data.domain.Pageable pageable);
     List<ScheduleExchange> findByPeriodIdAndStatus(Integer periodId, ScheduleExchange.ExchangeStatus status);
     List<ScheduleExchange> findPendingByRequesterIdOrTargetId(Integer requesterId, Integer targetId);
 

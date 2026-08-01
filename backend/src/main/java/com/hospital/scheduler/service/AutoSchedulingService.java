@@ -3515,6 +3515,21 @@ public class AutoSchedulingService {
     }
 
     /**
+     * Paginated query with optional keyword + algoType + coverage filters.
+     * BUGFIX #6: previously the frontend fetched ONE page and then filtered
+     * client-side, losing matches from other pages.
+     */
+    public Page<AlgorithmMetricsDTO> getMetricsPage(
+            Integer periodId,
+            String algoType,
+            String keyword,
+            java.math.BigDecimal coverageMin,
+            java.math.BigDecimal coverageMax,
+            Pageable pageable) {
+        return metricsService.getMetricsPage(periodId, algoType, keyword, coverageMin, coverageMax, pageable);
+    }
+
+    /**
      * Build shift type breakdown for detailed statistics per schedule type (L01/L02/L03/L04).
      */
     private Map<String, AutoScheduleResponse.ShiftTypeBreakdown> buildByShiftTypeBreakdown(

@@ -64,6 +64,22 @@ public class NotificationService {
                 .map(NotificationResponse::fromEntity);
     }
 
+    /**
+     * Paginated query with optional tab filter (all|unread|conflict|exchange|published|system).
+     * BUGFIX #6: previously the frontend fetched ONE page and filtered client-side,
+     * losing matches on other pages. Filtering now happens server-side in SQL.
+     */
+    public Page<NotificationResponse> getNotificationsByStaffPaginated(
+            Integer staffId, int page, int size, String tab) {
+        Pageable pageable = PageRequest.of(page, size);
+        if (tab == null || tab.isBlank() || "all".equals(tab)) {
+            return notificationRepository.findByStaffId(staffId, pageable)
+                    .map(NotificationResponse::fromEntity);
+        }
+        return notificationRepository.findPageWithFilters(staffId, tab, pageable)
+                .map(NotificationResponse::fromEntity);
+    }
+
     public List<NotificationResponse> getUnreadNotifications(Integer staffId) {
         return notificationRepository.findUnreadByStaffId(staffId).stream()
                 .map(NotificationResponse::fromEntity)

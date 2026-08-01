@@ -64,6 +64,8 @@ function SwapRequestsContent() {
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
+  // BUGFIX #6: debounce for server-side filter
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [statusCounts, setStatusCounts] = useState({
     total: 0,
     PENDING: 0,
@@ -83,6 +85,12 @@ function SwapRequestsContent() {
   useEffect(() => {
     setSearchKeyword(globalQuery);
   }, [globalQuery]);
+
+  // Debounce search keyword → server-side filter (300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedKeyword(searchKeyword.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchKeyword]);
 
   const [selectedExchange, setSelectedExchange] = useState<ScheduleExchangeResponse | null>(null);
   const [reviewNote, setReviewNote] = useState("");
@@ -112,7 +120,11 @@ function SwapRequestsContent() {
       const managerView = isManagerLike(meRes);
       // BUGFIX (was FE#3): Both ternary branches called the same endpoint — the
       // branch was dead code. Always use the paginated endpoint.
-      const pageResult = await api.getExchangesPage(page, pageSize);
+      // BUGFIX #6: server-side filter instead of client-side filter on page slice
+      const pageResult = await api.getExchangesPageWithFilters(
+        page, pageSize,
+        statusFilter || undefined,
+        debouncedKeyword || undefined);
       if (ignoreRef.current) return;
       setExchanges(pageResult.content ?? []);
       setTotalPages(pageResult.totalPages ?? 0);
@@ -183,7 +195,7 @@ function SwapRequestsContent() {
     } finally {
       if (!ignoreRef.current) setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, statusFilter, debouncedKeyword]);
 
   /**
    * Aggregate counts from the entire DB (no pagination, no filters).
@@ -208,19 +220,7 @@ function SwapRequestsContent() {
 
   const managerMode = Boolean(authUser?.roles?.some((role: string) => role === "ADMIN" || role === "MANAGER")) || isManagerLike(currentUser);
 
-  const filtered = useMemo(() => {
-    return exchanges.filter((exchange) => {
-      if (statusFilter && exchange.status !== statusFilter) return false;
-      if (searchKeyword.trim()) {
-        const kw = searchKeyword.toLowerCase();
-        const matchRequester = exchange.requester?.fullName?.toLowerCase().includes(kw);
-        const matchTarget = exchange.target?.fullName?.toLowerCase().includes(kw);
-        const matchReason = exchange.reason?.toLowerCase().includes(kw);
-        if (!matchRequester && !matchTarget && !matchReason) return false;
-      }
-      return true;
-    });
-  }, [exchanges, statusFilter, searchKeyword]);
+  // BUGFIX #6: removed client-side filter — server-side handles it
 
   const stats = useMemo(() => ({
     total: statusCounts.total,
@@ -346,7 +346,7 @@ function SwapRequestsContent() {
   useEffect(() => {
     void fetchExchanges();
     void fetchStatusCounts();
-  }, [fetchExchanges, fetchStatusCounts]);
+  }, [fetchExchanges, fetchStatusCounts, statusFilter, debouncedKeyword]);
 
   return (
     <>
@@ -572,7 +572,7 @@ function SwapRequestsContent() {
                   ))}
                 </tbody>
               </table>
-            ) : filtered.length === 0 ? (
+            ) : exchanges.length === 0 ? (
               <EmptyState
                 icon="swap_horiz"
                 title={
@@ -605,7 +605,7 @@ function SwapRequestsContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/50">
-                  {filtered.map((req) => {
+                  {exchanges.map((req) => {
                     const canManage = managerMode && req.status === "PENDING";
                     return (
                       <tr className="group transition-colors hover:bg-surface-container-lowest h-10" key={req.id}>
@@ -712,7 +712,7 @@ function SwapRequestsContent() {
             )}
           </div>
 
-          {filtered.length > 0 && (
+          {exchanges.length > 0 && (
             <Pagination
               currentPage={page + 1}
               totalPages={totalPages}
@@ -723,7 +723,7 @@ function SwapRequestsContent() {
             />
           )}
 
-          {!managerMode && authUser?.roles?.includes("STAFF") && filtered.length > 0 && (
+          {!managerMode && authUser?.roles?.includes("STAFF") && exchanges.length > 0 && (
             <span className="text-label-sm text-on-surface-variant px-4 py-2 border-t border-outline-variant bg-surface-container-lowest block">
               Chỉ thấy các yêu cầu liên quan tới bạn.
             </span>

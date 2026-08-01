@@ -42,10 +42,14 @@ public class SpecialtyController {
     }
 
     @GetMapping("/page")
-    @Operation(summary = "Lấy danh sách chuyên khoa có phân trang")
+    @Operation(summary = "Lấy danh sách chuyên khoa có phân trang và filter")
     @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
-    public ResponseEntity<ApiResponse<Page<SpecialtyResponse>>> getSpecialtiesPage(Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(specialtyService.getSpecialtiesPage(pageable)));
+    public ResponseEntity<ApiResponse<Page<SpecialtyResponse>>> getSpecialtiesPage(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status,
+            Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(
+                specialtyService.getSpecialtiesPage(keyword, status, pageable)));
     }
 
     @GetMapping("/status-counts")

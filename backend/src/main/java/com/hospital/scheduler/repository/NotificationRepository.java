@@ -28,4 +28,17 @@ public interface NotificationRepository extends JpaRepository<Notification, Inte
     long countUnreadByStaffId(@Param("staffId") Integer staffId);
 
     long countByStaffId(Integer staffId);
+
+    /** Paginated query with optional filters. tab values: all|unread|conflict|exchange|published|system */
+    @Query("SELECT n FROM Notification n LEFT JOIN FETCH n.staff WHERE n.staff.id = :staffId " +
+           "AND (:tab = 'all' OR (:tab = 'unread' AND n.isRead = false) " +
+           "OR (:tab = 'conflict' AND (LOWER(n.title) LIKE '%xung%' OR LOWER(n.title) LIKE '%conflict%')) " +
+           "OR (:tab = 'exchange' AND (LOWER(n.title) LIKE '%đổi%' OR LOWER(n.title) LIKE '%swap%')) " +
+           "OR (:tab = 'published' AND (LOWER(n.title) LIKE '%công bố%' OR LOWER(n.title) LIKE '%lich%')) " +
+           "OR (:tab = 'system' AND (LOWER(n.title) LIKE '%tự động%' OR LOWER(n.title) LIKE '%auto%'))) " +
+           "ORDER BY n.createdAt DESC")
+    Page<Notification> findPageWithFilters(
+            @Param("staffId") Integer staffId,
+            @Param("tab") String tab,
+            Pageable pageable);
 }

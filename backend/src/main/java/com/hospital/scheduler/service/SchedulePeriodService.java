@@ -87,6 +87,23 @@ public class SchedulePeriodService {
                 .map(this::toResponse);
     }
 
+    /**
+     * Paginated query with optional server-side status + keyword filters.
+     * BUGFIX #6: previously the frontend fetched ONE page and then filtered
+     * client-side, losing matches from other pages.
+     */
+    public Page<SchedulePeriodResponse> getPeriodsPage(
+            SchedulePeriod.PeriodStatus status,
+            String keyword,
+            Pageable pageable) {
+        if (status == null && (keyword == null || keyword.isBlank())) {
+            return getPeriodsPage(pageable);
+        }
+        String kw = (keyword == null || keyword.isBlank()) ? null : keyword;
+        return periodRepository.findPageWithFilters(status, kw, pageable)
+                .map(this::toResponse);
+    }
+
     public SchedulePeriodResponse getPeriodById(Integer id) {
         SchedulePeriod period = periodRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kỳ lịch với ID: " + id));

@@ -66,6 +66,8 @@ function LeaveRequestsContent() {
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
+  // BUGFIX #6: debounce for server-side filter
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [statusCounts, setStatusCounts] = useState({
     total: 0,
     PENDING: 0,
@@ -118,7 +120,12 @@ function LeaveRequestsContent() {
 
     try {
       setLoading(true);
-      const pageResult = await api.getLeaveRequestsPage(page, pageSize);
+      // BUGFIX #6: server-side filter instead of client-side filter on page slice
+      const pageResult = await api.getLeaveRequestsPageWithFilters(
+        page, pageSize,
+        statusFilter === "ALL" ? undefined : statusFilter,
+        debouncedKeyword || undefined
+      );
       if (controller.signal.aborted) return;
       setRequests(pageResult.content ?? []);
       setTotalPages(pageResult.totalPages ?? 0);
@@ -130,7 +137,7 @@ function LeaveRequestsContent() {
     } finally {
       if (!ignoreRef.current && !controller.signal.aborted) setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, statusFilter, debouncedKeyword]);
 
   const fetchStatusCounts = useCallback(async () => {
     try {
@@ -157,22 +164,24 @@ function LeaveRequestsContent() {
       ignoreRef.current = true;
       abortControllerRef.current?.abort();
     };
-  }, [fetchRequests, fetchStatusCounts]);
+  }, [fetchRequests, fetchStatusCounts, statusFilter, debouncedKeyword]);
 
-  const filteredRequests = useMemo(() => {
-    const visible = requests.filter((r) => {
+  // BUGFIX #6: removed client-side filter — server-side handles it.
+  // visibleRequests filters only by manager permission on the frontend
+  // (since that is app-level, not data-level filtering).
+  const visibleRequests = useMemo(() => {
+    return requests.filter((r) => {
       if (!isManager && r.staff?.id !== user?.userId) return false;
-      if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
-      if (searchKeyword.trim()) {
-        const kw = searchKeyword.toLowerCase();
-        const matchName = getStaffDisplayName(r).toLowerCase().includes(kw);
-        const matchReason = r.reason?.toLowerCase().includes(kw);
-        if (!matchName && !matchReason) return false;
-      }
       return true;
     });
-    return visible;
-  }, [requests, statusFilter, searchKeyword, isManager, user]);
+  }, [requests, isManager, user]);
+
+  // BUGFIX #6: removed — now passed server-side via API params
+  // Debounce search keyword → server-side filter (300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedKeyword(searchKeyword.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchKeyword]);
 
   const stats = useMemo(() => ({
     total: statusCounts.total,
@@ -385,7 +394,7 @@ function LeaveRequestsContent() {
               </div>
             ))}
           </div>
-        ) : filteredRequests.length === 0 ? (
+        ) : visibleRequests.length === 0 ? (
           <EmptyState
             icon="event_busy"
             title="Không có yêu cầu phù hợp"
@@ -397,7 +406,7 @@ function LeaveRequestsContent() {
           />
         ) : (
           <div className="divide-y divide-outline-variant">
-            {filteredRequests.map((request) => (
+            {visibleRequests.map((request) => (
               <article
                 key={request.id}
                 className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start"
@@ -467,7 +476,7 @@ function LeaveRequestsContent() {
           </div>
         )}
 
-        {!loading && filteredRequests.length > 0 && (
+        {!loading && visibleRequests.length > 0 && (
           <Pagination
             currentPage={page + 1}
             totalPages={totalPages}

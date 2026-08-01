@@ -48,11 +48,25 @@ export function MetricsHistory() {
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
+  // BUGFIX #6: debounce keyword → server-side filter (300ms)
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedKeyword(keyword.trim()), 300);
+    return () => clearTimeout(t);
+  }, [keyword]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getPage<AlgorithmMetrics>("/auto-schedule/metrics/page", { page, size: pageSize });
+      // BUGFIX #6: server-side filters instead of filtering the page slice client-side
+      const data = await api.getPage<AlgorithmMetrics>("/auto-schedule/metrics/page", {
+        page,
+        size: pageSize,
+        ...(debouncedKeyword ? { keyword: debouncedKeyword } : {}),
+        ...(algoFilter !== "ALL" ? { algoType: algoFilter } : {}),
+        ...(coverageFilter !== "ALL" ? { coverageFilter } : {}),
+      });
       setMetrics(data.content ?? []);
       setTotalPages(data.totalPages ?? 0);
       setTotalElements(data.totalElements ?? 0);
@@ -61,22 +75,12 @@ export function MetricsHistory() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, debouncedKeyword, algoFilter, coverageFilter]);
 
   useEffect(() => { void load(); }, [load]);
 
-  const filtered = metrics.filter(m => {
-    if (algoFilter !== "ALL" && m.algorithmType !== algoFilter) return false;
-    const coverage = parseNumber(m.coverageRate);
-    if (coverageFilter === "high" && coverage < 90) return false;
-    if (coverageFilter === "medium" && (coverage < 70 || coverage >= 90)) return false;
-    if (coverageFilter === "low" && coverage >= 70) return false;
-    if (keyword.trim()) {
-      const kw = keyword.toLowerCase();
-      return m.algorithmType.toLowerCase().includes(kw) || (m.periodName?.toLowerCase().includes(kw) ?? false);
-    }
-    return true;
-  });
+  // BUGFIX #6: server filters — render the page slice as-is.
+  const filtered = metrics;
 
   if (loading) {
     return (

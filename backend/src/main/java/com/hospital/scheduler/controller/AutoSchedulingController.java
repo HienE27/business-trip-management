@@ -277,14 +277,26 @@ public class AutoSchedulingController {
     /**
      * Server-paginated metrics endpoint.
      * Sorted DESC by createdAt so newest runs surface first.
+     * BUGFIX #6: added optional keyword + algoType + coverage filters.
      */
     @GetMapping("/metrics/page")
-    @Operation(summary = "Lấy danh sách lịch sử chạy thuật toán có phân trang")
+    @Operation(summary = "Lấy danh sách lịch sử chạy thuật toán có phân trang và filter")
     @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<Page<AlgorithmMetricsDTO>>> getMetricsPage(
             @RequestParam(required = false) Integer periodId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String algoType,
+            @RequestParam(required = false) String coverageFilter,
             Pageable pageable) {
-        Page<AlgorithmMetricsDTO> page = autoSchedulingService.getMetricsPage(periodId,
+        // Parse coverageFilter (high|medium|low) into BigDecimal bounds
+        java.math.BigDecimal coverageMin = null, coverageMax = null;
+        if ("high".equalsIgnoreCase(coverageFilter)) { coverageMin = new java.math.BigDecimal(90); }
+        else if ("medium".equalsIgnoreCase(coverageFilter)) { coverageMin = new java.math.BigDecimal(70); coverageMax = new java.math.BigDecimal(90); }
+        else if ("low".equalsIgnoreCase(coverageFilter)) { coverageMax = new java.math.BigDecimal(70); }
+        String algo = (algoType == null || algoType.isBlank()) ? null : algoType.toUpperCase();
+
+        Page<AlgorithmMetricsDTO> page = autoSchedulingService.getMetricsPage(periodId, algo, keyword,
+                coverageMin, coverageMax,
                 PageRequest.of(
                         pageable.getPageNumber(),
                         pageable.getPageSize(),

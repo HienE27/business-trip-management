@@ -40,10 +40,17 @@ public class SchedulePeriodController {
     }
 
     @GetMapping("/page")
-    @Operation(summary = "Lấy danh sách kỳ lịch có phân trang")
+    @Operation(summary = "Lấy danh sách kỳ lịch có phân trang và filter")
     @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
-    public ResponseEntity<ApiResponse<Page<SchedulePeriodResponse>>> getPeriodsPage(Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(periodService.getPeriodsPage(pageable)));
+    public ResponseEntity<ApiResponse<Page<SchedulePeriodResponse>>> getPeriodsPage(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword,
+            Pageable pageable) {
+        SchedulePeriod.PeriodStatus parsedStatus = (status == null || status.isBlank()) ? null
+                : SchedulePeriod.PeriodStatus.valueOf(status.toUpperCase());
+        String kw = (keyword == null || keyword.isBlank()) ? null : keyword;
+        return ResponseEntity.ok(ApiResponse.success(
+                periodService.getPeriodsPage(parsedStatus, kw, pageable)));
     }
 
     @GetMapping("/status/{status}")

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { FormInput, FormTextarea, Button, ConfirmDialog, Pagination } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -49,11 +49,23 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
   const [statusCounts, setStatusCounts] = useState({ total: 0, ACTIVE: 0, INACTIVE: 0 });
+  // BUGFIX #6: debounce keyword → server-side filter (300ms)
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedKeyword(searchKeyword.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchKeyword]);
 
   const fetchSpecialties = useCallback(async () => {
     try {
       setLoading(true);
-      const pageResult = await api.getPage<Specialty>("/specialties/page", { page, size: pageSize });
+      const pageResult = await api.getPage<Specialty>("/specialties/page", {
+        page,
+        size: pageSize,
+        ...(debouncedKeyword ? { keyword: debouncedKeyword } : {}),
+        ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+      });
       setRecords(pageResult.content ?? []);
       setTotalPages(pageResult.totalPages ?? 0);
       setTotalElements(pageResult.totalElements ?? 0);
@@ -63,7 +75,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [toast, page, pageSize]);
+  }, [toast, page, pageSize, debouncedKeyword, statusFilter]);
 
   const fetchStatusCounts = useCallback(async () => {
     try {
@@ -89,17 +101,8 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
     setFormOpen(false);
   }, []);
 
-  const filteredRecords = useMemo(() => {
-    const keyword = searchKeyword.trim().toLowerCase();
-    return records.filter((record) => {
-      const matchesKeyword = !keyword || record.name.toLowerCase().includes(keyword);
-      const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "active" && record.isActive) ||
-        (statusFilter === "inactive" && !record.isActive);
-      return matchesKeyword && matchesStatus;
-    });
-  }, [records, searchKeyword, statusFilter]);
+  // BUGFIX #6: server filters by keyword/status — render the page slice as-is.
+  const filteredRecords = records;
 
   function updateField(field: keyof SpecialtyFormData, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
