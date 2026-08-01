@@ -64,6 +64,27 @@ public class RequirementPreparationService {
      */
     public List<ShiftRequirement> prepareRequirements(SchedulePeriod period, boolean save,
                                                      List<Staff> activeStaff) {
+        return prepareRequirements(period, save, activeStaff, true);
+    }
+
+    /**
+     * Prepare requirements for a scheduling run.
+     *
+     * @param period   the period being scheduled
+     * @param save     when true, persist requirements and sync existing ones with current config
+     * @param activeStaff  active staff list (used for pool sizing)
+     * @param includeL04FromConfig  when false, skip generating L04 rows from config. Used by the
+     *                              apply-preview path: the adaptive L04 set was already persisted
+     *                              at preview time (syncAdaptiveL04Requirements) and the apply
+     *                              payload pins those rows by requirementId. Re-generating config
+     *                              L04 here would insert a SECOND, different L04 set (buildL04OpenSchedule
+     *                              reads busy state from DB, adaptive reads phase-A in-memory
+     *                              assignments) → persisted capacity inflates (77 adaptive + 13 config)
+     *                              → applied coverage (92.9%) diverges from preview (100%).
+     * @return the prepared requirements (persisted if save=true)
+     */
+    public List<ShiftRequirement> prepareRequirements(SchedulePeriod period, boolean save,
+                                                     List<Staff> activeStaff, boolean includeL04FromConfig) {
         AutoGenConfig autoGenConfig = algorithmConfigService.getAutoGenConfig()
                 .orElseThrow(() -> new com.hospital.scheduler.exception.BadRequestException(
                         "Cấu hình auto-gen chưa được bật. Vui lòng bật auto_generate_requirements trong cấu hình thuật toán."));
@@ -76,7 +97,7 @@ public class RequirementPreparationService {
         // Always generate fresh from current config so config changes (removedShiftTypes,
         // min/max per day) take effect on preview, not only on save. The in-memory
         // generated list reflects the current config; persistence happens only when save=true.
-        List<ShiftRequirement> generated = generateRequirementsFromConfig(period, autoGenConfig, activeStaff);
+        List<ShiftRequirement> generated = generateRequirementsFromConfig(period, autoGenConfig, activeStaff, includeL04FromConfig);
         if (save) {
             // Sync deletes stale rows (e.g. removed shift types) then persist the fresh set.
             syncExistingRequirementsWithConfig(period, autoGenConfig, activeStaff);
@@ -155,6 +176,16 @@ public class RequirementPreparationService {
      * Build new requirements from auto-gen config without persisting.
      */
     public List<ShiftRequirement> generateRequirementsFromConfig(SchedulePeriod period, AutoGenConfig config, List<Staff> activeStaff) {
+        return generateRequirementsFromConfig(period, config, activeStaff, true);
+    }
+
+    /**
+     * Build new requirements from auto-gen config without persisting.
+     *
+     * @param includeL04FromConfig when false, L04 rows are skipped entirely (see
+     *                             {@link #prepareRequirements(SchedulePeriod, boolean, List, boolean)}).
+     */
+    public List<ShiftRequirement> generateRequirementsFromConfig(SchedulePeriod period, AutoGenConfig config, List<Staff> activeStaff, boolean includeL04FromConfig) {
         List<ShiftRequirement> generated = new ArrayList<>();
         Set<String> removedShiftTypes = config.removedShiftTypes() == null
                 ? Set.of()
@@ -211,7 +242,7 @@ public class RequirementPreparationService {
                 }
             }
 
-            if (shouldGenerateFullDay && !removedShiftTypes.contains("L04")) {
+            if (shouldGenerateFullDay && !removedShiftTypes.contains("L04") && includeL04FromConfig) {
                 Map<Integer, Integer> freeBySpec = l04FreeByDate.get(date);
                 if (freeBySpec != null) {
                     for (Specialty specialty : activeSpecialties) {

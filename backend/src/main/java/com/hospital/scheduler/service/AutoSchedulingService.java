@@ -309,8 +309,18 @@ public class AutoSchedulingService {
         // Re-prepare + persist the requirement set from the same single source of
         // truth the preview used, so the applied plan and the persisted
         // requirements always agree (atomic: rolls back with the apply txn).
+        // BUGFIX (coverage drift apply): nếu preview đã persist adaptive L04
+        // (syncAdaptiveL04Requirements) thì KHÔNG sinh lại L04 từ config —
+        // buildL04OpenSchedule dùng busy set đọc từ DB, khác adaptive (đọc
+        // phase-A assignment in-memory) → persist thêm 13 row mới (77+13=90)
+        // → coverage apply 92.9% lệch preview 100%. Rows adaptive đã có id
+        // thật, resolver pin theo requirementId nên vẫn đủ; chỉ cần config L04
+        // khi chưa có row nào persist (apply trực tiếp không qua preview).
+        boolean periodHasPersistedL04 = requirementRepository.findByPeriodId(period.getId()).stream()
+                .anyMatch(r -> r.getShiftType() != null
+                        && ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId()));
         requirementPreparationService.prepareRequirements(
-                period, true, staffRepository.findByIsActiveTrue());
+                period, true, staffRepository.findByIsActiveTrue(), !periodHasPersistedL04);
 
         // BUGFIX (coverage drift): spec for AutoScheduleApplyPreviewRequestDTO says
         // overwriteExisting=false should throw BadRequestException if the period already
