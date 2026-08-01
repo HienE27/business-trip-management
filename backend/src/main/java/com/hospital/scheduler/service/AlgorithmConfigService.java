@@ -118,17 +118,26 @@ public class AlgorithmConfigService {
 
     @Transactional
     public AlgorithmConfigDTO createConfig(AlgoConfigRequest request) {
-        if (configRepository.findByParamKey(request.getParamKey()).isPresent()) {
+        // BUGFIX: @NotBlank/@NotNull trên DTO khai báo nhóm CreateOnly nhưng
+        // controller chỉ dùng @Valid (nhóm Default) → ràng buộc không bao giờ
+        // chạy, API nhận paramKey rỗng → tạo row key '' (không xóa được qua
+        // DELETE /config/{paramKey} vì path rỗng). Chặn ở service thay vì sửa
+        // group — service là biên chung cho mọi client, không phụ thuộc controller.
+        String key = request.getParamKey() == null ? null : request.getParamKey().trim();
+        if (key == null || key.isEmpty()) {
+            throw new BadRequestException("Param key không được để trống");
+        }
+        if (configRepository.findByParamKey(key).isPresent()) {
             throw new BadRequestException(
-                    "Cấu hình với paramKey '" + request.getParamKey() + "' đã tồn tại");
+                    "Cấu hình với paramKey '" + key + "' đã tồn tại");
         }
         AlgorithmConfig saved = configRepository.save(AlgorithmConfig.builder()
-                .paramKey(request.getParamKey())
+                .paramKey(key)
                 .paramValue(request.getParamValue())
                 .valueType(request.getValueType())
                 .description(request.getDescription())
                 .build());
-        recordAudit(request.getParamKey(), null, request.getParamValue(),
+        recordAudit(key, null, request.getParamValue(),
                 AlgorithmConfigAudit.Action.CREATE);
         return toDTO(saved);
     }
