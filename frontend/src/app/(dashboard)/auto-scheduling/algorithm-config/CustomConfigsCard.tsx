@@ -29,22 +29,31 @@ export function CustomConfigsCard({ onCreate, refreshSignal }: { onCreate: () =>
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalElements, setTotalElements] = useState(0);
 
   const loadConfigs = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getPage<ConfigEntry>("/auto-schedule/config/page", { page, size: pageSize });
-      setConfigs(data.content ?? []);
-      setTotalPages(data.totalPages ?? 0);
-      setTotalElements(data.totalElements ?? 0);
+      // BUGFIX (filter-on-paginated-page): trước đây fetch 1 trang server
+      // (size=10) rồi mới filter client-side (LEGACY keys, keyword, type) trên
+      // đúng 10 rows đó → tìm "scheduling" ở page 0 ra 0 kết quả dù row nằm ở
+      // page 2-3, đếm "10 thông số" sai. Giờ fetch toàn bộ (server cap size=100,
+      // loop tới hết), filter + sort + phân trang đều client-side trên full set.
+      const all: ConfigEntry[] = [];
+      let pageNum = 0;
+      for (;;) {
+        const data = await api.getPage<ConfigEntry>("/auto-schedule/config/page", { page: pageNum, size: 100 });
+        const rows = data.content ?? [];
+        all.push(...rows);
+        if (data.last || rows.length === 0 || all.length >= (data.totalElements ?? 0)) break;
+        pageNum++;
+      }
+      setConfigs(all);
     } catch {
       setConfigs([]);
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, []);
 
   useEffect(() => { void loadConfigs(); }, [loadConfigs, refreshSignal]);
 
@@ -64,6 +73,14 @@ export function CustomConfigsCard({ onCreate, refreshSignal }: { onCreate: () =>
       });
   }, [configs, keyword, filterType, sortBy, sortDir]);
 
+  // Client-side pagination over the full filtered set (server pagination was
+  // removed in loadConfigs, so the page slice must happen here).
+  const totalElements = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalElements / pageSize));
+  // Clamp page: filter/sort/delete can shrink the set below the current page.
+  const safePage = Math.min(page, totalPages - 1);
+  const pageRows = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
+
   function toggleSort(column: SortBy) {
     if (sortBy === column) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortBy(column); setSortDir(column === "key" ? "asc" : "desc"); }
@@ -74,7 +91,7 @@ export function CustomConfigsCard({ onCreate, refreshSignal }: { onCreate: () =>
       <div className="px-5 py-3 border-b border-outline-variant bg-surface-container-low flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <p className="text-label-sm font-semibold text-on-surface">Cấu hình tùy chỉnh</p>
-          <span className="text-[11px] text-on-surface-variant">{configs.length} thông số</span>
+          <span className="text-[11px] text-on-surface-variant">{totalElements} thông số</span>
         </div>
         <div className="flex items-center gap-2">
           <SearchInput value={keyword} onChange={(v) => { setKeyword(v); setPage(0); }} />
@@ -119,7 +136,7 @@ export function CustomConfigsCard({ onCreate, refreshSignal }: { onCreate: () =>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/50">
-              {filtered.map(config => (
+              {pageRows.map(config => (
                 <ConfigRow
                   key={config.paramKey}
                   config={config}
@@ -131,7 +148,7 @@ export function CustomConfigsCard({ onCreate, refreshSignal }: { onCreate: () =>
           </table>
         </div>
         <Pagination
-          currentPage={page + 1}
+          currentPage={safePage + 1}
           totalPages={totalPages}
           totalItems={totalElements}
           pageSize={pageSize}
