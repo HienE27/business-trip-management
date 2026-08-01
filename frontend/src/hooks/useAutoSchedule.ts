@@ -18,6 +18,10 @@ type PreviewScheduleEdit = {
   // edit→apply round-trip so the resolver can disambiguate L04 slots with
   // multiple specialties.
   requirementId?: number | null;
+  // BUGFIX (BUG#1): set by editShiftType on a type change so the apply step can
+  // drop the base slot at (workDate, oldShiftTypeId) that this edit replaces —
+  // even when the staff changed at the same time.
+  oldShiftTypeId?: string;
 };
 
 export type AutoScheduleState = {
@@ -389,6 +393,22 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
    */
   const editShiftType = useCallback(
     (workDate: string, oldShiftTypeId: string, newShiftTypeId: string, staffId: number, requirementId?: number | null) => {
+      // BUGFIX (BUG#1): staff-only change (same shift type) must keep the
+      // (workDate, shiftTypeId) slot key and just swap the staff. The old code
+      // filtered the entry out and skipped the re-add, silently dropping the
+      // edit so apply used the base entry (old staff).
+      if (newShiftTypeId && newShiftTypeId === oldShiftTypeId) {
+        setEditedPreview((prev) => {
+          const existing = prev.findIndex(
+            (e) => e.workDate === workDate && e.shiftTypeId === newShiftTypeId
+          );
+          if (existing >= 0) {
+            return prev.map((e, i) => (i === existing ? { ...e, staffId } : e));
+          }
+          return [...prev, { workDate, shiftTypeId: newShiftTypeId, staffId, requirementId: requirementId ?? null }];
+        });
+        return;
+      }
       const removeKey = `${workDate}_${oldShiftTypeId}_${staffId}`;
       setRemovedShiftTypes((prev) => {
         const next = new Set(prev);
@@ -399,8 +419,8 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         const filtered = prev.filter(
           (e) => !(e.workDate === workDate && e.shiftTypeId === oldShiftTypeId)
         );
-        if (newShiftTypeId && newShiftTypeId !== oldShiftTypeId) {
-          return [...filtered, { workDate, shiftTypeId: newShiftTypeId, staffId, requirementId: requirementId ?? null }];
+        if (newShiftTypeId) {
+          return [...filtered, { workDate, shiftTypeId: newShiftTypeId, staffId, oldShiftTypeId, requirementId: requirementId ?? null }];
         }
         return filtered;
       });

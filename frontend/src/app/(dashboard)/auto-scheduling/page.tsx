@@ -323,32 +323,16 @@ export default function AutoSchedulingPage() {
         };
       });
 
-    // Build the set of (date, staffId) pairs covered by an edit so we can exclude
-    // their old base entries. An edit covers a base entry when:
-    //   - editShiftType: same (date, oldShiftTypeId)
-    //   - editStaff: same (date, staffId) — the base entry has the OLD staffId
+    // Build the set of (date, shiftType) slots covered by an edit so their base
+    // entries are excluded. An edit replaces the base slot at (date, OLD) where
+    // OLD = oldShiftTypeId (type changed) or the edit's own shiftTypeId
+    // (staff-only change). A slot has a single occupant, so matching by staff is
+    // neither needed nor correct — the old staff-match condition is what let
+    // staff changes leak the old base entry into the apply payload (BUG#1).
     const slotsCoveredByEdit = new Set<string>();
-    // editShiftType covers base entries by (date, oldShiftTypeId)
-    const shiftTypeEdits = new Map<string, LocalPreviewEdit>();
     for (const edit of editedPreview as LocalPreviewEdit[]) {
-      if ("oldShiftTypeId" in edit && edit.oldShiftTypeId != null) {
-        const key = `${edit.workDate}_${edit.oldShiftTypeId}`;
-        shiftTypeEdits.set(key, edit);
-      }
-      // editStaff covers base entry by (date, staffId) where base has the old staff
-      if (edit.staffId != null) {
-        slotsCoveredByEdit.add(`${edit.workDate}_${edit.staffId}`);
-      }
-    }
-    // For editShiftType: a base entry is covered if its (date, shiftTypeId) matches
-    // the oldShiftTypeId of any edit with the same staffId (the base entry's staffId
-    // is the pre-edit staff; we need to match by both date+oldShiftType+sameStaffId)
-    for (const slot of baseSchedules) {
-      const key = `${slot.workDate}_${slot.shiftTypeId}`;
-      const edit = shiftTypeEdits.get(key);
-      if (edit != null && edit.staffId === slot.staffId) {
-        slotsCoveredByEdit.add(`${slot.workDate}_${slot.staffId}`);
-      }
+      const oldType = edit.oldShiftTypeId ?? edit.shiftTypeId;
+      slotsCoveredByEdit.add(`${edit.workDate}_${oldType}`);
     }
 
     const filteredBase = baseSchedules
