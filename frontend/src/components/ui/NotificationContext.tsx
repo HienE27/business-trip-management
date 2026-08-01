@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -119,7 +120,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [initialized, setInitialized] = useState(false);
 
   const loadNotifications = useCallback(async () => {
     if (!userId) {
@@ -137,32 +137,29 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setError(getErrorMessage(err, "Không thể tải thông báo."));
     } finally {
       setLoading(false);
-      setInitialized(true);
     }
   }, [userId]);
 
+  // BUGFIX (bell dead): load the notification list as soon as the provider
+  // mounts (and again on userId change, e.g. after login/logout). Previously
+  // the list was only populated by WS events, so a session with existing
+  // notifications showed an empty bell with no badge until a new event fired.
+  useEffect(() => {
+    void loadNotifications();
+  }, [loadNotifications]);
+
   const refreshCount = useCallback(async (count?: number) => {
-    if (!initialized && !loading) {
-      void loadNotifications();
-      return;
-    }
-
+    // BUGFIX (flag corruption): a numeric count from the server only carries
+    // the unread TOTAL, not WHICH items are unread. The old code marked the
+    // first `count` unread positions and force-read everything else, corrupting
+    // flags and never filling an empty list. If the local count already matches
+    // the server hint, skip; otherwise reload the authoritative server list.
     if (typeof count === "number") {
-      setNotifications((prev) => {
-        const unreadIndexes = prev
-          .map((item, index) => (!item.isRead ? index : -1))
-          .filter((index) => index >= 0);
-
-        return prev.map((item, index) => ({
-          ...item,
-          isRead: !unreadIndexes.slice(0, count).includes(index),
-        }));
-      });
-      return;
+      const localUnread = notifications.filter((n) => !n.isRead).length;
+      if (localUnread === count) return;
     }
-
     await loadNotifications();
-  }, [initialized, loadNotifications, loading]);
+  }, [loadNotifications, notifications]);
 
   const markRead = useCallback(async (id: string) => {
     await api.put(`/notifications/${id}/read`, {});
