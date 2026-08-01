@@ -300,89 +300,89 @@ public class AlgorithmConfigService {
     @Transactional
     public Map<String, String> syncDescriptions() {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
-        upsert(AUTO_GEN_ENABLED, getStringValue(AUTO_GEN_ENABLED, "true"), AlgorithmConfig.ValueType.BOOLEAN,
+        upsertAudited(AUTO_GEN_ENABLED, getStringValue(AUTO_GEN_ENABLED, "true"), AlgorithmConfig.ValueType.BOOLEAN,
                 "Tự động tạo yêu cầu nhân sự khi mở kỳ lịch mới. Bật ON để hệ thống tự đề xuất lịch cho từng người.");
         map.put(AUTO_GEN_ENABLED, "OK");
-        upsert(AUTO_GEN_L01_MIN_PER_DAY, getStringValue(AUTO_GEN_L01_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(AUTO_GEN_L01_MIN_PER_DAY, getStringValue(AUTO_GEN_L01_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Mục tiêu nhân sự L01 (Lịch trực 24/24) mỗi ngày. Thuật toán cố gắng đạt nhưng không phá ràng buộc cứng.");
         map.put(AUTO_GEN_L01_MIN_PER_DAY, "OK");
-        upsert(AUTO_GEN_L02_MIN_PER_DAY, getStringValue(AUTO_GEN_L02_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(AUTO_GEN_L02_MIN_PER_DAY, getStringValue(AUTO_GEN_L02_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Mục tiêu nhân sự L02 (Lịch thông tầm) mỗi ngày. Điều chỉnh theo nhu cầu, phần thiếu sẽ hiển thị trong preview.");
         map.put(AUTO_GEN_L02_MIN_PER_DAY, "OK");
-        upsert(AUTO_GEN_L03_MIN_PER_DAY, getStringValue(AUTO_GEN_L03_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(AUTO_GEN_L03_MIN_PER_DAY, getStringValue(AUTO_GEN_L03_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Mục tiêu nhân sự L03 (Phòng khám dịch vụ) mỗi ngày. Đây là mục tiêu mềm của thuật toán.");
         map.put(AUTO_GEN_L03_MIN_PER_DAY, "OK");
-        upsert(AUTO_GEN_L04_MIN_PER_DAY, getStringValue(AUTO_GEN_L04_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(AUTO_GEN_L04_MIN_PER_DAY, getStringValue(AUTO_GEN_L04_MIN_PER_DAY, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Mục tiêu nhân sự L04 (Phòng khám chuyên gia) mỗi ngày/chuyên khoa. Đây là mục tiêu mềm của thuật toán.");
         map.put(AUTO_GEN_L04_MIN_PER_DAY, "OK");
-        upsert(AUTO_GEN_L01_MAX_PER_DAY, getStringValue(AUTO_GEN_L01_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(AUTO_GEN_L01_MAX_PER_DAY, getStringValue(AUTO_GEN_L01_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Trần khuyến nghị L01 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
         map.put(AUTO_GEN_L01_MAX_PER_DAY, "OK");
-        upsert(AUTO_GEN_L02_MAX_PER_DAY, getStringValue(AUTO_GEN_L02_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(AUTO_GEN_L02_MAX_PER_DAY, getStringValue(AUTO_GEN_L02_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Trần khuyến nghị L02 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
         map.put(AUTO_GEN_L02_MAX_PER_DAY, "OK");
-        upsert(AUTO_GEN_L03_MAX_PER_DAY, getStringValue(AUTO_GEN_L03_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(AUTO_GEN_L03_MAX_PER_DAY, getStringValue(AUTO_GEN_L03_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Trần khuyến nghị L03 mỗi ngày khi sinh mục tiêu. 0 = không đặt trần.");
         map.put(AUTO_GEN_L03_MAX_PER_DAY, "OK");
-        upsert(AUTO_GEN_L04_MAX_PER_DAY, getStringValue(AUTO_GEN_L04_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(AUTO_GEN_L04_MAX_PER_DAY, getStringValue(AUTO_GEN_L04_MAX_PER_DAY, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Trần khuyến nghị L04 mỗi ngày/chuyên khoa khi sinh mục tiêu. 0 = không đặt trần.");
         map.put(AUTO_GEN_L04_MAX_PER_DAY, "OK");
-                upsert(AUTO_GEN_HOLIDAY_MODE, getStringValue(AUTO_GEN_HOLIDAY_MODE, AutoGenConstants.HOLIDAY_MODE_SKIP), AlgorithmConfig.ValueType.STRING,
+                upsertAudited(AUTO_GEN_HOLIDAY_MODE, getStringValue(AUTO_GEN_HOLIDAY_MODE, AutoGenConstants.HOLIDAY_MODE_SKIP), AlgorithmConfig.ValueType.STRING,
                 "Xử lý khi gặp ngày lễ: SKIP = bỏ qua ngày lễ (không xếp lịch), PARTIAL = vẫn xếp lịch nhưng giảm cường độ.");
         map.put(AUTO_GEN_HOLIDAY_MODE, "OK");
-        upsert(WEEKEND_WEIGHT, getStringValue(WEEKEND_WEIGHT, "2"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(WEEKEND_WEIGHT, getStringValue(WEEKEND_WEIGHT, "2"), AlgorithmConfig.ValueType.NUMBER,
                 "Hệ số phạt khi xếp lịch cho người vào thứ 7 / chủ nhật. Giá trị càng cao → thuật toán càng tránh xếp ca cuối tuần. Đặt 1 để tắt ưu tiên.");
         map.put(WEEKEND_WEIGHT, "OK");
-        upsert(OVERNIGHT_RECOVERY_HOURS, getStringValue(OVERNIGHT_RECOVERY_HOURS, "24"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(OVERNIGHT_RECOVERY_HOURS, getStringValue(OVERNIGHT_RECOVERY_HOURS, "24"), AlgorithmConfig.ValueType.NUMBER,
                 "[RESERVED v1.1] Giờ hồi phục sau trực đêm. Hiện tại không dùng — quy tắc nghỉ bù và back-to-back đã được xử lý.");
         map.put(OVERNIGHT_RECOVERY_HOURS, "OK");
-        upsert(GREEDY_COVERAGE_THRESHOLD, getStringValue(GREEDY_COVERAGE_THRESHOLD, "0.85"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(GREEDY_COVERAGE_THRESHOLD, getStringValue(GREEDY_COVERAGE_THRESHOLD, "0.85"), AlgorithmConfig.ValueType.NUMBER,
                 "[v1.0] Chỉ dùng để giám sát/logging. Scheduler luôn gán 100% slot khi có thể. Không ảnh hưởng đến kết quả.");
         map.put(GREEDY_COVERAGE_THRESHOLD, "OK");
-        upsert(BALANCE_SCORE_MIN, getStringValue(BALANCE_SCORE_MIN, "0.70"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(BALANCE_SCORE_MIN, getStringValue(BALANCE_SCORE_MIN, "0.70"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng điểm cân bằng tải tối thiểu (0.0–1.0). Cao → phân bổ ca trực công bằng hơn nhưng có thể khó đạt; thấp → dễ đáp ứng nhưng có thể thiên lệch.");
         map.put(BALANCE_SCORE_MIN, "OK");
-        upsert(MIN_STAFF_PER_SHIFT, getStringValue(MIN_STAFF_PER_SHIFT, "1"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(MIN_STAFF_PER_SHIFT, getStringValue(MIN_STAFF_PER_SHIFT, "1"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng theo dõi số nhân sự tối thiểu mỗi ca; dùng cho đánh giá/chất lượng, không ép thuật toán phá ràng buộc cứng.");
         map.put(MIN_STAFF_PER_SHIFT, "OK");
-        upsert(MAX_STAFF_PER_SHIFT, getStringValue(MAX_STAFF_PER_SHIFT, "0"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(MAX_STAFF_PER_SHIFT, getStringValue(MAX_STAFF_PER_SHIFT, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Số nhân sự tối đa mỗi ca. Đặt 0 để không giới hạn. Giới hạn này chỉ áp dụng khi yêu cầu ca có requiredStaffCount > maxStaffPerShift.");
         map.put(MAX_STAFF_PER_SHIFT, "OK");
-        upsert(MIN_SHIFTS_PER_STAFF, getStringValue(MIN_SHIFTS_PER_STAFF, "0"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(MIN_SHIFTS_PER_STAFF, getStringValue(MIN_SHIFTS_PER_STAFF, "0"), AlgorithmConfig.ValueType.NUMBER,
                 "Ngưỡng theo dõi số ca tối thiểu mỗi nhân sự trong kỳ; dùng để đánh giá cân bằng, không ép tạo ca giả.");
         map.put(MIN_SHIFTS_PER_STAFF, "OK");
-        upsert(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "30"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(MAX_SHIFTS_PER_STAFF, getStringValue(MAX_SHIFTS_PER_STAFF, "30"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ca tối đa mỗi nhân sự trong kỳ lịch. Đặt 0 để dùng maxShiftsPerMonth của nhân sự. Default 30.");
         map.put(MAX_SHIFTS_PER_STAFF, "OK");
         // ─── Scheduling metaheuristic params (config-ui visibility fix 2026-07-24) ───
-        upsert(SCHEDULING_MAX_ITERATIONS, getStringValue(SCHEDULING_MAX_ITERATIONS, "500"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(SCHEDULING_MAX_ITERATIONS, getStringValue(SCHEDULING_MAX_ITERATIONS, "500"), AlgorithmConfig.ValueType.NUMBER,
                 "Số vòng lặp tối đa của thuật toán tối ưu (Tabu Search / Late Acceptance / Great Deluge). Tăng lên nếu thuật toán chưa hết thời gian mà vẫn chưa tìm được lời giải tốt; giảm xuống nếu chạy quá lâu.");
         map.put(SCHEDULING_MAX_ITERATIONS, "OK");
-        upsert(SCHEDULING_MAX_NO_IMPROVE, getStringValue(SCHEDULING_MAX_NO_IMPROVE, "50"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(SCHEDULING_MAX_NO_IMPROVE, getStringValue(SCHEDULING_MAX_NO_IMPROVE, "50"), AlgorithmConfig.ValueType.NUMBER,
                 "Số vòng lặp liên tiếp không cải thiện trước khi dừng sớm (diversification). Tăng lên → thuật toán kiên trì tìm lời giải tốt hơn; giảm xuống → dừng sớm khi bão hòa.");
         map.put(SCHEDULING_MAX_NO_IMPROVE, "OK");
-        upsert(SCHEDULING_DIVERSIFY_AFTER, getStringValue(SCHEDULING_DIVERSIFY_AFTER, "20"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(SCHEDULING_DIVERSIFY_AFTER, getStringValue(SCHEDULING_DIVERSIFY_AFTER, "20"), AlgorithmConfig.ValueType.NUMBER,
                 "Số vòng lặp không cải thiện liên tiếp kích hoạt diversification (reset/perturb lời giải hiện tại). Giúp tránh local optimum.");
         map.put(SCHEDULING_DIVERSIFY_AFTER, "OK");
-        upsert(SCHEDULING_ACCEPTANCE_STRATEGY, getStringValue(SCHEDULING_ACCEPTANCE_STRATEGY, "TABU"), AlgorithmConfig.ValueType.STRING,
+        upsertAudited(SCHEDULING_ACCEPTANCE_STRATEGY, getStringValue(SCHEDULING_ACCEPTANCE_STRATEGY, "TABU"), AlgorithmConfig.ValueType.STRING,
                 "Chiến lược chấp nhận nghiệm xấu hơn: TABU (Tabu Search), SA (Simulated Annealing), LA (Late Acceptance), GD (Great Deluge).");
         map.put(SCHEDULING_ACCEPTANCE_STRATEGY, "OK");
-        upsert(SCHEDULING_CANDIDATE_LIST_SIZE, getStringValue(SCHEDULING_CANDIDATE_LIST_SIZE, "50"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(SCHEDULING_CANDIDATE_LIST_SIZE, getStringValue(SCHEDULING_CANDIDATE_LIST_SIZE, "50"), AlgorithmConfig.ValueType.NUMBER,
                 "Số ứng viên lân cận được sinh ra mỗi vòng lặp. Tăng → khám phá rộng hơn, chậm hơn; giảm → hẹp hơn, nhanh hơn.");
         map.put(SCHEDULING_CANDIDATE_LIST_SIZE, "OK");
-        upsert(SCHEDULING_LA_MEMORY_SIZE, getStringValue(SCHEDULING_LA_MEMORY_SIZE, "10"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(SCHEDULING_LA_MEMORY_SIZE, getStringValue(SCHEDULING_LA_MEMORY_SIZE, "10"), AlgorithmConfig.ValueType.NUMBER,
                 "Độ dài bộ nhớ của Late Acceptance (số vòng lặp trước được so sánh). Lớn hơn → ổn định hơn; nhỏ hơn → phản ứng nhanh hơn.");
         map.put(SCHEDULING_LA_MEMORY_SIZE, "OK");
-        upsert(SCHEDULING_GD_INITIAL_LEVEL, getStringValue(SCHEDULING_GD_INITIAL_LEVEL, "1000.0"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(SCHEDULING_GD_INITIAL_LEVEL, getStringValue(SCHEDULING_GD_INITIAL_LEVEL, "1000.0"), AlgorithmConfig.ValueType.NUMBER,
                 "Mực nước ban đầu của Great Deluge (ngưỡng chấp nhận lời giải xấu). Cao → chấp nhận thoáng hơn; thấp → khắt khe hơn.");
         map.put(SCHEDULING_GD_INITIAL_LEVEL, "OK");
-        upsert(SCHEDULING_GD_DECAY_RATE, getStringValue(SCHEDULING_GD_DECAY_RATE, "0.999"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(SCHEDULING_GD_DECAY_RATE, getStringValue(SCHEDULING_GD_DECAY_RATE, "0.999"), AlgorithmConfig.ValueType.NUMBER,
                 "Tốc độ giảm mực nước Great Deluge mỗi vòng lặp. Gần 1.0 → giảm chậm, tìm kiếm kỹ; nhỏ hơn → giảm nhanh, hội tụ sớm.");
         map.put(SCHEDULING_GD_DECAY_RATE, "OK");
-        upsert(SCHEDULING_GD_MIN_LEVEL, getStringValue(SCHEDULING_GD_MIN_LEVEL, "0.0"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(SCHEDULING_GD_MIN_LEVEL, getStringValue(SCHEDULING_GD_MIN_LEVEL, "0.0"), AlgorithmConfig.ValueType.NUMBER,
                 "Mực nước tối thiểu của Great Deluge — khi đạt ngưỡng, dừng thuật toán.");
         map.put(SCHEDULING_GD_MIN_LEVEL, "OK");
-        upsert(BALANCE_SCORE_WORST, getStringValue(BALANCE_SCORE_WORST, "0.50"), AlgorithmConfig.ValueType.NUMBER,
+        upsertAudited(BALANCE_SCORE_WORST, getStringValue(BALANCE_SCORE_WORST, "0.50"), AlgorithmConfig.ValueType.NUMBER,
                 "Hệ số CV (Coefficient of Variation) tải ca trực cho phép ở mức tệ nhất. Thấp → yêu cầu cân bằng chặt; cao → chấp nhận chênh lệch nhiều hơn.");
         map.put(BALANCE_SCORE_WORST, "OK");
         return map;
@@ -395,6 +395,33 @@ public class AlgorithmConfigService {
         config.setValueType(valueType);
         config.setDescription(description);
         configRepository.save(config);
+    }
+
+    /**
+     * Upsert kèm audit — chỉ dùng cho {@code syncDescriptions()}: key mới ghi
+     * CREATE (oldValue=null, newValue=value); key tồn tại mà mô tả đổi ghi
+     * UPDATE (oldValue=oldDesc, newValue=newDesc). Schema audit không có cột
+     * description nên tái dùng cột value để chở mô tả. Các đường upsert khác
+     * (seed, saveAutoGenConfig) dùng {@link #upsert} thường — không audit để
+     * tránh audit rác mỗi lần restart.
+     */
+    private void upsertAudited(String paramKey, String value, AlgorithmConfig.ValueType valueType, String description) {
+        AlgorithmConfig existing = configRepository.findByParamKey(paramKey).orElse(null);
+        if (existing == null) {
+            configRepository.save(AlgorithmConfig.builder()
+                    .paramKey(paramKey).paramValue(value)
+                    .valueType(valueType).description(description).build());
+            recordAudit(paramKey, null, value, AlgorithmConfigAudit.Action.CREATE);
+            return;
+        }
+        String oldDescription = existing.getDescription();
+        existing.setParamValue(value);
+        existing.setValueType(valueType);
+        existing.setDescription(description);
+        configRepository.save(existing);
+        if (oldDescription != null && !oldDescription.equals(description)) {
+            recordAudit(paramKey, oldDescription, description, AlgorithmConfigAudit.Action.UPDATE);
+        }
     }
 
     private int getIntValue(String paramKey, int defaultValue) {
