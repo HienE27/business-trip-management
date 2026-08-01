@@ -13,9 +13,9 @@ import java.util.Set;
  * (6 khoa: Ngoại, Nội, Sản, Nhi, Mắt, Răng). Không có cấu hình per-shift-type
  * specialties cho L01/L02/L03.
  *
- * <p>Chỉ có L04 (PK Chuyên gia) có cấu hình specialty:
- * {@code l04CrossSpecialty}, {@code l04CrossSpecialtyRatio},
- * {@code l04AllowedSpecialties}, {@code l04BalanceStrategy}.
+ * <p>Chỉ có L04 (PK Chuyên gia) có cấu hình specialty. Cơ chế
+ * cross-specialty đã bị thay thế hoàn toàn bằng "mở PK theo ngày bs rảnh"
+ * + "đổi ngày mở thích ứng" — L04 luôn xếp đúng chuyên khoa.
  *
  * @see com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility
  */
@@ -25,13 +25,7 @@ public record AutoGenConfig(
     int l01MaxPerDay, int l02MaxPerDay, int l03MaxPerDay, int l04MaxPerDay,
     int l01MaxPerWeek, int l02MaxPerWeek, int l03MaxPerWeek, int l04MaxPerWeek,
     String holidayMode,  // "SKIP" or "PARTIAL"
-    List<String> removedShiftTypes,  // e.g. ["L03", "L04"] to skip when generating
-
-    // L04 cross-specialty (chỉ L04 có specialty config)
-    boolean l04CrossSpecialty,
-    float l04CrossSpecialtyRatio,
-    List<String> l04AllowedSpecialties,  // null/empty = tất cả 6 khoa
-    String l04BalanceStrategy   // "STRICT_MATCH_ONLY", "FAIR_DISTRIBUTE", "WEIGHTED_FAIR"
+    List<String> removedShiftTypes  // e.g. ["L03", "L04"] to skip when generating
 ) {
     /**
      * Builder-style factory cho backward compatibility với code cũ.
@@ -52,17 +46,13 @@ public record AutoGenConfig(
             boolean l02CrossSpecialty, float l02CrossSpecialtyRatio,
             List<String> l02AllowedSpecialties, String l02BalanceStrategy,
             boolean l03CrossSpecialty, float l03CrossSpecialtyRatio,
-            List<String> l03AllowedSpecialties, String l03BalanceStrategy,
-            // L04 fields
-            boolean l04CrossSpecialty, float l04CrossSpecialtyRatio,
-            List<String> l04AllowedSpecialties, String l04BalanceStrategy) {
+            List<String> l03AllowedSpecialties, String l03BalanceStrategy) {
         return new AutoGenConfig(
                 enabled,
                 l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
                 l01MaxPerDay, l02MaxPerDay, l03MaxPerDay, l04MaxPerDay,
                 l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
-                holidayMode, removedShiftTypes,
-                l04CrossSpecialty, l04CrossSpecialtyRatio, l04AllowedSpecialties, l04BalanceStrategy);
+                holidayMode, removedShiftTypes);
     }
 
     /**
@@ -77,10 +67,6 @@ public record AutoGenConfig(
         private int l01MaxPerWeek = 0, l02MaxPerWeek = 0, l03MaxPerWeek = 0, l04MaxPerWeek = 0;
         private String holidayMode = "SKIP";
         private List<String> removedShiftTypes = List.of();
-        private boolean l04CrossSpecialty = false;
-        private float l04CrossSpecialtyRatio = 0.5f;
-        private List<String> l04AllowedSpecialties = List.of();
-        private String l04BalanceStrategy = "FAIR_DISTRIBUTE";
 
         public Builder enabled(boolean v) { this.enabled = v; return this; }
         public Builder l01MinPerDay(int v) { this.l01MinPerDay = v; return this; }
@@ -105,10 +91,6 @@ public record AutoGenConfig(
             return this;
         }
         public Builder removedShiftTypes(List<String> v) { this.removedShiftTypes = v; return this; }
-        public Builder l04CrossSpecialty(boolean v) { this.l04CrossSpecialty = v; return this; }
-        public Builder l04CrossSpecialtyRatio(float v) { this.l04CrossSpecialtyRatio = v; return this; }
-        public Builder l04AllowedSpecialties(List<String> v) { this.l04AllowedSpecialties = v; return this; }
-        public Builder l04BalanceStrategy(String v) { this.l04BalanceStrategy = v; return this; }
 
         public AutoGenConfig build() {
             return new AutoGenConfig(
@@ -116,8 +98,7 @@ public record AutoGenConfig(
                     l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
                     l01MaxPerDay, l02MaxPerDay, l03MaxPerDay, l04MaxPerDay,
                     l01MaxPerWeek, l02MaxPerWeek, l03MaxPerWeek, l04MaxPerWeek,
-                    holidayMode, removedShiftTypes,
-                    l04CrossSpecialty, l04CrossSpecialtyRatio, l04AllowedSpecialties, l04BalanceStrategy);
+                    holidayMode, removedShiftTypes);
         }
     }
 }

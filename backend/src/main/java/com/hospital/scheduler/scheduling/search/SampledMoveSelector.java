@@ -88,6 +88,8 @@ public class SampledMoveSelector implements MoveSelector {
                 // SWAP: pick two assigned slots, preferring BR-04-safe swaps.
                 // When no BR-04-safe swap exists, pick any random swap — the hard-fence
                 // in the search loop will reject it if it creates violations.
+                // L04 strict-specialty không có hard-fence nên swap đưa bs sai khoa
+                // vào slot L04 phải bị loại ngay tại selector.
                 List<Integer> slotList = new ArrayList<>(assignedSlots);
                 SwapMove bestSwap = null;
                 for (int attempt = 0; attempt < Math.min(5, slotList.size()); attempt++) {
@@ -95,7 +97,8 @@ public class SampledMoveSelector implements MoveSelector {
                     int b = slotList.get(random.nextInt(slotList.size()));
                     if (a == b) continue;
                     SwapMove candidate = new SwapMove(a, b);
-                    if (!wouldCreateBR04Violation(solution, a, b)) {
+                    if (!wouldCreateBR04Violation(solution, a, b)
+                            && !wouldBreakL04Specialty(solution, a, b)) {
                         bestSwap = candidate;
                         break;
                     }
@@ -103,10 +106,13 @@ public class SampledMoveSelector implements MoveSelector {
                 if (bestSwap != null) {
                     moves.add(bestSwap);
                 } else {
-                    // No BR-04-safe swap found — add a random one; hard-fence will reject it
+                    // No BR-04-safe swap found — add a random one (still L04-specialty-safe);
+                    // hard-fence will reject BR-04 violations.
                     int a = slotList.get(random.nextInt(slotList.size()));
                     int b = slotList.get(random.nextInt(slotList.size()));
-                    if (a != b) moves.add(new SwapMove(a, b));
+                    if (a != b && !wouldBreakL04Specialty(solution, a, b)) {
+                        moves.add(new SwapMove(a, b));
+                    }
                 }
             } else if (!assignedSlots.isEmpty()) {
                 // UNASSIGN: clear an assigned slot — but ONLY an L04 slot.
@@ -211,6 +217,23 @@ public class SampledMoveSelector implements MoveSelector {
         }
 
         return bestStaff > 0 ? bestStaff : fallbackStaff;
+    }
+
+    /**
+     * True nếu swap giữa slotA/slotB đặt một nhân sự không đúng chuyên khoa
+     * vào slot L04. L04 luôn strict-specialty (cross-specialty đã gỡ) nhưng
+     * việc này không nằm trong hard-fence của search loop nên phải loại ngay
+     * tại selector để KPI "lệch chuyên khoa" không bao giờ dương.
+     */
+    private boolean wouldBreakL04Specialty(WorkingSolution solution, int slotA, int slotB) {
+        MutableAssignment a = solution.getAssignment(slotA);
+        MutableAssignment b = solution.getAssignment(slotB);
+        if (a == null || b == null || a.staffId <= 0 || b.staffId <= 0) return false;
+        var problem = descriptor.getProblem();
+        // Sau swap: slotA nhận staff của slotB, slotB nhận staff của slotA.
+        if ("L04".equals(a.shiftTypeId) && !problem.isStrictSpecialtyMatch(slotA, b.staffId)) return true;
+        if ("L04".equals(b.shiftTypeId) && !problem.isStrictSpecialtyMatch(slotB, a.staffId)) return true;
+        return false;
     }
 
     /**

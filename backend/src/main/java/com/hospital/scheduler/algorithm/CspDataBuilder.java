@@ -36,28 +36,8 @@ public class CspDataBuilder {
     private final CspAc3Engine ac3Engine;
     private final CspConstraints constraints;
 
-    public ProblemData build(
-            List<Staff> staffList,
-            List<LocalDate> dates,
-            List<ShiftRequirementInfo> requirements,
-            List<LeaveRequest> leaveRequests) {
-        return build(staffList, dates, requirements, leaveRequests, null, null, null, false);
-    }
-
     /**
-     * Overload that lets the caller pass the configured L04 allowed specialties.
-     * Passing {@code null}/empty means "all eligible specialties" (matches
-     * {@link StaffShiftTypeEligibility#ALL_ELIGIBLE_SPECIALTIES}).
-     *
-     * <p>Note: for L01/L02/L03 the eligibility set is always
-     * {@link StaffShiftTypeEligibility#CORE_ELIGIBLE_SPECIALTIES} (or the
-     * per-type override supplied via {@code algorithmConfigService} — the CSP
-     * solver only needs a baseline because the per-type override is applied
-     * in the heuristic layer; see {@code AutoSchedulingService} for the
-     * detailed gating). The two sources MUST agree on what "core" means so
-     * the domain pruning and the scoring use the same definition.
-     *
-     * <p>Additional Gap-fix params:
+     * Gap-fix params:
      * <ul>
      *   <li>{@code minShiftsPerWeekByShift} — Gap 1: per-(shift) minimum
      *       shifts a staff should accumulate per week. Pass {@code null} to
@@ -72,10 +52,8 @@ public class CspDataBuilder {
             List<Staff> staffList,
             List<LocalDate> dates,
             List<ShiftRequirementInfo> requirements,
-            List<LeaveRequest> leaveRequests,
-            List<String> l04AllowedSpecialties) {
-        return build(staffList, dates, requirements, leaveRequests,
-                l04AllowedSpecialties, null, null, false, 0);
+            List<LeaveRequest> leaveRequests) {
+        return build(staffList, dates, requirements, leaveRequests, null, null, 0);
     }
 
     public ProblemData build(
@@ -83,11 +61,10 @@ public class CspDataBuilder {
             List<LocalDate> dates,
             List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests,
-            List<String> l04AllowedSpecialties,
             int[] minShiftsPerWeekByShift,
             Set<String> activeShiftTypeIds) {
         return build(staffList, dates, requirements, leaveRequests,
-                l04AllowedSpecialties, minShiftsPerWeekByShift, activeShiftTypeIds, false, 0);
+                minShiftsPerWeekByShift, activeShiftTypeIds, 0);
     }
 
     public ProblemData build(
@@ -95,23 +72,8 @@ public class CspDataBuilder {
             List<LocalDate> dates,
             List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests,
-            List<String> l04AllowedSpecialties,
             int[] minShiftsPerWeekByShift,
             Set<String> activeShiftTypeIds,
-            boolean l04CrossSpecialty) {
-        return build(staffList, dates, requirements, leaveRequests,
-                l04AllowedSpecialties, minShiftsPerWeekByShift, activeShiftTypeIds, l04CrossSpecialty, 0);
-    }
-
-    public ProblemData build(
-            List<Staff> staffList,
-            List<LocalDate> dates,
-            List<ShiftRequirementInfo> requirements,
-            List<LeaveRequest> leaveRequests,
-            List<String> l04AllowedSpecialties,
-            int[] minShiftsPerWeekByShift,
-            Set<String> activeShiftTypeIds,
-            boolean l04CrossSpecialty,
             int maxShiftsOverride) {
 
         int numDays = dates.size();
@@ -131,12 +93,8 @@ public class CspDataBuilder {
         boolean[] holidayDays = detectHolidayDays(slotCount, numDays, numShifts);
         int[] staffMaxShifts = maxShiftsPerStaff(staffList, numStaff, maxShiftsOverride);
 
-        Set<String> l04Allowed = (l04AllowedSpecialties != null && !l04AllowedSpecialties.isEmpty())
-                ? new HashSet<>(l04AllowedSpecialties)
-                : StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES;
-
         BitSet[] domains = buildInitialDomains(varCount, varDay, varShift, varSpecialty, slotCount, numDays, numStaff,
-                leaveMatrix, holidayDays, staffList, l04Allowed, l04CrossSpecialty);
+                leaveMatrix, holidayDays, staffList);
         int[] compDayIdx = buildCompDayIdx(slotCount, dates, numDays, numShifts);
         List<Integer>[] constraintGraph = buildConstraintGraph(varDay, varShift, varCount, slotCount, dates, compDayIdx, numDays);
 
@@ -312,14 +270,12 @@ public class CspDataBuilder {
 
     private BitSet[] buildInitialDomains(int varCount, int[] varDay, int[] varShift, int[] varSpecialty, int[][] slotCount,
                                          int numDays, int numStaff, boolean[][] leaveMatrix, boolean[] holidayDays,
-                                         List<Staff> staffList, Set<String> l04AllowedSpecialties,
-                                         boolean l04CrossSpecialty) {
+                                         List<Staff> staffList) {
         // Pre-compute eligibility flags per staff per shift type.
         //
         // IMPORTANT: keep this in sync with {@link StaffShiftTypeEligibility}:
         //   L01/L02/L03 → ALL_ELIGIBLE_SPECIALTIES (6 khoa: Ngoại, Nội, Sản, Nhi, Mắt, Răng)
-        //   L04         → l04AllowedSpecialties (default = ALL_ELIGIBLE_SPECIALTIES)
-        //                  AND staff.specialty.id == varSpecialty[v] for L04 vars.
+        //   L04         → strict: staff.specialty.id == varSpecialty[v] (không cross-specialty)
         //
         // Theo tài liệu nghiệp vụ, L01/L02/L03 không bị giới hạn theo chuyên khoa.
         // Specialty.name values come from the {@code Specialty} entity (seeded
@@ -330,14 +286,14 @@ public class CspDataBuilder {
             String spName = st.getSpecialty() != null ? st.getSpecialty().getName() : null;
             boolean active = Boolean.TRUE.equals(st.getIsActive());
             boolean inAllEligible = spName != null && StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES.contains(spName);
-            boolean inL04  = spName != null && l04AllowedSpecialties.contains(spName);
             for (int s = 0; s < SHIFT_ORDER.length; s++) {
                 String shiftTypeId = SHIFT_ORDER[s];
                 boolean eligible;
                 if ("L04".equals(shiftTypeId)) {
-                    // L04: any active staff whose specialty is in the L04-allowed
-                    // set is eligible (specialty filter still applied in AC-3).
-                    eligible = active && inL04;
+                    // L04: any active staff with a specialty is eligible; the
+                    // per-variable strict specialty filter below prunes to the
+                    // exact required specialty (không cross-specialty).
+                    eligible = active && st.getSpecialty() != null;
                 } else {
                     // L01/L02/L03: any active staff in ALL_ELIGIBLE_SPECIALTIES
                     eligible = active && inAllEligible;
@@ -353,24 +309,18 @@ public class CspDataBuilder {
             int s = varShift[v];
             if (slotCount[d][s] > 0 && !holidayDays[d]) {
                 boolean[] shiftEligibility = eligibilityMatrix.get(s);
-		                // Per-variable specialty filter for L04 vars.
-		                // Khi l04CrossSpecialty = false: chỉ cho staff đúng chuyên khoa
-		                // (requiredSpecialtyId) vào domain — domain nhỏ, search nhanh.
-		                // Khi l04CrossSpecialty = true: bỏ strict filter, cho tất cả
-		                // staff thuộc l04AllowedSpecialties vào domain. Domain lớn hơn
-		                // nhưng search engine vẫn xử lý được nhờ AC-3 + forward checking.
-		                // Eligibility matrix ở trên đã filter theo l04AllowedSpecialties
-		                // nên chỉ staff từ specialty được phép mới vào domain.
-		                int requiredSpecialtyId = (varSpecialty != null && s == 3) ? varSpecialty[v] : 0;
-		                for (int staffIdx = 0; staffIdx < numStaff; staffIdx++) {
-		                    if (!leaveMatrix[staffIdx][d]) continue;
-		                    if (!shiftEligibility[staffIdx]) continue;
-		                    if (requiredSpecialtyId != 0 && !l04CrossSpecialty) {
-		                        Specialty sp = staffList.get(staffIdx).getSpecialty();
-		                        if (sp == null || sp.getId() == null || sp.getId() != requiredSpecialtyId) continue;
-		                    }
-		                    domains[v].set(staffIdx);
-		                }
+                // L04 luôn strict-specialty: chỉ staff đúng chuyên khoa
+                // (requiredSpecialtyId) vào domain — domain nhỏ, search nhanh.
+                int requiredSpecialtyId = (varSpecialty != null && s == 3) ? varSpecialty[v] : 0;
+                for (int staffIdx = 0; staffIdx < numStaff; staffIdx++) {
+                    if (!leaveMatrix[staffIdx][d]) continue;
+                    if (!shiftEligibility[staffIdx]) continue;
+                    if (requiredSpecialtyId != 0) {
+                        Specialty sp = staffList.get(staffIdx).getSpecialty();
+                        if (sp == null || sp.getId() == null || sp.getId() != requiredSpecialtyId) continue;
+                    }
+                    domains[v].set(staffIdx);
+                }
             }
         }
         return domains;

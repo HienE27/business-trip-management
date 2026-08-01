@@ -91,7 +91,7 @@ public record ConfigMetadata(
 
         /**
          * Condition for field visibility.
-         * Format: "fieldPath:operator:value" e.g. "l04CrossSpecialtyEnabled:eq:true"
+         * Format: "fieldPath:operator:value" e.g. "l04MaxPerDay:eq:3"
          * Supported operators: eq, ne, gt, lt, gte, lte, in, notIn
          * null = always visible.
          */

@@ -23,9 +23,9 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li><b>L01/L02/L03</b>: Không có ràng buộc chuyên khoa — bất kỳ staff
  *       eligible nào đều được phép.</li>
- *   <li><b>L04 (PK Chuyên gia)</b>: Có thể yêu cầu staff cùng chuyên khoa
+ *   <li><b>L04 (PK Chuyên gia)</b>: Yêu cầu staff cùng chuyên khoa
  *       với ShiftRequirement (nếu requirement có specialty). Cross-specialty
- *       được cấu hình qua {@code l04AllowedSpecialties} param.</li>
+ *       đã bị gỡ — L04 luôn strict-specialty.</li>
  * </ul>
  *
  * <p>Đây là baseline eligibility — chỉ kiểm tra active + có specialty.
@@ -187,56 +187,6 @@ public final class StaffShiftTypeEligibility {
     }
 
     /**
-     * Kiểm tra staff có đủ điều kiện (overload có config động).
-     *
-     * <p><b>Lưu ý:</b> Tham số {@code l04AllowedSpecialties} chỉ áp dụng cho L04.
-     * Với L01/L02/L03, tham số này bị bỏ qua — eligibility được xác định
-     * bởi {@link #ALL_ELIGIBLE_SPECIALTIES} duy nhất.
-     *
-     * @param staff                 Staff cần kiểm tra
-     * @param shiftTypeId           Loại ca (L01/L02/L03/L04)
-     * @param requiredSpecialtyId  Specialty yêu cầu (chỉ L04)
-     * @param l04AllowedSpecialties Danh sách specialties được phép gán L04
-     *                              (null/empty = tất cả). Bị bỏ qua cho L01/L02/L03.
-     * @return true nếu staff có thể gán shift type này
-     */
-    public static boolean isEligible(Staff staff, String shiftTypeId, Integer requiredSpecialtyId,
-                                     java.util.List<String> l04AllowedSpecialties) {
-        if (staff == null || shiftTypeId == null) return false;
-        if (!Boolean.TRUE.equals(staff.getIsActive())) return false;
-
-        Specialty sp = staff.getSpecialty();
-        String spName = sp != null ? sp.getName() : null;
-        if (spName == null) return false;
-
-        switch (shiftTypeId) {
-            case "L01":
-            case "L02":
-            case "L03":
-                // L01/L02/L03: chỉ cần thuộc eligible specialties
-                return isEligibleSpecialty(spName);
-
-            case "L04":
-                // L04: kiểm tra với l04AllowedSpecialties config
-                if (l04AllowedSpecialties != null && !l04AllowedSpecialties.isEmpty()) {
-                    if (l04AllowedSpecialties.contains("__NONE__")) return false;
-                    Set<String> allowed = new java.util.HashSet<>(l04AllowedSpecialties);
-                    if (!allowed.contains(spName)) return false;
-                } else {
-                    // No restriction → all eligible specialties allowed
-                    if (!isEligibleSpecialty(spName)) return false;
-                }
-                if (requiredSpecialtyId != null) {
-                    return sp != null && requiredSpecialtyId.equals(sp.getId());
-                }
-                return true;
-
-            default:
-                return false;
-        }
-    }
-
-    /**
      * Lọc danh sách nhân sự theo eligibility cho 1 shift type.
      *
      * @param staffList            Pool nhân sự nguồn
@@ -300,54 +250,6 @@ public final class StaffShiftTypeEligibility {
                 .add(s.getId());
         }
         return result;
-    }
-
-    /**
-     * Lấy L04 eligibility per specialty với config động (lọc theo allowed list).
-     *
-     * @param allowedSpecialties Danh sách specialties được phép (null/empty = tất cả)
-     * @return Map&lt;specialtyId, Set&lt;staffId&gt;&gt;
-     */
-    public static Map<Integer, Set<Integer>> getL04EligibilityBySpecialty(List<Staff> staffList,
-                                                                         java.util.List<String> allowedSpecialties) {
-        return getL04EligibilityBySpecialty(staffList, allowedSpecialties, false);
-    }
-
-    /**
-     * L04 eligibility với tùy chọn cross-specialty.
-     *
-     * @param allowedSpecialties Danh sách specialties được phép (null/empty = tất cả)
-     * @param l04CrossSpecialty  Nếu true, mỗi specialty key chứa staff từ TẤT CẢ specialty được allowed
-     * @return Map&lt;specialtyId, Set&lt;staffId&gt;&gt;
-     */
-    public static Map<Integer, Set<Integer>> getL04EligibilityBySpecialty(List<Staff> staffList,
-                                                                         java.util.List<String> allowedSpecialties,
-                                                                         boolean l04CrossSpecialty) {
-        if (staffList == null) return Map.of();
-        Set<String> allowed = allowedSpecialties != null && !allowedSpecialties.isEmpty()
-            ? new HashSet<>(allowedSpecialties)
-            : new HashSet<>(getAllEligibleSpecialtyNames());
-
-        // Build all eligible staff (by specialty)
-        Map<Integer, Set<Integer>> bySpec = new HashMap<>();
-        // Also collect the union of ALL eligible staff for cross-specialty mode
-        Set<Integer> allEligible = new HashSet<>();
-        for (Staff s : staffList) {
-            if (s == null || !Boolean.TRUE.equals(s.getIsActive()) || s.getSpecialty() == null) continue;
-            if (!allowed.contains(s.getSpecialty().getName())) continue;
-            allEligible.add(s.getId());
-            bySpec
-                .computeIfAbsent(s.getSpecialty().getId(), k -> new HashSet<>())
-                .add(s.getId());
-        }
-
-        // Cross-specialty: ghi đè mỗi specialty key bằng UNION tất cả staff eligible
-        if (l04CrossSpecialty) {
-            for (Map.Entry<Integer, Set<Integer>> entry : bySpec.entrySet()) {
-                entry.getValue().addAll(allEligible);
-            }
-        }
-        return bySpec;
     }
 
     /**

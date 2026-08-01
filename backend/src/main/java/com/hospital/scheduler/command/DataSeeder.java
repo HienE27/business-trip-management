@@ -279,13 +279,7 @@ public class DataSeeder implements CommandLineRunner {
                 0,      // l03MaxPerWeek
                 0,      // l04MaxPerWeek
                 "SKIP",  // holidayMode
-                List.of(),  // removedShiftTypes (none by default)
-                // L01/L02/L03: không có specialty config — dùng ALL_ELIGIBLE_SPECIALTIES (6 khoa)
-                // L04 cross-specialty (enabled by default — needed for L04 shortage coverage)
-                true,   // l04CrossSpecialty
-                0.5f,   // l04CrossSpecialtyRatio (cross only when shortage >= 50%)
-                List.of(),  // l04AllowedSpecialties (empty = all specialties)
-                "FAIR_DISTRIBUTE"
+                List.of()  // removedShiftTypes (none by default)
         );
         algorithmConfigService.saveAutoGenConfig(defaults);
 

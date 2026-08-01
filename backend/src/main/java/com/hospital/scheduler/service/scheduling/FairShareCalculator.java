@@ -1,7 +1,6 @@
 package com.hospital.scheduler.service.scheduling;
 
 import com.hospital.scheduler.entity.*;
-import com.hospital.scheduler.service.AlgorithmConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -18,15 +17,6 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 public class FairShareCalculator {
-
-    private final AlgorithmConfigService algorithmConfigService;
-    private final StaffEligibilityFilter eligibilityFilter;
-
-    public FairShareCalculator(AlgorithmConfigService algorithmConfigService,
-                               StaffEligibilityFilter eligibilityFilter) {
-        this.algorithmConfigService = algorithmConfigService;
-        this.eligibilityFilter = eligibilityFilter;
-    }
 
     public Map<String, Integer> computeFairSharePerType(List<ShiftRequirement> requirements, int staffPool) {
         return computeFairSharePerTypeWithStaff(requirements, staffPool, null);
@@ -54,30 +44,17 @@ public class FairShareCalculator {
 
             int effectivePool;
             if ("L04".equals(typeId) && !safeActiveStaff.isEmpty()) {
-                StaffEligibilityFilter.CrossSpecialtyConfig crossConfig = eligibilityFilter.getL04CrossSpecialtyConfig();
-                boolean crossEnabled = crossConfig.enabled();
-
+                // L04 luôn strict-specialty (không cross): pool = staff đúng chuyên khoa.
                 Set<Integer> l04SpecialtyIds = requirements.stream()
                         .filter(r -> typeId.equals(r.getShiftType().getId()) && r.getSpecialty() != null)
                         .map(r -> r.getSpecialty().getId())
                         .collect(Collectors.toSet());
 
                 if (!l04SpecialtyIds.isEmpty()) {
-                    int totalEligibleL04Staff = (int) safeActiveStaff.stream()
-                            .filter(s -> s.getSpecialty() != null
-                                    && com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES.contains(s.getSpecialty().getName()))
+                    long eligibleL04Count = safeActiveStaff.stream()
+                            .filter(s -> s.getSpecialty() != null && l04SpecialtyIds.contains(s.getSpecialty().getId()))
                             .count();
-
-                    if (crossEnabled) {
-                        effectivePool = Math.max(1, totalEligibleL04Staff);
-                        log.info("L04 cross-specialty ENABLED: using eligible staff pool (size={}, total={})",
-                                totalEligibleL04Staff, safeActiveStaff.size());
-                    } else {
-                        long eligibleL04Count = safeActiveStaff.stream()
-                                .filter(s -> s.getSpecialty() != null && l04SpecialtyIds.contains(s.getSpecialty().getId()))
-                                .count();
-                        effectivePool = Math.max(1, (int) eligibleL04Count);
-                    }
+                    effectivePool = Math.max(1, (int) eligibleL04Count);
 
                     // Per-specialty fair share
                     for (Integer specId : l04SpecialtyIds) {
@@ -88,20 +65,13 @@ public class FairShareCalculator {
                                 .mapToInt(ShiftRequirement::getRequiredStaffCount)
                                 .sum();
 
-                        if (crossEnabled) {
-                            int specFairShare = specDemand > 0
-                                    ? Math.min(specDemand,
-                                            (int) Math.ceil((double) specDemand / totalEligibleL04Staff * 1.2)) : 1;
-                            result.put("L04:" + specId, specFairShare);
-                        } else {
-                            long specPool = safeActiveStaff.stream()
-                                    .filter(s -> s.getSpecialty() != null && specId.equals(s.getSpecialty().getId()))
-                                    .count();
-                            int specEffectivePool = Math.max(1, (int) specPool);
-                            int specFairShare = specDemand > 0
-                                    ? (int) Math.ceil((double) specDemand / specEffectivePool) : 1;
-                            result.put("L04:" + specId, specFairShare);
-                        }
+                        long specPool = safeActiveStaff.stream()
+                                .filter(s -> s.getSpecialty() != null && specId.equals(s.getSpecialty().getId()))
+                                .count();
+                        int specEffectivePool = Math.max(1, (int) specPool);
+                        int specFairShare = specDemand > 0
+                                ? (int) Math.ceil((double) specDemand / specEffectivePool) : 1;
+                        result.put("L04:" + specId, specFairShare);
                     }
                 } else {
                     effectivePool = staffPool;

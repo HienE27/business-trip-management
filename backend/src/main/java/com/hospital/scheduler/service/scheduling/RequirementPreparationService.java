@@ -9,7 +9,9 @@ import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,19 +30,28 @@ public class RequirementPreparationService {
     private final SpecialtyRepository specialtyRepository;
     private final EntityManager entityManager;
     private final AlgorithmConfigService algorithmConfigService;
+    private final LeaveRequestRepository leaveRequestRepository;
+    private final CompensationDayRepository compensationDayRepository;
+    private final ScheduleRepository scheduleRepository;
 
     public RequirementPreparationService(ShiftRequirementRepository requirementRepository,
                                        HolidayRepository holidayRepository,
                                        ShiftTypeRepository shiftTypeRepository,
                                        SpecialtyRepository specialtyRepository,
                                        EntityManager entityManager,
-                                       AlgorithmConfigService algorithmConfigService) {
+                                       AlgorithmConfigService algorithmConfigService,
+                                       LeaveRequestRepository leaveRequestRepository,
+                                       CompensationDayRepository compensationDayRepository,
+                                       ScheduleRepository scheduleRepository) {
         this.requirementRepository = requirementRepository;
         this.holidayRepository = holidayRepository;
         this.shiftTypeRepository = shiftTypeRepository;
         this.specialtyRepository = specialtyRepository;
         this.entityManager = entityManager;
         this.algorithmConfigService = algorithmConfigService;
+        this.leaveRequestRepository = leaveRequestRepository;
+        this.compensationDayRepository = compensationDayRepository;
+        this.scheduleRepository = scheduleRepository;
     }
 
     /**
@@ -121,9 +132,9 @@ public class RequirementPreparationService {
                 int min = (isHoliday && skipL03OnHoliday) ? 0 : config.l03MinPerDay();
                 newTarget = resolveSoftDailyTarget(min, config.l03MaxPerDay(), generalPoolSize);
             } else if (ConflictDetectionService.SHIFT_TYPE_L04.equals(typeId)) {
-                int specialtyPoolSize = config.l04CrossSpecialty()
-                        ? generalPoolSize
-                        : countActiveStaffBySpecialty(activeStaff, req.getSpecialty() != null ? req.getSpecialty().getId() : null);
+                // L04 luôn strict-specialty (không cross): pool = staff đúng chuyên khoa.
+                int specialtyPoolSize = countActiveStaffBySpecialty(activeStaff,
+                        req.getSpecialty() != null ? req.getSpecialty().getId() : null);
                 newTarget = resolveSoftDailyTarget(config.l04MinPerDay(), config.l04MaxPerDay(), specialtyPoolSize);
             } else {
                 continue;
@@ -168,6 +179,9 @@ public class RequirementPreparationService {
 
         int generalPoolSize = Math.max(1, activeStaff.size());
         List<Specialty> activeSpecialties = specialtyRepository.findByIsActiveTrue();
+        // Lịch mở PK chuyên gia theo ngày bác sĩ đúng khoa rảnh (thay thế
+        // cross-specialty): mỗi tuần chọn ngày có nhân lực rảnh nhất.
+        Map<LocalDate, Map<Integer, Integer>> l04FreeByDate = buildL04OpenSchedule(period, activeStaff, activeSpecialties);
         LocalDate current = period.getStartDate();
         while (!current.isAfter(period.getEndDate())) {
             LocalDate date = current;
@@ -198,13 +212,21 @@ public class RequirementPreparationService {
             }
 
             if (shouldGenerateFullDay && !removedShiftTypes.contains("L04")) {
-                for (Specialty specialty : activeSpecialties) {
-                    int specialtyPoolSize = config.l04CrossSpecialty()
-                            ? generalPoolSize
-                            : countActiveStaffBySpecialty(activeStaff, specialty.getId());
-                    int target = resolveSoftDailyTarget(config.l04MinPerDay(), config.l04MaxPerDay(), specialtyPoolSize);
-                    generated.add(buildAutoRequirement(period, l04, date, specialty, target,
-                            "AUTO_SOFT_TARGET:L04:" + date + ":" + specialty.getName()));
+                Map<Integer, Integer> freeBySpec = l04FreeByDate.get(date);
+                if (freeBySpec != null) {
+                    for (Specialty specialty : activeSpecialties) {
+                        int freeCount = freeBySpec.getOrDefault(specialty.getId(), 0);
+                        if (freeCount <= 0) continue; // hôm đó không ai đúng khoa rảnh → PK đóng
+                        int desired = resolveSoftDailyTarget(
+                                config.l04MinPerDay(), config.l04MaxPerDay(),
+                                countActiveStaffBySpecialty(activeStaff, specialty.getId()));
+                        // Số slot không được vượt số bác sĩ đúng khoa rảnh hôm đó
+                        // → không bao giờ phải cross-specialty, slot luôn xếp đủ.
+                        int target = Math.min(desired, freeCount);
+                        if (target <= 0) continue;
+                        generated.add(buildAutoRequirement(period, l04, date, specialty, target,
+                                "AUTO_SOFT_TARGET:L04:" + date + ":" + specialty.getName()));
+                    }
                 }
             }
 
@@ -253,7 +275,97 @@ public class RequirementPreparationService {
         long count = activeStaff.stream()
                 .filter(s -> s.getSpecialty() != null && Objects.equals(s.getSpecialty().getId(), specialtyId))
                 .count();
-        return Math.max(1, (int) count);
+        return (int) count;
+    }
+
+    /**
+     * Lịch mở PK chuyên gia theo nhân lực rảnh (thay thế cross-specialty):
+     * mỗi tuần (T2-T7, không CN), mỗi chuyên khoa mở PK vào {@code openDays}
+     * ngày có nhiều bác sĩ đúng khoa rảnh nhất. Bác sĩ "bận" = nghỉ phép
+     * APPROVED, nghỉ bù, hoặc đã có L01/L02/L03 cùng ngày trong DB.
+     * Ngày nào không còn ai đúng khoa rảnh → PK đóng (không sinh requirement)
+     * → không bao giờ cần cross-specialty, slot luôn xếp đủ.
+     *
+     * @return date → (specialtyId → số bác sĩ đúng khoa rảnh hôm đó)
+     */
+    private Map<LocalDate, Map<Integer, Integer>> buildL04OpenSchedule(
+            SchedulePeriod period, List<Staff> activeStaff, List<Specialty> activeSpecialties) {
+        Map<LocalDate, Map<Integer, Integer>> result = new HashMap<>();
+        if (period == null || period.getStartDate() == null || activeSpecialties.isEmpty()) {
+            return result;
+        }
+        LocalDate start = period.getStartDate();
+        LocalDate end = period.getEndDate();
+
+        // Nhân sự bận hôm đó: nghỉ phép APPROVED
+        Set<String> busyKeys = new HashSet<>();
+        for (LeaveRequest lr : leaveRequestRepository.findApprovedInRange(start, end)) {
+            if (lr.getStaff() == null || lr.getStartDate() == null) continue;
+            for (LocalDate d = lr.getStartDate(); !d.isAfter(lr.getEndDate()); d = d.plusDays(1)) {
+                if (!d.isBefore(start) && !d.isAfter(end)) busyKeys.add(lr.getStaff().getId() + "_" + d);
+            }
+        }
+        // Nghỉ bù
+        for (CompensationDay cd : compensationDayRepository.findInRange(start.minusDays(1), end.plusDays(1))) {
+            if (cd.getStaff() == null || cd.getCompensationDate() == null) continue;
+            if (!cd.getCompensationDate().isBefore(start) && !cd.getCompensationDate().isAfter(end)) {
+                busyKeys.add(cd.getStaff().getId() + "_" + cd.getCompensationDate());
+            }
+        }
+        // L01/L02/L03 đã ghi DB từ lần apply trước — cùng ngày không làm L04
+        for (Schedule s : scheduleRepository.findByPeriodId(period.getId())) {
+            if (s.getStaff() == null || s.getWorkDate() == null || s.getShiftType() == null) continue;
+            String t = s.getShiftType().getId();
+            if (!"L01".equals(t) && !"L02".equals(t) && !"L03".equals(t)) continue;
+            busyKeys.add(s.getStaff().getId() + "_" + s.getWorkDate());
+        }
+
+        // Bác sĩ active theo chuyên khoa
+        Map<Integer, List<Staff>> staffBySpec = new HashMap<>();
+        for (Staff s : activeStaff) {
+            if (s.getSpecialty() == null) continue;
+            staffBySpec.computeIfAbsent(s.getSpecialty().getId(), k -> new ArrayList<>()).add(s);
+        }
+
+        // Gom ngày T2-T7 theo tuần (CN đóng cửa)
+        Map<LocalDate, List<LocalDate>> weekDays = new TreeMap<>();
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            if (d.getDayOfWeek() == DayOfWeek.SUNDAY) continue;
+            LocalDate monday = d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            weekDays.computeIfAbsent(monday, k -> new ArrayList<>()).add(d);
+        }
+
+        for (Map.Entry<LocalDate, List<LocalDate>> week : weekDays.entrySet()) {
+            for (Specialty spec : activeSpecialties) {
+                List<Staff> specStaff = staffBySpec.getOrDefault(spec.getId(), List.of());
+                int strictPool = specStaff.size();
+                // Khoa không có bác sĩ active (vd Răng) → không thể mở PK
+                if (strictPool == 0) continue;
+                // Số ngày mở/tuần theo số bác sĩ: 1 bs → 1 ngày, ≥6 bs → cả tuần
+                int openDays = Math.min(6, Math.max(1, strictPool));
+                // Chọn openDays ngày có nhiều bác sĩ rảnh nhất (ưu tiên thứ sớm cho lịch ổn định)
+                List<LocalDate> chosen = week.getValue().stream()
+                        .sorted(Comparator
+                                .comparingInt((LocalDate d) -> countFree(d, specStaff, busyKeys)).reversed()
+                                .thenComparingInt((LocalDate d) -> d.getDayOfWeek().getValue()))
+                        .limit(openDays)
+                        .collect(Collectors.toList());
+                for (LocalDate d : chosen) {
+                    int free = countFree(d, specStaff, busyKeys);
+                    if (free <= 0) continue; // hôm đó không ai rảnh → PK đóng
+                    result.computeIfAbsent(d, k -> new HashMap<>()).put(spec.getId(), free);
+                }
+            }
+        }
+        return result;
+    }
+
+    private int countFree(LocalDate d, List<Staff> specStaff, Set<String> busyKeys) {
+        int free = 0;
+        for (Staff s : specStaff) {
+            if (!busyKeys.contains(s.getId() + "_" + d)) free++;
+        }
+        return free;
     }
 
     private List<ShiftRequirement> persistRequirementsIfTransient(List<ShiftRequirement> requirements) {

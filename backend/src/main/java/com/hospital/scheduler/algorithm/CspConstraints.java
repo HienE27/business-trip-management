@@ -132,8 +132,7 @@ public class CspConstraints {
      * re-routing.
      */
     public boolean[][] buildEligibilityMatrix(
-            int numStaff, int numShifts, List<Staff> staffList,
-            Set<String> l04AllowedSpecialties) {
+            int numStaff, int numShifts, List<Staff> staffList) {
         boolean[][] eligibilityMatrix = new boolean[numShifts][numStaff];
         for (int s = 0; s < numShifts; s++) {
             String shiftType = SHIFT_ORDER[s];
@@ -142,9 +141,7 @@ public class CspConstraints {
                 if (st == null || !Boolean.TRUE.equals(st.getIsActive())) continue;
                 Integer requiredSpec = null; // populated for L04 by caller if needed
                 eligibilityMatrix[s][staffIdx] = StaffShiftTypeEligibility.isEligible(
-                        st, shiftType, requiredSpec, l04AllowedSpecialties == null
-                                ? null
-                                : new ArrayList<>(l04AllowedSpecialties));
+                        st, shiftType, requiredSpec);
             }
         }
         return eligibilityMatrix;

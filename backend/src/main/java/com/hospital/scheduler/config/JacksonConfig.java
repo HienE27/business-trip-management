@@ -29,7 +29,7 @@ import org.springframework.context.annotation.Configuration;
  *       have to disable the flag explicitly.  Without it, endpoints like
  *       {@code PUT /auto-schedule/runtime-config} return HTTP 400 whenever the
  *       frontend sends extra fields (e.g. {@code holidayMode},
- *       {@code removedShiftTypes}, {@code l04CrossSpecialty}) that the backend
+ *       {@code removedShiftTypes}) that the backend
  *       DTO doesn't declare — the front and back ends drift apart and the save
  *       button mysteriously fails.</li>
  * </ul>
@@ -48,9 +48,8 @@ public class JacksonConfig {
         mapper.registerModule(new JavaTimeModule());
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         // BUGFIX: accept unknown properties so frontend can evolve its payload
-        // shape (e.g. adding cross-specialty fields) without forcing a
-        // coordinated backend redeploy for every UI tweak.  Server-side
-        // validation is the source of truth; client-side extras are noise.
+        // shape without forcing a coordinated backend redeploy for every UI tweak.
+        // Server-side validation is the source of truth; client-side extras are noise.
         mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         // @formatter:off
         // Intentionally ALWAYS — see class-level javadoc for rationale.

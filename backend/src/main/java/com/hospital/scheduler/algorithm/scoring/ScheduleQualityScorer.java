@@ -518,10 +518,7 @@ public class ScheduleQualityScorer {
     private FairnessBucketResult computeFairnessL04(
             List<Schedule> schedules, List<Staff> activeStaff, AutoGenConfig cfg) {
 
-        Map<Integer, Set<Integer>> l04BySpec = cfg != null
-                ? StaffShiftTypeEligibility.getL04EligibilityBySpecialty(
-                        activeStaff, cfg.l04AllowedSpecialties(), cfg.l04CrossSpecialty())
-                : StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff);
+        Map<Integer, Set<Integer>> l04BySpec = StaffShiftTypeEligibility.getL04EligibilityBySpecialty(activeStaff);
 
         if (l04BySpec.isEmpty()) {
             return new FairnessBucketResult(emptyFairnessDetail(FAIRNESS_KEY_L04), 100.0);

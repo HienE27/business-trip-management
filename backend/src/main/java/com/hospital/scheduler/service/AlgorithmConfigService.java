@@ -56,11 +56,6 @@ public class AlgorithmConfigService {
     public static final String AUTO_GEN_L03_MAX_PER_WEEK = "auto_gen_l03_max_per_week";
     public static final String AUTO_GEN_L04_MAX_PER_WEEK = "auto_gen_l04_max_per_week";
     public static final String AUTO_GEN_HOLIDAY_MODE = "auto_gen_holiday_mode";
-    // L04 cross-specialty (chỉ L04 có specialty config; L01/L02/L03 không cần)
-    public static final String AUTO_GEN_L04_CROSS_SPECIALTY = "auto_gen_l04_cross_specialty";
-    public static final String AUTO_GEN_L04_CROSS_SPECIALTY_RATIO = "auto_gen_l04_cross_specialty_ratio";
-    public static final String AUTO_GEN_L04_ALLOWED_SPECIALTIES = "auto_gen_l04_allowed_specialties";
-    public static final String AUTO_GEN_L04_BALANCE_STRATEGY = "auto_gen_l04_balance_strategy";
     // PR-002A + key-mismatch fix: align with ConfigMapper.SWITCH which reads
     // "auto_gen_removed_shift_types" (lowercase). Prior uppercase key caused
     // config-calculator to see empty removedShiftTypes even after algorithm-config
@@ -541,7 +536,7 @@ public class AlgorithmConfigService {
             boolean expandNonL04Eligibility,
             java.util.List<String> expandedSpecialties) {
 
-        // Snapshot existing config để giữ enabled, holidayMode, cross-specialty, allowed lists
+        // Snapshot existing config để giữ enabled, holidayMode
         AutoGenConfig current = getAutoGenConfig().orElseThrow();
 
         int l01Target = Math.max(0, targetPerStaff.getOrDefault("L01", 0));
@@ -573,19 +568,13 @@ public class AlgorithmConfigService {
                 + (l03Target * l03Elig) + (l04Target * l04Elig);
 
         // L01/L02/L03: không có specialty config — dùng StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
-        // Chỉ L04 có specialty config
-	        AutoGenConfig recommended = new AutoGenConfig(
-	                current.enabled(),
-	                l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
-	                l01MaxPerDay, l02MaxPerDay, l03MaxPerDay, l04MaxPerDay,
-	                0, 0, 0, 0,  // max/week
-	                current.holidayMode(),
-	                current.removedShiftTypes() != null ? current.removedShiftTypes() : java.util.List.of(),
-	                // L04 only
-	                current.l04CrossSpecialty(),
-	                current.l04CrossSpecialtyRatio(),
-	                current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : java.util.List.of(),
-	                current.l04BalanceStrategy() != null ? current.l04BalanceStrategy() : AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE
+        AutoGenConfig recommended = new AutoGenConfig(
+                current.enabled(),
+                l01MinPerDay, l02MinPerDay, l03MinPerDay, l04MinPerDay,
+                l01MaxPerDay, l02MaxPerDay, l03MaxPerDay, l04MaxPerDay,
+                0, 0, 0, 0,  // max/week
+                current.holidayMode(),
+                current.removedShiftTypes() != null ? current.removedShiftTypes() : java.util.List.of()
         );
 
         String rationale = String.format(

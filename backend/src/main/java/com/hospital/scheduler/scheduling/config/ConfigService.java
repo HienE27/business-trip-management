@@ -287,11 +287,6 @@ public class ConfigService {
         if (override.l03MaxPerDay() > 0) b.l03MaxPerDay(override.l03MaxPerDay());
         if (override.l04MinPerDay() > 0) b.l04MinPerDay(override.l04MinPerDay());
         if (override.l04MaxPerDay() > 0) b.l04MaxPerDay(override.l04MaxPerDay());
-        if (override.l04CrossSpecialtyEnabled() != base.l04CrossSpecialtyEnabled())
-            b.l04CrossSpecialtyEnabled(override.l04CrossSpecialtyEnabled());
-        if (override.l04CrossSpecialtyRatio() > 0) b.l04CrossSpecialtyRatio(override.l04CrossSpecialtyRatio());
-        if (override.l04AllowedSpecialties().length > 0) b.l04AllowedSpecialties(override.l04AllowedSpecialties());
-        if (!override.l04BalanceStrategy().isBlank()) b.l04BalanceStrategy(override.l04BalanceStrategy());
         if (override.overnightRecoveryHours() > 0) b.overnightRecoveryHours(override.overnightRecoveryHours());
         if (override.greedyCoverageThreshold() > 0) b.greedyCoverageThreshold(override.greedyCoverageThreshold());
         if (override.minStaffPerShift() >= 0) b.minStaffPerShift(override.minStaffPerShift());
@@ -335,10 +330,6 @@ public class ConfigService {
             case "fairness.cvTarget" -> config.cvTarget();
             case "fairness.cvWorst" -> config.cvWorst();
             case "fairness.weekendWeight" -> config.weekendWeight();
-            case "l04.crossSpecialtyEnabled" -> config.l04CrossSpecialtyEnabled();
-            case "l04.crossSpecialtyRatio" -> config.l04CrossSpecialtyRatio();
-            case "l04.allowedSpecialties" -> config.l04AllowedSpecialties();
-            case "l04.balanceStrategy" -> config.l04BalanceStrategy();
             case "constraints.overnightRecoveryHours" -> config.overnightRecoveryHours();
             case "constraints.greedyCoverageThreshold" -> config.greedyCoverageThreshold();
             case "constraints.minStaffPerShift" -> config.minStaffPerShift();
@@ -385,10 +376,6 @@ public class ConfigService {
             case "fairness.cvTarget" -> b.cvTarget(toDouble(value));
             case "fairness.cvWorst" -> b.cvWorst(toDouble(value));
             case "fairness.weekendWeight" -> b.weekendWeight(toDouble(value));
-            case "l04.crossSpecialtyEnabled" -> b.l04CrossSpecialtyEnabled(toBoolean(value));
-            case "l04.crossSpecialtyRatio" -> b.l04CrossSpecialtyRatio(toDouble(value));
-            case "l04.allowedSpecialties" -> b.l04AllowedSpecialties(toStringArray(value));
-            case "l04.balanceStrategy" -> b.l04BalanceStrategy(toString(value));
             case "constraints.overnightRecoveryHours" -> b.overnightRecoveryHours(toInt(value));
             case "constraints.greedyCoverageThreshold" -> b.greedyCoverageThreshold(toDouble(value));
             case "constraints.minStaffPerShift" -> b.minStaffPerShift(toInt(value));

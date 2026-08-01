@@ -75,12 +75,7 @@ public class AlgorithmConfigRecommendationService {
                 l01MaxPerDay, l02MaxPerDay, l03MaxPerDay, l04MaxPerDay,
                 0, 0, 0, 0,  // max/week (unused by algorithm, kept for future enforcement)
                 current.holidayMode(),
-                current.removedShiftTypes() != null ? current.removedShiftTypes() : List.of(),
-                // L04 only
-                current.l04CrossSpecialty(),
-                current.l04CrossSpecialtyRatio(),
-                current.l04AllowedSpecialties() != null ? current.l04AllowedSpecialties() : List.of(),
-                current.l04BalanceStrategy() != null ? current.l04BalanceStrategy() : "FAIR_DISTRIBUTE"
+                current.removedShiftTypes() != null ? current.removedShiftTypes() : List.of()
         );
 
         String rationale = String.format(

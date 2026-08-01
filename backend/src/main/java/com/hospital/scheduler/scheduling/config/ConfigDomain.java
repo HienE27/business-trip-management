@@ -21,7 +21,6 @@ package com.hospital.scheduler.scheduling.config;
  *   <li>ALGORITHM - iteration, neighborhood, tabu, termination</li>
  *   <li>FAIRNESS - coefficient of variation targets</li>
  *   <li>COVERAGE - per-shift-type min/max bounds</li>
- *   <li>L04 - cross-specialty, ratio, balance strategy</li>
  *   <li>CONSTRAINTS - overnight recovery, staff/shift limits</li>
  *   <li>PERFORMANCE - time limit, candidate size</li>
  * </ul>
@@ -142,22 +141,6 @@ public record ConfigDomain(
         int l04MaxPerWeek,
 
         // ═══════════════════════════════════════════════════════════════════
-        // L04 - Expert Clinic (cross-specialty specific)
-        // ═══════════════════════════════════════════════════════════════════
-
-        /** Enable cross-specialty assignment for L04. Default: false. */
-        boolean l04CrossSpecialtyEnabled,
-
-        /** Max ratio of L04 shifts that can be cross-specialty (0.0-1.0). Default: 0.3. */
-        double l04CrossSpecialtyRatio,
-
-        /** Allowed specialty IDs for cross-specialty L04 assignment. */
-        String[] l04AllowedSpecialties,
-
-        /** Balance strategy for L04: STRICT_MATCH_ONLY, FAIR_DISTRIBUTE, WEIGHTED_FAIR. */
-        String l04BalanceStrategy,
-
-        // ═══════════════════════════════════════════════════════════════════
         // CONSTRAINTS
         // ═══════════════════════════════════════════════════════════════════
 
@@ -204,12 +187,10 @@ public record ConfigDomain(
     public ConfigDomain {
         // Defensive: null arrays → empty arrays
         removedShiftTypes = removedShiftTypes != null ? removedShiftTypes.clone() : new String[0];
-        l04AllowedSpecialties = l04AllowedSpecialties != null ? l04AllowedSpecialties.clone() : new String[0];
 
         // Defensive: null string → empty string
         holidayMode = holidayMode != null ? holidayMode : "";
         acceptanceStrategy = acceptanceStrategy != null ? acceptanceStrategy : "";
-        l04BalanceStrategy = l04BalanceStrategy != null ? l04BalanceStrategy : "";
     }
 
     /**
@@ -288,11 +269,6 @@ public record ConfigDomain(
         private int l03MinPerDay = 0, l03MaxPerDay = 0, l03MaxPerWeek = 0;
         private int l04MinPerDay = 0, l04MaxPerDay = 0, l04MaxPerWeek = 0;
 
-        private boolean l04CrossSpecialtyEnabled = false;
-        private double l04CrossSpecialtyRatio = 0;
-        private String[] l04AllowedSpecialties = new String[0];
-        private String l04BalanceStrategy = "";
-
         private int overnightRecoveryHours = 0;
         private double greedyCoverageThreshold = 0;
         private int minStaffPerShift = 0, maxStaffPerShift = 0;
@@ -335,10 +311,6 @@ public record ConfigDomain(
             this.l04MinPerDay = other.l04MinPerDay;
             this.l04MaxPerDay = other.l04MaxPerDay;
             this.l04MaxPerWeek = other.l04MaxPerWeek;
-            this.l04CrossSpecialtyEnabled = other.l04CrossSpecialtyEnabled;
-            this.l04CrossSpecialtyRatio = other.l04CrossSpecialtyRatio;
-            this.l04AllowedSpecialties = other.l04AllowedSpecialties.clone();
-            this.l04BalanceStrategy = other.l04BalanceStrategy;
             this.overnightRecoveryHours = other.overnightRecoveryHours;
             this.greedyCoverageThreshold = other.greedyCoverageThreshold;
             this.minStaffPerShift = other.minStaffPerShift;
@@ -387,11 +359,6 @@ public record ConfigDomain(
         public Builder l04MaxPerDay(int v) { this.l04MaxPerDay = v; return this; }
         public Builder l04MaxPerWeek(int v) { this.l04MaxPerWeek = v; return this; }
 
-        public Builder l04CrossSpecialtyEnabled(boolean v) { this.l04CrossSpecialtyEnabled = v; return this; }
-        public Builder l04CrossSpecialtyRatio(double v) { this.l04CrossSpecialtyRatio = v; return this; }
-        public Builder l04AllowedSpecialties(String[] v) { this.l04AllowedSpecialties = v; return this; }
-        public Builder l04BalanceStrategy(String v) { this.l04BalanceStrategy = v; return this; }
-
         public Builder overnightRecoveryHours(int v) { this.overnightRecoveryHours = v; return this; }
         public Builder greedyCoverageThreshold(double v) { this.greedyCoverageThreshold = v; return this; }
         public Builder minStaffPerShift(int v) { this.minStaffPerShift = v; return this; }
@@ -415,8 +382,6 @@ public record ConfigDomain(
                     l02MinPerDay, l02MaxPerDay, l02MaxPerWeek,
                     l03MinPerDay, l03MaxPerDay, l03MaxPerWeek,
                     l04MinPerDay, l04MaxPerDay, l04MaxPerWeek,
-                    l04CrossSpecialtyEnabled, l04CrossSpecialtyRatio,
-                    l04AllowedSpecialties, l04BalanceStrategy,
                     overnightRecoveryHours, greedyCoverageThreshold,
                     minStaffPerShift, maxStaffPerShift, minShiftsPerStaff, maxShiftsPerStaff,
                     timeLimitSeconds, candidateListSize

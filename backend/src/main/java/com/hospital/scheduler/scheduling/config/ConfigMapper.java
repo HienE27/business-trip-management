@@ -16,7 +16,6 @@ import java.util.*;
  * auto_gen.*          → AutoGenConfig (holidayMode, removedShiftTypes, L01-L04 bounds)
  * scheduling.*       → SchedulingConfig (algorithm params)
  * fairness.*         → Fairness targets (CV, weekend weight)
- * l04.*              → L04 cross-specialty config
  * constraint.*       → Constraint params (recovery, limits)
  * performance.*       → Performance params (time limit, candidate size)
  * runtime.*          → Runtime overrides
@@ -95,12 +94,6 @@ public final class ConfigMapper {
             Map.entry("coverage.l04.minPerDay",  "auto_gen_l04_min_per_day"),
             Map.entry("coverage.l04.maxPerDay",  "auto_gen_l04_max_per_day"),
             Map.entry("coverage.l04.maxPerWeek", "auto_gen_l04_max_per_week"),
-
-            // L04 CROSS-SPECIALTY
-            Map.entry("l04.crossSpecialtyEnabled",   "auto_gen_l04_cross_specialty"),
-            Map.entry("l04.crossSpecialtyRatio",     "auto_gen_l04_cross_specialty_ratio"),
-            Map.entry("l04.allowedSpecialties",      "auto_gen_l04_allowed_specialties"),
-            Map.entry("l04.balanceStrategy",         "auto_gen_l04_balance_strategy"),
 
             // CONSTRAINTS
             Map.entry("constraints.overnightRecoveryHours",  "overnight_recovery_hours"),
@@ -186,12 +179,6 @@ public final class ConfigMapper {
         put(result, "coverage.l04.maxPerDay",  String.valueOf(d.l04MaxPerDay()));
         put(result, "coverage.l04.maxPerWeek", String.valueOf(d.l04MaxPerWeek()));
 
-        // L04 CROSS-SPECIALTY
-        put(result, "l04.crossSpecialtyEnabled",   String.valueOf(d.l04CrossSpecialtyEnabled()));
-        put(result, "l04.crossSpecialtyRatio",     String.valueOf(d.l04CrossSpecialtyRatio()));
-        put(result, "l04.allowedSpecialties",      join(d.l04AllowedSpecialties()));
-        put(result, "l04.balanceStrategy",         d.l04BalanceStrategy());
-
         // CONSTRAINTS
         put(result, "constraints.overnightRecoveryHours",  String.valueOf(d.overnightRecoveryHours()));
         put(result, "constraints.greedyCoverageThreshold", String.valueOf(d.greedyCoverageThreshold()));
@@ -266,12 +253,6 @@ public final class ConfigMapper {
         b.l04MinPerDay(intOf(paramMap, "coverage.l04.minPerDay", 1));
         b.l04MaxPerDay(intOf(paramMap, "coverage.l04.maxPerDay", 10));
         b.l04MaxPerWeek(intOf(paramMap, "coverage.l04.maxPerWeek", 3));
-
-        // L04 CROSS-SPECIALTY
-        b.l04CrossSpecialtyEnabled(boolOf(paramMap, "l04.crossSpecialtyEnabled", false));
-        b.l04CrossSpecialtyRatio(doubleOf(paramMap, "l04.crossSpecialtyRatio", 0.30));
-        b.l04AllowedSpecialties(splitOf(paramMap, "l04.allowedSpecialties"));
-        b.l04BalanceStrategy(strOf(paramMap, "l04.balanceStrategy", "FAIR_DISTRIBUTE"));
 
         // CONSTRAINTS
         b.overnightRecoveryHours(intOf(paramMap, "constraints.overnightRecoveryHours", 24));

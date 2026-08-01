@@ -3,7 +3,6 @@ package com.hospital.scheduler.service.scheduling;
 import com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
-import com.hospital.scheduler.service.AlgorithmConfigService;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +20,6 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>Tỷ lệ eligible/required cho mỗi ngày và loại lịch</li>
  *   <li>Cảnh báo khi requirement không khả thi</li>
- *   <li>Gợi ý cấu hình cross-specialty</li>
  *   <li>Thống kê staff availability</li>
  * </ul>
  *
@@ -29,7 +27,7 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>L01/L02/L03: tất cả staff active ∈ eligible specialties</li>
  *   <li>L04: staff active ∈ eligible specialties + khớp requiredSpecialty
- *       HOẶC trong danh sách cross-specialty</li>
+ *       (strict-specialty, không cross-specialty)</li>
  *   <li>Loại trừ: staff đang nghỉ phép, đang nghỉ bù, holiday</li>
  * </ul>
  */
@@ -43,7 +41,6 @@ public class SchedulingFeasibilityAnalyzer {
     private final LeaveRequestRepository leaveRequestRepository;
     private final CompensationDayRepository compensationDayRepository;
     private final HolidayRepository holidayRepository;
-    private final AlgorithmConfigService algorithmConfigService;
 
     /** Kết quả phân tích tính khả thi */
     @Builder
@@ -186,22 +183,6 @@ public class SchedulingFeasibilityAnalyzer {
                 .map(Holiday::getHolidayDate)
                 .collect(Collectors.toSet());
 
-        // 3d. Build L04 cross-specialty config from DB
-        List<String> l04AllowedSpecialties = List.of();
-        boolean l04CrossSpecialty = false;
-        try {
-            var cfgOpt = algorithmConfigService.getAutoGenConfig();
-            if (cfgOpt.isPresent()) {
-                var cfg = cfgOpt.get();
-                l04CrossSpecialty = cfg.l04CrossSpecialty();
-                l04AllowedSpecialties = cfg.l04AllowedSpecialties() != null
-                        ? cfg.l04AllowedSpecialties()
-                        : List.of();
-            }
-        } catch (Exception e) {
-            log.warn("Could not load L04 cross-specialty config, using defaults: {}", e.getMessage());
-        }
-
         // 4. Group requirements by date and shift type (defensive: skip null shiftType)
         Map<LocalDate, Map<String, List<ShiftRequirement>>> reqsByDateAndType = requirements.stream()
                 .filter(r -> r.getShiftType() != null)
@@ -261,8 +242,7 @@ public class SchedulingFeasibilityAnalyzer {
                         .sum();
 
                 // Count eligible staff using StaffShiftTypeEligibility (mirrors actual scheduler logic)
-                int eligible = countEligibleStaff(shiftTypeId, dayReqList, pool,
-                        l04CrossSpecialty, l04AllowedSpecialties);
+                int eligible = countEligibleStaff(shiftTypeId, dayReqList, pool);
 
                 // Accumulate for summary
                 dailyEligibleByType.computeIfAbsent(shiftTypeId, k -> new ArrayList<>()).add(eligible);
@@ -310,8 +290,7 @@ public class SchedulingFeasibilityAnalyzer {
         // 6. Calculate availability summary per shift type
         Map<String, StaffAvailabilitySummary> availabilityByShiftType = calculateAvailabilitySummary(
                 allActiveStaff, dailyEligibleByType,
-                reqsByDateAndType, combinedPool,
-                l04CrossSpecialty, l04AllowedSpecialties);
+                reqsByDateAndType, combinedPool);
 
         // 7. Generate warnings and recommendations
         List<String> warnings = new ArrayList<>();
@@ -360,27 +339,12 @@ public class SchedulingFeasibilityAnalyzer {
             for (ShiftTypeAnalysis sta : day.shiftTypes().values()) {
                 if (sta.isUnderstaffed() && sta.eligibleStaff() == 0) {
                     recommendations.add(String.format(
-                            "[NGAY] %s [%s]: Không có nhân sự eligible - bật cross-specialty hoặc thêm nhân sự",
+                            "[NGAY] %s [%s]: Không có nhân sự eligible - thêm nhân sự hoặc mở PK vào ngày khác",
                             day.date(), SHIFT_TYPE_LABELS.getOrDefault(sta.shiftTypeId(), sta.shiftTypeId())));
                 } else if (sta.isUnderstaffed()) {
                     shortageByType.merge(sta.shiftTypeId(), sta.required() - sta.eligibleStaff(), Integer::sum);
                 }
             }
-        }
-
-        // Recommend enabling cross-specialty if L04 has shortages or no-buffer
-        String l04Label = SHIFT_TYPE_LABELS.getOrDefault("L04", "PK Chuyên gia");
-        if (shortageByType.containsKey("L04") && !l04CrossSpecialty) {
-            recommendations.add(String.format(
-                    "[GOI-Y] %s thiếu %d ca — bật cross-specialty trong Cấu hình thuật toán để tăng pool nhân sự",
-                    l04Label, shortageByType.get("L04")));
-        }
-        // Also check buffer risk for L04
-        var l04Summary = availabilityByShiftType.get("L04");
-        if (l04Summary != null && l04Summary.bufferRisk() != BufferRisk.NONE && !l04CrossSpecialty) {
-            recommendations.add(String.format(
-                    "[GOI-Y] %s có bufferRisk=%s — bật cross-specialty để tăng dự phòng",
-                    l04Label, l04Summary.bufferRisk()));
         }
 
         boolean hasNoBufferWarning = noBufferDaysByType.values().stream().anyMatch(v -> v > 0);
@@ -414,18 +378,13 @@ public class SchedulingFeasibilityAnalyzer {
      * {@link AutoSchedulingService}, đảm bảo feasibility report đồng nhất
      * với kết quả thực tế của scheduler.
      *
-     * <p>Với L04, kiểm tra:
-     * <ul>
-     *   <li>Staff active + thuộc eligible specialties</li>
-     *   <li>Staff khớp requiredSpecialtyId HOẶC thuộc l04AllowedSpecialties (nếu cross-specialty bật)</li>
-     * </ul>
+     * <p>Với L04, strict-specialty: chỉ staff khớp requiredSpecialtyId
+     * (không cross-specialty).
      */
     private int countEligibleStaff(
             String shiftTypeId,
             List<ShiftRequirement> requirements,
-            List<Staff> pool,
-            boolean l04CrossSpecialty,
-            List<String> l04AllowedSpecialties) {
+            List<Staff> pool) {
 
         switch (shiftTypeId) {
             case "L01":
@@ -437,7 +396,7 @@ public class SchedulingFeasibilityAnalyzer {
                         .count();
 
             case "L04": {
-                // L04: staff phải khớp requiredSpecialty HOẶC trong allowed list (cross-specialty)
+                // L04 strict-only: staff phải khớp requiredSpecialty
                 Set<Integer> requiredSpecIds = requirements.stream()
                         .filter(r -> r.getSpecialty() != null)
                         .map(r -> r.getSpecialty().getId())
@@ -449,19 +408,7 @@ public class SchedulingFeasibilityAnalyzer {
                             // Staff phải khớp MỘT trong required specialties
                             if (requiredSpecIds.isEmpty()) return true; // no specialty constraint
                             Integer staffSpecId = s.getSpecialty() != null ? s.getSpecialty().getId() : null;
-                            if (staffSpecId != null && requiredSpecIds.contains(staffSpecId)) return true;
-
-                            // Cross-specialty: empty allowed list = tất cả khoa được phép
-                            if (l04CrossSpecialty) {
-                                if (l04AllowedSpecialties == null || l04AllowedSpecialties.isEmpty()) {
-                                    return true; // empty = all specialties
-                                }
-                                String staffSpecName = s.getSpecialty() != null ? s.getSpecialty().getName() : null;
-                                if (staffSpecName != null && l04AllowedSpecialties.contains(staffSpecName)) {
-                                    return true;
-                                }
-                            }
-                            return false;
+                            return staffSpecId != null && requiredSpecIds.contains(staffSpecId);
                         })
                         .count();
             }
@@ -478,9 +425,7 @@ public class SchedulingFeasibilityAnalyzer {
             List<Staff> allActiveStaff,
             Map<String, List<Integer>> dailyEligibleByType,
             Map<LocalDate, Map<String, List<ShiftRequirement>>> reqsByDateAndType,
-            List<Staff> pool,
-            boolean l04CrossSpecialty,
-            List<String> l04AllowedSpecialties) {
+            List<Staff> pool) {
 
         int totalActive = allActiveStaff.size();
         Map<String, StaffAvailabilitySummary> summary = new HashMap<>();
@@ -534,8 +479,7 @@ public class SchedulingFeasibilityAnalyzer {
             }
 
             // Find backup staff: eligible but not in main pool (on leave/comp)
-            List<StaffBackup> backups = findBackupStaff(shiftTypeId, allActiveStaff, pool,
-                    l04CrossSpecialty, l04AllowedSpecialties);
+            List<StaffBackup> backups = findBackupStaff(shiftTypeId, allActiveStaff, pool);
 
             summary.put(shiftTypeId, new StaffAvailabilitySummary(
                     shiftTypeId,
@@ -571,47 +515,26 @@ public class SchedulingFeasibilityAnalyzer {
         return sorted.size() % 2 == 0 ? (sorted.get(mid - 1) + sorted.get(mid)) / 2 : sorted.get(mid);
     }
 
-    /** Tìm nhân sự dự phòng — không trong pool chính nhưng có thể cross-cover */
+    /** Tìm nhân sự dự phòng — không trong pool chính (nghỉ phép/nghỉ bù). */
     private List<StaffBackup> findBackupStaff(
             String shiftTypeId,
             List<Staff> allActiveStaff,
-            List<Staff> pool,
-            boolean l04CrossSpecialty,
-            List<String> l04AllowedSpecialties) {
+            List<Staff> pool) {
 
         Set<Integer> poolIds = pool.stream().map(Staff::getId).collect(Collectors.toSet());
-        Set<Integer> crossEligibleIds = new HashSet<>();
 
-	        if ("L04".equals(shiftTypeId) && l04CrossSpecialty) {
-	            boolean allAllowed = l04AllowedSpecialties == null || l04AllowedSpecialties.isEmpty();
-	            crossEligibleIds = allActiveStaff.stream()
-	                    .filter(s -> poolIds.contains(s.getId()))
-	                    .filter(s -> s.getSpecialty() != null && (allAllowed || l04AllowedSpecialties.contains(s.getSpecialty().getName())))
-	                    .map(Staff::getId)
-	                    .collect(Collectors.toSet());
-	        }
+        // Backups = staff active but NOT in pool (on leave/comp).
+        // L04 strict-specialty (không cross): không có dự phòng từ khoa khác.
+        if ("L04".equals(shiftTypeId)) return List.of();
 
-	        // Backups = staff active but NOT in pool (on leave/comp)
-	        // AND eligible via cross-specialty if L04
-	        List<StaffBackup> backups = allActiveStaff.stream()
-	                .filter(s -> !poolIds.contains(s.getId()))
-	                .filter(s -> {
-	                    if ("L04".equals(shiftTypeId)) {
-	                        if (!l04CrossSpecialty) return false;
-	                        if (s.getSpecialty() == null) return false;
-	                        if (l04AllowedSpecialties == null || l04AllowedSpecialties.isEmpty()) return true; // all allowed
-	                        return l04AllowedSpecialties.contains(s.getSpecialty().getName());
-	                    }
-	                    return true;
-	                })
+        return allActiveStaff.stream()
+                .filter(s -> !poolIds.contains(s.getId()))
                 .map(s -> new StaffBackup(
                         s.getId(),
                         s.getFullName(),
                         s.getSpecialty() != null ? s.getSpecialty().getName() : "—",
                         0))
                 .toList();
-
-        return backups;
     }
 
     /** Kiểm tra nhanh xem kỳ lịch có khả thi không */

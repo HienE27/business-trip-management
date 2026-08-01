@@ -1,7 +1,5 @@
 package com.hospital.scheduler.service.scheduling;
 
-import com.hospital.scheduler.algorithm.AutoGenConfig;
-import com.hospital.scheduler.algorithm.AutoGenConstants;
 import com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.exception.BadRequestException;
@@ -27,27 +25,9 @@ import java.util.stream.Collectors;
 public class StaffEligibilityFilter {
 
     private final ConflictDetectionService conflictDetectionService;
-    private final AlgorithmConfigService algorithmConfigService;
 
-    public StaffEligibilityFilter(ConflictDetectionService conflictDetectionService,
-                                  AlgorithmConfigService algorithmConfigService) {
+    public StaffEligibilityFilter(ConflictDetectionService conflictDetectionService) {
         this.conflictDetectionService = conflictDetectionService;
-        this.algorithmConfigService = algorithmConfigService;
-    }
-
-    public record CrossSpecialtyConfig(boolean enabled, float ratio, List<String> allowedSpecialties, String balanceStrategy) {
-        public static CrossSpecialtyConfig disabled() {
-            return new CrossSpecialtyConfig(false, 0.3f, List.of(), AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE);
-        }
-
-        /**
-         * Default config when no DB entry exists. Cross-specialty is DISABLED
-         * (aligned with UI default). Kept for backward compatibility of the
-         * deprecated filter path.
-         */
-        public static CrossSpecialtyConfig defaultEnabled() {
-            return new CrossSpecialtyConfig(false, 0.5f, List.of(), AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE);
-        }
     }
 
     public record WeeklyCountTracker(Map<Integer, Map<String, Integer>> weeklyCounts) {}
@@ -62,9 +42,7 @@ public class StaffEligibilityFilter {
      *                 Set, Set, int, int, String, Map, Map,
      *                 AlgorithmConfigService.AlgorithmRuntimeConfig, List, Integer)}.
      *             <p>
-     *             This method contains a bug in the crossEnabled logic
-     *             (uses {@code isL04WithSpecialty} instead of {@code crossConfig.enabled()}),
-     *             but is kept here only for reference and will be removed in a future release.
+     *             Kept only for reference and will be removed in a future release.
      *             <p>
      *             Scheduled for removal.
      */
@@ -90,25 +68,11 @@ public class StaffEligibilityFilter {
 
         ShiftType shiftType = req.getShiftType();
         String shiftTypeId = shiftType.getId();
-        boolean isL04WithSpecialty = ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)
-                && req.getSpecialty() != null;
-        // BUGFIX (M07-CROSSCONFIG): crossEnabled must reflect the user's
-        // l04.crossSpecialtyEnabled toggle. The previous version set
-        // crossEnabled = isL04WithSpecialty (shape-based), so when the user
-        // turned OFF the toggle the algorithm still added cross-specialty
-        // staff to the eligible pool and picked them when strict matches were
-        // exhausted — surfacing non-zero "Cross L04" KPI despite the toggle
-        // being off. Now crossEnabled gates whether cross-staff are
-        // considered at all; with the toggle off, they are filtered out
-        // entirely and the L04 slot is left unassigned instead of being
-        // filled with the wrong specialty.
-        CrossSpecialtyConfig crossConfig = isL04WithSpecialty
-                ? getCrossSpecialtyConfig(shiftTypeId)
-                : CrossSpecialtyConfig.disabled();
-        boolean crossEnabled = isL04WithSpecialty && crossConfig.enabled();
+        // L04 luôn strict-specialty (cross-specialty đã gỡ — thay bằng
+        // "đổi ngày mở thích ứng"): staff không đúng chuyên khoa không bao
+        // giờ được đưa vào pool L04.
 
         List<Staff> strictMatches = new ArrayList<>();
-        List<Staff> crossMatches = new ArrayList<>();
 
         for (Staff staff : pool) {
             if (excludedStaffIds != null && excludedStaffIds.contains(staff.getId())) continue;
@@ -119,27 +83,11 @@ public class StaffEligibilityFilter {
             Integer requiredSpecId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
             if (!StaffShiftTypeEligibility.isEligible(staff, shiftTypeId, requiredSpecId)) continue;
 
-            // 1. Specialty check
+            // 1. Specialty check — L04 strict-only: non-matching specialty bị loại
             boolean isStrictMatch = req.getSpecialty() == null
                     || (staff.getSpecialty() != null && staff.getSpecialty().getId().equals(req.getSpecialty().getId()));
 
-            if (!isStrictMatch) {
-                if (!crossEnabled) continue;
-
-                // Cross-specialty cap
-                long crossAssignedToday = assignedStaffIds.stream()
-                        .filter(id -> {
-                            Staff s = pool.stream().filter(st -> st.getId().equals(id)).findFirst().orElse(null);
-                            return s != null && s.getSpecialty() != null
-                                    && req.getSpecialty() != null
-                                    && !s.getSpecialty().getId().equals(req.getSpecialty().getId());
-                        })
-                        .count();
-
-                int totalRequired = Math.max(1, req.getRequiredStaffCount());
-                int maxCrossCandidates = (int) Math.ceil(totalRequired * crossConfig.ratio());
-                if (crossAssignedToday >= maxCrossCandidates) continue;
-            }
+            if (!isStrictMatch) continue;
 
             // 2. In-memory assignment conflict
             if (hasInMemoryConflict(staff.getId(), req.getWorkDate(), shiftTypeId)) continue;
@@ -196,55 +144,14 @@ public class StaffEligibilityFilter {
 
             if (isStrictMatch) {
                 strictMatches.add(staff);
-            } else {
-                crossMatches.add(staff);
             }
         }
 
         strictMatches.sort(sortComparator);
-        crossMatches.sort(sortComparator);
 
-        List<Staff> eligible = new ArrayList<>(strictMatches.size() + crossMatches.size());
-        int required = Math.max(1, req.getRequiredStaffCount());
-
-        // ── Balance strategy ─────────────────────────────────────────────────
-        // Implemented here so the UI dropdown has real effect. Previously
-        // reserved/not-applied. Fix: V10-balance-strategy.
-        String balanceStrategy = crossConfig.balanceStrategy();
-
-        if (AutoGenConstants.BALANCE_STRATEGY_STRICT_MATCH_ONLY.equals(balanceStrategy)) {
-            // STRICT_MATCH_ONLY: never include cross-specialty staff
-            eligible.addAll(strictMatches);
-            // crossMatches discarded entirely → L04 may go unfilled if strict pool insufficient
-
-        } else if (AutoGenConstants.BALANCE_STRATEGY_WEIGHTED_FAIR.equals(balanceStrategy)) {
-            // WEIGHTED_FAIR: interleave strict + cross sorted by workload so
-            // underloaded staff (regardless of specialty) get priority.
-            List<Staff> combined = new ArrayList<>(strictMatches.size() + crossMatches.size());
-            combined.addAll(strictMatches);
-            combined.addAll(crossMatches);
-            combined.sort(Comparator
-                    .comparingLong((Staff s) -> {
-                        Map<String, Long> counts = periodData.staffShiftTypeCounts().get(s.getId());
-                        if (counts == null) return 0L;
-                        return counts.values().stream().mapToLong(Long::longValue).sum();
-                    })
-                    .thenComparing(s -> strictMatches.contains(s) ? 0 : 1) // strict still preferred as tiebreak
-                    .thenComparing(sortComparator != null ? sortComparator : Comparator.comparing(Staff::getId)));
-            eligible.addAll(combined);
-
-        } else {
-            // FAIR_DISTRIBUTE (default): A + Shortage Logic
-            if (crossEnabled && !crossMatches.isEmpty() && !strictMatches.isEmpty()
-                    && shouldPreferCrossSpecialty(req, strictMatches.size(), required, crossConfig.ratio())) {
-                eligible.addAll(crossMatches);
-                eligible.addAll(strictMatches);
-            } else {
-                eligible.addAll(strictMatches);
-                eligible.addAll(crossMatches);
-            }
-        }
-        return eligible;
+        // L04 strict-only: chỉ trả về staff đúng chuyên khoa. Không còn bucket
+        // cross-specialty / balance strategy (cơ chế đã bị gỡ).
+        return strictMatches;
     }
 
     public boolean hasInMemoryConflict(int staffId, LocalDate workDate, String shiftTypeId) {
@@ -290,232 +197,9 @@ public class StaffEligibilityFilter {
                 || (ConflictDetectionService.SHIFT_TYPE_L04.equals(typeA) && ConflictDetectionService.SHIFT_TYPE_L03.equals(typeB));
     }
 
-    /**
-     * Quyết định có ưu tiên dùng bucket cross-specialty hay không, dựa trên shortage (thiếu hụt)
-     * của strict match so với requirement (A + Shortage Logic).
-     *
-     * <p>Nguyên tắc cốt lõi:
-     * <ul>
-     *   <li>Strict đủ → KHÔNG dùng cross (giữ fairness "đúng chuyên khoa")</li>
-     *   <li>Strict thiếu → dùng cross theo tỷ lệ thiếu</li>
-     * </ul>
-     *
-     * <p>Công thức: {@code threshold = 1.0 - ratio}, {@code useCross = (shortage >= threshold)}
-     *
-     * <p>Ví dụ với ratio = 0.5:
-     * <ul>
-     *   <li>strict ≥ required → shortage = 0 → KHÔNG cross</li>
-     *   <li>strict = 1, required = 3 → shortage = 67% ≥ 50% → CÓ cross</li>
-     *   <li>strict = 2, required = 3 → shortage = 33% < 50% → KHÔNG cross</li>
-     * </ul>
-     *
-     * @param shiftTypeId Shift type (L01, L02, L03, L04)
-     * @param strictAvailable Số strict-eligible staff còn lại sau filter
-     * @param required Số staff yêu cầu của ca
-     * @param ratio Ngưỡng shortage (0.0 = không bao giờ cross, 1.0 = cross khi thiếu bất kỳ)
-     * @return true nếu nên ưu tiên cross bucket
-     */
-    public boolean shouldPreferCrossSpecialty(String shiftTypeId, int strictAvailable, int required, float ratio) {
-        // Cross-specialty chỉ áp dụng khi có yêu cầu cụ thể (required > 0)
-        if (required <= 0) return false;
-
-        // Strict đủ → không cần cross (giữ nguyên tắc "đúng chuyên khoa")
-        if (strictAvailable >= required) {
-            return false;
-        }
-
-        // ratio = 0.0 → người dùng cấu hình "không bao giờ dùng cross"
-        if (ratio <= 0.0f) {
-            return false;
-        }
-
-        // Tính tỷ lệ thiếu (shortage)
-        double shortage = (double) (required - strictAvailable) / required;
-
-        // threshold = 1.0 - ratio
-        double threshold = Math.max(0.0, Math.min(1.0, 1.0 - ratio));
-
-        return shortage >= threshold;
-    }
-
-    /**
-     * Overload cho backward compatibility với L04.
-     * Chỉ áp dụng cho L04 với specialty. L01/L02/L03 luôn trả false.
-     * L04 không có specialty (req.getSpecialty() == null) cũng trả false vì
-     * không có specialty gốc để cross-specialty.
-     */
-    public boolean shouldPreferCrossSpecialty(ShiftRequirement req,
-                                              int strictAvailable,
-                                              int required,
-                                              float ratio) {
-        if (req == null || req.getShiftType() == null) {
-            return false;
-        }
-        // Cross-specialty chỉ dành cho L04 với specialty
-        if (!ConflictDetectionService.SHIFT_TYPE_L04.equals(req.getShiftType().getId())) {
-            return false;
-        }
-        // L04 không có specialty → không có "gốc" để cross, luôn false
-        if (req.getSpecialty() == null) {
-            return false;
-        }
-        return shouldPreferCrossSpecialty(req.getShiftType().getId(), strictAvailable, required, ratio);
-    }
-
-    /**
-     * Quyết định có ưu tiên dùng bucket cross-specialty hay không, dựa trên shortage (thiếu hụt)
-     * của strict match so với requirement (A + Shortage Logic).
-     *
-     * <p>Nguyên tắc cốt lõi:
-     * <ul>
-     *   <li>Strict đủ → KHÔNG dùng cross (giữ fairness "đúng chuyên khoa")</li>
-     *   <li>Strict thiếu → dùng cross theo tỷ lệ thiếu</li>
-     * </ul>
-     *
-     * <p>Công thức: {@code threshold = 1.0 - ratio}, {@code useCross = (shortage >= threshold)}
-     *
-     * <p>Ví dụ với ratio = 0.5:
-     * <ul>
-     *   <li>strict ≥ required → shortage = 0 → KHÔNG cross</li>
-     *   <li>strict = 1, required = 3 → shortage = 67% ≥ 50% → CÓ cross</li>
-     *   <li>strict = 2, required = 3 → shortage = 33% < 50% → KHÔNG cross</li>
-     * </ul>
-     *
-     * @param req ShiftRequirement (chỉ áp dụng cho L04 với specialty)
-     * @param strictAvailable Số strict-eligible staff còn lại sau filter
-     * @param required Số staff yêu cầu của ca
-     * @param ratio Ngưỡng shortage (0.0 = không bao giờ cross, 1.0 = cross khi thiếu bất kỳ)
-     * @return true nếu nên ưu tiên cross bucket
-     */
-    public boolean shouldPreferCrossSpecialtyOld(ShiftRequirement req,
-                                              int strictAvailable,
-                                              int required,
-                                              float ratio) {
-        // Chỉ áp dụng cho L04 với specialty
-        if (req == null
-                || req.getShiftType() == null
-                || !ConflictDetectionService.SHIFT_TYPE_L04.equals(req.getShiftType().getId())
-                || req.getSpecialty() == null) {
-            return false;
-        }
-
-        // Edge case: required <= 0 → không có yêu cầu, không cần cross
-        if (required <= 0) return false;
-
-        // Strict đủ → không cần cross (giữ nguyên tắc "đúng chuyên khoa")
-        if (strictAvailable >= required) {
-            return false;
-        }
-
-        // ratio = 0.0 → người dùng cấu hình "không bao giờ dùng cross"
-        // Guard explicit để tránh corner case threshold = 1.0, shortage = 1.0 → 1.0 >= 1.0 = true
-        if (ratio <= 0.0f) {
-            return false;
-        }
-
-        // Tính tỷ lệ thiếu (shortage)
-        double shortage = (double) (required - strictAvailable) / required;
-
-        // threshold = 1.0 - ratio, clamp [0,1]
-        // ratio = 0.0  → threshold = 1.0 → shortage phải = 100% mới dùng cross (gần như không bao giờ)
-        // ratio = 0.5  → threshold = 0.5 → shortage ≥ 50% mới dùng cross
-        // ratio = 1.0  → threshold = 0.0 → shortage > 0 đều dùng cross
-        double threshold = Math.max(0.0, Math.min(1.0, 1.0 - ratio));
-
-        return shortage >= threshold;
-    }
-
-    /**
-     * Overload giữ signature cũ dùng random bucket.
-     *
-     * <p>Deprecated: Nên dùng overload có {@code strictAvailable} + {@code required}
-     * để áp dụng shortage logic một cách deterministic.
-     *
-     * <p>Overload này được giữ lại để backward-compat với callers cũ và dễ rollback
-     * nếu shortage logic có vấn đề.
-     *
-     * <p><b>TODO (deprecation cleanup):</b> Sau 1-2 sprint ổn định khi shortage logic đã
-     * được verify trong production (khoảng 2026-W29), xóa overload này và các caller
-     * còn dùng signature cũ. Tìm với:
-     * <pre>
-     *   rg -n 'shouldPreferCrossSpecialty\s*\(\s*req\s*,\s*[a-zA-Z_]+\s*\)' backend/src
-     * </pre>
-     *
-     * @deprecated Use {@link #shouldPreferCrossSpecialty(ShiftRequirement, int, int, float)}.
-     *     This overload is dead — no callers in the codebase (verified by grep).
-     *     Marked forRemoval=true so it will be removed in v1.1.
-     */
-    @Deprecated(forRemoval = true)
-    public boolean shouldPreferCrossSpecialty(ShiftRequirement req, float ratio) {
-        // Best-effort fallback: không biết strict count → dùng random bucket như logic cũ
-        if (req == null
-                || req.getShiftType() == null
-                || !ConflictDetectionService.SHIFT_TYPE_L04.equals(req.getShiftType().getId())
-                || req.getSpecialty() == null) {
-            return false;
-        }
-        if (ratio <= 0.5) {
-            int percentage = Math.min(100, Math.max(1, Math.round(ratio * 100)));
-            int bucket = Math.floorMod(Objects.hash(req.getWorkDate(), req.getSpecialty().getId(), req.getShiftType().getId()), 100);
-            return bucket < percentage;
-        }
-        return false;
-    }
-
     public boolean isStrictMatchForStaff(Staff staff, ShiftRequirement req) {
         return req.getSpecialty() != null
                 && staff.getSpecialty() != null
                 && staff.getSpecialty().getId().equals(req.getSpecialty().getId());
-    }
-
-    /**
-     * Get cross-specialty config for a specific shift type.
-     *
-     * <p><b>Chỉ L04</b> có cấu hình cross-specialty động. L01/L02/L03
-     * không có cấu hình chuyên khoa — eligibility được xác định bởi
-     * {@link StaffShiftTypeEligibility#ALL_ELIGIBLE_SPECIALTIES} duy nhất.
-     * Với L01/L02/L03, method này trả về {@link CrossSpecialtyConfig#disabled()}.
-     *
-     * @param shiftTypeId L01/L02/L03/L04
-     */
-    public CrossSpecialtyConfig getCrossSpecialtyConfig(String shiftTypeId) {
-        if ("L04".equals(shiftTypeId)) {
-            return algorithmConfigService.getAutoGenConfig()
-                    .map(cfg -> new CrossSpecialtyConfig(
-                            cfg.l04CrossSpecialty(),
-                            cfg.l04CrossSpecialtyRatio(),
-                            cfg.l04AllowedSpecialties() != null ? cfg.l04AllowedSpecialties() : List.of(),
-                            cfg.l04BalanceStrategy() != null ? cfg.l04BalanceStrategy() : AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE))
-                    .orElse(CrossSpecialtyConfig.defaultEnabled());
-        }
-        // L01/L02/L03: không có specialty config — dùng ALL_ELIGIBLE_SPECIALTIES
-        return CrossSpecialtyConfig.disabled();
-    }
-
-    /**
-     * Get L04 cross-specialty config (backward compatibility)
-     */
-    public CrossSpecialtyConfig getL04CrossSpecialtyConfig() {
-        return getCrossSpecialtyConfig("L04");
-    }
-
-    /**
-     * Check if a staff is eligible for cross-specialty assignment
-     */
-    private boolean isCrossSpecialtyEligible(Staff staff, String shiftTypeId, CrossSpecialtyConfig config) {
-        if (staff.getSpecialty() == null) return false;
-        
-        String staffSpecialtyName = staff.getSpecialty().getName();
-        
-        // Staff must be in the allowed specialties list OR in ALL_ELIGIBLE_SPECIALTIES
-        List<String> allowed = config.allowedSpecialties();
-        
-        // If allowed is empty or contains all specialties, allow all eligible staff
-        if (allowed == null || allowed.isEmpty()) {
-            return StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES.contains(staffSpecialtyName);
-        }
-        
-        // Check if staff's specialty is in the allowed list
-        return allowed.contains(staffSpecialtyName);
     }
 }

@@ -189,33 +189,6 @@ public class ConfigValidator {
         List<Violation> warnings = new ArrayList<>();
         List<Violation> infos = new ArrayList<>();
 
-        // L04 cross-specialty enabled but ratio is 0
-        if (config.l04CrossSpecialtyEnabled() && config.l04CrossSpecialtyRatio() <= 0) {
-            warnings.add(new Violation(
-                    "l04.crossSpecialtyRatio",
-                    "Cross-specialty đã bật nhưng tỷ lệ = 0 — không có tác dụng",
-                    ConfigMetadata.ValidationSeverity.WARNING
-            ));
-        }
-
-        // L04 cross-specialty disabled but ratio > 0
-        if (!config.l04CrossSpecialtyEnabled() && config.l04CrossSpecialtyRatio() > 0) {
-            infos.add(new Violation(
-                    "l04.crossSpecialtyRatio",
-                    "Tỷ lệ cross-specialty đang được thiết lập nhưng tính năng chưa bật",
-                    ConfigMetadata.ValidationSeverity.INFO
-            ));
-        }
-
-        // L04 disabled in removed types but cross-specialty enabled
-        if (config.isShiftTypeRemoved("L04") && config.l04CrossSpecialtyEnabled()) {
-            warnings.add(new Violation(
-                    "l04.crossSpecialtyEnabled",
-                    "L04 đã bị loại trừ nhưng cross-specialty còn bật",
-                    ConfigMetadata.ValidationSeverity.WARNING
-            ));
-        }
-
         // Iteration 0 means no iterations
         if (config.maxIterations() == 0) {
             errors.add(new Violation(
@@ -287,7 +260,7 @@ public class ConfigValidator {
             // BUGFIX (V25): skip enum/numeric validation for arrays —
             // value.toString() on a Java array gives a hash string like
             // "[Ljava.lang.String;@...", not the actual content. Multi-select
-            // fields (removedShiftTypes, l04AllowedSpecialties) are validated
+            // fields (removedShiftTypes) are validated
             // at the input level by the controller/DTO.
             return null;
         }

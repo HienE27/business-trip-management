@@ -121,12 +121,9 @@ public class BalanceAnalyticsService {
             }
             if (minCount == Integer.MAX_VALUE) minCount = 0;
 
-            // Also report true max/min over perStaff dataset so UI doesn't hide cross-specialty assignments.
+            // Also report true max/min over perStaff dataset.
             int actualMaxCount = perStaff.values().stream().mapToInt(Integer::intValue).max().orElse(0);
             int actualMinCount = perStaff.values().stream().mapToInt(Integer::intValue).min().orElse(0);
-            int crossSpecialtyCount = (int) perStaff.keySet().stream()
-                    .filter(sid -> !pool.contains(sid))
-                    .count();
 
             double variance = sumSq / poolSize;
             double stdDev = Math.sqrt(variance);
@@ -149,7 +146,6 @@ public class BalanceAnalyticsService {
             row.put("specialtyName", typeKeySpecialtyName.get(typeKey));
             row.put("poolSize", poolSize);
             row.put("actualStaffCount", perStaff.size());
-            row.put("crossSpecialtyCount", crossSpecialtyCount);
             row.put("totalAssignments", totalForType);
             row.put("mean", round(mean));
             row.put("stdDev", round(stdDev));

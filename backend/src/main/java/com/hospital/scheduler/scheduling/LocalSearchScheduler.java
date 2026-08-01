@@ -10,7 +10,6 @@ import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.HolidayRepository;
 import com.hospital.scheduler.scheduling.config.ConfigService;
 import com.hospital.scheduler.scheduling.config.SchedulingConfig;
-import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import com.hospital.scheduler.scheduling.constraint.AdjacentL01Constraint;
 import com.hospital.scheduler.scheduling.constraint.CompensationDayConstraint;
@@ -61,14 +60,6 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
     private final SchedulingConfig config;
     private final HolidayRepository holidayRepository;
     private final CompensationDateCalculator compensationDateCalculator;
-    /**
-     * BUGFIX (M07-CROSSCONFIG-V10): injected so the V10 problem can read the
-     * user's L04 cross-specialty toggle and apply it during candidate
-     * generation. Without this, the V10 search would happily assign
-     * non-matching-specialty staff to L04 slots and surface a non-zero
-     * "Cross L04" KPI even when the toggle is OFF.
-     */
-    private final AlgorithmConfigService algorithmConfigService;
     /**
      * BUGFIX (M08-DBCONFIG-V10): DB-backed config source. The static
      * {@link SchedulingConfig} bean only carries application.properties/Java
@@ -148,8 +139,7 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                 compDaysByStaff,
                 compDayOfDutyDate,
                 holidays,
-                effectiveConfig,
-                isL04CrossSpecialtyEnabled());
+                effectiveConfig);
 
         // ── 2. Build SolutionDescriptor + StatisticsHub ───────────────────────
         SolutionDescriptor descriptor = new SolutionDescriptor(problem, null);
@@ -184,20 +174,6 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
 
         // ── 7. Convert result back to SchedulingResult ────────────────────────
         return toSchedulingResult(result, staffList);
-    }
-
-    @Override
-    public SchedulingResult solve(List<Staff> staffList,
-                                   LocalDate startDate,
-                                   LocalDate endDate,
-                                   List<ShiftRequirementInfo> requirements,
-                                   Set<String> existingCompensationDays,
-                                   List<LeaveRequest> leaveRequests,
-                                   Set<Integer> excludedStaffIds,
-                                   List<String> l04AllowedSpecialties) {
-        // L04 override not honored at v10 layer yet — fall through to default.
-        return solve(staffList, startDate, endDate, requirements,
-                existingCompensationDays, leaveRequests, excludedStaffIds);
     }
 
     @Override
@@ -284,6 +260,8 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                 if (!stageType.equals(req.shiftTypeId())) continue;
                 List<Integer> eligible = problem.getEligibleStaff(req.id());
                 if (eligible.isEmpty()) continue;
+                // L04 strict-specialty-only: getEligibleStaff đã lọc đúng chuyên khoa
+                // (cross-specialty đã bị thay thế bằng "đổi ngày mở thích ứng").
                 int bestStaff = -1;
                 int bestTypeCount = Integer.MAX_VALUE;
                 int bestTotal = Integer.MAX_VALUE;
@@ -404,24 +382,6 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
             log.warn("Failed to load scheduling config from DB; falling back to static defaults: {}",
                     ex.getMessage());
             return config;
-        }
-    }
-
-    /**
-     * BUGFIX (M07-CROSSCONFIG-V10): read the user's L04 cross-specialty toggle
-     * from {@link AlgorithmConfigService}. Defaults to {@code true} when the
-     * config is unavailable so legacy callers retain the prior (cross-allowed)
-     * behavior — flipping the fix to opt-in rather than opt-out.
-     */
-    private boolean isL04CrossSpecialtyEnabled() {
-        try {
-            return algorithmConfigService.getAutoGenConfig()
-                    .map(cfg -> cfg.l04CrossSpecialty())
-                    .orElse(true);
-        } catch (Exception ex) {
-            log.warn("Failed to read l04CrossSpecialty config for V10 problem; defaulting to enabled: {}",
-                    ex.getMessage());
-            return true;
         }
     }
 }

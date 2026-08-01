@@ -36,6 +36,9 @@ import java.util.Set;
  *   <li>BR-05: Max shifts per staff</li>
  *   <li>BR-06: DIRECT_24H max 1 per day</li>
  * </ul>
+ *
+ * <p>L04 luôn strict-specialty (không cross-specialty) — được thay bằng
+ * "mở PK theo ngày bs rảnh" + "đổi ngày mở thích ứng".
  */
 @Slf4j
 @Component
@@ -67,36 +70,7 @@ public class CSPScheduler implements SchedulingAlgorithm {
             List<LeaveRequest> leaveRequests,
             Set<Integer> excludedStaffIds) {
         return solve(staffList, startDate, endDate, requirements,
-                existingCompensationDays, leaveRequests, excludedStaffIds, null);
-    }
-
-    @Override
-	public SchedulingResult solve(
-            List<Staff> staffList,
-            LocalDate startDate,
-            LocalDate endDate,
-            List<ShiftRequirementInfo> requirements,
-            Set<String> existingCompensationDays,
-            List<LeaveRequest> leaveRequests,
-            Set<Integer> excludedStaffIds,
-            List<String> l04AllowedSpecialties) {
-	    return solve(staffList, startDate, endDate, requirements, existingCompensationDays,
-                leaveRequests, excludedStaffIds, l04AllowedSpecialties, false);
-	}
-
-		public SchedulingResult solve(
-            List<Staff> staffList,
-            LocalDate startDate,
-            LocalDate endDate,
-            List<ShiftRequirementInfo> requirements,
-            Set<String> existingCompensationDays,
-            List<LeaveRequest> leaveRequests,
-            Set<Integer> excludedStaffIds,
-            List<String> l04AllowedSpecialties,
-            boolean l04CrossSpecialty) {
-        return solve(staffList, startDate, endDate, requirements,
-                existingCompensationDays, leaveRequests, excludedStaffIds,
-                l04AllowedSpecialties, l04CrossSpecialty, 0);
+                existingCompensationDays, leaveRequests, excludedStaffIds, 0);
     }
 
     public SchedulingResult solve(
@@ -107,8 +81,6 @@ public class CSPScheduler implements SchedulingAlgorithm {
             Set<String> existingCompensationDays,
             List<LeaveRequest> leaveRequests,
             Set<Integer> excludedStaffIds,
-            List<String> l04AllowedSpecialties,
-            boolean l04CrossSpecialty,
             int maxShiftsPerStaff) {
 
         long startTime = System.currentTimeMillis();
@@ -133,7 +105,8 @@ public class CSPScheduler implements SchedulingAlgorithm {
         List<LocalDate> dates = new ArrayList<>(numDays);
         for (int i = 0; i < numDays; i++) dates.add(startDate.plusDays(i));
 
-		ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests, l04AllowedSpecialties, null, null, l04CrossSpecialty, maxShiftsPerStaff);
+        ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests,
+                null, null, maxShiftsPerStaff);
         CspSearchEngine.Result solution = searchEngine.solve(data, startTime);
         long elapsedMs = System.currentTimeMillis() - startTime;
         log.info("CSP solve completed in {}ms: valid={} partial={} assignments={}",
@@ -164,8 +137,6 @@ public class CSPScheduler implements SchedulingAlgorithm {
             Set<String> existingCompensationDays,
             List<LeaveRequest> leaveRequests,
             Set<Integer> excludedStaffIds,
-            List<String> l04AllowedSpecialties,
-            boolean l04CrossSpecialty,
             int maxShiftsPerStaff) {
         long startTime = System.currentTimeMillis();
 
@@ -189,7 +160,8 @@ public class CSPScheduler implements SchedulingAlgorithm {
         List<LocalDate> dates = new ArrayList<>(numDays);
         for (int i = 0; i < numDays; i++) dates.add(startDate.plusDays(i));
 
-        ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests, l04AllowedSpecialties, null, null, l04CrossSpecialty, maxShiftsPerStaff);
+        ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests,
+                null, null, maxShiftsPerStaff);
         // The preview path used to cap at 8s but Period 5 (23 staff, 6
         // specialties, ~899 required slots) needs more time to make a
         // meaningful first plan before falling back to Greedy. Bumped to
@@ -216,21 +188,5 @@ public class CSPScheduler implements SchedulingAlgorithm {
             List<ShiftRequirementInfo> requirements,
             List<LeaveRequest> leaveRequests) {
         return incrementalResolver.reSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests);
-    }
-
-    /**
-     * Overload that threads L04 allowed specialties into the incremental
-     * fallback full re-solve (so the eligibility used during a rebuild
-     * matches what was used during the original batch solve).
-     */
-    public SchedulingResult reSolve(
-            SchedulingResult previousResult,
-            ScheduleChange deltaChanges,
-            List<Staff> staffList,
-            List<ShiftRequirementInfo> requirements,
-            List<LeaveRequest> leaveRequests,
-            List<String> l04AllowedSpecialties) {
-        return incrementalResolver.reSolve(previousResult, deltaChanges, staffList, requirements,
-                leaveRequests, l04AllowedSpecialties);
     }
 }

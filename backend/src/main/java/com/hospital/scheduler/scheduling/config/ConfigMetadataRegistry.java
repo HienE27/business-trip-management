@@ -84,14 +84,6 @@ public final class ConfigMetadataRegistry {
         };
     }
 
-    private static ConfigMetadata.Option[] balanceStrategyOptions() {
-        return new ConfigMetadata.Option[]{
-                new ConfigMetadata.Option(AutoGenConstants.BALANCE_STRATEGY_STRICT_MATCH_ONLY, "Đúng chuyên khoa"),
-                new ConfigMetadata.Option(AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE, "Phân phối công bằng"),
-                // WEIGHTED_FAIR removed: @Deprecated in AutoGenConstants, no algorithm branch
-        };
-    }
-
     // ─── Registry builder ───────────────────────────────────────────────────
 
     private static Map<String, ConfigMetadata> buildRegistry() {
@@ -308,43 +300,6 @@ public final class ConfigMetadataRegistry {
                 "Số ca chuyên gia tối đa được phân mỗi ngày.", 1, 50));
 
         // ═══════════════════════════════════════════════════════════════════════
-        // L04 - Expert Clinic specific
-        // ═══════════════════════════════════════════════════════════════════════
-        put(m, ConfigMetadata.toggle(
-                "l04.crossSpecialtyEnabled",
-                "Bật cross-specialty L04",
-                "Cho phép nhân sự khác chuyên khoa phục vụ ca chuyên gia khi thiếu.",
-                ConfigMetadata.ConfigCategory.L04,
-                false
-        ));
-
-        put(m, ConfigMetadata.percentage(
-                "l04.crossSpecialtyRatio",
-                "Tỷ lệ cross-specialty L04",
-                "Tỷ lệ tối đa ca L04 có thể giao cho nhân sự không đúng chuyên khoa.",
-                ConfigMetadata.ConfigCategory.L04,
-                0.30, 0.0, 1.0
-        ));
-
-        put(m, ConfigMetadata.chipGroup(
-                "l04.allowedSpecialties",
-                "Chuyên khoa được phép L04",
-                "Danh sách chuyên khoa được phép phục vụ ca L04 (không áp dụng cross-specialty).",
-                ConfigMetadata.ConfigCategory.L04,
-                new String[]{},
-                specialtyOptions()
-        ));
-
-        put(m, ConfigMetadata.select(
-                "l04.balanceStrategy",
-                "Chiến lược cân bằng L04",
-                "Cách phân phối ca L04 cho nhân sự cùng chuyên khoa.",
-                ConfigMetadata.ConfigCategory.L04,
-                AutoGenConstants.BALANCE_STRATEGY_FAIR_DISTRIBUTE,
-                balanceStrategyOptions()
-        ));
-
-        // ═══════════════════════════════════════════════════════════════════════
         // CONSTRAINTS
         // ═══════════════════════════════════════════════════════════════════════
         put(m, ConfigMetadata.integer(
@@ -408,17 +363,6 @@ public final class ConfigMetadataRegistry {
         ));
 
         return Collections.unmodifiableMap(m);
-    }
-
-    private static ConfigMetadata.Option[] specialtyOptions() {
-        return new ConfigMetadata.Option[]{
-                new ConfigMetadata.Option("1", "Ngoại"),
-                new ConfigMetadata.Option("2", "Nội"),
-                new ConfigMetadata.Option("3", "Sản"),
-                new ConfigMetadata.Option("4", "Nhi"),
-                new ConfigMetadata.Option("5", "Mắt"),
-                new ConfigMetadata.Option("6", "Răng")
-        };
     }
 
     // L01 coverage bounds

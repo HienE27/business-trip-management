@@ -53,12 +53,6 @@ public final class ConfigDefaults {
     public static final int     L04_MIN_PER_DAY               = 1;
     public static final int     L04_MAX_PER_DAY               = 10;
 
-    // L04 CROSS-SPECIALTY
-    public static final boolean L04_CROSS_SPECIALTY_ENABLED   = false;
-    public static final double  L04_CROSS_SPECIALTY_RATIO    = 0.30;
-    public static final String[] L04_ALLOWED_SPECIALTIES      = {};
-    public static final String   L04_BALANCE_STRATEGY          = "FAIR_DISTRIBUTE";
-
     // CONSTRAINTS
     public static final int     OVERNIGHT_RECOVERY_HOURS      = 24;
     public static final double GREEDY_COVERAGE_THRESHOLD      = 0.85;
@@ -101,10 +95,6 @@ public final class ConfigDefaults {
                 .l02MinPerDay(L02_MIN_PER_DAY).l02MaxPerDay(L02_MAX_PER_DAY)
                 .l03MinPerDay(L03_MIN_PER_DAY).l03MaxPerDay(L03_MAX_PER_DAY)
                 .l04MinPerDay(L04_MIN_PER_DAY).l04MaxPerDay(L04_MAX_PER_DAY)
-                .l04CrossSpecialtyEnabled(L04_CROSS_SPECIALTY_ENABLED)
-                .l04CrossSpecialtyRatio(L04_CROSS_SPECIALTY_RATIO)
-                .l04AllowedSpecialties(L04_ALLOWED_SPECIALTIES)
-                .l04BalanceStrategy(L04_BALANCE_STRATEGY)
                 .overnightRecoveryHours(OVERNIGHT_RECOVERY_HOURS)
                 .greedyCoverageThreshold(GREEDY_COVERAGE_THRESHOLD)
                 .minStaffPerShift(MIN_STAFF_PER_SHIFT)

@@ -68,9 +68,9 @@ public class ShiftRequirementSyncService {
                 int min = (isHoliday && skipL03OnHoliday) ? 0 : config.l03MinPerDay();
                 newTarget = resolveSoftDailyTarget(min, config.l03MaxPerDay(), generalPoolSize);
             } else if (ConflictDetectionService.SHIFT_TYPE_L04.equals(typeId)) {
-                int specialtyPoolSize = config.l04CrossSpecialty()
-                        ? generalPoolSize
-                        : countActiveStaffBySpecialty(activeStaff, req.getSpecialty() != null ? req.getSpecialty().getId() : null);
+                // L04 luôn strict-specialty (không cross): pool = staff đúng chuyên khoa.
+                int specialtyPoolSize = countActiveStaffBySpecialty(activeStaff,
+                        req.getSpecialty() != null ? req.getSpecialty().getId() : null);
                 newTarget = resolveSoftDailyTarget(config.l04MinPerDay(), config.l04MaxPerDay(), specialtyPoolSize);
             } else {
                 continue;

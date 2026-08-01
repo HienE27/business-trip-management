@@ -246,10 +246,6 @@ public class ConfigController {
                 config.l02MinPerDay(), config.l02MaxPerDay(), config.l02MaxPerWeek(),
                 config.l03MinPerDay(), config.l03MaxPerDay(), config.l03MaxPerWeek(),
                 config.l04MinPerDay(), config.l04MaxPerDay(), config.l04MaxPerWeek(),
-                config.l04CrossSpecialtyEnabled(),
-                config.l04CrossSpecialtyRatio(),
-                config.l04AllowedSpecialties(),
-                config.l04BalanceStrategy(),
                 config.overnightRecoveryHours(),
                 config.greedyCoverageThreshold(),
                 config.minStaffPerShift(),
@@ -288,10 +284,6 @@ public class ConfigController {
                 dto.l02MinPerDay, dto.l02MaxPerDay, dto.l02MaxPerWeek,
                 dto.l03MinPerDay, dto.l03MaxPerDay, dto.l03MaxPerWeek,
                 dto.l04MinPerDay, dto.l04MaxPerDay, dto.l04MaxPerWeek,
-                dto.l04CrossSpecialtyEnabled,
-                dto.l04CrossSpecialtyRatio,
-                dto.l04AllowedSpecialties,
-                dto.l04BalanceStrategy,
                 dto.overnightRecoveryHours,
                 dto.greedyCoverageThreshold,
                 dto.minStaffPerShift,
@@ -326,10 +318,6 @@ public class ConfigController {
             case "fairness.cvTarget" -> config.cvTarget();
             case "fairness.cvWorst" -> config.cvWorst();
             case "fairness.weekendWeight" -> config.weekendWeight();
-            case "l04.crossSpecialtyEnabled" -> config.l04CrossSpecialtyEnabled();
-            case "l04.crossSpecialtyRatio" -> config.l04CrossSpecialtyRatio();
-            case "l04.allowedSpecialties" -> config.l04AllowedSpecialties();
-            case "l04.balanceStrategy" -> config.l04BalanceStrategy();
             case "constraints.overnightRecoveryHours" -> config.overnightRecoveryHours();
             case "constraints.greedyCoverageThreshold" -> config.greedyCoverageThreshold();
             case "constraints.minStaffPerShift" -> config.minStaffPerShift();
@@ -401,10 +389,6 @@ public class ConfigController {
             case "fairness.cvTarget" -> { b.cvTarget(toDouble(value)); yield b.build(); }
             case "fairness.cvWorst" -> { b.cvWorst(toDouble(value)); yield b.build(); }
             case "fairness.weekendWeight" -> { b.weekendWeight(toDouble(value)); yield b.build(); }
-            case "l04.crossSpecialtyEnabled" -> { b.l04CrossSpecialtyEnabled(toBoolean(value)); yield b.build(); }
-            case "l04.crossSpecialtyRatio" -> { b.l04CrossSpecialtyRatio(toDouble(value)); yield b.build(); }
-            case "l04.allowedSpecialties" -> { b.l04AllowedSpecialties(toStringArray(value)); yield b.build(); }
-            case "l04.balanceStrategy" -> { b.l04BalanceStrategy(value.toString()); yield b.build(); }
             case "constraints.overnightRecoveryHours" -> { b.overnightRecoveryHours(toInt(value)); yield b.build(); }
             case "constraints.greedyCoverageThreshold" -> { b.greedyCoverageThreshold(toDouble(value)); yield b.build(); }
             case "constraints.minStaffPerShift" -> { b.minStaffPerShift(toInt(value)); yield b.build(); }
@@ -511,10 +495,6 @@ public class ConfigController {
             int l02MinPerDay, int l02MaxPerDay, int l02MaxPerWeek,
             int l03MinPerDay, int l03MaxPerDay, int l03MaxPerWeek,
             int l04MinPerDay, int l04MaxPerDay, int l04MaxPerWeek,
-            boolean l04CrossSpecialtyEnabled,
-            double l04CrossSpecialtyRatio,
-            String[] l04AllowedSpecialties,
-            String l04BalanceStrategy,
             int overnightRecoveryHours,
             double greedyCoverageThreshold,
             int minStaffPerShift,

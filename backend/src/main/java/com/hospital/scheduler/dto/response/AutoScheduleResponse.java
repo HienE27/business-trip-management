@@ -52,7 +52,6 @@ public class AutoScheduleResponse {
         private String shiftTypeName;
         private String staffSpecialtyName;
         private String requiredSpecialtyName;
-        private Boolean crossSpecialty;
         // BUGFIX (was M07 #8): propagate the requirement id so the frontend's
         // apply-preview call can echo it back and disambiguate L04 slots
         // (Phòng khám chuyên gia) that have multi-specialty requirements

@@ -46,6 +46,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -603,7 +604,6 @@ public class AutoSchedulingService {
                         .shiftTypeName(s.getShiftType().getName())
                         .staffSpecialtyName(getStaffSpecialtyName(s))
                         .requiredSpecialtyName(getRequiredSpecialtyName(s))
-                        .crossSpecialty(isCrossSpecialtyAssignment(s))
                         .requirementId(s.getRequirement() != null ? s.getRequirement().getId() : null)
                         .build())
                 .toList();
@@ -1160,7 +1160,6 @@ public class AutoSchedulingService {
                         .shiftTypeName(s.getShiftType().getName())
                         .staffSpecialtyName(getStaffSpecialtyName(s))
                         .requiredSpecialtyName(getRequiredSpecialtyName(s))
-                        .crossSpecialty(isCrossSpecialtyAssignment(s))
                         .requirementId(s.getRequirement() != null ? s.getRequirement().getId() : null)
                         .build())
                 .collect(Collectors.toList());
@@ -1443,21 +1442,7 @@ public class AutoSchedulingService {
                 // Hard cap: ALL types get a large buffer to ensure EVEN distribution.
                 // Key insight: we want EVERY staff to get at least 1 of each type before caps apply.
                 // So cap should be generous enough to allow rotation through all staff.
-                // For L04 with cross-specialty, calculate buffer proportionally to crossConfig.ratio().
-                // E.g., ratio=0.3 → buffer = fairShare * 0.5 = 50% more slots.
-                int capBuffer = 1;
-                if (ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId) && req.getSpecialty() != null) {
-                    var crossConfig = getL04CrossSpecialtyConfig();
-                    if (crossConfig.enabled()) {
-                        // Cross-specialty enabled: allow more assignments to fill from other specialties
-                        capBuffer = Math.max(1, (int) Math.ceil(fairShare * 0.5));
-                    }
-                }
-                // For non-L04 or L04 without cross-specialty: generous buffer = fairShare itself
-                // This ensures we can assign to all eligible staff before hitting the cap
-                if (capBuffer == 1) {
-                    capBuffer = Math.max(1, (int) Math.ceil(fairShare * 0.5));
-                }
+                int capBuffer = Math.max(1, (int) Math.ceil(fairShare * 0.5));
                 final int shiftTypeSpecificMax = fairShare + capBuffer;
                 // Soft cap for comparator: deprioritize (don't block) staff who exceed this many for THIS type.
                 // Set to fairShare+1 so staff who already did their fair share are deprioritized but still
@@ -1707,9 +1692,13 @@ public class AutoSchedulingService {
         log.info("V10 requirements adjusted: {} original → {} after subtracting {} existing schedules",
                 algoReqs.size(), adjustedReqs.size(), existingForPeriod.size());
 
-        // Load existing compensation days for the period (same as runCsp)
+        // Load existing compensation days across ±1 day boundary (same range as
+        // Greedy) so comp-days carried over from the previous period — e.g. L01 on
+        // the last Friday generates comp on Tuesday of this period — are blocked.
+        // Apply re-validates globally via ConflictDetectionService, so loading only
+        // this period's comp-days made preview over-report (preview 279 → apply 277).
         Set<String> existingCompDays = new HashSet<>();
-        for (CompensationDay cd : compensationDayRepository.findByPeriodId(period.getId())) {
+        for (CompensationDay cd : compensationDayRepository.findInRange(period.getStartDate().minusDays(1), period.getEndDate().plusDays(1))) {
             String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
             existingCompDays.add(compKey);
             allCompensationShiftDates().add(compKey);
@@ -1718,14 +1707,56 @@ public class AutoSchedulingService {
         List<LeaveRequest> v10LeaveRequests = leaveRequestRepository.findApprovedInRange(
                 period.getStartDate(), period.getEndDate());
 
+        // ── Two-phase "đổi ngày mở thích ứng" (thay thế cross-specialty) ──
+        // Phase A: xếp L01-L03 trước để biết ai thực sự rảnh từng ngày. Sau đó
+        // sinh yêu cầu L04 chỉ cho những ngày còn bác sĩ đúng khoa rảnh; ngày
+        // dự kiến mất người đúng khoa (L03 giành, nghỉ bù derive) thì PK tự mở
+        // vào ngày khác trong tuần có người rảnh → không bao giờ cần cross.
+        Set<Integer> excludedIds = excludedStaffIds != null ? excludedStaffIds : new HashSet<>();
+        List<ShiftRequirementInfo> baseReqs = adjustedReqs.stream()
+                .filter(r -> !"L04".equals(r.shiftTypeId()))
+                .collect(Collectors.toList());
+        boolean hasL04 = adjustedReqs.stream().anyMatch(r -> "L04".equals(r.shiftTypeId()));
+
+        List<ShiftRequirementInfo> adaptiveL04 = List.of();
+        if (hasL04) {
+            SchedulingResult baseResult = baseReqs.isEmpty() ? null : localSearchScheduler.solve(
+                    activeStaff,
+                    period.getStartDate(),
+                    period.getEndDate(),
+                    baseReqs,
+                    existingCompDays,
+                    v10LeaveRequests,
+                    excludedIds);
+            if (baseResult != null) {
+                log.info("V10 phase A (L01-L03) solved: {} assignments", baseResult.getAssignments().size());
+            }
+            adaptiveL04 = buildAdaptiveL04Requirements(period, activeStaff, baseResult,
+                    existingCompDays, v10LeaveRequests, excludedIds, existingCoverage);
+            log.info("V10 adaptive L04 requirements (phase B): {} (prepared L04: {})",
+                    adaptiveL04.size(), adjustedReqs.stream().filter(r -> "L04".equals(r.shiftTypeId())).count());
+
+            // Đồng bộ requirement L04: thay rows cũ trong list in-memory bằng
+            // adaptive (preview hiển thị theo list này). Apply thì persist DB.
+            List<ShiftRequirement> l04Entities = save
+                    ? syncAdaptiveL04Requirements(period, adaptiveL04)
+                    : buildAdaptiveL04Entities(period, adaptiveL04);
+            requirements.removeIf(r -> r.getShiftType() != null
+                    && "L04".equals(r.getShiftType().getId()));
+            requirements.addAll(l04Entities);
+        }
+
+        List<ShiftRequirementInfo> finalReqs = new ArrayList<>(baseReqs);
+        finalReqs.addAll(adaptiveL04);
+
         SchedulingResult result = localSearchScheduler.solve(
                 activeStaff,
                 period.getStartDate(),
                 period.getEndDate(),
-                adjustedReqs,
+                finalReqs,
                 existingCompDays,
                 v10LeaveRequests,
-                excludedStaffIds != null ? excludedStaffIds : new HashSet<>());
+                excludedIds);
 
         // Rehydrate Map-based assignments → JPA entities, then persist if save=true.
         // BUGFIX (V25 #3): pass strict=false so V10's mostly-valid plan (all slots
@@ -1785,7 +1816,196 @@ public class AutoSchedulingService {
         return rehydrated;
     }
 
-	    private List<Schedule> runFairGreedy(SchedulePeriod period, List<ShiftRequirement> requirements,
+	    /**
+     * Cơ chế "đổi ngày mở thích ứng" (thay thế cross-specialty):
+     * sau khi xếp L01-L03 (phase A), sinh yêu cầu L04 chỉ cho những ngày còn
+     * bác sĩ đúng khoa thực sự rảnh. Mỗi tuần chọn {@code openDays} ngày có
+     * nhiều người rảnh nhất (T2-T7, không CN); ngày không ai đúng khoa rảnh →
+     * PK đóng (không sinh requirement) → không bao giờ cần cross-specialty,
+     * slot luôn xếp đủ.
+     *
+     * @param baseResult       kết quả xếp L01-L03 (phase A); null nếu không có
+     * @param existingCoverage key "workDate|shiftTypeId|specId" → số schedule
+     *                         đã tồn tại (tránh mở lại ngày đã có ca L04)
+     */
+    private List<ShiftRequirementInfo> buildAdaptiveL04Requirements(
+            SchedulePeriod period,
+            List<Staff> activeStaff,
+            SchedulingResult baseResult,
+            Set<String> existingCompDays,
+            List<LeaveRequest> leaves,
+            Set<Integer> excludedStaffIds,
+            Map<String, Integer> existingCoverage) {
+        List<ShiftRequirementInfo> result = new ArrayList<>();
+        if (period == null || period.getStartDate() == null) return result;
+        LocalDate start = period.getStartDate();
+        LocalDate end = period.getEndDate();
+
+        // Nhân sự bận hôm đó trong phase A: L01/L02/L03 + nghỉ bù derive từ L01
+        Set<String> busyKeys = new HashSet<>();
+        if (baseResult != null && baseResult.getAssignments() != null) {
+            for (Map.Entry<String, String> e : baseResult.getAssignments().entrySet()) {
+                String raw = e.getKey();
+                int sep = raw.indexOf('|');
+                if (sep < 0) sep = raw.indexOf('_');
+                if (sep < 0) continue;
+                try {
+                    Integer staffId = Integer.parseInt(raw.substring(0, sep));
+                    String dateAndMaybe = raw.substring(sep + 1);
+                    int sep2 = dateAndMaybe.indexOf('|');
+                    String dateStr = sep2 >= 0 ? dateAndMaybe.substring(0, sep2) : dateAndMaybe;
+                    LocalDate d = LocalDate.parse(dateStr);
+                    busyKeys.add(staffId + "_" + d);
+                    if ("L01".equals(e.getValue())) {
+                        LocalDate comp = compensationDateCalculator.calculate(d);
+                        if (comp != null) busyKeys.add(staffId + "_" + comp);
+                    }
+                } catch (Exception ignore) {
+                    // bỏ qua assignment key hỏng
+                }
+            }
+        }
+        if (existingCompDays != null) busyKeys.addAll(existingCompDays);
+        Set<Integer> excluded = excludedStaffIds != null ? excludedStaffIds : Set.of();
+        if (leaves != null) {
+            for (LeaveRequest lr : leaves) {
+                if (lr.getStaff() == null || lr.getStartDate() == null) continue;
+                for (LocalDate d = lr.getStartDate(); !d.isAfter(lr.getEndDate()); d = d.plusDays(1)) {
+                    if (!d.isBefore(start) && !d.isAfter(end)) busyKeys.add(lr.getStaff().getId() + "_" + d);
+                }
+            }
+        }
+
+        // Bác sĩ active theo chuyên khoa
+        Map<Integer, List<Staff>> staffBySpec = new HashMap<>();
+        for (Staff s : activeStaff) {
+            if (s.getSpecialty() == null || excluded.contains(s.getId())) continue;
+            staffBySpec.computeIfAbsent(s.getSpecialty().getId(), k -> new ArrayList<>()).add(s);
+        }
+        List<Integer> specIds = new ArrayList<>(staffBySpec.keySet());
+        specIds.sort(Comparator.naturalOrder());
+
+        AutoGenConfig config = algorithmConfigService.getAutoGenConfig().orElse(null);
+        int l04Min = config != null ? config.l04MinPerDay() : 1;
+        int l04Max = config != null ? config.l04MaxPerDay() : 2;
+
+        // Gom ngày T2-T7 theo tuần (CN đóng cửa)
+        Map<LocalDate, List<LocalDate>> weekDays = new TreeMap<>();
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            if (d.getDayOfWeek() == DayOfWeek.SUNDAY) continue;
+            LocalDate monday = d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            weekDays.computeIfAbsent(monday, k -> new ArrayList<>()).add(d);
+        }
+
+        for (Map.Entry<LocalDate, List<LocalDate>> week : weekDays.entrySet()) {
+            for (Integer specId : specIds) {
+                List<Staff> specStaff = staffBySpec.get(specId);
+                int strictPool = specStaff.size();
+                if (strictPool == 0) continue; // khoa không có bác sĩ active → không mở
+                int openDays = Math.min(6, Math.max(1, strictPool));
+                List<LocalDate> chosen = week.getValue().stream()
+                        .sorted(Comparator
+                                .comparingInt((LocalDate d) -> countAvailableL04(d, specStaff, busyKeys)).reversed()
+                                .thenComparingInt((LocalDate d) -> d.getDayOfWeek().getValue()))
+                        .limit(openDays)
+                        .collect(Collectors.toList());
+                for (LocalDate d : chosen) {
+                    int free = countAvailableL04(d, specStaff, busyKeys);
+                    if (free <= 0) continue; // hôm đó không ai đúng khoa rảnh → PK đóng
+                    int desired = resolveSoftTargetL04(l04Min, l04Max, strictPool);
+                    int target = Math.min(desired, free);
+                    if (target <= 0) continue;
+                    // Trừ ca L04 đã tồn tại (re-preview sau apply) — không mở lại ngày đã có
+                    int covered = existingCoverage != null
+                            ? existingCoverage.getOrDefault(d + "|L04|" + specId, 0)
+                            : 0;
+                    if (target - covered <= 0) continue;
+                    result.add(new ShiftRequirementInfo("L04", d, target - covered, specId));
+                }
+            }
+        }
+        return result;
+    }
+
+    private int countAvailableL04(LocalDate d, List<Staff> specStaff, Set<String> busyKeys) {
+        int free = 0;
+        for (Staff s : specStaff) {
+            if (!busyKeys.contains(s.getId() + "_" + d)) free++;
+        }
+        return free;
+    }
+
+    private int resolveSoftTargetL04(int min, int max, int pool) {
+        if (max == 0 && min == 0) return 0;
+        int target;
+        if (max > 0) {
+            target = Math.min(max, pool);
+            target = Math.max(target, min);
+        } else {
+            target = Math.max(min, 1);
+        }
+        return Math.min(target, Math.max(1, pool));
+    }
+
+    /** Persist bộ yêu cầu L04 adaptive xuống DB (xoá rows L04 cũ trước). Chỉ dùng khi apply. */
+    private List<ShiftRequirement> syncAdaptiveL04Requirements(SchedulePeriod period,
+                                                               List<ShiftRequirementInfo> adaptiveL04) {
+        requirementRepository.detachScheduleReferencesByPeriodNative(period.getId());
+        requirementRepository.deleteByPeriodIdAndShiftTypeIds(period.getId(), Set.of("L04"));
+        entityManager.flush();
+        if (adaptiveL04 == null || adaptiveL04.isEmpty()) return List.of();
+        ShiftType l04Type = shiftTypeRepository.findById("L04").orElse(null);
+        if (l04Type == null) return List.of();
+        Map<Integer, Specialty> specById = new HashMap<>();
+        for (Staff s : staffRepository.findByIsActiveTrue()) {
+            if (s.getSpecialty() != null) specById.putIfAbsent(s.getSpecialty().getId(), s.getSpecialty());
+        }
+        List<ShiftRequirement> toSave = new ArrayList<>();
+        for (ShiftRequirementInfo ai : adaptiveL04) {
+            Specialty spec = specById.get(ai.specialtyId());
+            if (spec == null) continue;
+            toSave.add(ShiftRequirement.builder()
+                    .period(period)
+                    .shiftType(l04Type)
+                    .workDate(ai.workDate())
+                    .specialty(spec)
+                    .requiredStaffCount(ai.requiredCount())
+                    .note("AUTO_SOFT_TARGET:L04-ADAPTIVE:" + ai.workDate() + ":" + spec.getName())
+                    .build());
+        }
+        List<ShiftRequirement> saved = requirementRepository.saveAll(toSave);
+        entityManager.flush();
+        log.info("Synced {} adaptive L04 requirements to DB for period {}", saved.size(), period.getId());
+        return saved;
+    }
+
+    /** Build entity tạm (transient) cho adaptive L04 — dùng cho preview + rehydration. */
+    private List<ShiftRequirement> buildAdaptiveL04Entities(SchedulePeriod period,
+                                                            List<ShiftRequirementInfo> adaptiveL04) {
+        if (adaptiveL04 == null || adaptiveL04.isEmpty()) return List.of();
+        ShiftType l04Type = shiftTypeRepository.findById("L04").orElse(null);
+        if (l04Type == null) return List.of();
+        Map<Integer, Specialty> specById = new HashMap<>();
+        for (Staff s : staffRepository.findByIsActiveTrue()) {
+            if (s.getSpecialty() != null) specById.putIfAbsent(s.getSpecialty().getId(), s.getSpecialty());
+        }
+        List<ShiftRequirement> entities = new ArrayList<>();
+        for (ShiftRequirementInfo ai : adaptiveL04) {
+            Specialty spec = specById.get(ai.specialtyId());
+            if (spec == null) continue;
+            entities.add(ShiftRequirement.builder()
+                    .period(period)
+                    .shiftType(l04Type)
+                    .workDate(ai.workDate())
+                    .specialty(spec)
+                    .requiredStaffCount(ai.requiredCount())
+                    .note("AUTO_SOFT_TARGET:L04-ADAPTIVE:" + ai.workDate() + ":" + spec.getName())
+                    .build());
+        }
+        return entities;
+    }
+
+    private List<Schedule> runFairGreedy(SchedulePeriod period, List<ShiftRequirement> requirements,
 	                                          List<Staff> activeStaff, boolean save,
 	                                          AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
 	                                          Set<Integer> excludedStaffIds,
@@ -1917,20 +2137,10 @@ public class AutoSchedulingService {
                         fgGlobalMaxRR, fgShiftTypeMax, fgFairShareKey, fgRunningCounts, activeStaff, maxShiftsPerMonthOverride);
 
                 // Fallback: if no staff eligible due to fair-share cap, relax cap.
-                // For L04 with cross-specialty, calculate fallback proportionally to crossConfig.ratio().
                 if (eligibleStaff.isEmpty() && req.getRequiredStaffCount() > 0) {
-                    int fallbackCap;
-                    if (ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
-                        var crossConfig = getL04CrossSpecialtyConfig();
-                        if (crossConfig.enabled()) {
-                            fallbackCap = Math.max(fgFairShare * 2,
-                                    (int) Math.ceil(fgFairShare * (1 + crossConfig.ratio() * 2)));
-                        } else {
-                            fallbackCap = fgFairShare * 5;
-                        }
-                    } else {
-                        fallbackCap = fgFairShare * 2;
-                    }
+                    // L04 giữ fallback rộng (*5) vì pool strict-specialty nhỏ.
+                    int fallbackCap = ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)
+                            ? fgFairShare * 5 : fgFairShare * 2;
                     eligibleStaff = filterAndSortEligibleStaffBatch(
                             activeStaff, req, excludedStaffIds, assignedStaffIds, todayConflicts, false,
                             fairnessComparator, periodData, adjacentL01FromPrev, todayCompDayStaffIds,
@@ -2028,40 +2238,28 @@ public class AutoSchedulingService {
             // Translate DB requirements -> algorithm DTO
             List<ShiftRequirementInfo> cspRequirements = toRequirementInfos(requirements);
 	
-	            // Existing compensation days (across the period, to avoid
-	            // creating overlapping days when we map back to Schedule).
-	            // Skip in clean preview mode (skipExisting=true) so CSP sees blank slate
-	            Set<String> existingCompDays = new HashSet<>();
-	            if (!skipExisting || save) {
-	                for (CompensationDay cd : compensationDayRepository.findByPeriodId(period.getId())) {
-	                    // Use underscore separator for consistency with GA and in-memory cache
-	                    String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
-	                    existingCompDays.add(compKey);
-	                    // CRITICAL: Also add to in-memory cache to prevent duplicate compensation day creation
-	                    allCompensationShiftDates().add(compKey);
-	                }
-	            }
+            // Existing compensation days (across the period, to avoid
+            // creating overlapping days when we map back to Schedule).
+            // Skip in clean preview mode (skipExisting=true) so CSP sees blank slate
+            // NOTE: range is ±1 day around the period so comp-days carried over
+            // from the previous period (e.g. L01 Fri → comp Tue) are blocked —
+            // matches Greedy and apply's global re-validation.
+            Set<String> existingCompDays = new HashSet<>();
+            if (!skipExisting || save) {
+                for (CompensationDay cd : compensationDayRepository.findInRange(period.getStartDate().minusDays(1), period.getEndDate().plusDays(1))) {
+                    // Use underscore separator for consistency with GA and in-memory cache
+                    String compKey = cd.getStaff().getId() + "_" + cd.getCompensationDate().toString();
+                    existingCompDays.add(compKey);
+                    // CRITICAL: Also add to in-memory cache to prevent duplicate compensation day creation
+                    allCompensationShiftDates().add(compKey);
+                }
+            }
 
             // Approved leave requests in the window — CSP encodes them as
             // hard domain-pruning constraints in CspDataBuilder.
             List<LeaveRequest> leaveRequests = leaveRequestRepository.findApprovedInRange(
                     period.getStartDate(), period.getEndDate());
 
-            // Run CSP. Thread the L04 allowed-specialties from AutoGenConfig so
-            // the CSP's domain pruning uses the same definition as
-            // StaffShiftTypeEligibility / ScheduleQualityScorer — otherwise the
-            // search and the scoring would silently disagree on who is eligible
-            // for L04 (and the earlier hardcoded "Bác sĩ / Điều dưỡng" check in
-            // CspDataBuilder would invalidate every staff member).
-            List<String> l04Allowed = algorithmConfigService.getAutoGenConfig()
-                    .map(cfg -> cfg.l04AllowedSpecialties() != null ? cfg.l04AllowedSpecialties() : List.<String>of())
-                    .orElse(List.of());
-            // Preview path uses an 8s wall-clock cap so the UI returns fast even
-            // when the full search would need 30s. The apply path keeps the
-            // default 30s budget — see CSPScheduler#solve vs solveForPreview.
-            boolean l04CrossSpecialty = algorithmConfigService.getAutoGenConfig()
-                    .map(cfg -> cfg.l04CrossSpecialty())
-                    .orElse(false);
             // Read maxShiftsPerStaff from runtime config (same source as Greedy)
             // instead of the entity field maxShiftsPerMonth (which defaults to 5
             // in seed data and makes CSP over-constrained).
@@ -2075,8 +2273,6 @@ public class AutoSchedulingService {
                             existingCompDays,
                             leaveRequests,
                             excludedStaffIds,
-                            l04Allowed,
-                            l04CrossSpecialty,
                             maxShiftsPerStaffCsp)
                     : cspScheduler.solveForPreview(
                             activeStaff,
@@ -2086,8 +2282,6 @@ public class AutoSchedulingService {
                             existingCompDays,
                             leaveRequests,
                             excludedStaffIds,
-                            l04Allowed,
-                            l04CrossSpecialty,
                             maxShiftsPerStaffCsp);
 
             if (cspResult == null || !cspResult.isValid()) {
@@ -2600,20 +2794,6 @@ public class AutoSchedulingService {
                 : null;
     }
 
-    private boolean isCrossSpecialtyAssignment(Schedule schedule) {
-        if (schedule.getRequirement() == null || schedule.getRequirement().getSpecialty() == null) {
-            return false;
-        }
-        if (!ConflictDetectionService.SHIFT_TYPE_L04.equals(schedule.getShiftType().getId())) {
-            return false;
-        }
-        Integer requiredSpecialtyId = schedule.getRequirement().getSpecialty().getId();
-        Integer staffSpecialtyId = schedule.getStaff() != null && schedule.getStaff().getSpecialty() != null
-                ? schedule.getStaff().getSpecialty().getId()
-                : null;
-        return !Objects.equals(requiredSpecialtyId, staffSpecialtyId);
-    }
-
     // DELEGATED to UnassignedDaysReportBuilder (M07 refactor)
     private String buildUnassignedReason(ShiftRequirement req, long assigned) {
         // Reason logic is encapsulated in the report builder.
@@ -2645,17 +2825,6 @@ public class AutoSchedulingService {
         if (assigned <= 0) return "critical";
         double missingRatio = (double) (required - assigned) / Math.max(1, required);
         return missingRatio >= 0.5 ? "warning" : "info";
-    }
-
-    /**
-     * Get L04 cross-specialty config from algorithmConfigService.
-     * Returns a simple record with enabled, ratio, and allowedSpecialties.
-     */
-    private static record CrossSpecialtyConfig(boolean enabled, float ratio, List<String> allowedSpecialties) {}
-    public CrossSpecialtyConfig getL04CrossSpecialtyConfig() {
-        return algorithmConfigService.getAutoGenConfig()
-                .map(cfg -> new CrossSpecialtyConfig(cfg.l04CrossSpecialty(), cfg.l04CrossSpecialtyRatio(), cfg.l04AllowedSpecialties()))
-                .orElse(new CrossSpecialtyConfig(true, 0.5f, List.of())); // Default: enabled, ratio 0.5, all specialties
     }
 
     private Staff selectStaffByWorkload(List<Staff> availableStaff, Integer periodId, String shiftTypeId) {
@@ -3714,34 +3883,11 @@ public class AutoSchedulingService {
 
         ShiftType shiftType = req.getShiftType();
         String shiftTypeId = shiftType.getId();
-        boolean isL04WithSpecialty = ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)
-                && req.getSpecialty() != null;
-
-        // Get cross-specialty config
-        var crossConfig = getL04CrossSpecialtyConfig();
-        boolean crossEnabled = crossConfig.enabled() && isL04WithSpecialty;
 
         // OPTIMIZATION: Build staff ID → Staff lookup once for O(1) access
         Map<Integer, Staff> staffById = new HashMap<>(pool.size() * 4 / 3 + 1);
         for (Staff s : pool) {
             staffById.put(s.getId(), s);
-        }
-
-        // OPTIMIZATION: Precompute cross-specialty assigned count once per call
-        // (assignedStaffIds does not change during this call)
-        int totalRequired = Math.max(1, req.getRequiredStaffCount());
-        int maxCrossCandidates = 0;
-        long precomputedCrossAssignedToday = 0;
-        if (crossEnabled && req.getSpecialty() != null) {
-            Integer requiredSpecId = req.getSpecialty().getId();
-            precomputedCrossAssignedToday = assignedStaffIds.stream()
-                    .filter(id -> {
-                        Staff s = staffById.get(id);
-                        return s != null && s.getSpecialty() != null
-                                && !s.getSpecialty().getId().equals(requiredSpecId);
-                    })
-                    .count();
-            maxCrossCandidates = (int) Math.ceil(totalRequired * crossConfig.ratio());
         }
 
         // OPTIMIZATION: Pre-merge adjacent L01 sets once (shared across all staff)
@@ -3755,35 +3901,22 @@ public class AutoSchedulingService {
         }
 
         List<Staff> strictMatches = new ArrayList<>();
-        List<Staff> crossMatches = new ArrayList<>();
 
         for (Staff staff : pool) {
             if (excludedStaffIds != null && excludedStaffIds.contains(staff.getId())) continue;
 
             // 0. ELIGIBILITY CHECK: staff phải thuộc ALL_ELIGIBLE_SPECIALTIES (6 khoa).
+            // L04 luôn strict-specialty — isEligible enforce requiredSpecialtyId match.
             Integer requiredSpecId = req.getSpecialty() != null ? req.getSpecialty().getId() : null;
             if (!StaffShiftTypeEligibility.isEligible(staff, shiftTypeId, requiredSpecId)) {
-                if (crossEnabled && ConflictDetectionService.SHIFT_TYPE_L04.equals(shiftTypeId)) {
-                    if (staff.getSpecialty() == null
-                            || !StaffShiftTypeEligibility.ALL_ELIGIBLE_SPECIALTIES
-                                    .contains(staff.getSpecialty().getName())) {
-                        continue;
-                    }
-                    // Eligible via cross-specialty — proceed below
-                } else {
-                    continue;
-                }
+                continue;
             }
 
-            // 1. Check specialty FIRST (hard requirement for non-L04 or if cross-specialty disabled)
+            // 1. Specialty check (hard requirement)
             boolean isStrictMatch = req.getSpecialty() == null
                     || (staff.getSpecialty() != null && staff.getSpecialty().getId().equals(req.getSpecialty().getId()));
 
-            if (!isStrictMatch) {
-                if (!crossEnabled) continue;
-                // OPTIMIZATION: Use precomputed cross-specialty count (cheap O(1))
-                if (precomputedCrossAssignedToday >= maxCrossCandidates) continue;
-            }
+            if (!isStrictMatch) continue;
 
             // 2. In-memory assignment conflict (from this scheduling run)
             if (hasInMemoryConflict(staff.getId(), req.getWorkDate(), shiftTypeId)) {
@@ -3837,27 +3970,11 @@ public class AutoSchedulingService {
                 if (totalCurrent >= effectiveMaxShifts) continue;
             }
 
-            if (isStrictMatch) {
-                strictMatches.add(staff);
-            } else {
-                crossMatches.add(staff);
-            }
+            strictMatches.add(staff);
         }
 
         strictMatches.sort(sortComparator);
-        crossMatches.sort(sortComparator);
-
-        List<Staff> eligible = new ArrayList<>(strictMatches.size() + crossMatches.size());
-        if (crossEnabled && !crossMatches.isEmpty() && !strictMatches.isEmpty()
-                && staffEligibilityFilter.shouldPreferCrossSpecialty(
-                        req, strictMatches.size(), totalRequired, crossConfig.ratio())) {
-            eligible.addAll(crossMatches);
-            eligible.addAll(strictMatches);
-        } else {
-            eligible.addAll(strictMatches);
-            eligible.addAll(crossMatches);
-        }
-        return eligible;
+        return strictMatches;
     }
 
     /**
@@ -4063,6 +4180,12 @@ public class AutoSchedulingService {
             }
         }
         List<Schedule> rehydrated = new ArrayList<>();
+        // BUGFIX (L04 specialty): track per-requirement usage so each requirement
+        // receives at most requiredStaffCount staff. Previously the picker always
+        // preferred the requirement matching the staff's specialty, so Nội/Ngoại
+        // staff piled onto Nội/Ngoại requirements while Mắt/Răng slots stayed
+        // empty → duplicated specialties in the same day, missing others.
+        Map<ShiftRequirement, Integer> reqUsage = new IdentityHashMap<>();
         for (Map.Entry<String, String> e : result.getAssignments().entrySet()) {
             // BUGFIX (V25 #3): V10 uses "|" separator to avoid ISO dates breaking
             // under underscore split. Use indexOf to locate first separator (| or _)
@@ -4098,17 +4221,28 @@ public class AutoSchedulingService {
                 List<ShiftRequirement> candidates = reqsByDateShift.get(workDate + "|" + shiftType.getId());
                 if (candidates == null || candidates.isEmpty()) continue;
                 // Prefer the requirement whose specialty matches the staff's
-                // specialty; otherwise fall back to the lowest-id requirement
-                // (preserves prior deterministic behavior for non-L04).
+                // specialty AND still has capacity; otherwise fall back to any
+                // requirement with remaining capacity (cross-specialty fill) so
+                // no slot is left empty; last resort: lowest-id (deterministic).
                 ShiftRequirement req = null;
                 if (staff.getSpecialty() != null) {
                     Integer staffSpecId = staff.getSpecialty().getId();
                     for (ShiftRequirement r : candidates) {
+                        int cap = r.getRequiredStaffCount() > 0 ? r.getRequiredStaffCount() : 1;
+                        if (reqUsage.getOrDefault(r, 0) >= cap) continue;
                         if (r.getSpecialty() != null
                                 && staffSpecId.equals(r.getSpecialty().getId())) {
                             req = r;
                             break;
                         }
+                    }
+                }
+                if (req == null) {
+                    for (ShiftRequirement r : candidates) {
+                        int cap = r.getRequiredStaffCount() > 0 ? r.getRequiredStaffCount() : 1;
+                        if (reqUsage.getOrDefault(r, 0) >= cap) continue;
+                        req = r;
+                        break;
                     }
                 }
                 if (req == null) {
@@ -4121,6 +4255,7 @@ public class AutoSchedulingService {
                             .orElse(null);
                 }
                 if (req == null) continue;
+                reqUsage.merge(req, 1, Integer::sum);
                 rehydrated.add(Schedule.builder()
                         .period(period)
                         .staff(staff)
