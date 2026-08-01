@@ -13,6 +13,7 @@ interface Props {
   selectedTemplate: ScheduleTemplate | null;
   templatePreview: TemplatePreviewItem[] | null;
   previewLoading: boolean;
+  applying?: boolean;
   editingStaffIds: Map<string | number, number>;
   activeStaff: Staff[];
   onClose: () => void;
@@ -31,6 +32,7 @@ export function ApplyTemplateModal({
   selectedTemplate,
   templatePreview,
   previewLoading,
+  applying = false,
   editingStaffIds,
   activeStaff,
   onClose,
@@ -123,14 +125,15 @@ export function ApplyTemplateModal({
       ) : templatePreview === null ? (
         <div className="space-y-3">
           <p className="text-label-sm text-on-surface-variant">Mẫu lịch này không có dữ liệu để xem trước.</p>
-          <button
-            type="button"
-            onClick={onApply}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-label-sm font-semibold text-on-primary hover:bg-primary/90 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[14px]">check</span>
-            Áp dụng trực tiếp
-          </button>
+            <button
+              type="button"
+              onClick={onApply}
+              disabled={previewLoading || applying}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-label-sm font-semibold text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[14px]">check</span>
+              Áp dụng trực tiếp
+            </button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -235,11 +238,20 @@ export function ApplyTemplateModal({
             <button
               type="button"
               onClick={onApply}
-              disabled={previewLoading}
+              disabled={previewLoading || applying}
               className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
-              <span className="material-symbols-outlined text-[16px]">check</span>
-              Xác nhận áp dụng
+              {applying ? (
+                <>
+                  <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                  Đang áp dụng...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[16px]">check</span>
+                  Xác nhận áp dụng
+                </>
+              )}
             </button>
           </>
         )}
