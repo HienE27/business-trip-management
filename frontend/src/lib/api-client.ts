@@ -1153,7 +1153,10 @@ class ApiClient {
     if (paramKey) params.set("paramKey", paramKey);
     params.set("page", String(page));
     params.set("size", String(size));
-    return this.get(`/auto-schedule/config/audit?${params.toString()}`);
+    // BUGFIX: dùng getPage thay get — get<T> tự unwrap .content nên trả mảng,
+    // caller đọc data.content = undefined → audit tab luôn rỗng. getPage giữ
+    // nguyên Page envelope (content, totalElements, ...).
+    return this.getPage(`/auto-schedule/config/audit?${params.toString()}`);
   }
 
   async createAlgorithmConfig(data: { paramKey: string; paramValue: string; valueType: string; description?: string }): Promise<ApiResponse<{

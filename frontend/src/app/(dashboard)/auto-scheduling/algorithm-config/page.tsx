@@ -107,7 +107,7 @@ export default function AlgorithmConfigPage() {
         onClose={() => setSyncConfirmOpen(false)}
         onConfirm={() => { setSyncConfirmOpen(false); void handleSyncDescriptions(); }}
         title="Đồng bộ mô tả tham số?"
-        description="Hành động này sẽ reset toàn bộ mô tả về phiên bản mặc định trong code. Mô tả tùy chỉnh sẽ bị mất."
+        description="Hành động này sẽ reset toàn bộ mô tả về phiên bản mặc định trong code và tạo các tham số mặc định còn thiếu. Mô tả tùy chỉnh sẽ bị mất."
         confirmLabel="Đồng bộ"
         cancelLabel="Hủy"
         variant="danger"
