@@ -93,6 +93,7 @@ export default function AutoSchedulingPage() {
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [applyTemplateModalOpen, setApplyTemplateModalOpen] = useState(false);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [templatePreview, setTemplatePreview] = useState<TemplatePreviewItem[] | null>(null);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
@@ -422,7 +423,8 @@ export default function AutoSchedulingPage() {
   };
 
   const handleApplyTemplateConfirmed = async () => {
-    if (!selectedTemplateId || !selectedPeriodId) return;
+    if (!selectedTemplateId || !selectedPeriodId || applyingTemplate) return;
+    setApplyingTemplate(true);
     try {
       const edits = Array.from(editingStaffIds.entries())
         .filter(([, staffId]) => staffId !== 0)
@@ -439,6 +441,8 @@ export default function AutoSchedulingPage() {
       void loadWorkspace();
     } catch (error) {
       setMessage(getErrorMessage(error, "Không thể áp dụng mẫu lịch."));
+    } finally {
+      setApplyingTemplate(false);
     }
   };
 
@@ -731,6 +735,7 @@ export default function AutoSchedulingPage() {
         previewLoading={previewLoading}
         editingStaffIds={editingStaffIds}
         activeStaff={activeStaff}
+        applying={applyingTemplate}
         onClose={() => { setApplyTemplateModalOpen(false); setTemplates([]); setTemplatePreview(null); setSelectedTemplateId(null); }}
         onPreview={handlePreviewTemplate}
         onApply={handleApplyTemplateConfirmed}
