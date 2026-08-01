@@ -112,6 +112,7 @@ function ReportsStaffContent() {
 
   useEffect(() => {
     if (!selectedPeriodId) return;
+    setPage(0);
     const controller = new AbortController();
     void fetchData(controller.signal);
     return () => controller.abort();

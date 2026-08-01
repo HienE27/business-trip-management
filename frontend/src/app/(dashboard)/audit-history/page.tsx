@@ -642,6 +642,11 @@ useEffect(() => {
 
   const totalPages = useMemo(() => pageData ? Math.max(1, pageData.totalPages) : 1, [pageData?.totalPages]);
 
+  // Clamp page when totalPages shrinks (e.g. after deleting the last item on the last page).
+  useEffect(() => {
+    if (page >= totalPages) setPage(0);
+  }, [totalPages, page]);
+
   // Summary reflects the entire DB (or active date range), not the current page slice.
   // Values come from the dedicated /audit-history/summary endpoint so that the
   // CREATE / UPDATE / DELETE totals stay accurate across all 44 pages.
