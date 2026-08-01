@@ -347,7 +347,6 @@ export interface AutoScheduleSummary {
   shiftTypeName: string;
   staffSpecialtyName?: string | null;
   requiredSpecialtyName?: string | null;
-  crossSpecialty?: boolean;
   /**
    * Backend requirement id (ShiftRequirement). Populated by the auto-schedule
    * previews so the apply-preview round-trip can pin the right ShiftRequirement

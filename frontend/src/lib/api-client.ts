@@ -1346,8 +1346,6 @@ class ApiClient {
 	        l01MaxPerDay: number; l02MaxPerDay: number; l03MaxPerDay: number; l04MaxPerDay: number;
         holidayMode: string;
         removedShiftTypes: string[];
-        l04CrossSpecialty: boolean;
-        l04CrossSpecialtyRatio: number;
         l04AllowedSpecialties: string[];
         l01AllowedSpecialties: string[];
         l02AllowedSpecialties: string[];

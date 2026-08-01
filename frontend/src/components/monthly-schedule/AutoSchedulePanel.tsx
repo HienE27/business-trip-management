@@ -115,7 +115,6 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
 
   const unassignedDays = previewResult?.unassignedDays ?? [];
   const totalMissing = unassignedDays.reduce((sum: number, d: unknown) => sum + ((d as { missingCount?: number }).missingCount ?? 0), 0);
-  const crossSpecialtyCount = previewResult?.schedules.filter(s => s.crossSpecialty).length ?? 0;
   const coverageRateRaw = previewResult?.coverageRate ?? null;
   const balanceScoreRaw = previewResult?.balanceScore ?? null;
   const conflictCountRaw = previewResult?.conflictCount ?? null;
@@ -331,42 +330,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               helper={kpiAvailable ? undefined : "Nhấn Chạy để tính"}
               tone={conflictTone}
             />
-            <KPICard
-              icon="swap_horiz"
-              label="Cross L04"
-              value={crossSpecialtyCount}
-              tone={crossSpecialtyCount > 0 ? "warning" : "info"}
-            />
           </div>
-
-          {crossSpecialtyCount > 0 && (
-            <div className="rounded-xl border border-tertiary/30 bg-tertiary-container/20 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-tertiary-container text-tertiary">
-                  <span className="material-symbols-outlined text-[18px]" aria-hidden="true">swap_horiz</span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-label-md font-semibold text-tertiary">Đã dùng Cross-Specialty cho L04</p>
-                  <p className="text-label-xs text-on-surface-variant mt-0.5">
-                    {crossSpecialtyCount} ca L04 được gán nhân sự khác chuyên khoa theo tỷ lệ cấu hình.
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {previewResult.schedules.filter(s => s.crossSpecialty).slice(0, 6).map((schedule, idx) => (
-                      <span key={`${schedule.staffId}-${schedule.workDate}-${idx}`} className="inline-flex items-center gap-1 rounded-full border border-tertiary/20 bg-surface-container-lowest px-2 py-1 text-[11px] text-on-surface-variant">
-                        <span className="material-symbols-outlined text-[12px] text-tertiary" aria-hidden="true">stethoscope</span>
-                        {schedule.staffName}: {schedule.staffSpecialtyName ?? "Không rõ"} → {schedule.requiredSpecialtyName ?? "L04"}
-                      </span>
-                    ))}
-                    {crossSpecialtyCount > 6 && (
-                      <span className="inline-flex items-center rounded-full border border-outline-variant bg-surface-container px-2 py-1 text-[11px] text-on-surface-variant">
-                        +{crossSpecialtyCount - 6} ca khác
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Row 2: Shift Type Breakdown Cards (own row, separate grid) */}
           {previewResult.byShiftType && Object.keys(previewResult.byShiftType).length > 0 && (
