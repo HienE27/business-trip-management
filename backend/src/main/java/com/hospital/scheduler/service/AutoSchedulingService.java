@@ -1737,10 +1737,14 @@ public class AutoSchedulingService {
                     adaptiveL04.size(), adjustedReqs.stream().filter(r -> "L04".equals(r.shiftTypeId())).count());
 
             // Đồng bộ requirement L04: thay rows cũ trong list in-memory bằng
-            // adaptive (preview hiển thị theo list này). Apply thì persist DB.
-            List<ShiftRequirement> l04Entities = save
-                    ? syncAdaptiveL04Requirements(period, adaptiveL04)
-                    : buildAdaptiveL04Entities(period, adaptiveL04);
+            // adaptive. Luôn persist (kể cả preview) — nếu chỉ dùng entity transient
+            // (id null), response preview trả requirementId=null và apply-preview
+            // resolver không tìm được requirement khớp vì nó re-generate set từ
+            // config (buildL04OpenSchedule), khác set adaptive → 400 "Có nhiều
+            // requirement" trên ngày L04 nhiều chuyên khoa. Persist trước khi
+            // resolve giúp preview→apply round-trip tự nhất quán: response mang
+            // requirementId thật, apply pin đúng requirement bằng id.
+            List<ShiftRequirement> l04Entities = syncAdaptiveL04Requirements(period, adaptiveL04);
             requirements.removeIf(r -> r.getShiftType() != null
                     && "L04".equals(r.getShiftType().getId()));
             requirements.addAll(l04Entities);
@@ -1977,32 +1981,6 @@ public class AutoSchedulingService {
         entityManager.flush();
         log.info("Synced {} adaptive L04 requirements to DB for period {}", saved.size(), period.getId());
         return saved;
-    }
-
-    /** Build entity tạm (transient) cho adaptive L04 — dùng cho preview + rehydration. */
-    private List<ShiftRequirement> buildAdaptiveL04Entities(SchedulePeriod period,
-                                                            List<ShiftRequirementInfo> adaptiveL04) {
-        if (adaptiveL04 == null || adaptiveL04.isEmpty()) return List.of();
-        ShiftType l04Type = shiftTypeRepository.findById("L04").orElse(null);
-        if (l04Type == null) return List.of();
-        Map<Integer, Specialty> specById = new HashMap<>();
-        for (Staff s : staffRepository.findByIsActiveTrue()) {
-            if (s.getSpecialty() != null) specById.putIfAbsent(s.getSpecialty().getId(), s.getSpecialty());
-        }
-        List<ShiftRequirement> entities = new ArrayList<>();
-        for (ShiftRequirementInfo ai : adaptiveL04) {
-            Specialty spec = specById.get(ai.specialtyId());
-            if (spec == null) continue;
-            entities.add(ShiftRequirement.builder()
-                    .period(period)
-                    .shiftType(l04Type)
-                    .workDate(ai.workDate())
-                    .specialty(spec)
-                    .requiredStaffCount(ai.requiredCount())
-                    .note("AUTO_SOFT_TARGET:L04-ADAPTIVE:" + ai.workDate() + ":" + spec.getName())
-                    .build());
-        }
-        return entities;
     }
 
     private List<Schedule> runFairGreedy(SchedulePeriod period, List<ShiftRequirement> requirements,
