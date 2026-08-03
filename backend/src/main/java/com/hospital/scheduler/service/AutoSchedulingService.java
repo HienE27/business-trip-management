@@ -680,7 +680,8 @@ public class AutoSchedulingService {
         }
 
         // Build shift type breakdown
-        Map<String, AutoScheduleResponse.ShiftTypeBreakdown> byShiftType = buildByShiftTypeBreakdown(savedSchedules, periodRequirements);
+        Map<String, AutoScheduleResponse.ShiftTypeBreakdown> byShiftType =
+                buildByShiftTypeBreakdown(savedSchedules, periodRequirements);
 
         return AutoScheduleResponse.builder()
                 .success(true)
@@ -890,7 +891,11 @@ public class AutoSchedulingService {
         // CSP variant → runCsp (with fallback to Greedy on empty/partial), default → runGreedy.
         // Returns the initial createdSchedules + the GA fairness score if any.
         AlgorithmDispatchResult initialDispatch = dispatchAlgorithm(period, requirements, activeStaff, save, runtimeConfig, request);
-        List<Schedule> createdSchedules = filterHardConstrainedSchedules(initialDispatch.schedules());
+        // FIX: keep original algorithm output for quality scoring + response;
+        // filter separately so downstream phases (Phase 3 rebalance, SA, HARD GUARANTEE)
+        // operate on conflict-free list and don't re-introduce L01↔L02/L03↔L04 violations.
+        List<Schedule> createdSchedules = initialDispatch.schedules();
+        List<Schedule> conflictFreeSchedules = filterHardConstrainedSchedules(createdSchedules);
         BigDecimal lastFairnessScore = initialDispatch.fairnessScore();
         String algorithmType = initialDispatch.algorithmType();
 
@@ -1049,15 +1054,10 @@ public class AutoSchedulingService {
             }
         }
 
-        // FINAL HARD-CONSTRAINT FILTER (was M07 #9): re-run the L01↔L02 / L03↔L04
-        // in-loop conflict filter after all post-processing phases have completed.
-        // Earlier the filter ran only once after the initial dispatch, but
-        // Fair-Greedy fallback (line 838), Local-Search fairness rebalance (line 894),
-        // Simulated Annealing (line 920) and the HARD GUARANTEE pass above can each
-        // mutate `createdSchedules` and re-introduce sibling shift-type conflicts.
-        // Without this final filter, the apply path would later skip those slots via
-        // `hasInLoopConflict`, shrinking the persisted set vs. what preview showed
-        // the user. Re-filtering here keeps preview count == apply count == DB count.
+        // FINAL SAFETY FILTER: `createdSchedules` holds the raw algorithm output (may contain
+        // sibling conflicts). Since the refactor at line 894 the upstream phases (Phase 3
+        // rebalance, SA, HARD GUARANTEE) all operate on `conflictFreeSchedules` which already
+        // excludes those conflicts, so this pass typically drops 0. Keep it as a safety net.
         int finalDropped = reapplyHardConstraintFilter(createdSchedules);
         if (finalDropped > 0) {
             log.info("Final hard-constraint filter dropped {} assignments introduced by post-processing phases", finalDropped);
@@ -1082,6 +1082,13 @@ public class AutoSchedulingService {
 
         long executionTime = System.currentTimeMillis() - startTime;
 
+        // FIX: qualityReport.score() chỉ đếm schedules CÓ requirement (null-requirement = orphan).
+        // Trước đây: filterHardConstrainedSchedules bỏ 383 orphan → chỉ 11 được quality score
+        // → coverage 2.77% thay vì 95%. Giờ filter trực tiếp để quality report đúng.
+        List<Schedule> forQualityReport = createdSchedules.stream()
+                .filter(s -> s.getRequirement() != null)
+                .toList();
+
         // ── ScheduleQualityScorer: compute comprehensive quality report ──────────
         // Load comp days and approved leaves for full constraint scanning
         List<com.hospital.scheduler.entity.CompensationDay> compDaysForScoring =
@@ -1097,7 +1104,7 @@ public class AutoSchedulingService {
                         .of(algorithmType, executionTime);
         com.hospital.scheduler.algorithm.scoring.ScheduleQualityReport qualityReport =
                 scheduleQualityScorer.score(
-                        createdSchedules, requirements, activeStaff,
+                        forQualityReport, requirements, activeStaff,
                         compDaysForScoring, approvedLeaves, scoringMeta, autoGenCfgForScoring);
         log.info("Quality report: {}", qualityReport.summary());
 
@@ -1208,6 +1215,18 @@ public class AutoSchedulingService {
         Map<String, AutoScheduleResponse.ShiftTypeBreakdown> byShiftType =
                 buildByShiftTypeBreakdown(dedupedForBreakdown, requirements);
         responseBuilder.byShiftType(byShiftType);
+
+        // FIX: override top-level coverageRate with the correct byShiftType aggregate.
+        // byShiftType counts every schedule (with or without requirement), which matches
+        // totalSchedulesCreated and what the user sees in the UI.
+        // qualityReport-based coverageRate is wrong in preview mode because orphan
+        // schedules (no requirement) are excluded from scoring → inflated denominator.
+        int totalReq = byShiftType.values().stream().mapToInt(AutoScheduleResponse.ShiftTypeBreakdown::getTotalRequired).sum();
+        int totalAsgn = byShiftType.values().stream().mapToInt(AutoScheduleResponse.ShiftTypeBreakdown::getTotalAssigned).sum();
+        java.math.BigDecimal correctCoverage = totalReq > 0
+                ? java.math.BigDecimal.valueOf(Math.min(100.0, (double) totalAsgn / totalReq * 100)).setScale(2, java.math.RoundingMode.HALF_UP)
+                : java.math.BigDecimal.ZERO;
+        responseBuilder.coverageRate(correctCoverage);
 
         return responseBuilder.build();
     }
