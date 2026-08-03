@@ -893,6 +893,18 @@ public class AutoSchedulingService {
                     existingSchedules.size());
         }
 
+        // ── Adaptive L04 toàn cục (mọi thuật toán, thay vì chỉ V10) ───────────
+        // Thay static L04 (sinh từ config khi bác sĩ "rảnh" lúc chưa xếp gì) bằng
+        // set "đổi ngày mở thích ứng": phase A xếp L01-L03 trước, rồi chỉ mở PK
+        // chuyên khoa ngày còn bác sĩ đúng khoa THỰC SỰ rảnh. Loại slot L04 chết
+        // (bác sĩ bị L01/L02/L03 giành) → coverage tăng; CSP hết ràng buộc bất
+        // khả thi → hết DEAD_END/fallback Greedy.
+        boolean hasL04 = requirements.stream().anyMatch(r -> r.getShiftType() != null
+                && ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId()));
+        if (hasL04 && !removedShiftTypes.contains("L04") && !activeStaff.isEmpty()) {
+            replaceRequirementsWithAdaptiveL04(period, activeStaff, requirements, existingSchedules, request, save);
+        }
+
         // P2-8: Enforce L01→L02→L03→L04 processing order per spec
         // L01 must be assigned first to reserve compensation days and avoid L01↔L02 conflicts
         // Safety: filter out any requirements with null shiftType before sorting (defensive against data issues)
@@ -1762,6 +1774,83 @@ public class AutoSchedulingService {
     // ==================== V10 LOCAL SEARCH ALGORITHM ====================
 
     /**
+     * Adaptive L04 toàn cục — cơ chế "đổi ngày mở thích ứng" trước đây chỉ có
+     * V10, giờ áp dụng cho CẢ 4 thuật toán:
+     * <ol>
+     *   <li>Phase A: xếp L01-L03 bằng v10 solver để biết ai thực sự bận ngày nào
+     *       (gồm cả nghỉ bù derive từ L01).</li>
+     *   <li>Sinh L04 chỉ cho ngày còn bác sĩ đúng khoa rảnh; ngày mất người thì
+     *       PK mở ngày khác trong tuần → hết slot L04 "chết" (138/143 trước).</li>
+     *   <li>Persist (kể cả preview) để apply round-trip giữ nguyên requirementId.</li>
+     * </ol>
+     * L04 static sinh từ config (đọc DB lúc chưa xếp gì) là nguồn gốc 2 lỗi:
+     * CSP DEAD_END (domain rỗng giữa chừng) + 5 slot L04 không xếp được.
+     */
+    private void replaceRequirementsWithAdaptiveL04(
+            SchedulePeriod period, List<Staff> activeStaff,
+            List<ShiftRequirement> requirements, List<Schedule> existingSchedules,
+            AutoScheduleRequestDTO request, boolean save) {
+        Set<Integer> excludedIds = request.getExcludedStaffIds() != null
+                ? new HashSet<>(request.getExcludedStaffIds())
+                : Set.of();
+        boolean cleanPreview = Boolean.TRUE.equals(request.getSkipExisting()) && !save;
+
+        // Existing coverage: "workDate|shiftTypeId|specialtyId" → count
+        Map<String, Integer> existingCoverage = new HashMap<>();
+        if (!cleanPreview) {
+            for (Schedule s : existingSchedules) {
+                String specId = s.getRequirement() != null && s.getRequirement().getSpecialty() != null
+                        ? String.valueOf(s.getRequirement().getSpecialty().getId())
+                        : null;
+                String key = s.getWorkDate() + "|" + s.getShiftType().getId() + "|" + (specId != null ? specId : "");
+                existingCoverage.merge(key, 1, Integer::sum);
+            }
+        }
+
+        // Comp days (busy set) — clean preview bỏ qua để đúng nghĩa "blank slate"
+        Set<String> existingCompDays = new HashSet<>();
+        if (!cleanPreview) {
+            for (CompensationDay cd : compensationDayRepository.findInRange(
+                    period.getStartDate().minusDays(1), period.getEndDate().plusDays(1))) {
+                existingCompDays.add(cd.getStaff().getId() + "_" + cd.getCompensationDate().toString());
+            }
+        }
+
+        // Phase A: L01-L03 (trừ coverage đã có) → ai bận ngày nào
+        List<ShiftRequirementInfo> baseReqs = new ArrayList<>();
+        for (ShiftRequirement r : requirements) {
+            if (r.getShiftType() == null || ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId())) continue;
+            String specId = r.getSpecialty() != null ? String.valueOf(r.getSpecialty().getId()) : null;
+            String key = r.getWorkDate() + "|" + r.getShiftType().getId() + "|" + (specId != null ? specId : "");
+            int existing = existingCoverage.getOrDefault(key, 0);
+            int adjusted = Math.max(0, r.getRequiredStaffCount() - existing);
+            if (adjusted > 0) {
+                baseReqs.add(new ShiftRequirementInfo(r.getShiftType().getId(), r.getWorkDate(), adjusted,
+                        r.getSpecialty() != null ? r.getSpecialty().getId() : null));
+            }
+        }
+        List<LeaveRequest> leaves = leaveRequestRepository.findApprovedInRange(
+                period.getStartDate(), period.getEndDate());
+        SchedulingResult baseResult = baseReqs.isEmpty() ? null : localSearchScheduler.solve(
+                activeStaff, period.getStartDate(), period.getEndDate(), baseReqs,
+                existingCompDays, leaves, excludedIds, request.getMaxShiftsPerMonthOverride());
+        if (baseResult != null) {
+            log.info("Adaptive L04 phase A (L01-L03): {} assignments", baseResult.getAssignments().size());
+        }
+        List<ShiftRequirementInfo> adaptive = buildAdaptiveL04Requirements(
+                period, activeStaff, baseResult, existingCompDays, leaves, excludedIds, existingCoverage);
+        log.info("Adaptive L04: {} rows thay {} static rows (period {})",
+                adaptive.size(),
+                requirements.stream().filter(r -> r.getShiftType() != null
+                        && ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId())).count(),
+                period.getId());
+        List<ShiftRequirement> l04Entities = syncAdaptiveL04Requirements(period, adaptive);
+        requirements.removeIf(r -> r.getShiftType() != null
+                && ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId()));
+        requirements.addAll(l04Entities);
+    }
+
+    /**
      * v10 entry point: delegates to {@link com.hospital.scheduler.scheduling.LocalSearchScheduler}.
      * Reuses {@link #runCspWithResult} to rehydrate assignments into JPA {@link Schedule}
      * entities so the rest of the pipeline (audit, balance-score fallback, conflict save)
@@ -1797,9 +1886,15 @@ public class AutoSchedulingService {
         }
 
         List<ShiftRequirementInfo> algoReqs = toRequirementInfos(requirements);
-        // Adjust: reduce requiredCount by existing coverage (capped at 0)
+        // Adjust: reduce requiredCount by existing coverage (capped at 0).
+        // L04 KHÔNG trừ — set L04 đã adaptive (buildAdaptiveL04Requirements trừ
+        // existingCoverage sẵn ở runScheduling) → trừ lại sẽ sai lệch demand.
         List<ShiftRequirementInfo> adjustedReqs = new java.util.ArrayList<>();
         for (ShiftRequirementInfo r : algoReqs) {
+            if ("L04".equals(r.shiftTypeId())) {
+                adjustedReqs.add(r);
+                continue;
+            }
             String specId = r.specialtyId() != null ? String.valueOf(r.specialtyId()) : "";
             String key = r.workDate() + "|" + r.shiftTypeId() + "|" + specId;
             int existing = existingCoverage.getOrDefault(key, 0);
@@ -1826,52 +1921,10 @@ public class AutoSchedulingService {
         List<LeaveRequest> v10LeaveRequests = leaveRequestRepository.findApprovedInRange(
                 period.getStartDate(), period.getEndDate());
 
-        // ── Two-phase "đổi ngày mở thích ứng" (thay thế cross-specialty) ──
-        // Phase A: xếp L01-L03 trước để biết ai thực sự rảnh từng ngày. Sau đó
-        // sinh yêu cầu L04 chỉ cho những ngày còn bác sĩ đúng khoa rảnh; ngày
-        // dự kiến mất người đúng khoa (L03 giành, nghỉ bù derive) thì PK tự mở
-        // vào ngày khác trong tuần có người rảnh → không bao giờ cần cross.
+        // Adaptive L04 đã xử lý tập trung ở runScheduling (mọi thuật toán dùng
+        // chung set "đổi ngày mở thích ứng") — V10 chỉ cần solve toàn bộ list.
         Set<Integer> excludedIds = excludedStaffIds != null ? excludedStaffIds : new HashSet<>();
-        List<ShiftRequirementInfo> baseReqs = adjustedReqs.stream()
-                .filter(r -> !"L04".equals(r.shiftTypeId()))
-                .collect(Collectors.toList());
-        boolean hasL04 = adjustedReqs.stream().anyMatch(r -> "L04".equals(r.shiftTypeId()));
-
-        List<ShiftRequirementInfo> adaptiveL04 = List.of();
-        if (hasL04) {
-            SchedulingResult baseResult = baseReqs.isEmpty() ? null : localSearchScheduler.solve(
-                    activeStaff,
-                    period.getStartDate(),
-                    period.getEndDate(),
-                    baseReqs,
-                    existingCompDays,
-                    v10LeaveRequests,
-                    excludedIds,
-                    maxShiftsPerMonthOverride);
-            if (baseResult != null) {
-                log.info("V10 phase A (L01-L03) solved: {} assignments", baseResult.getAssignments().size());
-            }
-            adaptiveL04 = buildAdaptiveL04Requirements(period, activeStaff, baseResult,
-                    existingCompDays, v10LeaveRequests, excludedIds, existingCoverage);
-            log.info("V10 adaptive L04 requirements (phase B): {} (prepared L04: {})",
-                    adaptiveL04.size(), adjustedReqs.stream().filter(r -> "L04".equals(r.shiftTypeId())).count());
-
-            // Đồng bộ requirement L04: thay rows cũ trong list in-memory bằng
-            // adaptive. Luôn persist (kể cả preview) — nếu chỉ dùng entity transient
-            // (id null), response preview trả requirementId=null và apply-preview
-            // resolver không tìm được requirement khớp vì nó re-generate set từ
-            // config (buildL04OpenSchedule), khác set adaptive → 400 "Có nhiều
-            // requirement" trên ngày L04 nhiều chuyên khoa. Persist trước khi
-            // resolve giúp preview→apply round-trip tự nhất quán: response mang
-            // requirementId thật, apply pin đúng requirement bằng id.
-            List<ShiftRequirement> l04Entities = syncAdaptiveL04Requirements(period, adaptiveL04);
-            requirements.removeIf(r -> r.getShiftType() != null
-                    && "L04".equals(r.getShiftType().getId()));
-            requirements.addAll(l04Entities);
-        }
-
-        List<ShiftRequirementInfo> finalReqs = new ArrayList<>(baseReqs);
-        finalReqs.addAll(adaptiveL04);
+        List<ShiftRequirementInfo> finalReqs = new ArrayList<>(adjustedReqs);
 
         SchedulingResult result = localSearchScheduler.solve(
                 activeStaff,

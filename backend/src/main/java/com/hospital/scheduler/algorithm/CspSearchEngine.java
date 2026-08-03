@@ -117,9 +117,16 @@ class CspSearchEngine {
         }
 
         if (outcome == SearchOutcome.FOUND) {
+            // Partial-tolerant: FOUND không còn đảm bảo complete — một số var có
+            // thể bị block (-2) do domain rỗng giữa chừng. Báo partial để
+            // orchestrator biết và top-up bằng Greedy nếu cần.
+            boolean hasBlocked = false;
+            for (int v = 0; v < data.numVars; v++) {
+                if (assignment[v] == -2) { hasBlocked = true; break; }
+            }
             return Result.builder()
                     .valid(true)
-                    .partial(false)
+                    .partial(hasBlocked)
                     .assignment(result)
                     .build();
         }
@@ -380,9 +387,20 @@ class CspSearchEngine {
         if (staffIdx < 0) return;
 
         // Restore domain entries cleared during propagation
+        int frameTrailEnd = trailPtr[0];
         while (trailPtr[0] > frame.trailBefore) {
             trailPtr[0]--;
             domains[trailVar[trailPtr[0]]].set(trailStaff[trailPtr[0]]);
+        }
+        // Unblock vars this frame marked -2 (empty domain trong propagate): domain
+        // vừa được restore nên chúng quay lại -1 (chưa gán). Vars -2 từ ancestor
+        // (domain vẫn rỗng, không nằm trong [trailBefore, frameTrailEnd)) không bị
+        // đụng — đúng vì ancestor chưa rollback.
+        for (int i = frame.trailBefore; i < frameTrailEnd; i++) {
+            int v = trailVar[i];
+            if (v >= 0 && v < data.numVars && assignment[v] == -2 && !domains[v].isEmpty()) {
+                assignment[v] = -1;
+            }
         }
 
         // Unassign the variable
@@ -440,21 +458,17 @@ class CspSearchEngine {
             }
         }
 
-        // 3. Detect failure: only the trail entries added in THIS propagate
-        // call can have just become empty as a direct result of OUR clear.
-        // Older trail entries were already verified non-empty at the time they
-        // were added; if we ALSO clear a value from the same var in this
-        // call, we'll catch the empty domain in the new trail entry (because
-        // domains[v] becomes empty at most once, and we record a trail entry
-        // per clear, so the var appears at most once per propagate call —
-        // either it's already in OLD trail from before this call, OR it's
-        // newly added here). Verifying only [trailBefore, trailPtr[0]) is
-        // therefore sufficient and avoids the O(trailSize) scan that
-        // dominates runtime on over-constrained workloads.
+        // 3. Partial-tolerant model (2026-08-03): domain rỗng giữa chừng KHÔNG
+        // còn là dead-end. Mark var đó -2 (blocked, bỏ qua — giống Greedy bỏ slot
+        // không xếp được) và tiếp tục. Trước đây trả false → candidate bị loại →
+        // hết candidate → DEAD_END với bestPartial=1 (period 2 chỉ xếp được 1 slot)
+        // → CSP fallback Greedy toàn bộ, số liệu CSP luôn = Greedy. Chỉ scan trail
+        // của riêng propagate này (comment cũ: mỗi var xuất hiện tối đa 1 lần/call,
+        // nên scan [trailBefore, trailPtr) là đủ).
         for (int i = trailBefore; i < trailPtr[0]; i++) {
             int v = trailVar[i];
             if (v >= 0 && v < data.numVars && assignment[v] < 0 && domains[v].isEmpty()) {
-                return false;
+                assignment[v] = -2;
             }
         }
         return true;
@@ -510,6 +524,23 @@ class CspSearchEngine {
                 if (v != var && assignment[v] == staffIdx
                         && SHIFT_ORDER[data.varShift[v]].equals(DIRECT_24H)) {
                     return false;
+                }
+            }
+        }
+
+        // BR-03 (chiều ngược): gán L01 ngày D đặt rest day = ngày nghỉ bù C(D).
+        // restDays chỉ check ASSIGNMENT MỚI nằm trên rest day đã đặt; nó không
+        // check assignment CŨ nằm trên rest day vừa mới đặt. Nếu staff đã có ca
+        // khác đúng C(D) (gán trước khi L01 này được chọn) thì L01 này vi phạm
+        // BR-03 — search phải loại, nếu không result-builder drop assignment đó
+        // lúc convert (CSP 396 assignments → 352 schedules).
+        if (shiftType.equals(DIRECT_24H) && data.varsByDay != null && data.compDayIdx != null) {
+            int compIdx = (dayIdx >= 0 && dayIdx < data.numDays) ? data.compDayIdx[dayIdx] : -1;
+            if (compIdx >= 0 && compIdx < data.numDays) {
+                for (int v : data.varsByDay[compIdx]) {
+                    if (v != var && assignment[v] == staffIdx) {
+                        return false;
+                    }
                 }
             }
         }

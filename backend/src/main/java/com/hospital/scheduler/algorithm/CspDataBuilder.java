@@ -181,27 +181,36 @@ public class CspDataBuilder {
 
     private void fillVarArrays(int[][] slotCount, int[] varDay, int[] varShift, int[] varSlot, int[] varSpecialty,
                                int numDays, int numShifts, List<ShiftRequirementInfo> requirements, List<LocalDate> dates) {
-        // Build a map of (dayIdx, shiftIdx) -> first requirement's specialty
-        java.util.Map<String, Integer> specialtyMap = new java.util.HashMap<>();
+        // BUGFIX (2026-08-03): specialtyMap (day_shift → MỘT specialty) sai khi một
+        // ngày có yêu cầu L04 của NHIỀU chuyên khoa (adaptive L04 mở PK nhiều khoa
+        // cùng ngày) — specialty cuối ghi đè, mọi slot L04 ngày đó mang cùng 1
+        // specialty → domain sai → CSP DEAD_END (iters=5, bestPartial=1) → fallback
+        // Greedy. Thay bằng danh sách specialty theo từng slot L04 (mở rộng
+        // requiredCount, giữ thứ tự requirement) — đúng chuyên khoa cho từng var.
+        java.util.List<java.util.List<Integer>> l04SpecByDay = new java.util.ArrayList<>();
+        for (int d = 0; d < numDays; d++) l04SpecByDay.add(new java.util.ArrayList<>());
         for (ShiftRequirementInfo req : requirements) {
             int dayIdx = (int) ChronoUnit.DAYS.between(dates.get(0), req.workDate());
-            String key = dayIdx + "_" + getShiftIdx(req.shiftTypeId());
-            if (req.specialtyId() != null) {
-                specialtyMap.put(key, req.specialtyId());
+            if (dayIdx < 0 || dayIdx >= numDays || req.specialtyId() == null) continue;
+            if (getShiftIdx(req.shiftTypeId()) != 3) continue; // chỉ L04
+            for (int k = 0; k < req.requiredCount(); k++) {
+                l04SpecByDay.get(dayIdx).add(req.specialtyId());
             }
         }
-        
+
         int vid = 0;
         for (int d = 0; d < numDays; d++) {
+            java.util.List<Integer> l04Specs = l04SpecByDay.get(d);
+            int l04Idx = 0;
             for (int s = 0; s < numShifts; s++) {
                 for (int slot = 0; slot < slotCount[d][s]; slot++) {
                     varDay[vid] = d;
                     varShift[vid] = s;
                     varSlot[vid] = slot;
                     // Store specialty for L04 shifts (null/0 for other types)
-                    if (s == 3) { // L04 is index 3 in SHIFT_ORDER
-                        Integer specId = specialtyMap.get(d + "_" + s);
-                        varSpecialty[vid] = specId != null ? specId : 0;
+                    if (s == 3) {
+                        varSpecialty[vid] = (l04Idx < l04Specs.size()) ? l04Specs.get(l04Idx) : 0;
+                        l04Idx++;
                     } else {
                         varSpecialty[vid] = 0;
                     }

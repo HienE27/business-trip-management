@@ -22,6 +22,7 @@ import com.hospital.scheduler.scheduling.constraint.RestDayConstraint;
 import com.hospital.scheduler.scheduling.constraint.ShiftConflictConstraint;
 import com.hospital.scheduler.scheduling.domain.SchedulingProblem;
 import com.hospital.scheduler.scheduling.domain.SolutionDescriptor;
+import com.hospital.scheduler.scheduling.score.ScoreDelta;
 import com.hospital.scheduler.scheduling.score.ScoreDirector;
 import com.hospital.scheduler.scheduling.search.CompositeTermination;
 import com.hospital.scheduler.scheduling.search.LocalSearchAlgorithm;
@@ -196,6 +197,28 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
         // ── 6. Run search ─────────────────────────────────────────────────────
         LocalSearchAlgorithm.SearchResult result = algo.search(initial);
 
+        // ── 6b. Repair pass: lấp slot L01/L02/L03 còn trống sau search ────────
+        // BUGFIX (2026-08-03): V10 thiếu L01 (85/93) — buildInitialSolution hard-
+        // skip cap không relax như Greedy, coverage không phân biệt L01/L04, search
+        // thoát sớm khi no-improve. Pass cuối chọn người ít ca loại đó nhất (rồi ít
+        // tổng), ưu tiên trong cap, chỉ vượt cap khi không còn ai (khớp relaxation
+        // của Greedy tier Integer.MAX_VALUE). Không đụng L04 (đã adaptive).
+        WorkingSolution finalSolution = result.getSolution();
+        if (finalSolution != null) {
+            int repaired = repairCoverageGaps(finalSolution, problem, globalMaxShiftsCap);
+            if (repaired > 0) {
+                log.info("v10 repair pass filled {} unassigned L01/L02/L03 slots", repaired);
+                // Mutate trực tiếp solution → score cũ bị stale, recompute full.
+                scoreDirector.recomputeFull(finalSolution);
+                ScoreDelta constraintDelta = ScoreDelta.zero();
+                for (Constraint c : registry.all()) {
+                    constraintDelta = constraintDelta.plus(c.evaluate(finalSolution));
+                }
+                scoreDirector.applyDelta(constraintDelta);
+                result.setScore(scoreDirector.getCurrent().toImmutable());
+            }
+        }
+
         // ── 7. Convert result back to SchedulingResult ────────────────────────
         return toSchedulingResult(result, staffList);
     }
@@ -339,6 +362,76 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
             }
         }
         return sol;
+    }
+
+    /**
+     * Repair pass sau search (2026-08-03): lấp slot L01/L02/L03/L04 còn trống —
+     * V10 thiếu L01 (85/93) vì search dừng sớm khi no-improve và coverage
+     * không phân biệt L01/L04. Ưu tiên người ít ca loại đó (rồi ít tổng) và
+     * TRONG cap; chỉ vượt cap khi không còn ai trong cap hợp lệ — khớp
+     * relaxation của Greedy (filterAndSortEligibleStaffBatch tier ∞). L04 xử lý
+     * cuối cùng với STRICT specialty (getEligibleStaff) — chỉ lấp bác sĩ đúng khoa.
+     *
+     * @return số slot đã lấp
+     */
+    private int repairCoverageGaps(WorkingSolution sol, SchedulingProblem problem, int globalMaxShiftsCap) {
+        java.util.Map<Integer, Integer> capByStaffId = new java.util.HashMap<>();
+        for (var s : problem.getStaffList()) {
+            Integer entityCap = s.getMaxShiftsPerMonth();
+            capByStaffId.put(s.getId(), globalMaxShiftsCap > 0 ? globalMaxShiftsCap
+                    : (entityCap != null && entityCap > 0 ? entityCap : Integer.MAX_VALUE));
+        }
+        int repaired = 0;
+        int unfillableL01 = 0;
+        java.util.List<String> unfillableL01Dates = new java.util.ArrayList<>();
+        // L04 thêm cuối: getEligibleStaff(req.id()) đã filter STRICT specialty cho L04
+        // nên pass này chỉ lấp đúng bác sĩ đúng khoa — slot adaptive mở nhưng V10
+        // không gán được (search khác phase A) vẫn được lấp lại.
+        for (String stageType : List.of("L01", "L02", "L03", "L04")) {
+            for (com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo req : problem.getRequirements()) {
+                if (!stageType.equals(req.shiftTypeId())) continue;
+                if (sol.getAssignedStaff(req.id()) > 0) continue; // đã gán rồi
+                List<Integer> eligible = problem.getEligibleStaff(req.id());
+                if (eligible.isEmpty()) continue;
+                int bestStaff = -1;
+                int bestTypeCount = Integer.MAX_VALUE;
+                int bestTotal = Integer.MAX_VALUE;
+                int relaxStaff = -1;
+                int relaxTotal = Integer.MAX_VALUE;
+                for (int staffId : eligible) {
+                    if (wouldViolateHard(sol, staffId, req.date(), req.shiftTypeId())) continue;
+                    if (sol.isOnDerivedCompDay(staffId, req.date())) continue;
+                    int total = sol.getShiftCount(staffId);
+                    int cap = capByStaffId.getOrDefault(staffId, Integer.MAX_VALUE);
+                    if (total < cap) {
+                        int typeCount = sol.getShiftCountOfType(staffId, stageType);
+                        if (typeCount < bestTypeCount || (typeCount == bestTypeCount && total < bestTotal)) {
+                            bestTypeCount = typeCount;
+                            bestTotal = total;
+                            bestStaff = staffId;
+                        }
+                    } else if (relaxStaff < 0 || total < relaxTotal) {
+                        relaxTotal = total;
+                        relaxStaff = staffId;
+                    }
+                }
+                int pick = bestStaff > 0 ? bestStaff : relaxStaff;
+                if (pick > 0) {
+                    sol.assign(req.id(), pick);
+                    repaired++;
+                } else if ("L01".equals(stageType)) {
+                    unfillableL01++;
+                    if (unfillableL01Dates.size() < 10) {
+                        unfillableL01Dates.add(req.date() + "(eligible=" + eligible.size() + ")");
+                    }
+                }
+            }
+        }
+        if (unfillableL01 > 0) {
+            log.warn("v10 repair: {} L01 slots vẫn không lấp được (candidates vi phạm hard rule). VD: {}",
+                    unfillableL01, unfillableL01Dates);
+        }
+        return repaired;
     }
 
     /**

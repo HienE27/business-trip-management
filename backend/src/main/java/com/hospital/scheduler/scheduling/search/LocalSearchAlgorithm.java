@@ -10,6 +10,7 @@ import com.hospital.scheduler.scheduling.score.ScoreDirector;
 import com.hospital.scheduler.scheduling.solution.WorkingSolution;
 import com.hospital.scheduler.scheduling.statistics.IncrementalStatisticsHub;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -225,6 +226,7 @@ public class LocalSearchAlgorithm {
     }
 
     @Getter
+    @Setter
     public static class SearchResult {
         private WorkingSolution solution;
         private com.hospital.scheduler.scheduling.score.ScoreSnapshot score;
