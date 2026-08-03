@@ -21,6 +21,10 @@ public class AutoScheduleResponse {
     private Integer executionTimeMs;
     private BigDecimal coverageRate;
     private BigDecimal balanceScore;
+    /** Độ đều theo TỪNG loại ca (L01/L02/L03/L04): 100 - CV(số ca/NS theo loại). */
+    private Map<String, BigDecimal> balanceByShiftType;
+    /** Tổng hợp: bình quân gia quyền theo số ca của balanceByShiftType. */
+    private BigDecimal balanceByTypeScore;
     private Integer conflictCount;
     private Integer totalSchedulesCreated;
     private List<ScheduleSummary> schedules;

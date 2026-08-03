@@ -370,6 +370,10 @@ export interface AutoScheduleResult {
    */
   coverageRate: number | null;
   balanceScore: number | null;
+  /** Độ đều theo từng loại ca (L01/L02/L03/L04): 100 - CV(số ca/NS theo loại). */
+  balanceByShiftType?: Record<string, number>;
+  /** Tổng hợp: bình quân gia quyền của balanceByShiftType. */
+  balanceByTypeScore?: number | null;
   conflictCount: number | null;
   totalSchedulesCreated: number;
   status?: "SCHEDULED" | "TEMPLATE_APPLIED" | "PREVIEW";

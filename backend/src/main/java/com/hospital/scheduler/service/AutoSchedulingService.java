@@ -656,6 +656,9 @@ public class AutoSchedulingService {
         int staffCount = distinctStaffAssigned > 0 ? distinctStaffAssigned : 1;
         BigDecimal balanceScore = calculateBalanceScore(savedSchedules, staffCount);
 
+        Map<String, BigDecimal> balanceByShiftType = calculateBalanceByShiftType(savedSchedules);
+        BigDecimal balanceByTypeScore = calculateBalanceByTypeScore(balanceByShiftType, savedSchedules);
+
         long executionTime = System.currentTimeMillis() - startTime;
 
         // Save metrics so History tab shows this execution. The conflictCount is
@@ -693,6 +696,8 @@ public class AutoSchedulingService {
                 .executionTimeMs((int) executionTime)
                 .coverageRate(coverageRate.setScale(2, RoundingMode.HALF_UP))
                 .balanceScore(balanceScore.setScale(2, RoundingMode.HALF_UP))
+                .balanceByShiftType(balanceByShiftType)
+                .balanceByTypeScore(balanceByTypeScore)
                 .conflictCount(appliedConflictCount)
                 .totalSchedulesCreated(savedSchedules.size())
                 .schedules(summaries)
@@ -1154,6 +1159,10 @@ public class AutoSchedulingService {
                 ? calculateBalanceScore(fairSchedules, fairStaffCount)
                 : BigDecimal.ZERO;
 
+        // Per-type balance (soft metric): CV của số ca TỪNG loại trên mỗi NS.
+        Map<String, BigDecimal> balanceByShiftType = calculateBalanceByShiftType(fairSchedules);
+        BigDecimal balanceByTypeScore = calculateBalanceByTypeScore(balanceByShiftType, fairSchedules);
+
         int distinctStaffAssigned = (int) createdSchedules.stream()
                 .map(s -> s.getStaff().getId()).distinct().count();
 
@@ -1233,6 +1242,8 @@ public class AutoSchedulingService {
                 .executionTimeMs((int) executionTime)
                 .coverageRate(coverageRate)
                 .balanceScore(balanceScore)
+                .balanceByShiftType(balanceByShiftType)
+                .balanceByTypeScore(balanceByTypeScore)
                 .conflictCount(actualConflictCount)
                 .totalSchedulesCreated(scheduleSummaries.size())
                 .schedules(scheduleSummaries)
@@ -1540,16 +1551,18 @@ public class AutoSchedulingService {
                             // Soft cap: deprioritize if already at soft cap
                             return typeCount >= softCapPerType ? 1 : 0;
                         })
-                        // Tier 2b: STRONG ROTATION — prevent same staff being picked multiple consecutive days.
-                        // Staff never picked (value 0) stay TOP priority. Staff picked longest ago
-                        // (smallest value) preferred over those picked more recently.
-                        // Elevated ABOVE Tier 3 to actively rotate through the pool.
-                        .thenComparingInt(s -> lastPickedForType.getOrDefault(s.getId(), 0))
-                        // Tier 3: Fewest of THIS shift type/specialty — primary per-type fairness signal
+                        // Tier 3 (moved above rotation): Fewest of THIS shift type/specialty —
+                        // primary per-type fairness signal. Count evenness beats recency so each
+                        // type stays within ±1 of average whenever the calendar allows (BR-04,
+                        // leave, comp days remain hard constraints — coverage never sacrificed).
                         .thenComparingLong((Staff s) -> {
                             return getStaffCountForKey(s.getId(), capturedFairShareKey,
                                     periodData.staffShiftTypeCounts(), capturedRunningCounts);
                         })
+                        // Tier 2b: ROTATION as tiebreak ONLY — among equal type counts, prefer staff
+                        // picked longest ago (smallest value). Recency above count fairness widens
+                        // the per-type spread (L01 3 vs 6 instead of 4 vs 5).
+                        .thenComparingInt(s -> lastPickedForType.getOrDefault(s.getId(), 0))
                         // Tier 4: Penalty for staff whose total shifts exceed the running average.
                         // Squared term amplifies imbalance so the algorithm aggressively prefers under-loaded staff.
                         .thenComparingDouble(s -> {
@@ -3407,6 +3420,60 @@ public class AutoSchedulingService {
                 String.format("%.2f", cv), String.format("%.0f", totalVolume), poolSize, String.format("%.2f", score));
 
         return BigDecimal.valueOf(score).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Per-type balance: for each shift type, CV of per-staff counts among staff
+     * who received ≥1 shift of that type, score = 100 - CV. Unlike the total
+     * balance (weighted volume), this measures whether EACH type is distributed
+     * evenly — e.g. L01 4.5 avg vs 3/6 spread shows ~82, L04 7.1 vs 4/10 shows ~75.
+     * Soft metric only; the algorithms never sacrifice coverage for it.
+     */
+    private Map<String, BigDecimal> calculateBalanceByShiftType(List<Schedule> schedules) {
+        Map<String, Map<Integer, Long>> countsByType = new java.util.LinkedHashMap<>();
+        for (Schedule s : schedules) {
+            if (s.getShiftType() == null || s.getShiftType().getId() == null) continue;
+            countsByType.computeIfAbsent(s.getShiftType().getId(), k -> new java.util.HashMap<>())
+                    .merge(s.getStaff().getId(), 1L, Long::sum);
+        }
+        Map<String, BigDecimal> out = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, Map<Integer, Long>> e : countsByType.entrySet()) {
+            Map<Integer, Long> perStaff = e.getValue();
+            int n = perStaff.size();
+            if (n <= 1) { out.put(e.getKey(), BigDecimal.ZERO); continue; }
+            double total = perStaff.values().stream().mapToLong(Long::longValue).sum();
+            double mean = total / n;
+            double sumSq = 0;
+            for (long v : perStaff.values()) {
+                double diff = v - mean;
+                sumSq += diff * diff;
+            }
+            double sd = Math.sqrt(sumSq / n);
+            double cv = mean > 0 ? (sd / mean) * 100 : 0.0;
+            out.put(e.getKey(), BigDecimal.valueOf(Math.max(0, 100 - cv)).setScale(2, RoundingMode.HALF_UP));
+        }
+        return out;
+    }
+
+    /** Count-weighted average of per-type balance scores. */
+    private BigDecimal calculateBalanceByTypeScore(Map<String, BigDecimal> byShiftType,
+                                                   List<Schedule> schedules) {
+        if (byShiftType.isEmpty() || schedules.isEmpty()) return BigDecimal.ZERO;
+        Map<String, Long> counts = new java.util.HashMap<>();
+        for (Schedule s : schedules) {
+            if (s.getShiftType() != null && s.getShiftType().getId() != null) {
+                counts.merge(s.getShiftType().getId(), 1L, Long::sum);
+            }
+        }
+        double weighted = 0, totalW = 0;
+        for (Map.Entry<String, BigDecimal> e : byShiftType.entrySet()) {
+            long w = counts.getOrDefault(e.getKey(), 0L);
+            weighted += e.getValue().doubleValue() * w;
+            totalW += w;
+        }
+        return totalW > 0
+                ? BigDecimal.valueOf(weighted / totalW).setScale(2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
     }
 
     /**

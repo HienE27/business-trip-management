@@ -126,6 +126,8 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
     ? Math.min(Math.round(parseNumber(coverageRateRaw ?? 0)), 100)
     : 0;
   const balanceScore = previewResult ? parseNumber(balanceScoreRaw ?? 0) : 0;
+  const balanceByTypeScoreRaw = previewResult?.balanceByTypeScore ?? null;
+  const balanceByTypeScore = previewResult ? parseNumber(balanceByTypeScoreRaw ?? 0) : 0;
   const statusMsgOk = message?.toLowerCase().includes("thành công") || message?.toLowerCase().includes("đã áp dụng");
   const statusMsgNeutral = message?.toLowerCase().includes("đã hủy");
 
@@ -340,6 +342,13 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               value={kpiAvailable ? `${Math.round(Number(balanceScore))}%` : "—"}
               helper={kpiAvailable ? undefined : "Nhấn Chạy để tính"}
               tone={balanceTone}
+            />
+            <KPICard
+              icon="equalizer"
+              label="Cân bằng theo loại"
+              value={kpiAvailable && balanceByTypeScoreRaw !== null ? `${Math.round(Number(balanceByTypeScore))}%` : "—"}
+              helper={kpiAvailable && balanceByTypeScoreRaw === null ? "Chưa có" : undefined}
+              tone={!kpiAvailable ? "neutral" : balanceByTypeScore >= 75 ? "success" : balanceByTypeScore >= 50 ? "warning" : "error"}
             />
             <KPICard
               icon={kpiAvailable && (conflictCountRaw ?? 0) > 0 ? "warning" : "check_circle"}
