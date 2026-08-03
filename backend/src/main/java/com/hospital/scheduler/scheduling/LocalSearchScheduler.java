@@ -274,9 +274,24 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                     : (entityCap != null && entityCap > 0 ? entityCap : Integer.MAX_VALUE));
         }
         for (String stageType : List.of("L01", "L02", "L03", "L04")) {
-            for (com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo req
-                    : problem.getRequirements()) {
-                if (!stageType.equals(req.shiftTypeId())) continue;
+            // MRV order (L01 stage only): process slots with FEWEST eligible staff
+            // first so constrained days (leave/comp-day/adjacency collisions) are
+            // filled before flexible ones. Without it, easy days soak up staff and
+            // hard days concentrate the remainder on the same few people → per-type
+            // spread widens (L01 3-6 instead of 3-5). L02-L04 stay in list order:
+            // reordering them shifts the adaptive-L04 phase's open-day availability
+            // and costs coverage (measured 98.5→96.1 with full-MRV).
+            // Ordering change only — constraints untouched; a slot is never left
+            // empty while an eligible staff exists.
+            var stageReqs = ("L01".equals(stageType))
+                    ? problem.getRequirements().stream()
+                        .filter(r -> stageType.equals(r.shiftTypeId()))
+                        .sorted(java.util.Comparator.comparingInt(r -> problem.getEligibleStaff(r.id()).size()))
+                        .toList()
+                    : problem.getRequirements().stream()
+                        .filter(r -> stageType.equals(r.shiftTypeId()))
+                        .toList();
+            for (com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo req : stageReqs) {
                 List<Integer> eligible = problem.getEligibleStaff(req.id());
                 if (eligible.isEmpty()) continue;
                 // L04 strict-specialty-only: getEligibleStaff đã lọc đúng chuyên khoa
