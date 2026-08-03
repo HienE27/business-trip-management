@@ -51,4 +51,9 @@ public record ScoreDelta(
                 -gapDelta,
                 -giniDelta);
     }
+
+    /** Difference between this delta and {@code other} (this − other). */
+    public ScoreDelta minus(ScoreDelta other) {
+        return plus(other.negated());
+    }
 }

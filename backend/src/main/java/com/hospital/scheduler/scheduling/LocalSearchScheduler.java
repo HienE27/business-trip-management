@@ -443,6 +443,29 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
     private boolean wouldViolateHard(WorkingSolution sol, int staffId,
                                      java.time.LocalDate date, String shiftType) {
         if (sol.isOnDerivedCompDay(staffId, date)) return true;
+        if ("L01".equals(shiftType)) {
+            // Reverse comp-day check: L01 on `date` earns comp(date). If the
+            // staff already works comp(date) (any shift), the existing
+            // assignment would become a BR-03 violation. Ordering matters —
+            // the comp-day L01 may be placed BEFORE the duty L01 (MRV order),
+            // so the forward check alone misses this.
+            java.time.LocalDate comp = sol.getDescriptor().getProblem().compDayOf(date);
+            if (comp != null && sol.hasAssignmentOnDate(staffId, comp)) return true;
+            // Gap-day rule (mirrors AutoSchedulingService filter N-2): L01 on
+            // N-2 followed by work on N-1 then L01 on N is a fatigue conflict.
+            // Without this the build/repair can still place such a pattern and
+            // the shared final filter drops it afterwards, leaving the slot empty.
+            if (sol.hasShiftOnDate(staffId, "L01", date.minusDays(2))
+                    && sol.hasAssignmentOnDate(staffId, date.minusDays(1))) return true;
+        } else if (sol.hasShiftOnDate(staffId, "L01", date.minusDays(1))
+                && sol.hasShiftOnDate(staffId, "L01", date.plusDays(1))) {
+            // Non-L01 shift placed on the GAP day between two L01 duties
+            // (L01 N-1 + work N + L01 N+1) — same fatigue pattern the shared
+            // filter rejects. Mirrors the L01-side gap rule above; without it
+            // a later-stage L02/L03/L04 placement can create the pattern after
+            // both L01s are already fixed.
+            return true;
+        }
         for (int slotId : sol.getSlotsAssignedTo(staffId)) {
             var a = sol.getAssignment(slotId);
             if (a == null || a.staffId <= 0 || a.date == null) continue;

@@ -148,16 +148,20 @@ public class LocalSearchAlgorithm {
         // actively rebalances the mix per staff instead of only top-up filling.
         double preBalance = solution.mixDeviation();
 
+        // BUGFIX (2026-08-03): constraints evaluate ABSOLUTE counts, not
+        // deltas. Adding a full re-evaluation to the accumulated score
+        // double-counts when the initial solution already has hard violations
+        // (current.hard=5 → post = 5 + 5 = 10 > 5 → EVERY move rejected → the
+        // search froze and could never repair a dirty initial solution).
+        // Evaluate before AND after the move and apply the true difference.
+        ScoreDelta preDelta = evaluateConstraints(solution);
+
         // Apply move + statistics
         move.doMove(solution);
         statisticsHub.apply(move, solution);
 
         // Evaluate all constraints to compute new delta
-        ScoreDelta delta = ScoreDelta.zero();
-        for (Constraint c : constraintRegistry.all()) {
-            ScoreDelta d = c.evaluate(solution);
-            delta = delta.plus(d);
-        }
+        ScoreDelta delta = evaluateConstraints(solution).minus(preDelta);
         scoreDirector.applyDelta(delta);
 
         // Decide
@@ -223,6 +227,19 @@ public class LocalSearchAlgorithm {
             }
             return false;
         }
+    }
+
+    /**
+     * Absolute constraint evaluation — every {@link Constraint} reports its
+     * current violation count for the whole solution.
+     */
+    private ScoreDelta evaluateConstraints(WorkingSolution solution) {
+        ScoreDelta delta = ScoreDelta.zero();
+        for (Constraint c : constraintRegistry.all()) {
+            ScoreDelta d = c.evaluate(solution);
+            delta = delta.plus(d);
+        }
+        return delta;
     }
 
     @Getter

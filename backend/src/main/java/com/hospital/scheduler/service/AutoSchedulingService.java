@@ -3270,12 +3270,19 @@ public class AutoSchedulingService {
             if (prevShifts != null && prevShifts.contains(ConflictDetectionService.SHIFT_TYPE_L01)) {
                 return true;
             }
-            // Check N-2
+            // Check N-2: L01 on N-2 makes N-1 the compensation day. Back-to-back
+            // duty via N is a fatigue conflict ONLY if the staff actually worked
+            // N-1. If N-1 was a rest/comp day (the algorithm enforces derived
+            // comp days), L01 on N is legal — a naive unconditional check here
+            // dropped legal L01s (V10 L01=84/93 instead of 93/93).
             LocalDate prev2Day = workDate.minusDays(2);
             String prev2Key = staffId + "_" + prev2Day;
             Set<String> prev2Shifts = inApplyLoop.get(prev2Key);
             if (prev2Shifts != null && prev2Shifts.contains(ConflictDetectionService.SHIFT_TYPE_L01)) {
-                return true;
+                Set<String> gapShifts = inApplyLoop.get(staffId + "_" + workDate.minusDays(1));
+                if (gapShifts != null && !gapShifts.isEmpty()) {
+                    return true;
+                }
             }
             // Check N+1
             LocalDate nextDay = workDate.plusDays(1);

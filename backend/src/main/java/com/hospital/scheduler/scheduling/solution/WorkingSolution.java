@@ -210,6 +210,35 @@ public class WorkingSolution {
     }
 
     /**
+     * True if {@code staffId} currently holds ANY assignment on {@code date}.
+     * Used by the L01 reverse-comp-day check: placing L01 on a duty date whose
+     * compensation day falls on a date the staff already works would silently
+     * turn that existing assignment into a BR-03 violation.
+     */
+    public boolean hasAssignmentOnDate(int staffId, LocalDate date) {
+        if (date == null) return false;
+        List<Integer> slots = slotsByStaff.get(staffId);
+        if (slots == null || slots.isEmpty()) return false;
+        for (int slotId : slots) {
+            MutableAssignment a = assignmentsBySlot.get(slotId);
+            if (a != null && a.staffId > 0 && date.equals(a.date)) return true;
+        }
+        return false;
+    }
+
+    /** True if {@code staffId} holds an assignment of {@code shiftTypeId} on {@code date}. */
+    public boolean hasShiftOnDate(int staffId, String shiftTypeId, LocalDate date) {
+        if (date == null || shiftTypeId == null) return false;
+        List<Integer> slots = slotsByStaff.get(staffId);
+        if (slots == null || slots.isEmpty()) return false;
+        for (int slotId : slots) {
+            MutableAssignment a = assignmentsBySlot.get(slotId);
+            if (a != null && a.staffId > 0 && shiftTypeId.equals(a.shiftTypeId) && date.equals(a.date)) return true;
+        }
+        return false;
+    }
+
+    /**
      * Coverage as a fraction in [0, 1]. Equals
      * {@code (assigned slot count) / (total slot count)}.
      */
