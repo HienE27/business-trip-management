@@ -4,6 +4,7 @@ import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -29,6 +30,7 @@ import static com.hospital.scheduler.algorithm.CspConstants.conflicts;
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 class CspSearchEngine {
 
     private static final long DEFAULT_TIMEOUT_MS = 30_000L;
@@ -71,6 +73,10 @@ class CspSearchEngine {
         for (int v = 0; v < data.numVars; v++) {
             if (domains[v].isEmpty()) assignment[v] = -2;
         }
+        int preBlocked = 0;
+        for (int v = 0; v < data.numVars; v++) if (assignment[v] == -2) preBlocked++;
+        log.info("CSP solve: vars={} staff={} capMax={} preBlocked={}",
+                data.numVars, data.numStaff, data.staffMaxShifts.length > 0 ? data.staffMaxShifts[0] : -1, preBlocked);
         int[] staffWorkload = new int[data.numStaff];
         // Per-type workload: staffShiftWorkload[staffIdx][shiftIdx] = how many of that type assigned
         int[][] staffShiftWorkload = new int[data.numStaff][data.numShifts];
@@ -123,6 +129,19 @@ class CspSearchEngine {
                     .errors(result.isEmpty()
                             ? List.of("Hết thời gian trước khi gán được slot nào")
                             : List.of("Hết thời gian — trả về lịch từng phần"))
+                    .build();
+        }
+        // BUGFIX (2026-08-03): DEAD_END means no COMPLETE assignment exists,
+        // but the search still restored its deepest valid partial into
+        // `assignment`. Surface it as a partial plan (like the timeout path)
+        // so the orchestrator tops it up with Greedy instead of returning 0
+        // and silently falling back to a full Greedy run.
+        if (outcome == SearchOutcome.DEAD_END && !result.isEmpty()) {
+            return Result.builder()
+                    .valid(true)
+                    .partial(true)
+                    .assignment(result)
+                    .errors(List.of("Không tìm được lịch hợp lệ hoàn chỉnh — trả về lịch từng phần tốt nhất"))
                     .build();
         }
         return Result.builder().valid(false).errors(List.of("Không tìm được lịch hợp lệ")).build();
@@ -202,8 +221,19 @@ class CspSearchEngine {
 
         // Explicit backtracking stack: one frame per selected variable.
         Deque<SearchFrame> stack = new ArrayDeque<>();
+        long iterations = 0; // dead-end depth probe
+
+        // BUGFIX (2026-08-03): keep the deepest valid partial assignment found
+        // during search. A complete assignment may not exist (e.g. the
+        // maxShiftsPerStaff cap combined with BR-03 and strict-specialty L04
+        // makes some periods infeasible), but the partial committed along the
+        // way is still a valid plan. Discarding it made the CSP return 0
+        // schedules and silently fall back to Greedy on every infeasible run.
+        int[] bestPartial = null;
+        int bestPartialCount = 0;
 
         while (true) {
+            iterations++;
             // Timeout check — same frequency as the recursive entry check.
             if (System.currentTimeMillis() - startTime > timeoutMs) {
                 return SearchOutcome.TIMED_OUT;
@@ -272,12 +302,27 @@ class CspSearchEngine {
             }
 
             if (found) {
+                // Record deepest valid partial for DEAD_END recovery.
+                if (stack.size() > bestPartialCount) {
+                    bestPartialCount = stack.size();
+                    if (bestPartial == null || bestPartial.length != assignment.length) {
+                        bestPartial = new int[assignment.length];
+                    }
+                    System.arraycopy(assignment, 0, bestPartial, 0, assignment.length);
+                }
                 continue; // committed → go to Step 1 for next variable
             }
 
             // ── All candidates exhausted — backtrack ──
             stack.pop();
             if (stack.isEmpty()) {
+                // Restore the deepest valid partial so the caller can build a
+                // best-effort plan instead of an empty one.
+                if (bestPartial != null) {
+                    System.arraycopy(bestPartial, 0, assignment, 0, bestPartial.length);
+                }
+                log.warn("CSP DEAD_END: iters={} vars={} bestPartial={} — returning best-effort partial",
+                        iterations, data.numVars, bestPartialCount);
                 return SearchOutcome.DEAD_END;
             }
 
@@ -426,6 +471,23 @@ class CspSearchEngine {
             if (assignment[neighbor] == staffIdx) {
                 String otherShiftType = SHIFT_ORDER[data.varShift[neighbor]];
                 if (conflicts(shiftType, otherShiftType)) return false;
+            }
+        }
+
+        // BUGFIX (2026-08-03): 1 shift per staff per day — a staff must not hold
+        // TWO slots of the SAME shift type on the same day (L02/L03/L04; L01 is
+        // already guarded by the BR-06 block below). CspConstants.conflicts()
+        // returns false for equal types, so nothing previously stopped the same
+        // staff from taking 2 L02 slots on one date. The result-map key
+        // "staffId|day|shiftIdx" then silently dropped the duplicate — the
+        // reported CSP plan was missing shifts, and best-partial recovery on
+        // DEAD_END collapsed (20 assigned vars → 3 schedules).
+        if (data.varsByDay != null) {
+            for (int v : data.varsByDay[dayIdx]) {
+                if (v != var && assignment[v] == staffIdx
+                        && SHIFT_ORDER[data.varShift[v]].equals(shiftType)) {
+                    return false;
+                }
             }
         }
 
