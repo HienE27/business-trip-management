@@ -357,6 +357,13 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               helper={kpiAvailable ? undefined : "Nhấn Chạy để tính"}
               tone={conflictTone}
             />
+            <KPICard
+              icon="rule"
+              label="Cap ca/NS"
+              value={previewResult.effectiveMaxShiftsPerStaff != null ? String(previewResult.effectiveMaxShiftsPerStaff) : "—"}
+              helper={previewResult.effectiveMaxShiftsPerStaff != null ? "Tự động theo kỳ" : undefined}
+              tone="neutral"
+            />
           </div>
 
           {/* Row 2: Shift Type Breakdown Cards (own row, separate grid) */}

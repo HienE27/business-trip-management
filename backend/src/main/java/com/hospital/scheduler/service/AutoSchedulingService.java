@@ -841,6 +841,24 @@ public class AutoSchedulingService {
             }
         }
 
+        // Preview auto-cap: cap = ceil(tổng ca yêu cầu / số NS hoạt động) cho TỪNG
+        // kỳ, thay vì cấu hình toàn cục max_shifts. Kỳ đông việc hoặc ít người → cap
+        // cao; kỳ thưa việc → cap thấp (tránh quá tải, đúng khuyến nghị ≤ 22 ca/NS).
+        // Override người dùng (maxShiftsPerMonthOverride) vẫn thắng. Chỉ preview
+        // (save=false) — không sửa DB config, không áp dụng cho lưu thật.
+        if (!save && request.getMaxShiftsPerMonthOverride() == null && !activeStaff.isEmpty()) {
+            int totalRequired = requirements.stream()
+                    .filter(r -> r.getShiftType() != null)
+                    .mapToInt(ShiftRequirement::getRequiredStaffCount)
+                    .sum();
+            if (totalRequired > 0) {
+                int autoCap = Math.max(1, (int) Math.ceil((double) totalRequired / activeStaff.size()));
+                request.setMaxShiftsPerMonthOverride(autoCap);
+                log.info("Preview auto-cap: totalRequired={}, staff={} → maxShiftsPerMonthOverride={}",
+                        totalRequired, activeStaff.size(), autoCap);
+            }
+        }
+
         // Pre-load existing compensation days from the same period so greedy doesn't assign L01 on a day
         // that is already someone's compensation day (confirmed day off — cannot assign L01)
         // Skip in clean preview mode (skipExisting=true) so the algorithm generates from scratch
@@ -1246,6 +1264,9 @@ public class AutoSchedulingService {
                 .balanceByTypeScore(balanceByTypeScore)
                 .conflictCount(actualConflictCount)
                 .totalSchedulesCreated(scheduleSummaries.size())
+                .effectiveMaxShiftsPerStaff(request.getMaxShiftsPerMonthOverride() != null
+                        ? request.getMaxShiftsPerMonthOverride()
+                        : runtimeConfig.getMaxShiftsPerStaff())
                 .schedules(scheduleSummaries)
                 .unassignedDays(unassignedDays)
                 .qualityReport(qualityReport)
@@ -1349,7 +1370,7 @@ public class AutoSchedulingService {
             // Greedy / Round-Robin fail.
             log.info("Running CSP-MRV-FC for period {}", period.getId());
             SchedulingResultWithFairness cspResult = runCsp(period, requirements, activeStaff, save, excluded,
-                    Boolean.TRUE.equals(request.getSkipExisting()));
+                    Boolean.TRUE.equals(request.getSkipExisting()), maxShiftsPerMonthOverride);
             List<Schedule> cspSchedules = cspResult.schedules();
             log.info("CSP-MRV-FC completed with {} schedules (partial={})", cspSchedules.size(), cspResult.cspPartial());
 
@@ -1403,7 +1424,7 @@ public class AutoSchedulingService {
             // JPA entities so save=true persists the same way as CSP/Greedy.
             SchedulingResultWithFairness v10Result = runV10LocalSearch(
                     period, requirements, activeStaff, save, excluded,
-                    Boolean.TRUE.equals(request.getSkipExisting()));
+                    Boolean.TRUE.equals(request.getSkipExisting()), maxShiftsPerMonthOverride);
             return new AlgorithmDispatchResult(algorithmType, v10Result.schedules(), v10Result.fairnessScore());
         }
 
@@ -1745,7 +1766,8 @@ public class AutoSchedulingService {
             List<Staff> activeStaff,
             boolean save,
             Set<Integer> excludedStaffIds,
-            boolean skipExisting) {
+            boolean skipExisting,
+            Integer maxShiftsPerMonthOverride) {
         log.info("Running v10-LocalSearch for period {} (skipExisting={})", period.getId(), skipExisting);
 
         // ── Subtract existing schedules from requirements (preview mode) ──────
@@ -1817,7 +1839,8 @@ public class AutoSchedulingService {
                     baseReqs,
                     existingCompDays,
                     v10LeaveRequests,
-                    excludedIds);
+                    excludedIds,
+                    maxShiftsPerMonthOverride);
             if (baseResult != null) {
                 log.info("V10 phase A (L01-L03) solved: {} assignments", baseResult.getAssignments().size());
             }
@@ -1850,7 +1873,8 @@ public class AutoSchedulingService {
                 finalReqs,
                 existingCompDays,
                 v10LeaveRequests,
-                excludedIds);
+                excludedIds,
+                maxShiftsPerMonthOverride);
 
         // Rehydrate Map-based assignments → JPA entities, then persist if save=true.
         // BUGFIX (V25 #3): pass strict=false so V10's mostly-valid plan (all slots
@@ -2301,7 +2325,8 @@ public class AutoSchedulingService {
 	            List<Staff> activeStaff,
 	            boolean save,
 	            Set<Integer> excludedStaffIds,
-	            boolean skipExisting) {
+	            boolean skipExisting,
+	            Integer maxShiftsPerMonthOverride) {
 	
         try {
             // Translate DB requirements -> algorithm DTO
@@ -2331,8 +2356,13 @@ public class AutoSchedulingService {
 
             // Read maxShiftsPerStaff from runtime config (same source as Greedy)
             // instead of the entity field maxShiftsPerMonth (which defaults to 5
-            // in seed data and makes CSP over-constrained).
-            int maxShiftsPerStaffCsp = algorithmConfigService.getRuntimeConfig().getMaxShiftsPerStaff();
+            // in seed data and makes CSP over-constrained). Override (auto-cap
+            // preview hoặc người dùng) thắng runtime config — trước đây CSP bỏ qua
+            // maxShiftsPerMonthOverride nên preview CSP chạy cap 30 trong khi
+            // Greedy chạy cap 20 → kết quả lệch thuật toán.
+            int maxShiftsPerStaffCsp = maxShiftsPerMonthOverride != null
+                    ? maxShiftsPerMonthOverride
+                    : algorithmConfigService.getRuntimeConfig().getMaxShiftsPerStaff();
             SchedulingResult cspResult = save
                     ? cspScheduler.solve(
                             activeStaff,
@@ -4194,7 +4224,7 @@ public class AutoSchedulingService {
                 log.info("Reschedule period {} via full CSP solve (incremental not applicable: previous={}, canReSolve={})",
                         periodId, previous != null,
                         previous != null && cspScheduler.canReSolveIncrementally(changes));
-                result = runCsp(period, requirements, activeStaff, false, excludedStaffIds, false);
+                result = runCsp(period, requirements, activeStaff, false, excludedStaffIds, false, null);
             }
             log.info("Reschedule period {} done (incremental={}): {} assignments",
                     periodId, usedIncremental, result.schedules().size());

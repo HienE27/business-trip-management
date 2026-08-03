@@ -77,6 +77,24 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                                    Set<String> existingCompensationDays,
                                    List<LeaveRequest> leaveRequests,
                                    Set<Integer> excludedStaffIds) {
+        return solve(staffList, startDate, endDate, requirements, existingCompensationDays,
+                leaveRequests, excludedStaffIds, null);
+    }
+
+    /**
+     * Overload với {@code maxShiftsPerStaffOverride}: null → runtime config
+     * (loadGlobalMaxShiftsCap); 0 = bỏ cap (khớp Greedy). Preview auto-cap dùng
+     * nó để áp cap theo từng kỳ = ceil(tổng ca yêu cầu / số NS) thay vì cap
+     * toàn cục, nên V10 không lệch các thuật toán khác khi so preview.
+     */
+    public SchedulingResult solve(List<Staff> staffList,
+                                   LocalDate startDate,
+                                   LocalDate endDate,
+                                   List<ShiftRequirementInfo> requirements,
+                                   Set<String> existingCompensationDays,
+                                   List<LeaveRequest> leaveRequests,
+                                   Set<Integer> excludedStaffIds,
+                                   Integer maxShiftsPerStaffOverride) {
         log.info("v10 LocalSearchScheduler.solve called: {} staff, {} requirements",
                 staffList.size(), requirements.size());
 
@@ -149,7 +167,9 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
         // BUGFIX (V10-HARDCAP): wire runtime max_shifts_per_staff as the global
         // HARD cap so V10 honors the same ceiling as Greedy
         // (AutoSchedulingService.filterAndSortEligibleStaffBatch). 0 = disabled.
-        int globalMaxShiftsCap = loadGlobalMaxShiftsCap();
+        int globalMaxShiftsCap = maxShiftsPerStaffOverride != null
+                ? maxShiftsPerStaffOverride
+                : loadGlobalMaxShiftsCap();
         ConstraintRegistry registry = new ConstraintRegistry();
         registry.register(new ShiftConflictConstraint());
         registry.register(new LeaveConflictConstraint());

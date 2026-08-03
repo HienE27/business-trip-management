@@ -376,6 +376,8 @@ export interface AutoScheduleResult {
   balanceByTypeScore?: number | null;
   conflictCount: number | null;
   totalSchedulesCreated: number;
+  /** Cap ca/NS thực tế dùng: override request > auto-cap preview (ceil(demand/NS)) > runtime config. */
+  effectiveMaxShiftsPerStaff?: number | null;
   status?: "SCHEDULED" | "TEMPLATE_APPLIED" | "PREVIEW";
   schedules: AutoScheduleSummary[];
   executedAt: string;

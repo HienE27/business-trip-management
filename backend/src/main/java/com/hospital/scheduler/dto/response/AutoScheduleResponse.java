@@ -27,6 +27,8 @@ public class AutoScheduleResponse {
     private BigDecimal balanceByTypeScore;
     private Integer conflictCount;
     private Integer totalSchedulesCreated;
+    /** Cap ca/NS thực tế dùng cho lần chạy: override request > auto-cap preview > runtime config max_shifts. */
+    private Integer effectiveMaxShiftsPerStaff;
     private List<ScheduleSummary> schedules;
     private List<Integer> excludedStaffIds;
     private List<Map<String, Object>> unassignedDays;
