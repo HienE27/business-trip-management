@@ -930,11 +930,18 @@ public class AutoSchedulingService {
         // replacement — every generated schedule is "new". Deduping against stale DB
         // rows drops clean-plan schedules that coincidentally reuse the same
         // staff/date/type (v10 lost ~287/387 → balance showed 64% instead of 95%).
-        java.util.Set<String> existingKeys = Boolean.TRUE.equals(request.getSkipExisting())
+        // BUGFIX (save-overwrite balance=0): save path với overwriteExisting=true
+        // xóa hết lịch cũ TRƯỚC khi chạy, nhưng existingSchedulesForPeriod được load
+        // trước khi xóa. Plan mới tái tạo trùng key lịch đã xóa → bị lọc khỏi
+        // newScheduleKeys → balance=0 dù kết quả vẫn tốt. Save luôn là plan mới
+        // hoàn toàn (overwrite xóa hết, hoặc chưa có lịch) → existingKeys rỗng.
+        java.util.Set<String> existingKeys = save
                 ? java.util.Set.of()
-                : existingSchedulesForPeriod.stream()
-                    .map(e -> e.getStaff().getId() + "_" + e.getWorkDate() + "_" + e.getShiftType().getId())
-                    .collect(java.util.stream.Collectors.toSet());
+                : Boolean.TRUE.equals(request.getSkipExisting())
+                    ? java.util.Set.of()
+                    : existingSchedulesForPeriod.stream()
+                        .map(e -> e.getStaff().getId() + "_" + e.getWorkDate() + "_" + e.getShiftType().getId())
+                        .collect(java.util.stream.Collectors.toSet());
         final java.util.Set<String> newScheduleKeys = new java.util.HashSet<>();
         for (Schedule s : createdSchedules) {
             String key = s.getStaff().getId() + "_" + s.getWorkDate() + "_" + s.getShiftType().getId();
