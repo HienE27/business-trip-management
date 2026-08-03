@@ -32,7 +32,10 @@ public class MaxShiftsConstraint implements Constraint {
 
     @Override
     public boolean isHard() {
-        return false; // soft — per-staff caps are advisory; the search prefers balanced loads
+        // V10-HARDCAP: a runtime global cap (max_shifts_per_staff) is a HARD
+        // ceiling — same semantics as Greedy's cap check. Per-staff entity caps
+        // stay soft (advisory; the search prefers balanced loads).
+        return globalMaxCap > 0;
     }
 
     @Override
@@ -61,6 +64,11 @@ public class MaxShiftsConstraint implements Constraint {
             int actual = counts.getOrDefault(s.getId(), 0);
             if (actual > cap) totalOver += (actual - cap);
         }
-        return new ScoreDelta(0, 0, 0, 0, 0, totalOver, 0);
+        // V10-HARDCAP: over the HARD global cap → hardDelta so the search's
+        // RULE 1 hard-fence rejects the move; per-staff overage stays a soft
+        // gap penalty for balance.
+        return globalMaxCap > 0
+                ? new ScoreDelta(totalOver, 0, 0, 0, 0, 0, 0)
+                : new ScoreDelta(0, 0, 0, 0, 0, totalOver, 0);
     }
 }

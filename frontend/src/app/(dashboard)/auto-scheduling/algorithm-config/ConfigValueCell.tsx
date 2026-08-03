@@ -25,7 +25,6 @@ const VALUE_PRESETS: Record<string, ValuePreset[]> = {
     { label: "SKIP — Bỏ qua ngày lễ", value: "SKIP" },
     { label: "PARTIAL — Vẫn xếp lịch nhưng giảm cường độ", value: "PARTIAL" },
     { label: "GREEDY — Chạy nhanh, phủ lịch nhanh (mặc định)", value: "GREEDY" },
-    { label: "ROUND_ROBIN — Xếp lịch theo vòng tròn", value: "ROUND_ROBIN" },
     { label: "BALANCED — Cân bằng tải, tốc độ trung bình", value: "BALANCED" },
     { label: "MINIMAL_CHANGE — Giữ nguyên lịch hiện tại, thay đổi ít nhất", value: "MINIMAL_CHANGE" },
   ],

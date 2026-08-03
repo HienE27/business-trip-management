@@ -146,13 +146,17 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
         IncrementalStatisticsHub hub = IncrementalStatisticsHub.create(descriptor);
 
         // ── 3. Register constraints ───────────────────────────────────────────
+        // BUGFIX (V10-HARDCAP): wire runtime max_shifts_per_staff as the global
+        // HARD cap so V10 honors the same ceiling as Greedy
+        // (AutoSchedulingService.filterAndSortEligibleStaffBatch). 0 = disabled.
+        int globalMaxShiftsCap = loadGlobalMaxShiftsCap();
         ConstraintRegistry registry = new ConstraintRegistry();
         registry.register(new ShiftConflictConstraint());
         registry.register(new LeaveConflictConstraint());
         registry.register(new DuplicateShiftConstraint());
         registry.register(new RestDayConstraint());
         registry.register(new AdjacentL01Constraint());
-        registry.register(new MaxShiftsConstraint());
+        registry.register(new MaxShiftsConstraint(globalMaxShiftsCap));
         registry.register(new CompensationDayConstraint());
 
         // ── 4. Wire director + algorithm ──────────────────────────────────────
@@ -167,7 +171,7 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                 scoreDirector, registry, hub);
 
         // ── 5. Build initial solution (round-robin greedy for unassigned slots) ──
-        WorkingSolution initial = buildInitialSolution(problem, descriptor, effectiveConfig);
+        WorkingSolution initial = buildInitialSolution(problem, descriptor, effectiveConfig, globalMaxShiftsCap);
 
         // ── 6. Run search ─────────────────────────────────────────────────────
         LocalSearchAlgorithm.SearchResult result = algo.search(initial);
@@ -250,10 +254,25 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
      * consumes any staff, and L01 comp days derived during stage 1 block the
      * same staff in later stages.
      */
+    /** Backward-compatible: no global cap (per-staff entity caps only). */
     WorkingSolution buildInitialSolution(SchedulingProblem problem,
                                           SolutionDescriptor descriptor,
                                           SchedulingConfig effectiveConfig) {
+        return buildInitialSolution(problem, descriptor, effectiveConfig, 0);
+    }
+
+    WorkingSolution buildInitialSolution(SchedulingProblem problem,
+                                          SolutionDescriptor descriptor,
+                                          SchedulingConfig effectiveConfig,
+                                          int globalMaxShiftsCap) {
         WorkingSolution sol = WorkingSolution.fromProblem(effectiveConfig, descriptor);
+        // Effective cap per staff: runtime global cap wins, else per-staff entity cap.
+        java.util.Map<Integer, Integer> capByStaffId = new java.util.HashMap<>();
+        for (var s : problem.getStaffList()) {
+            Integer entityCap = s.getMaxShiftsPerMonth();
+            capByStaffId.put(s.getId(), globalMaxShiftsCap > 0 ? globalMaxShiftsCap
+                    : (entityCap != null && entityCap > 0 ? entityCap : Integer.MAX_VALUE));
+        }
         for (String stageType : List.of("L01", "L02", "L03", "L04")) {
             for (com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo req
                     : problem.getRequirements()) {
@@ -266,6 +285,8 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                 int bestTypeCount = Integer.MAX_VALUE;
                 int bestTotal = Integer.MAX_VALUE;
                 for (int staffId : eligible) {
+                    if (sol.getShiftCount(staffId)
+                            >= capByStaffId.getOrDefault(staffId, Integer.MAX_VALUE)) continue;
                     if (wouldViolateHard(sol, staffId, req.date(), req.shiftTypeId())) continue;
                     if (sol.isOnDerivedCompDay(staffId, req.date())) continue;
                     int typeCount = sol.getShiftCountOfType(staffId, stageType);
@@ -382,6 +403,22 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
             log.warn("Failed to load scheduling config from DB; falling back to static defaults: {}",
                     ex.getMessage());
             return config;
+        }
+    }
+
+    /**
+     * BUGFIX (V10-HARDCAP): read runtime {@code max_shifts_per_staff} from the
+     * DB-backed config. {@link SchedulingConfig} has no slot for it, so read the
+     * {@code ConfigDomain} directly. 0 = no global cap (fall back to per-staff
+     * entity caps, enforced softly by {@link MaxShiftsConstraint}).
+     */
+    private int loadGlobalMaxShiftsCap() {
+        try {
+            return Math.max(0, configService.load().maxShiftsPerStaff());
+        } catch (Exception ex) {
+            log.warn("Failed to load maxShiftsPerStaff from DB; global cap disabled: {}",
+                    ex.getMessage());
+            return 0;
         }
     }
 }
