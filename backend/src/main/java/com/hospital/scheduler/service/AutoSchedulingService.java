@@ -903,10 +903,15 @@ public class AutoSchedulingService {
         // filterHardConstrainedSchedules removes orphan schedules (no requirement),
         // but those orphans ARE the algorithm's output and must count toward balance.
         // Deduplicate against existingSchedulesForPeriod to get truly-new keys.
-        java.util.Set<String> existingKeys = new java.util.HashSet<>();
-        for (Schedule e : existingSchedulesForPeriod) {
-            existingKeys.add(e.getStaff().getId() + "_" + e.getWorkDate() + "_" + e.getShiftType().getId());
-        }
+        // BUGFIX (clean-run balance): in skipExisting mode the plan is a from-scratch
+        // replacement — every generated schedule is "new". Deduping against stale DB
+        // rows drops clean-plan schedules that coincidentally reuse the same
+        // staff/date/type (v10 lost ~287/387 → balance showed 64% instead of 95%).
+        java.util.Set<String> existingKeys = Boolean.TRUE.equals(request.getSkipExisting())
+                ? java.util.Set.of()
+                : existingSchedulesForPeriod.stream()
+                    .map(e -> e.getStaff().getId() + "_" + e.getWorkDate() + "_" + e.getShiftType().getId())
+                    .collect(java.util.stream.Collectors.toSet());
         final java.util.Set<String> newScheduleKeys = new java.util.HashSet<>();
         for (Schedule s : createdSchedules) {
             String key = s.getStaff().getId() + "_" + s.getWorkDate() + "_" + s.getShiftType().getId();
