@@ -61,6 +61,13 @@ class CspSearchEngine {
      * blocking the user for 30s.
      */
     Result solve(ProblemData data, long startTime, long timeoutMs) {
+        // BUGFIX (2026-08-03): nogoods are per-problem (varIdx/staffIdx are
+        // problem-local). The store is a Spring singleton, so leftover nogoods
+        // from a previous solve (different requirements or a different
+        // maxShiftsPerStaff cap) can falsely reject valid branches and cause an
+        // immediate DEAD_END. Clear before every search.
+        nogoodStore.clear();
+
         BitSet[] domains = copyDomains(data);
         int[] assignment = new int[data.numVars];
         java.util.Arrays.fill(assignment, -1);

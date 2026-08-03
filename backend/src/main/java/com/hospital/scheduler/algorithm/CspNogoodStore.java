@@ -103,6 +103,25 @@ class CspNogoodStore {
     }
 
     /**
+     * BUGFIX (2026-08-03): clear all learned nogoods. Nogoods are keyed by
+     * (varIdx, staffIdx) which are PER-PROBLEM — var/staff indices mean
+     * different things across solves (different requirements, different
+     * maxShiftsPerStaff caps change which branches are feasible). Because
+     * this store is a Spring singleton and was never reset, nogoods learned
+     * in one solve silently poisoned the next: e.g. cap-20 runs taught
+     * "assignment X fails", then a cap-30 run inherited that nogood and
+     * wrongly pruned the same branch → immediate DEAD_END (bestPartial=0)
+     * even though the problem was feasible. Must be cleared at the start of
+     * every solve; nogoods are only valid within a single search.
+     */
+    void clear() {
+        nogoods.clear();
+        varIndex.clear();
+        nogoodsLearned = 0;
+        scratchAssignment.remove();
+    }
+
+    /**
      * Build a nogood from the current failure: the failed variable plus
      * every assignment recorded on the propagation trail up to trailPtr.
      * Then simplify it (currently: keep all, reserved for future pruning).
