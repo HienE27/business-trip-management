@@ -83,6 +83,8 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   onSaveTemplate,
   onApplyTemplate,
   isManager = true,
+  skipExisting,
+  onSetSkipExisting,
 }: AutoSchedulePanelProps) {
   const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<number>>(new Set());
@@ -177,6 +179,22 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                 );
               })}
             </div>
+            {/* Clean run toggle */}
+            <label className="inline-flex items-center gap-1.5 shrink-0 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={skipExisting ?? false}
+                onChange={(e) => onSetSkipExisting?.(e.target.checked)}
+                disabled={runningAutoSchedule}
+                className="sr-only"
+              />
+              <div className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${(skipExisting ?? false) ? "bg-primary" : "bg-outline"} ${runningAutoSchedule ? "opacity-50" : ""}`}>
+                <div className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${(skipExisting ?? false) ? "translate-x-4.5" : "translate-x-0.75"}`} />
+              </div>
+              <span className="text-label-sm text-primary whitespace-nowrap">
+                Bỏ lịch cũ
+              </span>
+            </label>
           </div>
 
           {/* Right actions — wraps to next line on narrow viewports,

@@ -336,6 +336,8 @@ export interface AutoScheduleRequest {
    * Tip: start with 8 (realistic hospital workload), 25-40 (relaxed sim), 0 (disable).
    */
   maxShiftsPerMonthOverride?: number | null;
+  /** Skip existing schedules — clean run from scratch */
+  skipExisting?: boolean;
 }
 
 export interface AutoScheduleSummary {

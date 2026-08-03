@@ -143,6 +143,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         excludedStaffIds: excludedStaffIds && excludedStaffIds.length > 0 ? excludedStaffIds : undefined,
         holidayMode: holidayMode ?? undefined,
         maxShiftsPerMonthOverride,
+        skipExisting,
       }, { timeout: 600000 }); // 10 minute ceiling for the CSP partial path
 
       // Preserve user edits across re-runs: merge edited items back into the fresh
@@ -173,7 +174,7 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
     } finally {
       setRunning(false);
     }
-  }, [algorithmType, holidayMode, maxShiftsPerMonthOverride]);
+  }, [algorithmType, holidayMode, maxShiftsPerMonthOverride, skipExisting]);
 
   const applyPreview = useCallback(
     async (

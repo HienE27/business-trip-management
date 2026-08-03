@@ -62,6 +62,15 @@ class CspSearchEngine {
         BitSet[] domains = copyDomains(data);
         int[] assignment = new int[data.numVars];
         java.util.Arrays.fill(assignment, -1);
+        // Pre-block vars whose domain is empty after the initial AC-3 pass.
+        // These slots are genuinely unsatisfiable (e.g. an L04 specialty with
+        // no free doctor that day) — the search must skip them instead of
+        // treating them as a dead end. Marking -2 (blocked) here keeps the
+        // search focused on the solvable remainder; blocked slots simply stay
+        // uncovered, matching Greedy's "UNDERSTAFFED: assigned=0" behavior.
+        for (int v = 0; v < data.numVars; v++) {
+            if (domains[v].isEmpty()) assignment[v] = -2;
+        }
         int[] staffWorkload = new int[data.numStaff];
         // Per-type workload: staffShiftWorkload[staffIdx][shiftIdx] = how many of that type assigned
         int[][] staffShiftWorkload = new int[data.numStaff][data.numShifts];
@@ -353,7 +362,7 @@ class CspSearchEngine {
 
         // 1. BR-01/02: same-day conflicting shifts — iterate only neighbors via constraintGraph
         for (int neighbor : data.constraintGraph[var]) {
-            if (assignment[neighbor] >= 0) continue;
+            if (assignment[neighbor] != -1) continue; // skip assigned AND blocked (-2)
             if (data.varDay[neighbor] != dayIdx) continue;
             String otherShiftType = SHIFT_ORDER[data.varShift[neighbor]];
             if (conflicts(shiftType, otherShiftType) && domains[neighbor].get(staffIdx)) {
@@ -369,7 +378,7 @@ class CspSearchEngine {
         int compDayIdx = getCompensationDayIdx(dayIdx, data);
         if (compDayIdx >= 0 && compDayIdx < data.numDays && data.varsByDay != null) {
             for (int v : data.varsByDay[compDayIdx]) {
-                if (v == var || assignment[v] >= 0) continue;
+                if (v == var || assignment[v] != -1) continue;
                 if (domains[v].get(staffIdx)) {
                     domains[v].clear(staffIdx);
                     trailVar[trailPtr[0]] = v;
@@ -460,7 +469,7 @@ class CspSearchEngine {
         int minSize = Integer.MAX_VALUE;
         int maxDegree = -1;
         for (int v = 0; v < data.numVars; v++) {
-            if (assignment[v] >= 0) continue;
+            if (assignment[v] != -1) continue; // skip assigned AND pre-blocked (-2)
             int size = domains[v].cardinality();
             if (size == 0) return -1;
             // MRV primary: smaller domain first. Tie-break: degree heuristic
