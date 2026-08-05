@@ -67,4 +67,26 @@ public class ProblemData {
      * at problem-build time based on slotCount.
      */
     int[] compDayIdx;
+
+    // ───── OPT-004: L04 Assignment Optimization ─────
+    /**
+     * For each L04 var, a BitSet of fallback-eligible staff (staff with related
+     * specialty, available on N-1/N+1 — no adjacent-day L01). When primary domain
+     * is empty the fallback domain is tried as last resort before marking the var
+     * blocked. Sparse: only L04 vars have a non-null entry.
+     */
+    BitSet[] l04FallbackDomains;
+    /**
+     * Scarcity score for each L04 var: number of eligible staff in the PRIMARY
+     * domain. Used by L04-prioritized MRV to rank scarce vars first. Higher
+     * score = less scarce (more options), lower score = scarcer (harder to fill).
+     * Non-L04 vars have score = 0.
+     */
+    int[] l04ScarcityScore;
+    /**
+     * Flag per L04 var: set to 1 when this var was filled using the fallback
+     * domain (cross-specialty staff). Used by CspResultBuilder to emit audit
+     * logs for every fallback assignment. Non-L04 vars are always 0.
+     */
+    int[] l04FallbackUsed;
 }

@@ -219,6 +219,13 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
             }
         }
 
+        // ── 6c. MISSING-SLOTS AUDIT (v10): phân tích chi tiết các slot chưa gán
+        // theo (shift, specialty, eligible-staff-pool). Required để trả lời câu hỏi
+        // "67 ca thiếu là do thiếu nguồn lực hay do thuật toán".
+        if (finalSolution != null) {
+            logMissingSlotsAuditV10(finalSolution, problem, globalMaxShiftsCap);
+        }
+
         // ── 7. Convert result back to SchedulingResult ────────────────────────
         return toSchedulingResult(result, staffList);
     }
@@ -384,6 +391,15 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
         int repaired = 0;
         int unfillableL01 = 0;
         java.util.List<String> unfillableL01Dates = new java.util.ArrayList<>();
+
+        // ── L02 REPAIR AUDIT: track why each L02 slot was skipped ───────────────
+        java.util.List<String> l02SkipReasons = new java.util.ArrayList<>();
+        int l02RepairedByRepair = 0;
+        int l02SkipNoEligible = 0;
+        int l02SkipHardConflict = 0;
+        int l02SkipNoQuota = 0;
+        int l02SkipCompDay = 0;
+
         // L04 thêm cuối: getEligibleStaff(req.id()) đã filter STRICT specialty cho L04
         // nên pass này chỉ lấp đúng bác sĩ đúng khoa — slot adaptive mở nhưng V10
         // không gán được (search khác phase A) vẫn được lấp lại.
@@ -392,15 +408,25 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                 if (!stageType.equals(req.shiftTypeId())) continue;
                 if (sol.getAssignedStaff(req.id()) > 0) continue; // đã gán rồi
                 List<Integer> eligible = problem.getEligibleStaff(req.id());
-                if (eligible.isEmpty()) continue;
+                if (eligible.isEmpty()) {
+                    if ("L02".equals(stageType)) l02SkipNoEligible++;
+                    continue;
+                }
                 int bestStaff = -1;
                 int bestTypeCount = Integer.MAX_VALUE;
                 int bestTotal = Integer.MAX_VALUE;
                 int relaxStaff = -1;
                 int relaxTotal = Integer.MAX_VALUE;
+                java.util.List<String> skippedReasons = new java.util.ArrayList<>();
                 for (int staffId : eligible) {
-                    if (wouldViolateHard(sol, staffId, req.date(), req.shiftTypeId())) continue;
-                    if (sol.isOnDerivedCompDay(staffId, req.date())) continue;
+                    if (sol.isOnDerivedCompDay(staffId, req.date())) {
+                        if ("L02".equals(stageType)) skippedReasons.add("s" + staffId + "|compDay");
+                        continue;
+                    }
+                    if (wouldViolateHard(sol, staffId, req.date(), req.shiftTypeId())) {
+                        if ("L02".equals(stageType)) skippedReasons.add("s" + staffId + "|hard");
+                        continue;
+                    }
                     int total = sol.getShiftCount(staffId);
                     int cap = capByStaffId.getOrDefault(staffId, Integer.MAX_VALUE);
                     if (total < cap) {
@@ -410,22 +436,44 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                             bestTotal = total;
                             bestStaff = staffId;
                         }
-                    } else if (relaxStaff < 0 || total < relaxTotal) {
-                        relaxTotal = total;
-                        relaxStaff = staffId;
+                    } else {
+                        if ("L02".equals(stageType)) skippedReasons.add("s" + staffId + "|q=" + (cap - total));
+                        if (relaxStaff < 0 || total < relaxTotal) {
+                            relaxTotal = total;
+                            relaxStaff = staffId;
+                        }
                     }
                 }
                 int pick = bestStaff > 0 ? bestStaff : relaxStaff;
                 if (pick > 0) {
                     sol.assign(req.id(), pick);
                     repaired++;
+                    if ("L02".equals(stageType)) l02RepairedByRepair++;
                 } else if ("L01".equals(stageType)) {
                     unfillableL01++;
                     if (unfillableL01Dates.size() < 10) {
                         unfillableL01Dates.add(req.date() + "(eligible=" + eligible.size() + ")");
                     }
                 }
+                // Log L02 slots that repair could not fill
+                if ("L02".equals(stageType) && bestStaff <= 0 && relaxStaff <= 0) {
+                    l02SkipHardConflict++;
+                    if (l02SkipReasons.size() < 10) {
+                        l02SkipReasons.add(String.format("L02 %s eligible=%d skipped: %s",
+                                req.date(), eligible.size(), skippedReasons));
+                    }
+                }
+                if ("L02".equals(stageType) && bestStaff <= 0 && relaxStaff <= 0 && eligible.isEmpty()) {
+                    l02SkipNoEligible++;
+                }
+                if ("L02".equals(stageType) && bestStaff <= 0 && relaxStaff <= 0 && eligible.isEmpty()) {}
             }
+        }
+        if (l02SkipReasons.size() > 0) {
+            log.info("[REPAIR-AUDIT/L02] total L02 missing={} repaired_by_repair={} skip_no_eligible={} skip_hard_conflict={} skip_no_quota={} skip_comp_day={}",
+                    l02SkipNoEligible + l02SkipHardConflict + l02SkipNoQuota + l02SkipCompDay,
+                    l02RepairedByRepair, l02SkipNoEligible, l02SkipHardConflict, l02SkipNoQuota, l02SkipCompDay);
+            for (String r : l02SkipReasons) log.info("  {}", r);
         }
         if (unfillableL01 > 0) {
             log.warn("v10 repair: {} L01 slots vẫn không lấp được (candidates vi phạm hard rule). VD: {}",
@@ -539,6 +587,104 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
             out.setFairnessScore(java.math.BigDecimal.ZERO);
         }
         return out;
+    }
+
+    /**
+     * MISSING-SLOTS AUDIT (v10) — trả lời câu hỏi "67 ca thiếu là do thiếu
+     * nguồn lực hay do thuật toán". Phân tích:
+     *   1. Per-shift missing count (L01/L02/L03/L04)
+     *   2. Per-specialty missing count cho L04 (Ngoại/Nội/Sản/Nhi/Mắt/Răng)
+     *   3. Per-specialty: eligible pool size trung bình (để phân biệt "thiếu
+     *      nguồn lực thật" vs "thuật toán chưa tìm được")
+     *   4. First 10 missing slots dạng (date|shift|specId|eligibleCount)
+     *
+     * Triggered khi có ≥1 unassigned slot. Chỉ log, không fail solve.
+     */
+    private void logMissingSlotsAuditV10(WorkingSolution sol, SchedulingProblem problem, int globalCap) {
+        java.util.List<com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo> reqs =
+                problem.getRequirements();
+        if (reqs == null || reqs.isEmpty()) return;
+
+        int totalAssigned = 0, totalMissing = 0;
+        java.util.Map<String, int[]> missingByShift = new java.util.LinkedHashMap<>();
+        java.util.Map<Integer, int[]> missingBySpec = new java.util.HashMap<>();
+        java.util.Map<Integer, int[]> eligiblePoolBySpec = new java.util.HashMap<>();
+        java.util.List<String> missingSamples = new java.util.ArrayList<>();
+
+        for (com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo r : reqs) {
+            int assigned = sol.getAssignedStaff(r.id());
+            int specId = r.specialtyId() != null ? r.specialtyId() : 0;
+            int eligibleCount = problem.getEligibleStaff(r.id()).size();
+
+            if (assigned > 0) {
+                totalAssigned++;
+                continue;
+            }
+            totalMissing++;
+            missingByShift.computeIfAbsent(r.shiftTypeId(), k -> new int[]{0, 0})[0]++;
+            missingBySpec.computeIfAbsent(specId, k -> new int[]{0, 0})[0]++;
+            // Sum eligible pool across slots of this specialty (avg later)
+            eligiblePoolBySpec.computeIfAbsent(specId, k -> new int[]{0, 0})[0]++;
+            eligiblePoolBySpec.get(specId)[1] += eligibleCount;
+
+            if (missingSamples.size() < 10) {
+                missingSamples.add(r.date() + "|" + r.shiftTypeId() + "|spec=" + specId
+                        + "|eligible=" + eligibleCount);
+            }
+        }
+        if (totalMissing == 0) return;
+
+        log.info("[V10-MISSING-AUDIT] totalMissing={} totalAssigned={}", totalMissing, totalAssigned);
+        // Per-shift summary
+        StringBuilder sb = new StringBuilder();
+        for (java.util.Map.Entry<String, int[]> e : missingByShift.entrySet()) {
+            sb.append(e.getKey()).append("=").append(e.getValue()[0]).append(" ");
+        }
+        log.info("[V10-MISSING-AUDIT/by-shift] {}", sb.toString().trim());
+
+        // Per-specialty summary (avg eligible pool = sum/n) — phân biệt "thiếu NS"
+        // (avg eligible thấp, vd 0-1) vs "thuật toán chưa xếp được" (avg eligible cao)
+        StringBuilder sbSpec = new StringBuilder();
+        java.util.List<Integer> specIds = new java.util.ArrayList<>(missingBySpec.keySet());
+        java.util.Collections.sort(specIds);
+        for (Integer specId : specIds) {
+            int[] miss = missingBySpec.get(specId);
+            int[] pool = eligiblePoolBySpec.getOrDefault(specId, new int[]{0, 0});
+            double avgEligible = pool[0] > 0 ? (double) pool[1] / pool[0] : 0.0;
+            sbSpec.append(String.format("spec=%d missing=%d avgEligible=%.1f; ",
+                    specId, miss[0], avgEligible));
+        }
+        log.info("[V10-MISSING-AUDIT/by-specialty] {}", sbSpec.toString().trim());
+
+                log.info("[V10-MISSING-AUDIT/samples] first10: {}", missingSamples);
+
+        // ── L02 DEEP DIVE: 7 ca missing có 11-14 eligible — tại sao không xếp? ──
+        // Mỗi ngày L02 missing: liệt kê eligible list + quota remaining + busy shifts.
+        java.util.List<String> l02Deep = new java.util.ArrayList<>();
+        for (com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo r : reqs) {
+            if (!"L02".equals(r.shiftTypeId())) continue;
+            int assigned = sol.getAssignedStaff(r.id());
+            if (assigned > 0) continue;
+            java.util.List<Integer> eligibleList = problem.getEligibleStaff(r.id());
+            // Tính quota remaining cho từng eligible staff.
+            // WorkingSolution có getShiftCount(staffId) = tổng ca đã xếp.
+            // Và hasAssignmentOnDate(staffId, date) = đã có ca ngày đó.
+            java.util.List<String> eligibleDetails = new java.util.ArrayList<>();
+            int quotaRemainSum = 0;
+            for (Integer sid : eligibleList) {
+                int shiftsSoFar = sol.getShiftCount(sid);
+                int quotaLeft = globalCap - shiftsSoFar;
+                boolean busy = sol.hasAssignmentOnDate(sid, r.date());
+                eligibleDetails.add("s" + sid + "(q=" + quotaLeft + (busy ? "|busy" : "|free") + ")");
+                quotaRemainSum += quotaLeft;
+            }
+            l02Deep.add(String.format("L02 %s eligible=%d qSum=%d slots: %s",
+                    r.date(), eligibleList.size(), quotaRemainSum, eligibleDetails));
+        }
+        if (!l02Deep.isEmpty()) {
+            log.info("[V10-MISSING-AUDIT/L02-DEEP] {} missing L02 slots:", l02Deep.size());
+            for (String s : l02Deep) log.info("  {}", s);
+        }
     }
 
     /**

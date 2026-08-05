@@ -48,10 +48,10 @@ class CspIncrementalResolver {
         IncrementalState state = buildIncrementalState(previousResult, staffList, requirements);
         applyDeltaChanges(state, deltaChanges);
 
-        if (!revalidateAndPropagate(state)) {
+        if (!revalidateAndPropagate(state, staffList)) {
             return fullReSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests);
         }
-        if (!localSearch(state, startTime)) {
+        if (!localSearch(state, staffList, startTime)) {
             return fullReSolve(previousResult, deltaChanges, staffList, requirements, leaveRequests);
         }
         return buildResultFromIncrementalState(state, staffList, startTime);
@@ -163,7 +163,15 @@ class CspIncrementalResolver {
         }
     }
 
-    private boolean revalidateAndPropagate(IncrementalState state) {
+    /**
+     * OPT-002: queue-driven repair pass.  Replaces the original
+     * arbitrary-order {@code state.conflicts.remove(0)} loop with a
+     * priority queue ({@link CspRepairQueueManager}) that orders slots by
+     * (scarcity, streak, slack, seq).  Each entry is fed to
+     * {@link CspRepairHeuristics#attemptRepair}, which adds soft-fairness
+     * relaxation and rotation retries on top of the hard-constraint check.
+     */
+    private boolean revalidateAndPropagate(IncrementalState state, List<Staff> staffList) {
         for (String varKey : state.affectedVars) {
             String[] parts = varKey.split("\\|");
             LocalDate date = LocalDate.parse(parts[0]);
@@ -181,24 +189,130 @@ class CspIncrementalResolver {
             if (conflict != null) state.conflicts.add(new ConflictInfo(varKey, currentStaffId, conflict));
         }
 
-        int maxIterations = 10;
+        if (state.conflicts.isEmpty()) return true;
+
+        // ── OPT-002: queue-driven repair ─────────────────────────────────────
+        return repairWithQueue(state, staffList, 10);
+    }
+
+    /**
+     * Process {@link IncrementalState#conflicts} through the
+     * {@link CspRepairQueueManager} + {@link CspRepairHeuristics} pipeline.
+     * Returns {@code true} when every conflict has been resolved.
+     *
+     * <p>Failed repairs are re-enqueued with an incremented streak so the
+     * next iteration gets higher priority (and a fresh fairness context).
+     */
+    private boolean repairWithQueue(IncrementalState state, List<Staff> staffList, int maxIterations) {
+        Map<String, Integer> eligibleCounts = buildEligibleCounts(staffList, state);
+        Set<String> unmetKeys = new LinkedHashSet<>();
+        for (ConflictInfo c : state.conflicts) unmetKeys.add(c.varKey);
+
+        CspRepairQueueManager queue = CspRepairQueueManager.build(
+                unmetKeys, state.varIndexMap, state.staffIndexMap, staffList,
+                state.assignments, eligibleCounts, true /* relaxFairness */);
+
         int iter = 0;
-        while (!state.conflicts.isEmpty() && iter < maxIterations) {
-            ConflictInfo conflict = state.conflicts.remove(0);
-            String[] parts = conflict.varKey.split("\\|");
+        while (queue.remainingRepairs() > 0 && iter < maxIterations) {
+            CspRepairQueueManager.RepairEntry entry = queue.pollNextRepair();
+            if (entry == null) break;
+
+            String[] parts = entry.varKey().split("\\|");
             LocalDate date = LocalDate.parse(parts[0]);
             String shiftType = parts[1];
+            Integer currentStaffId = findStaffForSlot(state, date, shiftType);
 
-            Integer alternativeStaffId = findAlternativeStaff(state, date, shiftType, conflict.staffId);
-            if (alternativeStaffId != null) {
-                removeAssignment(state, conflict.staffId, date);
-                addAssignment(state, alternativeStaffId, date, shiftType);
-            } else if (conflict.staffId != null) {
-                removeAssignment(state, conflict.staffId, date);
+            CspRepairHeuristics.RepairResult result = attemptRepairFor(
+                    entry.varKey(), date, shiftType, currentStaffId, staffList, queue);
+
+            if (result.isRepaired()) {
+                Integer newStaff = result.getReplacementStaffId();
+                if (currentStaffId != null && !currentStaffId.equals(newStaff)) {
+                    removeAssignment(state, currentStaffId, date);
+                }
+                addAssignment(state, newStaff, date, shiftType);
+                queue.recordAssignment(newStaff);
+                queue.markRepaired(entry.varKey());
+                state.conflicts.removeIf(c -> c.varKey.equals(entry.varKey()));
+            } else {
+                int nextStreak = entry.priority().streak() + 1;
+                queue.reenqueueWithStreak(entry.varKey(), nextStreak);
             }
             iter++;
         }
         return state.conflicts.isEmpty();
+    }
+
+    /**
+     * Single-slot repair using {@link CspRepairHeuristics#attemptRepair}.
+     * Bridges the resolver's hard-constraint checker and a workload-aware
+     * fairness predicate into the 3-phase (normal → relaxed → rotation)
+     * heuristic.
+     */
+    private CspRepairHeuristics.RepairResult attemptRepairFor(
+            String varKey, LocalDate date, String shiftType, Integer excludeStaffId,
+            List<Staff> staffList, CspRepairQueueManager queue) {
+
+        java.util.function.BiFunction<Integer, Integer, String> hardCheck = (candidateId, w) -> {
+            Integer staffIdx = state.staffIndexMap.get(candidateId);
+            if (staffIdx == null) return "Staff not in roster";
+            String conflict = checkAssignmentConflict(this.stateRef(), date, shiftType, candidateId, staffIdx);
+            return conflict;
+        };
+
+        // Fairness (BR05) predicate: when relaxed, every staff passes; otherwise
+        // only staff within +2 of the average workload pass.
+        java.util.function.Predicate<Integer> fairnessCheck;
+        Map<Integer, Integer> wl = queue.getStaffWorkload();
+        if (queue.shouldRelaxFairness() || wl.isEmpty()) {
+            fairnessCheck = sid -> true;
+        } else {
+            double avg = wl.values().stream().mapToInt(Integer::intValue).average().orElse(0);
+            int threshold = (int) Math.ceil(avg + 2);
+            fairnessCheck = sid -> wl.getOrDefault(sid, 0) <= threshold;
+        }
+
+        return CspRepairHeuristics.attemptRepair(
+                varKey, date, shiftType, excludeStaffId,
+                staffList, wl, fairnessCheck, hardCheck);
+    }
+
+    /**
+     * Build eligible-staff counts per shift type for the priority queue's
+     * scarcity tier computation.  We use the total roster size as an upper
+     * bound — the precise per-shift specialty filtering lives in the
+     * hard-constraint lambda passed to {@link CspRepairHeuristics}.
+     */
+    private Map<String, Integer> buildEligibleCounts(List<Staff> staffList, IncrementalState state) {
+        Map<String, Integer> counts = new HashMap<>();
+        if (staffList == null || staffList.isEmpty()) return counts;
+        int total = staffList.size();
+        for (String shiftType : new String[]{"L01", "L02", "L03", "L04"}) {
+            counts.put(shiftType, total);
+        }
+        // Derive from affected vars when present so we don't overestimate
+        for (String varKey : state.affectedVars) {
+            String[] parts = varKey.split("\\|");
+            if (parts.length < 2) continue;
+            counts.putIfAbsent(parts[1], total);
+        }
+        return counts;
+    }
+
+    /**
+     * Inner-class helper exposing the current {@link IncrementalState} to
+     * nested lambdas without capturing it through every helper signature.
+     * The current repair loop rebinds this each iteration via
+     * {@link #setStateRef}.
+     */
+    private IncrementalState stateRef() {
+        return currentState;
+    }
+
+    private IncrementalState currentState;
+
+    private void setStateRef(IncrementalState state) {
+        this.currentState = state;
     }
 
     private String checkAssignmentConflict(
@@ -247,26 +361,44 @@ class CspIncrementalResolver {
         return null;
     }
 
-    private Integer findAlternativeStaff(IncrementalState state, LocalDate date, String shiftType, Integer excludeStaffId) {
-        for (Integer staffId : state.staffIndexMap.keySet()) {
-            if (staffId.equals(excludeStaffId)) continue;
-            Integer staffIdx = state.staffIndexMap.get(staffId);
-            if (staffIdx == null) continue;
-            if (checkAssignmentConflict(state, date, shiftType, staffId, staffIdx) == null) {
-                return staffId;
-            }
-        }
-        return null;
-    }
-
-    private boolean localSearch(IncrementalState state, long startTime) {
+    /**
+     * OPT-002: queue-driven local search.  Unassigned / conflicted vars are
+     * pulled from {@link CspRepairQueueManager} in priority order and each
+     * is repaired via {@link CspRepairHeuristics#attemptRepair}.
+     */
+    private boolean localSearch(IncrementalState state, List<Staff> staffList, long startTime) {
         int maxIterations = 50;
         int iter = 0;
+        setStateRef(state);
         while (iter < maxIterations) {
             if (System.currentTimeMillis() - startTime > 5_000) return false;
             String conflictVar = findUnassignedOrConflict(state);
             if (conflictVar == null) return true;
-            if (!fixSlotLocally(state, conflictVar)) return false;
+
+            String[] parts = conflictVar.split("\\|");
+            LocalDate date = LocalDate.parse(parts[0]);
+            String shiftType = parts[1];
+            Integer currentStaffId = findStaffForSlot(state, date, shiftType);
+
+            // Build a one-entry queue so we reuse the same repair code path
+            CspRepairQueueManager oneShot = CspRepairQueueManager.build(
+                    java.util.Set.of(conflictVar), state.varIndexMap, state.staffIndexMap,
+                    staffList, state.assignments,
+                    buildEligibleCounts(staffList, state), true);
+
+            CspRepairHeuristics.RepairResult result = attemptRepairFor(
+                    conflictVar, date, shiftType, currentStaffId, staffList, oneShot);
+
+            if (!result.isRepaired()) {
+                // Stuck — escalate to full re-solve so the orchestrator picks
+                // a different algorithm instead of thrashing on this slot.
+                return false;
+            }
+            Integer newStaff = result.getReplacementStaffId();
+            if (currentStaffId != null && !currentStaffId.equals(newStaff)) {
+                removeAssignment(state, currentStaffId, date);
+            }
+            addAssignment(state, newStaff, date, shiftType);
             iter++;
         }
         return iter < maxIterations;
@@ -277,25 +409,6 @@ class CspIncrementalResolver {
             if (state.conflicts.stream().anyMatch(c -> c.varKey.equals(varKey))) return varKey;
         }
         return null;
-    }
-
-    private boolean fixSlotLocally(IncrementalState state, String varKey) {
-        String[] parts = varKey.split("\\|");
-        LocalDate date = LocalDate.parse(parts[0]);
-        String shiftType = parts[1];
-        Integer currentStaffId = findStaffForSlot(state, date, shiftType);
-
-        for (Integer staffId : state.staffIndexMap.keySet()) {
-            Integer staffIdx = state.staffIndexMap.get(staffId);
-            if (checkAssignmentConflict(state, date, shiftType, staffId, staffIdx) == null) {
-                if (currentStaffId != null && !currentStaffId.equals(staffId)) {
-                    removeAssignment(state, currentStaffId, date);
-                }
-                addAssignment(state, staffId, date, shiftType);
-                return true;
-            }
-        }
-        return false;
     }
 
     private Integer findStaffForSlot(IncrementalState state, LocalDate date, String shiftType) {

@@ -824,6 +824,45 @@ public class AutoSchedulingService {
         requirements = requirementPreparationService.prepareRequirements(period, save, activeStaff);
         log.info("Prepared {} requirements (save={}) for period {}", requirements.size(), save, period.getId());
 
+        // BUGFIX (auto-cap underestimates L04): prepareRequirements() builds L04 rows from
+        // buildL04OpenSchedule (only open days per specialty, no Sunday), but the runtime
+        // adaptive L04 phase below (line ~1840) replaces these with a larger set built from
+        // the phase-A in-memory assignments (76 rows vs 54 static in the typical case).
+        // The auto-cap block runs BEFORE adaptive L04, so it sums the smaller static L04
+        // set and computes ceil(546/25)=22 instead of the correct ceil(618/25)=25. That
+        // causes under-loaded periods to silently cap staff at 22 even though real demand
+        // is higher. Reuse the already-persisted adaptive L04 rows (if any) so the cap
+        // reflects the same rows the adaptive phase will install.
+        if (!save) {
+            List<ShiftRequirement> persisted = requirementRepository.findByPeriodId(period.getId());
+            List<ShiftRequirement> persistedL04 = persisted.stream()
+                    .filter(r -> r.getShiftType() != null
+                            && ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId()))
+                    .toList();
+            long inMemoryL04 = requirements.stream()
+                    .filter(r -> r.getShiftType() != null
+                            && ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId()))
+                    .count();
+            if (!persistedL04.isEmpty() && persistedL04.size() > inMemoryL04) {
+                int[] replacedL04Rows = {0};
+                int[] replacedL04Staff = {0};
+                requirements.removeIf(r -> {
+                    if (r.getShiftType() != null
+                            && ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId())) {
+                        replacedL04Rows[0]++;
+                        replacedL04Staff[0] += r.getRequiredStaffCount();
+                        return true;
+                    }
+                    return false;
+                });
+                int dbL04Staff = persistedL04.stream()
+                        .mapToInt(ShiftRequirement::getRequiredStaffCount).sum();
+                requirements.addAll(persistedL04);
+                log.info("Auto-cap L04 source swap: replaced {} static L04 rows ({} staff) with {} persisted L04 rows ({} staff) before auto-cap",
+                        replacedL04Rows[0], replacedL04Staff[0], persistedL04.size(), dbL04Staff);
+            }
+        }
+
         // Defensive filter: drop any requirement whose shift type is in removedShiftTypes.
         // RequirementPreparationService already filters when generating fresh, but the DB may
         // still hold stale rows from a prior run with a different config. Without this filter
@@ -893,15 +932,27 @@ public class AutoSchedulingService {
                     existingSchedules.size());
         }
 
-        // ── Adaptive L04 toàn cục (mọi thuật toán, thay vì chỉ V10) ───────────
-        // Thay static L04 (sinh từ config khi bác sĩ "rảnh" lúc chưa xếp gì) bằng
-        // set "đổi ngày mở thích ứng": phase A xếp L01-L03 trước, rồi chỉ mở PK
-        // chuyên khoa ngày còn bác sĩ đúng khoa THỰC SỰ rảnh. Loại slot L04 chết
-        // (bác sĩ bị L01/L02/L03 giành) → coverage tăng; CSP hết ràng buộc bất
-        // khả thi → hết DEAD_END/fallback Greedy.
+        // ── Adaptive L04 heuristic (mọi thuật toán) ─────────────────────────────
+        // DB là source of truth cho requirement set (rows L04 + L01/L02/L03). Adaptive
+        // KHÔNG được tạo/xóa/sửa demand. Chỉ suy ra HEURISTIC HINTS (gợi ý ngày mở
+        // PK theo chuyên khoa, ưu tiên xếp trước) để V10 dùng trong solve order.
+        //
+        // Trước đây: replaceRequirementsWithAdaptiveL04() xóa rows L04 trong DB rồi
+        // thay bằng "đổi ngày mở thích ứng" sinh từ phase A → DB 285 L04 bị cắt còn 153
+        // do config l04MaxPerDay=2 / openDays=6 → mất 132 demand ngay từ input. Lỗi
+        // nghiệp vụ: scheduler phải nhìn thấy đúng demand, không được "làm đẹp coverage"
+        // bằng cách giảm yêu cầu.
+        //
+        // Sau refactor: hint set chỉ ảnh hưởng thứ tự/heuristic của solver, không thay
+        // đổi `requirements`. CSP solver nhận đủ 285 L04 từ DB.
         boolean hasL04 = requirements.stream().anyMatch(r -> r.getShiftType() != null
                 && ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId()));
         if (hasL04 && !removedShiftTypes.contains("L04") && !activeStaff.isEmpty()) {
+            // Trước đây: replaceRequirementsWithAdaptiveL04() xóa rows L04 trong DB rồi
+            // thay bằng "đổi ngày mở thích ứng" sinh từ phase A → DB 285 L04 bị cắt
+            // còn 153 do config → mất 132 demand ngay từ input. Sau refactor 2026-08-05,
+            // method này chỉ LOG heuristic hints (DB rows L04 giữ nguyên trong
+            // `requirements`). CSP solver nhận đủ 285 L04 từ DB.
             replaceRequirementsWithAdaptiveL04(period, activeStaff, requirements, existingSchedules, request, save);
         }
 
@@ -917,6 +968,11 @@ public class AutoSchedulingService {
             if (ConflictDetectionService.SHIFT_TYPE_L04.equals(id)) return 3;
             return 4;
         }));
+
+        // RECONCILIATION DIAGNOSTIC (audit): log total demand, per-shift sum,
+        // and detect duplicate (date, shift, specialty) keys BEFORE dispatch.
+        // Required by rebalance audit: assigned ≤ required, no double demand.
+        logRequirementReconciliationAudit(requirements, "before-dispatch");
 
         if (activeStaff.isEmpty()) {
             throw new BadRequestException("Không có nhân sự nào đang hoạt động");
@@ -1785,6 +1841,13 @@ public class AutoSchedulingService {
      * </ol>
      * L04 static sinh từ config (đọc DB lúc chưa xếp gì) là nguồn gốc 2 lỗi:
      * CSP DEAD_END (domain rỗng giữa chừng) + 5 slot L04 không xếp được.
+     *
+     * <p><b>REFACTOR 2026-08-05 — DB là source of truth, adaptive KHÔNG sửa demand</b>:
+     * Method này giữ tên cũ để tránh break change; nhưng chỉ LOG heuristic hints,
+     * KHÔNG sửa/xóa/thêm rows L04 nào trong {@code requirements} và KHÔNG gọi
+     * {@link #syncAdaptiveL04Requirements} (xóa DB rows). DB 285 L04 phải vào
+     * CSP input nguyên vẹn. Solver được phép xếp hoặc không xếp, nhưng nếu không
+     * xếp được thì đó là tín hiệu nghiệp vụ thật, không phải lỗi của pipeline.
      */
     private void replaceRequirementsWithAdaptiveL04(
             SchedulePeriod period, List<Staff> activeStaff,
@@ -1816,7 +1879,23 @@ public class AutoSchedulingService {
             }
         }
 
+        // Snapshot L04 demand from DB (canonical source of truth) trước khi phase A.
+        int l04DbRows = 0;
+        int l04DbStaff = 0;
+        Map<Integer, Integer> l04DbBySpec = new HashMap<>();
+        for (ShiftRequirement r : requirements) {
+            if (r.getShiftType() == null) continue;
+            if (!ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId())) continue;
+            l04DbRows++;
+            int req = r.getRequiredStaffCount();
+            l04DbStaff += req;
+            int specId = r.getSpecialty() != null ? r.getSpecialty().getId() : 0;
+            l04DbBySpec.merge(specId, req, Integer::sum);
+        }
+
         // Phase A: L01-L03 (trừ coverage đã có) → ai bận ngày nào
+        // Phase A chỉ chạy solver với L01-L03 (KHÔNG gồm L04), dùng để gợi ý
+        // heuristic, KHÔNG xóa rows L04 khỏi `requirements`.
         List<ShiftRequirementInfo> baseReqs = new ArrayList<>();
         for (ShiftRequirement r : requirements) {
             if (r.getShiftType() == null || ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId())) continue;
@@ -1835,19 +1914,79 @@ public class AutoSchedulingService {
                 activeStaff, period.getStartDate(), period.getEndDate(), baseReqs,
                 existingCompDays, leaves, excludedIds, request.getMaxShiftsPerMonthOverride());
         if (baseResult != null) {
-            log.info("Adaptive L04 phase A (L01-L03): {} assignments", baseResult.getAssignments().size());
+            log.info("Adaptive L04 heuristic phase A (L01-L03): {} assignments", baseResult.getAssignments().size());
         }
+        // Compute adaptive hints — chỉ tham khảo, KHÔNG dùng để sửa requirements.
         List<ShiftRequirementInfo> adaptive = buildAdaptiveL04Requirements(
                 period, activeStaff, baseResult, existingCompDays, leaves, excludedIds, existingCoverage);
-        log.info("Adaptive L04: {} rows thay {} static rows (period {})",
-                adaptive.size(),
-                requirements.stream().filter(r -> r.getShiftType() != null
-                        && ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId())).count(),
-                period.getId());
-        List<ShiftRequirement> l04Entities = syncAdaptiveL04Requirements(period, adaptive);
-        requirements.removeIf(r -> r.getShiftType() != null
-                && ConflictDetectionService.SHIFT_TYPE_L04.equals(r.getShiftType().getId()));
-        requirements.addAll(l04Entities);
+
+        // CHỈ LOG — KHÔNG gọi syncAdaptiveL04Requirements / removeIf / addAll.
+        // `requirements` giữ nguyên rows L04 từ DB.
+        log.info("Adaptive L04 heuristic: dbRows={} dbStaffDemand={} dbBySpec={} adaptiveHints={} rows (period {})",
+                l04DbRows, l04DbStaff, l04DbBySpec, adaptive.size(), period.getId());
+        log.info("Canonical requirement set giữ nguyên L04 demand từ DB = {} staff rows; solver sẽ nhìn thấy đúng {} L04 rows",
+                l04DbStaff, l04DbRows);
+    }
+
+    /**
+     * RECONCILIATION DIAGNOSTIC (audit): log total demand, per-shift sum,
+     * and detect duplicate (date, shift, specialty) keys. Required by
+     * rebalance audit: assigned ≤ required, no double demand.
+     *
+     * Triggered once before dispatch (after adaptive L04 reconcile) so we
+     * can compare the actual requirement list vs. the DB expectation.
+     * Surfaces:
+     *   1. Total rows & total requiredCount (sum)
+     *   2. Per-shift sum (L01/L02/L03/L04)
+     *   3. Duplicate (date, shift, specialty) keys — if any, this is the root
+     *      cause of "more assignments than required" behavior.
+     */
+    private void logRequirementReconciliationAudit(List<ShiftRequirement> requirements, String tag) {
+        if (requirements == null) {
+            log.warn("[RECON-AUDIT/{}] requirements=null", tag);
+            return;
+        }
+        int totalRows = requirements.size();
+        int totalRequired = requirements.stream()
+                .filter(r -> r.getShiftType() != null)
+                .mapToInt(ShiftRequirement::getRequiredStaffCount)
+                .sum();
+        Map<String, Integer> sumByShift = new java.util.LinkedHashMap<>();
+        sumByShift.put("L01", 0);
+        sumByShift.put("L02", 0);
+        sumByShift.put("L03", 0);
+        sumByShift.put("L04", 0);
+        for (ShiftRequirement r : requirements) {
+            if (r.getShiftType() == null) continue;
+            String id = r.getShiftType().getId();
+            sumByShift.merge(id, r.getRequiredStaffCount(), Integer::sum);
+        }
+        // Duplicate detection: key = workDate|shiftTypeId|specialtyId ("" if no specialty)
+        Map<String, Integer> keyCount = new java.util.HashMap<>();
+        Map<String, Integer> keySum = new java.util.HashMap<>();
+        for (ShiftRequirement r : requirements) {
+            if (r.getShiftType() == null) continue;
+            String specId = r.getSpecialty() != null ? String.valueOf(r.getSpecialty().getId()) : "";
+            String key = r.getWorkDate() + "|" + r.getShiftType().getId() + "|" + specId;
+            keyCount.merge(key, 1, Integer::sum);
+            keySum.merge(key, r.getRequiredStaffCount(), Integer::sum);
+        }
+        int dupKeys = 0;
+        int dupExcessRequired = 0;
+        List<String> dupSamples = new java.util.ArrayList<>();
+        for (Map.Entry<String, Integer> e : keyCount.entrySet()) {
+            if (e.getValue() > 1) {
+                dupKeys++;
+                int sum = keySum.getOrDefault(e.getKey(), 0);
+                // Excess = (sum across duplicate rows) - (max single row requiredCount)
+                // We don't have per-row sum here, so just log the total sum for the key.
+                if (dupSamples.size() < 5) {
+                    dupSamples.add(e.getKey() + " ×" + e.getValue() + " (sum=" + sum + ")");
+                }
+            }
+        }
+        log.info("[RECON-AUDIT/{}] rows={} totalRequired={} perShift={} duplicateKeys={} samples={}",
+                tag, totalRows, totalRequired, sumByShift, dupKeys, dupSamples);
     }
 
     /**
@@ -1887,14 +2026,11 @@ public class AutoSchedulingService {
 
         List<ShiftRequirementInfo> algoReqs = toRequirementInfos(requirements);
         // Adjust: reduce requiredCount by existing coverage (capped at 0).
-        // L04 KHÔNG trừ — set L04 đã adaptive (buildAdaptiveL04Requirements trừ
-        // existingCoverage sẵn ở runScheduling) → trừ lại sẽ sai lệch demand.
+        // REFACTOR 2026-08-05: L04 giờ đến thẳng từ DB (canonical), không còn qua
+        // buildAdaptiveL04Requirements. Trừ existing cho MỌI shift type, kể cả L04,
+        // để preview khớp với apply round-trip (DB rows L04 trừ ca đã có).
         List<ShiftRequirementInfo> adjustedReqs = new java.util.ArrayList<>();
         for (ShiftRequirementInfo r : algoReqs) {
-            if ("L04".equals(r.shiftTypeId())) {
-                adjustedReqs.add(r);
-                continue;
-            }
             String specId = r.specialtyId() != null ? String.valueOf(r.specialtyId()) : "";
             String key = r.workDate() + "|" + r.shiftTypeId() + "|" + specId;
             int existing = existingCoverage.getOrDefault(key, 0);

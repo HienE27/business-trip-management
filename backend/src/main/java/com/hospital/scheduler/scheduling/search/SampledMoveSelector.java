@@ -5,7 +5,9 @@ import com.hospital.scheduler.scheduling.domain.ShiftRequirementInfo;
 import com.hospital.scheduler.scheduling.domain.SolutionDescriptor;
 import com.hospital.scheduler.scheduling.move.AssignMove;
 import com.hospital.scheduler.scheduling.move.Move;
+import com.hospital.scheduler.scheduling.move.OrOptMove;
 import com.hospital.scheduler.scheduling.move.SwapMove;
+import com.hospital.scheduler.scheduling.move.TwoOptMove;
 import com.hospital.scheduler.scheduling.move.UnassignMove;
 import com.hospital.scheduler.scheduling.solution.MutableAssignment;
 import com.hospital.scheduler.scheduling.solution.WorkingSolution;
@@ -114,7 +116,21 @@ public class SampledMoveSelector implements MoveSelector {
                         moves.add(new SwapMove(a, b));
                     }
                 }
-            } else if (!assignedSlots.isEmpty()) {
+            } else if (r < 0.975 && !assignedSlots.isEmpty()) {
+                // TWO-OPT (OPT-001 #2): reverse a subsequence of L01 slots for one staff.
+                // Picks a random staff with ≥2 L01 slots and tries a validated reversal.
+                TwoOptMove twoOpt = generateTwoOptMove(solution);
+                if (twoOpt != null) {
+                    moves.add(twoOpt);
+                }
+            } else if (r < 0.99 && !assignedSlots.isEmpty()) {
+                // OR-OPT (OPT-001 #3): relocate a chain of 1-3 consecutive L01 slots.
+                // Picks a random staff with ≥1 L01 slot and tries a validated relocation.
+                OrOptMove orOpt = generateOrOptMove(solution);
+                if (orOpt != null) {
+                    moves.add(orOpt);
+                }
+            } else {
                 // UNASSIGN: clear an assigned slot — but ONLY an L04 slot.
                 // BUGFIX (M08-PRIORITY-V10): the spec runs the algorithm in
                 // priority order L01→L02→L03→L04 (M07-B3). Letting the search
@@ -299,5 +315,96 @@ public class SampledMoveSelector implements MoveSelector {
             if (i++ == idx) return v;
         }
         return -1;
+    }
+
+    // ── OPT-001: TWO-OPT move generation ─────────────────────────────────────
+
+    /**
+     * Generate a 2-opt move: reverse a subsequence of L01 slots for one staff.
+     *
+     * <p>Algorithm:
+     * <ol>
+     *   <li>Pick a random staff who has at least 2 L01 slots.</li>
+     *   <li>Collect all their L01 slots and pick two distinct endpoints
+     *       (by date) to define the reversal window.</li>
+     *   <li>Call {@link TwoOptMove#buildValidated} to confirm the reversal
+     *       does not create a BR-04 violation.</li>
+     * </ol>
+     *
+     * <p>Returns null if no valid 2-opt move can be generated.
+     */
+    private TwoOptMove generateTwoOptMove(WorkingSolution solution) {
+        // Build a list of staff who have ≥2 L01 slots
+        List<Integer> staffWithL01 = new ArrayList<>();
+        for (var a : solution.getAssignments()) {
+            if (a.staffId <= 0) continue;
+            if (!"L01".equals(a.shiftTypeId)) continue;
+            if (!staffWithL01.contains(a.staffId)) {
+                // Count L01 slots for this staff
+                int count = 0;
+                for (int slotId : solution.getSlotsAssignedTo(a.staffId)) {
+                    MutableAssignment ma = solution.getAssignment(slotId);
+                    if (ma != null && "L01".equals(ma.shiftTypeId)) count++;
+                }
+                if (count >= 2) staffWithL01.add(a.staffId);
+            }
+        }
+        if (staffWithL01.isEmpty()) return null;
+
+        int staffId = staffWithL01.get(random.nextInt(staffWithL01.size()));
+
+        // Collect L01 slots for this staff, sorted by date
+        List<MutableAssignment> l01Slots = new ArrayList<>();
+        for (int slotId : solution.getSlotsAssignedTo(staffId)) {
+            MutableAssignment ma = solution.getAssignment(slotId);
+            if (ma != null && "L01".equals(ma.shiftTypeId) && ma.date != null) {
+                l01Slots.add(ma);
+            }
+        }
+        if (l01Slots.size() < 2) return null;
+        l01Slots.sort(java.util.Comparator.comparing(a -> a.date));
+
+        // Pick two distinct endpoints
+        int i = random.nextInt(l01Slots.size());
+        int j;
+        do { j = random.nextInt(l01Slots.size()); } while (j == i);
+
+        LocalDate start = l01Slots.get(Math.min(i, j)).date;
+        LocalDate end = l01Slots.get(Math.max(i, j)).date;
+
+        return TwoOptMove.buildValidated(solution, staffId, start, end);
+    }
+
+    // ── OPT-001: OR-OPT move generation ──────────────────────────────────────
+
+    /**
+     * Generate an Or-opt move: relocate a chain of 1-3 consecutive L01 slots
+     * from one gap position to another within the same staff's schedule.
+     *
+     * <p>Algorithm:
+     * <ol>
+     *   <li>Pick a random staff who has at least 1 L01 slot.</li>
+     *   <li>Call {@link OrOptMove#buildValidated} which searches for a
+     *       source L01 and a valid target gap for the chain.</li>
+     * </ol>
+     *
+     * <p>Returns null if no valid Or-opt move can be generated.
+     */
+    private OrOptMove generateOrOptMove(WorkingSolution solution) {
+        // Pick a random staff with at least 1 L01 slot
+        List<Integer> staffWithL01 = new ArrayList<>();
+        for (var a : solution.getAssignments()) {
+            if (a.staffId <= 0) continue;
+            if (!"L01".equals(a.shiftTypeId)) continue;
+            if (!staffWithL01.contains(a.staffId)) {
+                staffWithL01.add(a.staffId);
+            }
+        }
+        if (staffWithL01.isEmpty()) return null;
+
+        int staffId = staffWithL01.get(random.nextInt(staffWithL01.size()));
+
+        // Let OrOptMove.buildValidated do the heavy lifting
+        return OrOptMove.buildValidated(solution, staffId, -1);
     }
 }

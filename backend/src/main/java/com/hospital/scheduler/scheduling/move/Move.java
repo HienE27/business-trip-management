@@ -34,6 +34,10 @@ public interface Move {
         ASSIGN,
         UNASSIGN,
         SWAP,
-        CHANGE_STAFF
+        CHANGE_STAFF,
+        /** 2-opt: reverse a subsequence of L01 assignments for the same staff. */
+        TWO_OPT,
+        /** Or-opt: relocate a chain of 1-3 consecutive L01 slots within the same staff. */
+        OR_OPT
     }
 }

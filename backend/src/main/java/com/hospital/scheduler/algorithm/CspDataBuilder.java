@@ -12,8 +12,8 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static com.hospital.scheduler.algorithm.CspConstants.DIRECT_24H;
@@ -114,6 +114,13 @@ public class CspDataBuilder {
         // numVars is in the hundreds of thousands and most slots are off-day.
         List<Integer>[] varsByDay = buildVarsByDay(varDay, varCount, numDays);
 
+        // OPT-004: L04 Assignment Optimization
+        int[] l04ScarcityScore = computeL04ScarcityScore(varCount, varDay, varShift, varSpecialty,
+                domains, slotCount, numDays, staffList, leaveMatrix);
+        BitSet[] l04FallbackDomains = buildL04FallbackDomains(varCount, varDay, varShift, varSpecialty,
+                domains, numDays, numStaff, staffList, leaveMatrix, slotCount, dates, varCount);
+        int[] l04FallbackUsed = new int[varCount]; // all zeros — set at search time
+
         ProblemData data = ProblemData.builder()
                 .numDays(numDays)
                 .numShifts(numShifts)
@@ -138,6 +145,9 @@ public class CspDataBuilder {
                 .shiftTypeIds(shiftTypeIds)
                 .varsByDay(varsByDay)
                 .compDayIdx(compDayIdx)
+                .l04ScarcityScore(l04ScarcityScore)
+                .l04FallbackDomains(l04FallbackDomains)
+                .l04FallbackUsed(l04FallbackUsed)
                 .build();
 
         // Initial AC-3 prunes domains using BR-01, BR-02 and BR-03 arcs
@@ -381,6 +391,133 @@ public class CspDataBuilder {
         }
 
         return graph;
+    }
+
+    /**
+     * OPT-004.1 — Compute scarcity score for every L04 variable.
+     *
+     * Scarcity = number of eligible staff in the PRIMARY domain (staff matching
+     * the required specialty, available that day). Lower score = harder to fill
+     * = should be assigned first in MRV. Non-L04 vars get score = 0 so MRV
+     * ties are broken by the existing degree heuristic.
+     *
+     * This ranking surfaces the most constrained L04 slots early so the search
+     * can detect infeasibility before committing too many assignments.
+     */
+    private int[] computeL04ScarcityScore(int varCount, int[] varDay, int[] varShift, int[] varSpecialty,
+                                          BitSet[] domains, int[][] slotCount, int numDays,
+                                          List<Staff> staffList, boolean[][] leaveMatrix) {
+        int[] score = new int[varCount];
+        for (int v = 0; v < varCount; v++) {
+            if (varShift[v] != 3) continue; // only L04
+            if (domains[v].isEmpty()) {
+                score[v] = 0; // already infeasible — handled as -2 blocked var
+                continue;
+            }
+            int count = domains[v].cardinality();
+            score[v] = count;
+        }
+        return score;
+    }
+
+    /**
+     * OPT-004.3 — Build fallback domains for L04 vars whose primary domain is
+     * empty or nearly empty.
+     *
+     * Fallback strategy (last resort only):
+     * <ol>
+     *   <li>Staff with related specialty (generalist → specialist match).
+     *       Currently maps every specialty as "related" to every other so no
+     *       specialty is permanently excluded from L04 coverage.
+     *   <li>Staff must have no L01 on adjacent days (N-1 or N+1).
+     *   <li>Staff must be available that day (leaveMatrix).
+     *   <li>Staff must be active with a specialty in the eligible pool.
+     * </ol>
+     *
+     * Fallback assignments are logged at result-build time for audit traceability.
+     */
+    @SuppressWarnings("unchecked")
+    private BitSet[] buildL04FallbackDomains(int varCount, int[] varDay, int[] varShift, int[] varSpecialty,
+                                              BitSet[] domains, int numDays, int numStaff,
+                                              List<Staff> staffList, boolean[][] leaveMatrix,
+                                              int[][] slotCount, List<LocalDate> dates, int varCountRef) {
+        BitSet[] fallback = new BitSet[varCount];
+        // Pre-build L01 var index set: for each day, which vars are L01?
+        List<Integer>[] l01VarsByDay = new List[numDays];
+        for (int d = 0; d < numDays; d++) l01VarsByDay[d] = new ArrayList<>();
+        for (int v = 0; v < varCount; v++) {
+            if (varShift[v] == 0) { // DIRECT_24H
+                l01VarsByDay[varDay[v]].add(v);
+            }
+        }
+
+        for (int v = 0; v < varCount; v++) {
+            if (varShift[v] != 3) continue; // only L04
+            BitSet primaryDomain = domains[v];
+            // Only build fallback if primary is empty or ≤ 1 (almost empty)
+            if (!primaryDomain.isEmpty() && primaryDomain.cardinality() > 1) continue;
+
+            int requiredSpecialtyId = varSpecialty[v];
+            if (requiredSpecialtyId == 0) continue; // no specialty requirement
+
+            int dayIdx = varDay[v];
+            int prevDay = dayIdx - 1;
+            int nextDay = dayIdx + 1;
+
+            BitSet candidates = new BitSet(numStaff);
+            for (int s = 0; s < numStaff; s++) {
+                if (!leaveMatrix[s][dayIdx]) continue;
+                Staff st = staffList.get(s);
+                if (!Boolean.TRUE.equals(st.getIsActive())) continue;
+                if (st.getSpecialty() == null) continue;
+                if (!StaffShiftTypeEligibility.isEligibleSpecialty(st.getSpecialty().getName())) continue;
+
+                // OPT-004.3.b: must not have L01 on adjacent days
+                boolean hasAdjacentL01 = false;
+                if (prevDay >= 0) {
+                    for (int lv : l01VarsByDay[prevDay]) {
+                        if (domains[lv].get(s)) { hasAdjacentL01 = true; break; }
+                    }
+                }
+                if (!hasAdjacentL01 && nextDay < numDays) {
+                    for (int lv : l01VarsByDay[nextDay]) {
+                        if (domains[lv].get(s)) { hasAdjacentL01 = true; break; }
+                    }
+                }
+                if (hasAdjacentL01) continue;
+
+                // OPT-004.3.a: related specialty check
+                // Accept if staff specialty is not the required one (cross-specialty)
+                // or if staff specialty is in ALL_ELIGIBLE_SPECIALTIES (generalist).
+                // This intentionally allows any non-matching specialty as a last resort.
+                Specialty sp = st.getSpecialty();
+                if (sp.getId().equals(requiredSpecialtyId)) continue; // already in primary domain
+                candidates.set(s);
+            }
+            if (!candidates.isEmpty()) {
+                fallback[v] = candidates;
+            }
+        }
+        return fallback;
+    }
+
+    /**
+     * OPT-004.2.c / OPT-004.3.b — Build per-staff index of L01 var indices on
+     * adjacent days. Used by the search engine to cheaply check L01 pressure
+     * without scanning the full var array.
+     *
+     * Note: adjacent-day L01 conflict is already handled by {@code adjacentL01Pairs}
+     * in {@link CspSearchEngine#isConsistent} (Gap 2 fix). This method is a
+     * no-op placeholder — the real L01 pressure check uses the pre-built pair table.
+     */
+    @SuppressWarnings("unchecked")
+    private List<Integer>[] buildL01NeighborsByStaff(int[] varDay, int[] varShift, int varCount,
+                                                       int numStaff, int numDays) {
+        List<Integer>[] neighbors = new ArrayList[numStaff];
+        for (int s = 0; s < numStaff; s++) {
+            neighbors[s] = new ArrayList<>();
+        }
+        return neighbors;
     }
 
     /**
