@@ -141,11 +141,17 @@ public class RequirementPreparationService {
 
 	        boolean anyChanged = false;
 	        for (ShiftRequirement req : existing) {
-            if (req.getWorkDate() == null || req.getShiftType() == null) continue;
-            boolean isHoliday = holidays.contains(req.getWorkDate());
-            int newTarget;
-            String typeId = req.getShiftType().getId();
-            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(typeId)) {
+	            if (req.getWorkDate() == null || req.getShiftType() == null) continue;
+	            String typeId = req.getShiftType().getId();
+	            // BUGFIX (apply L04 clobber): L04 rows are managed exclusively by
+	            // the adaptive flow (syncAdaptiveL04Requirements deletes+recreates
+	            // them). Re-targeting them here against raw config inflates the
+	            // persisted capacity (e.g. 89 → 227) and makes apply coverage
+	            // diverge from preview. Leave adaptive L04 untouched.
+	            if (ConflictDetectionService.SHIFT_TYPE_L04.equals(typeId)) continue;
+	            boolean isHoliday = holidays.contains(req.getWorkDate());
+	            int newTarget;
+	            if (ConflictDetectionService.SHIFT_TYPE_L01.equals(typeId)) {
                 newTarget = resolveSoftDailyTarget(config.l01MinPerDay(), config.l01MaxPerDay(), generalPoolSize);
             } else if (ConflictDetectionService.SHIFT_TYPE_L02.equals(typeId)) {
                 newTarget = resolveSoftDailyTarget(config.l02MinPerDay(), config.l02MaxPerDay(), generalPoolSize);

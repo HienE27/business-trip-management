@@ -273,12 +273,6 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                 </Badge>
               </span>
             )}
-            {!runningAutoSchedule && previewResult && previewResult.executionTimeMs > 0 && (
-              <Badge tone="neutral" size="sm" aria-label="Tổng thời gian thuật toán đã chạy">
-                <span className="material-symbols-outlined text-[12px]">timer</span>
-                <span className="font-mono tabular-nums">{formatElapsed(previewResult.executionTimeMs)}</span>
-              </Badge>
-            )}
             {message && (
               <span role="status" aria-live="polite">
               <Badge tone={statusMsgOk ? "success" : statusMsgNeutral ? "info" : "error"} size="sm">
@@ -305,7 +299,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
       {previewResult ? (
         <div className="p-4 space-y-4">
           {/* Row 1: Algorithm badge + 4 KPI metrics (5 equal columns on desktop) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-3">
             {/* Algorithm Badge Card — đồng nhất màu primary cho mọi thuật toán */}
             {algoResultInfo && (
               <div
@@ -356,6 +350,12 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               value={kpiAvailable ? (conflictCountRaw ?? 0) : "—"}
               helper={kpiAvailable ? undefined : "Nhấn Chạy để tính"}
               tone={conflictTone}
+            />
+            <KPICard
+              icon="timer"
+              label="Thời gian chạy"
+              value={previewResult.executionTimeMs > 0 ? formatElapsed(previewResult.executionTimeMs) : "—"}
+              tone="neutral"
             />
             <KPICard
               icon="rule"

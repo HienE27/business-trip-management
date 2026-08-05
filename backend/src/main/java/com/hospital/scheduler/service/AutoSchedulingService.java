@@ -905,6 +905,35 @@ public class AutoSchedulingService {
             replaceRequirementsWithAdaptiveL04(period, activeStaff, requirements, existingSchedules, request, save);
         }
 
+        // BUGFIX (merge overschedule): preview merge mode (skipExisting=false) keeps
+        // existing schedules, so the algorithm must only fill REMAINING gaps. Without
+        // subtracting existing coverage from L01/L02/L03 targets, new assignments
+        // stack on top of old ones → L02 exceeds config max/day (e.g. 174 total /
+        // 8 per day vs config max 5). Clean preview (skipExisting=true) and save
+        // paths skip this (blank slate / existing already deleted). V10 subtracts
+        // inside runV10LocalSearch itself → excluded here to avoid double-subtraction.
+        boolean isV10 = "V10_LOCAL_SEARCH".equalsIgnoreCase(request.getAlgorithmType());
+        if (!save && !Boolean.TRUE.equals(request.getSkipExisting()) && !isV10) {
+            Map<String, Integer> existingCoverage = new HashMap<>();
+            for (Schedule s : existingSchedules) {
+                if (s.getShiftType() == null || s.getWorkDate() == null) continue;
+                String t = s.getShiftType().getId();
+                if (!"L01".equals(t) && !"L02".equals(t) && !"L03".equals(t)) continue;
+                existingCoverage.merge(s.getWorkDate() + "|" + t + "|", 1, Integer::sum);
+            }
+            for (ShiftRequirement r : requirements) {
+                if (r.getShiftType() == null || r.getWorkDate() == null) continue;
+                String t = r.getShiftType().getId();
+                if (!"L01".equals(t) && !"L02".equals(t) && !"L03".equals(t)) continue;
+                int covered = existingCoverage.getOrDefault(r.getWorkDate() + "|" + t + "|", 0);
+                if (covered > 0 && r.getRequiredStaffCount() > 0) {
+                    r.setRequiredStaffCount(Math.max(0, r.getRequiredStaffCount() - covered));
+                }
+            }
+            log.info("Merge preview: subtracted existing coverage from L01-L03 requirements (existing={})",
+                    existingSchedules.size());
+        }
+
         // P2-8: Enforce L01→L02→L03→L04 processing order per spec
         // L01 must be assigned first to reserve compensation days and avoid L01↔L02 conflicts
         // Safety: filter out any requirements with null shiftType before sorting (defensive against data issues)
@@ -1802,6 +1831,14 @@ public class AutoSchedulingService {
                 String specId = s.getRequirement() != null && s.getRequirement().getSpecialty() != null
                         ? String.valueOf(s.getRequirement().getSpecialty().getId())
                         : null;
+                // BUGFIX (L04 merge overschedule): legacy L04 rows saved before
+                // requirement linkage (requirement_id NULL) → fall back to the
+                // staff's own specialty so adaptive L04 can subtract their
+                // coverage instead of stacking new L04 on top (255 vs ~207).
+                if (specId == null && s.getShiftType() != null && "L04".equals(s.getShiftType().getId())
+                        && s.getStaff() != null && s.getStaff().getSpecialty() != null) {
+                    specId = String.valueOf(s.getStaff().getSpecialty().getId());
+                }
                 String key = s.getWorkDate() + "|" + s.getShiftType().getId() + "|" + (specId != null ? specId : "");
                 existingCoverage.merge(key, 1, Integer::sum);
             }
@@ -4551,19 +4588,16 @@ public class AutoSchedulingService {
                                               LocalDate periodStart,
                                               LocalDate periodEnd,
                                               Map<LocalDate, Set<Integer>> compensationDaysByDate) {
-        Set<LocalDate> options = compensationDateCalculator.calculateAll(workDate);
-        if (options == null || options.isEmpty()) return null;
-
-        LocalDate best = null;
-        int minLoad = Integer.MAX_VALUE;
-        for (LocalDate opt : options) {
-            if (opt.isBefore(periodStart) || opt.isAfter(periodEnd)) continue;
-            int load = compensationDaysByDate.getOrDefault(opt, Collections.emptySet()).size();
-            if (load < minLoad) {
-                minLoad = load;
-                best = opt;
-            }
-        }
-        return best;
+        // BUGFIX (BR-03 preview↔apply divergence): the strict default from
+        // calculate() (Fri/Sat → next TUE) is what ConflictDetectionService and
+        // CompensationDayConstraint use when re-validating. The old flexible
+        // pick (least-loaded of calculateAll → Tue/Wed/Thu) created comp days on
+        // WED/THU, then the strict detector flagged the staff's TUE assignment
+        // as a comp-day violation → preview claimed 0 conflicts but apply
+        // dropped/reported 10. Align greedy with the strict detector.
+        LocalDate strict = compensationDateCalculator.calculate(workDate);
+        if (strict == null) return null;
+        if (strict.isBefore(periodStart) || strict.isAfter(periodEnd)) return null;
+        return strict;
     }
 }
