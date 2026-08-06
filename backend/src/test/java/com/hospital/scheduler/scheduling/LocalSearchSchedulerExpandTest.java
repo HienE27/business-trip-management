@@ -7,6 +7,7 @@ import com.hospital.scheduler.repository.HolidayRepository;
 import com.hospital.scheduler.scheduling.config.ConfigDefaults;
 import com.hospital.scheduler.scheduling.config.ConfigService;
 import com.hospital.scheduler.scheduling.config.SchedulingConfig;
+import com.hospital.scheduler.scheduling.strategy.StrategyProperties;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import org.junit.jupiter.api.Test;
@@ -41,7 +42,8 @@ class LocalSearchSchedulerExpandTest {
         CompensationDateCalculator compCalc = mock(CompensationDateCalculator.class);
         ConfigService configService = mock(ConfigService.class);
         when(configService.load()).thenReturn(ConfigDefaults.withDefaults());
-        return new LocalSearchScheduler(config, holidays, compCalc, configService);
+        return new LocalSearchScheduler(config, holidays, compCalc, configService,
+                new StrategyProperties());
     }
 
     private Staff staff(int id) {

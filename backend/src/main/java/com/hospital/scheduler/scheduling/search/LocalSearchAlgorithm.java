@@ -124,12 +124,16 @@ public class LocalSearchAlgorithm {
      *   <li><b>Hard violations MUST NEVER increase.</b> A move that increases
      *       {@code hardViolations} (BR-01..05: L01↔L02 same day, L03↔L04 same
      *       day, conflict with compensation, conflict with approved leave,
-     *       adjacent L01) is always rejected regardless of tabu status. Hard
-     *       constraints are non-negotiable business rules and tabu search
-     *       must not be allowed to escape them.</li>
-     *   <li>If hard is unchanged, improving = coverage went up. Improving
+     *       adjacent L01) is always rejected regardless of the soft
+     *       acceptance policy. Hard constraints are non-negotiable business
+     *       rules and the search must not be allowed to escape them.</li>
+     *   <li>If hard is unchanged, improving = coverage went up (or the
+     *       per-type balance gap narrowed at flat coverage). Improving
      *       moves are always accepted (aspiration).</li>
-     *   <li>If neither (no improvement, no violation), tabu decides.</li>
+     *   <li>If neither (no improvement, no violation), the soft acceptance
+     *       policy decides. For tabu the {@link MoveAcceptor#isTabu} gate
+     *       is consulted first; otherwise the acceptor decides uphill
+     *       moves (SA / LAP / GreatDeluge / VNS).</li>
      * </ol>
      */
     private boolean processMove(WorkingSolution solution, Move move) {
@@ -170,11 +174,11 @@ public class LocalSearchAlgorithm {
         double postBalance = solution.mixDeviation();
 
         // RULE 1 (hard-fence): never accept a move that grows hard violations.
-        // The tabu acceptor exists to escape local optima for soft (fairness)
+        // The acceptor exists to escape local optima for soft (fairness)
         // objectives, NOT to allow BR-01..05 violations. This guarantees that
         // the search result satisfies every HARD business rule on exit.
         if (postHard > preHard) {
-            // Undo immediately, do not even consult tabu acceptor
+            // Undo immediately, do not even consult the acceptor
             move.undo(solution);
             statisticsHub.undo(move, solution);
             scoreDirector.undoDelta(delta);
@@ -186,28 +190,32 @@ public class LocalSearchAlgorithm {
         // coverage stayed flat AND the per-type balance gap narrowed).
         // Aspiration: always accept. The balance tiebreak must NOT cost
         // coverage — an UnassignMove that drops coverage is still not
-        // improving and goes to tabu (which is why unassign stays L04-only
-        // in the selector).
+        // improving and goes to the soft-acceptance policy (which is why
+        // unassign stays L04-only in the selector).
         double coverageDelta = postCoverage - preCoverage;
         boolean coverageUp = postHard == preHard && coverageDelta > 1e-9;
         boolean balanceUp = postHard == preHard
                 && Math.abs(coverageDelta) <= 1e-9
                 && postBalance < preBalance;
         boolean improving = (postHard < preHard) || coverageUp || balanceUp;
+
+        // RULE 3: for non-improving moves that don't increase hard violations,
+        // the soft acceptance policy decides. Tabu gate first (if the
+        // acceptor maintains one), then the policy's uphill-or-sideways call.
+        int iteration = director.getState().getIteration();
         boolean accept = improving;
         boolean tabu = false;
-        if (!improving && moveAcceptor instanceof TabuAcceptor tabuAcceptor) {
-            // RULE 3: for non-improving moves that don't increase hard violations,
-            // tabu decides. A move in the tabu list at this iteration is rejected;
-            // otherwise it's accepted as a sideways exploration step.
-            accept = !tabuAcceptor.isTabu(move, director.getState().getIteration());
-            tabu = !accept;
+        if (!improving) {
+            if (moveAcceptor.isTabu(move, iteration)) {
+                accept = false;
+                tabu = true;
+            } else {
+                accept = moveAcceptor.accept(delta, iteration, improving);
+            }
         }
 
         if (accept) {
-            if (moveAcceptor instanceof TabuAcceptor tabuAcceptor) {
-                tabuAcceptor.rememberApplied(move, director.getState().getIteration());
-            }
+            moveAcceptor.rememberApplied(move, iteration);
             director.onAccepted();
             // Check if this is the new best
             if (improving) {

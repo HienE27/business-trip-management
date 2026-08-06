@@ -23,6 +23,7 @@ import com.hospital.scheduler.scheduling.solution.MutableAssignment;
 import com.hospital.scheduler.scheduling.solution.WorkingSolution;
 import com.hospital.scheduler.scheduling.score.ScoreDirector;
 import com.hospital.scheduler.scheduling.statistics.IncrementalStatisticsHub;
+import com.hospital.scheduler.scheduling.strategy.StrategyProperties;
 import com.hospital.scheduler.service.AlgorithmConfigService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import org.junit.jupiter.api.Test;
@@ -148,7 +149,8 @@ class LocalSearchSchedulerBalanceTest {
     private LocalSearchScheduler scheduler(SchedulingConfig config, CompensationDateCalculator compCalc) {
         return new LocalSearchScheduler(config,
                 mock(HolidayRepository.class), compCalc,
-                mock(ConfigService.class));
+                mock(ConfigService.class),
+                new StrategyProperties());
     }
 
     @Test

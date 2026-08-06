@@ -108,7 +108,7 @@ public class CSPScheduler implements SchedulingAlgorithm {
         ProblemData data = dataBuilder.build(activeStaff, dates, requirements, leaveRequests,
                 null, null, maxShiftsPerStaff);
         // OPT-003: use adaptive timeout — problem-size-based + progress extension
-        CspSearchEngine.Result solution = searchEngine.solveAdaptive(data, startTime);
+        CspSearchEngine.Result solution = searchEngine.solve(data, startTime);
         long elapsedMs = System.currentTimeMillis() - startTime;
         log.info("CSP solve completed in {}ms: valid={} partial={} assignments={}",
                 elapsedMs, solution.isValid(), solution.isPartial(), solution.getScheduleCount());

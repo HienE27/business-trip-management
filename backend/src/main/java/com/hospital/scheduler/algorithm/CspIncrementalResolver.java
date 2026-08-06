@@ -223,6 +223,7 @@ class CspIncrementalResolver {
             Integer currentStaffId = findStaffForSlot(state, date, shiftType);
 
             CspRepairHeuristics.RepairResult result = attemptRepairFor(
+                    state,
                     entry.varKey(), date, shiftType, currentStaffId, staffList, queue);
 
             if (result.isRepaired()) {
@@ -250,13 +251,14 @@ class CspIncrementalResolver {
      * heuristic.
      */
     private CspRepairHeuristics.RepairResult attemptRepairFor(
+            IncrementalState state,
             String varKey, LocalDate date, String shiftType, Integer excludeStaffId,
             List<Staff> staffList, CspRepairQueueManager queue) {
 
         java.util.function.BiFunction<Integer, Integer, String> hardCheck = (candidateId, w) -> {
             Integer staffIdx = state.staffIndexMap.get(candidateId);
             if (staffIdx == null) return "Staff not in roster";
-            String conflict = checkAssignmentConflict(this.stateRef(), date, shiftType, candidateId, staffIdx);
+            String conflict = checkAssignmentConflict(state, date, shiftType, candidateId, staffIdx);
             return conflict;
         };
 
@@ -387,6 +389,7 @@ class CspIncrementalResolver {
                     buildEligibleCounts(staffList, state), true);
 
             CspRepairHeuristics.RepairResult result = attemptRepairFor(
+                    state,
                     conflictVar, date, shiftType, currentStaffId, staffList, oneShot);
 
             if (!result.isRepaired()) {

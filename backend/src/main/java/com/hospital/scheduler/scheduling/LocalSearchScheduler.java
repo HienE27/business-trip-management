@@ -10,6 +10,7 @@ import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.HolidayRepository;
 import com.hospital.scheduler.scheduling.config.ConfigService;
 import com.hospital.scheduler.scheduling.config.SchedulingConfig;
+import com.hospital.scheduler.scheduling.strategy.StrategyProperties;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import com.hospital.scheduler.scheduling.constraint.AdjacentL01Constraint;
 import com.hospital.scheduler.scheduling.constraint.CompensationDayConstraint;
@@ -26,9 +27,10 @@ import com.hospital.scheduler.scheduling.score.ScoreDelta;
 import com.hospital.scheduler.scheduling.score.ScoreDirector;
 import com.hospital.scheduler.scheduling.search.CompositeTermination;
 import com.hospital.scheduler.scheduling.search.LocalSearchAlgorithm;
+import com.hospital.scheduler.scheduling.search.MoveAcceptor;
 import com.hospital.scheduler.scheduling.search.SampledMoveSelector;
 import com.hospital.scheduler.scheduling.search.SearchDirector;
-import com.hospital.scheduler.scheduling.search.TabuAcceptor;
+import com.hospital.scheduler.scheduling.search.StrategyAcceptorFactory;
 import com.hospital.scheduler.scheduling.solution.WorkingSolution;
 import com.hospital.scheduler.scheduling.statistics.IncrementalStatisticsHub;
 import lombok.RequiredArgsConstructor;
@@ -69,6 +71,12 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
      * UI config edit silently had no effect on the search.
      */
     private final ConfigService configService;
+    /**
+     * PR-12-01: Spring-bound properties driving the v11 pluggable acceptance
+     * strategy. Defaults to {@code TABU} to preserve the v10 behaviour when
+     * no overrides are set.
+     */
+    private final StrategyProperties strategyProperties;
 
     @Override
     public SchedulingResult solve(List<Staff> staffList,
@@ -184,7 +192,12 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
         ScoreDirector scoreDirector = new ScoreDirector(descriptor);
         SearchDirector searchDirector = new SearchDirector(scoreDirector, hub);
         SampledMoveSelector selector = new SampledMoveSelector(descriptor, effectiveConfig);
-        TabuAcceptor acceptor = new TabuAcceptor(effectiveConfig);
+        // PR-12-01: build the soft acceptance acceptor from the v11 strategy
+        // properties via the factory + adapter. Default behaviour (TABU) is
+        // preserved when no overrides are configured.
+        MoveAcceptor acceptor = StrategyAcceptorFactory.build(
+                strategyProperties,
+                Math.max(1, effectiveConfig.getSearch().getMaxIterations()));
         CompositeTermination termination = new CompositeTermination(effectiveConfig);
 
         LocalSearchAlgorithm algo = new LocalSearchAlgorithm(
