@@ -863,9 +863,11 @@ public class ConflictDetectionService {
         for (String shiftTypeId : shiftTypeIds) {
             int totalRequired = shiftTypeRequiredCount.get(shiftTypeId);
             int totalAssigned = shiftTypeAssignedCount.get(shiftTypeId);
-            // Cap coverage at 100% to avoid >100% when algorithm assigns more than required
+            // FIX: Remove Math.min cap — overscheduling (e.g. L02=284 vs required=155) is
+            // a real scheduling bug that must be visible. Show the true ratio, capped at 200%
+            // so the UI bar doesn't become unreasonably long.
             double coverageRatio = totalRequired > 0 ? (double) totalAssigned / totalRequired : 0;
-            BigDecimal coverageRate = BigDecimal.valueOf(Math.min(coverageRatio, 1.0) * 100).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal coverageRate = BigDecimal.valueOf(Math.min(coverageRatio, 2.0) * 100).setScale(2, RoundingMode.HALF_UP);
 
             ShiftType shiftType = shiftTypeRepository.findById(shiftTypeId).orElse(null);
             String shiftTypeName = shiftType != null ? shiftType.getName() : shiftTypeId;
@@ -884,9 +886,10 @@ public class ConflictDetectionService {
         int totalDays = dailyCoverageMap.size();
         int totalRequired = shiftTypeRequiredCount.values().stream().mapToInt(Integer::intValue).sum();
         int totalAssigned = shiftTypeAssignedCount.values().stream().mapToInt(Integer::intValue).sum();
-        // Cap coverage at 100% to avoid >100% when algorithm assigns more than required
+        // FIX: Remove Math.min(1.0) cap — overscheduling (e.g. 797 schedules vs 750 required)
+        // must be visible. Cap at 200% so UI bars don't overflow.
         double coverageRatio = totalRequired > 0 ? (double) totalAssigned / totalRequired : 0;
-        BigDecimal overallCoverageRate = BigDecimal.valueOf(Math.min(coverageRatio, 1.0) * 100).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal overallCoverageRate = BigDecimal.valueOf(Math.min(coverageRatio, 2.0) * 100).setScale(2, RoundingMode.HALF_UP);
 
         return CoverageReportDTO.builder()
                 .periodId(periodId)

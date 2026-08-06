@@ -823,6 +823,17 @@ public class AutoSchedulingService {
         // sync + persist happen or the result stays transient.
         requirements = requirementPreparationService.prepareRequirements(period, save, activeStaff);
         log.info("Prepared {} requirements (save={}) for period {}", requirements.size(), save, period.getId());
+        
+        // DIAGNOSTIC: Log detailed requirement summary by shift type
+        if (log.isInfoEnabled()) {
+            long reqL01 = requirements.stream().filter(r -> "L01".equals(r.getShiftType().getId())).mapToInt(r -> r.getRequiredStaffCount()).sum();
+            long reqL02 = requirements.stream().filter(r -> "L02".equals(r.getShiftType().getId())).mapToInt(r -> r.getRequiredStaffCount()).sum();
+            long reqL03 = requirements.stream().filter(r -> "L03".equals(r.getShiftType().getId())).mapToInt(r -> r.getRequiredStaffCount()).sum();
+            long reqL04 = requirements.stream().filter(r -> "L04".equals(r.getShiftType().getId())).mapToInt(r -> r.getRequiredStaffCount()).sum();
+            long reqTotal = requirements.stream().mapToInt(r -> r.getRequiredStaffCount()).sum();
+            log.info("REQUIREMENT SUMMARY: totalRequired={} L01={} L02={} L03={} L04={}", 
+                reqTotal, reqL01, reqL02, reqL03, reqL04);
+        }
 
         // BUGFIX (auto-cap underestimates L04): prepareRequirements() builds L04 rows from
         // buildL04OpenSchedule (only open days per specialty, no Sunday), but the runtime
@@ -1369,7 +1380,7 @@ public class AutoSchedulingService {
         int totalReq = byShiftType.values().stream().mapToInt(AutoScheduleResponse.ShiftTypeBreakdown::getTotalRequired).sum();
         int totalAsgn = byShiftType.values().stream().mapToInt(AutoScheduleResponse.ShiftTypeBreakdown::getTotalAssigned).sum();
         java.math.BigDecimal correctCoverage = totalReq > 0
-                ? java.math.BigDecimal.valueOf(Math.min(100.0, (double) totalAsgn / totalReq * 100)).setScale(2, java.math.RoundingMode.HALF_UP)
+                ? java.math.BigDecimal.valueOf(Math.min(200.0, (double) totalAsgn / totalReq * 100)).setScale(2, java.math.RoundingMode.HALF_UP)
                 : java.math.BigDecimal.ZERO;
         responseBuilder.coverageRate(correctCoverage);
 
@@ -1507,6 +1518,15 @@ public class AutoSchedulingService {
         // now unreachable thanks to the whitelist check above).
         List<Schedule> schedules = runGreedy(period, requirements, activeStaff, save, runtimeConfig, excluded, maxShiftsPerMonthOverride,
                 Boolean.TRUE.equals(request.getSkipExisting()));
+        // DIAGNOSTIC: Log final schedules summary by shift type
+        if (log.isInfoEnabled()) {
+            long schL01 = schedules.stream().filter(s -> "L01".equals(s.getShiftType().getId())).count();
+            long schL02 = schedules.stream().filter(s -> "L02".equals(s.getShiftType().getId())).count();
+            long schL03 = schedules.stream().filter(s -> "L03".equals(s.getShiftType().getId())).count();
+            long schL04 = schedules.stream().filter(s -> "L04".equals(s.getShiftType().getId())).count();
+            log.info("ALGORITHM RESULT: type={} total={} L01={} L02={} L03={} L04={}", 
+                algorithmType, schedules.size(), schL01, schL02, schL03, schL04);
+        }
         return new AlgorithmDispatchResult(algorithmType, schedules, null);
     }
 
@@ -1520,6 +1540,17 @@ public class AutoSchedulingService {
 	        List<Schedule> createdSchedules = new ArrayList<>();
 	        Map<LocalDate, List<ShiftRequirement>> requirementsByDate =
 	                GreedyAssignmentEngine.groupRequirementsByDate(requirements);
+	
+	        // DIAGNOSTIC: Log requirement summary
+	        int greedyTotalRequired = requirements.stream().mapToInt(r -> r.getRequiredStaffCount()).sum();
+	        if (log.isInfoEnabled()) {
+	            long reqL01 = requirements.stream().filter(r -> "L01".equals(r.getShiftType().getId())).mapToInt(r -> r.getRequiredStaffCount()).sum();
+	            long reqL02 = requirements.stream().filter(r -> "L02".equals(r.getShiftType().getId())).mapToInt(r -> r.getRequiredStaffCount()).sum();
+	            long reqL03 = requirements.stream().filter(r -> "L03".equals(r.getShiftType().getId())).mapToInt(r -> r.getRequiredStaffCount()).sum();
+	            long reqL04 = requirements.stream().filter(r -> "L04".equals(r.getShiftType().getId())).mapToInt(r -> r.getRequiredStaffCount()).sum();
+	            log.info("GREEDY REQUIREMENTS SUMMARY: total={} L01={} L02={} L03={} L04={}", 
+	                greedyTotalRequired, reqL01, reqL02, reqL03, reqL04);
+	        }
 	
 	        // OPTIMIZATION 1: Load all conflict data for entire period in ONE pass (instead of per-day)
 	        // OPTIMIZATION 2: Load all shift type counts in ONE query (instead of N×4 queries)
@@ -1729,6 +1760,11 @@ public class AutoSchedulingService {
                         ? Math.min(runtimeConfig.getMaxStaffPerShift(), req.getRequiredStaffCount())
                         : req.getRequiredStaffCount();
                 int toAssign = Math.min(effectiveMax, eligibleStaff.size());
+                // DIAGNOSTIC: Log L02 processing to trace overscheduling
+                if (log.isInfoEnabled() && ConflictDetectionService.SHIFT_TYPE_L02.equals(shiftTypeId)) {
+                    log.info("L02 TRACE: date={} required={} eligible={} toAssign={}",
+                        workDate, req.getRequiredStaffCount(), eligibleStaff.size(), toAssign);
+                }
                 if (log.isInfoEnabled()) {
                     log.info("=== GREEDY PROCESSING === date={} type={} required={} eligible={} toAssign={}",
                         workDate, shiftTypeId, req.getRequiredStaffCount(), eligibleStaff.size(), toAssign);
@@ -1818,6 +1854,15 @@ public class AutoSchedulingService {
                 }
             }
             currentDate = currentDate.plusDays(1);
+        }
+        // DIAGNOSTIC: Log final Greedy summary
+        if (log.isInfoEnabled()) {
+            long l01 = createdSchedules.stream().filter(s -> "L01".equals(s.getShiftType().getId())).count();
+            long l02 = createdSchedules.stream().filter(s -> "L02".equals(s.getShiftType().getId())).count();
+            long l03 = createdSchedules.stream().filter(s -> "L03".equals(s.getShiftType().getId())).count();
+            long l04 = createdSchedules.stream().filter(s -> "L04".equals(s.getShiftType().getId())).count();
+            log.info("GREEDY RESULT SUMMARY: total={} L01={} L02={} L03={} L04={}", 
+                createdSchedules.size(), l01, l02, l03, l04);
         }
         return createdSchedules;
     }
@@ -3951,8 +3996,8 @@ public class AutoSchedulingService {
             Map<String, Object> stats = typeStats.get(shiftTypeId);
             int totalRequired = (int) stats.get("totalRequired");
             int totalAssigned = assignedPerType.getOrDefault(shiftTypeId, 0L).intValue();
-            double coverageRate = totalRequired > 0 
-                    ? Math.min(100.0, (double) totalAssigned / totalRequired * 100) 
+            double coverageRate = totalRequired > 0
+                    ? Math.min(200.0, (double) totalAssigned / totalRequired * 100)
                     : 0.0;
             
             List<String> unassignedDates = new ArrayList<>(unassignedDatesPerType.getOrDefault(shiftTypeId, Collections.emptySet()));

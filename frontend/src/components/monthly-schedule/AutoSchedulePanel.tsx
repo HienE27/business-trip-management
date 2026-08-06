@@ -361,7 +361,26 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               icon="rule"
               label="Cap ca/NS"
               value={previewResult.effectiveMaxShiftsPerStaff != null ? String(previewResult.effectiveMaxShiftsPerStaff) : "—"}
-              helper={previewResult.effectiveMaxShiftsPerStaff != null ? "Tự động theo kỳ" : undefined}
+              helper={
+                previewResult.effectiveMaxShiftsPerStaff != null
+                  ? (() => {
+                      // Tính tổng required từ byShiftType để hiển thị công thức auto-cap
+                      const totalReq = Object.values(previewResult.byShiftType ?? {}).reduce(
+                        (sum, t) => sum + ((t as { totalRequired?: number }).totalRequired ?? 0),
+                        0
+                      );
+                      const distinctStaff = Math.max(
+                        ...Object.values(previewResult.byShiftType ?? {}).map(
+                          (t) => (t as { distinctStaffAssigned?: number }).distinctStaffAssigned ?? 0
+                        ),
+                        1
+                      );
+                      return totalReq > 0
+                        ? `⌈${totalReq}÷${distinctStaff}⌉ · Tự động theo kỳ`
+                        : "Tự động theo kỳ";
+                    })()
+                  : undefined
+              }
               tone="neutral"
             />
           </div>
