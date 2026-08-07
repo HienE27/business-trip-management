@@ -5,6 +5,8 @@
 After review feedback, all flagged regressions are resolved. This document
 records every intentional change from PR3 in a reviewer-friendly format.
 
+**Outstanding merge blockers: None.**
+
 ## Format
 
 | Column          | Meaning                                                |
