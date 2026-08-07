@@ -23,6 +23,8 @@ export function ConfigDiffModal({ open, onClose, config, form, onApply }: Props)
       title="So sánh thay đổi"
       description={`${changes.length} thông số đã thay đổi`}
       size="lg"
+      icon={<span className="material-symbols-outlined text-[18px]" aria-hidden="true">difference</span>}
+      iconClassName="bg-tertiary-container text-tertiary"
     >
       <div className="border border-outline-variant rounded-lg overflow-hidden max-h-80 overflow-y-auto">
         {changes.length === 0 ? (
