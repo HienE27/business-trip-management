@@ -12,33 +12,34 @@ records every intentional change from PR3 in a reviewer-friendly format.
 | Regression      | What changed                                            |
 | Intentional     | Yes = planned, part of migration. No = bug, must fix.  |
 | User Visible    | Yes = end-user sees difference. No = internal cleanup.  |
-| Follow-up       | Required action (PR4 fix, none, etc.)                  |
+| Merge Blocker   | Yes = must be fixed before merge. No = acceptable.      |
+| Follow-up       | Required action or "None"                              |
 
 ## Resolved regressions (originally flagged)
 
-| Regression             | Intentional | User Visible | Follow-up        | Resolution                |
-| ---------------------- | ----------- | ------------ | ---------------- | ------------------------- |
-| Button color (Duyệt)   | No          | Yes          | Fix before merge | ✅ Fixed in commit 52ce7cc |
-| Header icon (CreateCfg)| No          | Yes          | Fix before merge | ✅ Fixed in commit cfc5e4d |
-| Header icon (ConfigDif)| No          | Yes          | Fix before merge | ✅ Fixed in commit a5e9a2c |
+| Regression             | Intentional | User Visible | Merge Blocker | Follow-up            | Resolution                |
+| ---------------------- | ----------- | ------------ | ------------- | -------------------- | ------------------------- |
+| Button color (Duyệt)   | No          | Yes          | Yes (was)     | Revert to secondary  | ✅ Fixed in commit 52ce7cc |
+| Header icon (CreateCfg)| No          | Yes          | Yes (was)     | Restore via Modal prop | ✅ Fixed in commit cfc5e4d |
+| Header icon (ConfigDif)| No          | Yes          | Yes (was)     | Restore via Modal prop | ✅ Fixed in commit a5e9a2c |
 
 ## All PR3 changes — final state
 
-| # | Modal                | Change                                     | Intentional | User Visible | Follow-up |
-| - | -------------------- | ------------------------------------------ | ----------- | ------------ | --------- |
-| 1 | Create Leave Request | raw `<div role="dialog">` → shared `<Modal>` | Yes         | No           | None      |
-| 2 | Detail Review Leave  | raw `<div>` → shared `<Modal>`             | Yes         | No           | None      |
-| 3 | Detail Swap          | raw `<div>` → shared `<Modal>`             | Yes         | No           | None      |
-| 4 | ApplyConfirmation    | inline footer → `<ModalFooter>`             | Yes         | No           | None      |
-| 5 | SaveTemplate         | raw `<button>` → `<Button variant="primary">` | Yes       | No           | None      |
-| 6 | ApplyTemplate        | raw `<button>` (×5) → shared `<Button>`     | Yes         | No           | None      |
-| 7 | CreateConfig         | raw `<div>` → `<Modal>` + icon prop       | Yes         | No           | None      |
-| 8 | ConfigDiff           | raw `<div>` → `<Modal>` + icon prop       | Yes         | No           | None      |
-| 9 | ShiftDetail          | raw `<button>` (×6) → shared `<Button>`     | Yes         | No           | None      |
-| 10| ConflictResolution   | raw `<button>` (×2) → shared `<Button>`     | Yes         | No           | None      |
-| 11| CreateProfile        | raw `<div>` → `<Modal>`                     | Yes         | No           | None      |
-| 12| ImportExport         | raw `<div>` → `<Modal>`                     | Yes         | No           | None      |
-| 13| Shared Modal         | added `icon` + `iconClassName` props        | Yes         | No (opt-in)  | None      |
+| # | Modal                | Change                                     | Intentional | User Visible | Merge Blocker | Follow-up |
+| - | -------------------- | ------------------------------------------ | ----------- | ------------ | ------------- | --------- |
+| 1 | Create Leave Request | raw `<div role="dialog">` → shared `<Modal>` | Yes         | No           | No            | None      |
+| 2 | Detail Review Leave  | raw `<div>` → shared `<Modal>`             | Yes         | No           | No            | None      |
+| 3 | Detail Swap          | raw `<div>` → shared `<Modal>`             | Yes         | No           | No            | None      |
+| 4 | ApplyConfirmation    | inline footer → `<ModalFooter>`             | Yes         | No           | No            | None      |
+| 5 | SaveTemplate         | raw `<button>` → `<Button variant="primary">` | Yes       | No           | No            | None      |
+| 6 | ApplyTemplate        | raw `<button>` (×5) → shared `<Button>`     | Yes         | No           | No            | None      |
+| 7 | CreateConfig         | raw `<div>` → `<Modal>` + icon prop       | Yes         | No           | No            | None      |
+| 8 | ConfigDiff           | raw `<div>` → `<Modal>` + icon prop       | Yes         | No           | No            | None      |
+| 9 | ShiftDetail          | raw `<button>` (×6) → shared `<Button>`     | Yes         | No           | No            | None      |
+| 10| ConflictResolution   | raw `<button>` (×2) → shared `<Button>`     | Yes         | No           | No            | None      |
+| 11| CreateProfile        | raw `<div>` → `<Modal>`                     | Yes         | No           | No            | None      |
+| 12| ImportExport         | raw `<div>` → `<Modal>`                     | Yes         | No           | No            | None      |
+| 13| Shared Modal         | added `icon` + `iconClassName` props        | Yes         | No (opt-in)  | No            | None      |
 
 ## Modal — pre-existing intentional changes (carry-over, not regressions)
 
