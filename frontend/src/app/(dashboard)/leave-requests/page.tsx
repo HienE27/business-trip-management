@@ -565,12 +565,13 @@ function LeaveRequestsContent() {
                   Từ chối
                 </Button>
                 <Button
-                  variant="primary"
+                  variant="secondary"
                   size="md"
                   disabled={processing}
                   loading={processing}
                   onClick={handleApprove}
                   icon={!processing ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">check</span> : undefined}
+                  className="!bg-secondary !text-on-secondary hover:!opacity-90"
                 >
                   Duyệt
                 </Button>

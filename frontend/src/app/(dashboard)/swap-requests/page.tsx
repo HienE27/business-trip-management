@@ -831,12 +831,13 @@ function SwapRequestsContent() {
                   Từ chối
                 </Button>
                 <Button
-                  variant="primary"
+                  variant="secondary"
                   size="md"
                   disabled={processing !== null}
                   loading={processing !== null}
                   onClick={() => handleApprove(selectedExchange.id, selectedExchange.periodId)}
                   icon={processing === null ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">check</span> : undefined}
+                  className="!bg-secondary !text-on-secondary hover:!opacity-90"
                 >
                   Duyệt
                 </Button>
