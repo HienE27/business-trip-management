@@ -1,6 +1,7 @@
 "use client";
 
-import { Modal } from "@/components/ui/Modal";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Button } from "@/components/ui";
 import type { AutoScheduleSummary, SchedulePeriod } from "@/types/api";
 
 interface Props {
@@ -44,24 +45,25 @@ export function ApplyConfirmationModal({
           )}
         </div>
       )}
-      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-outline-variant bg-surface-container-low mt-4 -mx-4 sm:-mx-6 mb-[-16px]">
-        <button
-          type="button"
+      <ModalFooter>
+        <Button
+          variant="secondary"
+          size="md"
           onClick={onClose}
-          className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
         >
           Hủy
-        </button>
-        <button
-          type="button"
-          onClick={onApply}
+        </Button>
+        <Button
+          variant="primary"
+          size="md"
           disabled={applying}
-          className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          loading={applying}
+          onClick={onApply}
+          icon={!applying ? <span className="material-symbols-outlined text-[16px]">check</span> : undefined}
         >
-          <span className="material-symbols-outlined text-[16px]">check</span>
           {applying ? "Đang áp dụng..." : "Xác nhận áp dụng"}
-        </button>
-      </div>
+        </Button>
+      </ModalFooter>
     </Modal>
   );
 }
