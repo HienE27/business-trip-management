@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useMemo, useState } from "rea
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Button, IconButton } from "@/components/ui";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -617,101 +618,73 @@ function LeaveRequestsContent() {
 
       {/* Create Leave Request Modal */}
       {showCreateModal && (
-        <div
-          aria-label="Tạo yêu cầu nghỉ phép"
-          role="dialog"
-          className="fixed inset-0 z-50 flex items-center justify-center"
+        <Modal
+          open={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          title="Tạo yêu cầu nghỉ phép"
+          description="Gửi yêu cầu nghỉ phép cho quản lý xét duyệt."
+          size="md"
         >
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCreateModal(false)} aria-hidden="true" />
-          <div className="relative w-full max-w-md rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-tertiary-fixed">
-                  <span className="material-symbols-outlined text-[20px] text-tertiary">event_busy</span>
-                </div>
-                <div>
-                  <h2 className="text-[18px] font-semibold text-on-surface">Tạo yêu cầu nghỉ phép</h2>
-                  <p className="text-[12px] text-on-surface-variant">Gửi yêu cầu nghỉ phép cho quản lý xét duyệt.</p>
-                </div>
-              </div>
-              <IconButton
-                label="Đóng"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowCreateModal(false)}
-                className="text-on-surface-variant"
-              >
-                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
-              </IconButton>
-            </div>
-
-            {/* Form */}
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[13px] font-semibold text-on-surface">
-                    Ngày bắt đầu <span className="text-error">*</span>
-                  </span>
-                  <input
-                    type="date"
-                    className="h-10 rounded-lg border border-outline-variant bg-surface px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                    value={createStartDate}
-                    onChange={(e) => setCreateStartDate(e.target.value)}
-                    required
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[13px] font-semibold text-on-surface">
-                    Ngày kết thúc <span className="text-error">*</span>
-                  </span>
-                  <input
-                    type="date"
-                    className="h-10 rounded-lg border border-outline-variant bg-surface px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                    value={createEndDate}
-                    onChange={(e) => setCreateEndDate(e.target.value)}
-                    required
-                  />
-                </label>
-              </div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
               <label className="flex flex-col gap-1.5">
-                <span className="text-[13px] font-semibold text-on-surface">Lý do</span>
-                <textarea
-                  className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                  rows={3}
-                  placeholder="Nhập lý do nghỉ phép (không bắt buộc)..."
-                  value={createReason}
-                  onChange={(e) => setCreateReason(e.target.value)}
-                  maxLength={500}
+                <span className="text-[13px] font-semibold text-on-surface">
+                  Ngày bắt đầu <span className="text-error">*</span>
+                </span>
+                <input
+                  type="date"
+                  className="h-10 rounded-lg border border-outline-variant bg-surface px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                  value={createStartDate}
+                  onChange={(e) => setCreateStartDate(e.target.value)}
+                  required
                 />
-                <p className="text-[11px] text-outline text-right">{createReason.length}/500</p>
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[13px] font-semibold text-on-surface">
+                  Ngày kết thúc <span className="text-error">*</span>
+                </span>
+                <input
+                  type="date"
+                  className="h-10 rounded-lg border border-outline-variant bg-surface px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                  value={createEndDate}
+                  onChange={(e) => setCreateEndDate(e.target.value)}
+                  required
+                />
               </label>
             </div>
-
-            {/* Footer */}
-            <div className="flex items-center gap-3 px-6 py-4 border-t border-outline-variant">
-              <Button
-                variant="secondary"
-                size="md"
-                fullWidth
-                onClick={() => setShowCreateModal(false)}
-              >
-                Hủy
-              </Button>
-              <Button
-                variant="primary"
-                size="md"
-                fullWidth
-                disabled={creating || !createStartDate || !createEndDate}
-                loading={creating}
-                onClick={() => void handleCreateLeaveRequest()}
-                icon={!creating ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">send</span> : undefined}
-              >
-                Gửi yêu cầu
-              </Button>
-            </div>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[13px] font-semibold text-on-surface">Lý do</span>
+              <textarea
+                className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                rows={3}
+                placeholder="Nhập lý do nghỉ phép (không bắt buộc)..."
+                value={createReason}
+                onChange={(e) => setCreateReason(e.target.value)}
+                maxLength={500}
+              />
+              <p className="text-[11px] text-outline text-right">{createReason.length}/500</p>
+            </label>
           </div>
-        </div>
+          <ModalFooter>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => setShowCreateModal(false)}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              disabled={creating || !createStartDate || !createEndDate}
+              loading={creating}
+              onClick={() => void handleCreateLeaveRequest()}
+              icon={!creating ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">send</span> : undefined}
+            >
+              Gửi yêu cầu
+            </Button>
+          </ModalFooter>
+        </Modal>
       )}
 
       <ConfirmDialog
