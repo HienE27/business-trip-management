@@ -3,7 +3,8 @@
 import { memo } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Modal } from "@/components/ui/Modal";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Button } from "@/components/ui";
 import { ShiftDetailInfo } from "@/components/shift-detail/ShiftDetailInfo";
 import { ShiftDetailTable } from "@/components/shift-detail/ShiftDetailTable";
 import { formatDate } from "@/lib/date";
@@ -154,22 +155,22 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
           {/* Action buttons */}
           {canEdit && !editing && !showDeleteConfirm && (
             <div className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
+              <Button
+                variant="danger"
+                size="sm"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-error/30 bg-error-container px-3 py-1.5 text-label-sm font-medium text-error transition-colors hover:bg-error/10"
+                icon={<span className="material-symbols-outlined text-[16px]">delete</span>}
               >
-                <span className="material-symbols-outlined text-[16px]">delete</span>
                 Xóa
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setEditing(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-label-sm font-medium text-on-surface transition-colors hover:bg-surface-container-low"
+                icon={<span className="material-symbols-outlined text-[16px]">edit</span>}
               >
-                <span className="material-symbols-outlined text-[16px]">edit</span>
                 Chỉnh sửa
-              </button>
+              </Button>
             </div>
           )}
 
@@ -177,22 +178,24 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
           {canEdit && showDeleteConfirm && (
             <div className="ml-auto flex items-center gap-2">
               <span className="text-label-sm text-error font-medium">Xác nhận xóa?</span>
-              <button
-                type="button"
+              <Button
+                variant="danger"
+                size="sm"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-error/30 bg-error px-3 py-1.5 text-label-sm font-medium text-white transition-colors hover:bg-error/90 disabled:opacity-50"
+                loading={deleting}
+                icon={!deleting ? <span className="material-symbols-outlined text-[16px]">delete</span> : undefined}
               >
-                {deleting ? "Đang xóa..." : "Xóa"}
-              </button>
-              <button
-                type="button"
+                Xóa
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setShowDeleteConfirm(false)}
                 disabled={deleting}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-label-sm font-medium text-on-surface transition-colors hover:bg-surface-container-low disabled:opacity-50"
               >
                 Hủy
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -271,32 +274,24 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="md"
                 onClick={() => setEditing(false)}
                 disabled={saving}
-                className="px-4 h-10 rounded-lg border border-outline-variant text-label-sm text-on-surface hover:bg-surface-container-low transition-colors disabled:opacity-60"
               >
                 Hủy
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
                 onClick={handleSave}
                 disabled={saving || !isDirty || !formStaffId || !formShiftTypeId}
-                className="inline-flex items-center gap-2 px-4 h-10 rounded-lg bg-primary text-on-primary text-label-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+                loading={saving}
+                icon={!saving ? <span className="material-symbols-outlined text-[16px]">save</span> : undefined}
               >
-                {saving ? (
-                  <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-on-primary)] border-t-transparent" />
-                    Đang lưu...
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[16px]">save</span>
-                    Lưu thay đổi
-                  </>
-                )}
-              </button>
+                {saving ? "Đang lưu..." : "Lưu thay đổi"}
+              </Button>
             </div>
           </div>
         )}
