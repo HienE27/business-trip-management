@@ -34,6 +34,9 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      - name: Prepare output directory
+        run: mkdir -p build/discovery
+
       - name: Run static-analysis.sh
         id: static
         run: |
