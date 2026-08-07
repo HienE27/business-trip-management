@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Button } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import type { ConflictDetail, Staff } from "@/types/api";
@@ -259,29 +260,23 @@ export function ConflictResolutionModal({
       )}
 
       <ModalFooter>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="md"
           onClick={onClose}
-          className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           Hủy
-        </button>
+        </Button>
         {!done && (
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="md"
             onClick={handleSubmit}
             disabled={submitting}
-            className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-md hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            loading={submitting}
           >
-            {submitting ? (
-              <>
-                <div className="size-4 animate-spin rounded-full border-2 border-[var(--color-on-primary)] border-t-transparent" />
-                Đang xử lý...
-              </>
-            ) : (
-              "Xác nhận giải quyết"
-            )}
-          </button>
+            {submitting ? "Đang xử lý..." : "Xác nhận giải quyết"}
+          </Button>
         )}
       </ModalFooter>
     </Modal>

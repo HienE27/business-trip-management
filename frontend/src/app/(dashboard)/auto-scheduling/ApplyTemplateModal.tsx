@@ -1,6 +1,7 @@
 "use client";
 
 import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Button } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatDate } from "@/lib/date";
 import type { ScheduleTemplate, TemplatePreviewItem, Staff } from "@/types/api";
@@ -93,24 +94,24 @@ export function ApplyTemplateModal({
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => onPreview(t.id)}
                       disabled={previewLoading}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-label-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors disabled:opacity-50"
+                      icon={<span className="material-symbols-outlined text-[14px]">visibility</span>}
                     >
-                      <span className="material-symbols-outlined text-[14px]">visibility</span>
                       Xem trước
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => onSelectTemplate(t.id)}
                       disabled={previewLoading}
-                      className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-label-sm font-medium text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      icon={<span className="material-symbols-outlined text-[14px]">check</span>}
                     >
-                      <span className="material-symbols-outlined text-[14px]">check</span>
                       Áp dụng
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -125,15 +126,16 @@ export function ApplyTemplateModal({
       ) : templatePreview === null ? (
         <div className="space-y-3">
           <p className="text-label-sm text-on-surface-variant">Mẫu lịch này không có dữ liệu để xem trước.</p>
-            <button
-              type="button"
-              onClick={onApply}
-              disabled={previewLoading || applying}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-label-sm font-semibold text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              <span className="material-symbols-outlined text-[14px]">check</span>
-              Áp dụng trực tiếp
-            </button>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={onApply}
+            disabled={previewLoading || applying}
+            loading={applying}
+            icon={!applying ? <span className="material-symbols-outlined text-[14px]">check</span> : undefined}
+          >
+            Áp dụng trực tiếp
+          </Button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -228,41 +230,33 @@ export function ApplyTemplateModal({
       <ModalFooter>
         {selectedTemplateId && templatePreview && (
           <>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="md"
               onClick={onClearSelection}
-              className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
             >
               ← Quay lại danh sách
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
               onClick={onApply}
               disabled={previewLoading || applying}
-              className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              loading={applying}
+              icon={!applying ? <span className="material-symbols-outlined text-[16px]">check</span> : undefined}
             >
-              {applying ? (
-                <>
-                  <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
-                  Đang áp dụng...
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-[16px]">check</span>
-                  Xác nhận áp dụng
-                </>
-              )}
-            </button>
+              {applying ? "Đang áp dụng..." : "Xác nhận áp dụng"}
+            </Button>
           </>
         )}
         {!selectedTemplateId && (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="md"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-outline-variant text-label-md text-on-surface hover:bg-surface-container-low transition-colors"
           >
             Đóng
-          </button>
+          </Button>
         )}
       </ModalFooter>
     </Modal>

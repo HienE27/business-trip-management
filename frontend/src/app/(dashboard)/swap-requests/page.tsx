@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button, IconButton } from "@/components/ui";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Pagination } from "@/components/ui/Pagination";
@@ -733,144 +734,117 @@ function SwapRequestsContent() {
 
       {/* Detail / Review Modal */}
       {selectedExchange && (
-        <div
-          aria-label="Chi tiết yêu cầu đổi trực"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          role="dialog"
+        <Modal
+          open={selectedExchange !== null}
+          onClose={closeDetailModal}
+          title="Chi tiết đổi trực"
+          description={`#${selectedExchange.id}`}
+          size="lg"
         >
-          <div className="absolute inset-0 bg-black/40" onClick={closeDetailModal} aria-hidden="true" />
-          <div className="relative w-full max-w-lg rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
-              <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-fixed">
-                  <span className="material-symbols-outlined text-[20px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>swap_horiz</span>
-                </div>
-                <div>
-                  <h2 className="text-headline-lg font-semibold text-on-surface">Chi tiết đổi trực</h2>
-                  <p className="text-label-md text-on-surface-variant">#{selectedExchange.id}</p>
-                </div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-lg border border-outline-variant bg-surface p-3">
+                <p className="text-label-sm text-on-surface-variant mb-1">Người yêu cầu</p>
+                <p className="text-label-md font-semibold text-on-surface">{selectedExchange.requester.fullName}</p>
               </div>
-              <IconButton
-                label="Đóng"
-                variant="ghost"
-                size="sm"
-                onClick={closeDetailModal}
-                className="text-on-surface-variant"
-              >
-                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
-              </IconButton>
+              <div className="rounded-lg border border-outline-variant bg-surface p-3">
+                <p className="text-label-sm text-on-surface-variant mb-1">Người đổi cùng</p>
+                <p className="text-label-md font-semibold text-on-surface">{selectedExchange.target.fullName}</p>
+              </div>
             </div>
 
-            <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-lg border border-outline-variant bg-surface p-3">
-                  <p className="text-label-sm text-on-surface-variant mb-1">Người yêu cầu</p>
-                  <p className="text-label-md font-semibold text-on-surface">{selectedExchange.requester.fullName}</p>
-                </div>
-                <div className="rounded-lg border border-outline-variant bg-surface p-3">
-                  <p className="text-label-sm text-on-surface-variant mb-1">Người đổi cùng</p>
-                  <p className="text-label-md font-semibold text-on-surface">{selectedExchange.target.fullName}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.requesterSchedule?.shiftType?.id ?? "")} bg-surface`}>
-                  <p className="text-label-sm text-on-surface-variant mb-1">Ca ban đầu</p>
-                  <p className="text-body-sm font-medium text-on-surface">{formatDateFull(selectedExchange.requesterSchedule?.workDate ?? "")}</p>
-                  <p className="text-label-md text-on-surface-variant">{selectedExchange.requesterSchedule?.shiftType?.name ?? "—"}</p>
-                  {selectedExchange.status === "APPROVED" && (
-                    <span className="mt-1.5 inline-flex items-center gap-1 text-label-sm text-secondary">
-                      <span className="material-symbols-outlined text-[12px]">check</span> Đã đổi
-                    </span>
-                  )}
-                </div>
-                <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.targetSchedule?.shiftType?.id ?? "")} bg-surface`}>
-                  <p className="text-label-sm text-on-surface-variant mb-1">Ca đề xuất</p>
-                  <p className="text-body-sm font-medium text-on-surface">{formatDateFull(selectedExchange.targetSchedule?.workDate ?? "")}</p>
-                  <p className="text-label-md text-on-surface-variant">{selectedExchange.targetSchedule?.shiftType?.name ?? "—"}</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <p className="text-label-sm text-on-surface-variant">Trạng thái</p>
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-label-sm font-semibold ${getStatusBadge(selectedExchange.status)}`}>
-                    {getStatusLabel(selectedExchange.status)}
+            <div className="grid grid-cols-2 gap-4">
+              <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.requesterSchedule?.shiftType?.id ?? "")} bg-surface`}>
+                <p className="text-label-sm text-on-surface-variant mb-1">Ca ban đầu</p>
+                <p className="text-body-sm font-medium text-on-surface">{formatDateFull(selectedExchange.requesterSchedule?.workDate ?? "")}</p>
+                <p className="text-label-md text-on-surface-variant">{selectedExchange.requesterSchedule?.shiftType?.name ?? "—"}</p>
+                {selectedExchange.status === "APPROVED" && (
+                  <span className="mt-1.5 inline-flex items-center gap-1 text-label-sm text-secondary">
+                    <span className="material-symbols-outlined text-[12px]">check</span> Đã đổi
                   </span>
-                </div>
-
-                {selectedExchange.reason && (
-                  <div>
-                    <p className="text-label-sm text-on-surface-variant mb-1">Lý do</p>
-                    <p className="text-body-sm text-on-surface leading-relaxed">{selectedExchange.reason}</p>
-                  </div>
                 )}
-
-                {selectedExchange.reviewNote && (
-                  <div className="rounded-lg bg-surface-container-low p-3">
-                    <p className="text-label-sm text-on-surface-variant mb-1">Phản hồi</p>
-                    <p className="text-body-sm text-on-surface">{selectedExchange.reviewNote}</p>
-                  </div>
-                )}
-
-                {managerMode && selectedExchange.status === "PENDING" && (
-                  <div className="space-y-2">
-                    <label className="text-label-md font-semibold text-on-surface" htmlFor="exchange-review-note">
-                      Ghi chú duyệt <span className="text-outline font-normal">(tùy chọn)</span>
-                    </label>
-                    <textarea
-                      className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2.5 text-body-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 resize-none"
-                      id="exchange-review-note"
-                      rows={3}
-                      placeholder="Nhập ghi chú phê duyệt hoặc lý do từ chối..."
-                      value={reviewNote}
-                      onChange={(e) => setReviewNote(e.target.value)}
-                    />
-                  </div>
-                )}
+              </div>
+              <div className={`rounded-lg border-l-4 border p-3 ${getBorderColor(selectedExchange.targetSchedule?.shiftType?.id ?? "")} bg-surface`}>
+                <p className="text-label-sm text-on-surface-variant mb-1">Ca đề xuất</p>
+                <p className="text-body-sm font-medium text-on-surface">{formatDateFull(selectedExchange.targetSchedule?.workDate ?? "")}</p>
+                <p className="text-label-md text-on-surface-variant">{selectedExchange.targetSchedule?.shiftType?.name ?? "—"}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 px-6 py-4 border-t border-outline-variant">
-              <Button
-                variant="secondary"
-                size="md"
-                fullWidth
-                onClick={closeDetailModal}
-              >
-                Đóng
-              </Button>
-              {canApprove && managerMode && selectedExchange.status === "PENDING" && (
-                <>
-                  <Button
-                    variant="danger"
-                    size="md"
-                    fullWidth
-                    disabled={processing !== null}
-                    loading={processing !== null}
-                    onClick={() => handleReject(selectedExchange.id)}
-                    icon={processing === null ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span> : undefined}
-                  >
-                    Từ chối
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="md"
-                    fullWidth
-                    disabled={processing !== null}
-                    loading={processing !== null}
-                    onClick={() => handleApprove(selectedExchange.id, selectedExchange.periodId)}
-                    icon={processing === null ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">check</span> : undefined}
-                    className="!bg-secondary !text-on-secondary hover:!opacity-90"
-                  >
-                    Duyệt
-                  </Button>
-                </>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <p className="text-label-sm text-on-surface-variant">Trạng thái</p>
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-label-sm font-semibold ${getStatusBadge(selectedExchange.status)}`}>
+                  {getStatusLabel(selectedExchange.status)}
+                </span>
+              </div>
+
+              {selectedExchange.reason && (
+                <div>
+                  <p className="text-label-sm text-on-surface-variant mb-1">Lý do</p>
+                  <p className="text-body-sm text-on-surface leading-relaxed">{selectedExchange.reason}</p>
+                </div>
+              )}
+
+              {selectedExchange.reviewNote && (
+                <div className="rounded-lg bg-surface-container-low p-3">
+                  <p className="text-label-sm text-on-surface-variant mb-1">Phản hồi</p>
+                  <p className="text-body-sm text-on-surface">{selectedExchange.reviewNote}</p>
+                </div>
+              )}
+
+              {managerMode && selectedExchange.status === "PENDING" && (
+                <div className="space-y-2">
+                  <label className="text-label-md font-semibold text-on-surface" htmlFor="exchange-review-note">
+                    Ghi chú duyệt <span className="text-outline font-normal">(tùy chọn)</span>
+                  </label>
+                  <textarea
+                    className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2.5 text-body-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 resize-none"
+                    id="exchange-review-note"
+                    rows={3}
+                    placeholder="Nhập ghi chú phê duyệt hoặc lý do từ chối..."
+                    value={reviewNote}
+                    onChange={(e) => setReviewNote(e.target.value)}
+                  />
+                </div>
               )}
             </div>
           </div>
-        </div>
+          <ModalFooter>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={closeDetailModal}
+            >
+              Đóng
+            </Button>
+            {canApprove && managerMode && selectedExchange.status === "PENDING" && (
+              <>
+                <Button
+                  variant="danger"
+                  size="md"
+                  disabled={processing !== null}
+                  loading={processing !== null}
+                  onClick={() => handleReject(selectedExchange.id)}
+                  icon={processing === null ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span> : undefined}
+                >
+                  Từ chối
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  disabled={processing !== null}
+                  loading={processing !== null}
+                  onClick={() => handleApprove(selectedExchange.id, selectedExchange.periodId)}
+                  icon={processing === null ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">check</span> : undefined}
+                  className="!bg-secondary !text-on-secondary hover:!opacity-90"
+                >
+                  Duyệt
+                </Button>
+              </>
+            )}
+          </ModalFooter>
+        </Modal>
       )}
     </>
   );

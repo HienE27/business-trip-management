@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Button } from "@/components/ui";
 import { api } from "@/lib/api-client";
 import type {
   ConfigProfile,
@@ -96,27 +98,15 @@ export function CreateProfileDialog({ open, onClose, onCreated }: CreateProfileD
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
-
-      {/* Dialog */}
-      <div className="relative bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-lg animate-scale-in">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-outline-variant flex items-center justify-between">
-          <div>
-            <h2 className="text-headline-md text-on-surface font-semibold">Tạo cấu hình mới</h2>
-            <p className="text-label-sm text-on-surface-variant mt-0.5">
-              Lưu cấu hình hiện tại thành profile mới
-            </p>
-          </div>
-          <button onClick={handleClose} className="p-2 hover:bg-surface-container-low rounded-xl transition-colors">
-            <span className="material-symbols-outlined text-[20px] text-on-surface-variant">close</span>
-          </button>
-        </div>
-
-        {/* Form */}
-        <div className="px-6 py-4 space-y-4">
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title="Tạo cấu hình mới"
+      description="Lưu cấu hình hiện tại thành profile mới"
+      size="md"
+    >
+      {/* Form */}
+      <div className="space-y-4">
           {/* Name Vi */}
           <div>
             <label className="block text-label-md text-on-surface mb-1.5">
@@ -232,36 +222,36 @@ export function CreateProfileDialog({ open, onClose, onCreated }: CreateProfileD
                 placeholder="Nhấn Enter để thêm nhãn..."
                 className="flex-1 h-10 px-3 border border-outline-variant bg-surface-container-lowest rounded-lg text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
-              <button
-                type="button"
-                onClick={() => addTag(tagInput.trim())}
-                disabled={!tagInput.trim()}
-                className="px-4 h-10 bg-surface-container text-label-md text-on-surface rounded-lg hover:bg-surface-container-high transition-colors disabled:opacity-50"
-              >
-                Thêm
-              </button>
-            </div>
+              <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => addTag(tagInput.trim())}
+              disabled={!tagInput.trim()}
+            >
+              Thêm
+            </Button>
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-outline-variant flex items-center justify-end gap-3">
-          <button
-            onClick={handleClose}
-            className="px-4 py-2 text-label-md text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors"
-          >
-            Hủy
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting || !form.nameVi.trim()}
-            className="px-4 py-2 bg-primary text-on-primary text-label-md font-semibold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {isSubmitting && <div className="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin" />}
-            Tạo cấu hình
-          </button>
-        </div>
       </div>
-    </div>
+
+      <ModalFooter>
+        <Button
+          variant="secondary"
+          size="md"
+          onClick={handleClose}
+        >
+          Hủy
+        </Button>
+        <Button
+          variant="primary"
+          size="md"
+          onClick={handleSubmit}
+          disabled={isSubmitting || !form.nameVi.trim()}
+          loading={isSubmitting}
+        >
+          Tạo cấu hình
+        </Button>
+      </ModalFooter>
+    </Modal>
   );
 }
