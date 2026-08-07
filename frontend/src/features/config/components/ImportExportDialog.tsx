@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Button } from "@/components/ui";
 import { api } from "@/lib/api-client";
 import type { ConfigProfile } from "@/types/api";
 import { useToast } from "@/hooks/useToast";
@@ -102,28 +104,15 @@ export function ImportExportDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
-
-      {/* Dialog */}
-      <div className="relative bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-lg animate-scale-in">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-outline-variant flex items-center justify-between">
-          <div>
-            <h2 className="text-headline-md text-on-surface font-semibold">
-              {activeTab === "import" ? "Nhập cấu hình" : "Xuất cấu hình"}
-            </h2>
-            <p className="text-label-sm text-on-surface-variant mt-0.5">
-              {activeTab === "import"
-                ? "Nhập cấu hình từ file JSON"
-                : `Xuất "${profile?.nameVi}" ra file JSON`}
-            </p>
-          </div>
-          <button onClick={handleClose} className="p-2 hover:bg-surface-container-low rounded-xl transition-colors">
-            <span className="material-symbols-outlined text-[20px] text-on-surface-variant">close</span>
-          </button>
-        </div>
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title={activeTab === "import" ? "Nhập cấu hình" : "Xuất cấu hình"}
+      description={activeTab === "import"
+        ? "Nhập cấu hình từ file JSON"
+        : `Xuất "${profile?.nameVi}" ra file JSON`}
+      size="md"
+    >
 
         {/* Tabs */}
         {initialMode === "both" && (
@@ -231,23 +220,16 @@ export function ImportExportDialog({
                   <p className="text-[12px] text-on-surface-variant mb-4">
                     File JSON sẽ chứa toàn bộ cấu hình thuật toán
                   </p>
-                  <button
+                  <Button
+                    variant="primary"
+                    size="md"
                     onClick={handleExport}
                     disabled={isLoading || !profile}
-                    className="px-6 py-2.5 bg-primary text-on-primary text-label-md font-semibold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2 mx-auto"
+                    loading={isLoading}
+                    icon={!isLoading ? <span className="material-symbols-outlined text-[16px]">download</span> : undefined}
                   >
-                    {isLoading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin" />
-                        Đang xuất...
-                      </>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined text-[16px]">download</span>
-                        Xuất file JSON
-                      </>
-                    )}
-                  </button>
+                    {isLoading ? "Đang xuất..." : "Xuất file JSON"}
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -271,19 +253,23 @@ export function ImportExportDialog({
                   </div>
 
                   <div className="flex gap-3">
-                    <button
+                    <Button
+                      variant="secondary"
+                      size="md"
                       onClick={() => setExportJson(null)}
-                      className="flex-1 px-4 py-2 bg-surface-container text-label-md text-on-surface rounded-lg hover:bg-surface-container-high transition-colors"
+                      fullWidth
                     >
                       Xuất lại
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="md"
                       onClick={handleDownload}
-                      className="flex-1 px-4 py-2 bg-primary text-on-primary text-label-md font-semibold rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                      fullWidth
+                      icon={<span className="material-symbols-outlined text-[16px]">download</span>}
                     >
-                      <span className="material-symbols-outlined text-[16px]">download</span>
                       Tải file
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -291,16 +277,15 @@ export function ImportExportDialog({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-outline-variant flex justify-end">
-          <button
-            onClick={handleClose}
-            className="px-4 py-2 text-label-md text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors"
-          >
-            Đóng
-          </button>
-        </div>
-      </div>
-    </div>
+        <ModalFooter>
+        <Button
+          variant="secondary"
+          size="md"
+          onClick={handleClose}
+        >
+          Đóng
+        </Button>
+      </ModalFooter>
+    </Modal>
   );
 }
