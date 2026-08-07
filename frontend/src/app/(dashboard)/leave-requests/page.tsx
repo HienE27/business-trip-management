@@ -491,129 +491,93 @@ function LeaveRequestsContent() {
 
       {/* Detail / Review Modal */}
       {detailRequest && (
-        <div
-          aria-label="Chi tiết yêu cầu nghỉ phép"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          role="dialog"
+        <Modal
+          open={detailRequest !== null}
+          onClose={() => setDetailRequest(null)}
+          title="Chi tiết yêu cầu"
+          description={getStaffDisplayName(detailRequest)}
+          size="lg"
         >
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setDetailRequest(null)}
-            aria-hidden="true"
-          />
-          <div className="relative w-full max-w-lg rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
-              <div className="flex items-center gap-3">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                  detailRequest.status === "PENDING" ? "bg-tertiary-fixed" : "bg-surface-container"
-                }`}>
-                  <span className="material-symbols-outlined text-[20px] text-on-surface-variant">event_busy</span>
-                </div>
-                <div>
-                  <h2 className="text-[18px] font-semibold text-on-surface">Chi tiết yêu cầu</h2>
-                  <p className="text-[12px] text-on-surface-variant">
-                    {getStaffDisplayName(detailRequest)}
-                  </p>
-                </div>
-              </div>
-              <IconButton
-                label="Đóng"
-                variant="ghost"
-                size="sm"
-                onClick={() => setDetailRequest(null)}
-                className="text-on-surface-variant"
-              >
-                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
-              </IconButton>
-            </div>
-
-            <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-label-sm text-on-surface-variant">Ngày bắt đầu</p>
-                  <p className="mt-1 text-body-sm font-medium text-on-surface">
-                    {new Date(detailRequest.startDate).toLocaleDateString("vi-VN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-label-sm text-on-surface-variant">Ngày kết thúc</p>
-                  <p className="mt-1 text-body-sm font-medium text-on-surface">
-                    {new Date(detailRequest.endDate).toLocaleDateString("vi-VN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-                  </p>
-                </div>
-              </div>
-
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-label-sm text-on-surface-variant">Lý do</p>
-                <p className="mt-1 text-body-sm text-on-surface leading-relaxed">
-                  {detailRequest.reason ?? "Không có lý do bổ sung."}
+                <p className="text-label-sm text-on-surface-variant">Ngày bắt đầu</p>
+                <p className="mt-1 text-body-sm font-medium text-on-surface">
+                  {new Date(detailRequest.startDate).toLocaleDateString("vi-VN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                 </p>
               </div>
-
-              <div className="flex items-center gap-3">
-                <p className="text-label-sm text-on-surface-variant">Trạng thái</p>
-                <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${STATUS_CLASS[detailRequest.status]}`}>
-                  {STATUS_LABEL[detailRequest.status]}
-                </span>
+              <div>
+                <p className="text-label-sm text-on-surface-variant">Ngày kết thúc</p>
+                <p className="mt-1 text-body-sm font-medium text-on-surface">
+                  {new Date(detailRequest.endDate).toLocaleDateString("vi-VN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                </p>
               </div>
-
-              {isManager && detailRequest.status === "PENDING" && (
-                <div className="space-y-2">
-                  <label className="text-[13px] font-semibold text-on-surface" htmlFor="review-note">
-                    Ghi chú duyệt <span className="text-outline font-normal">(tùy chọn)</span>
-                  </label>
-                  <textarea
-                    className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2.5 text-body-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 resize-none"
-                    id="review-note"
-                    rows={3}
-                    placeholder="Nhập ghi chú phê duyệt hoặc lý do từ chối..."
-                    value={reviewNote}
-                    onChange={(e) => setReviewNote(e.target.value)}
-                  />
-                </div>
-              )}
             </div>
 
-            <div className="flex items-center gap-3 px-6 py-4 border-t border-outline-variant">
-              <Button
-                variant="secondary"
-                size="md"
-                fullWidth
-                onClick={() => setDetailRequest(null)}
-              >
-                Đóng
-              </Button>
-              {canApprove && isManager && detailRequest.status === "PENDING" && (
-                <>
-                  <Button
-                    variant="danger"
-                    size="md"
-                    fullWidth
-                    disabled={processing}
-                    loading={processing}
-                    onClick={handleReject}
-                    icon={!processing ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span> : undefined}
-                  >
-                    Từ chối
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="md"
-                    fullWidth
-                    disabled={processing}
-                    loading={processing}
-                    onClick={handleApprove}
-                    icon={!processing ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">check</span> : undefined}
-                    className="!bg-secondary !text-on-secondary hover:!opacity-90"
-                  >
-                    Duyệt
-                  </Button>
-                </>
-              )}
+            <div>
+              <p className="text-label-sm text-on-surface-variant">Lý do</p>
+              <p className="mt-1 text-body-sm text-on-surface leading-relaxed">
+                {detailRequest.reason ?? "Không có lý do bổ sung."}
+              </p>
             </div>
+
+            <div className="flex items-center gap-3">
+              <p className="text-label-sm text-on-surface-variant">Trạng thái</p>
+              <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${STATUS_CLASS[detailRequest.status]}`}>
+                {STATUS_LABEL[detailRequest.status]}
+              </span>
+            </div>
+
+            {isManager && detailRequest.status === "PENDING" && (
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-on-surface" htmlFor="review-note">
+                  Ghi chú duyệt <span className="text-outline font-normal">(tùy chọn)</span>
+                </label>
+                <textarea
+                  className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2.5 text-body-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 resize-none"
+                  id="review-note"
+                  rows={3}
+                  placeholder="Nhập ghi chú phê duyệt hoặc lý do từ chối..."
+                  value={reviewNote}
+                  onChange={(e) => setReviewNote(e.target.value)}
+                />
+              </div>
+            )}
           </div>
-        </div>
+          <ModalFooter>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => setDetailRequest(null)}
+            >
+              Đóng
+            </Button>
+            {canApprove && isManager && detailRequest.status === "PENDING" && (
+              <>
+                <Button
+                  variant="danger"
+                  size="md"
+                  disabled={processing}
+                  loading={processing}
+                  onClick={handleReject}
+                  icon={!processing ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span> : undefined}
+                >
+                  Từ chối
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  disabled={processing}
+                  loading={processing}
+                  onClick={handleApprove}
+                  icon={!processing ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">check</span> : undefined}
+                >
+                  Duyệt
+                </Button>
+              </>
+            )}
+          </ModalFooter>
+        </Modal>
       )}
 
       {/* Create Leave Request Modal */}
