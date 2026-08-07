@@ -1,0 +1,85 @@
+name: PR2 Discovery
+
+# Workflow tự động chạy 3 scripts trong scripts/discovery/ để sinh JSON output.
+# Trigger:
+#   - workflow_dispatch (chạy tay từ Actions UI).
+#   - push lên main khi có thay đổi ở scripts/discovery/** hoặc docs/pr/templates/**.
+# Output:
+#   - JSON files đính kèm artifact (retention 30 ngày).
+#   - In summary ở Actions UI.
+# Không commit gì vào repo. Không tạo branch. Just-in-Time: dữ liệu sinh ra
+# khi cần, tự hết hạn.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/discovery/**'
+      - 'docs/pr/templates/**'
+
+permissions:
+  contents: read
+
+jobs:
+  discovery:
+    name: Run discovery scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run static-analysis.sh
+        id: static
+        run: |
+          set -euo pipefail
+          ./scripts/discovery/static-analysis.sh > build/discovery/static.json
+          echo "static.json: $(wc -c < build/discovery/static.json) bytes"
+
+      - name: Run repo-analysis.sh
+        id: repo
+        run: |
+          set -euo pipefail
+          ./scripts/discovery/repo-analysis.sh > build/discovery/repo.json
+          echo "repo.json: $(wc -c < build/discovery/repo.json) bytes"
+
+      - name: Run context-analysis.sh
+        id: context
+        run: |
+          set -euo pipefail
+          ./scripts/discovery/context-analysis.sh > build/discovery/context.json
+          echo "context.json: $(wc -c < build/discovery/context.json) bytes"
+
+      - name: Validate JSON
+        run: |
+          set -euo pipefail
+          for f in build/discovery/static.json build/discovery/repo.json build/discovery/context.json; do
+            echo "Validating $f ..."
+            jq empty "$f"
+          done
+
+      - name: Summary
+        run: |
+          echo "## PR2 Discovery Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          for f in build/discovery/static.json build/discovery/repo.json build/discovery/context.json; do
+            echo "### $(basename $f)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat "$f" >> "$GITHUB_STEP_SUMMARY"
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr2-discovery-output
+          path: build/discovery/
+          retention-days: 30
+          if-no-files-found: error
