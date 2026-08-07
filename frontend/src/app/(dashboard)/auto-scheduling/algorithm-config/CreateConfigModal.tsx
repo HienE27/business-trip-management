@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, IconButton } from "@/components/ui";
+import { Button } from "@/components/ui";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/FormSelect";
 
 type Props = {
@@ -72,8 +73,6 @@ export function CreateConfigModal({ open, onClose, onCreate, creating, message }
     }
   }
 
-  if (!open) return null;
-
   async function handleSubmit() {
     if (!form.paramKey.trim() || !form.paramValue.trim()) return;
     await onCreate(form);
@@ -81,92 +80,79 @@ export function CreateConfigModal({ open, onClose, onCreate, creating, message }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="create-config-title">
-      <div className="absolute inset-0 bg-black/40 animate-fade-in" onClick={onClose} aria-hidden="true" />
-      <div className="relative w-full max-w-md rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-2xl overflow-hidden animate-scale-in">
-        <div className="px-6 py-5 border-b border-outline-variant bg-surface-container-low flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-fixed text-primary">
-              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">add</span>
-            </div>
-            <div>
-              <h2 id="create-config-title" className="text-title-md font-semibold text-on-surface">Thêm cấu hình mới</h2>
-              <p className="text-label-xs text-on-surface-variant">Tạo thông số vận hành cho thuật toán</p>
-            </div>
-          </div>
-          <IconButton label="Đóng" variant="ghost" size="sm" onClick={onClose} className="text-on-surface-variant">
-            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
-          </IconButton>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Thêm cấu hình mới"
+      description="Tạo thông số vận hành cho thuật toán"
+      size="md"
+    >
+      <div className="space-y-4">
+        <div>
+          <FormSelect
+            id="cfg-key"
+            label="Tên thông số"
+            required
+            value={form.paramKey}
+            onChange={(e) => handlePresetChange(e.target.value)}
+            options={PRESET_PARAMS.map((p) => ({ value: p.value, label: p.label }))}
+            className="!font-mono !text-label-md"
+          />
+          <p className="text-[11px] text-outline mt-1">Chọn từ danh sách hoặc nhập tên tùy ý</p>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <FormSelect
+            id="cfg-type"
+            label="Kiểu dữ liệu"
+            value={form.valueType}
+            onChange={(e) => setForm((f) => ({ ...f, valueType: e.target.value as FormState["valueType"] }))}
+            options={VALUE_TYPES.map((t) => ({ value: t.value, label: `${t.label} (${t.value})` }))}
+            className="!text-label-md"
+          />
           <div>
-            <FormSelect
-              id="cfg-key"
-              label="Tên thông số"
-              required
-              value={form.paramKey}
-              onChange={(e) => handlePresetChange(e.target.value)}
-              options={PRESET_PARAMS.map((p) => ({ value: p.value, label: p.label }))}
-              className="!font-mono !text-label-md"
-            />
-            <p className="text-[11px] text-outline mt-1">Chọn từ danh sách hoặc nhập tên tùy ý</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FormSelect
-              id="cfg-type"
-              label="Kiểu dữ liệu"
-              value={form.valueType}
-              onChange={(e) => setForm((f) => ({ ...f, valueType: e.target.value as FormState["valueType"] }))}
-              options={VALUE_TYPES.map((t) => ({ value: t.value, label: `${t.label} (${t.value})` }))}
-              className="!text-label-md"
-            />
-            <div>
-              <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="cfg-value">Giá trị <span className="text-error">*</span></label>
-              <input
-                id="cfg-value"
-                className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-low px-3 text-label-md font-mono text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                placeholder="VD: 1000, true, 2.5"
-                value={form.paramValue}
-                onChange={e => setForm(f => ({ ...f, paramValue: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="cfg-desc">Mô tả</label>
-            <textarea
-              id="cfg-desc"
-              className="w-full resize-none rounded-xl border border-outline-variant bg-surface-container-low px-3 py-2.5 text-label-md text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              rows={2}
-              placeholder="Giải thích thông số này dùng để làm gì..."
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="cfg-value">Giá trị <span className="text-error">*</span></label>
+            <input
+              id="cfg-value"
+              className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-low px-3 text-label-md font-mono text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder="VD: 1000, true, 2.5"
+              value={form.paramValue}
+              onChange={e => setForm(f => ({ ...f, paramValue: e.target.value }))}
             />
           </div>
-
-          {message && (
-            <div className={`rounded-lg px-4 py-3 text-label-sm ${message.type === "success" ? "bg-secondary-container text-secondary" : "bg-error-container text-error"}`} role="status">
-              {message.text}
-            </div>
-          )}
         </div>
 
-        <div className="px-6 py-4 border-t border-outline-variant bg-surface-container-low flex justify-end gap-2">
-          <Button variant="secondary" size="md" onClick={onClose}>Hủy</Button>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={handleSubmit}
-            disabled={!form.paramKey.trim() || !form.paramValue.trim() || creating}
-            loading={creating}
-            icon={!creating ? <span className="material-symbols-outlined text-[16px]" aria-hidden="true">add</span> : undefined}
-          >
-            Tạo cấu hình
-          </Button>
+        <div>
+          <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="cfg-desc">Mô tả</label>
+          <textarea
+            id="cfg-desc"
+            className="w-full resize-none rounded-xl border border-outline-variant bg-surface-container-low px-3 py-2.5 text-label-md text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            rows={2}
+            placeholder="Giải thích thông số này dùng để làm gì..."
+            value={form.description}
+            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+          />
         </div>
+
+        {message && (
+          <div className={`rounded-lg px-4 py-3 text-label-sm ${message.type === "success" ? "bg-secondary-container text-secondary" : "bg-error-container text-error"}`} role="status">
+            {message.text}
+          </div>
+        )}
       </div>
-    </div>
+      <ModalFooter>
+        <Button variant="secondary" size="md" onClick={onClose}>Hủy</Button>
+        <Button
+          variant="primary"
+          size="md"
+          onClick={handleSubmit}
+          disabled={!form.paramKey.trim() || !form.paramValue.trim() || creating}
+          loading={creating}
+          icon={!creating ? <span className="material-symbols-outlined text-[16px]" aria-hidden="true">add</span> : undefined}
+        >
+          Tạo cấu hình
+        </Button>
+      </ModalFooter>
+    </Modal>
   );
 }
