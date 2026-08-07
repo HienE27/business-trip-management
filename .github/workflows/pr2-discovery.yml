@@ -34,8 +34,10 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Prepare output directory
-        run: mkdir -p build/discovery
+      - name: Prepare output directory and make scripts executable
+        run: |
+          mkdir -p build/discovery
+          chmod +x scripts/discovery/*.sh
 
       - name: Run static-analysis.sh
         id: static
