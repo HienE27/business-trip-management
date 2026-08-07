@@ -5,6 +5,9 @@ import com.hospital.scheduler.scheduling.constraint.Constraint;
 import com.hospital.scheduler.scheduling.constraint.ConstraintRegistry;
 import com.hospital.scheduler.scheduling.move.Move;
 
+import java.util.List;
+import java.util.Map;
+
 import com.hospital.scheduler.scheduling.score.ScoreDelta;
 import com.hospital.scheduler.scheduling.score.ScoreDirector;
 import com.hospital.scheduler.scheduling.solution.WorkingSolution;
@@ -65,6 +68,7 @@ public class LocalSearchAlgorithm {
      */
     public SearchResult search(WorkingSolution initial) {
         WorkingSolution current = initial;
+
         scoreDirector.recomputeFull(current);
 
         // Populate hardViolations from constraint registry so the hard-fence check
@@ -164,9 +168,42 @@ public class LocalSearchAlgorithm {
         move.doMove(solution);
         statisticsHub.apply(move, solution);
 
-        // Evaluate all constraints to compute new delta
+        // Compute delta for undo (used by RULE 0 and the hard-fence)
         ScoreDelta delta = evaluateConstraints(solution).minus(preDelta);
         scoreDirector.applyDelta(delta);
+
+        // RULE 0 (Greedy preservation — L01/L02/L03 lock): The initial solution from
+        // Greedy already has even L01/L02/L03 per-staff distribution (Tier 1-3 of its 7-tier
+        // comparator guarantee). The search is ONLY allowed to improve L04 slots.
+        // Any ASSIGN or CHANGE_STAFF that would alter an L01/L02/L03 slot would
+        // undo Greedy's fairness work and concentrate those types on a subset of staff
+        // (the exact problem this fix targets: V10 search degraded mixDeviation from 0 → 43.6
+        // because assign moves freely re-roled L01/L02/L03 staff). L04 is the residual
+        // buffer type (M07-B3 "L04 gets residual capacity") — search rebalancing there
+        // does not break Greedy's L01/L02/L03 fairness.
+        if (move.type() == Move.MoveType.ASSIGN
+                || move.type() == Move.MoveType.CHANGE_STAFF) {
+            int slotId = -1;
+            if (move.type() == Move.MoveType.ASSIGN) {
+                slotId = ((com.hospital.scheduler.scheduling.move.AssignMove) move).slotId();
+            } else {
+                slotId = ((com.hospital.scheduler.scheduling.move.ChangeStaffMove) move).slotId();
+            }
+            if (slotId > 0) {
+                var ma = solution.getAssignment(slotId);
+                if (ma != null && ma.shiftTypeId != null
+                        && ("L01".equals(ma.shiftTypeId)
+                            || "L02".equals(ma.shiftTypeId)
+                            || "L03".equals(ma.shiftTypeId))) {
+                    // Undo immediately — L01/L02/L03 slots are locked by Greedy's initial solution.
+                    move.undo(solution);
+                    statisticsHub.undo(move, solution);
+                    scoreDirector.undoDelta(delta);
+                    director.onRejected();
+                    return false;
+                }
+            }
+        }
 
         // Decide
         int postHard = scoreDirector.getCurrent().toImmutable().getHardViolations();

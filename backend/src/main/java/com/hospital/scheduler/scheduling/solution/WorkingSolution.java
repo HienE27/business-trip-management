@@ -137,6 +137,24 @@ public class WorkingSolution {
         return slots != null ? slots.size() : 0;
     }
 
+    /**
+     * Total hours worked by {@code staffId} across all assigned shifts.
+     * Used by the greedy and repair passes to enforce a hard hours cap
+     * (e.g. 200 h/month) instead of a shift-count cap — the latter causes
+     * L01 shifts (24 h each) to consume quota faster than L02/L03 (4 h),
+     * starving the later priority types.
+     */
+    public int getTotalHours(int staffId) {
+        List<Integer> slots = slotsByStaff.get(staffId);
+        if (slots == null || slots.isEmpty()) return 0;
+        int total = 0;
+        for (int slotId : slots) {
+            MutableAssignment a = assignmentsBySlot.get(slotId);
+            if (a != null) total += a.hours;
+        }
+        return total;
+    }
+
     /** Number of {@code shiftType} slots currently assigned to {@code staffId}. */
     public int getShiftCountOfType(int staffId, String shiftType) {
         List<Integer> slots = slotsByStaff.get(staffId);

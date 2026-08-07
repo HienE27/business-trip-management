@@ -73,11 +73,19 @@ public class SearchDirector {
         double mix = solution.mixDeviation();
         if (bestSolution != null && bestScore != null) {
             double bestCov = bestSolution.getCoverage();
+            double bestMix = bestMixDeviation;
             if (cov < bestCov - 1e-9) {
                 return; // strictly worse coverage — not a new best
             }
-            if (Math.abs(cov - bestCov) <= 1e-9 && mix >= bestMixDeviation) {
+            if (Math.abs(cov - bestCov) <= 1e-9 && mix >= bestMix) {
                 return; // equal coverage, not better mix — not a new best
+            }
+            // FIX (plateau-bug): uphill move (cov improved) with worse mix should
+            // NOT overwrite best. Previously this edge case was missed: bestCov=0.9935
+            // mix=31.0 was overwritten by current with cov=0.9968 mix=43.6, because
+            // cov > bestCov fell through both gates and bestMix was overwritten.
+            if (cov > bestCov + 1e-9 && mix > bestMix) {
+                return; // uphill on coverage but regressed on mix — not a new best
             }
         }
         bestMixDeviation = mix;

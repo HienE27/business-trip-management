@@ -753,6 +753,17 @@ public class AutoSchedulingService {
                     existingSchedulesForPeriod.size(), period.getId());
         }
 
+        // BUGFIX (2026-08-07): keep pre-delete snapshot for algorithm context (V10, FairGreedy).
+        // Declared here in runScheduling scope so it's accessible to BOTH:
+        // 1) dispatchAlgorithm() call below, AND
+        // 2) the FairGreedy fallback call further down (also in runScheduling).
+        // Used for V10's fairness + FairGreedy's periodData — neither outputs these
+        // to the DB, so it's safe to pass a stale list.
+        List<Schedule> existingForCleanRun = Collections.emptyList();
+        if (save && overwrite && !existingSchedulesForPeriod.isEmpty()) {
+            existingForCleanRun = new java.util.ArrayList<>(existingSchedulesForPeriod);
+        }
+
         // CRITICAL: Clear in-memory cache after deleting old data to prevent stale entries
         allCompensationShiftDates().clear();
         log.info("Cleared in-memory compensation day cache for period {}", period.getId());
@@ -992,7 +1003,7 @@ public class AutoSchedulingService {
         // Dispatch to the right algorithm; Fair Greedy variant → runFairGreedy,
         // CSP variant → runCsp (with fallback to Greedy on empty/partial), default → runGreedy.
         // Returns the initial createdSchedules + the GA fairness score if any.
-        AlgorithmDispatchResult initialDispatch = dispatchAlgorithm(period, requirements, activeStaff, save, runtimeConfig, request);
+        AlgorithmDispatchResult initialDispatch = dispatchAlgorithm(period, requirements, activeStaff, save, runtimeConfig, request, existingForCleanRun);
         // FIX: keep original algorithm output for quality scoring + response;
         // filter separately so downstream phases (Phase 3 rebalance, SA, HARD GUARANTEE)
         // operate on conflict-free list and don't re-introduce L01↔L02/L03↔L04 violations.
@@ -1062,9 +1073,9 @@ public class AutoSchedulingService {
                 // schedule set reported to the caller always agree.
                 log.info("{} balance score {} < threshold {}, running Fair Greedy (save=true) as fallback",
                         algorithmType, greedyBalanceScore, runtimeConfig.getBalanceScoreMin());
-	                List<Schedule> fairGreedySchedules = runFairGreedy(period, requirements, activeStaff, /*save=*/true, runtimeConfig,
-	                        request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null,
-	                        request.getMaxShiftsPerMonthOverride(), false);
+                List<Schedule> fairGreedySchedules = runFairGreedy(period, requirements, activeStaff, /*save=*/true, runtimeConfig,
+                        request.getExcludedStaffIds() != null ? new HashSet<>(request.getExcludedStaffIds()) : null,
+                        request.getMaxShiftsPerMonthOverride(), false, existingForCleanRun);
                 int fgStaffCount = (int) fairGreedySchedules.stream().map(s -> s.getStaff().getId()).distinct().count();
                 BigDecimal fgBalanceScore = calculateBalanceScore(fairGreedySchedules, fgStaffCount > 0 ? fgStaffCount : 1);
                 log.info("Fair Greedy fallback: balanceScore={} ({} had {})", fgBalanceScore, algorithmType, greedyBalanceScore);
@@ -1419,7 +1430,8 @@ public class AutoSchedulingService {
                                                      List<Staff> activeStaff,
                                                      boolean save,
                                                      AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
-                                                     AutoScheduleRequestDTO request) {
+                                                     AutoScheduleRequestDTO request,
+                                                     List<Schedule> existingForCleanRun) {
         String algorithmType = request.getAlgorithmType() != null
                 ? request.getAlgorithmType().toUpperCase()
                 : "CSP_MRV_FC";
@@ -1443,8 +1455,8 @@ public class AutoSchedulingService {
 	                || "FAIR_ROUND_ROBIN".equals(algorithmType)
 	                || "FAIR".equals(algorithmType)
 	                || "FAIR_GREEDY".equals(algorithmType)) {
-	            List<Schedule> schedules = runFairGreedy(period, requirements, activeStaff, save, runtimeConfig, excluded, maxShiftsPerMonthOverride,
-	                    Boolean.TRUE.equals(request.getSkipExisting()));
+            List<Schedule> schedules = runFairGreedy(period, requirements, activeStaff, save, runtimeConfig, excluded, maxShiftsPerMonthOverride,
+                    Boolean.TRUE.equals(request.getSkipExisting()), existingForCleanRun);
 	            return new AlgorithmDispatchResult(algorithmType, schedules, null);
 	        }
 
@@ -1508,9 +1520,14 @@ public class AutoSchedulingService {
             // v10 LocalSearch: incremental statistics + tabu acceptor + sampled
             // neighborhood. Reuses runCspWithResult to rehydrate assignments into
             // JPA entities so save=true persists the same way as CSP/Greedy.
+            // BUGFIX (2026-08-07): pass existingForCleanRun for coverage subtraction (NOT
+            // existingSchedulesForPeriod which is empty after overwriteExisting delete).
+            // existingForCleanRun carries the deleted schedules so V10 skips already-covered
+            // slots while still distributing work evenly across all staff.
             SchedulingResultWithFairness v10Result = runV10LocalSearch(
                     period, requirements, activeStaff, save, excluded,
-                    Boolean.TRUE.equals(request.getSkipExisting()), maxShiftsPerMonthOverride);
+                    Boolean.TRUE.equals(request.getSkipExisting()), maxShiftsPerMonthOverride,
+                    existingForCleanRun);
             return new AlgorithmDispatchResult(algorithmType, v10Result.schedules(), v10Result.fairnessScore());
         }
 
@@ -1554,7 +1571,8 @@ public class AutoSchedulingService {
 	
 	        // OPTIMIZATION 1: Load all conflict data for entire period in ONE pass (instead of per-day)
 	        // OPTIMIZATION 2: Load all shift type counts in ONE query (instead of N×4 queries)
-	        PeriodConflictData periodData = loadPeriodConflictData(period, requirements, activeStaff, skipExisting && !save);
+	        PeriodConflictData periodData = loadPeriodConflictData(period, requirements, activeStaff,
+	                skipExisting && !save, Collections.emptyList());
 
         // FAIRNESS: Pre-compute fair share per shift type = ceil(totalDemand[type] / eligiblePool)
         // L04 uses per-specialty pool (spec M05); L01/L02/L03 use full staffPool.
@@ -2047,18 +2065,24 @@ public class AutoSchedulingService {
             boolean save,
             Set<Integer> excludedStaffIds,
             boolean skipExisting,
-            Integer maxShiftsPerMonthOverride) {
+            Integer maxShiftsPerMonthOverride,
+            List<Schedule> existingSchedulesForPeriod) {
         log.info("Running v10-LocalSearch for period {} (skipExisting={})", period.getId(), skipExisting);
 
         // ── Subtract existing schedules from requirements (preview mode) ──────
         // V10 must not re-assign slots already covered by existing schedules.
         // Load existing schedules and reduce each requirement's requiredCount.
         // Skipped in clean-run mode (skipExisting=true) so V10 generates from scratch.
-        List<Schedule> existingForPeriod = scheduleRepository.findByPeriodId(period.getId());
+        // BUGFIX (2026-08-07): use the passed-in existingSchedulesForPeriod instead of
+        // re-querying DB. When overwriteExisting=true, the caller (runScheduling) already
+        // deleted old rows and reloaded them — re-querying here would return empty.
+        // BUGFIX (overwrite fairness): the pre-loaded list carries the deleted schedules'
+        // staff/date/type into periodData → rotation index sees everyone's history →
+        // L01/L02/L03 distribute evenly even on a clean overwrite run.
         // Index: key = "workDate|shiftTypeId|specialtyId" → count of existing
         java.util.Map<String, Integer> existingCoverage = new java.util.HashMap<>();
         if (!skipExisting) {
-            for (Schedule s : existingForPeriod) {
+            for (Schedule s : existingSchedulesForPeriod) {
                 String specId = s.getRequirement() != null && s.getRequirement().getSpecialty() != null
                         ? String.valueOf(s.getRequirement().getSpecialty().getId())
                         : null;
@@ -2066,7 +2090,7 @@ public class AutoSchedulingService {
                 existingCoverage.merge(key, 1, Integer::sum);
             }
         } else {
-            log.info("V10 clean run: skip subtracting {} existing schedules from requirements", existingForPeriod.size());
+            log.info("V10 clean run: skip subtracting {} existing schedules from requirements", existingSchedulesForPeriod.size());
         }
 
         List<ShiftRequirementInfo> algoReqs = toRequirementInfos(requirements);
@@ -2085,7 +2109,7 @@ public class AutoSchedulingService {
             }
         }
         log.info("V10 requirements adjusted: {} original → {} after subtracting {} existing schedules",
-                algoReqs.size(), adjustedReqs.size(), existingForPeriod.size());
+                algoReqs.size(), adjustedReqs.size(), existingSchedulesForPeriod.size());
 
         // Load existing compensation days across ±1 day boundary (same range as
         // Greedy) so comp-days carried over from the previous period — e.g. L01 on
@@ -2128,10 +2152,10 @@ public class AutoSchedulingService {
         // any schedule that creates a same-day shift conflict (L01↔L02, L03↔L04)
         // with an existing schedule from the DB. Clean run (skipExisting=true)
         // ignores existing DB data entirely — the fresh plan replaces it.
-        if (!existingForPeriod.isEmpty() && !skipExisting) {
+        if (!existingSchedulesForPeriod.isEmpty() && !skipExisting) {
             // Index existing schedules: staffId_date → set of shift types
             java.util.Map<String, java.util.Set<String>> existingByStaffDate = new java.util.HashMap<>();
-            for (Schedule s : existingForPeriod) {
+            for (Schedule s : existingSchedulesForPeriod) {
                 String key = s.getStaff().getId() + "|" + s.getWorkDate();
                 existingByStaffDate.computeIfAbsent(key, k -> new java.util.HashSet<>())
                         .add(s.getShiftType().getId());
@@ -2344,7 +2368,8 @@ public class AutoSchedulingService {
 	                                          AlgorithmConfigService.AlgorithmRuntimeConfig runtimeConfig,
 	                                          Set<Integer> excludedStaffIds,
 	                                          Integer maxShiftsPerMonthOverride,
-	                                          boolean skipExisting) {
+	                                          boolean skipExisting,
+	                                          List<Schedule> existingForCleanRun) {
 	        List<Schedule> createdSchedules = new ArrayList<>();
 	        // Per-type rotation index — same structure as Greedy's shiftTypeRotationIndex so that
 	        // Fair Greedy also rotates each staff through each shift type independently.
@@ -2366,7 +2391,9 @@ public class AutoSchedulingService {
 	                fgFairSharePerType.get(ConflictDetectionService.SHIFT_TYPE_L04));
 	
 	        // OPTIMIZATION: Load ALL conflict data in ONE query (same as Greedy)
-	        PeriodConflictData periodData = loadPeriodConflictData(period, requirements, activeStaff, skipExisting && !save);
+	        // BUGFIX (2026-08-07): use pre-delete snapshot for overwriteExisting=true.
+	        PeriodConflictData periodData = loadPeriodConflictData(period, requirements, activeStaff,
+	                skipExisting && !save, existingForCleanRun);
 
         // Track L01 assignments by date for adjacent-day back-to-back checking (same as Greedy)
         Map<LocalDate, Set<Integer>> l01AssignmentsByDate = new HashMap<>();
@@ -4115,17 +4142,26 @@ public class AutoSchedulingService {
      * - P × 1 query for leave per day
      * - P × 1 query for compensation per day
      * → down to 4 queries total regardless of period length
+     *
+     * @param existingForCleanRun pre-delete snapshot used when overwriteExisting=true so
+     *                            the algorithm sees fairness context even after DB deletion
      */
-	    private PeriodConflictData loadPeriodConflictData(SchedulePeriod period, List<ShiftRequirement> requirements, List<Staff> activeStaff, boolean skipExisting) {
+	    private PeriodConflictData loadPeriodConflictData(SchedulePeriod period, List<ShiftRequirement> requirements, List<Staff> activeStaff, boolean skipExisting, List<Schedule> existingForCleanRun) {
 	        LocalDate periodStart = period.getStartDate();
 	        LocalDate periodEnd = period.getEndDate();
         boolean cleanPreview = skipExisting;
+        // BUGFIX (2026-08-07): use pre-delete snapshot when available (overwriteExisting=true).
+        // After DB deletion, scheduleRepository returns empty — we must use the snapshot
+        // so Greedy fairness sees everyone's shift counts and distributes L01/L02/L03 evenly.
+        List<Schedule> snapshotSchedules = (existingForCleanRun != null && !existingForCleanRun.isEmpty())
+                ? existingForCleanRun
+                : (cleanPreview ? Collections.emptyList() : scheduleRepository.findByPeriodId(period.getId()));
 
         // 3. Load all schedules for the period with details (single query)
 	        // Skip in clean preview mode so algorithm doesn't see existing coverage
 	        Map<Integer, List<Schedule>> allSchedulesByStaff = new HashMap<>();
 	        if (!cleanPreview) {
-	            for (Schedule s : scheduleRepository.findByPeriodId(period.getId())) {
+	            for (Schedule s : snapshotSchedules) {
 	                allSchedulesByStaff.computeIfAbsent(s.getStaff().getId(), k -> new ArrayList<>()).add(s);
 	            }
 	        }

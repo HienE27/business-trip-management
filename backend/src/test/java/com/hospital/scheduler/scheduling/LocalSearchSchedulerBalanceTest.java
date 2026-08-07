@@ -163,13 +163,20 @@ class LocalSearchSchedulerBalanceTest {
         WorkingSolution sol = scheduler(config, compCalc)
                 .buildInitialSolution(problem, descriptor, config);
 
+        int l01Count = countType(sol, "L01");
+        int l02Count = countType(sol, "L02");
+        int l03Count = countType(sol, "L03");
+        int l04Count = countType(sol, "L04");
+        System.out.printf("[GREEDY-BALANCE] L01=%d L02=%d L03=%d L04=%d mixDev=%.2f%n",
+                l01Count, l02Count, l03Count, l04Count, sol.mixDeviation());
+
         // M07-B3 priority: L01/L02 saturated before L04 consumes staff.
         // L02 < 50 allowed — e.g. Sep 8 leaves only L01-duty staff free after
         // 15 staff sit out on compensation days (trực T6/T7/T2 tuần trước) —
         // but it must be near demand, not starved (the pre-fix collapse hit 26).
-        assertEquals(50, countType(sol, "L01"), "all L01 slots must be filled first");
-        assertTrue(countType(sol, "L02") >= 40, "L02 must stay near demand; got " + countType(sol, "L02"));
-        assertTrue(countType(sol, "L03") >= 30, "L03 mostly filled");
+        assertEquals(50, l01Count, "all L01 slots must be filled first");
+        assertTrue(l02Count >= 40, "L02 must stay near demand; got " + l02Count);
+        assertTrue(l03Count >= 30, "L03 mostly filled; got " + l03Count);
         assertTrue(countType(sol, "L04") > 0, "L04 gets residual capacity");
         assertEquals(0, hardViolations(sol),
                 "greedy must be hard-free incl. derived comp days");
@@ -206,10 +213,20 @@ class LocalSearchSchedulerBalanceTest {
                 .buildInitialSolution(problem, descriptor, config);
         WorkingSolution finalSol = algo.search(initial).getSolution();
 
+        int finL01 = countType(finalSol, "L01");
+        int finL02 = countType(finalSol, "L02");
+        int finL03 = countType(finalSol, "L03");
+        int finL04 = countType(finalSol, "L04");
+        System.out.printf("[SEARCH-BALANCE] initial{L01=%d L02=%d L03=%d L04=%d mixDev=%.2f} " +
+                        "final{L01=%d L02=%d L03=%d L04=%d mixDev=%.2f}%n",
+                countType(initial, "L01"), countType(initial, "L02"),
+                countType(initial, "L03"), countType(initial, "L04"), initial.mixDeviation(),
+                finL01, finL02, finL03, finL04, finalSol.mixDeviation());
+
         // The search may not unassign L01/L02/L03 — only L04 is churnable.
-        assertTrue(countType(finalSol, "L01") >= 40, "L01 must stay near demand after search");
-        assertTrue(countType(finalSol, "L02") >= 40, "L02 must stay near demand after search");
-        assertTrue(countType(finalSol, "L03") >= 30, "L03 must stay near demand after search");
+        assertTrue(finL01 >= 40, "L01 must stay near demand after search; got " + finL01);
+        assertTrue(finL02 >= 40, "L02 must stay near demand after search; got " + finL02);
+        assertTrue(finL03 >= 30, "L03 must stay near demand after search; got " + finL03);
         assertTrue(countType(finalSol, "L04") > 0, "L04 keeps residual capacity");
         assertEquals(0, hardViolations(finalSol),
                 "search result must be hard-free incl. derived comp days");
