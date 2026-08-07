@@ -97,7 +97,6 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
       setLastUpdated(new Date());
     } catch (err) {
       setError("Không thể kiểm tra tính khả thi");
-      console.error(err);
     } finally {
       setLoading(false);
     }

@@ -38,14 +38,12 @@ export function ConflictResolutionModal({
   const loadReplacements = useCallback(async () => {
     // Support both ConflictDetail (workDate) and ConflictItem (date)
     if (!conflict) {
-      console.log("[ConflictResolution] Skipping loadReplacements - no conflict");
       return;
     }
     const workDate = conflict.workDate ?? (conflict as ConflictItem).date;
     const shiftTypeId = conflict.shiftTypeId ?? (conflict as ConflictItem).shiftType;
 
     if (!conflict.periodId || !workDate || !shiftTypeId) {
-      console.log("[ConflictResolution] Skipping loadReplacements - missing conflict data:", { conflict, workDate, shiftTypeId });
       return;
     }
     setLoadingReplacements(true);
@@ -58,10 +56,8 @@ export function ConflictResolutionModal({
         conflict.originalStaffId ?? 0,
         5,
       );
-      console.log("[ConflictResolution] Replacements loaded:", data?.length ?? 0, data);
       setReplacements(data ?? []);
     } catch (err) {
-      console.error("[ConflictResolution] Failed to load replacements:", err);
       setReplacements([]);
       setError("Không thể tải danh sách nhân sự thay thế.");
     } finally {

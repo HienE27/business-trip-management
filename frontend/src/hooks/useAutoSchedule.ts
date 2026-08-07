@@ -169,7 +169,6 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
       setRemovedShifts(new Set());
       setRemovedShiftTypes(new Set());
     } catch (error) {
-      console.error("[AutoSchedule] Error:", error);
       setMessage(getErrorMessage(error, "Không thể chạy auto schedule."));
     } finally {
       setRunning(false);
@@ -237,7 +236,6 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
             .join(" · ");
           liveCoverageNote = ` — đã lưu ${live.totalSchedules}/${live.totalRequiredCapacity} ca (${live.coverageRate.toFixed(2)}% theo DB). ${breakdown}`;
         } catch (e) {
-          console.warn("[applyPreview] live coverage fetch failed:", e);
         }
 
         setMessage(`Đã áp dụng phương án phân công${liveCoverageNote}.`);
@@ -256,7 +254,6 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
         // client phải gửi requirementId"). Generic fallback only kicks in
         // when the error has no message at all.
         const detail = getErrorMessage(error, "Không thể áp dụng phương án.");
-        console.error("[applyPreview] backend said:", detail, error);
         setMessage(`Lỗi áp dụng: ${detail}`);
       } finally {
         setApplying(false);
@@ -305,7 +302,6 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
           setRemovedShifts(new Set());
           setRemovedShiftTypes(new Set());
         } catch (loadErr) {
-          console.error("[loadTemplate] Failed to refresh schedules:", loadErr);
         }
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("schedules-changed"));
@@ -354,7 +350,6 @@ export function useAutoSchedule(): [AutoScheduleState, AutoScheduleActions] {
           setRemovedShifts(new Set());
           setRemovedShiftTypes(new Set());
         } catch (loadErr) {
-          console.error("[applyTemplateWithEdits] Failed to refresh schedules:", loadErr);
         }
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("schedules-changed"));

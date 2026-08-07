@@ -66,7 +66,6 @@ function DashboardContent() {
         const defaultId = firstDraft?.id ?? list[0]?.id ?? null;
         setSelectedPeriodId(defaultId);
       } catch (err) {
-        console.error("Không tải được danh sách kỳ:", err);
       }
     })();
     return () => {
@@ -88,7 +87,6 @@ function DashboardContent() {
         setLatestRun(sorted[0] ?? null);
       } catch (err) {
         if (!cancelled) {
-          console.warn("Không tải được metrics cho period", selectedPeriodId, err);
           setLatestRun(null);
         }
       } finally {
@@ -354,7 +352,6 @@ function KpiStripLatest({ latestRun, loading, periodId }: KpiStripLatestProps) {
         if (!cancelled) setLive(res);
       } catch (e) {
         if (!cancelled) {
-          console.warn("[dashboard] live coverage fetch failed:", e);
           setLive(null);
         }
       } finally {

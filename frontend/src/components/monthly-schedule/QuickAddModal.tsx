@@ -87,14 +87,6 @@ export const QuickAddModal = memo(function QuickAddModal({
     )
   );
 
-  console.log("[QuickAddModal] props check", {
-    date: date?.toString(),
-    dateStr: date ? toLocalDateStr(date) : null,
-    periodStart,
-    periodEnd,
-    dateOutOfRange,
-  });
-
   // Reset form state AND set date-out-of-range error in a single effect.
   // Splitting into two useEffect hooks causes a race: the second effect
   // runs after the first and overwrites the error back to null.

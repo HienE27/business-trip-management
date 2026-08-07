@@ -130,7 +130,6 @@ export default function AutoSchedulingPage() {
       }
     } catch (err) {
       setLoadMessage("Không thể tải dữ liệu workspace. Vui lòng thử lại.");
-      console.warn("[AutoSchedule] loadWorkspace failed:", err);
     } finally {
       setLoading(false);
     }

@@ -247,7 +247,6 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   // Reload schedules only (used after publish, bulk operations)
   const reloadSchedules = useCallback(async () => {
     if (!selectedPeriodId) return;
-    console.log("[ScheduleByTypePage] reloadSchedules called, periodId:", selectedPeriodId);
     // Reset dryRunData to avoid showing stale coverage stats after auto-scheduling
     setDryRunData(null);
     setConflictData(null);
@@ -266,10 +265,8 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       const schedulesArray = (scheduleData && typeof scheduleData === 'object' && 'content' in scheduleData)
         ? (scheduleData as { content: Schedule[] }).content
         : Array.isArray(scheduleData) ? scheduleData : [];
-      console.log("[ScheduleByTypePage] reloadSchedules got", schedulesArray.length, "schedules, setting state");
       setSchedules(schedulesArray);
       setCompensationDays(compData ?? []);
-      console.log("[ScheduleByTypePage] State updated, schedules.length should be", schedulesArray.length);
     } catch {
       setMessage(config.fetchErrorMessage);
     } finally {
@@ -494,7 +491,6 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   // Listen for schedules-changed events (dispatched by auto-scheduling, template application, etc.)
   useEffect(() => {
     const handleSchedulesChanged = () => {
-      console.log("[ScheduleByTypePage] schedules-changed event received, reloading schedules");
       void reloadSchedules();
     };
     window.addEventListener("schedules-changed", handleSchedulesChanged);
@@ -511,11 +507,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
     api
       .get<ConflictCheckResponse>(`/schedules/conflicts/check/${selectedPeriodId}`)
       .then((data) => {
-        console.log("[ScheduleByTypePage] loaded conflictData:", data);
         setConflictData(data);
       })
       .catch((err) => {
-        console.error("[ScheduleByTypePage] failed to load conflict data:", err);
       });
   }, [selectedPeriodId]);
 

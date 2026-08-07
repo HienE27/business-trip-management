@@ -193,12 +193,6 @@ describe("ConflictResolutionModal", () => {
     // Wait briefly for the updateSchedule call and refresh to fire
     // (the api-client implementation awaits a real microtask chain).
     await new Promise((r) => setTimeout(r, 50));
-     
-    console.log("DEBUG mock calls:", {
-      get: mockedApi.get.mock.calls.length,
-      updateSchedule: mockedApi.updateSchedule.mock.calls.length,
-      put: mockedApi.put.mock.calls.length,
-    });
     expect(onRefresh).toHaveBeenCalledTimes(1);
     // Success banner shown briefly
     expect(screen.getByText(/đã giải quyết xung đột/i)).toBeInTheDocument();

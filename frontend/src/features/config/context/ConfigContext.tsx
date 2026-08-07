@@ -187,7 +187,6 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
           return validation;
         }
       } catch (err) {
-        console.error("Validation error:", err);
       }
       return null;
     },
@@ -249,7 +248,6 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
       await api.post<void>(`/config/reset/${fieldPath}`, undefined);
       await load();
     } catch (err) {
-      console.error("Reset field error:", err);
     }
   }, [load]);
 
