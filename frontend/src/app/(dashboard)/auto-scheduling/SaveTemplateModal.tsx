@@ -79,15 +79,16 @@ export function SaveTemplateModal({
         >
           Hủy
         </Button>
-        <button
-          type="button"
-          onClick={onSave}
+        <Button
+          variant="primary"
+          size="md"
           disabled={!templateName.trim() || savingTemplate}
-          className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          loading={savingTemplate}
+          onClick={onSave}
+          icon={!savingTemplate ? <span className="material-symbols-outlined text-[16px]">bookmark_add</span> : undefined}
         >
-          <span className="material-symbols-outlined text-[16px]">bookmark_add</span>
           {savingTemplate ? "Đang lưu..." : "Lưu mẫu lịch"}
-        </button>
+        </Button>
       </ModalFooter>
     </Modal>
   );
