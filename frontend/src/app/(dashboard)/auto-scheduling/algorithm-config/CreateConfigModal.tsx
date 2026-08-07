@@ -86,6 +86,8 @@ export function CreateConfigModal({ open, onClose, onCreate, creating, message }
       title="Thêm cấu hình mới"
       description="Tạo thông số vận hành cho thuật toán"
       size="md"
+      icon={<span className="material-symbols-outlined text-[18px]" aria-hidden="true">add</span>}
+      iconClassName="bg-primary-fixed text-primary"
     >
       <div className="space-y-4">
         <div>
