@@ -32,10 +32,23 @@ public interface NotificationRepository extends JpaRepository<Notification, Inte
     /** Paginated query with optional filters. tab values: all|unread|conflict|exchange|published|system */
     @Query("SELECT n FROM Notification n LEFT JOIN FETCH n.staff WHERE n.staff.id = :staffId " +
            "AND (:tab = 'all' OR (:tab = 'unread' AND n.isRead = false) " +
-           "OR (:tab = 'conflict' AND (LOWER(n.title) LIKE '%xung%' OR LOWER(n.title) LIKE '%conflict%')) " +
-           "OR (:tab = 'exchange' AND (LOWER(n.title) LIKE '%đổi%' OR LOWER(n.title) LIKE '%swap%')) " +
-           "OR (:tab = 'published' AND (LOWER(n.title) LIKE '%công bố%' OR LOWER(n.title) LIKE '%lich%')) " +
-           "OR (:tab = 'system' AND (LOWER(n.title) LIKE '%tự động%' OR LOWER(n.title) LIKE '%auto%'))) " +
+           "OR (:tab = 'conflict' AND (LOWER(n.title) LIKE '%xung%' OR LOWER(n.title) LIKE '%conflict%' " +
+           "    OR LOWER(n.title) LIKE '%cảnh báo%' OR LOWER(n.title) LIKE '%warning%' " +
+           "    OR LOWER(n.message) LIKE '%xung%' OR LOWER(n.message) LIKE '%conflict%' " +
+           "    OR LOWER(n.message) LIKE '%trùng%' OR LOWER(n.message) LIKE '%overlap%' " +
+           "    OR LOWER(n.message) LIKE '%nghỉ phép%' OR LOWER(n.message) LIKE '%leave%')) " +
+           "OR (:tab = 'exchange' AND (LOWER(n.title) LIKE '%đổi%' OR LOWER(n.title) LIKE '%swap%' " +
+           "    OR LOWER(n.title) LIKE '%thay ca%' OR LOWER(n.title) LIKE '%thay thế%' " +
+           "    OR LOWER(n.message) LIKE '%đổi%' OR LOWER(n.message) LIKE '%swap%' " +
+           "    OR LOWER(n.message) LIKE '%thay ca%' OR LOWER(n.message) LIKE '%thay thế%')) " +
+           "OR (:tab = 'published' AND (LOWER(n.title) LIKE '%công bố%' OR LOWER(n.title) LIKE '%published%' " +
+           "    OR LOWER(n.title) LIKE '%ban hành%' OR LOWER(n.title) LIKE '%phát hành%' " +
+           "    OR LOWER(n.message) LIKE '%công bố%' OR LOWER(n.message) LIKE '%published%' " +
+           "    OR LOWER(n.message) LIKE '%ban hành%' OR LOWER(n.message) LIKE '%phát hành%')) " +
+           "OR (:tab = 'system' AND (LOWER(n.title) LIKE '%tự động%' OR LOWER(n.title) LIKE '%auto%' " +
+           "    OR LOWER(n.title) LIKE '%hệ thống%' OR LOWER(n.title) LIKE '%system%' " +
+           "    OR LOWER(n.message) LIKE '%tự động%' OR LOWER(n.message) LIKE '%auto%' " +
+           "    OR LOWER(n.message) LIKE '%hệ thống%' OR LOWER(n.message) LIKE '%system%'))) " +
            "ORDER BY n.createdAt DESC")
     Page<Notification> findPageWithFilters(
             @Param("staffId") Integer staffId,
