@@ -3,9 +3,11 @@ package com.hospital.scheduler.controller;
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.scheduling.telemetry.HeatmapBuilder;
 import com.hospital.scheduler.scheduling.telemetry.HeatmapService;
+import com.hospital.scheduler.security.Permissions;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,6 +28,12 @@ public class HeatmapController {
     private final HeatmapService heatmapService;
 
     @GetMapping("/{periodId}")
+    // BUGFIX (was UNGUARDED): the heatmap was open to every authenticated
+    // user including STAFF. It exposes every staff member's load/weekend/
+    // consecutive-shift distribution across the whole period — a direct
+    // STAFF cross-user leak. Heatmap is aggregate operational data;
+    // restrict to DASHBOARD_AGGREGATE (admin + manager only).
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_AGGREGATE + "')")
     public ApiResponse<Map<String, Object>> heatmap(
             @PathVariable Integer periodId,
             @RequestParam(value = "metric", defaultValue = "load") String metric) {

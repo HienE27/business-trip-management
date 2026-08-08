@@ -34,14 +34,18 @@ public class LeaveRequestController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách tất cả yêu cầu nghỉ phép")
-    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_VIEW + "')")
+    // BUGFIX (was LEAVE-CROSS-USER): STAFF held LEAVE_VIEW which let them
+    // dump every leave request across the entire DB (who is on leave,
+    // when, for what reason). Org-wide listing is manager-only.
+    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_APPROVE + "')")
     public ResponseEntity<ApiResponse<List<LeaveRequestResponse>>> getAllLeaveRequests() {
         return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getAllLeaveRequests()));
     }
 
     @GetMapping("/page")
     @Operation(summary = "Lấy danh sách yêu cầu nghỉ phép có phân trang và filter")
-    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_VIEW + "')")
+    // BUGFIX (was LEAVE-CROSS-USER): paged org-wide listing leak.
+    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_APPROVE + "')")
     public ResponseEntity<ApiResponse<Page<LeaveRequestResponse>>> getLeaveRequestsPage(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword,
@@ -62,7 +66,8 @@ public class LeaveRequestController {
 
     @GetMapping("/status-counts")
     @Operation(summary = "Đếm yêu cầu nghỉ phép theo trạng thái (toàn DB, không phân trang)")
-    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_VIEW + "')")
+    // BUGFIX (was LEAVE-CROSS-USER): org-wide aggregate counts.
+    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_APPROVE + "')")
     public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
         return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getStatusCounts()));
     }
@@ -76,7 +81,8 @@ public class LeaveRequestController {
 
     @GetMapping("/status/{status}")
     @Operation(summary = "Lấy yêu cầu theo trạng thái")
-    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_VIEW + "')")
+    // BUGFIX (was LEAVE-CROSS-USER): filtered-by-status org listing.
+    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_APPROVE + "')")
     public ResponseEntity<ApiResponse<List<LeaveRequestResponse>>> getByStatus(@PathVariable String status) {
         return ResponseEntity.ok(ApiResponse.success(
                 leaveRequestService.getLeaveRequestsByStatus(LeaveRequest.LeaveStatus.valueOf(status.toUpperCase()))));
@@ -84,7 +90,10 @@ public class LeaveRequestController {
 
     @GetMapping("/staff/{staffId}")
     @Operation(summary = "Lấy yêu cầu nghỉ phép theo nhân sự")
-    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_VIEW + "') or @authContextService.isCurrentStaff(#staffId)")
+    // BUGFIX (was LEAVE-CROSS-USER): the OR with LEAVE_VIEW short-
+    // circuited the ownership check. Drop LEAVE_VIEW — admin still gets
+    // here via LEAVE_APPROVE; STAFF via isCurrentStaff ownership.
+    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_APPROVE + "') or @authContextService.isCurrentStaff(#staffId)")
     public ResponseEntity<ApiResponse<List<LeaveRequestResponse>>> getByStaff(@PathVariable Integer staffId) {
         authContextService.requireSelfOrManager(staffId);
         return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getLeaveRequestsByStaff(staffId)));
@@ -92,7 +101,10 @@ public class LeaveRequestController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết yêu cầu nghỉ phép")
-    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_VIEW + "') or @authContextService.isCurrentStaffOwnerOfLeaveRequest(#id)")
+    // BUGFIX (was LEAVE-CROSS-USER): OR with LEAVE_VIEW let any STAFF
+    // fetch any leave request by id. Restrict to admin/manager via
+    // LEAVE_APPROVE plus self-owner for the requesting staff.
+    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_APPROVE + "') or @authContextService.isCurrentStaffOwnerOfLeaveRequest(#id)")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getLeaveRequestById(id)));
     }
@@ -143,7 +155,10 @@ public class LeaveRequestController {
 
     @GetMapping("/{id}/replacements")
     @Operation(summary = "Tìm người thay thế cho các ca bị ảnh hưởng bởi nghỉ phép")
-    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_VIEW + "')")
+    // BUGFIX (was LEAVE-CROSS-USER): replacement proposals leak coverage
+    // strategy and which other staff could substitute. Manager-only, with
+    // self-owner fallback for the requesting STAFF.
+    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_APPROVE + "') or @authContextService.isCurrentStaffOwnerOfLeaveRequest(#id)")
     public ResponseEntity<ApiResponse<List<ReplacementProposal>>> getReplacements(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(leaveRequestService.findReplacementsForLeave(id)));
     }

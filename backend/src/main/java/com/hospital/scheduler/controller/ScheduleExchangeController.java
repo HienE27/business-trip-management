@@ -32,14 +32,18 @@ public class ScheduleExchangeController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách tất cả yêu cầu đổi ca")
-    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "')")
+    // BUGFIX (was EXCHANGE-CROSS-USER): STAFF held EXCHANGE_VIEW which
+    // let them dump every exchange request (who wants to swap with whom,
+    // on what dates). Org-wide listing is manager-only via EXCHANGE_APPROVE.
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "')")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getAllExchanges() {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getAllExchanges()));
     }
 
     @GetMapping("/page")
     @Operation(summary = "Lấy danh sách yêu cầu đổi ca có phân trang và filter")
-    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "')")
+    // BUGFIX (was EXCHANGE-CROSS-USER): paged org-wide listing leak.
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "')")
     public ResponseEntity<ApiResponse<Page<ScheduleExchangeResponse>>> getExchangesPage(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword,
@@ -58,7 +62,9 @@ public class ScheduleExchangeController {
 
     @GetMapping("/status-counts")
     @Operation(summary = "Đếm yêu cầu đổi ca theo trạng thái (toàn DB, không phân trang)")
-    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "')")
+    // BUGFIX (was EXCHANGE-CROSS-USER): org-wide aggregate counts leak
+    // operational pressure (PENDING/APPROVED volume). Manager-only.
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "')")
     public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getStatusCounts()));
     }
@@ -72,7 +78,8 @@ public class ScheduleExchangeController {
 
     @GetMapping("/status/{status}")
     @Operation(summary = "Lấy yêu cầu theo trạng thái")
-    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "')")
+    // BUGFIX (was EXCHANGE-CROSS-USER): filtered-by-status org listing.
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "')")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getByStatus(@PathVariable String status) {
         return ResponseEntity.ok(ApiResponse.success(
                 exchangeService.getExchangesByStatus(ScheduleExchange.ExchangeStatus.valueOf(status.toUpperCase()))));
@@ -80,21 +87,26 @@ public class ScheduleExchangeController {
 
     @GetMapping("/requester/{requesterId}")
     @Operation(summary = "Lấy yêu cầu đổi ca theo người yêu cầu")
-    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "') or @authContextService.isCurrentStaff(#requesterId)")
+    // BUGFIX (was EXCHANGE-CROSS-USER): OR with EXCHANGE_VIEW bypassed
+    // ownership. Switch to EXCHANGE_APPROVE for the broad branch — admin
+    // has EXCHANGE_APPROVE and STAFF can only reach self via isCurrentStaff.
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "') or @authContextService.isCurrentStaff(#requesterId)")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getByRequester(@PathVariable Integer requesterId) {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesByRequester(requesterId)));
     }
 
     @GetMapping("/target/{targetId}")
     @Operation(summary = "Lấy yêu cầu đổi ca theo người được đổi")
-    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "') or @authContextService.isCurrentStaff(#targetId)")
+    // BUGFIX (was EXCHANGE-CROSS-USER): same as requester.
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "') or @authContextService.isCurrentStaff(#targetId)")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getByTarget(@PathVariable Integer targetId) {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesByTarget(targetId)));
     }
 
     @GetMapping("/user/{userId}")
     @Operation(summary = "Lấy yêu cầu đổi ca liên quan đến người dùng")
-    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "') or @authContextService.isCurrentStaff(#userId)")
+    // BUGFIX (was EXCHANGE-CROSS-USER): same as requester/target.
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "') or @authContextService.isCurrentStaff(#userId)")
     public ResponseEntity<ApiResponse<List<ScheduleExchangeResponse>>> getForUser(@PathVariable Integer userId) {
         authContextService.requireManagerOrSelfForUserData(userId);
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangesForUser(userId)));
@@ -102,7 +114,10 @@ public class ScheduleExchangeController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết yêu cầu đổi ca")
-    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_VIEW + "') or @authContextService.isCurrentStaffOwnerOfExchange(#id)")
+    // BUGFIX (was EXCHANGE-CROSS-USER): OR with EXCHANGE_VIEW let any
+    // STAFF fetch any exchange by id. Restrict broad branch to manager
+    // via EXCHANGE_APPROVE; STAFF reaches only via self-owner.
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "') or @authContextService.isCurrentStaffOwnerOfExchange(#id)")
     public ResponseEntity<ApiResponse<ScheduleExchangeResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getExchangeById(id)));
     }

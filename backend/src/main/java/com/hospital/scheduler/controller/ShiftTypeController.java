@@ -26,21 +26,30 @@ public class ShiftTypeController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách loại ca")
-    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "') or hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    // BUGFIX (was SHIFT-TYPE-CONFIG-LEAK): SCHEDULE_VIEW is granted to
+    // STAFF, so the OR-branch exposed every shift-type config (overnight,
+    // comp recovery, etc.) to every staff user. Shift types are
+    // configuration data — manager/admin only via SHIFT_TYPE_MANAGE.
+    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "')")
     public ResponseEntity<ApiResponse<List<ShiftTypeResponse>>> getAllShiftTypes() {
         return ResponseEntity.ok(ApiResponse.success(shiftTypeService.getAllShiftTypes()));
     }
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách loại ca đang hoạt động")
-    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "') or hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    // BUGFIX (was SHIFT-TYPE-CONFIG-LEAK): same as the full list above.
+    // The frontend dropdown for shift selection should be served from the
+    // staff's own profile payload or a manager-side lookup; STAFF does not
+    // need the raw shift-type record.
+    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "')")
     public ResponseEntity<ApiResponse<List<ShiftTypeResponse>>> getActiveShiftTypes() {
         return ResponseEntity.ok(ApiResponse.success(shiftTypeService.getActiveShiftTypes()));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết loại ca")
-    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "') or hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    // BUGFIX (was SHIFT-TYPE-CONFIG-LEAK): same as the list above.
+    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "')")
     public ResponseEntity<ApiResponse<ShiftTypeResponse>> getShiftTypeById(@PathVariable String id) {
         return ResponseEntity.ok(ApiResponse.success(shiftTypeService.getShiftTypeById(id)));
     }

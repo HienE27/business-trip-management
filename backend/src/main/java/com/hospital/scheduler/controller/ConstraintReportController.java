@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.entity.AlgorithmConstraintReport;
 import com.hospital.scheduler.scheduling.telemetry.ConstraintReportService;
+import com.hospital.scheduler.security.Permissions;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +30,12 @@ public class ConstraintReportController {
     private final ObjectMapper objectMapper;
 
     @GetMapping("/{periodId}/report")
+    // BUGFIX (was UNGUARDED): the constraint report was open to every
+    // authenticated user including STAFF. It reveals run ids, algorithm
+    // types, intermediate scores, coverage deltas — operational internals
+    // unrelated to STAFF's self-service. Restrict to AUTO_SCHEDULE_VIEW
+    // (admin + manager only).
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ApiResponse<Map<String, Object>> report(@PathVariable Integer periodId) {
         List<AlgorithmConstraintReport> rows = service.findByPeriod(periodId);
         List<Map<String, Object>> items = new ArrayList<>(rows.size());

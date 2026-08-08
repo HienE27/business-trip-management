@@ -29,14 +29,21 @@ public class SpecialtyController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách chuyên khoa")
-    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "') or hasAuthority('" + Permissions.STAFF_VIEW + "')")
+    // BUGFIX (was SPECIALTY-CONFIG-LEAK): the OR with STAFF_VIEW opened
+    // the full specialty list to anyone with STAFF_VIEW (admin/manager).
+    // Drop the STAFF_VIEW branch — STAFF gets no raw specialty list.
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
     public ResponseEntity<ApiResponse<List<SpecialtyResponse>>> getAllSpecialties() {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getAllSpecialties()));
     }
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách chuyên khoa đang hoạt động")
-    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "') or hasAuthority('" + Permissions.SCHEDULE_VIEW + "') or hasAuthority('" + Permissions.STAFF_VIEW_SELF + "')")
+    // BUGFIX (was SPECIALTY-CONFIG-LEAK): SCHEDULE_VIEW + STAFF_VIEW_SELF
+    // both let STAFF pull the full active-specialty catalog. Specialty
+    // list is config data — manager/admin only. The staff's own specialty
+    // is already exposed via /staff/me.
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
     public ResponseEntity<ApiResponse<List<SpecialtyResponse>>> getActiveSpecialties() {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getActiveSpecialties()));
     }
@@ -61,7 +68,8 @@ public class SpecialtyController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết chuyên khoa")
-    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "') or hasAuthority('" + Permissions.STAFF_VIEW + "')")
+    // BUGFIX (was SPECIALTY-CONFIG-LEAK): same as the list above.
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
     public ResponseEntity<ApiResponse<SpecialtyResponse>> getSpecialtyById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getSpecialtyById(id)));
     }

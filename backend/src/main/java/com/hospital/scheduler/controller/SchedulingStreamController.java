@@ -3,12 +3,14 @@ package com.hospital.scheduler.controller;
 import com.hospital.scheduler.scheduling.event.InMemorySearchEventPublisher;
 import com.hospital.scheduler.scheduling.event.SearchEvent;
 import com.hospital.scheduler.scheduling.event.SearchEventPublisher;
+import com.hospital.scheduler.security.Permissions;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,6 +40,11 @@ public class SchedulingStreamController {
      * and start receiving events from the first iteration.
      */
     @GetMapping(value = "/{runId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    // BUGFIX (was UNGUARDED): the live auto-schedule telemetry stream was
+    // open to every authenticated user including STAFF. It emits
+    // intermediate scores, coverage deltas, iteration counts — operational
+    // data, not personal. Restrict to AUTO_SCHEDULE_VIEW.
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public SseEmitter stream(@PathVariable String runId) {
         SseEmitter emitter = new SseEmitter(0L); // no timeout
         List<SseEmitter> emitters = emittersByRun.computeIfAbsent(

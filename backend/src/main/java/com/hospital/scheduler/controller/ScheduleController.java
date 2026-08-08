@@ -44,7 +44,12 @@ public class ScheduleController {
 
     @GetMapping("/conflicts/check")
     @Operation(summary = "Kiểm tra xung đột lịch trong kỳ (query alias)")
-    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    // BUGFIX (was SCHEDULE-CROSS-USER): STAFF held SCHEDULE_VIEW which let
+    // them call /schedules/conflicts/check to dump every conflict across
+    // the whole period (who is double-booked, who has no comp day, etc.).
+    // Conflict reports are operational/admin data, not personal data, so
+    // restrict to manager-like callers via PERIOD_VIEW (admin + manager).
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<ConflictCheckResponse>> checkConflictsQuery(
             @RequestParam("periodId") Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.checkConflictsInPeriod(periodId)));
@@ -52,7 +57,8 @@ public class ScheduleController {
 
     @GetMapping("/conflicts/check/{periodId}")
     @Operation(summary = "Kiểm tra xung đột lịch trong kỳ")
-    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    // BUGFIX (was SCHEDULE-CROSS-USER): same as the query alias above.
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<ConflictCheckResponse>> checkConflicts(@PathVariable Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.checkConflictsInPeriod(periodId)));
     }
@@ -72,14 +78,19 @@ public class ScheduleController {
 
     @GetMapping("/period/{periodId}")
     @Operation(summary = "Lấy danh sách lịch theo kỳ")
-    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    // BUGFIX (was SCHEDULE-CROSS-USER): period-wide schedule listing
+    // exposes every staff's roster. STAFF should use /schedules/me or
+    // /schedules/staff/{selfId}. Restrict to manager-like via PERIOD_VIEW.
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getSchedulesByPeriod(@PathVariable Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByPeriod(periodId)));
     }
 
     @GetMapping("/compensation-days/{periodId}")
     @Operation(summary = "Lấy danh sách ngày nghỉ bù theo kỳ lịch")
-    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    // BUGFIX (was SCHEDULE-CROSS-USER): compensation days reveal which
+    // staff covered which 24/24 duties. Manager-only via PERIOD_VIEW.
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<List<?>>> getCompensationDays(@PathVariable Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(compensationDayService.getCompensationDaysByPeriod(periodId)));
     }
@@ -113,7 +124,9 @@ public class ScheduleController {
 
     @GetMapping("/period/{periodId}/date/{date}")
     @Operation(summary = "Lấy danh sách lịch theo kỳ và ngày")
-    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    // BUGFIX (was SCHEDULE-CROSS-USER): period+date listing exposes the
+    // entire day's roster. Manager-only via PERIOD_VIEW.
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getSchedulesByPeriodAndDate(
             @PathVariable Integer periodId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -122,7 +135,12 @@ public class ScheduleController {
 
     @GetMapping("/staff/{staffId}")
     @Operation(summary = "Lấy danh sách lịch theo nhân sự")
-    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "') or @authContextService.isCurrentStaff(#staffId)")
+    // BUGFIX (was SCHEDULE-CROSS-USER): the OR with SCHEDULE_VIEW let any
+    // STAFF read any other staff's schedule by passing their id. Drop the
+    // SCHEDULE_VIEW branch entirely — ADMIN has PERIOD_VIEW which is now
+    // what we use for the broad case, and STAFF is restricted to the
+    // ownership branch via isCurrentStaff.
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "') or @authContextService.isCurrentStaff(#staffId)")
     public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getSchedulesByStaff(@PathVariable Integer staffId) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByStaff(staffId)));
     }
@@ -151,7 +169,9 @@ public class ScheduleController {
 
     @GetMapping("/expert-clinic")
     @Operation(summary = "Lấy lịch phòng khám chuyên gia theo kỳ và chuyên khoa (M05-F04)")
-    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    // BUGFIX (was SCHEDULE-CROSS-USER): expert-clinic roster is a
+    // whole-period listing. Manager-only via PERIOD_VIEW.
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getExpertClinicSchedules(
             @RequestParam Integer periodId,
             @RequestParam(required = false) Integer specialtyId) {
@@ -160,7 +180,9 @@ public class ScheduleController {
 
     @GetMapping("/expert-clinic/weekly")
     @Operation(summary = "Lấy lịch phòng khám chuyên gia theo tuần (M05-F04)")
-    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    // BUGFIX (was SCHEDULE-CROSS-USER): weekly expert-clinic roster is a
+    // whole-period listing. Manager-only via PERIOD_VIEW.
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<ExpertClinicWeeklyResponse>> getExpertClinicWeeklyView(
             @RequestParam Integer periodId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
@@ -171,7 +193,11 @@ public class ScheduleController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết lịch")
-    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
+    // BUGFIX (was SCHEDULE-CROSS-USER): schedule-by-id was guarded by
+    // SCHEDULE_VIEW which let any STAFF read any schedule row by guessing
+    // ids. Switch to PERIOD_VIEW so STAFF cannot reach this endpoint
+    // directly — they must use /schedules/staff/{selfId} or /schedules/me.
+    @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")
     public ResponseEntity<ApiResponse<ScheduleResponse>> getScheduleById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getScheduleById(id)));
     }
