@@ -2,6 +2,7 @@ package com.hospital.scheduler.controller;
 
 import com.hospital.scheduler.dto.ApiResponse;
 import com.hospital.scheduler.scheduling.config.*;
+import com.hospital.scheduler.security.Permissions;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -45,7 +46,7 @@ public class ConfigController {
      * Get full configuration as a flat map.
      */
     @GetMapping
-    @PreAuthorize("hasAuthority('AUTO_SCHEDULE_CONFIG_VIEW')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<ConfigDto>> getConfig() {
         ConfigDomain config = configService.load();
         return ResponseEntity.ok(ApiResponse.success(toDto(config)));
@@ -56,7 +57,7 @@ public class ConfigController {
      * Get a single field value.
      */
     @GetMapping("/{fieldPath:.+}")
-    @PreAuthorize("hasAuthority('AUTO_SCHEDULE_CONFIG_VIEW')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<FieldValueDto>> getField(@PathVariable String fieldPath) {
         ConfigMetadata meta = ConfigMetadataRegistry.get(fieldPath);
         if (meta == null) {
@@ -73,7 +74,7 @@ public class ConfigController {
      * Used by frontend to render dynamic forms.
      */
     @GetMapping("/metadata")
-    @PreAuthorize("hasAuthority('AUTO_SCHEDULE_CONFIG_VIEW')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ConfigService.CategoryMetadata>>> getMetadata() {
         List<ConfigService.CategoryMetadata> metadata = configService.getMetadata();
         return ResponseEntity.ok(ApiResponse.success(metadata));
@@ -84,7 +85,7 @@ public class ConfigController {
      * List all available presets.
      */
     @GetMapping("/presets")
-    @PreAuthorize("hasAuthority('AUTO_SCHEDULE_CONFIG_VIEW')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<List<PresetDto>>> getPresets() {
         ConfigService.Preset[] presets = ConfigService.Preset.values();
         List<PresetDto> dtos = java.util.Arrays.stream(presets)
@@ -101,7 +102,7 @@ public class ConfigController {
      * Save full configuration. Validates first; rejects if errors exist.
      */
     @PutMapping
-    @PreAuthorize("hasAuthority('AUTO_SCHEDULE_CONFIG_EDIT')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<ConfigDto>> saveConfig(@RequestBody ConfigDto dto) {
         ConfigDomain config = fromDto(dto);
         ConfigValidator.ValidationResult result = configService.validate(config);
@@ -117,7 +118,7 @@ public class ConfigController {
      * Save a single field value.
      */
     @PutMapping("/{fieldPath:.+}")
-    @PreAuthorize("hasAuthority('AUTO_SCHEDULE_CONFIG_EDIT')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<FieldValueDto>> saveField(
             @PathVariable String fieldPath,
             @RequestBody Map<String, Object> payload) {
@@ -141,7 +142,7 @@ public class ConfigController {
      * Returns errors, warnings, and infos.
      */
     @PostMapping("/validate")
-    @PreAuthorize("hasAuthority('AUTO_SCHEDULE_CONFIG_VIEW')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<ConfigValidationException.ValidationResponse>> validate(
             @RequestBody ConfigDto dto) {
         ConfigDomain config = fromDto(dto);
@@ -157,7 +158,7 @@ public class ConfigController {
      * Reset all configuration to defaults.
      */
     @PostMapping("/reset")
-    @PreAuthorize("hasAuthority('AUTO_SCHEDULE_CONFIG_EDIT')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<ConfigDto>> reset() {
         ConfigDomain defaults = configService.reset();
         return ResponseEntity.ok(ApiResponse.success(toDto(defaults)));
@@ -168,7 +169,7 @@ public class ConfigController {
      * Reset a single field to its default value.
      */
     @PostMapping("/reset/{fieldPath:.+}")
-    @PreAuthorize("hasAuthority('AUTO_SCHEDULE_CONFIG_EDIT')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<FieldValueDto>> resetField(@PathVariable String fieldPath) {
         ConfigMetadata meta = ConfigMetadataRegistry.get(fieldPath);
         if (meta == null) {
@@ -185,7 +186,7 @@ public class ConfigController {
      * Apply a preset configuration.
      */
     @PostMapping("/presets/{presetKey}/apply")
-    @PreAuthorize("hasAuthority('AUTO_SCHEDULE_CONFIG_EDIT')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_EDIT + "')")
     public ResponseEntity<ApiResponse<ConfigDto>> applyPreset(@PathVariable String presetKey) {
         ConfigService.Preset preset = java.util.Arrays.stream(ConfigService.Preset.values())
                 .filter(p -> p.key.equals(presetKey))
@@ -207,7 +208,7 @@ public class ConfigController {
      * Get diff between current saved config and proposed config.
      */
     @PostMapping("/diff")
-    @PreAuthorize("hasAuthority('AUTO_SCHEDULE_CONFIG_VIEW')")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_CONFIG_VIEW + "')")
     public ResponseEntity<ApiResponse<List<DiffDto>>> diff(@RequestBody ConfigDto dto) {
         ConfigDomain proposed = fromDto(dto);
         Map<String, ConfigMapper.DiffEntry> changes = configService.diffCurrent(proposed);

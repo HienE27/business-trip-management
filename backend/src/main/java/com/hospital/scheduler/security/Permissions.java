@@ -290,7 +290,14 @@ public final class Permissions {
                 EXCHANGE_VIEW,
                 EXCHANGE_CREATE,
                 EXCHANGE_CANCEL_SELF,
-                NOTIFICATION_VIEW,
+                // BUGFIX (was STAFF-NOTIF-LEAK): NOTIFICATION_VIEW was a
+                // legacy hold-over from a pre-RBAC codebase. STAFF should
+                // only see and act on their OWN notifications through
+                // NOTIFICATION_MANAGE_SELF, never the full mailbox. Any
+                // endpoint that previously short-circuited on
+                // NOTIFICATION_VIEW will now reject the staff caller via
+                // 403, forcing callers to use the isCurrentStaff /
+                // isCurrentStaffOwner ownership predicates.
                 NOTIFICATION_MANAGE_SELF
         );
     }

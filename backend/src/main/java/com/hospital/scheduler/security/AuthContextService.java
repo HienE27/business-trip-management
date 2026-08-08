@@ -11,6 +11,8 @@ import com.hospital.scheduler.repository.NotificationRepository;
 import com.hospital.scheduler.repository.ScheduleExchangeRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -18,6 +20,14 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class AuthContextService {
+
+    // BUGFIX (was SILENT-SWALLOW): every fall-through check below caught
+    // Exception silently and returned false. From a security POV, fail-closed
+    // is correct — but ops had no way to see why an AUTH predicate returned
+    // false (DB blip? JWT expired? user purged?). Now every swallowed
+    // exception goes through this logger at DEBUG so a probe on a stuck
+    // endpoint surfaces the root cause without leaking it to the client.
+    private static final Logger log = LoggerFactory.getLogger(AuthContextService.class);
 
     private final StaffRepository staffRepository;
     private final LeaveRequestRepository leaveRequestRepository;
@@ -38,6 +48,7 @@ public class AuthContextService {
         try {
             return getCurrentStaff().getId().equals(staffId);
         } catch (Exception e) {
+            log.debug("isCurrentStaff({}) returned false", staffId, e);
             return false;
         }
     }
@@ -62,6 +73,7 @@ public class AuthContextService {
                     .map(lr -> lr.getStaff().getId().equals(current.getId()))
                     .orElse(false);
         } catch (Exception e) {
+            log.debug("isCurrentStaffOwnerOfLeaveRequest({}) returned false", leaveRequestId, e);
             return false;
         }
     }
@@ -74,6 +86,7 @@ public class AuthContextService {
                             || e.getTarget().getId().equals(current.getId()))
                     .orElse(false);
         } catch (Exception e) {
+            log.debug("isCurrentStaffOwnerOfExchange({}) returned false", exchangeId, e);
             return false;
         }
     }
@@ -85,6 +98,7 @@ public class AuthContextService {
                     .map(n -> n.getStaff().getId().equals(current.getId()))
                     .orElse(false);
         } catch (Exception e) {
+            log.debug("isCurrentStaffOwner({}) returned false", notificationId, e);
             return false;
         }
     }
