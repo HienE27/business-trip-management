@@ -44,7 +44,6 @@ jobs:
           else
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
-        working-directory: ./backend
 
       - name: Make Maven wrapper executable
         if: steps.mvnw-check.outputs.exists == 'true'
@@ -102,7 +101,6 @@ jobs:
           else
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
-        working-directory: ./backend
 
       - name: Make Maven wrapper executable
         if: steps.mvnw-check.outputs.exists == 'true'
