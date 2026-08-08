@@ -64,6 +64,16 @@ public class AuthService {
             throw new BadCredentialsException("Tài khoản của bạn đã bị vô hiệu hóa");
         }
 
+        // BUGFIX: refuse to issue a token for an account with no roles. A staff row
+        // without staff_role links is unreachable through @PreAuthorize (every
+        // permission gate returns 403) but could still enumerate usernames, drain
+        // the failed-login rate-limit bucket, and clutter audit logs. Same wording
+        // as "wrong credentials" so a probe can't tell the two apart.
+        if (staff.getStaffRoles().isEmpty()) {
+            rateLimitingFilter.recordFailedLogin(getClientIp(httpRequest));
+            throw new BadCredentialsException("Tên đăng nhập hoặc mật khẩu không đúng");
+        }
+
         if (!passwordEncoder.matches(request.getPassword(), staff.getPasswordHash())) {
             rateLimitingFilter.recordFailedLogin(getClientIp(httpRequest));
             throw new BadCredentialsException("Tên đăng nhập hoặc mật khẩu không đúng");

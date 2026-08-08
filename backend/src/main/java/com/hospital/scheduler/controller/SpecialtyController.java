@@ -36,7 +36,7 @@ public class SpecialtyController {
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách chuyên khoa đang hoạt động")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "') or hasAuthority('" + Permissions.SCHEDULE_VIEW + "') or hasAuthority('" + Permissions.STAFF_VIEW_SELF + "')")
     public ResponseEntity<ApiResponse<List<SpecialtyResponse>>> getActiveSpecialties() {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getActiveSpecialties()));
     }

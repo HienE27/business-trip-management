@@ -2,6 +2,7 @@ package com.hospital.scheduler.security;
 
 import com.hospital.scheduler.entity.AppPermission;
 import com.hospital.scheduler.entity.AppRole;
+import com.hospital.scheduler.entity.RolePermission;
 import com.hospital.scheduler.entity.Staff;
 import com.hospital.scheduler.repository.AppPermissionRepository;
 import com.hospital.scheduler.repository.AppRoleRepository;
@@ -47,7 +48,8 @@ public class PermissionService {
     /**
      * Read flattened permission names from the database for the given staff,
      * walking the {@code staff_role} -> {@code role_permission} ->
-     * {@code app_permission} chain. Inactive permissions are filtered out.
+     * {@code app_permission} chain. Inactive permissions and inactive roles
+     * are filtered out.
      */
     @Transactional(readOnly = true)
     public List<String> permissionsOf(Staff staff) {
@@ -58,12 +60,17 @@ public class PermissionService {
         for (var sr : staff.getStaffRoles()) {
             AppRole role = sr.getRole();
             if (role == null || role.getId() == null) continue;
-            List<AppPermission> perms = appPermissionRepository.findAllById(
-                    rolePermissionRepository.findAll().stream()
-                            .filter(rp -> role.getId().equals(rp.getRoleId()))
-                            .map(rp -> rp.getPermissionId())
-                            .toList()
-            );
+            // BUGFIX: skip roles that have been deactivated in the matrix — the
+            // staff row still has the staff_role link but the role is inert.
+            if (Boolean.FALSE.equals(role.getIsActive())) continue;
+            // BUGFIX (was RBAC-N+1): fetch one role's permissions in a single
+            // indexed query instead of findAll().filter() which scanned the
+            // entire join table for every role on every login.
+            List<Integer> permIds = rolePermissionRepository.findAllByRoleId(role.getId()).stream()
+                    .map(RolePermission::getPermissionId)
+                    .toList();
+            if (permIds.isEmpty()) continue;
+            List<AppPermission> perms = appPermissionRepository.findAllById(permIds);
             for (AppPermission p : perms) {
                 if (Boolean.TRUE.equals(p.getIsActive())) {
                     result.add(p.getName());

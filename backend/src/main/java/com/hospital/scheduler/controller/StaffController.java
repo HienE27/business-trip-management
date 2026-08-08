@@ -111,7 +111,7 @@ public class StaffController {
 
     @GetMapping("/me")
     @Operation(summary = "Lấy thông tin nhân sự hiện tại")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW_ALL + "') or hasAuthority('" + Permissions.STAFF_VIEW_SELF + "')")
     public ResponseEntity<ApiResponse<StaffResponse>> getCurrentStaff(
             @AuthenticationPrincipal String username) {
         return ResponseEntity.ok(ApiResponse.success(staffService.getStaffByUsername(username)));

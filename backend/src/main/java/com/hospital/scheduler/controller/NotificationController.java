@@ -123,7 +123,7 @@ public class NotificationController {
 
     @GetMapping("/me/unread/count")
     @Operation(summary = "Đếm thông báo chưa đọc của tôi (toàn DB, không phụ thuộc trang)")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('" + Permissions.NOTIFICATION_VIEW + "') or hasAuthority('" + Permissions.NOTIFICATION_MANAGE_SELF + "')")
     public ResponseEntity<ApiResponse<Map<String, Long>>> countMyUnread() {
         return ResponseEntity.ok(ApiResponse.success(
                 Map.of("count", notificationService.getMyUnreadCount())));

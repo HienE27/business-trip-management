@@ -33,7 +33,7 @@ public class ShiftTypeController {
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách loại ca đang hoạt động")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('" + Permissions.SHIFT_TYPE_MANAGE + "') or hasAuthority('" + Permissions.SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<List<ShiftTypeResponse>>> getActiveShiftTypes() {
         return ResponseEntity.ok(ApiResponse.success(shiftTypeService.getActiveShiftTypes()));
     }
