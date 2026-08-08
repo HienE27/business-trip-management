@@ -309,12 +309,35 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                                           SchedulingConfig effectiveConfig,
                                           int globalMaxShiftsCap) {
         WorkingSolution sol = WorkingSolution.fromProblem(effectiveConfig, descriptor);
-        // Effective cap per staff: runtime global cap wins, else per-staff entity cap.
-        java.util.Map<Integer, Integer> capByStaffId = new java.util.HashMap<>();
+        // FIX (regression 34707af→HEAD): hours-based cap, NOT shift-count.
+        // Shift-count cap starves L02/L03/L04: L01=24h each vs L02/L03/L04=4h,
+        // so a staff at cap=20 shifts after 4 L01s (96h) has no quota for the
+        // lighter types even though 96h < typical 200h/month limit.
+        // Without this, build fills L01/L02 first and L03/L04 get starved
+        // (measured L03 40→5 in LocalSearchSchedulerBalanceTest).
+        // Entity cap × 24 gives the staff's actual monthly hour budget.
+        java.util.Map<Integer, Integer> capHoursByStaffId = new java.util.HashMap<>();
         for (var s : problem.getStaffList()) {
-            Integer entityCap = s.getMaxShiftsPerMonth();
-            capByStaffId.put(s.getId(), globalMaxShiftsCap > 0 ? globalMaxShiftsCap
-                    : (entityCap != null && entityCap > 0 ? entityCap : Integer.MAX_VALUE));
+            int defaultHoursCap = 200;
+            if (globalMaxShiftsCap > 0) {
+                capHoursByStaffId.put(s.getId(), globalMaxShiftsCap * 24);
+            } else {
+                Integer entityCap = s.getMaxShiftsPerMonth();
+                if (entityCap != null && entityCap > 0) {
+                    capHoursByStaffId.put(s.getId(), entityCap * 24);
+                } else {
+                    capHoursByStaffId.put(s.getId(), defaultHoursCap);
+                }
+            }
+        }
+        // FIX (regression 34707af→HEAD): round-robin tie-breaker for fair distribution.
+        // Without rotation, ties pick eligible[0] every slot → same staff gets every slot
+        // → type-count spread widens and L03/L04 starve (measured L03 40→5 in
+        // LocalSearchSchedulerBalanceTest). Rotation index advances by 1 per slot
+        // so ties distribute across the eligible pool. Restored from b04eb6c.
+        java.util.Map<String, Integer> rotationIndexByType = new java.util.HashMap<>();
+        for (String stageType : List.of("L01", "L02", "L03", "L04")) {
+            rotationIndexByType.put(stageType, 0);
         }
         for (String stageType : List.of("L01", "L02", "L03", "L04")) {
             // MRV order (L01 stage only): process slots with FEWEST eligible staff
@@ -342,9 +365,16 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                 int bestStaff = -1;
                 int bestTypeCount = Integer.MAX_VALUE;
                 int bestTotal = Integer.MAX_VALUE;
-                for (int staffId : eligible) {
-                    if (sol.getShiftCount(staffId)
-                            >= capByStaffId.getOrDefault(staffId, Integer.MAX_VALUE)) continue;
+                int rotation = rotationIndexByType.getOrDefault(stageType, 0);
+                int n = eligible.size();
+                for (int i = 0; i < n; i++) {
+                    int staffId = eligible.get((rotation + i) % n);
+                    // FIX (regression 34707af→HEAD): hours-based cap, not shift-count.
+                    // getTotalHours(staffId) >= capHoursByStaffId instead of
+                    // getShiftCount(staffId) >= capByStaffId. See capHoursByStaffId
+                    // comment above for rationale (L01=24h vs L02/L03/L04=4h).
+                    if (sol.getTotalHours(staffId)
+                            >= capHoursByStaffId.getOrDefault(staffId, Integer.MAX_VALUE)) continue;
                     if (wouldViolateHard(sol, staffId, req.date(), req.shiftTypeId())) continue;
                     if (sol.isOnDerivedCompDay(staffId, req.date())) continue;
                     int typeCount = sol.getShiftCountOfType(staffId, stageType);
@@ -358,6 +388,7 @@ public class LocalSearchScheduler implements SchedulingAlgorithm {
                 }
                 if (bestStaff > 0) {
                     sol.assign(req.id(), bestStaff);
+                    rotationIndexByType.put(stageType, (rotation + 1) % Math.max(1, n));
                 }
             }
         }
