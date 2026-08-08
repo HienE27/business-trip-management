@@ -82,20 +82,24 @@ FRONTEND_TS_LINES="$(count_lines '.*/frontend/src/.*\.(ts|tsx|js|jsx)$')"
 FRONTEND_TS_FILES="$(list_files '.*/frontend/src/.*\.(ts|tsx|js|jsx)$' | wc -l | tr -d ' ')"
 
 # Top 10 hot spots (file dài nhất)
+# Note: `wc -l` tổng hợp nhiều batch xargs, mỗi batch in 1 dòng `total`. Sort -rn đặt
+# các `total` ở đầu (giá trị lớn nhất), chen giữa các file lines. Dùng awk để bỏ dòng
+# `total` trước khi head/tail — robust hơn `head -n 11 | tail -n 10`.
 HOTSPOTS_RAW="$(find "$TARGET_ROOT" \
   -type d \( -name target -o -name build -o -name dist -o -name node_modules \
-            -o -name .git -o -name .cursor -o -name .trellis -o -name out \) -prune -o \
+            -o -name .git -o -name .cursor -o -name .trellis -o -name .next -o -name out \) -prune -o \
   -type f \( -name '*.java' -o -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \) -print0 2>/dev/null \
   | xargs -0 wc -l 2>/dev/null \
+  | awk '$2 != "total" {print}' \
   | sort -rn \
-  | head -n 11 \
-  | tail -n 10)"
+  | head -n 10)"
 
 # TODO/FIXME/XXX/HACK scan
 TODO_RAW="$(grep -RInE \
   --include='*.java' --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' \
   --exclude-dir=target --exclude-dir=node_modules --exclude-dir=.git \
   --exclude-dir=.cursor --exclude-dir=.trellis --exclude-dir=build --exclude-dir=dist \
+  --exclude-dir=.next --exclude-dir=out \
   -E '(TODO|FIXME|XXX|HACK)' "$TARGET_ROOT" 2>/dev/null \
   | sed "s|^$TARGET_ROOT/||" || true)"
 
