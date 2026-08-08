@@ -150,23 +150,6 @@ public class WorkingSolution {
     }
 
     /**
-     * Total hours currently scheduled for {@code staffId}. L01 = 24h (overnight
-     * duty), L02/L03/L04 = 4h (in-clinic shift). Used by the hours-based cap
-     * check in {@code LocalSearchScheduler.buildInitialSolution} so L02/L03/L04
-     * don't starve when a staff hits a shift-count cap after a few L01s
-     * (e.g. cap=20 shifts but 4 L01s already consume 96h).
-     */
-    public int getTotalHours(int staffId) {
-        int hours = 0;
-        Integer l01 = getShiftCountOfType(staffId, "L01");
-        Integer l02 = getShiftCountOfType(staffId, "L02");
-        Integer l03 = getShiftCountOfType(staffId, "L03");
-        Integer l04 = getShiftCountOfType(staffId, "L04");
-        hours += l01 * 24 + (l02 + l03 + l04) * 4;
-        return hours;
-    }
-
-    /**
      * BUGFIX (M08-BALANCE-V10): per-staff MIX deviation for the priority types
      * L01/L02/L03 — sum over types and staff of |count(staff, type) − avg(type)|,
      * where avg(type) = total(type) / staffCount. Lower = every staff carries a
