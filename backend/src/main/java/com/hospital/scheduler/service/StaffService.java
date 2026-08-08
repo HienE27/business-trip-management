@@ -199,6 +199,22 @@ public class StaffService {
     }
 
     /**
+     * Returns true when the current authenticated principal is a manager-
+     * like caller (ADMIN or MANAGER). Used by {@link #updateStaff(Integer,
+     * StaffRequest)} to decide whether a self-update may carry a role list.
+     */
+    private boolean isCallerManagerLike() {
+        try {
+            Staff current = authContextService.getCurrentStaff();
+            return authContextService.isManagerLike(current);
+        } catch (Exception ex) {
+            log.debug("isCallerManagerLike() returned false (auth unknown): {}",
+                    ex.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    /**
      * Resolve the currently authenticated staff id without ever throwing — used by
      * audit logging paths so that a missing principal (e.g. background seed job,
      * stale JWT) cannot roll back the surrounding @Transactional business write.
@@ -293,11 +309,37 @@ public class StaffService {
     /**
      * BUG-C3 fix: evict dashboard cache on update.
      * BUG-M5 fix: reject update on soft-deleted (inactive) staff.
+     * BUGFIX (was #44 SELF-ROLE-ESCALATION): STAFF who calls PUT /staff/{ownId}
+     * with a body containing "roles":["ADMIN"] would have their role
+     * silently overwritten. The @PreAuthorize uses
+     * `hasAuthority('STAFF_UPDATE') or isCurrentStaff(#id)` so a STAFF
+     * reaches updateStaff() via the ownership branch — but the service
+     * layer trusted the request body and applied any role list. We now
+     * check whether the caller is the same record being updated AND is
+     * not a manager-like principal; in that case, the supplied roles
+     * list is ignored. Non-self callers (managers updating other staff)
+     * are unaffected. New roles must always be granted through a
+     * separate admin flow (which is by design).
      */
     @CacheEvict(value = CacheConfig.DASHBOARD_STATS_CACHE, allEntries = true)
     public StaffResponse updateStaff(Integer id, StaffRequest request) {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + id));
+
+        // BUGFIX (was #44): detect self-update before any mutation.
+        // resolveCurrentStaffIdSafely() returns null for background jobs or
+        // a stale JWT; in that case the caller is not the same record and we
+        // skip the role-escalation block.
+        Integer callerId = resolveCurrentStaffIdSafely();
+        boolean isSelfUpdate = callerId != null && callerId.equals(id);
+        boolean callerIsManagerLike = isCallerManagerLike();
+        if (isSelfUpdate && !callerIsManagerLike) {
+            // Drop any roles sent by a non-manager caller mutating their own
+            // record. Force-null the field so the sync logic below sees
+            // "no change requested" and leaves existing roles intact.
+            request.setRoles(null);
+            log.info("updateStaff: dropped role-mutation attempt by non-manager caller {} on self", callerId);
+        }
 
         // BUG-M5: soft-deleted staff cannot be updated
         if (!Boolean.TRUE.equals(staff.getIsActive())) {

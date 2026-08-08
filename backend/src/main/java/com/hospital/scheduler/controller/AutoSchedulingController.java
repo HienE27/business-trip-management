@@ -477,8 +477,18 @@ public class AutoSchedulingController {
     /**
      * Force-unlock a period and clear its progress entry.
      * Use when a scheduling run crashed mid-execution and left a stale lock.
+     * BUGFIX (was CSRF): this endpoint previously accepted both GET and
+     * POST, so a malicious page could embed
+     * {@code <img src="/api/v1/auto-schedule/cancel/2">} or a
+     * {@code <a href>}-based clickjack to cancel a manager's running
+     * scheduling job while the manager was authenticated (e.g. by an
+     * SSO cookie). GET must be idempotent and side-effect free per
+     * RFC 9110 §9.2.1; mutating endpoints belong on POST. STAFF did not
+     * have AUTO_SCHEDULE_RUN so the @PreAuthorize blocked direct STAFF
+     * access, but the GET-with-side-effect was still a real CSRF vector
+     * against any browser-authenticated admin. Restricted to POST.
      */
-    @RequestMapping(path = "/cancel/{periodId}", method = {RequestMethod.GET, RequestMethod.POST})
+    @PostMapping("/cancel/{periodId}")
     @Operation(summary = "Force-cancel and unlock a stuck scheduling run")
     @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_RUN + "')")
     public ResponseEntity<ApiResponse<Void>> cancelScheduling(@PathVariable Integer periodId) {

@@ -37,28 +37,37 @@ public class StaffController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách nhân sự")
-    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
+    // BUGFIX (was LATENT-LEAK): endpoint used STAFF_VIEW which today only
+    // admin/manager have, but if STAFF_VIEW is ever moved into the staff
+    // permission set, this becomes a cross-user leak. Tighten to
+    // STAFF_VIEW_ALL so the endpoint is provably manager-only regardless
+    // of how the RBAC matrix evolves.
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW_ALL + "')")
     public ResponseEntity<ApiResponse<List<StaffResponse>>> getAllStaff() {
         return ResponseEntity.ok(ApiResponse.success(staffService.getAllStaff()));
     }
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách nhân sự đang hoạt động")
-    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
+    // BUGFIX (was LATENT-LEAK): same as /staff above.
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW_ALL + "')")
     public ResponseEntity<ApiResponse<List<StaffResponse>>> getActiveStaff() {
         return ResponseEntity.ok(ApiResponse.success(staffService.getActiveStaff()));
     }
 
     @GetMapping("/status-counts")
     @Operation(summary = "Đếm nhân sự theo trạng thái (toàn DB, không phân trang)")
-    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
+    // BUGFIX (was LATENT-LEAK): aggregate counts across all staff; tighten
+    // to STAFF_VIEW_ALL to keep this manager-only if RBAC matrix changes.
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW_ALL + "')")
     public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
         return ResponseEntity.ok(ApiResponse.success(staffService.getStatusCounts()));
     }
 
     @GetMapping("/specialty-counts")
     @Operation(summary = "Đếm nhân sự theo chuyên khoa (toàn DB, không phân trang)")
-    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW + "')")
+    // BUGFIX (was LATENT-LEAK): same as status-counts.
+    @PreAuthorize("hasAuthority('" + Permissions.STAFF_VIEW_ALL + "')")
     public ResponseEntity<ApiResponse<Map<String, Long>>> getSpecialtyCounts() {
         return ResponseEntity.ok(ApiResponse.success(staffService.getSpecialtyCounts()));
     }
