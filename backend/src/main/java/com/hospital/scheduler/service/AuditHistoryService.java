@@ -15,7 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -125,8 +127,50 @@ public class AuditHistoryService {
      * of modules so users can filter by table that may not appear on the
      * current page slice.
      */
+    /**
+     * Returns the union of the canonical module list (so users can filter on
+     * tables that have not yet accumulated audit history) and any additional
+     * modules that already have audit history in the database.
+     *
+     * <p>Without the canonical list, the dropdown would only show tables that
+     * have been touched by an audit action — modules like {@code staff},
+     * {@code role}, {@code permissions} are absent until someone modifies
+     * them, leaving the user unable to filter on them.
+     */
     public List<String> getDistinctTableNames() {
-        return auditHistoryRepository.findDistinctTableNames();
+        // Canonical list — keep alphabetically sorted so the FE renders a stable order.
+        List<String> canonical = List.of(
+                "algorithm_config",
+                "algorithm_metrics",
+                "audit_history",
+                "compensation_day",
+                "file_attachment",
+                "holiday",
+                "leave_request",
+                "notification",
+                "permissions",
+                "role",
+                "role_permission",
+                "schedule",
+                "schedule_conflict",
+                "schedule_period",
+                "schedule_requirement",
+                "shift_requirement",
+                "shift_type",
+                "specialty",
+                "staff",
+                "staff_role",
+                "user_account"
+        );
+        List<String> fromDb = auditHistoryRepository.findDistinctTableNames();
+        // Union, preserving canonical order first, then any dynamic extras.
+        LinkedHashSet<String> merged = new LinkedHashSet<>(canonical);
+        if (fromDb != null) {
+            for (String t : fromDb) {
+                if (t != null && !t.isBlank()) merged.add(t);
+            }
+        }
+        return new ArrayList<>(merged);
     }
 
     /**
