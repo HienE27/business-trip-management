@@ -137,6 +137,24 @@ public class WorkingSolution {
         return slots != null ? slots.size() : 0;
     }
 
+    /**
+     * Sum of {@link MutableAssignment#hours} across all assignments of {@code staffId}.
+     * Used by LocalSearchScheduler's hours-based cap: L01=24h vs L02/L03/L04=4h,
+     * so a shift-count cap of 20 lets a staff absorb 20\u00d724h=480h of L01 and starve
+     * the lighter types. Cap is therefore {@code maxShifts \u00d7 24} (= hours).
+     * O(slots-per-staff).
+     */
+    public int getTotalHours(int staffId) {
+        List<Integer> slots = slotsByStaff.get(staffId);
+        if (slots == null || slots.isEmpty()) return 0;
+        int hours = 0;
+        for (int slotId : slots) {
+            MutableAssignment a = assignmentsBySlot.get(slotId);
+            if (a != null) hours += a.hours;
+        }
+        return hours;
+    }
+
     /** Number of {@code shiftType} slots currently assigned to {@code staffId}. */
     public int getShiftCountOfType(int staffId, String shiftType) {
         List<Integer> slots = slotsByStaff.get(staffId);
