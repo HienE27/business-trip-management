@@ -100,6 +100,12 @@ function LeaveRequestsContent() {
   const [createStartDate, setCreateStartDate] = useState("");
   const [createEndDate, setCreateEndDate] = useState("");
   const [createReason, setCreateReason] = useState("");
+  // BUGFIX #50: admin/manager need to be able to file leave requests on
+  // behalf of other staff (e.g. when a staff member is sick and the
+  // manager enters the request). Default to the current user so the
+  // STAFF flow stays unchanged.
+  const [createStaffId, setCreateStaffId] = useState<number | null>(null);
+  const [staffOptions, setStaffOptions] = useState<Array<{ id: number; fullName: string }>>([]);
   const [creating, setCreating] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
@@ -112,6 +118,29 @@ function LeaveRequestsContent() {
     lastToastRef.current = { msg: message, time: now };
     toastRef.current[method](message);
   }
+
+  // BUGFIX #50: when admin/manager opens the create modal, load the active
+  // staff list so they can pick who the request is for. STAFF users keep the
+  // simpler flow (request is filed against themselves).
+  useEffect(() => {
+    if (!showCreateModal || !isManager) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await api.getActiveStaff();
+        if (cancelled) return;
+        const list = Array.isArray(res?.data) ? res.data : [];
+        setStaffOptions(list.map((s) => ({ id: s.id, fullName: s.fullName })));
+        if (user?.userId && !createStaffId) {
+          setCreateStaffId(user.userId);
+        }
+      } catch {
+        // Non-critical — the form falls back to the current user.
+        if (!cancelled) setStaffOptions([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showCreateModal, isManager, user?.userId, createStaffId]);
 
   const fetchRequests = useCallback(async () => {
     // Cancel any in-flight request
@@ -264,7 +293,11 @@ function LeaveRequestsContent() {
     }
     setCreating(true);
     try {
-      await api.post(`/leave-requests/staff/${user.userId}`, {
+      // BUGFIX #50: admin/manager can file on behalf of another staff via the
+      // staff selector. Default fallback is the current user so the STAFF
+      // flow stays unchanged.
+      const targetStaffId = isManager && createStaffId ? createStaffId : user.userId;
+      await api.post(`/leave-requests/staff/${targetStaffId}`, {
         startDate: createStartDate,
         endDate: createEndDate,
         reason: createReason || null,
@@ -274,13 +307,14 @@ function LeaveRequestsContent() {
       setCreateStartDate("");
       setCreateEndDate("");
       setCreateReason("");
+      setCreateStaffId(null);
       await fetchRequests();
     } catch (err) {
       toastRef.current.error(getErrorMessage(err, "Không thể gửi yêu cầu nghỉ phép."));
     } finally {
       setCreating(false);
     }
-  }, [user, createStartDate, createEndDate, createReason, fetchRequests]);
+  }, [user, createStartDate, createEndDate, createReason, createStaffId, isManager, fetchRequests]);
 
   const confirmCancel = useCallback(async () => {
     if (deleteTargetId === null) return;
@@ -591,6 +625,28 @@ function LeaveRequestsContent() {
           size="md"
         >
           <div className="space-y-4">
+            {isManager && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[13px] font-semibold text-on-surface">
+                  Nhân sự <span className="text-error">*</span>
+                </span>
+                <select
+                  className="h-10 rounded-lg border border-outline-variant bg-surface px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                  value={createStaffId ?? ""}
+                  onChange={(e) => setCreateStaffId(e.target.value ? Number(e.target.value) : null)}
+                  required
+                >
+                  <option value="" disabled>
+                    -- Chọn nhân sự --
+                  </option>
+                  {staffOptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.fullName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-semibold text-on-surface">
@@ -641,7 +697,7 @@ function LeaveRequestsContent() {
             <Button
               variant="primary"
               size="md"
-              disabled={creating || !createStartDate || !createEndDate}
+              disabled={creating || !createStartDate || !createEndDate || (isManager && !createStaffId)}
               loading={creating}
               onClick={() => void handleCreateLeaveRequest()}
               icon={!creating ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">send</span> : undefined}
