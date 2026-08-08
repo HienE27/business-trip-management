@@ -57,6 +57,7 @@ public class AutoSchedulingController {
     private final AlgorithmConfigAuditRepository auditRepository;
     private final ObjectMapper objectMapper;
     private final SchedulingFeasibilityAnalyzer feasibilityAnalyzer;
+    private final com.hospital.scheduler.service.BalanceAnalyticsService balanceAnalyticsService;
 
     private String serializeToJson(Object obj) {
         try {
@@ -265,6 +266,22 @@ public class AutoSchedulingController {
     @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<com.hospital.scheduler.dto.response.LiveCoverageDTO>> getLiveCoverage(@PathVariable Integer periodId) {
         return ResponseEntity.ok(ApiResponse.success(autoSchedulingService.getLiveCoverage(periodId)));
+    }
+
+    /**
+     * M07-F12: per-pool (shiftType, specialty) balance breakdown used by the
+     * {@code BalanceBreakdownWidget}. Decomposes the single {@code balanceScore}
+     * into pool CVs so the dashboard can show the "why" behind a low score.
+     *
+     * <p>Delegates to {@link com.hospital.scheduler.service.BalanceAnalyticsService}
+     * which mirrors {@code ScheduleQualityScorer.computeFairness()} so the numbers
+     * reported here stay consistent with the auto-schedule endpoint.
+     */
+    @GetMapping("/balance-breakdown/{periodId}")
+    @Operation(summary = "M07-F12: Phân tích cân bằng tải theo pool (shiftType, specialty)")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getBalanceBreakdown(@PathVariable Integer periodId) {
+        return ResponseEntity.ok(ApiResponse.success(balanceAnalyticsService.buildBreakdown(periodId)));
     }
 
     @GetMapping("/metrics")
