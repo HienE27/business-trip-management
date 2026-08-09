@@ -592,8 +592,22 @@ public class ScheduleExchangeService {
             throw new BadRequestException("Bạn không có quyền hủy yêu cầu đổi ca này");
         }
 
-        if (exchange.getStatus() != ScheduleExchange.ExchangeStatus.PENDING) {
-            throw new BadRequestException("Chỉ có thể hủy yêu cầu đang chờ");
+        // BUGFIX (was L3): requester/target may only self-cancel PENDING.
+        // Manager/admin can cancel APPROVED too (e.g. undo a wrong approval).
+        boolean isManagerLike = currentStaff.getStaffRoles().stream()
+                .map(role -> role.getRole() != null ? role.getRole().getName() : null)
+                .anyMatch(roleName -> "ADMIN".equals(roleName) || "MANAGER".equals(roleName));
+        boolean isParticipant = exchange.getRequester().getId().equals(currentStaff.getId())
+                || exchange.getTarget().getId().equals(currentStaff.getId());
+        if (isParticipant && !isManagerLike) {
+            if (exchange.getStatus() != ScheduleExchange.ExchangeStatus.PENDING) {
+                throw new BadRequestException("Nhân viên chỉ có thể hủy yêu cầu đang chờ; yêu cầu đã duyệt cần manager hủy");
+            }
+        } else if (isManagerLike) {
+            if (exchange.getStatus() == ScheduleExchange.ExchangeStatus.CANCELLED
+                    || exchange.getStatus() == ScheduleExchange.ExchangeStatus.REJECTED) {
+                throw new BadRequestException("Yêu cầu đã ở trạng thái cuối, không thể hủy");
+            }
         }
 
         exchange.setStatus(ScheduleExchange.ExchangeStatus.CANCELLED);

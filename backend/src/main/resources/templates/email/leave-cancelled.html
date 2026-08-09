@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/base :: layout(~{::#content})}">
+<head>
+  <title>Yêu cầu nghỉ phép đã hủy</title>
+</head>
+<body>
+  <div id="content" th:fragment="layout">
+    <p>Kính gửi <strong th:text="${staffName}">Nhân viên</strong>,</p>
+
+    <p>Yêu cầu nghỉ phép từ <span th:text="${startDate}">01/07</span> đến <span th:text="${endDate}">03/07</span> đã được <strong style="color: #434655;">HỦY</strong>.</p>
+
+    <p>Nếu đây là nhầm lẫn, vui lòng tạo yêu cầu nghỉ phép mới trên hệ thống.</p>
+  </div>
+</body>
+</html>

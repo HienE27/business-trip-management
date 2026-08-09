@@ -261,10 +261,10 @@ public class ConflictDetectionService {
             }
         }
 
-        // Batch 2: all compensation days within the period
+        // Batch 2: all compensation days within the period (period-scoped — C9 fix)
         Map<Integer, List<CompensationDay>> compDaysByStaff = new java.util.HashMap<>();
         if (minDate != null && maxDate != null) {
-            for (CompensationDay cd : compensationDayRepository.findInRange(minDate, maxDate)) {
+            for (CompensationDay cd : compensationDayRepository.findInRangeByPeriod(periodId, minDate, maxDate)) {
                 compDaysByStaff.computeIfAbsent(cd.getStaff().getId(), k -> new java.util.ArrayList<>()).add(cd);
             }
         }
@@ -352,10 +352,10 @@ public class ConflictDetectionService {
             }
         }
 
-        // Batch 2: all compensation days within the period
+        // Batch 2: all compensation days within the period (period-scoped — C9 fix)
         Map<Integer, List<CompensationDay>> compDaysByStaff = new java.util.HashMap<>();
         if (minDate != null && maxDate != null) {
-            for (CompensationDay cd : compensationDayRepository.findInRange(minDate, maxDate)) {
+            for (CompensationDay cd : compensationDayRepository.findInRangeByPeriod(periodId, minDate, maxDate)) {
                 compDaysByStaff.computeIfAbsent(cd.getStaff().getId(), k -> new java.util.ArrayList<>()).add(cd);
             }
         }

@@ -440,32 +440,62 @@ public class ScheduleService {
         if (!compensationDayRepository.findByScheduleId(schedule.getId()).isEmpty()) {
             return;
         }
-        
+
         LocalDate shiftDate = schedule.getWorkDate();
         LocalDate compensationDate = compensationDateCalculator.calculate(shiftDate);
 
-        CompensationDay compDay = CompensationDay.builder()
-                .schedule(schedule)
-                .staff(schedule.getStaff())
-                .period(schedule.getPeriod())
-                .shiftDate(shiftDate)
-                .compensationDate(compensationDate)
-                .note("Ngày nghỉ bù tự động từ ca L01")
-                .build();
-
-        CompensationDay saved = null;
+        // BUGFIX (was S2): use INSERT IGNORE so that the (staff_id, compensation_date)
+        // unique-key violation (when staff already has a comp day from a *different*
+        // L01 that maps to the same date — e.g., Fri 8/22 and Mon 8/24 both map to
+        // comp-day Tue 8/25) does NOT throw and poison the Hibernate session.
+        // The previous code used compensationDayRepository.save() which catches
+        // DataIntegrityViolationException, but by then the Session is already in a
+        // broken state and any subsequent query throws AssertionFailure
+        // ("Entry for instance of 'CompensationDay' has a null identifier").
+        // Returning the IGNORE result also lets us audit-log only newly-created
+        // rows, which is the correct semantics.
         try {
-            saved = compensationDayRepository.save(compDay);
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            // Race condition - another thread already created this compensation day
+            int inserted = compensationDayRepository.insertIgnoreCompensationDay(
+                    schedule.getStaff().getId(),
+                    schedule.getPeriod().getId(),
+                    schedule.getId(),
+                    shiftDate,
+                    compensationDate,
+                    "Ngày nghỉ bù tự động từ ca L01");
+            if (inserted == 0) {
+                // Pre-existing comp day on (staff_id, compensation_date) from another L01.
+                // This is normal — same staff can stack L01s that all map to the same
+                // comp day (e.g., Fri + Sat both → Tue next week). Just skip audit-log.
+                org.slf4j.LoggerFactory.getLogger(ScheduleService.class)
+                        .debug("Compensation day for staff {} on {} already exists (skipped, no new row)",
+                                schedule.getStaff().getId(), compensationDate);
+                return;
+            }
+        } catch (Exception e) {
+            // Defence in depth — INSERT IGNORE should not throw, but if the underlying
+            // driver fails for some reason (e.g. connection drop), log and continue so
+            // the schedule creation itself still succeeds.
             org.slf4j.LoggerFactory.getLogger(ScheduleService.class)
-                    .warn("Compensation day already exists for schedule {} (race condition): {}",
+                    .warn("Failed to insert compensation day for schedule {}: {}",
                             schedule.getId(), e.getMessage());
             return;
         }
-        if (saved != null && saved.getId() != null) {
-            auditHistoryService.logAction("compensation_day", saved.getId(), AuditHistory.ActionType.INSERT, null, saved, authContextService.getCurrentStaff().getId());
-        }
+
+        // Re-fetch the (possibly pre-existing) compensation day for audit logging.
+        // We use the schedule_id join to find the row that was just created OR that
+        // already existed (in which case INSERT IGNORE returned 0 and we returned
+        // above). At this point inserted >= 1, so a row exists.
+        compensationDayRepository.findByScheduleId(schedule.getId()).stream()
+                .filter(cd -> cd.getCompensationDate() != null
+                        && cd.getCompensationDate().equals(compensationDate))
+                .findFirst()
+                .ifPresent(saved -> {
+                    if (saved.getId() != null) {
+                        auditHistoryService.logAction("compensation_day", saved.getId(),
+                                AuditHistory.ActionType.INSERT, null, saved,
+                                authContextService.getCurrentStaff().getId());
+                    }
+                });
     }
 
     /**

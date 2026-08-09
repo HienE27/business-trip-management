@@ -134,14 +134,19 @@
   </style>
 </head>
 <body>
+<!-- BUGFIX (was E1): add a 'layout' fragment that accepts the child's
+     #content block as a parameter. Without this fragment + signature,
+     every email template that uses fragment composition fails at render
+     time with TemplateInputException. -->
+<th:block th:fragment="layout(content)">
   <div class="container">
     <div class="header">
       <h1 th:text="${headerTitle}">Hệ thống Quản lý Lịch Công Tác</h1>
       <p class="subtitle" th:text="${headerSubtitle}">Thông báo tự động</p>
     </div>
 
-    <div class="body" th:utext="${bodyContent}">
-      <!-- Dynamic content -->
+    <div class="body">
+      <th:block th:replace="${content}">No content</th:block>
     </div>
 
     <div class="footer">
@@ -152,5 +157,27 @@
       <p>Không trả lời email này. Liên hệ quản trị viên nếu cần hỗ trợ.</p>
     </div>
   </div>
+</th:block>
+
+<!-- Legacy single-template variant (still used by sendSchedulePublishedEmail
+     which renders the base template directly with bodyContent inlined). -->
+<div class="container">
+  <div class="header">
+    <h1 th:text="${headerTitle}">Hệ thống Quản lý Lịch Công Tác</h1>
+    <p class="subtitle" th:text="${headerSubtitle}">Thông báo tự động</p>
+  </div>
+
+  <div class="body" th:utext="${bodyContent}">
+    <!-- Dynamic content -->
+  </div>
+
+  <div class="footer">
+    <p>Email này được gửi tự động từ <strong>Hệ thống Quản lý Lịch Công Tác</strong>.</p>
+    <p th:if="${appUrl != null}">
+      <a th:href="${appUrl}" th:text="${appUrl}">Truy cập hệ thống</a>
+    </p>
+    <p>Không trả lời email này. Liên hệ quản trị viên nếu cần hỗ trợ.</p>
+  </div>
+</div>
 </body>
 </html>

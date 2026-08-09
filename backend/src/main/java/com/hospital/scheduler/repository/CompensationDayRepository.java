@@ -44,6 +44,16 @@ public interface CompensationDayRepository extends JpaRepository<CompensationDay
     @Query("SELECT cd FROM CompensationDay cd WHERE cd.compensationDate BETWEEN :startDate AND :endDate")
     List<CompensationDay> findInRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 
+    /**
+     * Batch query: comp days within date range, scoped to a specific period.
+     * Used by conflict detector so we don't pull comp days from other periods
+     * that happen to fall inside the same calendar window.
+     */
+    @Query("SELECT cd FROM CompensationDay cd WHERE cd.period.id = :periodId AND cd.compensationDate BETWEEN :startDate AND :endDate")
+    List<CompensationDay> findInRangeByPeriod(@Param("periodId") Integer periodId,
+                                              @Param("startDate") LocalDate startDate,
+                                              @Param("endDate") LocalDate endDate);
+
     @Query("SELECT cd FROM CompensationDay cd JOIN FETCH cd.staff JOIN FETCH cd.schedule WHERE cd.schedule.id IN :scheduleIds")
     List<CompensationDay> findByScheduleIds(@Param("scheduleIds") List<Integer> scheduleIds);
 

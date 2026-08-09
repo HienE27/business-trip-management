@@ -163,7 +163,10 @@ public class EmailService {
         ctx.setVariable("endDate", endDate.format(DATE_FMT));
 
         String subject = "[Nghỉ phép] Yêu cầu nghỉ phép đã bị hủy";
-        String htmlBody = templateEngine.process("email/leave-rejected", ctx);
+        // BUGFIX (was E1): was sending 'email/leave-rejected' which renders
+        // "TỪ CHỐI bởi ..." — wrong template for a self-cancel. Use the
+        // dedicated cancelled template.
+        String htmlBody = templateEngine.process("email/leave-cancelled", ctx);
         sendHtmlEmail(staff.getEmail(), subject, htmlBody);
     }
 

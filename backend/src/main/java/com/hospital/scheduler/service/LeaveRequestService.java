@@ -409,8 +409,22 @@ public class LeaveRequestService {
             throw new BadRequestException("Bạn không có quyền hủy yêu cầu nghỉ phép này");
         }
 
-        if (leaveRequest.getStatus() != LeaveRequest.LeaveStatus.PENDING) {
-            throw new BadRequestException("Chỉ có thể hủy yêu cầu đang chờ");
+        // BUGFIX (was L2): staff may only self-cancel PENDING requests. Once
+        // approved, only a manager/admin can reverse the approval (e.g. staff
+        // calls back to work early, or the original approval was wrong).
+        boolean isManagerLike = currentStaff.getStaffRoles().stream()
+                .map(role -> role.getRole() != null ? role.getRole().getName() : null)
+                .anyMatch(roleName -> RoleName.ADMIN.equals(roleName) || RoleName.MANAGER.equals(roleName));
+        boolean isSelf = leaveRequest.getStaff().getId().equals(currentStaff.getId());
+        if (isSelf && !isManagerLike) {
+            if (leaveRequest.getStatus() != LeaveRequest.LeaveStatus.PENDING) {
+                throw new BadRequestException("Nhân viên chỉ có thể hủy yêu cầu đang chờ; yêu cầu đã duyệt cần manager hủy");
+            }
+        } else if (isManagerLike) {
+            if (leaveRequest.getStatus() == LeaveRequest.LeaveStatus.CANCELLED
+                    || leaveRequest.getStatus() == LeaveRequest.LeaveStatus.REJECTED) {
+                throw new BadRequestException("Yêu cầu đã ở trạng thái cuối, không thể hủy");
+            }
         }
 
         LeaveRequest prev = leaveRequest;

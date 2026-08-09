@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/base :: layout(~{::#content})}">
+<head>
+  <title>Yêu cầu đổi ca đã hủy</title>
+</head>
+<body>
+  <div id="content" th:fragment="layout">
+    <p>Kính gửi <strong th:text="${staffName}">Nhân viên</strong>,</p>
+
+    <p>Yêu cầu đổi ca của bạn đã được <strong style="color: #434655;">HỦY</strong>.</p>
+
+    <div class="info-box" th:if="${swapDate != null}">
+      <table>
+        <tr>
+          <td>Ngày đổi:</td>
+          <td th:text="${swapDate}">01/07/2026</td>
+        </tr>
+        <tr th:if="${partnerName != null}">
+          <td>Đối tác:</td>
+          <td th:text="${partnerName}">Nguyễn Văn A</td>
+        </tr>
+      </table>
+    </div>
+
+    <p>Nếu đây là nhầm lẫn, vui lòng tạo yêu cầu đổi ca mới trên hệ thống.</p>
+  </div>
+</body>
+</html>
