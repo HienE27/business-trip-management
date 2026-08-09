@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -319,6 +320,19 @@ public class ConflictDetectionService {
                 .hasCoverageGaps(!coverageGaps.isEmpty())
                 .totalCoverageGaps(coverageGaps.size())
                 .build();
+    }
+
+    /**
+     * BUGFIX (was AS7-pre): Run conflict detection in a fresh REQUIRES_NEW
+     * transaction so a Hibernate NPE in this method (entityEntry null) does NOT
+     * poison the caller's transaction (e.g. AutoSchedulingService.autoSchedule).
+     * Without this isolation, a transient NPE inside the query marks the outer
+     * transaction rollback-only and surfaces as UnexpectedRollbackException to
+     * the client.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ConflictCheckResponse checkPeriodConflictsIsolated(Integer periodId) {
+        return checkPeriodConflicts(periodId);
     }
 
     @Transactional

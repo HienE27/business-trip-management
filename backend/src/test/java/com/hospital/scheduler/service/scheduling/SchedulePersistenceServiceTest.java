@@ -3,6 +3,7 @@ package com.hospital.scheduler.service.scheduling;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.CompensationDayRepository;
 import com.hospital.scheduler.repository.HolidayRepository;
+import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.service.AuditHistoryService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,7 @@ class SchedulePersistenceServiceTest {
     @Mock private AuditHistoryService auditHistoryService;
     @Mock private CompensationDayRepository compensationDayRepository;
     @Mock private HolidayRepository holidayRepository;
+    @Mock private ScheduleRepository scheduleRepository;
 
     private CompensationDateCalculator calculator;
     private SchedulingStateAccessor stateAccessor;
@@ -42,7 +44,7 @@ class SchedulePersistenceServiceTest {
     void setUp() {
         calculator = new CompensationDateCalculator(holidayRepository);
         stateAccessor = new SchedulingStateAccessor();
-        persistenceService = new SchedulePersistenceService(auditHistoryService, calculator, stateAccessor);
+        persistenceService = new SchedulePersistenceService(auditHistoryService, calculator, stateAccessor, scheduleRepository);
     }
 
     private Schedule buildL01Schedule(SchedulePeriod period, Staff staff, LocalDate workDate) {

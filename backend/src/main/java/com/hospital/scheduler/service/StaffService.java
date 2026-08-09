@@ -935,22 +935,33 @@ public class StaffService {
 
         StringBuilder sb = new StringBuilder();
         sb.append('\uFEFF'); // UTF-8 BOM
-        sb.append("staffCode,username,fullName,email,phone,position,specialty,status,roles\n");
+        // BUGFIX (was SM3): export now uses the same column names as the CSV
+        // importer (`id`, `username`, `Họ tên`, `Email`, `Số điện thoại`,
+        // `Chuyên khoa`, `Vai trò`, `Trạng thái`). Previously the exporter wrote
+        // English-only headers (`fullName`, `phone`, `specialty`, `roles`) which
+        // the importer could not parse, so a round-trip (export → import) always
+        // failed with "Họ tên: Không được để trống".
+        sb.append("id,username,Họ tên,Email,Số điện thoại,Chuyên khoa,Vai trò,Trạng thái\n");
         for (Staff s : rows) {
             String specialtyName = s.getSpecialty() != null ? s.getSpecialty().getName() : "";
             String rolesCsv = s.getStaffRoles().stream()
                     .map(sr -> sr.getRole() != null ? sr.getRole().getName().name() : "")
                     .filter(r -> !r.isEmpty())
                     .collect(Collectors.joining("|"));
-            sb.append(csvCell(s.getStaffCode())).append(',')
+            // Columns mirror the header order above: id, username, Họ tên,
+            // Email, Số điện thoại, Chuyên khoa, Vai trò, Trạng thái. The
+            // `id` column is intentionally blank in the export because the
+            // importer uses staffCode as the primary key and the staff id is
+            // only meaningful for updates.
+            sb.append(csvCell("")).append(',')
               .append(csvCell(s.getUsername())).append(',')
               .append(csvCell(s.getFullName())).append(',')
               .append(csvCell(s.getEmail())).append(',')
               .append(csvCell(s.getPhone())).append(',')
-              .append(csvCell(s.getPosition())).append(',')
               .append(csvCell(specialtyName)).append(',')
+              .append(csvCell(rolesCsv)).append(',')
               .append(csvCell(s.getStatus().name())).append(',')
-              .append(csvCell(rolesCsv)).append('\n');
+              .append(csvCell(s.getStaffCode())).append('\n');
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }

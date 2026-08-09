@@ -2,6 +2,7 @@ package com.hospital.scheduler.config;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -47,6 +48,15 @@ public class JacksonConfig {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        // BUGFIX (was STATS-1): enable USE_STD_BEAN_NAMING so that fields with
+        // explicit @JsonProperty annotations (e.g. L01Count, L02Count in
+        // StaffShiftStatistics) are emitted ONLY under the annotated name.
+        // Without this flag — and because bean name L01Count also lowercases to
+        // l01Count via Jackson's default name translation — every field was
+        // serialised twice (l01Count AND L01Count), producing invalid JSON that
+        // PowerShell ConvertFrom-Json rejects with "duplicated keys" and that
+        // strict OpenAPI consumers (Swagger UI, codegen) fail to render.
+        mapper.enable(MapperFeature.USE_STD_BEAN_NAMING);
         // BUGFIX: accept unknown properties so frontend can evolve its payload
         // shape without forcing a coordinated backend redeploy for every UI tweak.
         // Server-side validation is the source of truth; client-side extras are noise.

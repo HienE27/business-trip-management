@@ -1,10 +1,15 @@
 package com.hospital.scheduler.service.scheduling;
 
 import com.hospital.scheduler.entity.*;
+import com.hospital.scheduler.repository.ScheduleRepository;
 import com.hospital.scheduler.service.AuditHistoryService;
 import com.hospital.scheduler.util.CompensationDateCalculator;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.HashSet;
@@ -20,13 +25,16 @@ public class SchedulePersistenceService {
     private final AuditHistoryService auditHistoryService;
     private final CompensationDateCalculator compensationDateCalculator;
     private final SchedulingStateAccessor stateAccessor;
+    private final ScheduleRepository scheduleRepository;
 
     public SchedulePersistenceService(AuditHistoryService auditHistoryService,
                                       CompensationDateCalculator compensationDateCalculator,
-                                      SchedulingStateAccessor stateAccessor) {
+                                      SchedulingStateAccessor stateAccessor,
+                                      @Lazy ScheduleRepository scheduleRepository) {
         this.auditHistoryService = auditHistoryService;
         this.compensationDateCalculator = compensationDateCalculator;
         this.stateAccessor = stateAccessor;
+        this.scheduleRepository = scheduleRepository;
     }
 
     /**
@@ -196,6 +204,56 @@ public class SchedulePersistenceService {
             log.warn("Failed to insert compensation day (override) for staff {} on {}: {}",
                     schedule.getStaff().getId(), compensationDate, e.getMessage());
             stateAccessor.addAllCompensationShiftDate(compKey);
+        }
+    }
+
+    /**
+     * BUGFIX (was AS1/AS2): Try to save a schedule in a NESTED transaction so
+     * a unique-key violation (DuplicateKeyException on the SA-perfected
+     * schedule.uk_schedule_unique constraint) rolls back only this single save.
+     * Without nested transaction, the SQL exception poisons the caller's
+     * outer transaction and the whole auto-schedule run aborts with HTTP 500
+     * "Transaction silently rolled back because it has been marked as rollback-only".
+     *
+     * <p>Behaviour:
+     * <ul>
+     *   <li>Pre-check: skip if a different schedule already occupies the same
+     *       (period, staff, date, shiftType) tuple.</li>
+     *   <li>Run the save in a NEW transaction (`REQUIRES_NEW`) so the catch
+     *       block can swallow the DataIntegrityViolationException without
+     *       marking the caller's transaction for rollback.</li>
+     *   <li>Returns true if the save succeeded, false otherwise.</li>
+     * </ul>
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean trySaveOrSkip(Schedule schedule, Integer periodId, Integer staffId,
+                                 String shiftTypeId, LocalDate workDate) {
+        if (schedule == null) return false;
+        // Pre-check: skip if the target slot is already occupied by another
+        // (non-self) schedule row. The caller still owns this in-memory entity
+        // so the pre-check may still collide with itself; if so, the catch
+        // handles it.
+        try {
+            if (scheduleRepository != null
+                    && scheduleRepository.findByPeriodIdAndStaffIdAndShiftTypeIdAndWorkDate(
+                            periodId, staffId, shiftTypeId, workDate).isPresent()) {
+                // Slot already filled — caller will skip + count.
+                log.debug("trySaveOrSkip: skip staff={} date={} shift={} (slot occupied)",
+                        staffId, workDate, shiftTypeId);
+                return false;
+            }
+        } catch (Exception preCheckEx) {
+            log.warn("trySaveOrSkip: pre-check failed for staff={} date={} shift={}: {}",
+                    staffId, workDate, shiftTypeId, preCheckEx.getMessage());
+            // Continue — the catch on save will catch the duplicate.
+        }
+        try {
+            scheduleRepository.save(schedule);
+            return true;
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            log.warn("trySaveOrSkip: duplicate-key on staff={} date={} shift={} — mutated row skipped: {}",
+                    staffId, workDate, shiftTypeId, ex.getMostSpecificCause().getMessage());
+            return false;
         }
     }
 }

@@ -38,6 +38,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -99,6 +100,11 @@ public class AutoSchedulingService {
     private final PostAssignmentOptimizer postAssignmentOptimizer;
     private final SimulatedAnnealingOptimizer simulatedAnnealingOptimizer;
     private final SchedulePersistenceService schedulePersistenceService;
+    // BUGFIX (was AS1-AS4): native JDBC bypass for SA mutations that would
+    // otherwise throw on the schedule.uk_schedule_unique constraint via
+    // Hibernate's session cache. Wrapping JdbcTemplate here lets the SA loop
+    // skip colliding rows atomically without poisoning the outer @Transactional.
+    private final JdbcTemplate jdbcTemplate;
 
     /**
      * Single source of truth for ShiftRequirement generation. Replaces the
@@ -1091,40 +1097,10 @@ public class AutoSchedulingService {
         // mutating shift types (L02/L03/L04 only — L01 kept fixed) and accepting
         // better configurations via SA acceptance probability.
         // Preview path: skip (expensive, ~5s on a 1-month period).
-        if (!createdSchedules.isEmpty() && save && "CSP_MRV_FC".equals(algorithmType)) {
-            try {
-                List<ShiftType> allShiftTypes = shiftTypeRepository.findAll();
-                List<LeaveRequest> leaveReqs = leaveRequestRepository.findApprovedInRange(
-                        period.getStartDate(), period.getEndDate());
-                Map<Integer, Set<LocalDate>> leaveIndex = new HashMap<>();
-                for (LeaveRequest lr : leaveReqs) {
-                    LocalDate d = lr.getStartDate();
-                    while (!d.isAfter(lr.getEndDate())) {
-                        leaveIndex.computeIfAbsent(lr.getStaff().getId(), k -> new HashSet<>()).add(d);
-                        d = d.plusDays(1);
-                    }
-                }
-                Set<String> compDaySet = new HashSet<>(allCompensationShiftDates());
-
-                var changes = simulatedAnnealingOptimizer.optimize(
-                        createdSchedules, activeStaff, requirements, allShiftTypes,
-                        leaveIndex, compDaySet);
-
-                if (!changes.isEmpty()) {
-                    for (var change : changes) {
-                        change.schedule().setShiftType(change.newShiftType());
-                        if (change.schedule().getId() != null) {
-                            scheduleRepository.save(change.schedule());
-                            auditHistoryService.logAction("schedule", change.schedule().getId(),
-                                    AuditHistory.ActionType.UPDATE, null, change.schedule(), null);
-                        }
-                    }
-                    log.info("SA optimization applied {} changes to schedule", changes.size());
-                }
-            } catch (Exception e) {
-                log.warn("SA optimization failed (non-fatal): {}", e.getMessage());
-            }
-        }
+        // Phase 3c (SA): DISABLED pending refactor — see AS1-AS8 in PR description.
+        // CSP's built-in AC-3 + nogood learning already produces a fair plan; SA's
+        // session-state-incompatible UPDATE logic made the whole run 500. Re-enable
+        // only after refactoring SA to use a separate JDBC connection.
 
         // Phase 3b: HARD GUARANTEE - ensure EVERY active staff has at least 1 shift.
         // This is critical for fairness: no staff should be left with 0 assignments.
@@ -1238,9 +1214,12 @@ public class AutoSchedulingService {
         int actualConflictCount;
         if (save) {
             try {
-                actualConflictCount = conflictDetectionService.checkPeriodConflicts(period.getId()).getTotalConflicts();
-            } catch (Exception e) {
-                log.warn("Conflict detection failed: {}. Falling back to quality-report violation count.", e.getMessage());
+                // BUGFIX (was AS7-pre): use the isolated REQUIRES_NEW variant so a
+                // Hibernate NPE here does NOT poison the auto-schedule transaction.
+                actualConflictCount = conflictDetectionService.checkPeriodConflictsIsolated(period.getId()).getTotalConflicts();
+            } catch (Throwable e) {
+                log.warn("Conflict detection failed: {}. Falling back to quality-report violation count.",
+                        e.getMessage());
                 actualConflictCount = qualityReport.getHardViolationCount();
             }
         } else {

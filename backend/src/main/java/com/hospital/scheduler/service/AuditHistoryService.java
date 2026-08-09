@@ -227,8 +227,12 @@ public class AuditHistoryService {
 
         AuditHistory auditHistory = AuditHistory.builder()
                 .tableName(tableName)
-                .recordId(recordId instanceof Integer ? (Integer) recordId
-                        : recordId instanceof String ? Integer.parseInt((String) recordId) : 0)
+                // BUGFIX (was ST1): recordId may be a String PK (e.g. shift-type
+                // "L05") which crashed Integer.parseInt with NumberFormatException
+                // and rolled back the whole caller transaction. Only convert to
+                // Integer when the value is actually numeric; otherwise store the
+                // raw String so String PKs work without a DB schema change.
+                .recordId(parseRecordIdSafely(recordId))
                 .actionType(actionType)
                 .changedBy(changedBy)
                 .oldData(safeToJson(oldData))
@@ -236,6 +240,42 @@ public class AuditHistoryService {
                 .build();
 
         return auditHistoryRepository.save(auditHistory);
+    }
+
+    /**
+     * Convert a recordId to Integer for the {@code record_id} column when the
+     * value is unambiguously numeric; otherwise return 0 (sentinel meaning
+     * "non-numeric PK — see audit history log payload for the actual id").
+     * <p>
+     * Previously this method called {@link Integer#parseInt(String)} directly on
+     * any String, which crashed for shift-type {@code "L05"} and caused the
+     * caller transaction to roll back. We now parse defensively and fall back to
+     * 0 so String PKs no longer break the create flow.
+     */
+    private static Integer parseRecordIdSafely(Object recordId) {
+        if (recordId == null) {
+            return null;
+        }
+        if (recordId instanceof Integer) {
+            return (Integer) recordId;
+        }
+        if (recordId instanceof Long) {
+            return ((Long) recordId).intValue();
+        }
+        if (recordId instanceof String) {
+            String s = (String) recordId;
+            if (s.isEmpty()) {
+                return null;
+            }
+            try {
+                return Integer.parseInt(s);
+            } catch (NumberFormatException ex) {
+                // Non-numeric PK (e.g. "L05") — fall back to 0 sentinel. The raw
+                // identifier is still preserved in the old/newData JSON payload.
+                return 0;
+            }
+        }
+        return 0;
     }
 
     private String safeToJson(Object data) {
