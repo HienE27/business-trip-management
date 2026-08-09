@@ -43,13 +43,22 @@ public class ScheduleExchangeController {
     @GetMapping("/page")
     @Operation(summary = "Lấy danh sách yêu cầu đổi ca có phân trang và filter")
     // BUGFIX (was EXCHANGE-CROSS-USER): paged org-wide listing leak.
-    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "')")
+    // Manager+ see everyone; Staff only see their own (requester, target, or user).
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "') or hasAuthority('" + Permissions.EXCHANGE_CANCEL_SELF + "')")
     public ResponseEntity<ApiResponse<Page<ScheduleExchangeResponse>>> getExchangesPage(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Pageable pageable) {
+        boolean isStaffScoped = authContextService.isCurrentStaff()
+                && !authContextService.hasAuthority(Permissions.EXCHANGE_APPROVE);
+        if (isStaffScoped) {
+            Integer myStaffId = authContextService.getCurrentStaff().getId();
+            return ResponseEntity.ok(ApiResponse.success(
+                    exchangeService.getExchangesForUserPaged(myStaffId, status, keyword,
+                            org.springframework.data.domain.PageRequest.of(page, Math.min(size, 200)))));
+        }
         ScheduleExchange.ExchangeStatus parsedStatus = (status == null || status.isBlank()) ? null
                 : ScheduleExchange.ExchangeStatus.valueOf(status.toUpperCase());
         String kw = (keyword == null || keyword.isBlank()) ? null : keyword;
@@ -63,9 +72,16 @@ public class ScheduleExchangeController {
     @GetMapping("/status-counts")
     @Operation(summary = "Đếm yêu cầu đổi ca theo trạng thái (toàn DB, không phân trang)")
     // BUGFIX (was EXCHANGE-CROSS-USER): org-wide aggregate counts leak
-    // operational pressure (PENDING/APPROVED volume). Manager-only.
-    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "')")
+    // operational pressure (PENDING/APPROVED volume). Manager sees org-wide;
+    // Staff sees their own (involving them as requester or target).
+    @PreAuthorize("hasAuthority('" + Permissions.EXCHANGE_APPROVE + "') or hasAuthority('" + Permissions.EXCHANGE_CANCEL_SELF + "')")
     public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
+        boolean isStaffScoped = authContextService.isCurrentStaff()
+                && !authContextService.hasAuthority(Permissions.EXCHANGE_APPROVE);
+        if (isStaffScoped) {
+            Integer myStaffId = authContextService.getCurrentStaff().getId();
+            return ResponseEntity.ok(ApiResponse.success(exchangeService.getStatusCountsForUser(myStaffId)));
+        }
         return ResponseEntity.ok(ApiResponse.success(exchangeService.getStatusCounts()));
     }
 

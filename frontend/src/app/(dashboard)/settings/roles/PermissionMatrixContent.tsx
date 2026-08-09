@@ -244,6 +244,8 @@ function PermissionGroup({
                           type="button"
                           onClick={() => onToggle(r.id, r.name, 0, permKey)}
                           disabled={!isAdmin || saving}
+                          data-testid={`toggle-${r.id}-${permKey}`}
+                          data-granted={granted ? "true" : "false"}
                           title={`${r.name}: ${granted ? "Có quyền" : "Không có quyền"}`}
                           className={[
                             "relative flex h-10 w-14 items-center justify-center rounded-xl border-2 transition-all duration-300 shadow-sm",

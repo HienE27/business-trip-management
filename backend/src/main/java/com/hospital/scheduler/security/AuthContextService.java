@@ -111,6 +111,37 @@ public class AuthContextService {
                 .anyMatch(roleName -> RoleName.ADMIN.equals(roleName) || RoleName.MANAGER.equals(roleName));
     }
 
+    /**
+     * Check whether the current authentication carries the given permission
+     * authority. Used by controllers to branch behavior (e.g. staff-scoped
+     * vs org-wide listing) without leaking via @PreAuthorize.
+     */
+    public boolean hasAuthority(String permission) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || auth.getAuthorities() == null) return false;
+            return auth.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority() != null && a.getAuthority().equals(permission));
+        } catch (Exception e) {
+            log.debug("hasAuthority({}) returned false", permission, e);
+            return false;
+        }
+    }
+
+    /**
+     * Convenience: true if the current user is a STAFF (not manager/admin).
+     * Used by controllers to decide whether to apply a staff-scoped filter
+     * instead of returning org-wide data.
+     */
+    public boolean isCurrentStaff() {
+        try {
+            return !isManagerLike(getCurrentStaff());
+        } catch (Exception e) {
+            log.debug("isCurrentStaff() returned false", e);
+            return false;
+        }
+    }
+
     public void requireSelfOrManager(Integer targetStaffId) {
         Staff currentStaff = getCurrentStaff();
         if (isManagerLike(currentStaff) || currentStaff.getId().equals(targetStaffId)) {

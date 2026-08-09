@@ -40,6 +40,29 @@ public interface ScheduleExchangeRepository extends JpaRepository<ScheduleExchan
     @Query("SELECT e FROM ScheduleExchange e WHERE e.requester.id = :userId OR e.target.id = :userId ORDER BY e.createdAt DESC")
     List<ScheduleExchange> findAllByUserId(@Param("userId") Integer userId);
 
+    /**
+     * Paginated query for exchanges involving a specific user (as requester or
+     * target) with optional status and keyword filters. Used by STAFF users.
+     */
+    @Query("SELECT e FROM ScheduleExchange e " +
+           "JOIN FETCH e.requester r JOIN FETCH e.target t " +
+           "WHERE (e.requester.id = :userId OR e.target.id = :userId) " +
+           "AND (:status IS NULL OR e.status = :status) " +
+           "AND (:keyword IS NULL OR LOWER(r.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR LOWER(t.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR LOWER(e.reason) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    org.springframework.data.domain.Page<ScheduleExchange> findByUserIdWithFilters(
+            @Param("userId") Integer userId,
+            @Param("status") ScheduleExchange.ExchangeStatus status,
+            @Param("keyword") String keyword,
+            org.springframework.data.domain.Pageable pageable);
+
+    /** Count of exchanges involving a user by status (staff-scoped /status-counts). */
+    @Query("SELECT count(e) FROM ScheduleExchange e " +
+           "WHERE (e.requester.id = :userId OR e.target.id = :userId) " +
+           "AND (:status IS NULL OR e.status = :status)")
+    long countByUserIdAndStatus(@Param("userId") Integer userId, @Param("status") ScheduleExchange.ExchangeStatus status);
+
     List<ScheduleExchange> findByRequesterScheduleId(Integer scheduleId);
     List<ScheduleExchange> findByTargetScheduleId(Integer scheduleId);
     List<ScheduleExchange> findByRequesterScheduleIdOrTargetScheduleId(Integer requesterScheduleId, Integer targetScheduleId);

@@ -45,13 +45,23 @@ public class LeaveRequestController {
     @GetMapping("/page")
     @Operation(summary = "Lấy danh sách yêu cầu nghỉ phép có phân trang và filter")
     // BUGFIX (was LEAVE-CROSS-USER): paged org-wide listing leak.
-    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_APPROVE + "')")
+    // Manager+ see everyone; Staff only see their own.
+    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_APPROVE + "') or hasAuthority('" + Permissions.LEAVE_CANCEL_SELF + "')")
     public ResponseEntity<ApiResponse<Page<LeaveRequestResponse>>> getLeaveRequestsPage(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Pageable pageable) {
+        // STAFF: scoped to their own requests (filter at query level)
+        boolean isStaffScoped = authContextService.isCurrentStaff()
+                && !authContextService.hasAuthority(Permissions.LEAVE_APPROVE);
+        if (isStaffScoped) {
+            Integer myStaffId = authContextService.getCurrentStaff().getId();
+            return ResponseEntity.ok(ApiResponse.success(
+                    leaveRequestService.getLeaveRequestsByStaffPaged(myStaffId, status, keyword,
+                            org.springframework.data.domain.PageRequest.of(page, Math.min(size, 200)))));
+        }
         // If no filters, use the existing unfiltered pageable for optimal JPQL path
         if ((status == null || status.isBlank()) && (keyword == null || keyword.isBlank())) {
             return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getLeaveRequestsPage(pageable)));
@@ -67,8 +77,15 @@ public class LeaveRequestController {
     @GetMapping("/status-counts")
     @Operation(summary = "Đếm yêu cầu nghỉ phép theo trạng thái (toàn DB, không phân trang)")
     // BUGFIX (was LEAVE-CROSS-USER): org-wide aggregate counts.
-    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_APPROVE + "')")
+    // Manager+ see org-wide; Staff see their own.
+    @PreAuthorize("hasAuthority('" + Permissions.LEAVE_APPROVE + "') or hasAuthority('" + Permissions.LEAVE_CANCEL_SELF + "')")
     public ResponseEntity<ApiResponse<Map<String, Long>>> getStatusCounts() {
+        boolean isStaffScoped = authContextService.isCurrentStaff()
+                && !authContextService.hasAuthority(Permissions.LEAVE_APPROVE);
+        if (isStaffScoped) {
+            Integer myStaffId = authContextService.getCurrentStaff().getId();
+            return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getStatusCountsByStaff(myStaffId)));
+        }
         return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getStatusCounts()));
     }
 

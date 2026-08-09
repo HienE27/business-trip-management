@@ -96,7 +96,7 @@ describe("useAutoSchedule — editStaff (inline edits)", () => {
     const { result } = renderHook(() => useAutoSchedule());
     act(() => result.current[1].editStaff("2026-06-15", "L01", 7));
     expect(result.current[0].editedPreview).toEqual([
-      { workDate: "2026-06-15", shiftTypeId: "L01", staffId: 7 },
+      { workDate: "2026-06-15", shiftTypeId: "L01", staffId: 7, requirementId: null },
     ]);
   });
 
@@ -105,7 +105,7 @@ describe("useAutoSchedule — editStaff (inline edits)", () => {
     act(() => result.current[1].editStaff("2026-06-15", "L01", 7));
     act(() => result.current[1].editStaff("2026-06-15", "L01", 9));
     expect(result.current[0].editedPreview).toEqual([
-      { workDate: "2026-06-15", shiftTypeId: "L01", staffId: 9 },
+      { workDate: "2026-06-15", shiftTypeId: "L01", staffId: 9, requirementId: null },
     ]);
     expect(result.current[0].editedPreview).toHaveLength(1);
   });
@@ -115,8 +115,8 @@ describe("useAutoSchedule — editStaff (inline edits)", () => {
     act(() => result.current[1].editStaff("2026-06-15", "L01", 7));
     act(() => result.current[1].editStaff("2026-06-15", "L02", 8));
     expect(result.current[0].editedPreview).toEqual([
-      { workDate: "2026-06-15", shiftTypeId: "L01", staffId: 7 },
-      { workDate: "2026-06-15", shiftTypeId: "L02", staffId: 8 },
+      { workDate: "2026-06-15", shiftTypeId: "L01", staffId: 7, requirementId: null },
+      { workDate: "2026-06-15", shiftTypeId: "L02", staffId: 8, requirementId: null },
     ]);
   });
 });
@@ -130,7 +130,7 @@ describe("useAutoSchedule — editShiftType (rewire shift)", () => {
     const { result } = renderHook(() => useAutoSchedule());
     act(() => result.current[1].editShiftType("2026-06-15", "L01", "L02", 7));
     expect(result.current[0].editedPreview).toEqual([
-      { workDate: "2026-06-15", shiftTypeId: "L02", staffId: 7 },
+      { workDate: "2026-06-15", shiftTypeId: "L02", staffId: 7, oldShiftTypeId: "L01", requirementId: null },
     ]);
     // removedShiftTypes carries the (date, oldType, staff) tuple so the
     // backend knows to delete the original row.
@@ -147,10 +147,15 @@ describe("useAutoSchedule — editShiftType (rewire shift)", () => {
   it("no-op when newShiftTypeId equals oldShiftTypeId (mark removed, no replacement)", () => {
     const { result } = renderHook(() => useAutoSchedule());
     act(() => result.current[1].editShiftType("2026-06-15", "L01", "L01", 7));
-    // editedPreview stays empty because the old and new shift types match —
-    // we only mark it removed; the backend sees no replacement row to add.
-    expect(result.current[0].editedPreview).toEqual([]);
-    expect([...result.current[0].removedShiftTypes]).toContain("2026-06-15_L01_7");
+    // BUGFIX (BUG#1): the hook preserves the (date, shiftType) entry when
+    // the new type equals the old one and only updates the staff in place.
+    // removedShiftTypes is intentionally NOT populated in this branch — the
+    // backend treats the replacement as an in-place staff update on the
+    // existing schedule row.
+    expect(result.current[0].editedPreview).toEqual([
+      { workDate: "2026-06-15", shiftTypeId: "L01", staffId: 7, requirementId: null },
+    ]);
+    expect([...result.current[0].removedShiftTypes]).not.toContain("2026-06-15_L01_7");
   });
 });
 
@@ -174,12 +179,16 @@ describe("useAutoSchedule — applyPreview", () => {
       await result.current[1].applyPreview(1, result.current[0].editedPreview, onSuccess);
     });
 
-    expect(api.applyPreview).toHaveBeenCalledWith({
-      periodId: 1,
-      algorithmType: "V10_LOCAL_SEARCH",
-      schedules: [{ workDate: "2026-06-15", shiftTypeId: "L02", staffId: 7 }],
-      removedSchedules: [{ workDate: "2026-06-15", shiftTypeId: "L01", staffId: 7 }],
-    });
+    expect(api.applyPreview).toHaveBeenCalledWith(
+      {
+        periodId: 1,
+        algorithmType: "V10_LOCAL_SEARCH",
+        overwriteExisting: true,
+        schedules: [{ workDate: "2026-06-15", shiftTypeId: "L02", staffId: 7, oldShiftTypeId: "L01", requirementId: null }],
+        removedSchedules: [{ workDate: "2026-06-15", shiftTypeId: "L01", staffId: 7 }],
+      },
+      { timeout: 120000 },
+    );
     expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 });

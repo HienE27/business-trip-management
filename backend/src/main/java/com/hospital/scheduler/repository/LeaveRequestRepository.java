@@ -35,6 +35,26 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Inte
     @Query("SELECT lr FROM LeaveRequest lr LEFT JOIN FETCH lr.staff WHERE lr.staff.id = :staffId")
     List<LeaveRequest> findByStaffId(@Param("staffId") Integer staffId);
 
+    /**
+     * Paginated query for one staff's leave requests with optional status
+     * and keyword filters. Used by the /leave-requests page when a STAFF
+     * user logs in — they should only ever see their own.
+     */
+    @Query("SELECT lr FROM LeaveRequest lr LEFT JOIN FETCH lr.staff s " +
+           "WHERE lr.staff.id = :staffId " +
+           "AND (:status IS NULL OR lr.status = :status) " +
+           "AND (:keyword IS NULL OR LOWER(s.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR LOWER(lr.reason) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<LeaveRequest> findByStaffIdWithFilters(
+            @Param("staffId") Integer staffId,
+            @Param("status") LeaveRequest.LeaveStatus status,
+            @Param("keyword") String keyword,
+            Pageable pageable);
+
+    /** Count of leave requests for one staff by status (used by staff-scoped /status-counts). */
+    @Query("SELECT count(lr) FROM LeaveRequest lr WHERE lr.staff.id = :staffId AND (:status IS NULL OR lr.status = :status)")
+    long countByStaffIdAndStatus(@Param("staffId") Integer staffId, @Param("status") LeaveRequest.LeaveStatus status);
+
     @Query("SELECT lr FROM LeaveRequest lr LEFT JOIN FETCH lr.staff WHERE lr.status = :status")
     List<LeaveRequest> findByStatus(@Param("status") LeaveRequest.LeaveStatus status);
 

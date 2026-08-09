@@ -86,13 +86,16 @@ describe("GuardedScheduleByTypePage — default ADMIN+MANAGER access", () => {
     });
   });
 
-  it("shows the denied state for STAFF (default allow list)", async () => {
+  it("shows the read-only StaffScheduleView for STAFF (default allow list)", async () => {
     mockedAuthState.user = { username: "alice", userId: 3, roles: ["STAFF"] };
     render(<GuardedScheduleByTypePage config={TEST_CONFIG} />);
 
-    expect(
-      screen.getByRole("heading", { name: /không có quyền/i }),
-    ).toBeInTheDocument();
+    // STAFF is in the default allow list, so they get the read-only
+    // personal-schedule view (StaffScheduleView), NOT the denied state.
+    // M01-F05: every role can view schedules — only the depth differs.
+    await waitFor(() => {
+      expect(screen.getByText(/cá nhân/i)).toBeInTheDocument();
+    });
     expect(screen.queryByTestId("schedule-by-type-page")).not.toBeInTheDocument();
   });
 
@@ -100,9 +103,11 @@ describe("GuardedScheduleByTypePage — default ADMIN+MANAGER access", () => {
     mockedAuthState.user = null;
     render(<GuardedScheduleByTypePage config={TEST_CONFIG} />);
 
-    expect(
-      screen.getByRole("heading", { name: /không có quyền/i }),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: /không có quyền/i }),
+      ).toBeInTheDocument();
+    });
   });
 });
 
@@ -116,9 +121,11 @@ describe("GuardedScheduleByTypePage — custom allow list", () => {
     mockedAuthState.user = { username: "manager", userId: 2, roles: ["MANAGER"] };
     render(<GuardedScheduleByTypePage config={TEST_CONFIG} allow={["ADMIN"]} />);
 
-    expect(
-      screen.getByRole("heading", { name: /không có quyền/i }),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: /không có quyền/i }),
+      ).toBeInTheDocument();
+    });
   });
 
   it("ADMIN-only allow list lets ADMIN through", async () => {
@@ -130,7 +137,7 @@ describe("GuardedScheduleByTypePage — custom allow list", () => {
     });
   });
 
-  it("ALL_ROLES allow list lets STAFF through", async () => {
+  it("ALL_ROLES allow list lets STAFF through to StaffScheduleView", async () => {
     mockedAuthState.user = { username: "alice", userId: 3, roles: ["STAFF"] };
     render(
       <GuardedScheduleByTypePage
@@ -139,8 +146,12 @@ describe("GuardedScheduleByTypePage — custom allow list", () => {
       />,
     );
 
+    // STAFF-only role lands on StaffScheduleView (read-only personal
+    // schedule) — the testid "schedule-by-type-page" is only rendered
+    // for ADMIN/MANAGER. M01-F05: STAFF still has access; they just
+    // see a different (read-only) component.
     await waitFor(() => {
-      expect(screen.getByTestId("schedule-by-type-page")).toBeInTheDocument();
+      expect(screen.getByText(/cá nhân/i)).toBeInTheDocument();
     });
   });
 });

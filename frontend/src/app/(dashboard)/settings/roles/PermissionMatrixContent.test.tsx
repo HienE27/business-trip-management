@@ -59,26 +59,32 @@ describe('PermissionMatrixContent', () => {
     await waitFor(() => {
       expect(screen.getByTestId('roles-matrix')).toBeInTheDocument();
     });
-      expect(screen.getByText('Quản lý lịch')).toBeInTheDocument();
-      expect(screen.getByText('Trưởng phòng')).toBeInTheDocument();
+    // Mock permissions (SCHEDULE_READ/SCHEDULE_WRITE) are not in the
+    // PERM_LABELS registry so they fall into the "Khác" extra group
+    // and render their raw perm name as fallback text.
+    expect(screen.getAllByText('SCHEDULE_READ').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('SCHEDULE_WRITE').length).toBeGreaterThan(0);
+    // Role badges are rendered with ROLE_LABELS (ADMIN=Quản lý lịch,
+    // MANAGER=Trưởng phòng, STAFF=Nhân viên).
+    expect(screen.getByText('Quản lý lịch')).toBeInTheDocument();
+    expect(screen.getByText('Trưởng phòng')).toBeInTheDocument();
     expect(screen.getByText('Nhân viên')).toBeInTheDocument();
-    expect(screen.getByText('Xem lịch trực')).toBeInTheDocument();
-    expect(screen.getByText('Tạo/sửa/xóa lịch trực')).toBeInTheDocument();
   });
 
   it('renders one toggle button per role x permission cell', async () => {
     getMatrixMock.mockResolvedValue({ success: true, data: mockMatrix } as any);
     await act(async () => { renderWithProvider(<PermissionMatrixContent />); });
-    await waitFor(() => { expect(screen.getByTestId('toggle-1-1')).toBeInTheDocument(); });
-    expect(screen.getAllByTestId(/^toggle-\d+-\d+$/)).toHaveLength(6);
+    await waitFor(() => { expect(screen.getByTestId('toggle-1-SCHEDULE_READ')).toBeInTheDocument(); });
+    // 3 roles x 2 permissions = 6 toggle cells.
+    expect(screen.getAllByTestId(/^toggle-\d+-SCHEDULE_(READ|WRITE)$/)).toHaveLength(6);
   });
 
   it('admin sees enabled toggles', async () => {
     getMatrixMock.mockResolvedValue({ success: true, data: mockMatrix } as any);
     await act(async () => { renderWithProvider(<PermissionMatrixContent />); });
-    await waitFor(() => { expect(screen.getByTestId('toggle-1-1')).toBeInTheDocument(); });
-    expect(screen.getByTestId('toggle-1-1')).not.toBeDisabled();
-    expect(screen.getByTestId('toggle-3-1')).not.toBeDisabled();
+    await waitFor(() => { expect(screen.getByTestId('toggle-1-SCHEDULE_READ')).toBeInTheDocument(); });
+    expect(screen.getByTestId('toggle-1-SCHEDULE_READ')).not.toBeDisabled();
+    expect(screen.getByTestId('toggle-3-SCHEDULE_READ')).not.toBeDisabled();
   });
 
   it('non-admin sees disabled toggles', async () => {
@@ -86,8 +92,13 @@ describe('PermissionMatrixContent', () => {
     vi.mocked(useRole).mockReturnValue('STAFF');
     getMatrixMock.mockResolvedValue({ success: true, data: mockMatrix } as any);
     await act(async () => { renderWithProvider(<PermissionMatrixContent />); });
-    await waitFor(() => { expect(screen.getByTestId('toggle-1-1')).toBeInTheDocument(); });
-    for (const btn of screen.getAllByRole('button')) {
+    await waitFor(() => { expect(screen.getByTestId('toggle-1-SCHEDULE_READ')).toBeInTheDocument(); });
+    // STAFF is read-only — every cell toggle button must be disabled.
+    const buttons = screen.getAllByRole('button').filter((b) =>
+      /^toggle-\d+-SCHEDULE_(READ|WRITE)$/.test(b.getAttribute('data-testid') ?? ''),
+    );
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const btn of buttons) {
       expect(btn).toBeDisabled();
     }
   });

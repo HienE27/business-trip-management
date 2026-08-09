@@ -70,6 +70,45 @@ public class LeaveRequestService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Staff-scoped paginated query — only return rows belonging to {@code
+     * staffId}. Used by Staff users via the /leave-requests/page endpoint
+     * after the controller detects the caller is not a manager.
+     */
+    public Page<LeaveRequestResponse> getLeaveRequestsByStaffPaged(
+            Integer staffId,
+            String status,
+            String keyword,
+            Pageable pageable) {
+        LeaveRequest.LeaveStatus parsedStatus = (status == null || status.isBlank())
+                ? null : LeaveRequest.LeaveStatus.valueOf(status.toUpperCase());
+        String kw = (keyword == null || keyword.isBlank()) ? null : keyword;
+        org.springframework.data.domain.Page<LeaveRequest> page =
+                leaveRequestRepository.findByStaffIdWithFilters(
+                        staffId,
+                        parsedStatus,
+                        kw,
+                        org.springframework.data.domain.PageRequest.of(
+                                pageable.getPageNumber(),
+                                pageable.getPageSize(),
+                                org.springframework.data.domain.Sort.by(
+                                        org.springframework.data.domain.Sort.Direction.DESC, "createdAt")));
+        return page.map(LeaveRequestResponse::fromEntity);
+    }
+
+    /** Staff-scoped status counts — total + per-status for one staff. */
+    public java.util.Map<String, Long> getStatusCountsByStaff(Integer staffId) {
+        java.util.Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        long total = 0;
+        for (LeaveRequest.LeaveStatus status : LeaveRequest.LeaveStatus.values()) {
+            long c = leaveRequestRepository.countByStaffIdAndStatus(staffId, status);
+            counts.put(status.name(), c);
+            total += c;
+        }
+        counts.put("total", total);
+        return counts;
+    }
+
     public List<LeaveRequestResponse> getPendingRequests() {
         return leaveRequestRepository.findPendingRequests().stream()
                 .map(LeaveRequestResponse::fromEntity)

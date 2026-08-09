@@ -177,15 +177,34 @@ public class EmailService {
 
         Context ctx = new Context();
         ctx.setVariable("staffName", staff.getFullName());
-        ctx.setVariable("workDate", schedule.getWorkDate().format(DATE_FMT));
-        ctx.setVariable("shiftTypeName", schedule.getShiftType().getName());
-        ctx.setVariable("shiftTypeId", schedule.getShiftType().getId());
-        ctx.setVariable("periodName", schedule.getPeriod().getPeriodName());
+        // Guard: schedule may be null when caller (e.g. validateAndThrowWithEmail)
+        // only has the staff + workDate + shiftTypeId tuple and no persisted Schedule.
+        String workDateStr = "N/A";
+        String shiftTypeName = "N/A";
+        String shiftTypeId = "N/A";
+        String periodName = "N/A";
+        if (schedule != null) {
+            if (schedule.getWorkDate() != null) {
+                workDateStr = schedule.getWorkDate().format(DATE_FMT);
+            }
+            if (schedule.getShiftType() != null) {
+                shiftTypeName = schedule.getShiftType().getName();
+                if (schedule.getShiftType().getId() != null) {
+                    shiftTypeId = schedule.getShiftType().getId();
+                }
+            }
+            if (schedule.getPeriod() != null && schedule.getPeriod().getPeriodName() != null) {
+                periodName = schedule.getPeriod().getPeriodName();
+            }
+        }
+        ctx.setVariable("workDate", workDateStr);
+        ctx.setVariable("shiftTypeName", shiftTypeName);
+        ctx.setVariable("shiftTypeId", shiftTypeId);
+        ctx.setVariable("periodName", periodName);
         ctx.setVariable("conflictDescription", conflictDescription);
 
         String subject = String.format("[%s] Cảnh báo xung đột lịch ngày %s",
-                schedule.getShiftType().getName(),
-                schedule.getWorkDate().format(DATE_FMT));
+                shiftTypeName, workDateStr);
         String htmlBody = templateEngine.process("email/conflict-alert", ctx);
         sendHtmlEmail(staff.getEmail(), subject, htmlBody);
     }

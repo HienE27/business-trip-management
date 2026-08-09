@@ -175,7 +175,16 @@ function SwapRequestsContent() {
         } catch (periodErr) {
           // Aborted fetches are expected on cleanup — don't surface them as errors
           if ((periodErr as { name?: string })?.name === "AbortError") return;
-          throw periodErr;
+          // BUGFIX (was FE-S6): Per-period fetches (/schedules/period/{id})
+          // require PERIOD_VIEW (manager-only). Staff don't have it, so
+          // these requests 403 and — pre-fix — wiped the already-loaded
+          // mySchedules via the outer catch. Swallow per-period errors
+          // here so the user's own schedules still render; just skip
+          // related schedule candidate lookup for that period.
+          console.warn("swap-requests: skipping related period on error", periodErr);
+          if (ignoreRef.current) return;
+          setAllSchedules([]);
+          return;
         } finally {
           for (const ctrl of periodControllers) {
             try { ctrl.abort(); } catch { /* noop */ }

@@ -24,27 +24,22 @@ public class ScheduleExchange {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "period_id", nullable = false)
-    @NotFound(action = NotFoundAction.IGNORE)
     private SchedulePeriod period;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "requester_id", nullable = false)
-    @NotFound(action = NotFoundAction.IGNORE)
     private Staff requester;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "target_id", nullable = false)
-    @NotFound(action = NotFoundAction.IGNORE)
     private Staff target;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "requester_schedule_id", nullable = false)
-    @NotFound(action = NotFoundAction.IGNORE)
     private Schedule requesterSchedule;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "target_schedule_id", nullable = false)
-    @NotFound(action = NotFoundAction.IGNORE)
     private Schedule targetSchedule;
 
     @Column(columnDefinition = "TEXT")

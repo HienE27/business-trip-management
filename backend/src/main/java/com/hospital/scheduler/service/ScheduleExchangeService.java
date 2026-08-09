@@ -96,6 +96,36 @@ public class ScheduleExchangeService {
         return counts;
     }
 
+    /**
+     * Staff-scoped status counts — exchanges where the user is requester or target.
+     */
+    public java.util.Map<String, Long> getStatusCountsForUser(Integer userId) {
+        java.util.Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        long total = 0;
+        for (ScheduleExchange.ExchangeStatus status : ScheduleExchange.ExchangeStatus.values()) {
+            long c = exchangeRepository.countByUserIdAndStatus(userId, status);
+            counts.put(status.name(), c);
+            total += c;
+        }
+        counts.put("total", total);
+        return counts;
+    }
+
+    /**
+     * Staff-scoped paginated query — exchanges where the user is requester or target.
+     */
+    public Page<ScheduleExchangeResponse> getExchangesForUserPaged(
+            Integer userId,
+            String status,
+            String keyword,
+            Pageable pageable) {
+        ScheduleExchange.ExchangeStatus parsedStatus = (status == null || status.isBlank())
+                ? null : ScheduleExchange.ExchangeStatus.valueOf(status.toUpperCase());
+        String kw = (keyword == null || keyword.isBlank()) ? null : keyword;
+        return exchangeRepository.findByUserIdWithFilters(userId, parsedStatus, kw, pageable)
+                .map(ScheduleExchangeResponse::fromEntity);
+    }
+
     public List<ScheduleExchangeResponse> getExchangesByRequester(Integer requesterId) {
         return exchangeRepository.findByRequesterId(requesterId).stream()
                 .map(ScheduleExchangeResponse::fromEntity)

@@ -31,9 +31,12 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   "/auto-scheduling": [Permission.AUTO_SCHEDULE_VIEW],
   "/algorithm-config": [Permission.AUTO_SCHEDULE_CONFIG_VIEW],
 
-  // Duyệt
-  "/leave-requests": [Permission.LEAVE_VIEW],
-  "/swap-requests": [Permission.EXCHANGE_VIEW],
+  // Duyệt — ADMIN/MANAGER xem/duyệt (LEAVE_VIEW / EXCHANGE_VIEW).
+  // STAFF xem yêu cầu của chính mình (LEAVE_CANCEL_SELF / EXCHANGE_CANCEL_SELF).
+  // Cả hai vai trò đều có thể vào trang; component sẽ tự filter "chỉ của tôi"
+  // cho STAFF dựa trên userId.
+  "/leave-requests": [Permission.LEAVE_VIEW, Permission.LEAVE_CANCEL_SELF],
+  "/swap-requests": [Permission.EXCHANGE_VIEW, Permission.EXCHANGE_CANCEL_SELF],
 
   // Báo cáo
   "/reports": [Permission.REPORT_VIEW],
@@ -51,8 +54,11 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // Schedule template
   "/schedule-templates": [Permission.SCHEDULE_TEMPLATE_MANAGE],
 
-  // Notifications — cho phép STAFF xem của mình
-  "/notifications": [Permission.NOTIFICATION_VIEW],
+  // Notifications — ADMIN/MANAGER xem hết (NOTIFICATION_VIEW).
+  // STAFF xem của chính mình (NOTIFICATION_MANAGE_SELF).
+  // Frontend `/notifications` đã có flow owner-aware (gọi /me/page khi là staff),
+  // nên chỉ cần một trong hai permission là đủ.
+  "/notifications": [Permission.NOTIFICATION_VIEW, Permission.NOTIFICATION_MANAGE_SELF],
 
   // Lịch theo kỳ (M02/M03/M04/M05) — chỉ cần SCHEDULE_VIEW. Component
   // ScheduleByTypePage tự phân nhánh theo role:
@@ -109,7 +115,10 @@ export function RouteGuard({ children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const { can } = usePermissions();
+  // ROUTE_PERMISSIONS entries are lists of acceptable permissions — user
+  // passes if they have ANY one of them. Use canAny (some) instead of can
+  // (every) which would require ALL listed permissions.
+  const { canAny } = usePermissions();
 
   const required = useMemo(() => requiredPermissionsForPath(pathname), [pathname]);
 
@@ -146,7 +155,7 @@ export function RouteGuard({ children }: Props) {
     return <>{children}</>;
   }
 
-  if (!can(required)) {
+  if (!canAny(required)) {
     return (
       <EmptyState
         icon="lock"

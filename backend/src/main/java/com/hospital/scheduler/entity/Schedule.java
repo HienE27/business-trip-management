@@ -35,7 +35,6 @@ public class Schedule {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "period_id", nullable = false)
-    @NotFound(action = NotFoundAction.IGNORE)
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private SchedulePeriod period;
 
@@ -44,13 +43,11 @@ public class Schedule {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "staff_id", nullable = false)
-    @NotFound(action = NotFoundAction.IGNORE)
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "staffRoles", "schedules", "leaveRequests"})
     private Staff staff;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shift_type_id", nullable = false)
-    @NotFound(action = NotFoundAction.IGNORE)
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private ShiftType shiftType;
 
