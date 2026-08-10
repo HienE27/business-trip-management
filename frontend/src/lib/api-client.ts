@@ -1444,9 +1444,12 @@ class ApiClient {
     return this.request<Holiday[]>("/holidays");
   }
 
-  /** Server-paginated variant — newest holidayDate first. */
-  async getHolidaysPage(page: number, size: number): Promise<Page<Holiday>> {
-    return this.getPage<Holiday>("/holidays/page", { page, size });
+  /** Server-paginated variant — supports optional year and isActive filters. */
+  async getHolidaysPage(page: number, size: number, year?: number, isActive?: boolean): Promise<Page<Holiday>> {
+    const params: Record<string, string> = { page: String(page), size: String(size) };
+    if (year !== undefined) params.year = String(year);
+    if (isActive !== undefined) params.isActive = String(isActive);
+    return this.getPage<Holiday>("/holidays/page", params);
   }
 
   async getActiveHolidays(): Promise<ApiResponse<Holiday[]>> {

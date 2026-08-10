@@ -7,8 +7,16 @@
 export type RoleCode = "ADMIN" | "MANAGER" | "STAFF";
 
 export const ROLE_LABELS: Record<string, string> = {
-  ADMIN: "Quản lý lịch",
-  MANAGER: "Trưởng phòng",
+  // BUGFIX (was RBAC#3): previous mapping was inverted — `ADMIN` was shown as
+  // "Quản lý lịch" (should be "Trưởng phòng") and `MANAGER` was shown as
+  // "Trưởng phòng" (should be "Quản lý lịch"). The two roles are distinct
+  // business roles per `PROJECT_CONTEXT.mdc`:
+  //   • ADMIN (Trưởng phòng) = full-system access
+  //   • MANAGER (Quản lý lịch) = schedule planner + approver
+  // Swapping the labels caused user confusion — a manager would see
+  // "Trưởng phòng" and assume they had admin powers.
+  ADMIN: "Trưởng phòng",
+  MANAGER: "Quản lý lịch",
   STAFF: "Nhân viên",
 };
 

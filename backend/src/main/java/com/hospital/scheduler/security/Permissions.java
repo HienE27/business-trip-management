@@ -95,6 +95,7 @@ public final class Permissions {
     public static final String DATA_INTEGRITY_RUN = "DATA_INTEGRITY_RUN";
 
     // ── Specialty / Shift Type ──────────────────────────────────────────
+    public static final String SPECIALTY_VIEW = "SPECIALTY_VIEW";
     public static final String SPECIALTY_MANAGE = "SPECIALTY_MANAGE";
     public static final String SHIFT_TYPE_MANAGE = "SHIFT_TYPE_MANAGE";
     public static final String SCHEDULE_TEMPLATE_MANAGE = "SCHEDULE_TEMPLATE_MANAGE";
@@ -173,6 +174,7 @@ public final class Permissions {
         m.put(APP_CONFIG_EDIT,         "Sửa cấu hình hệ thống");
         m.put(DATA_INTEGRITY_RUN,      "Chạy kiểm tra tính toàn vẹn dữ liệu");
 
+        m.put(SPECIALTY_VIEW,         "Xem danh mục chuyên khoa (chỉ active)");
         m.put(SPECIALTY_MANAGE,        "Quản lý danh mục chuyên khoa");
         m.put(SHIFT_TYPE_MANAGE,       "Quản lý danh mục loại ca");
         m.put(SCHEDULE_TEMPLATE_MANAGE, "Quản lý mẫu lịch trực");
@@ -234,6 +236,13 @@ public final class Permissions {
                 SCHEDULE_DELETE,
                 SCHEDULE_PUBLISH,
                 SCHEDULE_EXPORT,
+
+                // ── Specialty: xem (admin mới được CRUD) ───────────
+                // BUGFIX (was SPECIALTY-MANAGER-403): trang /expert-clinic
+                // cần dropdown chuyên khoa để filter L04, nhưng /specialties/active
+                // đang gate bằng SPECIALTY_MANAGE → MANAGER 403. Tách riêng
+                // SPECIALTY_VIEW (read-only) cho cả ADMIN + MANAGER.
+                SPECIALTY_VIEW,
 
                 // ── Auto-schedule M07: xem + chạy + áp dụng ───────────
                 //    (admin mới được sửa config)

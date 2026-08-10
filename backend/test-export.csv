@@ -1,0 +1,49 @@
+﻿id,username,Họ tên,Email,Số điện thoại,Chuyên khoa,Vai trò,Trạng thái
+,admin,Nguyễn Văn An,admin@hospital.com,0901000001,Ngoại,ADMIN,ACTIVE,NV001
+,manager1,Trần Thị Bình,manager1@hospital.com,0901000002,Ngoại,MANAGER,ACTIVE,NV002
+,manager2,Lê Hoàng Cường,manager2@hospital.com,0901000003,Nội,MANAGER,ACTIVE,NV003
+,nvminh,Nguyễn Văn Minh,nvminh@hospital.com,0901000004,Ngoại,STAFF,ACTIVE,NV004
+,tthuhien,Trần Thu Hiền,tthuhien@hospital.com,0901000005,Nội,STAFF,ACTIVE,NV005
+,lbthanhtam,Lê Bùi Thanh Tâm,lbthanhtam@hospital.com,0901000006,Ngoại,STAFF,ACTIVE,NV006
+,hpdat,Hoàng Phú Đạt,hpdat@hospital.com,0901000007,Nhi,STAFF,ACTIVE,NV007
+,ntphuong,Ngô Thị Phượng,ntphuong@hospital.com,0901000008,Sản,STAFF,ACTIVE,NV008
+,cmtuan,Chu Minh Tuấn,cmtuan@hospital.com,0901000009,Ngoại,STAFF,ACTIVE,NV009
+,dvanh,Đỗ Văn Anh,dvanh@hospital.com,0901000010,Nội,STAFF,ACTIVE,NV010
+,nthuylinh,Nguyễn Thị Huyền Linh,nthuylinh@hospital.com,0901000011,Ngoại,STAFF,ACTIVE,NV011
+,vtquan,Vũ Trọng Quân,vtquan@hospital.com,0901000012,Nhi,STAFF,ACTIVE,NV012
+,btdthu,Bùi Thị Diễm Thu,btdthu@hospital.com,0901000013,Mắt,STAFF,ACTIVE,NV013
+,nhduy,Nguyễn Hữu Duy,nhduy@hospital.com,0901000014,Ngoại,STAFF,ACTIVE,NV014
+,lthanhha,Lý Thị Thanh Hà,lthanhha@hospital.com,0901000015,Nội,STAFF,ACTIVE,NV015
+,dtqhieu,Đinh Trần Quang Hiếu,dtqhieu@hospital.com,0901000016,Ngoại,STAFF,ACTIVE,NV016
+,pthanh,Phạm Thị Thanh,pthanh@hospital.com,0901000017,Sản,STAFF,ACTIVE,NV017
+,vhhuy,Võ Hoàng Huy,vhhuy@hospital.com,0901000018,Nhi,STAFF,ACTIVE,NV018
+,atducd,Anh Trần Đức,atducd@hospital.com,0901000019,Ngoại,STAFF,ACTIVE,NV019
+,dttthuy,Đặng Trần Thanh Thúy,dttthuy@hospital.com,0901000020,Nội,STAFF,ACTIVE,NV020
+,lmtruong,Lê Minh Trường,lmtruong@hospital.com,0901000021,Răng,STAFF,ACTIVE,NV027
+,ptthao,Phan Thị Thảo,ptthao@hospital.com,0901000022,Răng,STAFF,ACTIVE,NV028
+,nvhai,Nguyễn Văn Hải,nvhai@hospital.com,0901000023,Răng,STAFF,ACTIVE,NV029
+,rbacc_test_BTdwQo,RBAC Test,rbactest_BTdwQo@test.com,,,,INACTIVE,NV030
+,rbacc_test_-TYCqg,RBAC Test,rbactest_-TYCqg@test.com,,,,INACTIVE,NV031
+,rbacc_test_k9AbAI,RBAC Test,rbactest_k9AbAI@test.com,,,,INACTIVE,NV032
+,rbacc_test_286Ur0,RBAC Test,rbactest_286Ur0@test.com,,,,INACTIVE,NV033
+,rbacc_test_l8gMa4,RBAC Test,rbactest_l8gMa4@test.com,,,,INACTIVE,NV034
+,rbacc_test_mOBkyQ,RBAC Test,rbactest_mOBkyQ@test.com,,,,INACTIVE,NV035
+,rbacc_866787_h_-_F4,RBAC Test,rbactest_866787_h_-_F4@test.com,,,,INACTIVE,NV036
+,rbacc_866787_wnGY0U,RBAC Test,rbactest_866787_wnGY0U@test.com,,,,INACTIVE,NV037
+,rbacc_866814_S9pldU,RBAC Test,rbactest_866814_S9pldU@test.com,,,,INACTIVE,NV038
+,rbacc_866814_cA1U_w,RBAC Test,rbactest_866814_cA1U_w@test.com,,,,INACTIVE,NV039
+,rbacc_866837_htJ0Ug,RBAC Test,rbactest_866837_htJ0Ug@test.com,,,,INACTIVE,NV040
+,rbacc_866837_40VOzs,RBAC Test,rbactest_866837_40VOzs@test.com,,,,INACTIVE,NV041
+,smoke_be11,Smoke BE11,smoke_be11@test.local,,,,INACTIVE,NV042
+,be11_1783911023441,BE11 Smoke,be11_1783911023441@test.local,,,,INACTIVE,NV043
+,rgrsn_1783913347033,Regression Staff,reg_1783913347033@test.local,,,,INACTIVE,NV044
+,rgrsn_1783913574856,Regression Staff,reg_1783913574856@test.local,,,,INACTIVE,NV045
+,rgrsn_1783913814897,Regression Staff,reg_1783913814897@test.local,,,,INACTIVE,NV046
+,rgrsn_1783914329093,Regression Staff,reg_1783914329093@test.local,,,,INACTIVE,NV047
+,teststaff,Test Staff,teststaff@hospital.com,,,STAFF,ACTIVE,NV048
+,manager,Test Manager,manager@hospital.com,,,,INACTIVE,NV049
+,test_api_browser,Test API Browser,test_api@hospital.vn,0901111222,,,ACTIVE,NV050
+,teststaff2026,Test Staff 2026 Updated,test2026@test.com,0909999999,,STAFF,ACTIVE,NV051
+,importtest1,Import Test 1,import1@test.com,0908888888,Ngoại,STAFF,ACTIVE,NV053
+,importtest2,Import Test 2,import2@test.com,0907777777,Ngoại,STAFF,ACTIVE,NV054
+,fktest,FK Test,fk@f.com,,,,INACTIVE,NV052

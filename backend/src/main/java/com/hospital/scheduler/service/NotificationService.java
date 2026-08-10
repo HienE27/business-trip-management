@@ -135,6 +135,16 @@ public class NotificationService {
     }
 
     public NotificationResponse createNotification(Integer staffId, NotificationDTO dto) {
+        // BUGFIX (was RBAC#1): defensive null check — even with the @NotNull
+        // guard on NotificationDTO.recipientId, programmatic callers (e.g.
+        // internal services, schedulers, tests) could still pass null and
+        // trigger JPA's "The given id must not be null" IllegalArgumentException
+        // deep in the stack → HTTP 500. Throwing BadRequestException here
+        // returns a clean 400 with a Vietnamese message.
+        if (staffId == null) {
+            throw new com.hospital.scheduler.exception.BadRequestException(
+                    "ID nhân sự nhận không được để trống");
+        }
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân sự với ID: " + staffId));
 

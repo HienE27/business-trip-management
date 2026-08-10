@@ -53,11 +53,18 @@ public class HolidayService {
 
     @Transactional(readOnly = true)
     public Page<HolidayResponse> getHolidaysPage(Pageable pageable) {
+        return getHolidaysPage(null, null, pageable);
+    }
+
+    /**
+     * Paginated holidays with optional year and isActive filters.
+     * @param year null = all years
+     * @param isActive null = both active and inactive
+     */
+    @Transactional(readOnly = true)
+    public Page<HolidayResponse> getHolidaysPage(Integer year, Boolean isActive, Pageable pageable) {
         return holidayRepository
-                .findAll(PageRequest.of(
-                        pageable.getPageNumber(),
-                        pageable.getPageSize(),
-                        Sort.by(Sort.Direction.DESC, "holidayDate")))
+                .findByYearAndIsActive(year, isActive, pageable)
                 .map(this::toResponse);
     }
 

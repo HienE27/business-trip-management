@@ -34,10 +34,13 @@ public class HolidayController {
     }
 
     @GetMapping("/page")
-    @Operation(summary = "Lấy danh sách ngày lễ có phân trang")
+    @Operation(summary = "Lấy danh sách ngày lễ có phân trang, hỗ trợ lọc theo năm và trạng thái hoạt động")
     @PreAuthorize("hasAuthority('" + Permissions.HOLIDAY_VIEW + "')")
-    public ResponseEntity<ApiResponse<Page<HolidayResponse>>> getHolidaysPage(Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(holidayService.getHolidaysPage(pageable)));
+    public ResponseEntity<ApiResponse<Page<HolidayResponse>>> getHolidaysPage(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Boolean isActive,
+            Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(holidayService.getHolidaysPage(year, isActive, pageable)));
     }
 
     @GetMapping("/active")

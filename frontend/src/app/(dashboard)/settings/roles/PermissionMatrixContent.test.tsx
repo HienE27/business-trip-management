@@ -64,10 +64,10 @@ describe('PermissionMatrixContent', () => {
     // and render their raw perm name as fallback text.
     expect(screen.getAllByText('SCHEDULE_READ').length).toBeGreaterThan(0);
     expect(screen.getAllByText('SCHEDULE_WRITE').length).toBeGreaterThan(0);
-    // Role badges are rendered with ROLE_LABELS (ADMIN=Quản lý lịch,
-    // MANAGER=Trưởng phòng, STAFF=Nhân viên).
-    expect(screen.getByText('Quản lý lịch')).toBeInTheDocument();
+    // Role badges are rendered with ROLE_LABELS (ADMIN=Trưởng phòng,
+    // MANAGER=Quản lý lịch, STAFF=Nhân viên).
     expect(screen.getByText('Trưởng phòng')).toBeInTheDocument();
+    expect(screen.getByText('Quản lý lịch')).toBeInTheDocument();
     expect(screen.getByText('Nhân viên')).toBeInTheDocument();
   });
 

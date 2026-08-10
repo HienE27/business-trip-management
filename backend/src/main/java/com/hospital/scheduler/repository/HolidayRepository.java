@@ -1,6 +1,7 @@
 package com.hospital.scheduler.repository;
 
 import com.hospital.scheduler.entity.Holiday;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -43,4 +44,18 @@ public interface HolidayRepository extends JpaRepository<Holiday, Integer> {
 
     @Query("SELECT h FROM Holiday h WHERE h.holidayDate BETWEEN :start AND :end AND h.isActive = true")
     List<Holiday> findActiveHolidaysBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /**
+     * Paginated query supporting optional year and isActive filters.
+     * When year is null → returns all years. When isActive is null → returns both.
+     * Results sorted by holidayDate descending.
+     */
+    @Query("SELECT h FROM Holiday h WHERE " +
+           "(:year IS NULL OR h.year = :year) AND " +
+           "(:isActive IS NULL OR h.isActive = :isActive) " +
+           "ORDER BY h.holidayDate DESC")
+    org.springframework.data.domain.Page<Holiday> findByYearAndIsActive(
+            @Param("year") Integer year,
+            @Param("isActive") Boolean isActive,
+            Pageable pageable);
 }

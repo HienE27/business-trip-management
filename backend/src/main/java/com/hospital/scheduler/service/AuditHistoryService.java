@@ -4,6 +4,7 @@ import com.hospital.scheduler.dto.response.AuditHistoryResponse;
 import com.hospital.scheduler.dto.response.AuditHistorySummaryResponse;
 import com.hospital.scheduler.entity.AuditHistory;
 import com.hospital.scheduler.entity.Staff;
+import com.hospital.scheduler.exception.ResourceNotFoundException;
 import com.hospital.scheduler.repository.AuditHistoryRepository;
 import com.hospital.scheduler.repository.StaffRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -291,7 +292,11 @@ public class AuditHistoryService {
     @Transactional
     public void deleteById(Integer id) {
         if (!auditHistoryRepository.existsById(id)) {
-            throw new IllegalArgumentException("Không tìm thấy bản ghi nhật ký với id: " + id);
+            // BUGFIX (was RBAC#2): IllegalArgumentException reached the
+            // GlobalExceptionHandler as an unhandled 500 Internal Server Error.
+            // ResourceNotFoundException is mapped to HTTP 404, which is what
+            // an idempotent DELETE expects when the target row is absent.
+            throw new ResourceNotFoundException("Không tìm thấy bản ghi nhật ký với id: " + id);
         }
         auditHistoryRepository.deleteById(id);
     }

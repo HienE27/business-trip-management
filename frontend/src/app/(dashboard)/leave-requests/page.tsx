@@ -321,6 +321,7 @@ function LeaveRequestsContent() {
     try {
       await api.put(`/leave-requests/${deleteTargetId}/cancel`, {});
       toastRef.current.success("Đã hủy yêu cầu nghỉ phép.");
+      setDetailRequest(null);
       await fetchRequests();
     } catch (err) {
       toastRef.current.error(getErrorMessage(err, "Lỗi hủy yêu cầu."));
@@ -329,6 +330,15 @@ function LeaveRequestsContent() {
       setDeleteTargetId(null);
     }
   }, [fetchRequests]);
+
+  // BUGFIX L2: managers need to be able to cancel an APPROVED leave from the
+  // detail modal — same wire endpoint (PUT /leave-requests/{id}/cancel) as the
+  // self-cancel flow, routed through ConfirmDialog so the action is explicit.
+  const handleManagerCancel = useCallback(() => {
+    if (!detailRequest) return;
+    setDeleteTargetId(detailRequest.id);
+    setConfirmOpen(true);
+  }, [detailRequest]);
 
   const handleOpenDetail = useCallback((req: LeaveRequest) => {
     setDetailRequest(req);
@@ -586,6 +596,19 @@ function LeaveRequestsContent() {
             >
               Đóng
             </Button>
+            {/* BUGFIX L2: manager can cancel an APPROVED leave directly from the detail modal.
+                Backend gate is hasAuthority('LEAVE_APPROVE') on PUT /leave-requests/{id}/cancel. */}
+            {canApprove && isManager && detailRequest.status === "APPROVED" && (
+              <Button
+                variant="danger"
+                size="md"
+                disabled={processing}
+                onClick={handleManagerCancel}
+                icon={<span className="material-symbols-outlined text-[18px]" aria-hidden="true">block</span>}
+              >
+                Hủy yêu cầu
+              </Button>
+            )}
             {canApprove && isManager && detailRequest.status === "PENDING" && (
               <>
                 <Button

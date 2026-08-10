@@ -93,6 +93,7 @@ export const Permission = {
   DATA_INTEGRITY_RUN: "DATA_INTEGRITY_RUN",
 
   // Specialty / Shift Type / Schedule Template
+  SPECIALTY_VIEW: "SPECIALTY_VIEW",
   SPECIALTY_MANAGE: "SPECIALTY_MANAGE",
   SHIFT_TYPE_MANAGE: "SHIFT_TYPE_MANAGE",
   SCHEDULE_TEMPLATE_MANAGE: "SCHEDULE_TEMPLATE_MANAGE",
@@ -139,6 +140,11 @@ export const RoleDefaultPermissions: Record<string, Permission[]> = {
     Permission.SCHEDULE_DELETE,
     Permission.SCHEDULE_PUBLISH,
     Permission.SCHEDULE_EXPORT,
+
+    // ── Specialty: xem (admin mới được CRUD) ───────────
+    // BUGFIX (was SPECIALTY-MANAGER-403): /expert-clinic cần dropdown
+    // chuyên khoa để filter L04. Backend cấp SPECIALTY_VIEW cho MANAGER.
+    Permission.SPECIALTY_VIEW,
 
     // ── Auto-schedule M07: xem + chạy + áp dụng ───────────
     Permission.AUTO_SCHEDULE_VIEW,

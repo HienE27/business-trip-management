@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Pagination } from "@/components/ui/Pagination";
@@ -45,6 +46,9 @@ const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 function HolidaysContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const { can } = usePermissions();
   const canCreate = can(Permission.HOLIDAY_CREATE);
   const canUpdate = can(Permission.HOLIDAY_UPDATE);
@@ -54,16 +58,20 @@ function HolidaysContent() {
 
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
-  const [typeFilter, setTypeFilter] = useState<string>("");
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  // ── URL-backed state (query-string driven) ─────────────────────────────
+  const page = Math.max(0, Number(searchParams.get("page") ?? 0));
+  const pageSize = Number(searchParams.get("size") ?? DEFAULT_PAGE_SIZE);
+  const yearFilter = searchParams.get("year") ?? String(new Date().getFullYear());
+  const typeFilter = searchParams.get("type") ?? "";
+  const showInactive = searchParams.get("inactive") === "1";
+  // ─────────────────────────────────────────────────────────────────────
+
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
@@ -74,42 +82,87 @@ function HolidaysContent() {
     description: "",
   });
 
-  const fetchHolidays = useCallback(async () => {
+  const fetchControllerRef = useRef<AbortController | null>(null);
+
+  // BUGFIX: previously pagination metadata (totalPages/totalElements) was based on
+  // the FULL unfiltered dataset, causing "1–10 / 19" on page 1 when only 1 item
+  // was active in 2026. Now year and isActive are sent to the backend API so
+  // the server returns accurate pagination metadata for the filtered result set.
+  const fetchHolidays = useCallback(async (pageToFetch: number, sizeToFetch: number) => {
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
     try {
-      const res = await api.getHolidaysPage(page, pageSize);
-      // The shared Holiday type treats isNationalHoliday as optional; the
-      // backend always returns a boolean so we cast to the stricter local
-      // view used by this page.
+      // year: null means "all years" (default = current year in URL state)
+      const yearParam = yearFilter === "all" ? undefined : Number(yearFilter);
+      // isActive: null = both active+inactive, true = active only
+      const isActiveParam = showInactive ? undefined : true;
+      const res = await api.getHolidaysPage(pageToFetch, sizeToFetch, yearParam, isActiveParam);
+      if (controller.signal.aborted) return;
       setHolidays((res.content ?? []) as Holiday[]);
       setTotalPages(res.totalPages ?? 0);
       setTotalElements(res.totalElements ?? 0);
     } catch (err) {
+      if (controller.signal.aborted) return;
       toast.error(getErrorMessage(err, "Không thể tải danh sách ngày lễ"));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [page, pageSize, toast]);
+  }, [yearFilter, showInactive, toast]);
 
   useEffect(() => {
-    fetchHolidays();
-  }, [fetchHolidays]);
+    setLoading(true);
+    fetchHolidays(page, pageSize);
+  }, [page, pageSize, fetchHolidays]);
 
-  // Compute the page-level filter (year / type) and the active-filter
-  // separately so the empty state can distinguish "no holidays in this
-  // page" from "no holidays match after the is-active filter". BUGFIX
-  // (was FE#12): the previous version conflated the two with a single
-  // `filtered` that included `h.isActive` — so users who toggled "inactive"
-  // saw "Không có ngày lễ, thêm mới nhé" and assumed the feature was
-  // missing.
-  const visibleOnPage = holidays.filter((h) => {
-    if (String(h.year) !== yearFilter && yearFilter !== "all") return false;
-    if (typeFilter === "national" && !h.isNationalHoliday) return false;
-    if (typeFilter === "special" && h.isNationalHoliday) return false;
-    return true;
-  });
-  const filtered = visibleOnPage.filter((h) => h.isActive);
-  const hasInactive = visibleOnPage.some((h) => !h.isActive);
-  const filterIsActive = yearFilter !== "all" || typeFilter !== "all";
+  // ── URL update helper ────────────────────────────────────────────────
+  // BUGFIX (was HOLIDAY-PAGINATION-URL): pagination, yearFilter, and
+  // typeFilter were stored only in React state — clicking page 2 changed
+  // the internal page value but the URL stayed at /holidays.
+  // This broke browser back/forward navigation, shareable deep-links, and
+  // caused the page to reset to page 1 on reload.
+  // Solution: derive page/size/year/type from URL query params and push
+  // URL changes on every interaction (filter change, page change, size change).
+  const updateURL = useCallback(
+    (opts: {
+      page?: number | null;
+      size?: number | null;
+      year?: string | null;
+      type?: string | null;
+      inactive?: boolean | null;
+    } = {}) => {
+      const p = opts.page !== undefined
+        ? (opts.page === null ? null : opts.page)
+        : Number(searchParams.get("page") ?? 0);
+      const s = opts.size !== undefined
+        ? (opts.size === null ? null : opts.size)
+        : Number(searchParams.get("size") ?? DEFAULT_PAGE_SIZE);
+      const y = opts.year !== undefined ? opts.year : searchParams.get("year");
+      const t = opts.type !== undefined ? opts.type : searchParams.get("type") ?? "";
+      const inactive = opts.inactive !== undefined ? opts.inactive : (searchParams.get("inactive") === "1");
+
+      const params = new URLSearchParams();
+      if (p !== 0) params.set("page", String(p));
+      if (s !== DEFAULT_PAGE_SIZE && s !== null) params.set("size", String(s));
+      if (y && y !== "all") params.set("year", y);
+      if (t) params.set("type", t);
+      if (inactive) params.set("inactive", "1");
+
+      const qs = params.toString();
+      router.push(`/holidays${qs ? `?${qs}` : ""}`, { scroll: false });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, searchParams]
+  );
+  // ─────────────────────────────────────────────────────────────────────
+  // Note: year/type/isActive filtering is now done server-side via the API.
+  // The `holidays` array is already the correctly filtered + paginated result.
+  // Client-side filtering has been removed to ensure pagination metadata
+  // (totalPages/totalElements) is accurate for the current filter state.
+  const filterIsActive = yearFilter !== "all" || typeFilter !== "";
 
   const openAdd = () => {
     setEditingId(null);
@@ -150,7 +203,7 @@ function HolidaysContent() {
         toast.success("Thêm ngày lễ thành công");
       }
       setShowModal(false);
-      await fetchHolidays();
+      await fetchHolidays(page, pageSize);
     } catch (err) {
       toast.error(getErrorMessage(err, "Có lỗi xảy ra"));
     } finally {
@@ -165,7 +218,7 @@ function HolidaysContent() {
       await api.delete(`/holidays/${deleteId}`);
       toast.success("Xóa ngày lễ thành công");
       setDeleteId(null);
-      await fetchHolidays();
+      await fetchHolidays(page, pageSize);
     } catch (err) {
       toast.error(getErrorMessage(err, "Có lỗi xảy ra"));
     } finally {
@@ -174,8 +227,7 @@ function HolidaysContent() {
   };
 
   const handlePageSizeChange = (size: number) => {
-    setPageSize(size);
-    setPage(0);
+    updateURL({ size, page: 0 });
   };
 
   const formatDateDisplay = (dateStr: string) => {
@@ -233,8 +285,7 @@ function HolidaysContent() {
           <select
             value={yearFilter}
             onChange={(e) => {
-              setYearFilter(e.target.value);
-              setPage(0);
+              updateURL({ year: e.target.value, page: 0 });
             }}
             className="h-9 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none cursor-pointer"
           >
@@ -249,8 +300,7 @@ function HolidaysContent() {
           <select
             value={typeFilter}
             onChange={(e) => {
-              setTypeFilter(e.target.value);
-              setPage(0);
+              updateURL({ type: e.target.value || null, page: 0 });
             }}
             className="h-9 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none cursor-pointer"
           >
@@ -259,41 +309,41 @@ function HolidaysContent() {
             <option value="special">Ngày nghỉ đặc biệt</option>
           </select>
         </div>
+        {/* Toggle: hiện/ẩn inactive holidays — toggles server-side isActive filter */}
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(e) => {
+              updateURL({ inactive: e.target.checked || null, page: 0 });
+            }}
+            className="h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary"
+          />
+          <span className="text-label-sm text-on-surface-variant">Hiện ngưng hoạt động</span>
+        </label>
         <p className="text-label-sm text-on-surface-variant ml-auto">
           {totalElements} ngày lễ
         </p>
       </div>
 
-      {/* Table */}
-      {filtered.length === 0 ? (
-        // FE#12 empty state — three distinct cases:
-        //   (a) user has a filter applied but no matches -> suggest relaxing the filter
-        //   (b) hidden (inactive) rows exist on this page -> suggest toggling isActive
-        //   (c) genuinely no holidays -> offer create CTA
+      {/* Table — data is already filtered by year + isActive from the API */}
+      {holidays.length === 0 ? (
         <EmptyState
-          icon={filterIsActive ? "filter_alt" : hasInactive ? "visibility_off" : "celebration"}
+          icon={filterIsActive ? "filter_alt" : "celebration"}
           title={
             filterIsActive
               ? "Không có ngày lễ khớp bộ lọc"
-              : hasInactive
-                ? "Không có ngày lễ đang kích hoạt trên trang này"
-                : "Chưa có ngày lễ nào"
+              : "Chưa có ngày lễ nào"
           }
           description={
             filterIsActive
               ? "Hãy thử bỏ bộ lọc năm hoặc loại để xem các ngày lễ khác."
-              : hasInactive
-                ? "Có ngày lễ đang ở trạng thái ngưng hoạt động — bật \"Hiện ngưng hoạt động\" trong bộ lọc để xem."
-                : "Thêm ngày lễ mới để quản lý lịch trực chính xác hơn."
+              : "Thêm ngày lễ mới để quản lý lịch trực chính xác hơn."
           }
           action={
             filterIsActive ? (
-              <Button variant="secondary" size="md" onClick={() => { setYearFilter("all"); setTypeFilter("all"); }}>
+              <Button variant="secondary" size="md" onClick={() => { updateURL({ year: "all", type: null, page: 0 }); }}>
                 Bỏ bộ lọc
-              </Button>
-            ) : hasInactive ? (
-              <Button variant="secondary" size="md" onClick={() => { /* TODO: implement isActive filter toggle */ }}>
-                Hiện ngưng hoạt động
               </Button>
             ) : canCreate ? (
               <Button variant="primary" size="md" icon={<span className="material-symbols-outlined text-[18px]">add</span>} onClick={openAdd}>
@@ -317,7 +367,7 @@ function HolidaysContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">
-                {filtered.map((h) => (
+                {holidays.map((h) => (
                   <tr key={h.id} className="hover:bg-surface-container-low transition-colors">
                     <td className="px-5 py-3">
                       <p className="text-label-md text-on-surface font-medium">{h.name}</p>
@@ -379,7 +429,7 @@ function HolidaysContent() {
             totalPages={totalPages}
             totalItems={totalElements}
             pageSize={pageSize}
-            onPageChange={(p) => setPage(p - 1)}
+            onPageChange={(p) => updateURL({ page: p - 1 })}
             onPageSizeChange={handlePageSizeChange}
           />
         </div>

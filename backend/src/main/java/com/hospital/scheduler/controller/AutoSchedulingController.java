@@ -169,7 +169,14 @@ public class AutoSchedulingController {
 
     @PostMapping("/save-template")
     @Operation(summary = "M07-F10: Lưu lịch đã xếp tự động thành mẫu để tái sử dụng")
-    @PreAuthorize("hasAuthority('" + Permissions.SCHEDULE_TEMPLATE_MANAGE + "')")
+    // BUGFIX (was SAVE-TEMPLATE-403): endpoint này chỉ xuất ra schedule_template
+    // chứ KHÔNG chỉnh sửa period/schedule — tức là admin/manager đều cần
+    // dùng. Trước đây gate bằng SCHEDULE_TEMPLATE_MANAGE (chỉ ADMIN có), khiến
+    // MANAGER — người xếp lịch chính — bị 403 khi muốn lưu mẫu cho kỳ sau.
+    // AUTO_SCHEDULE_VIEW vì người gọi đã chạy auto-schedule (cần auto-schedule
+    // view+run) và giờ muốn lưu kết quả. SCHEDULE_TEMPLATE_MANAGE vẫn gate
+    // cho các endpoint CRUD pattern (POST/PUT/DELETE trên /schedule-templates).
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
     public ResponseEntity<ApiResponse<ScheduleTemplateResponse>> saveAsTemplate(
             @Valid @RequestBody SaveTemplateRequest request) {
         var result = scheduleTemplateService.saveTemplateFromGenerated(request);

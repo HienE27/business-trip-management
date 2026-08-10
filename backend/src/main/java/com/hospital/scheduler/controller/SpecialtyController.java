@@ -31,19 +31,20 @@ public class SpecialtyController {
     @Operation(summary = "Lấy danh sách chuyên khoa")
     // BUGFIX (was SPECIALTY-CONFIG-LEAK): the OR with STAFF_VIEW opened
     // the full specialty list to anyone with STAFF_VIEW (admin/manager).
-    // Drop the STAFF_VIEW branch — STAFF gets no raw specialty list.
-    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
+    // Split into SPECIALTY_VIEW (read, ADMIN + MANAGER) and SPECIALTY_MANAGE
+    // (full CRUD, ADMIN only).
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_VIEW + "')")
     public ResponseEntity<ApiResponse<List<SpecialtyResponse>>> getAllSpecialties() {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getAllSpecialties()));
     }
 
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách chuyên khoa đang hoạt động")
-    // BUGFIX (was SPECIALTY-CONFIG-LEAK): SCHEDULE_VIEW + STAFF_VIEW_SELF
-    // both let STAFF pull the full active-specialty catalog. Specialty
-    // list is config data — manager/admin only. The staff's own specialty
-    // is already exposed via /staff/me.
-    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
+    // BUGFIX (was SPECIALTY-CONFIG-LEAK + SPECIALTY-MANAGER-403): chuyển
+    // sang SPECIALTY_VIEW. STAFF không có quyền này — chuyên khoa của họ
+    // đã có sẵn qua /staff/me. MANAGER cần dropdown này để filter L04
+    // (phòng khám chuyên gia) trên /expert-clinic.
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_VIEW + "')")
     public ResponseEntity<ApiResponse<List<SpecialtyResponse>>> getActiveSpecialties() {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getActiveSpecialties()));
     }
@@ -69,7 +70,7 @@ public class SpecialtyController {
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết chuyên khoa")
     // BUGFIX (was SPECIALTY-CONFIG-LEAK): same as the list above.
-    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_MANAGE + "')")
+    @PreAuthorize("hasAuthority('" + Permissions.SPECIALTY_VIEW + "')")
     public ResponseEntity<ApiResponse<SpecialtyResponse>> getSpecialtyById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.success(specialtyService.getSpecialtyById(id)));
     }
