@@ -56,7 +56,7 @@ const ALGO_CONFIG: Record<AlgorithmType, {
   GREEDY:        { icon: "bolt",         label: "Greedy",       desc: "Nhanh, tham lam" },
   FAIR_GREEDY:   { icon: "autorenew",    label: "Fair Greedy",  desc: "Cân bằng luân phiên" },
   CSP_MRV_FC:    { icon: "account_tree", label: "CSP-MRV-FC",   desc: "CSP + MRV + Forward Checking" },
-  V10_LOCAL_SEARCH: { icon: "psychology", label: "v10 Local Search", desc: "Tabu + mẫu hóa + thống kê tăng dần" },
+  V10_LOCAL_SEARCH: { icon: "psychology", label: "Local Search", desc: "Tabu + mẫu hóa + thống kê tăng dần" },
 };
 
 // ponytail: format milliseconds theo góc nhìn người dùng. <1s hiển thị ms, ngược lại giây 1 chữ số.
