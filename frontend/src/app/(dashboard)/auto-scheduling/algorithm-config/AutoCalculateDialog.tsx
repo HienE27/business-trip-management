@@ -395,9 +395,9 @@ function Tooltip({ content, children }: { content: string; children: React.React
 
 function InfoCard({ title, content, icon, type }: { title: string; content: string; icon: string; type: "info" | "tip" | "warning" }) {
   const colors = {
-    info: "bg-blue-50 border-blue-200 text-blue-800",
-    tip: "bg-green-50 border-green-200 text-green-800",
-    warning: "bg-amber-50 border-amber-200 text-amber-800",
+    info: "bg-primary-fixed text-on-primary-fixed border border-primary-fixed/30",
+    tip: "bg-secondary-container text-on-secondary-container border border-secondary-container",
+    warning: "bg-tertiary-fixed text-on-tertiary-fixed border border-tertiary-fixed/30",
   };
   const icons = { info: "info", tip: "lightbulb", warning: "warning" };
 
@@ -1374,10 +1374,10 @@ export function AutoCalculateDialog({
               <section className={`rounded-xl border p-4 space-y-3 ${
                 errors.length > 0
                   ? "bg-error-container/30 border-error/30"
-                  : "bg-amber-50 border-amber-200"
+                  : "bg-tertiary-fixed/30 border-tertiary-fixed/30"
               }`}>
                 <h4 className={`text-label-sm font-semibold flex items-center gap-2 ${
-                  errors.length > 0 ? "text-error" : "text-amber-700"
+                  errors.length > 0 ? "text-error" : "text-tertiary"
                 }`}>
                   <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
                     {errors.length > 0 ? "error" : "warning"}
@@ -1387,15 +1387,15 @@ export function AutoCalculateDialog({
                 <div className="space-y-2">
                   {[...errors, ...warnings].map((v) => (
                     <div key={v.key} className={`flex items-start gap-3 p-2 rounded-lg ${
-                      v.type === "error" ? "bg-white/50" : "bg-amber-100/50"
+                      v.type === "error" ? "bg-surface-container-low" : "bg-tertiary-fixed/20"
                     }`}>
                       <span className={`material-symbols-outlined text-[14px] shrink-0 mt-0.5 ${
-                        v.type === "error" ? "text-error" : "text-amber-600"
+                        v.type === "error" ? "text-error" : "text-tertiary"
                       }`} aria-hidden="true">
                         {v.type === "error" ? "close" : "info"}
                       </span>
                       <div className="flex-1">
-                        <p className={`text-[12px] ${v.type === "error" ? "text-error" : "text-amber-800"}`}>
+                        <p className={`text-[12px] ${v.type === "error" ? "text-error" : "text-on-tertiary-fixed"}`}>
                           {v.message}
                         </p>
                         {v.fixSuggestion && (
@@ -1490,7 +1490,7 @@ export function AutoCalculateDialog({
                       const hasWarning = warnings.some(w => w.key.startsWith(tid));
                       const meta = SHIFT_META[tid];
                       return (
-                        <tr key={tid} className={`hover:bg-surface-container-lowest transition-colors ${hasWarning ? "bg-amber-50" : ""}`}>
+                        <tr key={tid} className={`hover:bg-surface-container-lowest transition-colors ${hasWarning ? "bg-tertiary-fixed/20" : ""}`}>
                           <td className="py-2 px-3">
                             <div className="flex items-center gap-2">
                               <span className={`font-mono font-bold text-[13px] ${meta.color}`}>{tid}</span>
@@ -1539,7 +1539,7 @@ export function AutoCalculateDialog({
                           <td className="py-2 px-3 text-right">
                             <Tooltip content={parseFloat(weeklyAvg) > 6 ? "Hơi nhiều, theo dõi kỹ" : "Bình thường"}>
                               <span className={`font-mono text-[12px] ${
-                                parseFloat(weeklyAvg) > 6 ? "text-amber-600 font-bold" : "text-on-surface-variant"
+                                parseFloat(weeklyAvg) > 6 ? "text-tertiary font-bold" : "text-on-surface-variant"
                               }`}>
                                 {weeklyAvg}
                               </span>

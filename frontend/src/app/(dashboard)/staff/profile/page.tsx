@@ -455,7 +455,7 @@ export default function StaffProfilePage() {
                     <div className="w-full bg-surface-container-highest rounded-full h-3 overflow-hidden">
                       <div
                         className={`h-3 rounded-full transition-all duration-500 ${
-                          isOverload ? "bg-error" : workloadPercent > 80 ? "bg-amber-500" : "bg-primary"
+                          isOverload ? "bg-error" : workloadPercent > 80 ? "bg-tertiary" : "bg-primary"
                         }`}
                         style={{ width: `${workloadPercent}%` }}
                       />

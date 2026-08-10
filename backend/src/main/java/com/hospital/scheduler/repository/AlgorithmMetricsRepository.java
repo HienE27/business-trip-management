@@ -16,6 +16,19 @@ public interface AlgorithmMetricsRepository extends JpaRepository<AlgorithmMetri
     Page<AlgorithmMetrics> findByPeriodId(Integer periodId, Pageable pageable);
     List<AlgorithmMetrics> findByAlgorithmType(String algorithmType);
 
+    /**
+     * Bulk delete by id list. Returns the number of rows actually removed.
+     * Used by the bulk-delete UI on /auto-scheduling/history.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM AlgorithmMetrics m WHERE m.id IN :ids")
+    int deleteByIdInBatch(@Param("ids") java.util.List<Integer> ids);
+
+    /** Delete every metric whose createdAt falls inside [start, end). */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM AlgorithmMetrics m WHERE m.createdAt >= :start AND m.createdAt < :end")
+    int deleteByCreatedAtRange(@Param("start") java.time.LocalDateTime start, @Param("end") java.time.LocalDateTime end);
+
     /** Paginated query with optional keyword + algoType + coverage filters. */
     @Query("SELECT m FROM AlgorithmMetrics m LEFT JOIN m.period p " +
            "WHERE (:periodId IS NULL OR m.period.id = :periodId) " +

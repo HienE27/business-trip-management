@@ -193,14 +193,14 @@ public class NotificationService {
         if (!notificationRepository.existsById(notificationId)) {
             throw new ResourceNotFoundException("Không tìm thấy thông báo với ID: " + notificationId);
         }
-        
+
         // Get staff ID before deleting for broadcast
         Notification notification = notificationRepository.findById(notificationId).orElse(null);
         Integer staffId = notification != null ? notification.getStaff().getId() : null;
-        
+
         notificationRepository.deleteById(notificationId);
         auditHistoryService.logAction("notification", notificationId, AuditHistory.ActionType.DELETE, null, null, null);
-        
+
         // Broadcast via WebSocket
         if (staffId != null) {
             notificationBroadcastService.broadcastNotificationDeleted(notificationId, staffId);
@@ -208,17 +208,93 @@ public class NotificationService {
     }
 
     /**
+     * Bulk delete by id list. Returns the number of rows actually removed.
+     * Silently skips unknown ids so it stays idempotent for the UI "Xóa nhiều"
+     * flow where the user might have selected rows that have already been
+     * deleted in another tab.
+     *
+     * <p>Owns the ownership check: each notification must belong to the
+     * caller (or the caller must have {@code NOTIFICATION_VIEW}). Otherwise
+     * we throw {@link ResourceNotFoundException} so the bulk delete never
+     * leaks cross-staff deletions.
+     */
+    public int deleteNotificationsByIds(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) return 0;
+        Integer callerStaffId = authContextService.getCurrentStaff().getId();
+        boolean isAdmin = authContextService.hasAuthority(com.hospital.scheduler.security.Permissions.NOTIFICATION_VIEW);
+
+        // Look up owning staff in one query so we don't N+1 the audit log.
+        List<Notification> existing = notificationRepository.findAllById(ids);
+        for (Notification n : existing) {
+            if (!isAdmin && !n.getStaff().getId().equals(callerStaffId)) {
+                throw new ResourceNotFoundException("Không tìm thấy thông báo");
+            }
+        }
+
+        int deleted = notificationRepository.deleteByIdInBatch(ids);
+        auditHistoryService.logAction("notification", 0, AuditHistory.ActionType.DELETE, null, null, null);
+
+        // Broadcast so any open subscription for these staff rows updates.
+        for (Notification n : existing) {
+            notificationBroadcastService.broadcastNotificationDeleted(n.getId(), n.getStaff().getId());
+        }
+        return deleted;
+    }
+
+    /**
+     * Delete every notification whose {@code createdAt} falls inside
+     * {@code [start, end)}. Admins wipe globally; everyone else wipes only
+     * their own rows. The {@code staffId} parameter is intentional —
+     * non-admin callers must pass their own id here, so we never expose a
+     * cross-staff delete through this path.
+     */
+    public int deleteNotificationsByDateRange(LocalDateTime start, LocalDateTime end, Integer staffId) {
+        boolean isAdmin = authContextService.hasAuthority(com.hospital.scheduler.security.Permissions.NOTIFICATION_VIEW);
+
+        List<Notification> toDelete;
+        if (isAdmin) {
+            toDelete = notificationRepository.findAll();
+        } else {
+            toDelete = notificationRepository.findByStaffIdOrderByCreatedAtDesc(staffId);
+        }
+        List<Notification> inRange = toDelete.stream()
+                .filter(n -> !n.getCreatedAt().isBefore(start) && n.getCreatedAt().isBefore(end))
+                .collect(Collectors.toList());
+        if (inRange.isEmpty()) return 0;
+        List<Integer> ids = inRange.stream().map(Notification::getId).collect(Collectors.toList());
+        int deleted = notificationRepository.deleteByIdInBatch(ids);
+        auditHistoryService.logAction("notification", 0, AuditHistory.ActionType.DELETE, null, null, null);
+        for (Notification n : inRange) {
+            notificationBroadcastService.broadcastNotificationDeleted(n.getId(), staffId);
+        }
+        return deleted;
+    }
+
+    /**
+     * Delete every notification belonging to the caller. Used by the
+     * "Xóa tất cả" action on /notifications. Admins with NOTIFICATION_VIEW
+     * wipe their own row set (not the whole table) — the broadcast channel
+     * would otherwise trigger a stampede on every connected user.
+     */
+    public int deleteAllNotificationsForCaller() {
+        Integer callerStaffId = authContextService.getCurrentStaff().getId();
+        int deleted = notificationRepository.deleteAllByStaffId(callerStaffId);
+        auditHistoryService.logAction("notification", 0, AuditHistory.ActionType.DELETE, null, null, null);
+        return deleted;
+    }
+
+    /**
      * Batch create notifications for multiple staff members in a single DB operation.
      * This is an optimization for auto-scheduling apply which may need to notify
      * 250+ staff members — previously this caused ~250 individual INSERT queries.
-     * 
+     *
      * BUGFIX (apply-preview-slow): notifications were created one-by-one causing
      * ~15s overhead on large schedules. Batch insert reduces this to ~1-2s.
-     * 
+     *
      * Error handling: individual notification failures are logged but don't fail
      * the entire batch. Notifications are "nice-to-have" — schedule persistence
      * should not be blocked by notification failures.
-     * 
+     *
      * @param notifications List of (staffId, dto) pairs to create
      * @return count of successfully created notifications
      */

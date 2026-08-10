@@ -37,7 +37,7 @@ const MatrixRowCell = memo(function MatrixRowCell({ row, staffId, staffName, onC
       <td className="border-b border-r border-outline-variant p-1 align-top h-16 bg-surface-container-high/60 cursor-default" title="Ngày nghỉ bù">
         <div className="h-full flex flex-col items-center justify-center gap-1">
           <div className="flex items-center gap-1 rounded-full bg-outline px-2 py-0.5 text-[10px] font-semibold text-white">
-            <span className="material-symbols-outlined text-[12px]">hotel</span>NB
+            <span className="material-symbols-outlined text-[12px]">bedtime</span>NB
           </div>
           <span className="text-[9px] text-outline text-center leading-tight">Nghỉ bù</span>
         </div>

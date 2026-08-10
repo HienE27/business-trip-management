@@ -47,15 +47,15 @@
   --color-on-secondary-fixed: #002109;
   --color-on-secondary-fixed-variant: #005320;
 
-  /* ── Tertiary ── */
-  --color-tertiary: #973400;
+  /* ── Tertiary (Blue) — warning / advisory / tertiary accent ── */
+  --color-tertiary: #1d4ed8;
   --color-on-tertiary: #ffffff;
-  --color-tertiary-container: #c04400;
-  --color-on-tertiary-container: #ffede7;
-  --color-tertiary-fixed: #ffdbce;
-  --color-tertiary-fixed-dim: #ffb599;
-  --color-on-tertiary-fixed: #370e00;
-  --color-on-tertiary-fixed-variant: #7f2a00;
+  --color-tertiary-container: #dbeafe;
+  --color-on-tertiary-container: #1e3a8a;
+  --color-tertiary-fixed: #bfdbfe;
+  --color-tertiary-fixed-dim: #93c5fd;
+  --color-on-tertiary-fixed: #1e3a8a;
+  --color-on-tertiary-fixed-variant: #1e40af;
 
   /* ── Expert Clinic (Purple) ── */
   --color-expert: #8b5cf6;

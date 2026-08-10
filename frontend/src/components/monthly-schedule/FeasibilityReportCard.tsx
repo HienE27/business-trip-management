@@ -225,8 +225,8 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
             // Risk badge config
             const riskConfig: Record<BufferRisk, { label: string; bg: string; text: string; icon: string }> = {
               NONE: { label: "An toàn", bg: "bg-secondary-container", text: "text-on-secondary-container", icon: "check_circle" },
-              LOW: { label: "Thấp", bg: "bg-yellow-100", text: "text-yellow-800", icon: "info" },
-              MEDIUM: { label: "Trung bình", bg: "bg-orange-100", text: "text-orange-800", icon: "warning" },
+              LOW: { label: "Thấp", bg: "bg-primary-fixed", text: "text-on-primary-fixed", icon: "info" },
+              MEDIUM: { label: "Trung bình", bg: "bg-tertiary-fixed", text: "text-on-tertiary-fixed", icon: "warning" },
               HIGH: { label: "Nguy hiểm", bg: "bg-error-container", text: "text-on-error-container", icon: "error" },
             };
             const risk = (summary.bufferRisk as BufferRisk) || "NONE";
@@ -262,14 +262,14 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className={`text-label-xs ${colors.text} opacity-75`}>Buffer dự phòng</span>
-                    <span className={`text-label-xs font-semibold ${buffer >= 1 ? "text-secondary" : buffer === 0 ? "text-error" : "text-yellow-600"}`}>
+                    <span className={`text-label-xs font-semibold ${buffer >= 1 ? "text-secondary" : buffer === 0 ? "text-error" : "text-tertiary"}`}>
                       {buffer > 0 ? `+${buffer}` : buffer === 0 ? "0" : buffer}
                     </span>
                   </div>
-                  <div className={`w-full rounded-full h-2 ${colors.bg.replace("50", "100")}`}>
+                  <div className={`w-full rounded-full h-2 ${colors.bg}`}>
                     <div
                       className={`h-2 rounded-full transition-all ${
-                        buffer > 0 ? "bg-secondary" : buffer === 0 ? "bg-error" : "bg-yellow-400"
+                        buffer > 0 ? "bg-secondary" : buffer === 0 ? "bg-error" : "bg-tertiary"
                       }`}
                       style={{ width: `${Math.min(100, pct)}%` }}
                       title={`${summary.noBufferDays}/${summary.totalDays} ngày không có buffer`}

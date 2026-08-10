@@ -29,6 +29,22 @@ public interface NotificationRepository extends JpaRepository<Notification, Inte
 
     long countByStaffId(Integer staffId);
 
+    /**
+     * Bulk delete by id list. Returns the number of rows actually removed.
+     * Used by the bulk-delete UI on /notifications.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM Notification n WHERE n.id IN :ids")
+    int deleteByIdInBatch(@Param("ids") java.util.List<Integer> ids);
+
+    /**
+     * Wipe every notification belonging to a staff member. Used by the
+     * "Xóa tất cả" action on /notifications.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM Notification n WHERE n.staff.id = :staffId")
+    int deleteAllByStaffId(@Param("staffId") Integer staffId);
+
     /** Paginated query with optional filters. tab values: all|unread|conflict|exchange|published|system */
     @Query("SELECT n FROM Notification n LEFT JOIN FETCH n.staff WHERE n.staff.id = :staffId " +
            "AND (:tab = 'all' OR (:tab = 'unread' AND n.isRead = false) " +

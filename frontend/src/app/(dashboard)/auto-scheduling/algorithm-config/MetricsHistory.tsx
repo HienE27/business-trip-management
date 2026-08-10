@@ -25,9 +25,9 @@ const COVERAGE_OPTIONS: { value: CoverageFilter; label: string }[] = [
 ];
 
 function coverageTone(value: number): { bar: string; text: string } {
-  if (value >= 90) return { bar: "bg-blue-500", text: "text-blue-600" };
-  if (value >= 70) return { bar: "bg-amber-500", text: "text-amber-600" };
-  return { bar: "bg-red-500", text: "text-red-600" };
+  if (value >= 90) return { bar: "bg-primary", text: "text-primary" };
+  if (value >= 70) return { bar: "bg-secondary", text: "text-secondary" };
+  return { bar: "bg-error", text: "text-error" };
 }
 
 function formatExecTime(ms: number): string {

@@ -151,10 +151,10 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
                 <div className="flex flex-col min-w-0 leading-tight">
                   <span className={`flex items-center gap-1 font-mono text-[11px] font-bold px-1.5 py-0.5 rounded w-fit ${
                     param.endsWith("MinPerDay")
-                      ? "bg-emerald-50 text-emerald-700"
+                      ? "bg-secondary-container text-on-secondary-container"
                       : param.endsWith("MaxPerDay")
-                      ? "bg-yellow-50 text-yellow-700"
-                      : "bg-pink-50 text-pink-700"
+                      ? "bg-tertiary-fixed text-on-tertiary-fixed"
+                      : "bg-primary-fixed text-on-primary-fixed"
                   }`}>
                     <span className="material-symbols-outlined text-[10px] shrink-0" aria-hidden="true">{iconName}</span>
                     {label}

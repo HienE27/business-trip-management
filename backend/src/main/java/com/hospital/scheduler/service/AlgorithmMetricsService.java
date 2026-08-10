@@ -180,4 +180,36 @@ public class AlgorithmMetricsService {
                 .createdAt(metric.getCreatedAt())
                 .build();
     }
+
+    /**
+     * Bulk delete by id list. Mirrors the audit-history "Xóa nhiều" flow.
+     * Skips unknown ids silently so the call stays idempotent.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public int deleteMetricsByIds(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) return 0;
+        return metricsRepository.deleteByIdInBatch(ids);
+    }
+
+    /**
+     * Delete every metric row whose {@code createdAt} falls inside
+     * {@code [start, end)}. The frontend passes ISO {@code yyyy-MM-dd}
+     * dates; the controller widens them to a half-open range so the end
+     * day is inclusive.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public int deleteMetricsByDateRange(LocalDateTime start, LocalDateTime end) {
+        return metricsRepository.deleteByCreatedAtRange(start, end);
+    }
+
+    /**
+     * Wipe the entire {@code algorithm_metrics} table. Requires the
+     * typed-confirm UI gate on the frontend.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public int deleteAllMetrics() {
+        int total = (int) metricsRepository.count();
+        metricsRepository.deleteAllInBatch();
+        return total;
+    }
 }

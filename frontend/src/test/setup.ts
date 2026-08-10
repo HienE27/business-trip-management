@@ -100,16 +100,12 @@ console.warn = navErrorFilter(console.warn);
 // some code paths (notably `<a href="...">` auto-navigation triggered
 // by setTimeout) print directly to the host stderr. Override the
 // module so all "Not implemented: navigation" errors become no-ops.
-vi.mock(
-  'jsdom/lib/jsdom/browser/not-implemented.js',
-  () => ({
-    __esModule: true,
-    default: () => {
-      /* swallow jsdom navigation errors in tests */
-    },
-  }),
-  { virtual: true },
-);
+vi.mock('jsdom/lib/jsdom/browser/not-implemented.js', () => ({
+  __esModule: true,
+  default: () => {
+    /* swallow jsdom navigation errors in tests */
+  },
+}));
 
 if (typeof window !== 'undefined') {
   window.addEventListener('error', (e) => {

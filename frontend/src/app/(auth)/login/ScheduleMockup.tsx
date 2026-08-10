@@ -72,10 +72,10 @@ const SHIFTS_BY_DAY: Cell[][] = [
 ];
 
 const CELL_BG: Record<CellKind, string> = {
-  duty24: "bg-primary text-on-primary shadow-sm shadow-primary/30",
-  allday: "bg-orange-500 text-white shadow-sm shadow-orange-500/30",
-  service: "bg-purple-500 text-white shadow-sm shadow-purple-500/30",
-  expert: "bg-pink-500 text-white shadow-sm shadow-pink-500/30",
+  duty24: "bg-shift-24 text-white shadow-sm shadow-red-500/30",
+  allday: "bg-secondary text-on-secondary shadow-sm shadow-secondary/30",
+  service: "bg-shift-service text-white shadow-sm shadow-tertiary/30",
+  expert: "bg-shift-expert text-white shadow-sm shadow-purple-500/30",
   off: "bg-surface-container-highest",
 };
 
@@ -182,7 +182,7 @@ export const ScheduleMockup = memo(function ScheduleMockup() {
             <span className="h-2.5 w-2.5 rounded-sm bg-primary" /> 24/24
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-sm bg-orange-500" /> Thông tầm
+            <span className="h-2.5 w-2.5 rounded-sm bg-secondary" /> Thông tầm
           </span>
           <span className="inline-flex items-center gap-1">
             <span className="h-2.5 w-2.5 rounded-sm bg-purple-500" /> PK DV

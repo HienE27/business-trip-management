@@ -152,11 +152,11 @@ function PermissionGroup({
   
   // Dynamic gradient based on progress
   const getProgressGradient = () => {
-    if (progressPercent === 0) return "from-slate-400 to-slate-500";
-    if (progressPercent < 33) return "from-red-400 to-orange-400";
-    if (progressPercent < 66) return "from-amber-400 to-yellow-400";
-    if (progressPercent < 100) return "from-emerald-400 to-teal-400";
-    return "from-green-400 to-emerald-400";
+    if (progressPercent === 0) return "from-outline to-outline-variant";
+    if (progressPercent < 33) return "from-error/50 to-error-container";
+    if (progressPercent < 66) return "from-tertiary/30 to-tertiary-fixed";
+    if (progressPercent < 100) return "from-primary-fixed to-primary-container";
+    return "from-secondary-container to-secondary";
   };
 
   return (
@@ -250,8 +250,8 @@ function PermissionGroup({
                           className={[
                             "relative flex h-10 w-14 items-center justify-center rounded-xl border-2 transition-all duration-300 shadow-sm",
                             granted
-                              ? `bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-300 text-emerald-600 hover:from-red-50 hover:to-orange-50 hover:border-red-300 hover:text-red-500 shadow-emerald-200`
-                              : "border-slate-300 bg-slate-50 text-slate-400 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-500",
+                              ? `bg-secondary-container border-secondary text-on-secondary-container hover:from-error-container hover:to-error hover:border-error hover:text-on-error shadow-secondary/20`
+                              : "border-outline-variant bg-surface-container-low text-outline hover:border-secondary hover:bg-secondary-container hover:text-on-secondary-container",
                             (!isAdmin || saving) && "cursor-not-allowed opacity-50",
                             isPending && "animate-pulse ring-2 ring-primary ring-offset-2",
                           ].join(" ")}
@@ -385,7 +385,7 @@ function RoleSummaryCard({
               type="button"
               onClick={onRevokeAll}
               disabled={saving || grantedPerms === 0}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[12px] font-semibold bg-gradient-to-r from-red-50 to-orange-50 hover:from-red-100 hover:to-orange-100 text-red-700 border border-red-200 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[12px] font-semibold bg-error-container text-on-error-container hover:bg-error hover:text-on-error border border-error/20 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
             >
               <span className="material-symbols-outlined text-[16px]">remove_circle</span>
               Thu hồi tất cả
@@ -546,19 +546,28 @@ export function PermissionMatrixContent() {
   const confirmBulkAction = async () => {
     if (!bulkActionRole) return;
     const { roleId, roleName, grantAll } = bulkActionRole;
-    
+
     try {
       setSaving(true);
-      // Get all permissions for this role
-      const perms = permMap.values();
-      for (const perm of perms) {
+      // Collect only the cells that actually need to change so the bulk
+      // call does the minimum amount of work — and the audit log only
+      // records the deltas.
+      const permissionIds: number[] = [];
+      for (const perm of permMap.values()) {
         const key = `${roleId}|${perm.name}`;
         const current = matrixLookup.get(key) ?? false;
         if (current !== grantAll) {
-          await api.toggleRolePermission({ roleId, permissionId: perm.id, granted: grantAll });
+          permissionIds.push(perm.id);
         }
       }
-      
+
+      if (permissionIds.length > 0) {
+        // Single bulk endpoint → single transaction on the backend,
+        // single permission-version bump. Avoids the N round-trip + N
+        // bump() calls that the per-cell loop used to do.
+        await api.bulkToggleRolePermission({ roleId, permissionIds, granted: grantAll });
+      }
+
       // Refresh matrix
       const res = await api.getRolePermissionMatrix();
       setMatrix(res.data);

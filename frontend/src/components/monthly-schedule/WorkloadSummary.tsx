@@ -191,7 +191,7 @@ export function WorkloadSummary({ periodId, shiftTypeId, groupBySpecialty }: Wor
           // Per-staff row
           const staffRow = r as StaffRow;
           const overAvg = staffRow.total > avg * 1.3;
-          const barColor = overAvg ? "bg-error/80" : staffRow.total > avg ? "bg-amber-500/80" : "bg-primary/80";
+          const barColor = overAvg ? "bg-error/80" : staffRow.total > avg ? "bg-tertiary/80" : "bg-primary/80";
           return (
             <div key={staffRow.staffId} className="flex items-center gap-3">
               <div className="w-44 shrink-0 text-label-md text-on-surface truncate" title={staffRow.name}>

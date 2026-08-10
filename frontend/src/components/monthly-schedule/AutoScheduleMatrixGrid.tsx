@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { ScheduleMatrixGrid } from "@/components/dashboard/ScheduleMatrixGrid";
+import { deriveCompensationDaysFromPreview } from "@/lib/schedule/previewCompensation";
 import type { Schedule } from "@/types/api";
 import type { AutoScheduleSummary } from "@/types/api";
 
@@ -15,6 +16,12 @@ export type AutoScheduleMatrixGridProps = {
   viewMode: ViewMode;
   filteredStaffIds: Set<number>;
   editedPreview: Array<{ workDate: string; shiftTypeId: string; staffId: number }>;
+  /**
+   * Optional list of compensation days loaded from the backend (DB-stored
+   * comp days for the period). Used to render "🌙 Nghỉ bù" cells alongside
+   * any preview-derived comp days from L01 schedules in the current run.
+   */
+  compensationDays?: import("@/types/api").CompensationDay[];
   onViewDetail?: (schedule: Schedule) => void;
   /** Called when user clicks an item chip in the preview grid */
   onEditItem?: (item: AutoScheduleSummary) => void;
@@ -100,6 +107,7 @@ export function AutoScheduleMatrixGrid({
   viewMode,
   filteredStaffIds,
   editedPreview,
+  compensationDays = [],
   onViewDetail,
   onEditItem,
   onAddItem,
@@ -140,6 +148,34 @@ export function AutoScheduleMatrixGrid({
     }
     return Array.from(base.values());
   }, [adapted, editedPreview]);
+
+  // Merge comp days from two sources:
+  // 1. DB comp days (passed as prop) — available after Apply or for existing period data
+  // 2. Derived from this run's L01 preview — available immediately after algorithm finishes
+  //    (before Apply, DB may be empty because skipExisting clears it first)
+  // The union of both ensures NB cells appear at all times during the workflow.
+  const derivedCompDays = useMemo(() => {
+    const derived = deriveCompensationDaysFromPreview(
+      adaptedWithEdits.map((s) => ({
+        staffId: s.staff.id,
+        workDate: s.workDate,
+        shiftTypeId: s.shiftType.id,
+      })),
+    );
+    const derivedAsCompDays: import("@/types/api").CompensationDay[] = derived.map((d) => ({
+      id: d.id,
+      staffId: d.staffId,
+      staffName: "",
+      compensationDate: d.compensationDate,
+      shiftDate: d.shiftDate,
+    }));
+    // De-duplicate: prefer DB comp days (positive id) over derived (negative id)
+    const dbIds = new Set(compensationDays.map((c) => `${c.staffId}|${c.compensationDate.split("T")[0]}`));
+    const filtered = derivedAsCompDays.filter(
+      (d) => !dbIds.has(`${d.staffId}|${d.compensationDate}`),
+    );
+    return [...compensationDays, ...filtered];
+  }, [adaptedWithEdits, compensationDays]);
 
   // Derive the anchor Monday for week navigation.
   // On mount / when schedules change, anchor resets to the earliest schedule's week.
@@ -221,6 +257,7 @@ export function AutoScheduleMatrixGrid({
         month={gridMonth}
         weekStart={weekRange?.weekStart}
         weekEnd={weekRange?.weekEnd}
+        compensationDays={derivedCompDays}
         onViewDetail={onViewDetail}
         onItemClickOverride={onEditItem ? (schedule) => {
           const item = filteredSchedules.find(

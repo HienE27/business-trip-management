@@ -495,6 +495,57 @@ public class AutoSchedulingController {
     }
 
     // ============================================================
+    // Metric history delete (parity with /audit-history)
+    // ============================================================
+
+    /**
+     * Bulk delete by id list. Mirrors the audit-history "Xóa nhiều" flow.
+     * Skips unknown ids silently so the call stays idempotent.
+     */
+    @DeleteMapping("/metrics")
+    @Operation(summary = "Xóa nhiều lịch sử thuật toán theo id (trong body)")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Integer>>> deleteMetricsBulk(@RequestBody java.util.List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.success(java.util.Map.of("deleted", 0)));
+        }
+        int deleted = metricsService.deleteMetricsByIds(ids);
+        return ResponseEntity.ok(ApiResponse.success(java.util.Map.of("deleted", deleted), "Đã xóa " + deleted + " lịch sử."));
+    }
+
+    /**
+     * Delete every metric whose {@code createdAt} falls inside [startDate, endDate).
+     * Both endpoints are inclusive; the controller widens the end date by one day
+     * so the entire {@code endDate} is included.
+     */
+    @DeleteMapping("/metrics/date-range")
+    @Operation(summary = "Xóa lịch sử thuật toán trong khoảng ngày (yyyy-MM-dd)")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Integer>>> deleteMetricsByDateRange(
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate startDate,
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate endDate) {
+        if (endDate.isBefore(startDate)) {
+            return ResponseEntity.ok(ApiResponse.success(java.util.Map.of("deleted", 0)));
+        }
+        java.time.LocalDateTime start = startDate.atStartOfDay();
+        java.time.LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+        int deleted = metricsService.deleteMetricsByDateRange(start, end);
+        return ResponseEntity.ok(ApiResponse.success(java.util.Map.of("deleted", deleted), "Đã xóa " + deleted + " lịch sử."));
+    }
+
+    /**
+     * Wipe the entire {@code algorithm_metrics} table. Requires the
+     * typed-confirm UI gate on the frontend.
+     */
+    @DeleteMapping("/metrics/all")
+    @Operation(summary = "Xóa toàn bộ lịch sử thuật toán")
+    @PreAuthorize("hasAuthority('" + Permissions.AUTO_SCHEDULE_VIEW + "')")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Integer>>> deleteAllMetrics() {
+        int deleted = metricsService.deleteAllMetrics();
+        return ResponseEntity.ok(ApiResponse.success(java.util.Map.of("deleted", deleted), "Đã xóa " + deleted + " lịch sử."));
+    }
+
+    // ============================================================
     // Lock cleanup (admin only)
     // ============================================================
 

@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Pagination } from "@/components/ui/Pagination";
+import { Button, IconButton } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
+import { useToast } from "@/hooks/useToast";
 import { BackButton } from "@/components/ui/BackButton";
 import type { AlgorithmMetrics, ApiResponse, SchedulePeriod } from "@/types/api";
 
@@ -15,6 +17,8 @@ const CompareModal = dynamic(
   () => import("./CompareModal").then((m) => m.CompareModal),
   { loading: () => null },
 );
+
+const DELETE_ALL_CONFIRM_PHRASE = "XÓA TẤT CẢ";
 
 const ALGO_LABELS: Record<string, string> = {
   GREEDY: "Tham lam",
@@ -25,7 +29,7 @@ const ALGO_LABELS: Record<string, string> = {
 const ALGO_COLORS: Record<string, string> = {
   GREEDY: "bg-primary-fixed text-primary border-primary/30",
   FAIR_GREEDY: "bg-secondary-container text-on-secondary-container border-secondary/30",
-  CSP_MRV_FC: "bg-amber-100 text-amber-800 border-amber-300",
+  CSP_MRV_FC: "bg-tertiary-fixed text-on-tertiary-fixed border-tertiary/30",
 };
 
 function formatDateTime(iso: string) {
@@ -59,17 +63,19 @@ interface RunRowProps {
   isSelected: boolean;
   onToggle: () => void;
   canSelectTwo: boolean;
+  deleteSelected: boolean;
+  onToggleDelete: () => void;
 }
 
-function RunRow({ run, periodName, isSelected, onToggle, canSelectTwo }: RunRowProps) {
+function RunRow({ run, periodName, isSelected, onToggle, canSelectTwo, deleteSelected, onToggleDelete }: RunRowProps) {
   return (
     <tr
       className={`border-b border-outline-variant hover:bg-surface-container-low transition-colors h-12 cursor-pointer ${
         isSelected ? "bg-primary-fixed" : ""
-      }`}
+      } ${deleteSelected ? "ring-2 ring-error/40 ring-inset" : ""}`}
       onClick={onToggle}
     >
-      {/* Checkbox */}
+      {/* Checkbox (compare) */}
       <td className="py-2 px-4 w-10">
         <input
           type="checkbox"
@@ -77,6 +83,17 @@ function RunRow({ run, periodName, isSelected, onToggle, canSelectTwo }: RunRowP
           onChange={onToggle}
           disabled={!canSelectTwo && !isSelected}
           className="w-4 h-4 accent-primary rounded cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </td>
+      {/* Checkbox (delete bulk) */}
+      <td className="py-2 px-4 w-10">
+        <input
+          type="checkbox"
+          checked={deleteSelected}
+          onChange={onToggleDelete}
+          aria-label={`Chọn để xóa lần chạy ${run.id}`}
+          className="w-4 h-4 accent-error rounded cursor-pointer"
           onClick={(e) => e.stopPropagation()}
         />
       </td>
@@ -154,6 +171,28 @@ function AlgorithmHistoryContent() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
+  // Bulk delete + typed-confirm state — mirrors the audit-history pattern.
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [deleteDialogType, setDeleteDialogType] = useState<"bulk" | "date-range" | "all" | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteDateFrom, setDeleteDateFrom] = useState("");
+  const [deleteDateTo, setDeleteDateTo] = useState("");
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = useState("");
+  const toast = useToast();
+
+  // Helper: today's date in YYYY-MM-DD using local timezone (matches the
+  // backend storage column). Same shape as audit-history so the two
+  // dialogs feel identical.
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
+  const subDateStr = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
   const loadPeriods = useCallback(async () => {
     try {
       const periodsRes = await api.getAllPeriods();
@@ -196,6 +235,55 @@ function AlgorithmHistoryContent() {
     }
   };
 
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === allRuns.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allRuns.map((r) => r.id)));
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteDialogType || deleting) return;
+    setDeleting(true);
+    try {
+      if (deleteDialogType === "bulk") {
+        const ids = Array.from(selectedIds);
+        const count = await api.deleteMultipleMetrics(ids);
+        toast.success(`Đã xóa ${count} lần chạy.`);
+        setSelectedIds(new Set());
+        setDeleteDialogType(null);
+        await loadRuns();
+      } else if (deleteDialogType === "date-range") {
+        const count = await api.deleteMetricsByDateRange(deleteDateFrom, deleteDateTo);
+        toast.success(`Đã xóa ${count} lần chạy.`);
+        setDeleteDialogType(null);
+        setDeleteDateFrom("");
+        setDeleteDateTo("");
+        await loadRuns();
+      } else if (deleteDialogType === "all") {
+        const count = await api.deleteAllMetrics();
+        toast.success(`Đã xóa toàn bộ ${count} lần chạy.`);
+        setDeleteDialogType(null);
+        setDeleteAllConfirmText("");
+        setSelectedIds(new Set());
+        await loadRuns();
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Lỗi xóa lịch sử thuật toán."));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const getPeriodName = (run: AlgorithmMetrics) => {
     // AlgorithmMetrics doesn't have periodId in the type, but the backend returns it
     const p = (run as unknown as Record<string, unknown>).periodName as string | undefined;
@@ -229,6 +317,18 @@ function AlgorithmHistoryContent() {
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
         <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-[12px] text-on-surface-variant cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-outline-variant accent-primary cursor-pointer"
+              checked={allRuns.length > 0 && selectedIds.size === allRuns.length}
+              onChange={toggleSelectAll}
+              disabled={allRuns.length === 0}
+              aria-label="Chọn tất cả"
+            />
+            <span>Chọn tất cả</span>
+          </label>
+
           <div className="relative">
             <label htmlFor="history-period-select" className="sr-only">Lọc theo kỳ lịch</label>
             <select
@@ -254,7 +354,48 @@ function AlgorithmHistoryContent() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {selectedIds.size > 0 && (
+            <span className="text-[12px] text-primary font-semibold tabular-nums">
+              {selectedIds.size} đã chọn
+            </span>
+          )}
+
+          {selectedIds.size > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setDeleteDialogType("bulk")}
+              icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete</span>}
+            >
+              Xóa ({selectedIds.size})
+            </Button>
+          )}
+
+          {allRuns.length > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => { setDeleteDialogType("date-range"); setDeleteDateFrom(subDateStr(29)); setDeleteDateTo(todayStr); }}
+              icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete_sweep</span>}
+            >
+              Xóa theo ngày
+            </Button>
+          )}
+
+          {allRuns.length > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => { setDeleteDialogType("all"); setDeleteAllConfirmText(""); }}
+              icon={<span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete_forever</span>}
+            >
+              Xóa tất cả
+            </Button>
+          )}
+
+          <div className="w-px h-6 bg-outline-variant" />
+
           {(compareA ? 1 : 0) + (compareB ? 1 : 0) > 0 && (
             <span className="text-label-sm text-on-surface-variant">
               {(compareA ? 1 : 0) + (compareB ? 1 : 0)}/2 đã chọn
@@ -303,7 +444,8 @@ function AlgorithmHistoryContent() {
             <table className="w-full text-left border-collapse" aria-label="Page Table">
               <thead>
                 <tr className="bg-surface-container-low border-b border-outline-variant">
-                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase w-10">Chọn</th>
+                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase w-10">So sánh</th>
+                  <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase w-10">Xóa</th>
                   <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thời gian</th>
                   <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Kỳ lịch</th>
                   <th scope="col" className="py-3 px-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Thuật toán</th>
@@ -323,6 +465,8 @@ function AlgorithmHistoryContent() {
                     isSelected={compareA?.id === run.id || compareB?.id === run.id}
                     onToggle={() => handleToggle(run)}
                     canSelectTwo={!compareA || !compareB}
+                    deleteSelected={selectedIds.has(run.id)}
+                    onToggleDelete={() => toggleSelect(run.id)}
                   />
                 ))}
               </tbody>
@@ -350,6 +494,121 @@ function AlgorithmHistoryContent() {
           periodNameB={getPeriodName(compareB!)}
           onClose={() => { setOpenCompare(false); setCompareA(null); setCompareB(null); }}
         />
+      )}
+
+      {/* Bulk delete confirm */}
+      {deleteDialogType === "bulk" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget && !deleting) setDeleteDialogType(null); }}>
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in">
+            <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-outline-variant">
+              <div className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-title-lg font-semibold text-on-surface">Xóa {selectedIds.size} lần chạy?</h2>
+                <p className="text-body-sm text-on-surface-variant mt-1">Bạn có chắc muốn xóa {selectedIds.size} lần chạy đã chọn? Hành động này không thể hoàn tác.</p>
+              </div>
+              <IconButton label="Đóng" variant="ghost" size="sm" disabled={deleting} onClick={() => !deleting && setDeleteDialogType(null)} className="shrink-0 text-on-surface-variant">
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
+              </IconButton>
+            </div>
+            <div className="flex gap-2 px-5 py-4">
+              <Button variant="secondary" size="md" fullWidth disabled={deleting} onClick={() => setDeleteDialogType(null)}>Hủy</Button>
+              <Button variant="danger" size="md" fullWidth loading={deleting} onClick={handleConfirmDelete}>Xóa</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Date-range delete */}
+      {deleteDialogType === "date-range" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget && !deleting) setDeleteDialogType(null); }}>
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-2xl w-full max-w-sm mx-4 animate-scale-in">
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-outline-variant">
+              <h2 className="text-title-lg font-semibold text-on-surface">Xóa theo khoảng ngày</h2>
+              <IconButton label="Đóng" variant="ghost" size="sm" disabled={deleting} onClick={() => !deleting && setDeleteDialogType(null)} className="ml-auto text-on-surface-variant">
+                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+              </IconButton>
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-3">
+              <p className="text-body-sm text-on-surface-variant">Chọn khoảng ngày cần xóa (cả hai đầu đều bao gồm).</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="metrics-del-from" className="text-[12px] font-semibold text-on-surface-variant">Từ ngày</label>
+                  <input id="metrics-del-from" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={deleteDateFrom} onChange={(e) => setDeleteDateFrom(e.target.value)} disabled={deleting} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="metrics-del-to" className="text-[12px] font-semibold text-on-surface-variant">Đến ngày</label>
+                  <input id="metrics-del-to" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={deleteDateTo} onChange={(e) => setDeleteDateTo(e.target.value)} disabled={deleting} />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="secondary" size="md" fullWidth disabled={deleting} onClick={() => setDeleteDialogType(null)}>Hủy</Button>
+                <Button variant="danger" size="md" fullWidth disabled={!deleteDateFrom || !deleteDateTo || deleteDateFrom > deleteDateTo || deleting} loading={deleting} onClick={handleConfirmDelete}>Xóa</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Typed-confirm delete all */}
+      {deleteDialogType === "all" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="metrics-delete-all-title" onClick={(e) => { if (e.target === e.currentTarget && !deleting) { setDeleteDialogType(null); setDeleteAllConfirmText(""); } }}>
+          <div className="bg-surface-container-lowest border border-error/40 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in">
+            <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-outline-variant">
+              <div className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+              </div>
+              <div className="flex-1">
+                <h2 id="metrics-delete-all-title" className="text-title-lg font-semibold text-on-surface">Xóa toàn bộ lịch sử thuật toán?</h2>
+                <p className="text-body-sm text-on-surface-variant mt-1">Hành động này sẽ xóa vĩnh viễn <strong className="font-semibold text-error tabular-nums">{totalElements.toLocaleString("vi")}</strong> lần chạy trong bảng algorithm_metrics. Không thể hoàn tác.</p>
+              </div>
+              <IconButton label="Đóng" variant="ghost" size="sm" disabled={deleting} onClick={() => { if (!deleting) { setDeleteDialogType(null); setDeleteAllConfirmText(""); } }} className="shrink-0 text-on-surface-variant">
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
+              </IconButton>
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-3">
+              <div className="bg-error-container border border-error/20 rounded-lg p-3 flex items-start gap-2">
+                <span className="material-symbols-outlined text-error text-[18px] mt-0.5">info</span>
+                <p className="text-[13px] text-on-error-container leading-snug">
+                  Để xác nhận, hãy gõ chính xác cụm từ{" "}
+                  <code className="px-1.5 py-0.5 rounded bg-error/15 text-error font-mono font-bold text-[12px]">{DELETE_ALL_CONFIRM_PHRASE}</code>
+                  {" "}vào ô bên dưới.
+                </p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="metrics-delete-all-confirm" className="text-[12px] font-semibold text-on-surface-variant">Xác nhận xóa</label>
+                <input
+                  id="metrics-delete-all-confirm"
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={deleteAllConfirmText}
+                  onChange={(e) => setDeleteAllConfirmText(e.target.value)}
+                  placeholder={DELETE_ALL_CONFIRM_PHRASE}
+                  className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-error/30 focus:border-error transition-all font-mono"
+                  disabled={deleting}
+                />
+                {deleteAllConfirmText && deleteAllConfirmText !== DELETE_ALL_CONFIRM_PHRASE && (
+                  <p className="text-[11px] text-error" role="alert">Cụm từ chưa khớp. Hãy gõ đúng: {DELETE_ALL_CONFIRM_PHRASE}</p>
+                )}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="secondary" size="md" fullWidth disabled={deleting} onClick={() => { setDeleteDialogType(null); setDeleteAllConfirmText(""); }}>Hủy</Button>
+                <Button
+                  variant="danger"
+                  size="md"
+                  fullWidth
+                  disabled={deleting || deleteAllConfirmText !== DELETE_ALL_CONFIRM_PHRASE || totalElements === 0}
+                  loading={deleting}
+                  onClick={() => { if (deleteAllConfirmText === DELETE_ALL_CONFIRM_PHRASE) handleConfirmDelete(); }}
+                >
+                  {deleting ? "Đang xóa…" : `Xóa vĩnh viễn ${totalElements.toLocaleString("vi")} lần chạy`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

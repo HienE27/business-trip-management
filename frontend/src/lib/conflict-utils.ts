@@ -23,10 +23,10 @@ export type ConflictTypeInfo = {
 const CONFLICT_TYPE_MAP: Record<string, ConflictTypeInfo> = {
   "trực 24/24": { type: "Lịch trực", color: "text-red-600", icon: "emergency" },
   L01: { type: "Lịch trực", color: "text-red-600", icon: "emergency" },
-  "nghỉ phép": { type: "Nghỉ phép", color: "text-amber-600", icon: "event_busy" },
-  Leave: { type: "Nghỉ phép", color: "text-amber-600", icon: "event_busy" },
-  "nghỉ bù": { type: "Ngày nghỉ bù", color: "text-orange-600", icon: "calendar_month" },
-  compensation: { type: "Ngày nghỉ bù", color: "text-orange-600", icon: "calendar_month" },
+  "nghỉ phép": { type: "Nghỉ phép", color: "text-secondary", icon: "event_busy" },
+  Leave: { type: "Nghỉ phép", color: "text-secondary", icon: "event_busy" },
+  "nghỉ bù": { type: "Ngày nghỉ bù", color: "text-tertiary", icon: "calendar_month" },
+  compensation: { type: "Ngày nghỉ bù", color: "text-tertiary", icon: "calendar_month" },
   "liền kề": { type: "Ca liền kề", color: "text-purple-600", icon: "schedule" },
   "back-to-back": { type: "Ca liền kề", color: "text-purple-600", icon: "schedule" },
 };

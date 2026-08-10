@@ -312,9 +312,9 @@ export const PresetSelector = memo(function PresetSelector({
             {suggestion.reasons.map((r, i) => (
               <div key={i} className="flex items-center gap-2 text-[12px] text-on-surface-variant">
                 <span className={`material-symbols-outlined text-[14px] ${
-                  r.type === "speed" ? "text-amber-500" :
-                  r.type === "quality" ? "text-emerald-500" :
-                  r.type === "coverage" ? "text-blue-500" : "text-purple-500"
+                  r.type === "speed" ? "text-tertiary" :
+                  r.type === "quality" ? "text-secondary" :
+                  r.type === "coverage" ? "text-primary" : "text-purple-500"
                 }`} aria-hidden="true">
                   {r.type === "speed" ? "bolt" : r.type === "quality" ? "verified_user" : r.type === "coverage" ? "event_available" : "balance"}
                 </span>

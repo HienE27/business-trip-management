@@ -218,33 +218,47 @@ class ApiClient {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({} as { message?: string; code?: string }));
 
-      // BUGFIX (was PERM-VER-LOOP): the backend stamps every JWT with a
-      // `permVer` claim that matches the current permission-matrix version.
-      // When an admin toggles a permission the version is bumped and every
-      // outstanding JWT becomes stale; the backend then returns 401 with
-      // { code: "PERMISSION_VERSION_STALE", ... }.
+      // BUGFIX (was PERM-VER-STALE-LOGOUT): the backend stamps every JWT
+      // with a `permVer` claim that matches the current permission-matrix
+      // version. When an admin toggles a permission the version is bumped
+      // and every outstanding JWT becomes stale; the backend then returns
+      // 401 with { code: "PERMISSION_VERSION_STALE", ... }.
       //
-      // We MUST skip the /auth/refresh path here: the refresh token carries
-      // the SAME stale permVer claim, so issuing a new access token from it
-      // would just produce another stale JWT and we'd loop forever hitting
-      // the refresh endpoint. Instead, force a full re-login so the user
-      // re-authenticates with a freshly-stamped token.
+      // Earlier we force-logged-out the user, but that produced terrible
+      // UX (admin gets kicked to /login every time they toggle a row).
+      // /auth/refresh is whitelisted in PermissionInvalidationFilter
+      // (backend .../security/PermissionInvalidationFilter.java:49-58)
+      // so the refresh call itself is NOT rejected, and
+      // RefreshTokenService.rotate() issues a brand-new access token whose
+      // permVer matches the freshly-bumped DB version. So the recovery
+      // path here is: try attemptRefresh() once, replay this request
+      // with the new token, and only fall back to clearAuthAndRedirect()
+      // if refresh itself fails (refresh token missing/expired/revoked).
       if (
         response.status === 401 &&
-        (errorData as { code?: string } | undefined)?.code === "PERMISSION_VERSION_STALE"
+        (errorData as { code?: string } | undefined)?.code === "PERMISSION_VERSION_STALE" &&
+        getStoredRefreshToken() &&
+        endpoint !== "/auth/refresh" &&
+        endpoint !== "/auth/login" &&
+        !options._retried
       ) {
-        emit(API_EVENTS.AuthError, {
-          status: 401,
-          message:
-            (errorData as { message?: string } | undefined)?.message ||
-            "Phiên làm việc đã hết hạn do thay đổi quyền. Vui lòng đăng nhập lại.",
-          path: endpoint,
-        });
-        this.clearAuthAndRedirect();
-        throw new Error(
-          (errorData as { message?: string } | undefined)?.message ||
-            "Phiên làm việc đã hết hạn do thay đổi quyền. Vui lòng đăng nhập lại."
-        );
+        const newToken = await this.attemptRefresh();
+        if (newToken) {
+          // Replay the original request with the freshly-stamped token.
+          // The permission-matrix version in this new JWT now matches the
+          // current DB version, so PermissionInvalidationFilter will let
+          // it through.
+          emit(API_EVENTS.AuthError, {
+            status: 401,
+            message:
+              (errorData as { message?: string } | undefined)?.message ||
+              "Phiên làm việc vừa được làm mới do thay đổi quyền.",
+            path: endpoint,
+          });
+          return this.request<T>(endpoint, { ...options, _retried: true });
+        }
+        // Refresh failed (no refresh token / expired / revoked) — fall
+        // through to the standard 401 logout path below.
       }
 
       // 401 + we have a refresh token + haven't retried yet → try to refresh
@@ -397,10 +411,29 @@ class ApiClient {
     });
   }
 
+  /**
+   * Logout is a best-effort operation: the caller (AuthProvider.logout)
+   * will wipe local state and redirect to /login regardless of whether
+   * the backend call succeeded. We therefore swallow non-2xx responses
+   * (5xx = backend down, 401 = token already expired) so the promise
+   * resolves with a benign "logged out" sentinel instead of throwing
+   * into the caller's finally-block.
+   */
   async logout(): Promise<ApiResponse<void>> {
-    return this.request<void>("/auth/logout", {
-      method: "POST",
-    });
+    try {
+      return await this.request<void>("/auth/logout", {
+        method: "POST",
+      });
+    } catch (err) {
+      // Network or HTTP failure — treat as a successful client-side
+      // logout. The local auth state will be cleared by the caller.
+      return {
+        success: true,
+        data: undefined as unknown as void,
+        message: "Đã đăng xuất (offline).",
+        timestamp: new Date().toISOString(),
+      };
+    }
   }
 
   // Staff
@@ -1075,6 +1108,42 @@ class ApiClient {
     );
   }
 
+  /**
+   * Bulk delete metrics by id list. Mirrors the audit-history "Xóa nhiều"
+   * flow. Returns the number of rows actually removed.
+   */
+  async deleteMultipleMetrics(ids: number[]): Promise<number> {
+    const res = await this.request<{ data: number }>(`/auto-schedule/metrics`, {
+      method: "DELETE",
+      body: JSON.stringify(ids),
+    });
+    return (res as unknown as { data: number }).data ?? ids.length;
+  }
+
+  /**
+   * Delete every metric whose createdAt falls inside [startDate, endDate].
+   * Both endpoints are inclusive (yyyy-MM-dd). The backend widens end to
+   * the next midnight so the last day is fully included.
+   */
+  async deleteMetricsByDateRange(startDate: string, endDate: string): Promise<number> {
+    const res = await this.request<{ data: number }>(
+      `/auto-schedule/metrics/date-range?startDate=${startDate}&endDate=${endDate}`,
+      { method: "DELETE" }
+    );
+    return (res as unknown as { data: number }).data ?? 0;
+  }
+
+  /**
+   * Wipe the entire algorithm_metrics table. Requires the typed-confirm
+   * UI gate on the frontend.
+   */
+  async deleteAllMetrics(): Promise<number> {
+    const res = await this.request<{ data: number }>(`/auto-schedule/metrics/all`, {
+      method: "DELETE",
+    });
+    return (res as unknown as { data: number }).data ?? 0;
+  }
+
   async suggestReplacements(scheduleId: number): Promise<ReplacementSuggestion> {
     return this.get<ReplacementSuggestion>(`/auto-schedule/suggest-replacements/${scheduleId}`);
   }
@@ -1166,12 +1235,23 @@ class ApiClient {
     return this.request<import("@/types/api").RolePermissionMatrix>("/roles/permissions/matrix");
   }
 
-  async toggleRolePermission(data: { roleId: number; permissionId: number; granted: boolean }): Promise<ApiResponse<null>> {
-    return this.request<null>("/roles/permissions/toggle", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
+async toggleRolePermission(data: { roleId: number; permissionId: number; granted: boolean }): Promise<ApiResponse<null>> {
+  return this.request<null>("/roles/permissions/toggle", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+async bulkToggleRolePermission(data: {
+  roleId: number;
+  permissionIds: number[];
+  granted: boolean;
+}): Promise<ApiResponse<null>> {
+  return this.request<null>("/roles/permissions/bulk-toggle", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
 
   async getAlgorithmConfigAudit(paramKey?: string, page = 0, size = 50): Promise<{
     content: Array<{
@@ -1521,6 +1601,42 @@ class ApiClient {
 
   async deleteNotification(id: number): Promise<ApiResponse<void>> {
     return this.request<void>(`/notifications/${id}`, { method: "DELETE" });
+  }
+
+  /**
+   * Bulk delete notifications by id list. Mirrors the audit-history
+   * "Xóa nhiều" flow. Returns the number of rows actually removed.
+   */
+  async deleteMultipleNotifications(ids: number[]): Promise<number> {
+    const res = await this.request<{ data: number }>(`/notifications`, {
+      method: "DELETE",
+      body: JSON.stringify(ids),
+    });
+    return (res as unknown as { data: number }).data ?? ids.length;
+  }
+
+  /**
+   * Delete every notification whose createdAt falls inside [startDate, endDate].
+   * Both endpoints are inclusive (yyyy-MM-dd). The backend widens end to
+   * the next midnight so the last day is fully included.
+   */
+  async deleteNotificationsByDateRange(startDate: string, endDate: string): Promise<number> {
+    const res = await this.request<{ data: number }>(
+      `/notifications/date-range?startDate=${startDate}&endDate=${endDate}`,
+      { method: "DELETE" }
+    );
+    return (res as unknown as { data: number }).data ?? 0;
+  }
+
+  /**
+   * Wipe every notification belonging to the caller. Used by the
+   * "Xóa tất cả" action on /notifications.
+   */
+  async deleteAllNotifications(): Promise<number> {
+    const res = await this.request<{ data: number }>(`/notifications/all`, {
+      method: "DELETE",
+    });
+    return (res as unknown as { data: number }).data ?? 0;
   }
 
   async createNotification(staffId: number, data: { title: string; message: string }): Promise<ApiResponse<Notification>> {

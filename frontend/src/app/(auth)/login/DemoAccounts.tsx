@@ -54,7 +54,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     icon: "person",
     roleIcon: "badge",
     avatarClass:
-      "bg-gradient-to-br from-orange-500 to-amber-700 text-white",
+      "bg-gradient-to-br from-tertiary to-tertiary-container text-on-tertiary",
   },
 ];
 

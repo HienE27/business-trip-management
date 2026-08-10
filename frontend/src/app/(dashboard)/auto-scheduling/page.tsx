@@ -100,6 +100,8 @@ export default function AutoSchedulingPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingStaffIds, setEditingStaffIds] = useState<Map<string | number, number>>(new Map());
   const [previewEditItem, setPreviewEditItem] = useState<import("@/types/api").AutoScheduleSummary | null>(null);
+  // Header KPI: count of compensation days in the selected period (M02 side info)
+  const [compensationDayCount, setCompensationDayCount] = useState<number | null>(null);
   // BUGFIX (M07 #8 follow-up): requirement lookup for the selected period.
   // Keyed by `${workDate}|${shiftTypeId}` so the apply-preview fallback can
   // disambiguate L04 multi-specialty slots when the preview summary returns
@@ -202,6 +204,68 @@ export default function AutoSchedulingPage() {
     })();
     return () => { cancelled = true; };
   }, [selectedPeriodId]);
+
+  // Header KPI: load compensation day count for selected period (M02 side info).
+  // Best-effort: silent fail (e.g. period has no comp days endpoint yet).
+  useEffect(() => {
+    let cancelled = false;
+    const periodId = selectedPeriodId;
+    if (!periodId) {
+      setCompensationDayCount(null);
+      return;
+    }
+    void (async () => {
+      try {
+        const days = await api.getCompensationDaysByPeriod(periodId);
+        if (cancelled) return;
+        setCompensationDayCount(Array.isArray(days) ? days.length : 0);
+      } catch {
+        if (!cancelled) setCompensationDayCount(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedPeriodId]);
+
+  // Compensation days list (full) — used to render "🌙 Nghỉ bù" cells in the
+  // preview grid alongside existing L01 schedules. Backend may not return
+  // comp days for the *new* preview schedules yet, so the grid layer
+  // (AutoScheduleMatrixGrid) will merge DB comp days + derived-from-preview.
+  const [compensationDaysList, setCompensationDaysList] = useState<
+    import("@/types/api").CompensationDay[] | null
+  >(null);
+  useEffect(() => {
+    let cancelled = false;
+    const periodId = selectedPeriodId;
+    if (!periodId) {
+      setCompensationDaysList(null);
+      return;
+    }
+    void (async () => {
+      try {
+        const days = await api.getCompensationDaysByPeriod(periodId);
+        if (cancelled) return;
+        setCompensationDaysList(Array.isArray(days) ? days : []);
+      } catch {
+        if (!cancelled) setCompensationDaysList(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedPeriodId]);
+
+  // Re-fetch compensation days whenever previewResult becomes available
+  // (after algorithm finishes). This ensures grid shows correct NB cells.
+  useEffect(() => {
+    if (!previewResult || !selectedPeriodId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const days = await api.getCompensationDaysByPeriod(selectedPeriodId);
+        if (cancelled) return;
+        setCompensationDaysList(Array.isArray(days) ? days : []);
+      } catch { /* non-critical */ }
+    })();
+    return () => { cancelled = true; };
+  }, [previewResult, selectedPeriodId]);
 
   // Refresh auto-gen status when the user comes back to this tab (e.g. after toggling
   // the switch in /algorithm-config). Avoids stale "disabled" warnings.
@@ -369,6 +433,14 @@ export default function AutoSchedulingPage() {
     await applyPreview(selectedPeriodId, merged, () => {
       setApplyModalOpen(false);
       void loadWorkspace();
+      // Refresh compensation day count after apply — new L01 schedules
+      // create new comp days, so the header KPI needs to re-fetch.
+      if (selectedPeriodId) {
+        void api.getCompensationDaysByPeriod(selectedPeriodId).then((days) => {
+          setCompensationDayCount(Array.isArray(days) ? days.length : 0);
+          setCompensationDaysList(Array.isArray(days) ? days : []);
+        }).catch(() => {});
+      }
     });
   };
 
@@ -422,6 +494,14 @@ export default function AutoSchedulingPage() {
       setSelectedTemplateId(null);
       setEditingStaffIds(new Map());
       void loadWorkspace();
+      // Refresh compensation day count after template apply (L01 templates
+      // create new comp days for the new schedules).
+      if (selectedPeriodId) {
+        void api.getCompensationDaysByPeriod(selectedPeriodId).then((days) => {
+          setCompensationDayCount(Array.isArray(days) ? days.length : 0);
+          setCompensationDaysList(Array.isArray(days) ? days : []);
+        }).catch(() => {});
+      }
     } catch (error) {
       setMessage(getErrorMessage(error, "Không thể áp dụng mẫu lịch."));
     } finally {
@@ -536,6 +616,12 @@ export default function AutoSchedulingPage() {
                     <span className="material-symbols-outlined text-[14px]">groups</span>
                     <span className="font-semibold tabular-nums">{activeStaff.length}</span> nhân sự
                   </span>
+                  {compensationDayCount !== null && compensationDayCount > 0 && (
+                    <span className="text-[11px] text-on-surface-variant flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface-container-low border border-outline-variant/50">
+                      <span className="material-symbols-outlined text-[14px]">bedtime</span>
+                      <span className="font-semibold tabular-nums">{compensationDayCount}</span> ngày nghỉ bù
+                    </span>
+                  )}
                   {selectedPeriod.startDate && selectedPeriod.endDate && (
                     <span className="text-[11px] text-on-surface-variant hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface-container-low border border-outline-variant/50">
                       <span className="material-symbols-outlined text-[14px]">date_range</span>
@@ -609,6 +695,7 @@ export default function AutoSchedulingPage() {
           selectedPeriod={selectedPeriod}
           selectedPeriodId={selectedPeriodId}
           selectedPeriodStatus={selectedPeriod?.status}
+          compensationDays={compensationDaysList ?? []}
           onPreview={handleRunPreview}
           onApplyPreview={() => setApplyModalOpen(true)}
           onResetEdits={handleResetEdits}

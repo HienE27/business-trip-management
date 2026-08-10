@@ -279,8 +279,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshUser, router]);
 
   const logout = useCallback(async () => {
+    // Logout is a best-effort operation: even if the backend call fails
+    // (server down, 500, network drop, …) we still must wipe local auth
+    // state and redirect to /login. The previous version rejected the
+    // promise from api.logout() and Next.js 16 surfaced it as a runtime
+    // error in the UI even though finally{} ran cleanly.
     try {
-      await api.logout();
+      await api.logout().catch(() => {
+        // Backend unreachable / 500 — silent on purpose. We'll still
+        // drop the tokens below so the UI returns to a logged-out state.
+      });
     } finally {
       window.localStorage.removeItem(TOKEN_STORAGE_KEY);
       window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);

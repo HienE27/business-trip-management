@@ -340,7 +340,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">bookmark</span>
             <p className="text-title-sm font-semibold text-on-surface">Cấu hình nhanh</p>
             {isDirty && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-tertiary-container text-tertiary border border-tertiary/20">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-tertiary text-on-tertiary border border-tertiary/20">
                 <span className="material-symbols-outlined text-[12px]">edit</span>
                 Tùy chỉnh
               </span>
@@ -352,7 +352,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
                 onClick={() => setShowDiff(true)}
                 icon={<span className="material-symbols-outlined text-[12px]" aria-hidden="true">difference</span>}
                 iconPosition="right"
-                className="rounded-full !bg-tertiary-container !text-tertiary !border !border-tertiary/30 hover:!bg-tertiary-container/80 px-2.5 py-1 text-[11px]"
+                className="rounded-full !bg-primary !text-on-primary !border !border-primary/30 hover:!bg-primary/80 px-2.5 py-1 text-[11px]"
                 title="Xem chi tiết thay đổi"
               >
                 {changes.length} thay đổi
@@ -360,7 +360,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {/* Quick actions */}
             <Button
               variant="ghost"
               size="sm"
@@ -408,15 +407,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
             )}
           </div>
         </div>
-        <PresetSelector
-          presets={{ ...ALGORITHM_PRESETS, ...customPresets }}
-          activePreset={activePreset}
-          currentConfig={form}
-          onApply={applyPreset}
-          onSaveCustomPreset={handleSaveCustomPreset}
-          onDeleteCustomPreset={handleDeleteCustomPreset}
-          scheduleStats={scheduleStats || undefined}
-        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">

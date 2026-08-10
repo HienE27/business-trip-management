@@ -13,11 +13,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
@@ -172,5 +176,60 @@ public class NotificationController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Integer id) {
         notificationService.deleteNotification(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Đã xóa thông báo."));
+    }
+
+    /**
+     * Bulk delete by id list. Mirrors the audit-history "Xóa nhiều" flow.
+     * The id list comes in the request body so the URL stays cacheable +
+     * the operation is atomic at the SSCCE level.
+     */
+    @DeleteMapping
+    @Operation(summary = "Xóa nhiều thông báo theo id (trong body)")
+    @PreAuthorize("hasAuthority('" + Permissions.NOTIFICATION_VIEW + "') or hasAuthority('" + Permissions.NOTIFICATION_MANAGE_SELF + "')")
+    public ResponseEntity<ApiResponse<Map<String, Integer>>> deleteBulk(@RequestBody List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.success(Map.of("deleted", 0)));
+        }
+        int deleted = notificationService.deleteNotificationsByIds(ids);
+        return ResponseEntity.ok(ApiResponse.success(Map.of("deleted", deleted), "Đã xóa " + deleted + " thông báo."));
+    }
+
+    /**
+     * Delete every notification in [startDate, endDate). The frontend
+     * passes ISO {@code yyyy-MM-dd} dates; the controller widens them to
+     * {@code [startT00:00:00, endT+1dayT00:00:00)} so the range is
+     * inclusive on both ends. Non-admin callers only wipe their own
+     * notifications.
+     */
+    @DeleteMapping("/date-range")
+    @Operation(summary = "Xóa thông báo trong khoảng ngày (yyyy-MM-dd)")
+    @PreAuthorize("hasAuthority('" + Permissions.NOTIFICATION_VIEW + "') or hasAuthority('" + Permissions.NOTIFICATION_MANAGE_SELF + "')")
+    public ResponseEntity<ApiResponse<Map<String, Integer>>> deleteByDateRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Integer staffId) {
+        // Inclusive end: shift endDate forward by one day, take the LDT at midnight.
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
+        Integer callerStaffId = authContextService.getCurrentStaff().getId();
+        boolean isAdmin = authContextService.hasAuthority(Permissions.NOTIFICATION_VIEW);
+        int effectiveStaffId = isAdmin ? (staffId != null ? staffId : callerStaffId) : callerStaffId;
+
+        int deleted = notificationService.deleteNotificationsByDateRange(start, end, effectiveStaffId);
+        return ResponseEntity.ok(ApiResponse.success(Map.of("deleted", deleted), "Đã xóa " + deleted + " thông báo."));
+    }
+
+    /**
+     * Wipe every notification belonging to the caller. The "Xóa tất cả"
+     * pattern from /audit-history — admins wipe their own row only to
+     * avoid a broadcast stampede.
+     */
+    @DeleteMapping("/all")
+    @Operation(summary = "Xóa toàn bộ thông báo của tôi")
+    @PreAuthorize("hasAuthority('" + Permissions.NOTIFICATION_VIEW + "') or hasAuthority('" + Permissions.NOTIFICATION_MANAGE_SELF + "')")
+    public ResponseEntity<ApiResponse<Map<String, Integer>>> deleteAll() {
+        int deleted = notificationService.deleteAllNotificationsForCaller();
+        return ResponseEntity.ok(ApiResponse.success(Map.of("deleted", deleted), "Đã xóa " + deleted + " thông báo."));
     }
 }

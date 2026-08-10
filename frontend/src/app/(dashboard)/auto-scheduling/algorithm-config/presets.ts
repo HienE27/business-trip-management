@@ -38,9 +38,9 @@ export const ALGORITHM_PRESETS: Record<PresetKey, PresetConfig> = {
     label: "Nhanh",
     tagline: "Ưu tiên tốc độ, chất lượng chấp nhận được",
     icon: "bolt",
-    color: "text-amber-600",
-    colorBg: "bg-amber-50",
-    accent: "border-amber-300",
+    color: "text-tertiary",
+    colorBg: "bg-tertiary-fixed",
+    accent: "border-tertiary",
     config: {
       ...baseConfig,
       weekendWeight: 2.0,

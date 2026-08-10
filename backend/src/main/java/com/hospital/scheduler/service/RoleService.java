@@ -134,6 +134,69 @@ public class RoleService {
         permissionVersionService.bump();
     }
 
+    /**
+     * Bulk grant / revoke a set of permissions for a single role in one
+     * transaction. Bumps the permission-version stamp exactly once at the
+     * end, instead of once per cell — saves N round-trips on the wire
+     * and produces a single coherent audit-log entry per bulk action
+     * (plus per-cell entries for forensics).
+     *
+     * <p>Used by the permission-matrix UI's "Cấp tất cả" / "Thu hồi tất cả"
+     * actions.
+     *
+     * @param roleId       the role to mutate
+     * @param permissionIds permissions to grant/revoke for that role
+     * @param granted      true to insert all, false to delete all
+     */
+    @Transactional
+    public void bulkTogglePermission(Integer roleId, java.util.List<Integer> permissionIds, Boolean granted) {
+        if (roleId == null || permissionIds == null || permissionIds.isEmpty()) {
+            return;
+        }
+        boolean grant = Boolean.TRUE.equals(granted);
+        Integer actorId = resolveActorSafely();
+
+        for (Integer permissionId : permissionIds) {
+            if (permissionId == null) continue;
+
+            if (grant) {
+                if (!rolePermissionRepository.existsById(
+                        new RolePermissionId(roleId, permissionId))) {
+                    RolePermission rp = RolePermission.builder()
+                            .roleId(roleId)
+                            .permissionId(permissionId)
+                            .build();
+                    rolePermissionRepository.save(rp);
+                }
+            } else {
+                rolePermissionRepository.deleteById(
+                        new RolePermissionId(roleId, permissionId));
+            }
+
+            // Per-cell audit entry — full forensic trail for "who changed
+            // what".
+            java.util.Map<String, Object> oldValue = java.util.Map.of(
+                    "roleId", roleId,
+                    "permissionId", permissionId,
+                    "granted", !grant,
+                    "bulk", true);
+            java.util.Map<String, Object> newValue = java.util.Map.of(
+                    "roleId", roleId,
+                    "permissionId", permissionId,
+                    "granted", grant,
+                    "bulk", true);
+            AuditHistory.ActionType action = grant
+                    ? AuditHistory.ActionType.INSERT : AuditHistory.ActionType.DELETE;
+            auditHistoryService.logAction("role_permission",
+                    roleId, action, oldValue, newValue, actorId);
+        }
+
+        // Bump exactly once at the end. Calling bump() N times in the loop
+        // would still produce the same final version (Math.max guard) but
+        // spams the audit log and the algorithm_config table with N writes.
+        permissionVersionService.bump();
+    }
+
     private Integer resolveActorSafely() {
         try {
             return authContextService.getCurrentStaff().getId();

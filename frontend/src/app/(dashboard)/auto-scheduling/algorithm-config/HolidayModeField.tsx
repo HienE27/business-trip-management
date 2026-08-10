@@ -30,7 +30,7 @@ export function HolidayModeField({ desc, value, editing, onChange }: Props) {
           {OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       ) : (
-        <span className={`px-3 py-1 rounded-full text-label-sm font-semibold border ${value === "SKIP" ? "bg-teal-50 text-teal-700 border-teal-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+        <span className={`px-3 py-1 rounded-full text-label-sm font-semibold border ${value === "SKIP" ? "bg-secondary-container text-on-secondary-container border-on-secondary-container/20" : "bg-tertiary-fixed text-on-tertiary-fixed border-tertiary/20"}`}>
           {value}
         </span>
       )}

@@ -27,6 +27,11 @@ export type AutoSchedulePanelProps = {
   selectedPeriod: SchedulePeriod | null;
   selectedPeriodId: number | null;
   selectedPeriodStatus?: string;
+  /**
+   * Existing compensation days loaded from the backend (DB-stored). The grid
+   * merges these with comp days derived from the current preview's L01 shifts.
+   */
+  compensationDays?: import("@/types/api").CompensationDay[];
   onPreview: () => void;
   onApplyPreview: () => void;
   onResetEdits: () => void;
@@ -75,6 +80,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
   selectedPeriod,
   selectedPeriodId,
   selectedPeriodStatus,
+  compensationDays,
   onPreview,
   onApplyPreview,
   onResetEdits,
@@ -401,21 +407,21 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             }>)
               .filter((t) => t.coverageRate < 95)
               .sort((a, b) => a.coverageRate - b.coverageRate);
-            // ponytail: warning uses amber (not tertiary/orange) for intuitive
-            // yellow-amber severity distinct from ok=green and critical=red.
+            // ponytail: warning uses tertiary for intuitive
+            // tertiary/secondary/error provides clear severity levels.
             const toneStyles = {
               ok: "bg-secondary-container/20 border-secondary/30",
-              warning: "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700",
+              warning: "bg-tertiary-fixed/20 border-tertiary/30",
               critical: "bg-error-container/20 border-error/30",
             };
             const iconStyles = {
               ok: "bg-secondary-container text-secondary",
-              warning: "bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-200",
+              warning: "bg-tertiary-fixed text-tertiary",
               critical: "bg-error-container text-error",
             };
             const textStyles = {
               ok: "text-secondary",
-              warning: "text-amber-700 dark:text-amber-300",
+              warning: "text-tertiary",
               critical: "text-error",
             };
             const iconName = tone === "ok" ? "check_circle" : tone === "warning" ? "warning" : "error";
@@ -629,6 +635,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             viewMode={viewMode}
             filteredStaffIds={selectedStaffIds}
             editedPreview={editedPreview}
+            compensationDays={compensationDays}
             onEditItem={onEditPreviewItem}
           />
         </div>
