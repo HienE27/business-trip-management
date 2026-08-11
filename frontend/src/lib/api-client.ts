@@ -1640,9 +1640,11 @@ async bulkToggleRolePermission(data: {
   }
 
   async createNotification(staffId: number, data: { title: string; message: string }): Promise<ApiResponse<Notification>> {
-    return this.request<Notification>(`/notifications/staff/${staffId}`, {
+    // Backend POST /notifications accepts NotificationDTO with `recipientId` field.
+    // (See NotificationController.create @PostMapping — no /staff/{id} POST route exists.)
+    return this.request<Notification>(`/notifications`, {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({ recipientId: staffId, title: data.title, message: data.message }),
     });
   }
 

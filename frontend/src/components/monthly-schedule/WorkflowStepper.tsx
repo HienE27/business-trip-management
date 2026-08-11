@@ -28,7 +28,7 @@ function buildSteps(context: WorkflowContext): WorkflowStepView[] {
   return [
     { id: "auto-schedule" as WorkflowStepId, title: "Auto", description: "Tự động", status: hasSchedules ? "completed" : "pending", statusLabel: hasSchedules ? "Hoàn tất" : "Chờ" },
     { id: "conflicts" as WorkflowStepId, title: "Xung đột", description: "Kiểm tra", status: context.checkingConflicts || activeFromPanel === "conflicts" ? "active" : hasConflicts ? "error" : hasConflictCheck ? "completed" : "pending", statusLabel: context.checkingConflicts || activeFromPanel === "conflicts" ? "Đang kiểm tra" : hasConflicts ? "Có xung đột" : hasConflictCheck ? "Đã kiểm tra" : "Chờ" },
-    { id: "review" as WorkflowStepId, title: "Rà soát", description: "Tổng hợp", status: activeFromPanel === "review" ? "active" : hasSchedules && !hasConflicts ? "completed" : "pending", statusLabel: activeFromPanel === "review" ? "Đang rà soát" : hasSchedules && !hasConflicts ? "Đã rà soát" : "Chờ" },
+    { id: "review" as WorkflowStepId, title: "Rà soát", description: "Tổng hợp", status: activeFromPanel === "review" ? "active" : isPublished ? "completed" : hasSchedules && !hasConflicts ? "completed" : "pending", statusLabel: activeFromPanel === "review" ? "Đang rà soát" : isPublished ? "Đã công bố" : hasSchedules && !hasConflicts ? "Đã rà soát" : "Chờ" },
     { id: "export" as WorkflowStepId, title: "Xuất", description: "Báo cáo", status: context.exporting ? "active" : isPublished ? "completed" : "pending", statusLabel: context.exporting ? "Đang xuất" : isPublished ? "Đã xuất" : "Chờ" },
     { id: "publish" as WorkflowStepId, title: "Công bố", description: "Kỳ lịch", status: context.publishing ? "active" : isPublished ? "completed" : context.dryRunData != null && context.dryRunData.canPublish ? "completed" : hasConflicts ? "error" : "pending", statusLabel: context.publishing ? "Đang công bố" : isPublished ? "Đã công bố" : context.dryRunData != null && context.dryRunData.canPublish ? "Sẵn sàng" : hasConflicts ? "Cần xử lý" : "Chờ" },
     { id: "notify" as WorkflowStepId, title: "Thông báo", description: "Gửi", status: context.notifying ? "active" : context.notified ? "completed" : "pending", statusLabel: context.notifying ? "Đang gửi" : context.notified ? "Đã gửi" : "Chờ" },
@@ -54,7 +54,14 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
   }, [props]);
 
   function handleClick(stepId: WorkflowStepId) {
-    if (stepId === "auto-schedule") { router.push("/auto-scheduling"); return; }
+    if (stepId === "auto-schedule") {
+      const periodId = props.selectedPeriod?.id;
+      const target = periodId
+        ? `/auto-scheduling?periodId=${periodId}`
+        : "/auto-scheduling";
+      router.push(target);
+      return;
+    }
     if (stepId === "export") { props.onExport?.(); return; }
     props.onStepSelect(stepId);
   }
@@ -79,17 +86,21 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
       </div>
 
       {/* Horizontal step bar */}
-      <div className="px-3 py-2.5">
-        <div className="flex items-center">
+      <div className="px-3 py-2.5 overflow-x-auto">
+        <div className="flex items-center min-w-max">
           {steps.map((step, index) => {
             const status = STATUS_CONFIG[step.status];
+            const isActive = step.status === "active";
             return (
-              <div key={step.id} className="flex items-center min-w-0 first:ml-0 first:mr-auto last:mr-0 last:ml-auto mx-auto">
+              <div key={step.id} className="flex items-center">
                 {/* Step */}
                 <button
                   type="button"
                   onClick={() => handleClick(step.id)}
-                  className="flex flex-col items-center gap-0.5 group cursor-pointer"
+                  aria-label={`${step.title} — ${step.statusLabel}`}
+                  aria-current={isActive ? "step" : undefined}
+                  title={`${step.description}: ${step.statusLabel}`}
+                  className="flex flex-col items-center gap-0.5 group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 rounded"
                 >
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center ${status.bg} transition-all group-hover:scale-110`}>
                     <span className={`material-symbols-outlined ${status.iconColor}`} style={{ fontSize: "13px" }} aria-hidden="true">

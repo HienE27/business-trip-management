@@ -227,11 +227,11 @@ describe("useScheduleWorkspace", () => {
     expect(mockedApi.post).toHaveBeenCalledTimes(2);
     expect(mockedApi.post).toHaveBeenCalledWith(
       "/notifications",
-      expect.objectContaining({ staffId: 1, title: expect.stringContaining("Tháng 6/2026") }),
+      expect.objectContaining({ recipientId: 1, title: expect.stringContaining("Tháng 6/2026") }),
     );
     expect(mockedApi.post).toHaveBeenCalledWith(
       "/notifications",
-      expect.objectContaining({ staffId: 2 }),
+      expect.objectContaining({ recipientId: 2 }),
     );
     expect(result.current[0].message).toMatch(/2 nhân sự/i);
   });
@@ -254,10 +254,16 @@ describe("useScheduleWorkspace", () => {
     const { result } = renderHook(() => useScheduleWorkspace());
     await waitFor(() => expect(result.current[0].loading).toBe(false));
 
+    let thrown: unknown;
     await act(async () => {
-      await result.current[1].sendNotifications();
+      try {
+        await result.current[1].sendNotifications();
+      } catch (e) {
+        thrown = e;
+      }
     });
 
     expect(result.current[0].message).toMatch(/network|Không thể gửi/i);
+    expect(thrown).toBeInstanceOf(Error);
   });
 });

@@ -98,23 +98,37 @@ export function useScheduleWorkspace(): [ScheduleWorkspaceState, ScheduleWorkspa
         data.activeStaff.map((staff) => {
           const staffSchedules = scheduleByStaff.get(staff.id) ?? [];
           const staffCompDays = compDaysByStaff.get(staff.id) ?? [];
-          // Use simple string formatting instead of Date parsing for better performance
+          // Use simple string formatting instead of Date parsing for better performance.
+          // Truncate to avoid exceeding backend @Size(max=1000) on NotificationDTO.message.
+          const MAX_DUTY_ITEMS = 8;
+          const MAX_COMP_ITEMS = 5;
           const dutyList = staffSchedules
+            .slice(0, MAX_DUTY_ITEMS)
             .map((s) => `${s.workDate.split("T")[0].split("-").reverse().join("/")} – ${s.shiftType.name}`)
             .join("; ");
+          const dutyOverflow = staffSchedules.length - MAX_DUTY_ITEMS;
+          const dutyListFinal = dutyOverflow > 0 ? `${dutyList}; …(+${dutyOverflow})` : dutyList;
           const compList = staffCompDays
+            .slice(0, MAX_COMP_ITEMS)
             .map((cd) => cd.compensationDate.split("T")[0].split("-").reverse().join("/"))
             .join(", ");
+          const compOverflow = staffCompDays.length - MAX_COMP_ITEMS;
+          const compListFinal = compOverflow > 0 ? `${compList}, …(+${compOverflow})` : compList;
+          const message =
+            `Lịch trực của bạn đã được công bố.\n` +
+            `Danh sách trực: ${dutyListFinal || "không có"}\n` +
+            `Ngày nghỉ bù: ${compListFinal || "không có"}`;
           return api.post("/notifications", {
-            staffId: staff.id,
-            title: `Thông báo lịch trực – ${periodName}`,
-            message: `Lịch trực của bạn đã được công bố.\nDanh sách trực: ${dutyList || "không có"}\nNgày nghỉ bù: ${compList || "không có"}`,
+            recipientId: staff.id,
+            title: `Thông báo lịch trực – ${periodName}`.slice(0, 100),
+            message: message.length > 1000 ? message.slice(0, 997) + "..." : message,
           });
         })
       );
       data.setMessage(`Đã gửi thông báo đến ${data.activeStaff.length} nhân sự.`);
     } catch (error) {
       data.setMessage(getErrorMessage(error, "Không thể gửi thông báo."));
+      throw error;
     }
   }, [data]);
 

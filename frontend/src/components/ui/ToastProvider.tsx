@@ -28,6 +28,7 @@ export interface Toast {
   id: string;
   message: string;
   type: ToastType;
+  duration?: number;
 }
 
 type ToastContextType = {
@@ -90,16 +91,16 @@ function ToastItem({
   toastIdRef.current = toast.id;
 
   useEffect(() => {
-    requestAnimationFrame(() => setVisible(true));
-    return () => setVisible(false);
-  }, []);
-
-  useEffect(() => {
+    const raf = requestAnimationFrame(() => setVisible(true));
     const timer = setTimeout(() => {
       setVisible(false);
       setTimeout(() => onDismissRef.current(toastIdRef.current), 300);
     }, duration);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+      setVisible(false);
+    };
   }, [duration]);
 
   const handleClose = () => {
@@ -166,7 +167,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const addToast = useCallback((message: string, type: ToastType, duration?: number) => {
     const id = createId();
     setToasts((prev) => {
-      const next = [...prev, { id, message, type }];
+      const next = [...prev, { id, message, type, duration }];
       // Evict oldest toasts past the cap (5). Prevents the page from filling
       // with hundreds of identical errors when an API keeps failing in a loop.
       if (next.length > MAX_TOASTS) {
@@ -206,7 +207,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       >
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto">
-            <ToastItem toast={toast} onDismiss={dismiss} />
+            <ToastItem toast={toast} onDismiss={dismiss} duration={toast.duration} />
           </div>
         ))}
       </div>

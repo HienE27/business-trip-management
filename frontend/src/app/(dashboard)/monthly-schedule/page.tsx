@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Skeleton, SkeletonCalendar, SkeletonKPI, SkeletonTable } from "@/components/ui/Skeleton";
+import { WorkflowStepper } from "@/components/monthly-schedule/WorkflowStepper";
 const ConflictResolutionModal = dynamic(
   () => import("@/components/ui/ConflictResolutionModal").then((m) => m.ConflictResolutionModal),
   { loading: () => null },
@@ -24,16 +25,14 @@ const ShiftDetailModal = dynamic(
   () => import("@/components/monthly-schedule/ShiftDetailModal").then((m) => m.ShiftDetailModal),
   { loading: () => null },
 );
-const WorkflowStepper = dynamic(
-  () => import("@/components/monthly-schedule/WorkflowStepper").then((m) => m.WorkflowStepper),
-  { loading: () => null },
-);
 const ExportReportPanel = dynamic(
   () => import("@/components/monthly-schedule/ExportReportPanel").then((m) => m.ExportReportPanel),
   { loading: () => null },
 );
 
 import { KPISection } from "@/components/monthly-schedule/KPISection";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/ToastProvider";
 import { useRole, canManage } from "@/hooks/useRole";
 import { useMonthlyScheduleDerivedData } from "@/hooks/monthly-schedule/useMonthlyScheduleDerivedData";
 import { useMonthlyScheduleUrlState } from "@/hooks/monthly-schedule/useMonthlyScheduleUrlState";
@@ -139,6 +138,7 @@ export default function MonthlySchedulePage() {
   const [dryRunData, setDryRunData] = useState<import("@/types/api").PublishDryRunResponse | null>(null);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [showExportPanel, setShowExportPanel] = useState(false);
+  const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState(0);
 
@@ -146,6 +146,44 @@ export default function MonthlySchedulePage() {
     () => periods.find((period) => period.id === selectedPeriodId) ?? null,
     [periods, selectedPeriodId],
   );
+
+  // Toast hook - hiển thị thông báo nổi cho các action nghiệp vụ
+  const { success: toastSuccess, error: toastError, warning: toastWarning, info: toastInfo } = useToast();
+
+  // Watch wsState.message từ hook để fire toast khi backend trả success/error.
+  // Lưu ý: Mỗi action handler (handleSendNotifications, handleExport, handlePublish,
+  // handleCheckConflicts) đã gọi toast trực tiếp sau khi backend trả success/error.
+  // useEffect này chỉ phục vụ các message từ hook mà KHÔNG đi qua các handler trên
+  // (ví dụ: refresh workspace, auto-detection từ hook).
+  const lastToastedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!message) return;
+    if (lastToastedRef.current === message) return;
+    lastToastedRef.current = message;
+    const lower = message.toLowerCase();
+    if (
+      lower.includes("đã gửi") ||
+      lower.includes("thành công") ||
+      lower.includes("đã được công bố") ||
+      lower.includes("đã xuất") ||
+      lower.includes("đã lưu")
+    ) {
+      toastSuccess(message, 5000);
+    } else if (
+      lower.includes("không thể") ||
+      lower.includes("thất bại") ||
+      lower.includes("lỗi") ||
+      lower.includes("không hợp lệ") ||
+      lower.includes("xung đột") ||
+      lower.includes("failed")
+    ) {
+      if (lower.includes("xung đột") || lower.includes("conflict")) {
+        toastWarning(message, 5000);
+      } else {
+        toastError(message, 6000);
+      }
+    }
+  }, [message, toastSuccess, toastError, toastWarning]);
 
   const initialCalendar = useMemo(() => getInitialCalendar(selectedPeriod), [selectedPeriod]);
 
@@ -226,21 +264,27 @@ export default function MonthlySchedulePage() {
     setLocalMessage(null);
     try {
       await wsActions.checkConflicts();
+      toastSuccess("Đã chạy kiểm tra xung đột.", 3500);
+    } catch (error) {
+      toastError(getErrorMessage(error, "Không thể kiểm tra xung đột."));
     } finally {
       setCheckingConflicts(false);
     }
     setQueryState({ panel: "conflicts" });
-  }, [setQueryState, wsActions]);
+  }, [setQueryState, wsActions, toastSuccess, toastError]);
 
   const handlePublish = useCallback(async () => {
     setPublishing(true);
     setLocalMessage(null);
     try {
       await wsActions.publishPeriod();
+      toastSuccess("Đã công bố kỳ lịch thành công.", 5000);
+    } catch (error) {
+      toastError(getErrorMessage(error, "Không thể công bố kỳ lịch."));
     } finally {
       setPublishing(false);
     }
-  }, [wsActions]);
+  }, [wsActions, toastSuccess, toastError]);
 
   const handleSendNotifications = useCallback(async () => {
     if (!selectedPeriodId) return;
@@ -250,10 +294,18 @@ export default function MonthlySchedulePage() {
     try {
       await wsActions.sendNotifications();
       setNotified(true);
+      const sentCount = activeStaff.length;
+      if (sentCount > 0) {
+        toastSuccess(`Đã gửi thông báo đến ${sentCount} nhân sự.`, 5000);
+      } else {
+        toastWarning("Không có nhân sự đang hoạt động để gửi thông báo.", 5000);
+      }
+    } catch (error) {
+      toastError(getErrorMessage(error, "Không thể gửi thông báo."));
     } finally {
       setNotifying(false);
     }
-  }, [selectedPeriodId, wsActions]);
+  }, [selectedPeriodId, wsActions, role, activeStaff, toastSuccess, toastError, toastWarning]);
 
   const handleExport = useCallback(async () => {
     if (!selectedPeriodId) return;
@@ -263,16 +315,32 @@ export default function MonthlySchedulePage() {
       const blob = await api.exportScheduleExcel(selectedPeriodId);
       downloadBlob(blob, `lich-cong-tac-${selectedPeriod?.periodName ?? selectedPeriodId}.xlsx`);
       setLocalMessage("Đã xuất file Excel kỳ lịch.");
+      toastSuccess("Đã xuất file Excel kỳ lịch.", 4000);
     } catch (error) {
-      setLocalMessage(getErrorMessage(error, "Không thể xuất file. Vui lòng thử lại."));
+      const msg = getErrorMessage(error, "Không thể xuất file. Vui lòng thử lại.");
+      setLocalMessage(msg);
+      toastError(msg, 6000);
     } finally {
       setExporting(false);
     }
-  }, [selectedPeriod, selectedPeriodId]);
+  }, [selectedPeriod, selectedPeriodId, toastSuccess, toastError]);
 
   const handleWorkflowStep = useCallback((stepId: WorkflowStepId) => {
     if (stepId === "conflicts") {
       setQueryState({ panel: "conflicts" });
+      // Run a fresh check so the user sees the result, not the cached one.
+      if (selectedPeriodId) {
+        void handleCheckConflicts();
+      } else {
+        toastWarning("Vui lòng chọn kỳ lịch trước khi kiểm tra xung đột.", 4000);
+      }
+      return;
+    }
+    if (stepId === "review") {
+      setShowExportPanel(false);
+      setShowPublishDialog(false);
+      setQueryState({ panel: "overview" });
+      toastInfo("Đang hiển thị bảng tổng hợp rà soát.", 2500);
       return;
     }
     if (stepId === "export") {
@@ -284,9 +352,36 @@ export default function MonthlySchedulePage() {
       void handleSendNotifications();
       return;
     }
+    if (stepId === "publish") {
+      if (!canManage(role)) {
+        setLocalMessage("Bạn không có quyền công bố lịch. Vui lòng liên hệ quản lý.");
+        toastError("Bạn không có quyền công bố lịch. Vui lòng liên hệ quản lý.", 5000);
+        return;
+      }
+      if (conflictData?.hasConflicts) {
+        setLocalMessage(`Không thể công bố: còn ${conflictData.totalConflicts} xung đột chưa xử lý.`);
+        toastWarning(`Không thể công bố: còn ${conflictData.totalConflicts} xung đột chưa xử lý.`, 5000);
+        return;
+      }
+      setShowPublishDialog(true);
+      toastInfo("Mở hộp thoại xác nhận công bố kỳ lịch.", 2500);
+      return;
+    }
     setShowExportPanel(false);
+    setShowPublishDialog(false);
     setQueryState({ panel: "summary" });
-  }, [handleExport, handleSendNotifications, setQueryState]);
+  }, [
+    handleCheckConflicts,
+    handleExport,
+    handleSendNotifications,
+    setQueryState,
+    role,
+    conflictData,
+    selectedPeriodId,
+    toastError,
+    toastInfo,
+    toastWarning,
+  ]);
 
   const showPanel = useCallback((panel: MonthlyPanel) => {
     setQueryState({ panel });
@@ -477,6 +572,25 @@ export default function MonthlySchedulePage() {
         }}
         conflict={resolvingConflict}
         onRefresh={handleConflictRefresh}
+      />
+
+      <ConfirmDialog
+        open={showPublishDialog}
+        onClose={() => setShowPublishDialog(false)}
+        onConfirm={() => {
+          setShowPublishDialog(false);
+          void handlePublish();
+        }}
+        title="Công bố kỳ lịch?"
+        description={
+          selectedPeriod
+            ? `Sau khi công bố, lịch ${selectedPeriod.periodName} sẽ được thông báo đến nhân sự và không thể chỉnh sửa. Bạn có chắc chắn?`
+            : "Sau khi công bố, kỳ lịch sẽ được thông báo đến nhân sự và không thể chỉnh sửa. Bạn có chắc chắn?"
+        }
+        confirmLabel="Công bố"
+        cancelLabel="Hủy"
+        variant="primary"
+        loading={publishing}
       />
     </>
   );
