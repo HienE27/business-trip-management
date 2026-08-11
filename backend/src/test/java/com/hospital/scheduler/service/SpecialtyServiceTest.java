@@ -239,7 +239,7 @@ class SpecialtyServiceTest {
         Specialty s = buildSpecialty(2, "B", "d", true);
         Page<Specialty> page = new PageImpl<>(List.of(s), pageable, 1);
 
-        when(specialtyRepository.findAll(any(Pageable.class))).thenReturn(page);
+        when(specialtyRepository.findPageWithFilters(null, null, pageable)).thenReturn(page);
 
         Page<SpecialtyResponse> result = service.getSpecialtiesPage(pageable);
 

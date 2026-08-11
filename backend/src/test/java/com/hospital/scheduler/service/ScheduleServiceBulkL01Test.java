@@ -114,6 +114,7 @@ class ScheduleServiceBulkL01Test {
                         s.setId(100);
                         return s;
                     });
+            when(compensationDayRepository.findByScheduleId(anyInt())).thenReturn(List.of());
             when(compensationDateCalculator.calculate(any())).thenReturn(LocalDate.of(2026, 6, 2));
             when(compensationDayRepository.findByStaffIdAndCompensationDate(anyInt(), any())).thenReturn(Optional.empty());
             when(authContextService.getCurrentStaff()).thenReturn(testStaff);
@@ -126,7 +127,8 @@ class ScheduleServiceBulkL01Test {
             assertThat(result.getErrors()).isEmpty();
             assertThat(result.getResults()).hasSize(3);
             verify(scheduleRepository, times(3)).save(any(Schedule.class));
-            verify(compensationDayRepository, times(3)).save(any(CompensationDay.class));
+            // L01 creates compensation days via insertIgnoreCompensationDay (batch insert)
+            verify(compensationDayRepository, times(3)).insertIgnoreCompensationDay(anyInt(), anyInt(), anyInt(), any(), any(), anyString());
         }
 
         @Test
@@ -286,6 +288,7 @@ class ScheduleServiceBulkL01Test {
                         s.setId(100);
                         return s;
                     });
+            when(compensationDayRepository.findByScheduleId(anyInt())).thenReturn(List.of());
             when(compensationDateCalculator.calculate(any())).thenReturn(LocalDate.of(2026, 6, 2));
             when(compensationDayRepository.findByStaffIdAndCompensationDate(anyInt(), any())).thenReturn(Optional.empty());
             when(authContextService.getCurrentStaff()).thenReturn(testStaff);
@@ -296,7 +299,8 @@ class ScheduleServiceBulkL01Test {
             assertThat(result.getFailureCount()).isEqualTo(1);
             assertThat(result.getTotalCount()).isEqualTo(3);
             verify(scheduleRepository, times(2)).save(any(Schedule.class));
-            verify(compensationDayRepository, times(2)).save(any(CompensationDay.class));
+            // L01 creates compensation days via insertIgnoreCompensationDay (batch insert)
+            verify(compensationDayRepository, times(2)).insertIgnoreCompensationDay(anyInt(), anyInt(), anyInt(), any(), any(), anyString());
         }
     }
 }
