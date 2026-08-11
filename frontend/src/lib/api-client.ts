@@ -217,6 +217,7 @@ class ApiClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({} as { message?: string; code?: string }));
+      let permStaleRefreshed = false;
 
       // BUGFIX (was PERM-VER-STALE-LOGOUT): the backend stamps every JWT
       // with a `permVer` claim that matches the current permission-matrix
@@ -257,17 +258,19 @@ class ApiClient {
           });
           return this.request<T>(endpoint, { ...options, _retried: true });
         }
-        // Refresh failed (no refresh token / expired / revoked) — fall
-        // through to the standard 401 logout path below.
+        // Refresh failed (no refresh token / expired / revoked) — flag so
+        // the standard 401 block below skips its own refresh attempt.
+        permStaleRefreshed = true;
       }
 
       // 401 + we have a refresh token + haven't retried yet → try to refresh
       // once. If refresh succeeds, replay the request; otherwise force a
       // full re-login. This avoids the "kick to /login on a single expired
-      // access token" loop.
+      // access token" loop. Skip if PERMISSION_VERSION_STALE already tried.
       if (
         response.status === 401 &&
         !options._retried &&
+        !permStaleRefreshed &&
         getStoredRefreshToken() &&
         endpoint !== "/auth/refresh" &&
         endpoint !== "/auth/login"

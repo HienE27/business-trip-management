@@ -11,10 +11,10 @@ type Breakdown = {
 };
 
 const COLOR_MAP: Record<string, string> = {
-  L01: "border-red-500/30 bg-red-50/30",
-  L02: "border-blue-500/30 bg-blue-50/30",
-  L03: "border-green-500/30 bg-green-50/30",
-  L04: "border-purple-500/30 bg-purple-50/30",
+  L01: "border-shift-24 bg-shift-24 text-on-shift-24",
+  L02: "border-shift-all-day bg-shift-all-day text-on-shift-all-day",
+  L03: "border-shift-service bg-shift-service text-on-shift-service",
+  L04: "border-shift-expert bg-shift-expert text-on-shift-expert",
 };
 
 const ICON_MAP: Record<string, string> = {

@@ -44,10 +44,10 @@ function formatDate(dateStr: string) {
 }
 
 const SHIFT_BADGE: Record<string, string> = {
-  L01: "bg-[var(--color-shift-24)]/10 text-[var(--color-on-shift-24)] border border-[var(--color-shift-24)]/30",
-  L02: "bg-[var(--color-shift-all-day)]/10 text-[var(--color-on-shift-all-day)] border border-[var(--color-shift-all-day)]/30",
-  L03: "bg-[var(--color-shift-service)]/10 text-[var(--color-on-shift-service)] border border-[var(--color-shift-service)]/30",
-  L04: "bg-[var(--color-shift-expert)]/10 text-[var(--color-on-shift-expert)] border border-[var(--color-shift-expert)]/30",
+  L01: "bg-shift-24 text-on-shift-24 border border-shift-24",
+  L02: "bg-shift-all-day text-on-shift-all-day border border-shift-all-day",
+  L03: "bg-shift-service text-on-shift-service border border-shift-service",
+  L04: "bg-shift-expert text-on-shift-expert border border-shift-expert",
 };
 
 const SHIFT_BORDER: Record<string, string> = {

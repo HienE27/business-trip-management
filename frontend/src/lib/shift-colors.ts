@@ -11,27 +11,28 @@ export type ShiftColorSet = {
  * SHIFT_COLORS — Single source of truth for shift type colors.
  * Maps ScheduleTab → Tailwind utility classes.
  *
- * Spec (FRONTEND_UI_SYSTEM.mdc §7):
- *   L01 Trực 24/24       → red-50/100  + red-500/800
- *   L02 Thông tầm         → blue-50/100 + blue-500/800
- *   L03 PK dịch vụ        → green-50/100 + green-500/800
- *   L04 PK chuyên gia     → purple-50/100 + purple-500/800
+ * All colors reference CSS custom properties (--color-shift-*) so that
+ * @media (prefers-color-scheme: dark) can flip to dark-mode semantics
+ * in globals.css without duplicating every component.
  *
- * Background tints dùng trực tiếp Tailwind utilities để giữ contrast tốt
- * ở cả light & dark mode và tránh phải khai báo thêm CSS custom properties.
+ * Spec (FRONTEND_UI_SYSTEM.mdc §7):
+ *   L01 Trực 24/24 → --color-shift-24 (dark red tint)
+ *   L02 Thông tầm  → --color-shift-all-day (dark green tint)
+ *   L03 PK dịch vụ → --color-shift-service (dark orange tint)
+ *   L04 PK chuyên gia → --color-shift-expert (dark purple tint)
  */
 export const SHIFT_COLORS: Record<ScheduleTab, ShiftColorSet> = {
   ALL: { bg: "bg-surface-container-low", text: "text-on-surface", dot: "bg-outline", label: "Tất cả" },
-  L01: { bg: "bg-red-100",    text: "text-red-800",    dot: "bg-red-500",    label: "Trực 24/24" },
-  L02: { bg: "bg-blue-100",   text: "text-blue-800",   dot: "bg-blue-500",   label: "Thông tầm" },
-  L03: { bg: "bg-green-100",  text: "text-green-800",  dot: "bg-green-500",  label: "Dịch vụ" },
-  L04: { bg: "bg-purple-100", text: "text-purple-800", dot: "bg-purple-500", label: "Chuyên gia" },
+  L01: { bg: "bg-shift-24",    text: "text-on-shift-24",    dot: "bg-shift-24",    label: "Trực 24/24" },
+  L02: { bg: "bg-shift-all-day", text: "text-on-shift-all-day", dot: "bg-shift-all-day", label: "Thông tầm" },
+  L03: { bg: "bg-shift-service", text: "text-on-shift-service", dot: "bg-shift-service", label: "Dịch vụ" },
+  L04: { bg: "bg-shift-expert", text: "text-on-shift-expert", dot: "bg-shift-expert", label: "Chuyên gia" },
 };
 
 export const SHIFT_TYPE_BADGES: Record<ScheduleTab, string> = {
   ALL: "bg-surface-container-low text-on-surface border border-outline",
-  L01: "bg-red-100 text-red-800 border border-red-500",
-  L02: "bg-blue-100 text-blue-800 border border-blue-500",
-  L03: "bg-green-100 text-green-800 border border-green-500",
-  L04: "bg-purple-100 text-purple-800 border border-purple-500",
+  L01: "bg-shift-24 text-on-shift-24 border border-shift-24",
+  L02: "bg-shift-all-day text-on-shift-all-day border border-shift-all-day",
+  L03: "bg-shift-service text-on-shift-service border border-shift-service",
+  L04: "bg-shift-expert text-on-shift-expert border border-shift-expert",
 };

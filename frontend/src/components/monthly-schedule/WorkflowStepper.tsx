@@ -5,11 +5,54 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import type { MonthlyPanel, WorkflowContext, WorkflowStatus, WorkflowStepId, WorkflowStepView } from "./types";
 
-const STATUS_CONFIG: Record<WorkflowStatus, { icon: string; bg: string; iconColor: string; line: string }> = {
-  pending: { icon: "radio_button_unchecked", bg: "bg-surface-container-high", iconColor: "text-on-surface-variant", line: "bg-surface-variant" },
-  active: { icon: "play_arrow", bg: "bg-primary", iconColor: "text-on-primary", line: "bg-primary/40" },
-  completed: { icon: "check", bg: "bg-secondary-container", iconColor: "text-secondary", line: "bg-secondary/40" },
-  error: { icon: "warning", bg: "bg-error-container", iconColor: "text-error", line: "bg-error/40" },
+/** Icon duy nhất cho mỗi bước — giúp nhận diện nhanh. */
+const STEP_ICONS: Record<WorkflowStepId, string> = {
+  "auto-schedule": "auto_mode",
+  conflicts: "find_in_page",
+  review: "planner_review",
+  export: "download",
+  publish: "rocket_launch",
+  notify: "notifications_active",
+};
+
+/** Tailwind class cho icon theo status. */
+const STATUS_ICON_CONFIG: Record<WorkflowStatus, { bg: string; iconColor: string; ring: string }> = {
+  pending: {
+    bg: "bg-surface-container-high",
+    iconColor: "text-on-surface-variant",
+    ring: "ring-1 ring-outline-variant",
+  },
+  active: {
+    bg: "bg-primary",
+    iconColor: "text-on-primary",
+    ring: "ring-2 ring-primary/40",
+  },
+  completed: {
+    bg: "bg-secondary-container",
+    iconColor: "text-secondary",
+    ring: "ring-1 ring-secondary/20",
+  },
+  error: {
+    bg: "bg-error-container",
+    iconColor: "text-error",
+    ring: "ring-1 ring-error/20",
+  },
+};
+
+/** Tailwind class cho indicator dot phụ. */
+const STATUS_DOT: Record<WorkflowStatus, string> = {
+  pending: "bg-surface-variant",
+  active: "bg-primary animate-pulse",
+  completed: "bg-secondary",
+  error: "bg-error",
+};
+
+/** Tailwind class cho connector line giữa các bước. */
+const STATUS_LINE: Record<WorkflowStatus, string> = {
+  pending: "bg-surface-variant",
+  active: "bg-primary/40",
+  completed: "bg-secondary",
+  error: "bg-error",
 };
 
 function buildSteps(context: WorkflowContext): WorkflowStepView[] {
@@ -44,6 +87,7 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
   const router = useRouter();
   const steps = useMemo(() => buildSteps(props), [props]);
   const completedCount = steps.filter((s) => s.status === "completed").length;
+  const errorCount = steps.filter((s) => s.status === "error").length;
   const progress = Math.round((completedCount / steps.length) * 100);
 
   const statusSummary = useMemo(() => {
@@ -76,7 +120,12 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
               <span className="material-symbols-outlined text-[14px] text-primary" aria-hidden="true">account_tree</span>
             </div>
             <span className="text-label-sm font-semibold text-on-surface truncate">Workflow</span>
-            <span className="text-label-xs text-on-surface-variant">{completedCount}/{steps.length}</span>
+            {errorCount > 0 && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-error-container text-[10px] font-bold text-error">
+                <span className="w-1.5 h-1.5 rounded-full bg-error animate-pulse" />
+                {errorCount}
+              </span>
+            )}
           </div>
           <Badge tone={statusSummary.tone} size="sm">{statusSummary.text}</Badge>
         </div>
@@ -86,11 +135,19 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
       </div>
 
       {/* Horizontal step bar */}
-      <div className="px-3 py-2.5 overflow-x-auto">
+      <div className="px-3 py-3 overflow-x-auto">
         <div className="flex items-center min-w-max">
           {steps.map((step, index) => {
-            const status = STATUS_CONFIG[step.status];
+            const cfg = STATUS_ICON_CONFIG[step.status];
             const isActive = step.status === "active";
+            const isError = step.status === "error";
+            const isCompleted = step.status === "completed";
+            const stepIcon = STEP_ICONS[step.id];
+            // Connector: use the NEXT step's status to decide color
+            const nextStep = steps[index + 1];
+            const nextStatus = nextStep?.status ?? "pending";
+            const connectorLine = STATUS_LINE[nextStatus];
+
             return (
               <div key={step.id} className="flex items-center">
                 {/* Step */}
@@ -100,20 +157,45 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
                   aria-label={`${step.title} — ${step.statusLabel}`}
                   aria-current={isActive ? "step" : undefined}
                   title={`${step.description}: ${step.statusLabel}`}
-                  className="flex flex-col items-center gap-0.5 group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 rounded"
+                  className="flex flex-col items-center gap-1 group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 rounded"
                 >
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center ${status.bg} transition-all group-hover:scale-110`}>
-                    <span className={`material-symbols-outlined ${status.iconColor}`} style={{ fontSize: "13px" }} aria-hidden="true">
-                      {status.icon}
+                  {/* Main icon circle */}
+                  <div className={`relative flex items-center justify-center w-9 h-9 rounded-full ${cfg.bg} ${cfg.ring} transition-all group-hover:scale-110 group-active:scale-95`}>
+                    {/* Step number — hidden when active/completed/error */}
+                    {step.status === "pending" && (
+                      <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-surface-container-highest border border-outline flex items-center justify-center">
+                        <span className="text-[8px] font-bold text-on-surface-variant leading-none">{index + 1}</span>
+                      </span>
+                    )}
+                    {/* Pulse ring for active */}
+                    {isActive && (
+                      <span className="absolute inset-0 rounded-full animate-ping opacity-30 bg-primary" />
+                    )}
+                    <span className={`material-symbols-outlined ${cfg.iconColor} ${isActive || isCompleted || isError ? "" : "opacity-50"}`} style={{ fontSize: "16px" }} aria-hidden="true">
+                      {stepIcon}
+                    </span>
+                    {/* Status dot indicator */}
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-surface-container-lowest ${STATUS_DOT[step.status]}`} />
+                  </div>
+
+                  {/* Step label */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className={`text-[10px] font-bold leading-tight text-center whitespace-nowrap transition-colors ${
+                      isActive ? "text-primary" : isError ? "text-error" : isCompleted ? "text-secondary" : "text-on-surface-variant group-hover:text-on-surface"
+                    }`}>
+                      {step.title}
+                    </span>
+                    <span className={`text-[9px] leading-tight text-center whitespace-nowrap ${
+                      isActive ? "text-primary/70" : isError ? "text-error/70" : isCompleted ? "text-secondary/70" : "text-outline"
+                    }`}>
+                      {step.statusLabel}
                     </span>
                   </div>
-                  <span className="text-[9px] font-semibold text-on-surface-variant group-hover:text-primary transition-colors leading-tight text-center whitespace-nowrap">
-                    {step.title}
-                  </span>
                 </button>
+
                 {/* Connector line */}
                 {index < steps.length - 1 && (
-                  <div className={`w-6 h-0.5 mx-0.5 rounded-full ${status.line} flex-shrink-0`} />
+                  <div className={`mx-1 h-0.5 w-7 rounded-full flex-shrink-0 transition-colors ${connectorLine}`} />
                 )}
               </div>
             );

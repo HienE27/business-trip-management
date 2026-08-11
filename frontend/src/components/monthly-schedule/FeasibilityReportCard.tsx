@@ -66,10 +66,10 @@ const SHIFT_TYPE_LABELS: Record<string, string> = {
 };
 
 const SHIFT_TYPE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  L01: { bg: "bg-red-50", border: "border-red-500", text: "text-red-800" },
-  L02: { bg: "bg-blue-50", border: "border-blue-500", text: "text-blue-800" },
-  L03: { bg: "bg-green-50", border: "border-green-500", text: "text-green-800" },
-  L04: { bg: "bg-purple-50", border: "border-purple-500", text: "text-purple-800" },
+  L01: { bg: "bg-shift-24", border: "border-shift-24", text: "text-on-shift-24" },
+  L02: { bg: "bg-shift-all-day", border: "border-shift-all-day", text: "text-on-shift-all-day" },
+  L03: { bg: "bg-shift-service", border: "border-shift-service", text: "text-on-shift-service" },
+  L04: { bg: "bg-shift-expert", border: "border-shift-expert", text: "text-on-shift-expert" },
 };
 
 interface FeasibilityReportCardProps {
@@ -266,7 +266,7 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
                       {buffer > 0 ? `+${buffer}` : buffer === 0 ? "0" : buffer}
                     </span>
                   </div>
-                  <div className={`w-full rounded-full h-2 ${colors.bg}`}>
+                  <div className={`w-full rounded-full h-2 bg-black/20`}>
                     <div
                       className={`h-2 rounded-full transition-all ${
                         buffer > 0 ? "bg-secondary" : buffer === 0 ? "bg-error" : "bg-tertiary"
@@ -299,7 +299,7 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
                     </summary>
                     <div className="mt-1.5 space-y-1 max-h-24 overflow-y-auto">
                       {summary.backups.slice(0, 5).map((b) => (
-                        <div key={b.staffId} className="flex items-center justify-between bg-white/50 rounded px-2 py-1">
+                        <div key={b.staffId} className="flex items-center justify-between bg-black/5 rounded px-2 py-1">
                           <div className="min-w-0">
                             <p className={`text-[11px] font-medium truncate ${colors.text}`}>{b.staffName}</p>
                             <p className={`text-[10px] ${colors.text} opacity-60`}>{b.specialtyName}</p>
