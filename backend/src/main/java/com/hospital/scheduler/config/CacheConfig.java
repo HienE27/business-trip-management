@@ -6,6 +6,7 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 import java.util.concurrent.TimeUnit;
 
@@ -21,6 +22,7 @@ public class CacheConfig {
     public static final String HOSPITAL_ELIGIBLE_SPECIALTIES_CACHE = "hospital-eligible-specialties";
     public static final String FEASIBILITY_CACHE = "feasibility";
 
+    @Primary
     @Bean
     public CacheManager cacheManager() {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager();

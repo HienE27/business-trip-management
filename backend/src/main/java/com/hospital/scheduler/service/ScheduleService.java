@@ -87,9 +87,13 @@ public class ScheduleService {
     public List<ScheduleResponse> getSchedulesByStaff(Integer staffId) {
         List<Schedule> schedules = scheduleRepository.findByStaffId(staffId);
         if (schedules.isEmpty()) return List.of();
+        // Filter: only PUBLISHED periods
+        List<Schedule> publishedSchedules = schedules.stream()
+                .filter(s -> s.getPeriod().getStatus() == SchedulePeriod.PeriodStatus.PUBLISHED)
+                .collect(Collectors.toList());
         Map<Integer, List<String>> conflictMap = buildConflictReasonsMap(
-                schedules, null);
-        return schedules.stream()
+                publishedSchedules, null);
+        return publishedSchedules.stream()
                 .map(s -> toResponse(s, null, conflictMap))
                 .collect(Collectors.toList());
     }
