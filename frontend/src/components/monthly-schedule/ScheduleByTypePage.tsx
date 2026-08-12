@@ -13,6 +13,8 @@ import { BulkDatePickerModal } from "@/components/monthly-schedule/BulkDatePicke
 import { WorkloadSummary } from "@/components/monthly-schedule/WorkloadSummary";
 import { ConflictSection } from "@/components/monthly-schedule/ConflictSection";
 import { useRole, canManage } from "@/hooks/useRole";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Permission } from "@/lib/permissions";
 import { useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -78,6 +80,7 @@ export type ScheduleByTypePageProps = {
 export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const role = useRole();
   const isManager = canManage(role);
+  const { can } = usePermissions();
   const isExpertMode = config.expertClinicMode === true;
   const { success: toastSuccess, error: toastError } = useToast();
   const searchParams = useSearchParams();
@@ -124,14 +127,19 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
   const loadBaseData = useCallback(async (options?: { keepCurrentPeriod?: boolean }) => {
     try {
       setLoading(true);
+      // STAFF doesn't have STAFF_VIEW_ALL permission, so skip /staff/active call
+      // STAFF doesn't have PERIOD_VIEW permission (ADMIN/MANAGER only), so skip /periods call
+      const hasStaffAccess = can(Permission.STAFF_VIEW_ALL);
+      const hasPeriodAccess = can(Permission.PERIOD_VIEW);
+
       const requests: [
-        Promise<SchedulePeriod[]>,
-        Promise<Staff[]>,
+        Promise<SchedulePeriod[]> | null,
+        Promise<Staff[]> | null,
         Promise<LeaveRequest[]>,
         Promise<Specialty[]> | null,
       ] = [
-        api.get<SchedulePeriod[]>("/periods"),
-        api.get<Staff[]>("/staff/active"),
+        hasPeriodAccess ? api.get<SchedulePeriod[]>("/periods") : null,
+        hasStaffAccess ? api.get<Staff[]>("/staff/active") : null,
         api.get<LeaveRequest[]>("/leave-requests/status/approved"),
         isExpertMode ? api.get<Specialty[]>("/specialties/active") : null,
       ];
@@ -371,12 +379,22 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
     const loadBase = async () => {
       try {
-        const [periodData, staffData, leaveData, specialtyData] = await Promise.all([
-          api.get<SchedulePeriod[]>("/periods"),
-          api.get<Staff[]>("/staff/active"),
+        // STAFF doesn't have STAFF_VIEW_ALL or PERIOD_VIEW permissions, so skip these
+        const hasStaffAccess = can(Permission.STAFF_VIEW_ALL);
+        const hasPeriodAccess = can(Permission.PERIOD_VIEW);
+
+        const requests: [
+          Promise<SchedulePeriod[]> | null,
+          Promise<Staff[]> | null,
+          Promise<LeaveRequest[]>,
+          Promise<Specialty[]> | null,
+        ] = [
+          hasPeriodAccess ? api.get<SchedulePeriod[]>("/periods") : null,
+          hasStaffAccess ? api.get<Staff[]>("/staff/active") : null,
           api.get<LeaveRequest[]>("/leave-requests/status/approved"),
-          isExpertMode ? api.get<Specialty[]>("/specialties/active") : Promise.resolve(null),
-        ]);
+          isExpertMode ? api.get<Specialty[]>("/specialties/active") : null,
+        ];
+        const [periodData, staffData, leaveData, specialtyData] = await Promise.all(requests);
 
         if (cancelled) return;
 
@@ -401,7 +419,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
     void loadBase();
     return () => { cancelled = true; };
-  }, []); // Run once only
+  }, [can, isExpertMode]); // Run once only
 
   // Effect 1b: Set loading=false when no period is selected (after base data loads)
   useEffect(() => {

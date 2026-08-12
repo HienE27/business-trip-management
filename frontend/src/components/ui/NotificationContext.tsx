@@ -115,14 +115,15 @@ function toNotificationItem(notification: Notification): NotificationItem {
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const userId = user?.userId;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const loadNotifications = useCallback(async () => {
-    if (!userId) {
+    // Guard: wait for auth to finish loading before fetching user-specific data
+    if (isLoading || !userId) {
       setNotifications([]);
       return;
     }
@@ -138,7 +139,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, isLoading]);
 
   // BUGFIX (bell dead): load the notification list as soon as the provider
   // mounts (and again on userId change, e.g. after login/logout). Previously
