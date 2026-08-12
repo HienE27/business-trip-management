@@ -36,12 +36,12 @@ export function ApplyConfirmationModal({
         <div className="mt-3 p-3 bg-surface-container-low rounded-lg text-label-sm text-on-surface-variant space-y-1">
           <p>Tổng ca: <strong className="text-on-surface">{previewResult.totalSchedulesCreated}</strong></p>
           <p>Tỷ lệ phủ: <strong className="text-on-surface">{previewResult.coverageRate == null ? "—" : `${Math.round(previewResult.coverageRate)}%`}</strong></p>
-          <p>Xung đột: <strong className={previewResult.conflictCount == null ? "" : "text-error"}>{previewResult.conflictCount == null ? "—" : previewResult.conflictCount}</strong></p>
+          <p>Xung đột: <strong className={previewResult.conflictCount == null ? "" : "text-red-800"}>{previewResult.conflictCount == null ? "—" : previewResult.conflictCount}</strong></p>
           {editedPreview.length > 0 && (
-            <p className="text-primary">Có <strong>{editedPreview.length}</strong> ca đã chỉnh sửa thủ công.</p>
+            <p className="text-blue-800">Có <strong>{editedPreview.length}</strong> ca đã chỉnh sửa thủ công.</p>
           )}
           {removedShiftTypes.size > 0 && (
-            <p className="text-primary">Có <strong>{removedShiftTypes.size}</strong> ca đổi loại lịch.</p>
+            <p className="text-blue-800">Có <strong>{removedShiftTypes.size}</strong> ca đổi loại lịch.</p>
           )}
         </div>
       )}

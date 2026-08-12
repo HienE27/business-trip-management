@@ -45,13 +45,13 @@ export function HolidayFormModal({
     >
       <div className="space-y-4">
         {formError && (
-          <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+          <div className="rounded-lg border border-red-300 bg-red-100 text-red-800 px-4 py-3 text-sm">
             {formError}
           </div>
         )}
         <div>
           <label className="mb-1.5 block text-label-sm text-on-surface-variant">
-            Tên ngày lễ <span className="text-error">*</span>
+            Tên ngày lễ <span className="text-red-800">*</span>
           </label>
           <input
             type="text"
@@ -63,7 +63,7 @@ export function HolidayFormModal({
         </div>
         <div>
           <label className="mb-1.5 block text-label-sm text-on-surface-variant">
-            Ngày lễ <span className="text-error">*</span>
+            Ngày lễ <span className="text-red-800">*</span>
           </label>
           <input
             type="date"
@@ -113,7 +113,7 @@ export function HolidayFormModal({
           type="button"
           onClick={onSave}
           disabled={saving}
-          className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-label-md font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-100 text-label-md font-semibold text-blue-800 hover:bg-blue-200 disabled:opacity-50 transition-colors"
         >
           <span className="material-symbols-outlined text-[16px]">check</span>
           {saving ? "Đang lưu..." : editing ? "Cập nhật" : "Thêm mới"}

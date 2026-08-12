@@ -34,11 +34,11 @@ function ConflictDetailList({ message }: { message: string }) {
   if (entries.length === 0) return null;
 
   return (
-    <div className="bg-error-container/5 border-t border-error-container/20 px-4 pb-3 pt-2 space-y-1.5">
-      <p className="text-[10px] font-semibold text-error uppercase tracking-wide mb-1">Chi tiết xung đột</p>
+    <div className="bg-red-100 text-red-800 border border-red-300/5 border-t bg-red-100 text-red-800 px-4 pb-3 pt-2 space-y-1.5">
+      <p className="text-[10px] font-semibold text-red-800 uppercase tracking-wide mb-1">Chi tiết xung đột</p>
       {entries.map((entry, i) => (
         <div key={i} className="flex items-start gap-2">
-          <span className="material-symbols-outlined text-[12px] text-error mt-0.5 shrink-0" aria-hidden="true">warning</span>
+          <span className="material-symbols-outlined text-[12px] text-red-800 mt-0.5 shrink-0" aria-hidden="true">warning</span>
           <div className="flex-1 min-w-0">
             <p className="text-[11px] text-on-surface font-medium leading-tight">
               {entry.staffName} — {entry.date}
@@ -145,8 +145,8 @@ export function BulkPublishModal({ open, periods, onClose, onRefresh }: Props) {
                 onClick={() => { setOperation("publish"); setSelectedIds(new Set()); }}
                 className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-label-md font-medium transition-colors border ${
                   operation === "publish"
-                    ? "border-primary bg-primary-fixed/20 text-primary"
-                    : "border-outline-variant text-on-surface-variant hover:border-primary/40"
+                    ? "border-primary bg-blue-100 text-blue-800/20 text-blue-800"
+                    : "border-outline-variant text-on-surface-variant hover:border-blue-30040"
                 }`}
               >
                 <span className="material-symbols-outlined text-[16px]" aria-hidden="true">publish</span>
@@ -159,8 +159,8 @@ export function BulkPublishModal({ open, periods, onClose, onRefresh }: Props) {
                 onClick={() => { setOperation("archive"); setSelectedIds(new Set()); }}
                 className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-label-md font-medium transition-colors border ${
                   operation === "archive"
-                    ? "border-secondary bg-secondary-container/20 text-on-secondary-container"
-                    : "border-outline-variant text-on-surface-variant hover:border-secondary/40"
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : "border-outline-variant text-on-surface-variant hover:border-emerald-400"
                 }`}
               >
                 <span className="material-symbols-outlined text-[16px]" aria-hidden="true">archive</span>
@@ -212,7 +212,7 @@ export function BulkPublishModal({ open, periods, onClose, onRefresh }: Props) {
                         </p>
                       </div>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                        p.status === "DRAFT" ? "bg-primary-fixed text-primary" : "bg-secondary-container text-on-secondary-container"
+                        p.status === "DRAFT" ? "bg-blue-100 text-blue-800" : "bg-emerald-100 text-emerald-800 border border-emerald-300"
                       }`}>
                         {p.status === "DRAFT" ? "Nháp" : "Đã công bố"}
                       </span>
@@ -242,7 +242,7 @@ export function BulkPublishModal({ open, periods, onClose, onRefresh }: Props) {
               loading={submitting}
               onClick={handleSubmit}
               icon={!submitting ? <span className="material-symbols-outlined text-[16px]" aria-hidden="true">check</span> : undefined}
-              className={operation === "archive" ? "!bg-secondary !text-on-secondary hover:!opacity-90" : ""}
+              className={operation === "archive" ? "!bg-emerald-100 text-emerald-800 hover:!opacity-90" : ""}
             >
               {operation === "publish" ? `Công bố ${selectedIds.size} kỳ lịch` : `Lưu trữ ${selectedIds.size} kỳ lịch`}
             </Button>
@@ -252,13 +252,13 @@ export function BulkPublishModal({ open, periods, onClose, onRefresh }: Props) {
         <>
           <div className="space-y-3">
             <div className="flex gap-4">
-              <div className="flex-1 rounded-lg border border-secondary-container bg-secondary-container/10 p-3 text-center">
-                <p className="text-display-lg text-secondary font-bold">{results.success}</p>
-                <p className="text-label-sm text-on-secondary-container">Thành công</p>
+              <div className="flex-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 p-3 text-center">
+                <p className="text-display-lg text-emerald-800 font-bold">{results.success}</p>
+                <p className="text-label-sm text-emerald-800">Thành công</p>
               </div>
-              <div className="flex-1 rounded-lg border border-error-container bg-error-container/10 p-3 text-center">
-                <p className="text-display-lg text-error font-bold">{results.failure}</p>
-                <p className="text-label-sm text-on-error-container">Thất bại</p>
+              <div className="flex-1 rounded-lg bg-red-100 text-red-800 border border-red-300 p-3 text-center">
+                <p className="text-display-lg text-red-800 font-bold">{results.failure}</p>
+                <p className="text-label-sm text-red-800">Thất bại</p>
               </div>
             </div>
             <div className="border border-outline-variant rounded-lg overflow-hidden max-h-64 overflow-y-auto">
@@ -267,7 +267,7 @@ export function BulkPublishModal({ open, periods, onClose, onRefresh }: Props) {
                 return (
                   <div key={r.id} className="border-b border-outline-variant last:border-b-0">
                     <div className="flex items-start gap-3 px-4 py-2.5">
-                      <span className={`material-symbols-outlined text-[18px] mt-0.5 shrink-0 ${r.success ? "text-secondary" : "text-error"}`}>
+                      <span className={`material-symbols-outlined text-[18px] mt-0.5 shrink-0 ${r.success ? "text-emerald-800" : "text-red-800"}`}>
                         {r.success ? "check_circle" : "error"}
                       </span>
                       <div className="flex-1 min-w-0">

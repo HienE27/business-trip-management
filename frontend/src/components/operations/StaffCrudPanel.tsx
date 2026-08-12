@@ -90,14 +90,6 @@ function normalizeStaffRecord(record: StaffApiResponse): StaffResponse {
   };
 }
 
-function getInitials(name: string) {  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
 function getStatusLabel(record: StaffResponse) {
   const s = record.status?.toUpperCase();
   if (s === "ACTIVE") return "Đang làm việc";
@@ -107,13 +99,13 @@ function getStatusLabel(record: StaffResponse) {
 
 function getStatusClass(record: StaffResponse) {
   const s = record.status?.toUpperCase();
-  if (s === "ACTIVE") return "bg-secondary-container text-on-secondary-container border border-secondary/20";
-  if (s === "ON_LEAVE") return "bg-tertiary-fixed text-on-tertiary-fixed-variant border border-tertiary/20";
+  if (s === "ACTIVE") return "bg-emerald-100 text-emerald-800 border border-emerald-300";
+  if (s === "ON_LEAVE") return "bg-amber-100 text-amber-800 border border-amber-300";
   return "bg-surface-container-highest text-outline border border-outline-variant";
 }
 
 function getStatusDot(record: StaffResponse) {
-  if (record.status === "active") return "bg-secondary";
+  if (record.status === "active") return "bg-emerald-100";
   if (record.status === "on_leave") return "bg-tertiary";
   return "bg-outline";
 }
@@ -147,7 +139,6 @@ export function StaffCrudPanel() {
     ON_LEAVE: number;
     INACTIVE: number;
   }>({ total: 0, ACTIVE: 0, ON_LEAVE: 0, INACTIVE: 0 });
-  const [specialtyCounts, setSpecialtyCounts] = useState<Record<string, number>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
   const { can } = usePermissions();
@@ -193,19 +184,9 @@ export function StaffCrudPanel() {
     }
   }, []);
 
-  const fetchSpecialtyCounts = useCallback(async () => {
-    try {
-      const res = await api.getStaffSpecialtyCounts();
-      setSpecialtyCounts((res?.data ?? {}) as Record<string, number>);
-    } catch {
-      // Fall back silently — table still works.
-    }
-  }, []);
-
   useEffect(() => {
     fetchStatusCounts();
-    fetchSpecialtyCounts();
-  }, [fetchStatusCounts, fetchSpecialtyCounts]);
+  }, [fetchStatusCounts]);
 
 // BUGFIX (FE#5): fetchStaff now takes an AbortSignal so concurrent calls
   // are cancelled by the latest-request guard instead of racing. A request
@@ -383,7 +364,7 @@ export function StaffCrudPanel() {
       } else {
         toast.success(`Đã nhập thành công ${result.imported} nhân sự.`);
       }
-      await Promise.all([fetchStaff(), fetchStatusCounts(), fetchSpecialtyCounts()]);
+      await Promise.all([fetchStaff(), fetchStatusCounts()]);
     } catch (err) {
       toast.error(getErrorMessage(err, "Lỗi nhập file"));
     } finally {
@@ -496,26 +477,19 @@ export function StaffCrudPanel() {
             onClick={() => setTab("staff")}
             className={`group relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${
               !isSpecialtiesTab
-                ? "bg-primary text-on-primary shadow-md"
+                ? "bg-blue-100 text-blue-800 shadow-md"
                 : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">groups</span>
             Nhân viên
-            <span className={`min-w-[20px] h-5 rounded-full px-1.5 flex items-center justify-center text-[11px] font-bold tabular-nums transition-all duration-200 ${
-              !isSpecialtiesTab
-                ? "bg-on-primary/20 text-on-primary"
-                : "bg-surface-container-high text-on-surface-variant group-hover:bg-surface-container-highest"
-            }`}>
-              {records.length}
-            </span>
           </button>
           <button
             type="button"
             onClick={() => setTab("specialties")}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${
               isSpecialtiesTab
-                ? "bg-primary text-on-primary shadow-md"
+                ? "bg-blue-100 text-blue-800 shadow-md"
                 : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
             }`}
           >
@@ -544,26 +518,19 @@ export function StaffCrudPanel() {
           onClick={() => setTab("staff")}
           className={`group relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${
             activeTab === "staff"
-              ? "bg-primary text-on-primary shadow-md"
+              ? "bg-blue-100 text-blue-800 shadow-md"
               : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
           }`}
         >
           <span className="material-symbols-outlined text-[18px]">groups</span>
           Nhân viên
-          <span className={`min-w-[20px] h-5 rounded-full px-1.5 flex items-center justify-center text-[11px] font-bold tabular-nums transition-all duration-200 ${
-            activeTab === "staff"
-              ? "bg-on-primary/20 text-on-primary"
-              : "bg-surface-container-high text-on-surface-variant group-hover:bg-surface-container-highest"
-          }`}>
-            {records.length}
-          </span>
         </button>
         <button
           type="button"
           onClick={() => setTab("specialties")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-label-md font-medium transition-all ${
             isSpecialtiesTab
-              ? "bg-primary text-on-primary shadow-md"
+              ? "bg-blue-100 text-blue-800 shadow-md"
               : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
           }`}
         >
@@ -589,8 +556,8 @@ export function StaffCrudPanel() {
         >
           <div className="flex items-center justify-between px-6 py-5 border-b border-outline-variant shrink-0">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-container">
-                <span className="material-symbols-outlined text-primary text-[20px]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100-container">
+                <span className="material-symbols-outlined text-blue-800 text-[20px]">
                   {editingId !== null ? "edit" : "person_add"}
                 </span>
               </div>
@@ -667,8 +634,8 @@ export function StaffCrudPanel() {
                           key={role.value}
                           className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-label-md ${
                             checked
-                              ? "bg-primary/10 border-primary text-primary font-medium"
-                              : "bg-surface-container-low border-outline-variant text-on-surface-variant hover:border-primary/50"
+                              ? "bg-blue-100/10 border-blue-300 text-blue-800 font-medium"
+                              : "bg-surface-container-low border-outline-variant text-on-surface-variant hover:border-blue-30050"
                           }`}
                         >
                           <input
@@ -686,7 +653,7 @@ export function StaffCrudPanel() {
                           />
                           <span
                             className={`material-symbols-outlined text-[16px] transition-colors ${
-                              checked ? "text-primary" : "text-outline"
+                              checked ? "text-blue-800" : "text-outline"
                             }`}
                             aria-hidden="true"
                           >
@@ -698,7 +665,7 @@ export function StaffCrudPanel() {
                     })}
                   </div>
                   {form.roles.length === 0 && (
-                    <p className="text-label-xs text-error">Vui lòng chọn ít nhất một vai trò.</p>
+                    <p className="text-label-xs text-red-800">Vui lòng chọn ít nhất một vai trò.</p>
                   )}
                 </div>
 
@@ -811,8 +778,8 @@ export function StaffCrudPanel() {
 
       <section className="flex flex-col justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 md:p-5 shadow-sm sm:flex-row sm:items-center">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-fixed">
-            <span className="material-symbols-outlined text-[20px] text-primary">groups</span>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100">
+            <span className="material-symbols-outlined text-[20px] text-blue-800">groups</span>
           </div>
           <div>
             <p className="text-label-sm text-on-surface-variant">Nhân sự</p>
@@ -851,7 +818,7 @@ export function StaffCrudPanel() {
           )}
           {can(Permission.STAFF_CREATE) && (
             <Link
-              className="flex items-center gap-2 rounded-lg bg-primary px-4 h-10 text-label-md font-medium text-on-primary shadow-sm transition-all duration-200 hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              className="flex items-center gap-2 rounded-lg bg-blue-100 px-4 h-10 text-label-md font-medium text-blue-800 shadow-sm transition-all duration-200 hover:bg-blue-100/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               href="/staff/create"
             >
               <span aria-hidden="true" className="material-symbols-outlined text-[18px]">add</span>
@@ -867,8 +834,8 @@ export function StaffCrudPanel() {
             className="group relative flex items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md"
             key={label}
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-fixed transition-transform duration-200 group-hover:scale-105">
-              <span className="material-symbols-outlined text-[20px] text-primary">groups</span>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 transition-transform duration-200 group-hover:scale-105">
+              <span className="material-symbols-outlined text-[20px] text-blue-800">groups</span>
             </div>
             <div className="min-w-0">
               <p className="text-label-sm text-on-surface-variant truncate">{label}</p>
@@ -878,25 +845,6 @@ export function StaffCrudPanel() {
         ))}
       </section>
 
-      {Object.keys(specialtyCounts).length > 0 && (
-        <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
-          <h3 className="text-label-md font-semibold text-on-surface-variant mb-3">
-            Nhân sự theo chuyên khoa
-          </h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {Object.entries(specialtyCounts).map(([name, count]) => (
-              <div
-                key={name}
-                className="flex items-center justify-between rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
-              >
-                <span className="text-label-sm text-on-surface-variant truncate">{name}</span>
-                <span className="text-label-md font-bold text-on-surface">{String(count).padStart(2, "0")}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm flex flex-wrap lg:flex-nowrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <span aria-hidden="true" className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">
@@ -905,7 +853,7 @@ export function StaffCrudPanel() {
           <input
             aria-label="Tìm kiếm nhân sự"
             autoComplete="off"
-            className="w-full rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-9 pr-3 text-body-sm text-on-surface transition-all placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-9 pr-3 text-body-sm text-on-surface transition-all placeholder:text-outline focus:border-blue-300 focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-300"
             name="staffSearch"
             onChange={(e) => setSearchKeyword(e.target.value)}
             placeholder="Tìm kiếm tên, email hoặc mã nhân viên..."
@@ -916,7 +864,7 @@ export function StaffCrudPanel() {
         <div className="relative w-full lg:w-44">
           <select
             aria-label="Lọc theo vai trò"
-            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-blue-300 focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-300"
             onChange={(e) => setRoleFilter(e.target.value)}
             value={roleFilter}
           >
@@ -933,7 +881,7 @@ export function StaffCrudPanel() {
         <div className="relative w-full lg:w-44">
           <select
             aria-label="Lọc theo khoa phòng"
-            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-blue-300 focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-300"
             value={specialtyFilter}
             onChange={(e) => setSpecialtyFilter(e.target.value === "" ? "" : Number(e.target.value) || 0)}
           >
@@ -950,7 +898,7 @@ export function StaffCrudPanel() {
         <div className="relative w-full lg:w-44">
           <select
             aria-label="Lọc theo trạng thái"
-            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full appearance-none rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-3 pr-8 text-body-sm text-on-surface transition-all focus:border-blue-300 focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-300"
             onChange={(e) => setStatusFilter(e.target.value)}
             value={statusFilter}
           >
@@ -969,7 +917,7 @@ export function StaffCrudPanel() {
           <input
             type="text"
             aria-label="Lọc theo chức vụ"
-            className="w-full h-10 pl-9 pr-3 rounded-lg border border-transparent bg-surface-container-low text-body-sm text-on-surface placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            className="w-full h-10 pl-9 pr-3 rounded-lg border border-transparent bg-surface-container-low text-body-sm text-on-surface placeholder:text-outline focus:border-blue-300 focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all"
             placeholder="Chức vụ..."
             value={positionFilter}
             onChange={(e) => setPositionFilter(e.target.value)}
@@ -981,7 +929,7 @@ export function StaffCrudPanel() {
         <div className="overflow-x-auto">
           {loading ? (
             <div className="flex items-center justify-center py-16">
-              <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <div className="size-8 animate-spin rounded-full border-2 border-blue-300 border-t-transparent" />
             </div>
           ) : (
             <table className="w-full border-collapse text-left" aria-label="Staffcrudpanel Table">
@@ -1010,17 +958,12 @@ export function StaffCrudPanel() {
                   pagedRecords.map((record) => (
                     <tr className="group transition-colors hover:bg-surface-container-lowest h-12" key={record.id}>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-fixed font-bold text-label-sm text-on-primary-fixed-variant">
-                            {getInitials(record.fullName)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-label-md font-semibold text-on-surface leading-tight truncate max-w-[180px]">{record.fullName}</p>
-                            <p className="text-label-sm text-on-surface-variant leading-tight truncate max-w-[180px]">{record.email || "—"}</p>
-                          </div>
+                        <div className="min-w-0">
+                          <p className="text-label-md font-semibold text-on-surface leading-tight truncate max-w-[220px]">{record.fullName}</p>
+                          <p className="text-label-sm text-on-surface-variant leading-tight truncate max-w-[220px]">{record.email || "—"}</p>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-label-md text-primary font-semibold">{record.staffCode}</td>
+                      <td className="px-4 py-3 text-label-md text-blue-800 font-semibold">{record.staffCode}</td>
                       <td className="px-4 py-3 text-label-md text-on-surface">{record.position || "—"}</td>
                       <td className="px-4 py-3 text-label-md text-on-surface">{getRoleLabel(record.roles)}</td>
                       <td className="px-4 py-3 text-label-md text-on-surface">{record.specialty?.name ?? "—"}</td>
@@ -1036,7 +979,7 @@ export function StaffCrudPanel() {
                           {can(Permission.STAFF_VIEW) && (
                             <Link
                               aria-label={`Xem chi tiết ${record.fullName}`}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-blue-800 hover:bg-surface-container transition-colors"
                               href={`/staff/${record.id}`}
                               title="Xem chi tiết"
                             >
@@ -1046,7 +989,7 @@ export function StaffCrudPanel() {
                           {can(Permission.STAFF_UPDATE) && (
                             <button
                               aria-label={`Chỉnh sửa ${record.fullName}`}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-blue-800 hover:bg-surface-container transition-colors"
                               onClick={() => openEditPage(record.id)}
                               title="Chỉnh sửa"
                               type="button"
@@ -1057,7 +1000,7 @@ export function StaffCrudPanel() {
                           {can(Permission.STAFF_DELETE) && (
                             <button
                               aria-label={`Xóa ${record.fullName}`}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-error hover:bg-error-container transition-colors"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-red-800 hover:bg-red-100 text-red-800 transition-colors"
                               onClick={() => requestDelete(record.id, record.fullName)}
                               title="Xóa"
                               type="button"

@@ -153,7 +153,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
           <p className="text-label-sm text-on-surface-variant">{data.item.shiftLabel}</p>
         </div>
         {s.hasConflict && !editMode && (
-          <span className="ml-auto material-symbols-outlined text-error text-[18px]" title="Xung đột">warning</span>
+          <span className="ml-auto material-symbols-outlined text-red-800 text-[18px]" title="Xung đột">warning</span>
         )}
         {editMode && (
           <button
@@ -170,7 +170,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
 
       {/* Error */}
       {editError && (
-        <div className="mb-3 rounded-lg border border-error/20 bg-error-container px-3 py-2 text-label-sm text-error">
+        <div className="mb-3 rounded-lg border border-red-300 bg-red-100 text-red-800 px-3 py-2 text-label-sm text-red-800">
           {editError}
         </div>
       )}
@@ -185,7 +185,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
                 value={editStaffId ?? ""}
                 onChange={(e) => setEditStaffId(e.target.value ? Number(e.target.value) : null)}
                 disabled={saving || loadingDropdowns}
-                className="w-full h-9 pl-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest text-body-sm text-on-surface appearance-none focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                className="w-full h-9 pl-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest text-body-sm text-on-surface appearance-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 cursor-pointer"
               >
                 <option value="">-- Chọn nhân sự --</option>
                 {staffList.map((st) => (
@@ -203,7 +203,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
                 value={editShiftTypeId ?? ""}
                 onChange={(e) => setEditShiftTypeId(e.target.value || null)}
                 disabled={saving || loadingDropdowns}
-                className="w-full h-9 pl-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest text-body-sm text-on-surface appearance-none focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                className="w-full h-9 pl-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest text-body-sm text-on-surface appearance-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 cursor-pointer"
               >
                 <option value="">-- Chọn loại lịch --</option>
                 {shiftTypes.map((st) => (
@@ -224,7 +224,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
               onChange={(e) => setEditNotes(e.target.value)}
               disabled={saving}
               rows={2}
-              className="w-full resize-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-sm text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="w-full resize-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-sm text-on-surface transition-all focus:ring-2 focus:ring-blue-300 focus:border-blue-300"
               placeholder="Ghi chú (tùy chọn)"
             />
           </div>
@@ -242,7 +242,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
               type="button"
               onClick={() => void handleSave()}
               disabled={saving || !isDirty || editStaffId === null || editShiftTypeId === null}
-              className="flex-1 h-9 rounded-lg bg-primary text-on-primary text-label-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1.5"
+              className="flex-1 h-9 rounded-lg bg-blue-100 text-blue-800 text-label-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               {saving ? (
                 <>
@@ -299,7 +299,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
               <button
                 type="button"
                 onClick={startEdit}
-                className="flex-1 px-3 py-1.5 rounded-lg text-label-sm font-medium bg-primary text-on-primary hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="flex-1 px-3 py-1.5 rounded-lg text-label-sm font-medium bg-blue-100 text-blue-800 hover:bg-blue-100/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <span className="flex items-center justify-center gap-1.5">
                   <span aria-hidden="true" className="material-symbols-outlined text-[16px]">edit</span>
@@ -314,7 +314,7 @@ export function EventTooltip({ data, onEdit, onDelete, onResolve, onViewDetail, 
                   onResolve(s);
                   requestAnimationFrame(() => onClose());
                 }}
-                className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-error text-on-error hover:bg-error/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error"
+                className="px-3 py-1.5 rounded-lg text-label-sm font-medium bg-error text-white hover:bg-error/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error"
               >
                 Xử lý
               </button>

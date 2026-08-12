@@ -90,7 +90,7 @@ export default function CompensationDaysPage() {
           aria-label="Kỳ lịch"
           value={periodId}
           onChange={(e) => setPeriodId(e.target.value)}
-          className="rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer pr-7 shrink-0 min-w-[200px]"
+          className="rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-blue-30020 cursor-pointer pr-7 shrink-0 min-w-[200px]"
         >
           {periods.length === 0 && <option value="">— Chưa có kỳ —</option>}
           {periods.map((p) => (
@@ -105,7 +105,7 @@ export default function CompensationDaysPage() {
         <div className="relative shrink-0" style={{ minWidth: 180, width: 240 }}>
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[16px]">search</span>
           <input
-            className="w-full rounded-lg border border-outline-variant bg-surface h-9 pl-9 pr-3 text-[13px] text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            className="w-full rounded-lg border border-outline-variant bg-surface h-9 pl-9 pr-3 text-[13px] text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-blue-30020 transition-all"
             placeholder="Tên, ngày, ghi chú…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -173,7 +173,7 @@ export default function CompensationDaysPage() {
                   </span>
                 </div>
                 <span className="text-[13px] text-on-surface tabular-nums">{fmtDateShort(r.shiftDate)}</span>
-                <span className="text-[13px] font-semibold text-primary tabular-nums">
+                <span className="text-[13px] font-semibold text-blue-800 tabular-nums">
                   {fmtDateShort(r.compensationDate)}
                 </span>
                 <span

@@ -337,10 +337,10 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-5">
         <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">bookmark</span>
+            <span className="material-symbols-outlined text-blue-800 text-[20px]" aria-hidden="true">bookmark</span>
             <p className="text-title-sm font-semibold text-on-surface">Cấu hình nhanh</p>
             {isDirty && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-tertiary text-on-tertiary border border-tertiary/20">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-300">
                 <span className="material-symbols-outlined text-[12px]">edit</span>
                 Tùy chỉnh
               </span>
@@ -352,7 +352,7 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
                 onClick={() => setShowDiff(true)}
                 icon={<span className="material-symbols-outlined text-[12px]" aria-hidden="true">difference</span>}
                 iconPosition="right"
-                className="rounded-full !bg-primary !text-on-primary !border !border-primary/30 hover:!bg-primary/80 px-2.5 py-1 text-[11px]"
+                className="rounded-full !bg-blue-100 !text-blue-800 !border !border-blue-300 hover:!bg-blue-200 px-2.5 py-1 text-[11px]"
                 title="Xem chi tiết thay đổi"
               >
                 {changes.length} thay đổi
@@ -656,7 +656,7 @@ function NumberSpinner({ value, min, max, step, onChange, disabled }: {
         inputMode="numeric"
         pattern="[0-9]*"
         disabled={disabled}
-        className="h-8 w-16 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:cursor-not-allowed"
+        className="h-8 w-16 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-center text-[13px] font-mono font-semibold text-on-surface tabular-nums focus:border-blue-300 focus:ring-2 focus:ring-blue-300 transition-colors disabled:cursor-not-allowed"
         value={localVal}
         onChange={handleInputChange}
         onFocus={handleFocus}
@@ -710,7 +710,7 @@ function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: P
       <div className="flex items-center justify-between gap-3 mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5">
-            <code className="font-mono text-[11px] font-semibold text-primary bg-primary-fixed/50 px-1.5 py-0.5 rounded">{desc.label}</code>
+            <code className="font-mono text-[11px] font-semibold text-blue-800 bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">{desc.label}</code>
             {isTrackingOnly && (
               <span className="inline-flex items-center rounded-full border border-outline-variant bg-surface-container-low px-1.5 py-0.5 text-[9px] font-semibold text-on-surface-variant">
                 Theo dõi
@@ -741,8 +741,8 @@ function ParamField({ param, desc, cfgKey, groupId, form, editing, onChange }: P
         <div
           className={`flex items-start gap-1.5 mb-1.5 px-2 py-1 rounded-md border text-[10px] leading-tight ${
             validation.level === "error"
-              ? "bg-error-container/30 text-error border-error/40"
-              : "bg-tertiary-container/30 text-tertiary border-tertiary/40"
+              ? "bg-red-100/30 text-red-800 border border-red-300"
+              : "bg-amber-100 text-amber-800 border border-amber-300"
           }`}
           role={validation.level === "error" ? "alert" : "status"}
         >
@@ -784,7 +784,7 @@ function AutoCompensationCard() {
           <p className="text-label-sm text-on-surface font-medium">Tạo ngày nghỉ bù</p>
           <p className="text-[11px] text-on-surface-variant mt-0.5">Scheduler v1.0 luôn tạo nghỉ bù sau ca L01</p>
         </div>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm font-semibold bg-secondary-container text-on-secondary-container border border-on-secondary-container/20">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
           <span className="h-2 w-2 rounded-full bg-secondary" />
           Always On
         </span>

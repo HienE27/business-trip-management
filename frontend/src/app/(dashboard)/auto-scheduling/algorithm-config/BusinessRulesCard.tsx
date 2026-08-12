@@ -23,7 +23,7 @@ export function BusinessRulesCard() {
         aria-expanded={!collapsed}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-fixed text-primary">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-800 text-blue-800">
             <span className="material-symbols-outlined text-[18px]" aria-hidden="true">rule</span>
           </div>
           <div className="flex flex-col items-start gap-0.5 min-w-0">
@@ -52,7 +52,7 @@ export function BusinessRulesCard() {
               key={rule.id}
               className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-surface-container-low transition-colors"
             >
-              <span className="material-symbols-outlined text-[14px] shrink-0 text-secondary" aria-hidden="true">check_circle</span>
+              <span className="material-symbols-outlined text-[14px] shrink-0 text-emerald-800" aria-hidden="true">check_circle</span>
               <span className="text-[12px] text-on-surface leading-relaxed">{rule.text}</span>
             </div>
           ))}

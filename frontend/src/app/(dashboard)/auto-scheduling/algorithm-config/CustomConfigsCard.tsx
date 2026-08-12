@@ -14,10 +14,10 @@ type SortBy = "key" | "updatedAt";
 type SortDir = "asc" | "desc";
 
 const VALUE_TYPE_BADGE: Record<ConfigEntry["valueType"], string> = {
-  NUMBER: "bg-primary-fixed text-primary",
-  BOOLEAN: "bg-secondary-container text-secondary",
-  JSON: "bg-tertiary-container text-tertiary",
-  STRING: "bg-surface-container text-on-surface-variant",
+  NUMBER: "bg-blue-100 text-blue-800 border border-blue-300",
+  BOOLEAN: "bg-emerald-100 text-emerald-800 border border-emerald-300",
+  JSON: "bg-amber-100 text-amber-800 border border-amber-300",
+  STRING: "bg-gray-100 text-gray-600 border border-gray-300",
 };
 
 export function CustomConfigsCard({ onCreate, refreshSignal }: { onCreate: () => void; refreshSignal?: number }) {
@@ -168,7 +168,7 @@ function ConfigRow({ config, onSave, onDelete }: { config: ConfigEntry; onSave: 
         <span className="material-symbols-outlined text-[14px] text-outline" aria-hidden="true">settings</span>
       </td>
       <td className="px-4 py-3">
-        <code className="font-mono text-[11px] font-semibold text-primary bg-primary-fixed/20 px-1.5 py-0.5 rounded">{config.paramKey}</code>
+        <code className="font-mono text-[11px] font-semibold text-blue-800 bg-blue-100 px-1.5 py-0.5 rounded">{config.paramKey}</code>
       </td>
       <td className="px-4 py-3">
         <span className={`inline-flex px-1.5 py-0.5 rounded text-label-xs font-semibold uppercase ${VALUE_TYPE_BADGE[config.valueType]}`}>
@@ -197,7 +197,7 @@ function SortHeader({ label, active, dir, onClick }: { label: string; active: bo
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1 hover:text-primary transition-colors uppercase cursor-pointer"
+      className="flex items-center gap-1 hover:text-blue-800 transition-colors uppercase cursor-pointer"
     >
       {label}
       <span className="material-symbols-outlined text-[12px]" aria-hidden="true">
@@ -212,7 +212,7 @@ function SearchInput({ value, onChange }: { value: string; onChange: (v: string)
     <div className="relative">
       <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[14px]" aria-hidden="true">search</span>
       <input
-        className="h-8 pl-8 pr-3 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface w-40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+        className="h-8 pl-8 pr-3 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface w-40 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-300 transition-all"
         placeholder="Tìm..."
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -225,7 +225,7 @@ function TypeFilter({ value, onChange }: { value: "ALL" | ConfigEntry["valueType
   return (
     <div className="relative">
       <select
-        className="h-8 pl-2.5 pr-7 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface appearance-none focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 cursor-pointer transition-all"
+        className="h-8 pl-2.5 pr-7 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface appearance-none focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-300 cursor-pointer transition-all"
         value={value}
         onChange={e => onChange(e.target.value as typeof value)}
       >

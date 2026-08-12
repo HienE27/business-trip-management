@@ -19,9 +19,9 @@ import type { Schedule, ScheduleExchangeResponse, Staff, ConflictCheckResponse }
 type ExchangeStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 
 function getStatusBadge(status: ExchangeStatus) {
-  if (status === "PENDING") return "bg-tertiary-fixed text-on-tertiary-fixed";
-  if (status === "APPROVED") return "bg-secondary-fixed text-on-secondary-fixed";
-  if (status === "REJECTED") return "bg-error-container text-on-error-container";
+  if (status === "PENDING") return "bg-amber-100 text-amber-800 border border-amber-300";
+  if (status === "APPROVED") return "bg-emerald-100 text-emerald-800 border border-emerald-300";
+  if (status === "REJECTED") return "bg-red-100 text-red-800 border border-red-300";
   return "bg-surface-container-high text-on-surface-variant";
 }
 
@@ -400,7 +400,7 @@ function SwapRequestsContent() {
                     Ca trực của bạn
                   </label>
                   {mySchedules.length === 0 ? (
-                    <div className="rounded-lg border border-tertiary/30 bg-tertiary-container/20 px-3 py-2 text-label-md text-on-surface">
+                    <div className="rounded-lg bg-amber-100 text-amber-800 border border-amber-300 px-3 py-2 text-label-md text-on-surface">
                       <span className="material-symbols-outlined text-[20px] text-tertiary align-middle mr-1">info</span>
                       Bạn chưa có ca trực L01 nào trong kỳ đã công bố.
                     </div>
@@ -432,7 +432,7 @@ function SwapRequestsContent() {
                       Vui lòng chọn ca trực của bạn trước.
                     </div>
                   ) : candidateTargetSchedules.length === 0 ? (
-                    <div className="rounded-lg border border-tertiary/30 bg-tertiary-container/20 px-3 py-2 text-label-md text-on-surface">
+                    <div className="rounded-lg bg-amber-100 text-amber-800 border border-amber-300 px-3 py-2 text-label-md text-on-surface">
                       <span className="material-symbols-outlined text-[20px] text-tertiary align-middle mr-1">info</span>
                       Không có ca L01 nào của người khác trong cùng kỳ.
                     </div>
@@ -538,15 +538,15 @@ function SwapRequestsContent() {
         {message && (
           <div className={`rounded-lg border px-4 py-3 text-sm ${
             message.includes("thành công") || message.includes("Đã duyệt") || message.includes("Đã gửi")
-              ? "border-secondary/20 bg-secondary-container text-on-secondary-container"
-              : "border-error/20 bg-error-container text-error"
+              ? "border-emerald-30020 bg-emerald-100 text-emerald-800 border border-emerald-300"
+              : "bg-red-100/40 text-red-800 border border-red-300"
           }`}>
             {message}
           </div>
         )}
 
         {conflictWarning && (
-          <div className="rounded-lg border border-error/30 bg-error-container/40 px-4 py-3 text-sm text-error flex items-start gap-2">
+          <div className="rounded-lg border border-red-300 bg-red-100/40 px-4 py-3 text-sm text-red-800 flex items-start gap-2">
             <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">warning</span>
             <span>
               Phát hiện <strong>{conflictWarning.totalConflicts} xung đột</strong> trong kỳ lịch. Vui lòng giải quyết xung đột trước khi duyệt đổi trực.
@@ -649,7 +649,7 @@ function SwapRequestsContent() {
                           </span>
                           {(!req.requesterSchedule || !req.targetSchedule) && (
                             <span
-                              className="ml-1 mt-1 inline-flex items-center gap-1 rounded-full bg-error-container px-2 py-0.5 text-label-sm font-medium text-on-error-container"
+                              className="ml-1 mt-1 inline-flex items-center gap-1 rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-label-sm font-medium bg-red-100 text-red-800"
                               title="Yêu cầu này tham chiếu tới lịch trực đã bị xóa khỏi hệ thống"
                             >
                               <span className="material-symbols-outlined text-[14px]" aria-hidden="true">warning</span>
@@ -662,7 +662,7 @@ function SwapRequestsContent() {
                             </p>
                           )}
                           {req.reviewNote && (
-                            <p className="mt-0.5 max-w-[180px] truncate rounded-md bg-surface-container-low px-1.5 py-0.5 text-label-sm text-secondary" title={req.reviewNote}>
+                            <p className="mt-0.5 max-w-[180px] truncate rounded-md bg-surface-container-low px-1.5 py-0.5 text-label-sm text-emerald-800" title={req.reviewNote}>
                               {req.reviewNote}
                             </p>
                           )}
@@ -681,7 +681,7 @@ function SwapRequestsContent() {
                                 size="sm"
                                 disabled={processing !== null}
                                 onClick={() => { setSelectedExchange(req); setReviewNote(req.reviewNote ?? ""); }}
-                                className="text-secondary"
+                                className="text-emerald-800"
                               >
                                 <span className="material-symbols-outlined text-[16px]" aria-hidden="true">visibility</span>
                               </IconButton>
@@ -695,7 +695,7 @@ function SwapRequestsContent() {
                                   size="sm"
                                   disabled={processing !== null}
                                   onClick={() => handleCancel(req.id)}
-                                  className="text-error border border-error/30 hover:bg-error-container"
+                                  className="text-red-800 border border-red-30030 hover:bg-red-100 text-red-800"
                                 >
                                   <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
                                 </IconButton>
@@ -706,7 +706,7 @@ function SwapRequestsContent() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => { setSelectedExchange(req); setReviewNote(req.reviewNote ?? ""); }}
-                                  className="text-outline hover:text-primary"
+                                  className="text-outline hover:text-blue-800"
                                 >
                                   <span className="material-symbols-outlined text-[16px]" aria-hidden="true">visibility</span>
                                 </IconButton>
@@ -768,7 +768,7 @@ function SwapRequestsContent() {
                 <p className="text-body-sm font-medium text-on-surface">{formatDateFull(selectedExchange.requesterSchedule?.workDate ?? "")}</p>
                 <p className="text-label-md text-on-surface-variant">{selectedExchange.requesterSchedule?.shiftType?.name ?? "—"}</p>
                 {selectedExchange.status === "APPROVED" && (
-                  <span className="mt-1.5 inline-flex items-center gap-1 text-label-sm text-secondary">
+                  <span className="mt-1.5 inline-flex items-center gap-1 text-label-sm text-emerald-800">
                     <span className="material-symbols-outlined text-[12px]">check</span> Đã đổi
                   </span>
                 )}
@@ -808,7 +808,7 @@ function SwapRequestsContent() {
                     Ghi chú duyệt <span className="text-outline font-normal">(tùy chọn)</span>
                   </label>
                   <textarea
-                    className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2.5 text-body-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 resize-none"
+                    className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2.5 text-body-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-blue-30020 resize-none"
                     id="exchange-review-note"
                     rows={3}
                     placeholder="Nhập ghi chú phê duyệt hoặc lý do từ chối..."
@@ -846,7 +846,7 @@ function SwapRequestsContent() {
                   loading={processing !== null}
                   onClick={() => handleApprove(selectedExchange.id, selectedExchange.periodId)}
                   icon={processing === null ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">check</span> : undefined}
-                  className="!bg-secondary !text-on-secondary hover:!opacity-90"
+                  className="!bg-emerald-100 text-emerald-800 hover:!opacity-90"
                 >
                   Duyệt
                 </Button>

@@ -118,7 +118,7 @@ function StatisticsReportContent() {
       <BackButton href="/reports" variant="full" label="Quay lại" className="mb-4" />
 
       {message && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error" role="alert">
+        <div className="rounded-lg border border-red-300 bg-red-100 text-red-800 px-4 py-3 text-sm" role="alert">
           {message}
         </div>
       )}
@@ -126,7 +126,7 @@ function StatisticsReportContent() {
       {/* Header & Filters */}
       <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-[22px] text-primary">assessment</span>
+          <span className="material-symbols-outlined text-[22px] text-blue-800">assessment</span>
           <div>
             <h2 className="text-[16px] font-semibold text-on-surface">Thống kê nhân sự</h2>
             <p className="text-[12px] text-on-surface-variant">Phân bổ ca trực theo nhân sự trong kỳ lịch.</p>
@@ -139,7 +139,7 @@ function StatisticsReportContent() {
             <label htmlFor="stats-period" className="sr-only">Chọn kỳ lịch</label>
             <select
               id="stats-period"
-              className="w-full appearance-none rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-[14px] text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer pr-10"
+              className="w-full appearance-none rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-[14px] text-on-surface focus:ring-1 focus:ring-blue-300 focus:border-blue-300 cursor-pointer pr-10"
               value={selectedPeriod?.id ?? ""}
               onChange={(e) => {
                 const p = periods.find((x) => x.id === Number(e.target.value));
@@ -164,7 +164,7 @@ function StatisticsReportContent() {
             <label htmlFor="stats-shift-type" className="sr-only">Lọc theo loại ca</label>
             <select
               id="stats-shift-type"
-              className="w-full appearance-none rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-[14px] text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer pr-10"
+              className="w-full appearance-none rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-[14px] text-on-surface focus:ring-1 focus:ring-blue-300 focus:border-blue-300 cursor-pointer pr-10"
               value={shiftTypeFilter}
               onChange={(e) => setShiftTypeFilter(e.target.value)}
             >
@@ -189,19 +189,19 @@ function StatisticsReportContent() {
             label="Tổng nhân sự"
             value={summaryStats.staffCount}
             icon="groups"
-            accent="bg-primary-fixed text-primary"
+            accent="bg-blue-100 text-blue-800"
           />
           <KpiCard
             label="TB ca/nhân"
             value={summaryStats.avgShifts.toFixed(1)}
             icon="trending_flat"
-            accent="bg-secondary-container text-secondary"
+            accent="bg-emerald-100 text-emerald-800 border border-emerald-300"
           />
           <KpiCard
             label="Cao nhất"
             value={summaryStats.maxShifts}
             icon="arrow_upward"
-            accent="bg-tertiary-fixed text-tertiary"
+            accent="bg-amber-100 text-amber-800 border border-amber-300"
           />
           <KpiCard
             label="Thấp nhất"
@@ -295,7 +295,7 @@ function StatisticsReportContent() {
                       <Badge count={s.L04Count} color="bg-purple-100 text-purple-800" />
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className="text-[14px] font-bold text-primary">{s.totalShifts}</span>
+                      <span className="text-[14px] font-bold text-blue-800">{s.totalShifts}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className="text-[13px] text-on-surface-variant">
@@ -307,7 +307,7 @@ function StatisticsReportContent() {
                         <div className="w-16 bg-surface-variant rounded-full h-1.5 overflow-hidden">
                           <div
                             className={`h-1.5 rounded-full transition-all ${
-                              shiftTypeInfo?.bg ?? "bg-primary"
+                              shiftTypeInfo?.bg ?? "bg-blue-100"
                             }`}
                             style={{ width: `${Math.min(100, Math.max(s.workloadPercentage ?? 0, 1))}%` }}
                           />
@@ -345,7 +345,7 @@ function StatisticsReportContent() {
               <button
                 type="button"
                 onClick={() => setVisibleCount(stats.length)}
-                className="h-8 px-3 rounded-lg bg-primary text-on-primary text-label-sm font-medium hover:bg-primary/90 transition-colors cursor-pointer"
+                className="h-8 px-3 rounded-lg bg-blue-100 text-blue-800 text-label-sm font-medium hover:bg-blue-100/90 transition-colors cursor-pointer"
               >
                 Hiện tất cả
               </button>

@@ -55,7 +55,7 @@ export function FormCheckbox({
           <p className="text-label-sm text-on-surface-variant">{description}</p>
         )}
         {error && (
-          <p className="flex items-center gap-1 text-label-sm text-error" role="alert">
+          <p className="flex items-center gap-1 text-label-sm text-red-800" role="alert">
             <span className="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
             {error}
           </p>

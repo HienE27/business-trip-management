@@ -79,7 +79,7 @@ export default function AlgorithmConfigPage() {
         <div className="space-y-5">
           <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden">
             <div className="px-5 py-3.5 border-b border-outline-variant bg-surface-container-low flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-primary text-[18px]" aria-hidden="true">tune</span>
+              <span className="material-symbols-outlined text-blue-800 text-[18px]" aria-hidden="true">tune</span>
               <h2 className="text-title-sm font-semibold text-on-surface">Thông số runtime</h2>
               <span className="text-[11px] text-on-surface-variant ml-auto hidden sm:block">Áp dụng cho mọi kỳ lịch</span>
             </div>

@@ -27,9 +27,9 @@ const ALGO_LABELS: Record<string, string> = {
 };
 
 const ALGO_COLORS: Record<string, string> = {
-  GREEDY: "bg-primary-fixed text-primary border-primary/30",
-  FAIR_GREEDY: "bg-secondary-container text-on-secondary-container border-secondary/30",
-  CSP_MRV_FC: "bg-tertiary-fixed text-on-tertiary-fixed border-tertiary/30",
+  GREEDY: "bg-emerald-100 text-emerald-800 border border-emerald-300",
+  FAIR_GREEDY: "bg-emerald-100 text-emerald-800 border border-emerald-300 border-emerald-30030",
+  CSP_MRV_FC: "bg-amber-100 text-amber-800 border border-amber-300",
 };
 
 function formatDateTime(iso: string) {
@@ -46,7 +46,7 @@ function formatDateTime(iso: string) {
 function CoverageBar({ value }: { value: number }) {
   // coverageRate from API is already 0-100, no need to multiply
   const pct = Math.min(100, Math.max(0, Math.round(value)));
-  const color = pct >= 90 ? "bg-secondary" : pct >= 70 ? "bg-primary" : pct >= 50 ? "bg-tertiary" : "bg-error";
+  const color = pct >= 90 ? "bg-emerald-100" : pct >= 70 ? "bg-blue-100" : pct >= 50 ? "bg-tertiary" : "bg-error";
   return (
     <div className="flex items-center gap-2">
       <div className="w-20 bg-surface-container-low rounded-full h-1.5 overflow-hidden">
@@ -71,7 +71,7 @@ function RunRow({ run, periodName, isSelected, onToggle, canSelectTwo, deleteSel
   return (
     <tr
       className={`border-b border-outline-variant hover:bg-surface-container-low transition-colors h-12 cursor-pointer ${
-        isSelected ? "bg-primary-fixed" : ""
+        isSelected ? "bg-blue-100 text-blue-800" : ""
       } ${deleteSelected ? "ring-2 ring-error/40 ring-inset" : ""}`}
       onClick={onToggle}
     >
@@ -132,11 +132,11 @@ function RunRow({ run, periodName, isSelected, onToggle, canSelectTwo, deleteSel
       {/* Conflicts */}
       <td className="py-2 px-4">
         {run.conflictCount === 0 ? (
-          <span className="inline-flex items-center gap-1 text-secondary font-label-sm font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-secondary inline-block" /> 0
+          <span className="inline-flex items-center gap-1 text-emerald-800 font-label-sm font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-100 inline-block" /> 0
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 text-error font-label-sm font-semibold">
+          <span className="inline-flex items-center gap-1 text-red-800 font-label-sm font-semibold">
             <span className="w-1.5 h-1.5 rounded-full bg-error inline-block" /> {run.conflictCount}
           </span>
         )}
@@ -297,7 +297,7 @@ function AlgorithmHistoryContent() {
       <BackButton href="/auto-scheduling" variant="full" label="Quay lại" className="mb-2" />
 
       {message && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+        <div className="rounded-lg border border-red-300 bg-red-100 text-red-800 px-4 py-3 text-sm">
           <div className="flex items-start gap-2">
             <span className="material-symbols-outlined text-[18px] shrink-0">error</span>
             {message}
@@ -333,7 +333,7 @@ function AlgorithmHistoryContent() {
             <label htmlFor="history-period-select" className="sr-only">Lọc theo kỳ lịch</label>
             <select
               id="history-period-select"
-              className="h-10 pl-3 pr-8 bg-surface-container-low border border-transparent focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-1 focus:ring-primary/20 cursor-pointer rounded-lg font-label-md text-label-md text-on-surface appearance-none"
+              className="h-10 pl-3 pr-8 bg-surface-container-low border border-transparent focus:ring-1 focus:ring-blue-300 focus:border-blue-300 cursor-pointer rounded-lg font-label-md text-label-md text-on-surface appearance-none"
               value={selectedPeriodId ?? ""}
               onChange={(e) => { setSelectedPeriodId(e.target.value ? Number(e.target.value) : null); setPage(0); }}
             >
@@ -356,7 +356,7 @@ function AlgorithmHistoryContent() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {selectedIds.size > 0 && (
-            <span className="text-[12px] text-primary font-semibold tabular-nums">
+            <span className="text-[12px] text-blue-800 font-semibold tabular-nums">
               {selectedIds.size} đã chọn
             </span>
           )}
@@ -411,7 +411,7 @@ function AlgorithmHistoryContent() {
             }}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm text-label-sm font-semibold transition-colors ${
               canCompare
-                ? "bg-primary text-on-primary hover:opacity-90 cursor-pointer"
+                ? "bg-blue-100 text-blue-800 hover:opacity-90 cursor-pointer"
                 : "bg-surface-container text-outline cursor-not-allowed"
             }`}
           >
@@ -501,8 +501,8 @@ function AlgorithmHistoryContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget && !deleting) setDeleteDialogType(null); }}>
           <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in">
             <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-outline-variant">
-              <div className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+              <div className="w-10 h-10 rounded-full bg-red-100 text-red-800 border border-red-300 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-red-800" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
               </div>
               <div className="flex-1">
                 <h2 className="text-title-lg font-semibold text-on-surface">Xóa {selectedIds.size} lần chạy?</h2>
@@ -535,11 +535,11 @@ function AlgorithmHistoryContent() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="metrics-del-from" className="text-[12px] font-semibold text-on-surface-variant">Từ ngày</label>
-                  <input id="metrics-del-from" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={deleteDateFrom} onChange={(e) => setDeleteDateFrom(e.target.value)} disabled={deleting} />
+                  <input id="metrics-del-from" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all" value={deleteDateFrom} onChange={(e) => setDeleteDateFrom(e.target.value)} disabled={deleting} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="metrics-del-to" className="text-[12px] font-semibold text-on-surface-variant">Đến ngày</label>
-                  <input id="metrics-del-to" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={deleteDateTo} onChange={(e) => setDeleteDateTo(e.target.value)} disabled={deleting} />
+                  <input id="metrics-del-to" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all" value={deleteDateTo} onChange={(e) => setDeleteDateTo(e.target.value)} disabled={deleting} />
                 </div>
               </div>
               <div className="flex gap-2 pt-1">
@@ -554,25 +554,25 @@ function AlgorithmHistoryContent() {
       {/* Typed-confirm delete all */}
       {deleteDialogType === "all" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="metrics-delete-all-title" onClick={(e) => { if (e.target === e.currentTarget && !deleting) { setDeleteDialogType(null); setDeleteAllConfirmText(""); } }}>
-          <div className="bg-surface-container-lowest border border-error/40 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in">
+          <div className="bg-surface-container-lowest border border-red-300 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in">
             <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-outline-variant">
-              <div className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+              <div className="w-10 h-10 rounded-full bg-red-100 text-red-800 border border-red-300 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-red-800" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
               </div>
               <div className="flex-1">
                 <h2 id="metrics-delete-all-title" className="text-title-lg font-semibold text-on-surface">Xóa toàn bộ lịch sử thuật toán?</h2>
-                <p className="text-body-sm text-on-surface-variant mt-1">Hành động này sẽ xóa vĩnh viễn <strong className="font-semibold text-error tabular-nums">{totalElements.toLocaleString("vi")}</strong> lần chạy trong bảng algorithm_metrics. Không thể hoàn tác.</p>
+                <p className="text-body-sm text-on-surface-variant mt-1">Hành động này sẽ xóa vĩnh viễn <strong className="font-semibold text-red-800 tabular-nums">{totalElements.toLocaleString("vi")}</strong> lần chạy trong bảng algorithm_metrics. Không thể hoàn tác.</p>
               </div>
               <IconButton label="Đóng" variant="ghost" size="sm" disabled={deleting} onClick={() => { if (!deleting) { setDeleteDialogType(null); setDeleteAllConfirmText(""); } }} className="shrink-0 text-on-surface-variant">
                 <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
               </IconButton>
             </div>
             <div className="px-5 py-4 flex flex-col gap-3">
-              <div className="bg-error-container border border-error/20 rounded-lg p-3 flex items-start gap-2">
-                <span className="material-symbols-outlined text-error text-[18px] mt-0.5">info</span>
-                <p className="text-[13px] text-on-error-container leading-snug">
+              <div className="border border-red-300 bg-red-100 text-red-800 rounded-lg p-3 flex items-start gap-2">
+                <span className="material-symbols-outlined text-red-800 text-[18px] mt-0.5">info</span>
+                <p className="text-[13px] bg-red-100 text-red-800 leading-snug">
                   Để xác nhận, hãy gõ chính xác cụm từ{" "}
-                  <code className="px-1.5 py-0.5 rounded bg-error/15 text-error font-mono font-bold text-[12px]">{DELETE_ALL_CONFIRM_PHRASE}</code>
+                  <code className="px-1.5 py-0.5 rounded bg-error/15 text-red-800 font-mono font-bold text-[12px]">{DELETE_ALL_CONFIRM_PHRASE}</code>
                   {" "}vào ô bên dưới.
                 </p>
               </div>
@@ -590,7 +590,7 @@ function AlgorithmHistoryContent() {
                   disabled={deleting}
                 />
                 {deleteAllConfirmText && deleteAllConfirmText !== DELETE_ALL_CONFIRM_PHRASE && (
-                  <p className="text-[11px] text-error" role="alert">Cụm từ chưa khớp. Hãy gõ đúng: {DELETE_ALL_CONFIRM_PHRASE}</p>
+                  <p className="text-[11px] text-red-800" role="alert">Cụm từ chưa khớp. Hãy gõ đúng: {DELETE_ALL_CONFIRM_PHRASE}</p>
                 )}
               </div>
               <div className="flex gap-2 pt-1">

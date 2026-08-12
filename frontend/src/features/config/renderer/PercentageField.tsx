@@ -39,7 +39,7 @@ export function PercentageField({ metadata, value, onChange, error, disabled }: 
           step={(metadata.step * 100) || 1}
           className="flex-1 h-2 bg-surface-variant rounded-full appearance-none cursor-pointer
             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
-            [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-primary
+            [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-blue-100
             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
             disabled:[&::-webkit-slider-thumb]:opacity-50"
         />
@@ -55,7 +55,7 @@ export function PercentageField({ metadata, value, onChange, error, disabled }: 
       </div>
 
       {isInvalid && (
-        <p className="text-[12px] text-error flex items-center gap-1" role="alert">
+        <p className="text-[12px] text-red-800 flex items-center gap-1" role="alert">
           <span className="material-symbols-outlined text-[12px]">error</span>
           {error}
         </p>

@@ -42,15 +42,15 @@ export const ConflictPanel = memo(function ConflictPanel({
   return (
     <section 
       aria-labelledby="conflict-panel-title"
-      className={`bg-surface-container-lowest border-error-container rounded-lg shadow-sm overflow-hidden ${className}`}
+      className={`bg-surface-container-lowest border-red-300 rounded-lg shadow-sm overflow-hidden ${className}`}
     >
       {/* Header */}
-      <div className="p-4 border-b border-error-container bg-error/5 flex items-center justify-between gap-2">
+      <div className="p-4 border-b border-red-300 bg-red-100 text-red-800 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span aria-hidden="true" className="material-symbols-outlined text-[20px] text-error" style={{ fontVariationSettings: "'FILL' 1" }}>
+          <span aria-hidden="true" className="material-symbols-outlined text-[20px] text-red-800" style={{ fontVariationSettings: "'FILL' 1" }}>
             warning
           </span>
-          <h3 id="conflict-panel-title" className="text-title-lg text-error">
+          <h3 id="conflict-panel-title" className="text-title-lg text-red-800">
             Cảnh báo xung đột ({conflicts.length})
           </h3>
         </div>
@@ -63,7 +63,7 @@ export const ConflictPanel = memo(function ConflictPanel({
       <div className="p-2 flex flex-col gap-2" role="list" aria-label="Danh sách xung đột">
         {displayConflicts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 gap-3">
-            <span aria-hidden="true" className="material-symbols-outlined text-[40px] text-secondary/30">
+            <span aria-hidden="true" className="material-symbols-outlined text-[40px] text-emerald-800/30">
               check_circle
             </span>
             <p className="text-label-md text-on-surface-variant">Không có xung đột</p>
@@ -126,7 +126,7 @@ export const ConflictPanel = memo(function ConflictPanel({
                       variant="ghost"
                       size="sm"
                       onClick={() => onRemove?.(conflict)}
-                      className="text-error hover:text-error/80"
+                      className="text-red-800 hover:text-red-800/80"
                       aria-label={`Xóa lịch của ${conflict.staffName}`}
                     >
                       <span className="material-symbols-outlined text-[14px] mr-1" aria-hidden="true">delete</span>
@@ -145,7 +145,7 @@ export const ConflictPanel = memo(function ConflictPanel({
                       variant="ghost"
                       size="sm"
                       onClick={() => onResolve?.(conflict)}
-                      className="text-primary"
+                      className="text-blue-800"
                       aria-label={`Xử lý xung đột của ${conflict.staffName}`}
                     >
                       <span className="material-symbols-outlined text-[14px] mr-1" aria-hidden="true">check</span>
@@ -161,7 +161,7 @@ export const ConflictPanel = memo(function ConflictPanel({
         {conflicts.length > maxItems && (
           <button 
             type="button" 
-            className="mt-2 text-center text-label-sm text-primary hover:underline font-medium"
+            className="mt-2 text-center text-label-sm text-blue-800 hover:underline font-medium"
             onClick={() => setExpanded(!expanded)}
             aria-expanded={expanded}
           >

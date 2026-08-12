@@ -37,9 +37,9 @@ const ConfirmDialog = dynamic(
 
 /* ─── Role badge colours ─── */
 const ROLE_COLORS: Record<string, { bg: string; text: string; border: string; icon: string }> = {
-  ADMIN:   { bg: "bg-error-container",    text: "text-on-error-container",    border: "border-on-error-container/30", icon: "shield" },
-  MANAGER: { bg: "bg-primary-fixed",      text: "text-primary",               border: "border-primary/30",           icon: "manage_accounts" },
-  STAFF:   { bg: "bg-secondary-container", text: "text-on-secondary-container", border: "border-on-secondary-container/30", icon: "person" },
+  ADMIN:   { bg: "bg-error-container",     text: "text-on-error-container",     border: "border-error/40",     icon: "shield" },
+  MANAGER: { bg: "bg-primary-container",   text: "text-on-primary-container",   border: "border-primary/40",   icon: "manage_accounts" },
+  STAFF:   { bg: "bg-secondary-container", text: "text-on-secondary-container", border: "border-secondary/40", icon: "person" },
 };
 
 /* ─── Permission labels (count = backend app_permission registry, BUG#6) ─── */
@@ -149,34 +149,43 @@ function PermissionGroup({
 
   const totalCells = group.keys.length * roles.length;
   const progressPercent = totalCells > 0 ? Math.round((grantedCount / totalCells) * 100) : 0;
+  const ringDashArray = `${progressPercent * 0.942} 94.2`;
   
-  // Dynamic gradient based on progress
-  const getProgressGradient = () => {
-    if (progressPercent === 0) return "from-outline to-outline-variant";
-    if (progressPercent < 33) return "from-error/50 to-error-container";
-    if (progressPercent < 66) return "from-tertiary/30 to-tertiary-fixed";
-    if (progressPercent < 100) return "from-primary-fixed to-primary-container";
-    return "from-secondary-container to-secondary";
+  // Dynamic accent based on progress
+  const getProgressColor = () => {
+    if (progressPercent === 0) return "bg-outline-variant";
+    if (progressPercent < 33) return "bg-error";
+    if (progressPercent < 66) return "bg-tertiary";
+    if (progressPercent < 100) return "bg-primary";
+    return "bg-secondary";
+  };
+
+  const getProgressTextColor = () => {
+    if (progressPercent === 0) return "text-on-surface-variant";
+    if (progressPercent < 33) return "text-error";
+    if (progressPercent < 66) return "text-tertiary";
+    if (progressPercent < 100) return "text-primary";
+    return "text-secondary";
   };
 
   return (
-    <div className="rounded-2xl border border-outline-variant/50 bg-gradient-to-br from-surface-container-lowest via-surface-container-low to-surface-container transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 overflow-hidden">
+    <div className="rounded-2xl border border-outline-variant/50 bg-surface-container-lowest transition-all duration-300 hover:shadow-md overflow-hidden">
       {/* Group Header */}
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between px-5 py-4 bg-gradient-to-r from-surface-container-lowest to-surface-container-high hover:from-primary-container/10 hover:to-surface-container-high transition-all duration-300 group/header"
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-primary-container/10 transition-colors duration-200 group/header"
       >
         <div className="flex items-center gap-4">
-          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${getProgressGradient()} shadow-lg transition-all duration-300 group-hover/header:scale-105`}>
-            <span className="material-symbols-outlined text-[22px] text-white drop-shadow-md">{group.icon}</span>
+          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${progressPercent === 0 ? "bg-surface-container-highest text-on-surface-variant" : `${getProgressColor()} text-white`} shadow-sm transition-all duration-300 group-hover/header:scale-105`}>
+            <span className="material-symbols-outlined text-[22px]">{group.icon}</span>
           </div>
           <div className="text-left">
             <h3 className="text-[16px] font-bold text-on-surface">{group.label}</h3>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="text-[12px] text-on-surface-variant">{group.keys.length} quyền</span>
               <span className="text-[12px] text-on-surface-variant">·</span>
-              <span className={`text-[12px] font-semibold ${grantedCount > 0 ? "text-emerald-600" : "text-on-surface-variant"}`}>
+              <span className={`text-[12px] font-semibold ${getProgressTextColor()}`}>
                 {grantedCount}/{totalCells} đã cấp
               </span>
             </div>
@@ -185,13 +194,13 @@ function PermissionGroup({
         <div className="flex items-center gap-4">
           {/* Progress Bar */}
           <div className="hidden sm:flex items-center gap-3">
-            <div className="w-32 h-2.5 rounded-full bg-surface-container-high overflow-hidden shadow-inner">
+            <div className="w-36 h-2 rounded-full bg-surface-container-highest overflow-hidden">
               <div
-                className={`h-full rounded-full bg-gradient-to-r ${getProgressGradient()} transition-all duration-500 shadow-sm`}
+                className={`h-full rounded-full ${getProgressColor()} transition-all duration-500`}
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
-            <span className={`text-[13px] font-bold w-10 ${progressPercent > 0 ? "text-emerald-600" : "text-on-surface-variant"}`}>
+            <span className={`text-[13px] font-bold w-10 ${getProgressTextColor()}`}>
               {progressPercent}%
             </span>
           </div>
@@ -199,10 +208,10 @@ function PermissionGroup({
           {/* Mobile Progress Ring */}
           <div className="sm:hidden relative h-10 w-10">
             <svg className="h-10 w-10 -rotate-90 transform" viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" className="text-surface-container-high" />
-              <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${progressPercent * 0.942} 94.2`} className={`bg-gradient-to-br ${getProgressGradient()} transition-all duration-300`} />
+              <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="4" className="text-surface-container-highest" />
+              <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeDasharray={ringDashArray} className={progressPercent === 0 ? "text-outline-variant" : getProgressTextColor()} />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-on-surface">
+            <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${getProgressTextColor()}`}>
               {progressPercent}%
             </span>
           </div>
@@ -215,7 +224,7 @@ function PermissionGroup({
 
       {/* Permission List */}
       <div className={`overflow-hidden transition-all duration-300 ${collapsed ? "max-h-0 opacity-0" : "max-h-[2000px] opacity-100"}`}>
-        <div className="divide-y divide-outline-variant/30 bg-surface-container-lowest/50">
+        <div className="divide-y divide-outline-variant/30 bg-surface-container-lowest">
           {group.keys.map((permKey) => {
             const perm = roles.length > 0 ? { id: 0, name: permKey, description: "" } : null;
             if (!perm) return null;
@@ -223,13 +232,13 @@ function PermissionGroup({
             return (
               <div
                 key={permKey}
-                className="flex items-center justify-between px-5 py-3.5 hover:bg-primary-container/10 transition-colors duration-200 group/row"
+                className="flex items-center justify-between px-5 py-3.5 hover:bg-primary-fixed/30 transition-colors duration-200 group/row"
               >
                 <div className="flex-1 min-w-0 mr-4">
                   <p className="text-[14px] font-medium text-on-surface">
                     {PERM_LABELS[permKey] ?? permKey}
                   </p>
-                  <p className="text-[10px] text-on-surface-variant/70 font-mono mt-0.5">{permKey}</p>
+                  <p className="text-[10px] text-on-surface-variant font-mono mt-0.5">{permKey}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   {roles.map((r) => {
@@ -248,10 +257,14 @@ function PermissionGroup({
                           data-granted={granted ? "true" : "false"}
                           title={`${r.name}: ${granted ? "Có quyền" : "Không có quyền"}`}
                           className={[
-                            "relative flex h-10 w-14 items-center justify-center rounded-xl border-2 transition-all duration-300 shadow-sm",
+                            "relative flex h-10 w-14 items-center justify-center rounded-lg border transition-colors duration-200",
                             granted
-                              ? `bg-secondary-container border-secondary text-on-secondary-container hover:from-error-container hover:to-error hover:border-error hover:text-on-error shadow-secondary/20`
-                              : "border-outline-variant bg-surface-container-low text-outline hover:border-secondary hover:bg-secondary-container hover:text-on-secondary-container",
+                              ? r.name === "ADMIN"
+                                ? "bg-error-container border-error text-on-error-container hover:bg-error hover:text-on-error hover:border-error"
+                                : r.name === "MANAGER"
+                                ? "bg-primary-container border-primary text-on-primary-container hover:bg-primary hover:text-on-primary hover:border-primary"
+                                : "bg-secondary-container border-secondary text-on-secondary-container hover:bg-secondary hover:text-on-secondary hover:border-secondary"
+                              : "border-outline bg-surface-container-lowest text-outline hover:border-primary hover:bg-primary-fixed hover:text-primary",
                             (!isAdmin || saving) && "cursor-not-allowed opacity-50",
                             isPending && "animate-pulse ring-2 ring-primary ring-offset-2",
                           ].join(" ")}
@@ -263,10 +276,10 @@ function PermissionGroup({
                               check_circle
                             </span>
                           ) : (
-                            <span className="material-symbols-outlined text-[20px] opacity-60">radio_button_unchecked</span>
+                            <span className="material-symbols-outlined text-[20px] text-outline">radio_button_unchecked</span>
                           )}
                         </button>
-                        <span className={`text-[9px] font-semibold uppercase tracking-wide ${granted ? "text-emerald-600" : "text-slate-400"}`}>
+                        <span className={`text-[9px] font-bold uppercase tracking-wide ${granted ? (r.name === "ADMIN" ? "text-error" : r.name === "MANAGER" ? "text-primary" : "text-secondary") : "text-on-surface-variant"}`}>
                           {r.name}
                         </span>
                       </div>
@@ -305,29 +318,34 @@ function RoleSummaryCard({
   
   const getRoleAccent = () => {
     switch(role.name) {
-      case "ADMIN": return "from-red-500 to-rose-600";
-      case "MANAGER": return "from-blue-500 to-indigo-600";
-      default: return "from-teal-500 to-emerald-600";
+      case "ADMIN": return "bg-error";
+      case "MANAGER": return "bg-primary";
+      default: return "bg-secondary";
+    }
+  };
+
+  const getRoleTextColor = () => {
+    switch(role.name) {
+      case "ADMIN": return "text-error";
+      case "MANAGER": return "text-primary";
+      default: return "text-secondary";
     }
   };
 
   return (
-    <div className={`group relative rounded-2xl border border-outline-variant/30 bg-gradient-to-br from-surface-container-lowest via-surface-container-low to-surface-container overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1`}>
+    <div className={`group relative rounded-2xl border border-outline-variant/30 bg-surface-container-lowest overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-0.5`}>
       {/* Decorative gradient top bar */}
-      <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${getRoleAccent()}`} />
+      <div className={`absolute top-0 left-0 right-0 h-1 ${getRoleAccent()}`} />
       
-      {/* Decorative circles */}
-      <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      
-      <div className="p-5 pt-4">
+<div className="p-5 pt-4">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-4">
-            <div className={`relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${getRoleAccent()} shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:shadow-xl`}>
-              <span className="material-symbols-outlined text-[26px] text-white drop-shadow-md">
+            <div className={`relative flex h-14 w-14 items-center justify-center rounded-2xl ${getRoleAccent()} shadow-md transition-transform duration-300 group-hover:scale-110`}>
+              <span className="material-symbols-outlined text-[26px] text-white">
                 {roleColor?.icon ?? "person"}
               </span>
               {/* Badge indicator */}
-              <div className={`absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-white shadow-md flex items-center justify-center ${role.name === "ADMIN" ? "text-red-500" : role.name === "MANAGER" ? "text-blue-500" : "text-teal-500"}`}>
+              <div className={`absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-surface-container-lowest shadow flex items-center justify-center ${role.name === "ADMIN" ? "text-error" : role.name === "MANAGER" ? "text-primary" : "text-secondary"}`}>
                 <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>
                   {role.name === "ADMIN" ? "shield" : role.name === "MANAGER" ? "manage_accounts" : "person"}
                 </span>
@@ -338,7 +356,7 @@ function RoleSummaryCard({
                 {ROLE_LABELS[role.name] ?? role.name}
               </h4>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-gradient-to-r ${getRoleAccent()} text-white shadow-sm`}>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${role.name === "ADMIN" ? "bg-error-container text-on-error-container" : role.name === "MANAGER" ? "bg-primary-container text-on-primary-container" : "bg-secondary-container text-on-secondary-container"}`}>
                   {role.name}
                 </span>
               </div>
@@ -347,7 +365,7 @@ function RoleSummaryCard({
           
           {/* Percentage Badge */}
           <div className={`flex flex-col items-end`}>
-            <span className={`text-[28px] font-black leading-none ${percentage > 0 ? "bg-gradient-to-br from-emerald-500 to-teal-600 bg-clip-text text-transparent" : "text-outline-variant"}`}>
+            <span className={`text-[28px] font-black leading-none ${percentage > 0 ? getRoleTextColor() : "text-on-surface-variant"}`}>
               {percentage}%
             </span>
           </div>
@@ -359,13 +377,11 @@ function RoleSummaryCard({
             <span className="text-on-surface-variant font-medium">Quyền được cấp</span>
             <span className="font-bold text-on-surface">{grantedPerms}/{totalPerms}</span>
           </div>
-          <div className="relative h-3 rounded-full bg-surface-container-high overflow-hidden shadow-inner">
+          <div className="relative h-2 rounded-full bg-surface-container-highest overflow-hidden">
             <div
-              className={`absolute inset-y-0 left-0 rounded-full bg-gradient-to-r ${percentage > 0 ? getRoleAccent() : "from-slate-400 to-slate-500"} transition-all duration-700 ease-out shadow-sm`}
-              style={{ width: `${Math.max(percentage, 3)}%` }}
+              className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out ${percentage > 0 ? getRoleAccent() : "bg-outline-variant"}`}
+              style={{ width: `${Math.max(percentage, 2)}%` }}
             />
-            {/* Shine effect */}
-            <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent rounded-full" />
           </div>
         </div>
 
@@ -376,7 +392,7 @@ function RoleSummaryCard({
               type="button"
               onClick={onGrantAll}
               disabled={saving || grantedPerms === totalPerms}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[12px] font-semibold bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 text-emerald-700 border border-emerald-200 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[12px] font-semibold bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className="material-symbols-outlined text-[16px]">add_circle</span>
               Cấp tất cả
@@ -385,7 +401,7 @@ function RoleSummaryCard({
               type="button"
               onClick={onRevokeAll}
               disabled={saving || grantedPerms === 0}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[12px] font-semibold bg-error-container text-on-error-container hover:bg-error hover:text-on-error border border-error/20 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[12px] font-semibold bg-error-container text-on-error-container hover:bg-error hover:text-on-error transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className="material-symbols-outlined text-[16px]">remove_circle</span>
               Thu hồi tất cả
@@ -617,12 +633,12 @@ export function PermissionMatrixContent() {
       {/* Header with Search */}
       <div className="relative">
         {/* Decorative background */}
-        <div className="absolute inset-0 -m-4 rounded-3xl bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 opacity-50" />
+        <div className="absolute inset-0 -m-4 rounded-3xl bg-primary-container/10" />
         
         <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-5 p-6">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/30">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-md">
                 <span className="material-symbols-outlined text-[24px] text-white">admin_panel_settings</span>
               </div>
         <div>
@@ -641,7 +657,7 @@ export function PermissionMatrixContent() {
           {/* Search */}
           <div className="relative w-full lg:w-auto">
             <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
-              <span className="material-symbols-outlined pl-4 text-[22px] text-primary/70">search</span>
+              <span className="material-symbols-outlined pl-4 text-[22px] text-on-surface-variant">search</span>
             </div>
             <input
               ref={searchInputRef}
@@ -649,19 +665,19 @@ export function PermissionMatrixContent() {
               placeholder="Tìm kiếm quyền..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-12 w-full lg:w-72 pl-12 pr-10 rounded-xl border-2 border-outline-variant/50 bg-surface-container-low text-[14px] text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all shadow-sm hover:shadow-md focus:shadow-lg"
+              className="h-11 w-full lg:w-72 pl-12 pr-10 rounded-lg border border-outline bg-surface-container-low text-[14px] text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
             />
             {searchQuery ? (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-on-surface-variant hover:text-primary transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-on-surface-variant hover:text-on-surface transition-colors"
               >
                 close
               </button>
             ) : (
-              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:inline-flex h-5 items-center gap-1 rounded border border-outline-variant/50 bg-surface-container-high px-1.5 font-mono text-[10px] text-on-surface-variant shadow-sm">
-                <span className="text-[11px]">⌘</span>F
+              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:inline-flex h-5 items-center gap-1 rounded border border-outline bg-surface-container-lowest px-1.5 font-mono text-[10px] text-on-surface">
+                <span>⌘</span>F
               </kbd>
             )}
           </div>
@@ -686,13 +702,13 @@ export function PermissionMatrixContent() {
 
       {/* Search Results Info */}
       {searchQuery && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-surface-container-low text-[13px] text-on-surface-variant">
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-outline-variant bg-surface-container-lowest text-[13px] text-on-surface-variant">
           <span className="material-symbols-outlined text-[18px]">search</span>
           Tìm thấy {filteredGroups.reduce((acc, g) => acc + g.keys.length, 0)} quyền cho "{searchQuery}"
                       <button
                         type="button"
             onClick={() => setSearchQuery("")}
-            className="ml-auto text-primary hover:underline"
+            className="ml-auto text-primary font-semibold hover:underline"
           >
             Xóa tìm kiếm
           </button>
@@ -724,28 +740,28 @@ export function PermissionMatrixContent() {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 rounded-2xl bg-gradient-to-r from-surface-container-low to-surface-container-high border border-outline-variant/30 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 rounded-2xl border border-outline-variant/30 bg-surface-container-lowest">
         <div className="flex flex-wrap items-center gap-6">
-          <span className="flex items-center gap-2 text-[12px] text-on-surface-variant">
-            <span className="flex h-7 w-10 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-200 shadow-sm">
-              <span className="material-symbols-outlined text-[16px] text-emerald-600" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          <span className="flex items-center gap-2 text-[12px] text-on-surface">
+            <span className="flex h-6 w-9 items-center justify-center rounded bg-secondary-container">
+              <span className="material-symbols-outlined text-[14px] text-on-secondary-container" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
             </span>
           Đã cấp quyền
         </span>
-          <span className="flex items-center gap-2 text-[12px] text-on-surface-variant">
-            <span className="flex h-7 w-10 items-center justify-center rounded-lg bg-slate-50 border border-slate-200 shadow-sm">
-              <span className="material-symbols-outlined text-[16px] text-slate-400">radio_button_unchecked</span>
+          <span className="flex items-center gap-2 text-[12px] text-on-surface">
+            <span className="flex h-6 w-9 items-center justify-center rounded border border-outline bg-surface-container-lowest">
+              <span className="material-symbols-outlined text-[14px] text-outline">radio_button_unchecked</span>
             </span>
           Chưa cấp quyền
         </span>
-          <span className="flex items-center gap-2 text-[12px] text-on-surface-variant">
-            <span className="flex h-7 w-10 items-center justify-center rounded-lg border-2 border-primary shadow-sm">
-              <span className="material-symbols-outlined text-[16px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          <span className="flex items-center gap-2 text-[12px] text-on-surface">
+            <span className="flex h-6 w-9 items-center justify-center rounded border-2 border-primary bg-primary-fixed">
+              <span className="material-symbols-outlined text-[14px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
             </span>
             Toggle quyền
           </span>
         </div>
-        <span className="text-[11px] text-on-surface-variant/60 font-mono">M01-F05 · {totalPermCount} quyền</span>
+        <span className="text-[11px] text-on-surface-variant">M01-F05 · {totalPermCount} quyền</span>
       </div>
 
       {/* Confirm Dialog for Single Toggle */}

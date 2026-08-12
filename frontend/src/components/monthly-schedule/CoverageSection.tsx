@@ -7,6 +7,7 @@ export type CoverageSectionProps = {
   coverageGaps: string[];
   hasCoverageGaps: boolean;
   totalCoverageGaps: number;
+  totalDaysInPeriod?: number;
 };
 
 export const CoverageSection = memo(function CoverageSection(props: CoverageSectionProps) {

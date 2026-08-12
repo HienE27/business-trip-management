@@ -15,11 +15,11 @@ type AuditEntry = {
 };
 
 const ACTION_TONES: Record<string, { bg: string; text: string; label: string }> = {
-  CREATE: { bg: "bg-secondary-container", text: "text-on-secondary-container", label: "Tạo" },
-  UPDATE: { bg: "bg-primary-fixed", text: "text-primary", label: "Cập nhật" },
-  DELETE: { bg: "bg-error-container", text: "text-on-error-container", label: "Xóa" },
-  BULK_SYNC: { bg: "bg-tertiary-container", text: "text-on-tertiary-container", label: "Bulk sync" },
-  BULK_UPDATE: { bg: "bg-tertiary-container", text: "text-on-tertiary-container", label: "Bulk cập nhật" },
+  CREATE: { bg: "bg-emerald-100", text: "text-emerald-800", label: "Tạo" },
+  UPDATE: { bg: "bg-blue-100", text: "text-blue-800", label: "Cập nhật" },
+  DELETE: { bg: "bg-red-100", text: "text-red-800", label: "Xóa" },
+  BULK_SYNC: { bg: "bg-amber-100", text: "text-amber-800", label: "Bulk sync" },
+  BULK_UPDATE: { bg: "bg-amber-100", text: "text-amber-800", label: "Bulk cập nhật" },
 };
 
 export function ConfigAuditLog() {
@@ -74,9 +74,9 @@ export function ConfigAuditLog() {
       <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">history</span>
+            <span className="material-symbols-outlined text-blue-800 text-[20px]" aria-hidden="true">history</span>
             <p className="text-title-sm font-semibold text-on-surface">Lịch sử thay đổi</p>
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-primary-fixed text-primary border border-primary/20">
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 text-blue-800 border border-primary/20">
               {totalElements} mục
             </span>
           </div>
@@ -87,7 +87,7 @@ export function ConfigAuditLog() {
               placeholder="Lọc theo paramKey..."
               value={filterKey}
               onChange={e => setFilterKey(e.target.value)}
-              className="h-9 w-64 pl-9 pr-3 rounded-xl bg-surface-container-low text-label-sm focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 border border-transparent focus:border-primary transition-all"
+              className="h-9 w-64 pl-9 pr-3 rounded-xl bg-surface-container-low text-label-sm focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-300 border focus:border-blue-300 transition-all"
             />
           </div>
         </div>
@@ -135,7 +135,7 @@ export function ConfigAuditLog() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <code className="font-mono text-[12px] text-primary bg-primary-fixed/50 px-1.5 py-0.5 rounded">{e.paramKey}</code>
+                        <code className="font-mono text-[12px] text-blue-800 bg-blue-100 text-blue-800/50 px-1.5 py-0.5 rounded">{e.paramKey}</code>
                       </td>
                       <td className="px-4 py-3 max-w-md">
                         <div className="flex items-center gap-2 text-label-sm">
@@ -143,7 +143,7 @@ export function ConfigAuditLog() {
                             {e.oldValue ?? "(trống)"}
                           </code>
                           <span className="material-symbols-outlined text-[14px] text-on-surface-variant">arrow_forward</span>
-                          <code className="font-mono text-[11px] text-on-surface bg-primary-fixed/30 px-1.5 py-0.5 rounded truncate max-w-[180px]">
+                          <code className="font-mono text-[11px] text-on-surface bg-blue-100 text-blue-800/30 px-1.5 py-0.5 rounded truncate max-w-[180px]">
                             {e.newValue || "(đã xóa)"}
                           </code>
                         </div>

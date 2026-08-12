@@ -151,10 +151,10 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
                 <div className="flex flex-col min-w-0 leading-tight">
                   <span className={`flex items-center gap-1 font-mono text-[11px] font-bold px-1.5 py-0.5 rounded w-fit ${
                     param.endsWith("MinPerDay")
-                      ? "bg-secondary-container text-on-secondary-container"
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                       : param.endsWith("MaxPerDay")
-                      ? "bg-tertiary-fixed text-on-tertiary-fixed"
-                      : "bg-primary-fixed text-on-primary-fixed"
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-blue-100 text-blue-800"
                   }`}>
                     <span className="material-symbols-outlined text-[10px] shrink-0" aria-hidden="true">{iconName}</span>
                     {label}
@@ -181,8 +181,8 @@ export function ShiftTypeGroupCard({ group, form, editing, onChange }: Props) {
                 <div
                   className={`mt-1 flex items-start gap-1 px-1.5 py-0.5 rounded text-[9px] leading-tight ${
                     effectiveValidation.level === "error"
-                      ? "bg-error-container/40 text-error"
-                      : "bg-tertiary-container/40 text-tertiary"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-amber-100/40 text-amber-800"
                   }`}
                   role={effectiveValidation.level === "error" ? "alert" : "status"}
                 >

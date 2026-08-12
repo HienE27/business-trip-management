@@ -35,10 +35,10 @@ export const ConflictInspector = memo(function ConflictInspector({
     <>
       <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm">
         {/* Header */}
-        <div className="border-b border-outline-variant bg-error-container/20 px-4 py-4">
+        <div className="border-b border-outline-variant bg-red-100 text-red-800 border border-red-300 px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-error-container">
-              <span className="material-symbols-outlined text-[22px] text-error" aria-hidden="true">warning</span>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-800">
+              <span className="material-symbols-outlined text-[22px] text-red-800" aria-hidden="true">warning</span>
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -72,8 +72,8 @@ export const ConflictInspector = memo(function ConflictInspector({
                 className="w-full px-4 py-4 text-left transition-colors hover:bg-surface-container-low cursor-pointer"
               >
                 <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-error-container">
-                    <span className="material-symbols-outlined text-[18px] text-error" aria-hidden="true">warning</span>
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-800">
+                    <span className="material-symbols-outlined text-[18px] text-red-800" aria-hidden="true">warning</span>
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
@@ -90,7 +90,7 @@ export const ConflictInspector = memo(function ConflictInspector({
                     </div>
                     <div className="mt-2 space-y-1">
                       {conflict.conflictReasons.map((reason) => (
-                        <p key={reason} className="text-label-xs text-error flex items-center gap-1.5">
+                        <p key={reason} className="text-label-xs text-red-800 flex items-center gap-1.5">
                           <span className="material-symbols-outlined text-[12px]" aria-hidden="true">error</span>
                           {reason}
                         </p>
@@ -117,15 +117,15 @@ export const ConflictInspector = memo(function ConflictInspector({
       >
         {selectedConflict ? (
           <div className="space-y-4">
-            <div className="rounded-xl border border-error-container bg-error-container/20 p-4">
+            <div className="rounded-xl border border-red-300 bg-red-100 text-red-800 border border-red-300 p-4">
               <div className="flex items-center gap-2 mb-3">
-                <span className="material-symbols-outlined text-error" aria-hidden="true">warning</span>
+                <span className="material-symbols-outlined text-red-800" aria-hidden="true">warning</span>
                 <p className="text-label-md font-semibold text-on-surface">Lý do xung đột</p>
               </div>
               <ul className="space-y-2 text-label-sm text-on-surface">
                 {selectedConflict.conflictReasons.map((reason) => (
                   <li key={reason} className="flex items-start gap-2">
-                    <span className="material-symbols-outlined mt-0.5 text-[14px] text-error shrink-0" aria-hidden="true">error</span>
+                    <span className="material-symbols-outlined mt-0.5 text-[14px] text-red-800 shrink-0" aria-hidden="true">error</span>
                     <span>{reason}</span>
                   </li>
                 ))}

@@ -5,12 +5,12 @@ import { SHIFT_COLORS, SHIFT_TYPE_LABELS, WEEKDAYS } from "./constants";
 import type { CalendarAnnotation, OperationalKpi, ScheduleTab, WorkloadRow } from "./types";
 
 const AVATAR_COLORS = [
-  "bg-primary-fixed text-on-primary-fixed-variant",
-  "bg-secondary-container text-on-secondary-container",
-  "bg-tertiary-fixed text-on-tertiary-fixed-variant",
+  "bg-blue-100 text-blue-800",
+  "bg-emerald-100 text-emerald-800",
+  "bg-amber-100 text-amber-800",
   "bg-surface-container-high text-on-surface",
-  "bg-primary/10 text-primary",
-  "bg-secondary/10 text-secondary",
+  "bg-blue-50 text-blue-800",
+  "bg-emerald-50 text-emerald-800",
 ];
 
 export { formatDate };
@@ -25,9 +25,9 @@ export function getShiftTypeLabel(id: string) {
 }
 
 export function getStatusBadgeClass(status: SchedulePeriod["status"] | undefined) {
-  if (status === "PUBLISHED") return "bg-secondary-container text-on-secondary-container border border-secondary/20";
+  if (status === "PUBLISHED") return "bg-emerald-100 text-emerald-800 border border-emerald-300";
   if (status === "ARCHIVED") return "bg-surface-container-highest text-outline border border-outline-variant";
-  return "bg-primary-fixed text-primary border border-primary/20";
+  return "bg-blue-100 text-blue-800 border border-blue-300";
 }
 
 export function getInitialCalendar(period: SchedulePeriod | null) {
@@ -189,8 +189,9 @@ export function buildOperationalKpis(params: {
   conflictList: { shiftTypeId: string }[];
   activeStaff: Staff[];
   pendingLeaveRequests?: number;
+  pendingExchanges?: number;
 }): OperationalKpi[] {
-  const { schedules, conflictList, activeStaff, pendingLeaveRequests = 0 } = params;
+  const { schedules, conflictList, activeStaff, pendingLeaveRequests = 0, pendingExchanges = 0 } = params;
 
   const l01ByStaff = new Map<number, number>();
   const totalShifts = schedules.length;
@@ -235,6 +236,14 @@ export function buildOperationalKpis(params: {
       tone: pendingLeaveRequests > 0 ? "warning" : "success",
       trend: pendingLeaveRequests > 0 ? "Cần duyệt/điều phối" : "Không ảnh hưởng",
       icon: "event_busy",
+    },
+    {
+      label: "Đổi ca trực chờ duyệt",
+      value: pendingExchanges,
+      helper: pendingExchanges > 0 ? "Yêu cầu đổi ca đang chờ duyệt" : "Không có yêu cầu đổi ca",
+      tone: pendingExchanges > 0 ? "warning" : "success",
+      trend: pendingExchanges > 0 ? "Cần duyệt" : "Không ảnh hưởng",
+      icon: "swap_horiz",
     },
     {
       label: "Xung đột mở",

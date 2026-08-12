@@ -33,7 +33,7 @@ function cvTone(cv: number): {
     return { barClass: "bg-secondary", badgeTone: "success", label: "Tốt" };
   }
   if (cv <= 0.20) {
-    return { barClass: "bg-primary", badgeTone: "info", label: "Khá" };
+    return { barClass: "bg-blue-100", badgeTone: "info", label: "Khá" };
   }
   if (cv <= 0.35) {
     return { barClass: "bg-tertiary", badgeTone: "warning", label: "Trung bình" };
@@ -102,8 +102,8 @@ export function BalanceBreakdownWidget({ periodId }: BalanceBreakdownWidgetProps
   }
   if (error) {
     return (
-      <div className="rounded-lg border border-error-container bg-error-container p-4">
-        <p className="font-body-sm text-body-sm text-on-error-container">{error}</p>
+      <div className="rounded-lg border border-red-300 bg-red-100 text-red-800 border border-red-300 p-4">
+        <p className="font-body-sm text-body-sm text-red-800">{error}</p>
         <Button variant="secondary" size="sm" onClick={fetchBreakdown} className="mt-2">
           Thử lại
         </Button>
@@ -131,9 +131,9 @@ export function BalanceBreakdownWidget({ periodId }: BalanceBreakdownWidgetProps
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-fixed">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
             <span
-              className="material-symbols-outlined text-[20px] text-primary"
+              className="material-symbols-outlined text-[20px] text-blue-800"
               aria-hidden="true"
               style={{ fontVariationSettings: "'FILL' 1" }}
             >
@@ -282,7 +282,7 @@ export function BalanceBreakdownWidget({ periodId }: BalanceBreakdownWidgetProps
       {payload && payload.recommendations && payload.recommendations.length > 0 && (
         <div className="px-4 py-3 border-t border-outline-variant bg-surface-container-low">
           <h4 className="font-title-lg text-title-lg text-on-surface mb-2 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden="true">
+            <span className="material-symbols-outlined text-[18px] text-blue-800" aria-hidden="true">
               lightbulb
             </span>
             Gợi ý cải thiện
@@ -291,9 +291,9 @@ export function BalanceBreakdownWidget({ periodId }: BalanceBreakdownWidgetProps
             {payload.recommendations.slice(0, 5).map((rec, idx) => {
               const tone =
                 rec.severity === "high"
-                  ? "border-error-container bg-error-container/40 text-on-error-container"
+                  ? "border-red-300 bg-red-100 text-red-800 border border-red-300"
                   : rec.severity === "medium"
-                  ? "border-tertiary-container bg-tertiary-fixed text-on-tertiary-fixed-variant"
+                  ? "bg-amber-100 text-amber-800"
                   : "border-outline-variant bg-surface-container-lowest text-on-surface";
               return (
                 <li

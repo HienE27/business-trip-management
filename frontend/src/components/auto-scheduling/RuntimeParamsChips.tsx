@@ -64,7 +64,7 @@ export function RuntimeParamsChips({ compact = false }: RuntimeParamsChipsProps)
           className="flex items-center gap-1 px-2 py-1 rounded-md bg-surface-container-low border border-outline-variant"
           title={`${chip.description}: ${chip.value}${chip.unit}`}
         >
-          <code className="text-[10px] text-primary font-mono font-semibold leading-none">
+          <code className="text-[10px] text-blue-800 font-mono font-semibold leading-none">
             {chip.label}
           </code>
           <span className="text-[11px] font-bold text-on-surface tabular-nums leading-none">

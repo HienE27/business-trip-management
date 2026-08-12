@@ -274,7 +274,7 @@ export const QuickAddModal = memo(function QuickAddModal({
           {/* Form-level error */}
           {error && (
             <div
-              className="flex items-center gap-2 rounded-lg border border-error/20 bg-error-container px-4 py-2.5 text-label-sm text-on-error-container"
+              className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-100 text-red-800"
               role="alert"
             >
               <span className="material-symbols-outlined text-[16px]" aria-hidden="true">error</span>

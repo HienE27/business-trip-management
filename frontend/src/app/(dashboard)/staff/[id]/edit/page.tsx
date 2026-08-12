@@ -57,9 +57,9 @@ function fmtDateShort(dateStr: string) {
 }
 
 const ACTION_STYLE: Record<string, { label: string; icon: string; iconBg: string; chipColor: string }> = {
-  CREATE: { label: "Tạo mới", icon: "add_circle", iconBg: "bg-secondary-container text-secondary", chipColor: "text-secondary" },
-  UPDATE: { label: "Cập nhật", icon: "edit",       iconBg: "bg-primary-fixed text-primary",   chipColor: "text-primary" },
-  DELETE: { label: "Xóa",      icon: "delete",     iconBg: "bg-error-container text-error",  chipColor: "text-error"  },
+  CREATE: { label: "Tạo mới", icon: "add_circle", iconBg: "bg-emerald-100 text-emerald-800", chipColor: "text-emerald-800" },
+  UPDATE: { label: "Cập nhật", icon: "edit",       iconBg: "bg-blue-100 text-blue-800",   chipColor: "text-blue-800" },
+  DELETE: { label: "Xóa",      icon: "delete",     iconBg: "bg-red-100 text-red-800",  chipColor: "text-red-800"  },
 };
 
 function getActionStyle(action: string) {
@@ -332,7 +332,7 @@ function StaffEditContent() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="size-8 animate-spin rounded-full border-2 border-blue-300 border-t-transparent" />
       </div>
     );
   }
@@ -344,7 +344,7 @@ function StaffEditContent() {
         <p className="text-on-surface-variant">{message ?? "Không tìm thấy nhân sự."}</p>
         <Link
           href="/staff"
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary transition-colors hover:bg-primary/90"
+          className="flex items-center gap-2 rounded-lg bg-blue-100 px-4 py-2 text-label-md text-blue-800 transition-colors hover:bg-blue-100/90"
         >
           Quay lại danh sách
         </Link>
@@ -355,12 +355,12 @@ function StaffEditContent() {
   return (
     <div className="space-y-6">
       <nav aria-label="Đường dẫn" className="flex items-center gap-2 text-label-md text-on-surface-variant">
-        <Link href="/staff" className="hover:text-primary transition-colors flex items-center gap-1">
+        <Link href="/staff" className="hover:text-blue-800 transition-colors flex items-center gap-1">
           <span className="material-symbols-outlined text-[18px]">groups</span>
           Nhân sự
         </Link>
         <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-        <Link href={`/staff/${staffId}`} className="hover:text-primary transition-colors">
+        <Link href={`/staff/${staffId}`} className="hover:text-blue-800 transition-colors">
           {staff.fullName}
         </Link>
         <span className="material-symbols-outlined text-[16px]">chevron_right</span>
@@ -369,8 +369,8 @@ function StaffEditContent() {
 
       {/* Page Header */}
       <section className="flex items-center gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-container">
-          <span className="material-symbols-outlined text-[24px] text-primary">edit</span>
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100">
+          <span className="material-symbols-outlined text-[24px] text-blue-800">edit</span>
         </div>
         <div>
           <h1 className="text-headline-md font-semibold text-on-surface">Chỉnh sửa hồ sơ</h1>
@@ -399,7 +399,7 @@ function StaffEditContent() {
               id={`tab-${tab.id}`}
               className={`flex items-center gap-2 px-4 py-3 font-label-md text-label-md border-b-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 isActive
-                  ? "text-primary border-primary"
+                  ? "text-blue-800 border-blue-300"
                   : "text-on-surface-variant border-transparent hover:text-on-surface hover:bg-surface-container-high"
               }`}
               onClick={() => setActiveTab(tab.id)}
@@ -423,7 +423,7 @@ function StaffEditContent() {
             {/* Account Info */}
             <div className="mb-6">
               <h2 className="text-title-md font-semibold text-on-surface flex items-center gap-2 mb-4">
-                <span className="material-symbols-outlined text-primary text-[20px]">manage_accounts</span>
+                <span className="material-symbols-outlined text-blue-800 text-[20px]">manage_accounts</span>
                 Thông tin tài khoản
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -459,7 +459,7 @@ function StaffEditContent() {
             {/* Personal Info */}
             <div className="mb-6">
               <h2 className="text-title-md font-semibold text-on-surface flex items-center gap-2 mb-4">
-                <span className="material-symbols-outlined text-primary text-[20px]">badge</span>
+                <span className="material-symbols-outlined text-blue-800 text-[20px]">badge</span>
                 Thông tin cá nhân
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -527,7 +527,7 @@ function StaffEditContent() {
             {/* Work Info */}
             <div>
               <h2 className="text-title-md font-semibold text-on-surface flex items-center gap-2 mb-4">
-                <span className="material-symbols-outlined text-primary text-[20px]">work_outline</span>
+                <span className="material-symbols-outlined text-blue-800 text-[20px]">work_outline</span>
                 Phân công &amp; trạng thái
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -573,8 +573,8 @@ function StaffEditContent() {
                           key={role.value}
                           className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-label-md ${
                             checked
-                              ? "bg-primary/10 border-primary text-primary font-medium"
-                              : "bg-surface-container-low border-outline-variant text-on-surface-variant hover:border-primary/50"
+                              ? "bg-blue-100/10 border-blue-300 text-blue-800 font-medium"
+                              : "bg-surface-container-low border-outline-variant text-on-surface-variant hover:border-blue-30050"
                           }`}
                         >
                           <input
@@ -593,7 +593,7 @@ function StaffEditContent() {
                           />
                           <span
                             className={`material-symbols-outlined text-[16px] transition-colors ${
-                              checked ? "text-primary" : "text-outline"
+                              checked ? "text-blue-800" : "text-outline"
                             }`}
                             aria-hidden="true"
                           >
@@ -605,7 +605,7 @@ function StaffEditContent() {
                     })}
                   </div>
                   {form.roles.length === 0 && (
-                    <p className="text-label-xs text-error flex items-center gap-1">
+                    <p className="text-label-xs text-red-800 flex items-center gap-1">
                       <span className="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
                       Vui lòng chọn ít nhất một vai trò.
                     </p>
@@ -635,7 +635,7 @@ function StaffEditContent() {
               Hủy bỏ
             </Link>
             <button
-              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[14px] font-semibold text-on-primary shadow-sm transition-colors hover:brightness-110 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-100 px-4 py-2.5 text-[14px] font-semibold text-blue-800 shadow-sm transition-colors hover:brightness-110 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               disabled={submitting}
               form="staff-edit-form"
               type="submit"
@@ -661,7 +661,7 @@ function StaffEditContent() {
         <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-outline-variant bg-surface">
             <h2 className="text-title-md font-semibold text-on-surface flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-[20px]">history</span>
+              <span className="material-symbols-outlined text-blue-800 text-[20px]">history</span>
               Lịch sử thay đổi
             </h2>
           </div>

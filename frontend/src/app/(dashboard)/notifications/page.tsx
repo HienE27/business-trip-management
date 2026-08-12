@@ -38,11 +38,11 @@ const TABS: { label: string; value: NotifTab }[] = [
 function getNotificationIcon(title: string) {
   const lower = title.toLowerCase();
   if (lower.includes("xung đột") || lower.includes("conflict") || lower.includes("cảnh báo"))
-    return { icon: "warning", wrapClass: "bg-error-container/40 text-error border border-error/20" };
+    return { icon: "warning", wrapClass: "bg-red-100 text-red-800 border border-red-300" };
   if (lower.includes("đổi trực") || lower.includes("swap") || lower.includes("đổi ca"))
-    return { icon: "swap_horiz", wrapClass: "bg-primary-fixed text-primary border border-primary/20" };
+    return { icon: "swap_horiz", wrapClass: "bg-blue-100 text-blue-800 border border-blue-30020" };
   if (lower.includes("công bố") || lower.includes("published") || lower.includes("lich"))
-    return { icon: "event_available", wrapClass: "bg-secondary-container text-secondary border border-secondary/20" };
+    return { icon: "event_available", wrapClass: "bg-emerald-100 text-emerald-800 border border-emerald-300" };
   if (lower.includes("tự động") || lower.includes("auto"))
     return { icon: "auto_mode", wrapClass: "bg-surface-container-high text-on-surface-variant border border-outline-variant/30" };
   return { icon: "notifications", wrapClass: "bg-surface-container-high text-on-surface-variant border border-outline-variant" };
@@ -50,9 +50,9 @@ function getNotificationIcon(title: string) {
 
 function getBadge(title: string) {
   const lower = title.toLowerCase();
-  if (lower.includes("24/24")) return { badge: "24/24", badgeClass: "bg-primary-fixed text-primary font-bold" };
-  if (lower.includes("dịch vụ")) return { badge: "DV", badgeClass: "bg-secondary-container text-secondary font-bold" };
-  if (lower.includes("chuyên gia")) return { badge: "CG", badgeClass: "bg-tertiary-fixed text-on-tertiary font-bold" };
+  if (lower.includes("24/24")) return { badge: "24/24", badgeClass: "bg-blue-100 text-blue-800 font-bold" };
+  if (lower.includes("dịch vụ")) return { badge: "DV", badgeClass: "bg-emerald-100 text-emerald-800 font-bold" };
+  if (lower.includes("chuyên gia")) return { badge: "CG", badgeClass: "bg-amber-100 text-amber-800 border border-amber-300" };
   return null;
 }
 
@@ -288,13 +288,13 @@ function NotificationsContent() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
           <div className="flex items-center gap-3">
             {unreadCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-error px-3 py-1 text-[12px] font-bold text-on-error">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-error text-white px-2.5 py-1 text-[12px] font-semibold">
                 <span className="h-2 w-2 rounded-full bg-on-error animate-pulse" />
                 {unreadCount} chưa đọc
               </span>
             )}
             {unreadCount === 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary-container px-3 py-1 text-[12px] font-bold text-secondary">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                 <span className="material-symbols-outlined text-[14px]">check</span>
                 Tất cả đã đọc
               </span>
@@ -335,7 +335,7 @@ function NotificationsContent() {
 
           {selectedIds.size > 0 && (
             <>
-              <span className="text-[12px] text-primary font-semibold tabular-nums">
+              <span className="text-[12px] text-blue-800 font-semibold tabular-nums">
                 {selectedIds.size} đã chọn
               </span>
               <Button
@@ -385,7 +385,7 @@ function NotificationsContent() {
             <button
               className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 ${
                 activeTab === tab.value
-                  ? "bg-primary text-on-primary font-semibold shadow-sm"
+                  ? "bg-blue-100 text-blue-800 font-semibold shadow-sm"
                   : "border border-outline-variant/50 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low"
               }`}
               key={tab.value}
@@ -394,7 +394,7 @@ function NotificationsContent() {
             >
               {tab.label}
               {tab.value === "unread" && unreadCount > 0 ? (
-                <span className="rounded-full bg-error px-1 py-0.5 text-[9px] font-bold text-on-error leading-tight">
+                <span className="rounded-full bg-error text-white leading-tight">
                   {unreadCount}
                 </span>
               ) : null}
@@ -403,7 +403,7 @@ function NotificationsContent() {
         </div>
 
         {message && (
-          <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-on-surface">
+          <div className="rounded-lg border border-blue-30020 bg-blue-100/5 px-4 py-3 text-sm text-on-surface">
             {message}
           </div>
         )}
@@ -451,12 +451,12 @@ function NotificationsContent() {
               return (
                 <div
                   className={`group relative flex gap-3 rounded-lg border bg-surface-container-lowest p-3 transition-all hover:bg-surface-container-low ${
-                    !notif.isRead ? "border-primary/20 ring-1 ring-primary/10" : "border-outline-variant"
+                    !notif.isRead ? "border-blue-30020 ring-1 ring-primary/10" : "border-outline-variant"
                   } ${isSelected ? "ring-2 ring-primary/40" : ""}`}
                   key={notif.id}
                 >
                   {!notif.isRead && (
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-l-lg" />
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-100 rounded-l-lg" />
                   )}
 
                   {/* Bulk-select checkbox */}
@@ -493,7 +493,7 @@ function NotificationsContent() {
                           {formatRelativeTime(notif.createdAt)}
                         </span>
                         {!notif.isRead && (
-                          <span className="h-2 w-2 rounded-full bg-primary" />
+                          <span className="h-2 w-2 rounded-full bg-blue-100" />
                         )}
                       </div>
                     </div>
@@ -515,7 +515,7 @@ function NotificationsContent() {
                         </button>
                       )}
                       <button
-                        className="flex items-center gap-1 rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1 text-[11px] font-medium text-error transition-colors hover:bg-error-container"
+                        className="flex items-center gap-1 rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1 text-[11px] font-medium text-red-800 transition-colors hover:bg-red-100 text-red-800 border border-red-300"
                         onClick={() => handleDelete(notif.id)}
                         type="button"
                       >
@@ -578,11 +578,11 @@ function NotificationsContent() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="notif-del-from" className="text-[12px] font-semibold text-on-surface-variant">Từ ngày</label>
-                  <input id="notif-del-from" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={deleteDateFrom} onChange={(e) => setDeleteDateFrom(e.target.value)} disabled={deleting} />
+                  <input id="notif-del-from" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all" value={deleteDateFrom} onChange={(e) => setDeleteDateFrom(e.target.value)} disabled={deleting} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="notif-del-to" className="text-[12px] font-semibold text-on-surface-variant">Đến ngày</label>
-                  <input id="notif-del-to" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={deleteDateTo} onChange={(e) => setDeleteDateTo(e.target.value)} disabled={deleting} />
+                  <input id="notif-del-to" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all" value={deleteDateTo} onChange={(e) => setDeleteDateTo(e.target.value)} disabled={deleting} />
                 </div>
               </div>
               <div className="flex gap-2 pt-1">
@@ -605,25 +605,25 @@ function NotificationsContent() {
 
       {confirmOpen && deleteDialogType === "all" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="notif-delete-all-title" onClick={(e) => { if (e.target === e.currentTarget && !deleting) { setConfirmOpen(false); setDeleteDialogType(null); setDeleteAllConfirmText(""); } }}>
-          <div className="bg-surface-container-lowest border border-error/40 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in">
+          <div className="bg-surface-container-lowest border border-red-300 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in">
             <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-outline-variant">
-              <div className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+              <div className="w-10 h-10 rounded-full bg-red-100 text-red-800 border border-red-300 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-red-800" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
               </div>
               <div className="flex-1">
                 <h2 id="notif-delete-all-title" className="text-title-lg font-semibold text-on-surface">Xóa toàn bộ thông báo?</h2>
-                <p className="text-body-sm text-on-surface-variant mt-1">Hành động này sẽ xóa vĩnh viễn <strong className="font-semibold text-error tabular-nums">{totalElements.toLocaleString("vi")}</strong> thông báo của bạn. Không thể hoàn tác.</p>
+                <p className="text-body-sm text-on-surface-variant mt-1">Hành động này sẽ xóa vĩnh viễn <strong className="font-semibold text-red-800 tabular-nums">{totalElements.toLocaleString("vi")}</strong> thông báo của bạn. Không thể hoàn tác.</p>
               </div>
               <IconButton label="Đóng" variant="ghost" size="sm" disabled={deleting} onClick={() => { if (!deleting) { setConfirmOpen(false); setDeleteDialogType(null); setDeleteAllConfirmText(""); } }} className="shrink-0 text-on-surface-variant">
                 <span className="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
               </IconButton>
             </div>
             <div className="px-5 py-4 flex flex-col gap-3">
-              <div className="bg-error-container border border-error/20 rounded-lg p-3 flex items-start gap-2">
-                <span className="material-symbols-outlined text-error text-[18px] mt-0.5">info</span>
-                <p className="text-[13px] text-on-error-container leading-snug">
+              <div className="border border-red-300 bg-red-100 text-red-800 rounded-lg p-3 flex items-start gap-2">
+                <span className="material-symbols-outlined text-red-800 text-[18px] mt-0.5">info</span>
+                <p className="text-[13px] bg-red-100 text-red-800 leading-snug">
                   Để xác nhận, hãy gõ chính xác cụm từ{" "}
-                  <code className="px-1.5 py-0.5 rounded bg-error/15 text-error font-mono font-bold text-[12px]">{DELETE_ALL_CONFIRM_PHRASE}</code>
+                  <code className="px-1.5 py-0.5 rounded bg-error/15 text-red-800 font-mono font-bold text-[12px]">{DELETE_ALL_CONFIRM_PHRASE}</code>
                   {" "}vào ô bên dưới.
                 </p>
               </div>
@@ -641,7 +641,7 @@ function NotificationsContent() {
                   disabled={deleting}
                 />
                 {deleteAllConfirmText && deleteAllConfirmText !== DELETE_ALL_CONFIRM_PHRASE && (
-                  <p className="text-[11px] text-error" role="alert">Cụm từ chưa khớp. Hãy gõ đúng: {DELETE_ALL_CONFIRM_PHRASE}</p>
+                  <p className="text-[11px] text-red-800" role="alert">Cụm từ chưa khớp. Hãy gõ đúng: {DELETE_ALL_CONFIRM_PHRASE}</p>
                 )}
               </div>
               <div className="flex gap-2 pt-1">

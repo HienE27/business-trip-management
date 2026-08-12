@@ -68,7 +68,7 @@ export function NotificationCenter({
       >
         <span className="material-symbols-outlined text-[20px]" aria-hidden="true" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-error px-1 text-label-sm font-bold text-on-error ring-2 ring-surface">
+          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] px-1 items-center justify-center rounded-full bg-error text-[10px] leading-none font-semibold text-white ring-2 ring-surface">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -85,7 +85,7 @@ export function NotificationCenter({
                 disabled={markingAllRead}
                 loading={markingAllRead}
                 onClick={() => void handleMarkAllRead()}
-                className="text-primary hover:underline hover:bg-transparent"
+                className="text-blue-800 hover:underline hover:bg-transparent"
               >
                 {markingAllRead ? "Đang cập nhật..." : "Đánh dấu đã đọc"}
               </Button>
@@ -103,7 +103,7 @@ export function NotificationCenter({
                 <li
                   key={n.id}
                   className={`flex cursor-pointer items-start gap-3 border-b border-outline-variant/50 px-4 py-3 transition-colors hover:bg-surface-container-low last:border-b-0 ${
-                    n.unread ? "bg-primary/5" : ""
+                    n.unread ? "bg-blue-100/5" : ""
                   }`}
                 >
                   <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${n.iconColor ?? "bg-surface-container-low"}`}>
@@ -114,7 +114,7 @@ export function NotificationCenter({
                     <p className="mt-0.5 line-clamp-2 text-label-sm leading-relaxed text-on-surface-variant">{n.detail}</p>
                     <p className="mt-1 text-label-sm text-on-surface-variant opacity-70">{n.time}</p>
                   </div>
-                  {n.unread && <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />}
+                  {n.unread && <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-100" />}
                 </li>
               ))
             )}
@@ -124,7 +124,7 @@ export function NotificationCenter({
             <Link
               href="/notifications"
               onClick={() => setOpen(false)}
-              className="block border-t border-outline-variant px-4 py-3 text-center text-label-md font-medium text-primary transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="block border-t border-outline-variant px-4 py-3 text-center text-label-md font-medium text-blue-800 transition-colors hover:bg-blue-100/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
             >
               {notifications.length > maxCount ? `Xem tất cả (${notifications.length})` : "Xem tất cả thông báo"}
             </Link>

@@ -23,8 +23,8 @@ export type ConflictTypeInfo = {
 const CONFLICT_TYPE_MAP: Record<string, ConflictTypeInfo> = {
   "trực 24/24": { type: "Lịch trực", color: "text-red-600", icon: "emergency" },
   L01: { type: "Lịch trực", color: "text-red-600", icon: "emergency" },
-  "nghỉ phép": { type: "Nghỉ phép", color: "text-secondary", icon: "event_busy" },
-  Leave: { type: "Nghỉ phép", color: "text-secondary", icon: "event_busy" },
+  "nghỉ phép": { type: "Nghỉ phép", color: "text-emerald-800", icon: "event_busy" },
+  Leave: { type: "Nghỉ phép", color: "text-emerald-800", icon: "event_busy" },
   "nghỉ bù": { type: "Ngày nghỉ bù", color: "text-tertiary", icon: "calendar_month" },
   compensation: { type: "Ngày nghỉ bù", color: "text-tertiary", icon: "calendar_month" },
   "liền kề": { type: "Ca liền kề", color: "text-purple-600", icon: "schedule" },
@@ -76,7 +76,7 @@ export function getConflictType(detail: string | undefined): ConflictTypeInfo {
  * Lấy Tailwind color class theo mức độ nghiêm trọng của xung đột.
  * 
  * @param severity - Mức độ nghiêm trọng ("Chặn lưu" | "Cảnh báo" | khác)
- * @returns Tailwind color class (VD: "text-error", "text-tertiary")
+ * @returns Tailwind color class (VD: "text-red-800", "text-tertiary")
  * 
  * @example
  * ```tsx
@@ -88,7 +88,7 @@ export function getConflictType(detail: string | undefined): ConflictTypeInfo {
 export function getConflictSeverityColor(severity: string): string {
   switch (severity) {
     case "Chặn lưu":
-      return "text-error";
+      return "text-red-800";
     case "Cảnh báo":
       return "text-tertiary";
     default:

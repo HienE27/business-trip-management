@@ -87,7 +87,7 @@ export function CreateConfigModal({ open, onClose, onCreate, creating, message }
       description="Tạo thông số vận hành cho thuật toán"
       size="md"
       icon={<span className="material-symbols-outlined text-[18px]" aria-hidden="true">add</span>}
-      iconClassName="bg-primary-fixed text-primary"
+      iconClassName="bg-blue-100 text-blue-800"
     >
       <div className="space-y-4">
         <div>
@@ -113,10 +113,10 @@ export function CreateConfigModal({ open, onClose, onCreate, creating, message }
             className="!text-label-md"
           />
           <div>
-            <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="cfg-value">Giá trị <span className="text-error">*</span></label>
+            <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="cfg-value">Giá trị <span className="text-red-800">*</span></label>
             <input
               id="cfg-value"
-              className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-low px-3 text-label-md font-mono text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-low px-3 text-label-md font-mono text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-blue-30020"
               placeholder="VD: 1000, true, 2.5"
               value={form.paramValue}
               onChange={e => setForm(f => ({ ...f, paramValue: e.target.value }))}
@@ -128,7 +128,7 @@ export function CreateConfigModal({ open, onClose, onCreate, creating, message }
           <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="cfg-desc">Mô tả</label>
           <textarea
             id="cfg-desc"
-            className="w-full resize-none rounded-xl border border-outline-variant bg-surface-container-low px-3 py-2.5 text-label-md text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full resize-none rounded-xl border border-outline-variant bg-surface-container-low px-3 py-2.5 text-label-md text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-blue-30020"
             rows={2}
             placeholder="Giải thích thông số này dùng để làm gì..."
             value={form.description}
@@ -137,7 +137,7 @@ export function CreateConfigModal({ open, onClose, onCreate, creating, message }
         </div>
 
         {message && (
-          <div className={`rounded-lg px-4 py-3 text-label-sm ${message.type === "success" ? "bg-secondary-container text-secondary" : "bg-error-container text-error"}`} role="status">
+          <div className={`rounded-lg px-4 py-3 text-label-sm ${message.type === "success" ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "bg-red-100 text-red-800 border border-red-300"}`} role="status">
             {message.text}
           </div>
         )}

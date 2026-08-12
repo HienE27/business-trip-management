@@ -286,7 +286,7 @@ export function ExportControls({
           <p
             id={`${uid}-date-error`}
             role="alert"
-            className="text-[12px] font-medium text-error"
+            className="text-[12px] font-medium text-red-800"
           >
             {dateError}
           </p>

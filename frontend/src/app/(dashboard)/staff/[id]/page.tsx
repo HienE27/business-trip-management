@@ -28,13 +28,13 @@ const STATUS_LABEL: Record<StatusKey, string> = {
 };
 
 const STATUS_CLASS: Record<StatusKey, string> = {
-  ACTIVE: "bg-secondary-container text-secondary",
-  ON_LEAVE: "bg-tertiary-fixed text-on-tertiary-fixed-variant",
+  ACTIVE: "bg-emerald-100 text-emerald-800",
+  ON_LEAVE: "bg-amber-100 text-amber-800 border border-amber-300",
   INACTIVE: "bg-surface-container-high text-outline",
 };
 
 const STATUS_DOT: Record<StatusKey, string> = {
-  ACTIVE: "bg-secondary",
+  ACTIVE: "bg-emerald-100",
   ON_LEAVE: "bg-tertiary",
   INACTIVE: "bg-outline",
 };
@@ -123,7 +123,7 @@ function StaffDetailContent() {
         <p className="text-on-surface-variant">{message ?? "Không tìm thấy nhân sự."}</p>
         <Link
           href="/staff"
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary transition-colors hover:bg-primary/90"
+          className="flex items-center gap-2 rounded-lg bg-blue-100 px-4 py-2 text-label-md text-blue-800 transition-colors hover:bg-blue-100/90"
         >
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
           Quay lại danh sách
@@ -149,14 +149,14 @@ function StaffDetailContent() {
   return (
     <>
       {message && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+        <div className="rounded-lg border border-red-300 bg-red-100 text-red-800 border border-red-300 px-4 py-3 text-sm text-red-800">
           {message}
         </div>
       )}
 
       {/* Back + Header */}
       <nav aria-label="Đường dẫn" className="flex items-center gap-2 text-label-md text-on-surface-variant mb-3">
-        <Link href="/staff" className="hover:text-primary transition-colors flex items-center gap-1">
+        <Link href="/staff" className="hover:text-blue-800 transition-colors flex items-center gap-1">
           <span className="material-symbols-outlined text-[18px]">groups</span>
           Nhân sự
         </Link>
@@ -179,7 +179,7 @@ function StaffDetailContent() {
       {/* Profile Card */}
       <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <article className="flex flex-col items-center rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-on-primary text-xl font-bold">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-blue-800 text-xl font-bold">
             {getInitials(staff.fullName)}
           </div>
           <h2 className="mt-3 text-headline-md font-semibold text-on-surface">{staff.fullName}</h2>
@@ -213,9 +213,9 @@ function StaffDetailContent() {
           {/* Workload Stats */}
           <section className="grid gap-3 sm:grid-cols-3">
             {[
-              { label: "Tổng ca trực", value: schedules.length, icon: "event_available", accent: "bg-primary-fixed text-primary" },
-              { label: "Giờ làm việc ước tính", value: `${totalHours}h`, icon: "schedule", accent: "bg-secondary-container text-secondary" },
-              { label: "Giới hạn/tháng", value: staff.maxShiftsPerMonth, icon: "speed", accent: "bg-tertiary-fixed text-tertiary" },
+              { label: "Tổng ca trực", value: schedules.length, icon: "event_available", accent: "bg-blue-100 text-blue-800" },
+              { label: "Giờ làm việc ước tính", value: `${totalHours}h`, icon: "schedule", accent: "bg-emerald-100 text-emerald-800" },
+              { label: "Giới hạn/tháng", value: staff.maxShiftsPerMonth, icon: "speed", accent: "bg-amber-100 text-amber-800" },
             ].map((item) => (
               <article key={item.label} className="rounded-lg border border-outline-variant bg-surface-container-lowest p-3 shadow-sm">
                 <div className="flex justify-between items-start">

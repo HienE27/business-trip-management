@@ -108,7 +108,7 @@ export function NumberField({ metadata, value, onChange, error, disabled }: Numb
       </div>
 
       {isInvalid && (
-        <p className="text-[12px] text-error flex items-center gap-1" role="alert">
+        <p className="text-[12px] text-red-800 flex items-center gap-1" role="alert">
           <span className="material-symbols-outlined text-[12px]">error</span>
           {error}
         </p>

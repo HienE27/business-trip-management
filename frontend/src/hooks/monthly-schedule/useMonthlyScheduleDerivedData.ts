@@ -19,8 +19,9 @@ export function useMonthlyScheduleDerivedData(params: {
   compensationDays: CompensationDay[];
   focusDate: string | null;
   pendingLeaveRequests?: number;
+  pendingExchanges?: number;
 }) {
-  const { selectedTab, schedules, activeStaff, conflictData, compensationDays, focusDate, pendingLeaveRequests = 0 } = params;
+  const { selectedTab, schedules, activeStaff, conflictData, compensationDays, focusDate, pendingLeaveRequests = 0, pendingExchanges = 0 } = params;
   const showAll = selectedTab === "ALL";
 
   const filteredSchedules = useMemo(
@@ -50,15 +51,16 @@ export function useMonthlyScheduleDerivedData(params: {
       const key = schedule.workDate.substring(0, 10);
       if (seen.has(key)) continue;
       seen.add(key);
-      gaps.push(key);
+      const d = new Date(key + "T00:00:00");
+      gaps.push(d.toLocaleDateString("vi-VN", { weekday: "short", day: "numeric", month: "numeric" }));
     }
     gaps.sort();
     return gaps;
   }, [filteredSchedules]);
 
   const kpis = useMemo(
-    () => buildOperationalKpis({ schedules: filteredSchedules, conflictList, activeStaff, pendingLeaveRequests }),
-    [filteredSchedules, conflictList, activeStaff, pendingLeaveRequests],
+    () => buildOperationalKpis({ schedules: filteredSchedules, conflictList, activeStaff, pendingLeaveRequests, pendingExchanges }),
+    [filteredSchedules, conflictList, activeStaff, pendingLeaveRequests, pendingExchanges],
   );
 
   const workloadSnapshot = useMemo(

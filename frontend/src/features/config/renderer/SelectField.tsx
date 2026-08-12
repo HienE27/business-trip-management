@@ -24,7 +24,7 @@ export function SelectField({ metadata, value, onChange, error, disabled }: Sele
           className={`
             w-full h-10 pl-3 pr-10 border rounded-lg text-body-md transition-all appearance-none
             bg-surface-container-lowest
-            focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary
+            focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300
             disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer
             ${isInvalid ? "border-error focus:border-error focus:ring-error/20" : "border-outline-variant"}
           `}
@@ -45,7 +45,7 @@ export function SelectField({ metadata, value, onChange, error, disabled }: Sele
       </div>
 
       {isInvalid && (
-        <p className="text-[12px] text-error flex items-center gap-1" role="alert">
+        <p className="text-[12px] text-red-800 flex items-center gap-1" role="alert">
           <span className="material-symbols-outlined text-[12px]">error</span>
           {error}
         </p>

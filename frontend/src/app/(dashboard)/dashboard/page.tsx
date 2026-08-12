@@ -225,7 +225,7 @@ export default function DashboardPage() {
     <div className="max-w-[1440px] mx-auto space-y-6 w-full min-w-0 overflow-hidden">
       {/* Alert badges */}
       {message && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+        <div className="rounded-lg border border-red-300 bg-red-100 text-red-800 px-4 py-3 text-sm">
           {message}
         </div>
       )}
@@ -237,7 +237,7 @@ export default function DashboardPage() {
           {totalConflicts > 0 && (
             <Link
               href="/reports/conflicts"
-              className="inline-flex items-center gap-1.5 rounded-full bg-error-container text-on-error-container border border-error/20 px-3 py-1 text-label-sm font-medium hover:bg-error-container/80 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full bg-red-100 text-red-800 border border-red-300 px-3 py-1 text-label-sm font-medium hover:bg-red-100 text-red-800/80 transition-colors"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />
               {totalConflicts} xung đột
@@ -246,7 +246,7 @@ export default function DashboardPage() {
           {pendingExchanges > 0 && (
             <Link
               href="/swap-requests"
-              className="inline-flex items-center gap-1.5 rounded-full bg-tertiary/10 text-tertiary border border-tertiary/20 px-3 py-1 text-label-sm font-medium hover:bg-tertiary/20 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 px-3 py-1 text-label-sm font-medium hover:bg-amber-200 transition-colors"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-tertiary shrink-0" />
               {pendingExchanges} đổi trực
@@ -255,9 +255,9 @@ export default function DashboardPage() {
           {pendingLeave > 0 && (
             <Link
               href="/leave-requests"
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 px-3 py-1 text-label-sm font-medium hover:bg-primary/20 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full bg-blue-100/10 text-blue-800 border border-blue-30020 px-3 py-1 text-label-sm font-medium hover:bg-blue-100/20 transition-colors"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-100 shrink-0" />
               {pendingLeave} nghỉ phép
             </Link>
           )}
@@ -279,7 +279,7 @@ export default function DashboardPage() {
           </div>
           <div className="relative">
             <select
-              className="h-8 pl-3 pr-8 bg-surface-container-low border border-outline-variant rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all min-w-[200px]"
+              className="h-8 pl-3 pr-8 bg-surface-container-low border border-outline-variant rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all min-w-[200px]"
               value={selectedPeriodId ?? ""}
               onChange={(e) => {
                 const val = Number(e.target.value);
@@ -296,12 +296,12 @@ export default function DashboardPage() {
           </div>
           {selectedPeriod && (
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-label-sm font-medium ${
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-label-sm font-medium border ${
                 selectedPeriod.status === "PUBLISHED"
-                  ? "bg-secondary-container text-on-secondary-container"
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-300"
                   : selectedPeriod.status === "ARCHIVED"
-                  ? "bg-surface-container-high text-outline"
-                  : "bg-primary-fixed text-primary"
+                  ? "bg-gray-100 text-gray-600 border-gray-300"
+                  : "bg-sky-100 text-sky-800 border-sky-300"
               }`}
             >
               {selectedPeriod.status === "PUBLISHED"
@@ -337,7 +337,7 @@ export default function DashboardPage() {
             )}
             <Link
               href="/monthly-schedule"
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-on-primary text-label-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-100 text-blue-800 text-label-sm font-medium hover:bg-blue-100/90 transition-colors shrink-0"
             >
               <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
               Lập lịch
@@ -407,7 +407,7 @@ export default function DashboardPage() {
               {staffList.length > 0 && (
                 <div className="relative">
                   <select
-                    className="h-8 pl-3 pr-8 bg-surface-container-low border border-outline-variant rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all min-w-[160px]"
+                    className="h-8 pl-3 pr-8 bg-surface-container-low border border-outline-variant rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all min-w-[160px]"
                     value={selectedStaffId ?? ""}
                     onChange={(e) => {
                       const val = e.target.value ? Number(e.target.value) : null;
@@ -428,7 +428,7 @@ export default function DashboardPage() {
               )}
               <Link
                 href="/monthly-schedule"
-                className="inline-flex items-center gap-1 text-label-sm text-primary hover:underline shrink-0"
+                className="inline-flex items-center gap-1 text-label-sm text-blue-800 hover:underline shrink-0"
               >
                 Mở lịch tháng
                 <span className="material-symbols-outlined text-[16px]">chevron_right</span>
@@ -466,7 +466,7 @@ export default function DashboardPage() {
               href={action.href}
               className={`group flex flex-col items-center gap-2 rounded-lg border border-l-4 ${action.accent} border-t border-r border-b border-outline-variant bg-surface-container-lowest p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 text-center`}
             >
-              <span className="material-symbols-outlined text-[24px] text-on-surface-variant group-hover:text-primary transition-colors">
+              <span className="material-symbols-outlined text-[24px] text-on-surface-variant group-hover:text-blue-800 transition-colors">
                 {action.icon}
               </span>
               <div>

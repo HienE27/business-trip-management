@@ -138,7 +138,7 @@ export function ConflictResolutionModal({
     >
       {done ? (
         <div className="flex flex-col items-center gap-4 py-6">
-          <span aria-hidden="true" className="material-symbols-outlined text-[48px] text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>
+          <span aria-hidden="true" className="material-symbols-outlined text-[48px] text-emerald-800" style={{ fontVariationSettings: "'FILL' 1" }}>
             check_circle
           </span>
           <p className="text-title-lg text-on-surface font-semibold">
@@ -149,11 +149,11 @@ export function ConflictResolutionModal({
         <>
           {/* Conflict Detail */}
           {conflict && (
-            <div className="bg-error-container border border-error/20 rounded-lg p-4 mb-6">
+            <div className="bg-red-100 text-red-800 border border-red-300 rounded-lg p-4 mb-6">
               <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-error mt-0.5">warning</span>
+                <span className="material-symbols-outlined text-red-800 mt-0.5">warning</span>
                 <div>
-                  <p className="text-label-md text-error font-semibold">Thông tin xung đột</p>
+                  <p className="text-label-md text-red-800 font-semibold">Thông tin xung đột</p>
                   <p className="text-label-sm text-on-surface-variant mt-1 leading-relaxed">
                     {"detail" in conflict
                       ? conflict.detail
@@ -166,7 +166,7 @@ export function ConflictResolutionModal({
 
           {/* Reassign: replacement picker - outside the radio label for better UX */}
           {resolution === "reassign" && (
-            <div className="mt-3 mb-4 p-3 bg-surface-container-low rounded-lg border border-primary/30">
+            <div className="mt-3 mb-4 p-3 bg-surface-container-low rounded-lg border border-blue-30030">
               <label className="text-label-sm text-on-surface font-medium block mb-2" htmlFor="replacement-staff">
                 Chọn nhân sự thay thế
               </label>
@@ -178,7 +178,7 @@ export function ConflictResolutionModal({
               ) : replacements.length > 0 ? (
                 <select
                   id="replacement-staff"
-                  className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-md text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                  className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-md text-on-surface appearance-none cursor-pointer focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
                   value={selectedReplacementId ?? ""}
                   onChange={(e) => setSelectedReplacementId(Number(e.target.value) || null)}
                 >
@@ -209,7 +209,7 @@ export function ConflictResolutionModal({
                 key={opt.value}
                 className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
                   resolution === opt.value
-                    ? "border-primary bg-primary/5"
+                    ? "border-blue-300 bg-blue-100/5"
                     : "border-outline-variant hover:bg-surface-container"
                 }`}
               >
@@ -221,7 +221,7 @@ export function ConflictResolutionModal({
                   onChange={() => handleResolutionChange(opt.value)}
                   className="mt-0.5 accent-primary cursor-pointer"
                 />
-                <span className="material-symbols-outlined text-[20px] text-primary shrink-0 mt-0.5">
+                <span className="material-symbols-outlined text-[20px] text-blue-800 shrink-0 mt-0.5">
                   {opt.icon}
                 </span>
                 <div className="flex-1">
@@ -239,7 +239,7 @@ export function ConflictResolutionModal({
             </label>
             <textarea
               id="conflict-reason"
-              className="w-full h-20 resize-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+              className="w-full h-20 resize-none rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-md text-on-surface outline-none transition-colors focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
               placeholder="Nhập lý do giải quyết (nếu có)..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -248,7 +248,7 @@ export function ConflictResolutionModal({
 
           {/* Error */}
           {error && (
-            <div className="mt-4 rounded-lg border border-error/20 bg-error-container px-4 py-3 text-body-sm text-error">
+            <div className="mt-4 rounded-lg border border-red-300 bg-red-100 text-red-800 px-4 py-3 text-body-sm text-red-800">
               {error}
             </div>
           )}

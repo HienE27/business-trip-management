@@ -531,9 +531,9 @@ export default function AutoSchedulingPage() {
       <BackButton href="/dashboard" variant="full" label="Quay lại" className="mb-2" />
 
       {loadMessage && (
-        <div className="rounded-xl border border-error-container bg-error-container/20 px-4 py-3 text-label-sm text-error flex items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-error-container">
-            <span className="material-symbols-outlined text-[18px] text-error" aria-hidden="true">warning</span>
+        <div className="rounded-xl border bg-red-100 text-red-800 text-red-800/20 px-4 py-3 text-label-sm text-red-800 flex items-start gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-800">
+            <span className="material-symbols-outlined text-[18px] text-red-800" aria-hidden="true">warning</span>
           </div>
           <div>
             <p className="font-semibold">Lỗi tải dữ liệu</p>
@@ -547,11 +547,11 @@ export default function AutoSchedulingPage() {
       {autoGenEnabled === false && (
         <div
           role="alert"
-          className="rounded-xl border border-tertiary-container bg-tertiary-container/10 px-4 py-3 text-label-sm text-on-surface flex items-start gap-3"
+          className="rounded-xl border border-amber-300 bg-amber-100 text-amber-800 border border-amber-300/10 px-4 py-3 text-label-sm text-on-surface flex items-start gap-3"
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-tertiary-container">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-800 border border-amber-300">
             <span
-              className="material-symbols-outlined text-[18px] text-on-tertiary-container"
+              className="material-symbols-outlined text-[18px] bg-amber-100 text-amber-800"
               aria-hidden="true"
               style={{ fontVariationSettings: "'FILL' 1" }}
             >auto_mode</span>
@@ -564,7 +564,7 @@ export default function AutoSchedulingPage() {
           </div>
           <Link
             href="/auto-scheduling/algorithm-config"
-            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-on-primary font-semibold hover:bg-primary-container transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-100 text-blue-800 font-semibold hover:bg-blue-100-container transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]" aria-hidden="true">tune</span>
             Đi tới Cấu hình
@@ -576,8 +576,8 @@ export default function AutoSchedulingPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-headline-lg font-bold text-on-surface flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-fixed">
-              <span className="material-symbols-outlined text-[28px] text-primary" aria-hidden="true">auto_mode</span>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-blue-800">
+              <span className="material-symbols-outlined text-[28px] text-blue-800" aria-hidden="true">auto_mode</span>
             </div>
             Xếp lịch tự động
           </h1>
@@ -597,7 +597,7 @@ export default function AutoSchedulingPage() {
                 <label htmlFor="auto-period-select" className="sr-only">Kỳ xếp lịch</label>
                 <select
                   id="auto-period-select"
-                  className="h-8 rounded-lg border border-outline-variant bg-surface-container-low px-3 pr-9 text-label-sm text-on-surface appearance-none cursor-pointer focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                  className="h-8 rounded-lg border border-outline-variant bg-surface-container-low px-3 pr-9 text-label-sm text-on-surface appearance-none cursor-pointer focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-colors"
                   value={selectedPeriodId ?? ""}
                   onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
                 >
@@ -674,9 +674,9 @@ export default function AutoSchedulingPage() {
 
       {/* Main AutoScheduling panel */}
       {!isManager ? (
-        <div className="rounded-xl border border-tertiary-container bg-tertiary-container/10 p-6 flex items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-tertiary-container">
-            <span className="material-symbols-outlined text-[24px] text-tertiary" aria-hidden="true">lock</span>
+        <div className="rounded-xl border border-amber-300 bg-amber-100 text-amber-800 border border-amber-300/10 p-6 flex items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 border border-amber-300">
+            <span className="material-symbols-outlined text-[24px] text-amber-800" aria-hidden="true">lock</span>
           </div>
           <div>
             <p className="text-title-sm font-semibold text-on-surface">Không có quyền xếp lịch</p>
@@ -741,8 +741,8 @@ export default function AutoSchedulingPage() {
       {previewResult && (
         <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden hover:shadow-md transition-shadow">
           <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary-container">
-              <span className="material-symbols-outlined text-[16px] text-on-secondary-container" aria-hidden="true">group</span>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
+              <span className="material-symbols-outlined text-[16px] text-emerald-700" aria-hidden="true">group</span>
             </div>
             <div className="min-w-0">
               <p className="text-title-sm font-semibold text-on-surface">Khối lượng theo nhân sự</p>

@@ -97,7 +97,7 @@ export function CompareModal({ runA, runB, periodNameA, periodNameB, onClose }: 
               className={`flex items-center gap-3 px-4 py-3 ${i !== rows.length - 1 ? "border-b border-outline-variant" : ""} ${i % 2 === 0 ? "bg-surface-container-low" : "bg-surface-container-lowest"}`}
             >
               <div className="w-36 shrink-0 font-label-sm text-label-sm text-on-surface-variant">{row.label}</div>
-              <div className={`flex-1 text-center font-label-md font-semibold ${row.aGood !== undefined ? (row.aGood ? "text-secondary" : "text-error") : "text-on-surface"}`}>
+              <div className={`flex-1 text-center font-label-md font-semibold ${row.aGood !== undefined ? (row.aGood ? "text-emerald-800" : "text-red-800") : "text-on-surface"}`}>
                 {row.a}
               </div>
               <div className="w-4 shrink-0 flex justify-center">
@@ -107,7 +107,7 @@ export function CompareModal({ runA, runB, periodNameA, periodNameB, onClose }: 
                   </span>
                 )}
               </div>
-              <div className={`flex-1 text-center font-label-md font-semibold ${row.bGood !== undefined ? (row.bGood ? "text-secondary" : "text-error") : "text-on-surface"}`}>
+              <div className={`flex-1 text-center font-label-md font-semibold ${row.bGood !== undefined ? (row.bGood ? "text-emerald-800" : "text-red-800") : "text-on-surface"}`}>
                 {row.b}
               </div>
             </div>

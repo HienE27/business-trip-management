@@ -86,7 +86,7 @@ export function ConfigValueCell({ config, onSave }: Props) {
       <div className="flex items-center gap-1">
         <div className="relative">
           <input
-            className="h-7 w-36 rounded-lg border border-primary bg-surface pl-2.5 pr-6 text-[11px] font-mono text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/20"
+            className="h-7 w-36 rounded-lg border border-blue-300 bg-surface pl-2.5 pr-6 text-[11px] font-mono text-on-surface focus:outline-none focus:ring-1 focus:ring-blue-300"
             value={value}
             onChange={e => setValue(e.target.value)}
             onKeyDown={e => {

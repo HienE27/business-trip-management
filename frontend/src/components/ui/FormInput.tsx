@@ -62,7 +62,7 @@ export function FormInput({
           className={`text-body-sm font-semibold text-on-surface ${hideLabel ? "sr-only" : ""}`}
         >
           {label}
-          {required && <span className="text-error ml-0.5" aria-hidden="true">*</span>}
+          {required && <span className="text-red-800 ml-0.5" aria-hidden="true">*</span>}
         </label>
       )}
 
@@ -107,7 +107,7 @@ export function FormInput({
       </div>
 
       {error && (
-        <p id={errorId} className="flex items-center gap-1 text-label-sm text-error" role="alert">
+        <p id={errorId} className="flex items-center gap-1 text-label-sm text-red-800" role="alert">
           <span className="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
           {error}
         </p>

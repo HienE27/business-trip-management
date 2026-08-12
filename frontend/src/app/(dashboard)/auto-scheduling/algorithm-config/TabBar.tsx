@@ -35,7 +35,7 @@ export function TabBar({ active, counts, onChange }: Props) {
             onClick={() => onChange(tab.key)}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-label-md font-medium transition-all cursor-pointer ${
               isActive
-                ? "bg-surface-container-lowest text-primary shadow-sm"
+                ? "bg-surface-container-lowest text-blue-800 shadow-sm"
                 : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50"
             }`}
           >
@@ -43,7 +43,7 @@ export function TabBar({ active, counts, onChange }: Props) {
             <span>{tab.label}</span>
             {count !== undefined && count > 0 && (
               <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
-                isActive ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant"
+                isActive ? "bg-blue-100 text-blue-800" : "bg-surface-container text-on-surface-variant"
               }`}>
                 {count > 99 ? "99+" : count}
               </span>

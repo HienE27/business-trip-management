@@ -30,7 +30,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     icon: "admin_panel_settings",
     roleIcon: "shield_person",
     avatarClass:
-      "bg-gradient-to-br from-primary to-primary-fixed text-on-primary",
+      "bg-gradient-to-br from-primary to-blue-100 text-blue-800",
   },
   {
     id: "manager",
@@ -54,7 +54,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     icon: "person",
     roleIcon: "badge",
     avatarClass:
-      "bg-gradient-to-br from-tertiary to-tertiary-container text-on-tertiary",
+      "bg-gradient-to-br bg-amber-100 text-amber-800",
   },
 ];
 
@@ -80,13 +80,13 @@ export const DemoAccounts = memo(function DemoAccounts({
   return (
     <div className="space-y-2.5">
       <div className="flex items-center gap-2">
-        <span className="material-symbols-outlined text-[18px] text-primary">
+        <span className="material-symbols-outlined text-[18px] text-blue-800">
           auto_fix
         </span>
-        <span className="text-label-md font-semibold uppercase tracking-wide text-primary">
+        <span className="text-label-md font-semibold uppercase tracking-wide text-blue-800">
           Đăng nhập nhanh
         </span>
-        <span className="rounded bg-secondary-container px-1.5 py-0.5 text-label-sm font-medium text-secondary-on">
+        <span className="rounded bg-emerald-100 text-emerald-800 px-1.5 py-0.5 text-label-sm font-medium text-emerald-800-on">
           DEMO
         </span>
       </div>

@@ -13,8 +13,8 @@ export const TONE: Record<
   serviceClinic: { bg: "bg-shift-service", text: "text-on-shift-service", border: "border-l-shift-service", dot: "bg-shift-service" },
   expertClinic: { bg: "bg-shift-expert", text: "text-on-shift-expert", border: "border-l-shift-expert", dot: "bg-shift-expert" },
   compLeave: { bg: "bg-surface-container-high", text: "text-on-surface-variant", border: "border-l-outline", dot: "bg-outline" },
-  warning: { bg: "bg-tertiary-fixed", text: "text-on-tertiary-fixed", border: "border-l-error", dot: "bg-tertiary" },
-  conflict: { bg: "bg-error-container", text: "text-on-error-container", border: "border-l-error", dot: "bg-error" },
+  warning: { bg: "bg-amber-100", text: "text-amber-800", border: "border-l-amber-500", dot: "bg-amber-500" },
+  conflict: { bg: "bg-red-100", text: "text-red-800", border: "border-l-red-500", dot: "bg-red-500" },
   neutral: { bg: "bg-surface-container-low", text: "text-on-surface-variant", border: "border-l-outline", dot: "bg-outline" },
   empty: { bg: "", text: "", border: "", dot: "" },
 };

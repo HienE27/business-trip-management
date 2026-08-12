@@ -89,7 +89,7 @@ describe("getConflictType", () => {
 
 describe("getConflictSeverityColor", () => {
   it("returns error color for blocking severity", () => {
-    expect(getConflictSeverityColor("Chặn lưu")).toBe("text-error");
+    expect(getConflictSeverityColor("Chặn lưu")).toBe("text-red-800");
   });
 
   it("returns tertiary color for warning severity", () => {

@@ -164,7 +164,7 @@ export function RouteGuard({ children }: Props) {
         action={
           <button
             onClick={() => router.replace("/dashboard")}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-lg font-label-md hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-100 text-blue-800 rounded-lg font-label-md hover:bg-blue-100/90 transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">home</span>
             Về Tổng quan

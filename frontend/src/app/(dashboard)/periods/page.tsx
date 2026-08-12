@@ -35,9 +35,9 @@ const TypedConfirmDialog = dynamic(
 );
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string; dot: string }> = {
-  DRAFT: { label: "Bản nháp", color: "text-on-surface", bg: "bg-surface-container text-on-surface", dot: "bg-outline" },
-  PUBLISHED: { label: "Đã công bố", color: "text-secondary", bg: "bg-secondary-container text-on-secondary-container", dot: "bg-secondary" },
-  ARCHIVED: { label: "Đã lưu trữ", color: "text-outline", bg: "bg-surface-container-high text-outline", dot: "bg-outline-variant" },
+  DRAFT: { label: "Bản nháp", color: "text-on-surface", bg: "bg-sky-100 text-sky-800 border border-sky-300", dot: "bg-sky-500" },
+  PUBLISHED: { label: "Đã công bố", color: "text-emerald-800", bg: "bg-emerald-100 text-emerald-800 border border-emerald-300", dot: "bg-emerald-500" },
+  ARCHIVED: { label: "Đã lưu trữ", color: "text-gray-600", bg: "bg-gray-100 text-gray-600 border border-gray-300", dot: "bg-gray-400" },
 };
 
 export default function PeriodsPage() {
@@ -269,7 +269,7 @@ export default function PeriodsPage() {
                 onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
                 placeholder="Tìm theo tên kỳ lịch…"
                 aria-label="Tìm kiếm kỳ lịch"
-                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none font-body-sm text-body-sm text-on-surface transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest rounded-lg border border-outline-variant focus:border-blue-300 focus:ring-1 focus:ring-blue-300 focus:outline-none font-body-sm text-body-sm text-on-surface transition-all"
               />
             </div>
             <div className="relative">
@@ -277,7 +277,7 @@ export default function PeriodsPage() {
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value as typeof statusFilter); setPage(0); }}
                 aria-label="Lọc theo trạng thái"
-                className="appearance-none pl-3 pr-9 py-2.5 bg-surface-container-lowest rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none font-body-sm text-body-sm text-on-surface cursor-pointer"
+                className="appearance-none pl-3 pr-9 py-2.5 bg-surface-container-lowest rounded-lg border border-outline-variant focus:border-blue-300 focus:ring-1 focus:ring-blue-300 focus:outline-none font-body-sm text-body-sm text-on-surface cursor-pointer"
               >
                 <option value="ALL">Tất cả trạng thái</option>
                 <option value="DRAFT">Bản nháp</option>
@@ -302,13 +302,13 @@ export default function PeriodsPage() {
 
           {/* Messages */}
           {error && (
-            <div className="mb-4 p-4 bg-error-container border border-error/20 rounded-lg text-on-error-container text-body-sm font-body-sm flex items-center gap-2">
+            <div className="mb-4 p-4 bg-red-100 text-red-800 border bg-red-100 text-red-800 border border-red-300 text-body-sm font-body-sm flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">error</span>
               {error}
             </div>
           )}
           {message && (
-            <div className="mb-4 p-4 bg-secondary-container border border-secondary/20 rounded-lg text-on-secondary-container text-body-sm font-body-sm flex items-center gap-2">
+            <div className="mb-4 p-4 bg-emerald-100 text-emerald-800 border bg-emerald-100 text-emerald-800 border border-emerald-300 text-body-sm font-body-sm flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">check_circle</span>
               {message}
             </div>
@@ -382,7 +382,7 @@ export default function PeriodsPage() {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => openEditModal(p)}
-                                    className="text-primary"
+                                    className="text-blue-800"
                                   >
                                     <span className="material-symbols-outlined text-[20px]" aria-hidden="true">edit</span>
                                   </IconButton>
@@ -395,7 +395,7 @@ export default function PeriodsPage() {
                                     onClick={() => handlePublish(p.id)}
                                     disabled={publishingId === p.id}
                                     loading={publishingId === p.id}
-                                    className="text-secondary"
+                                    className="text-emerald-800"
                                   >
                                     <span className="material-symbols-outlined text-[20px]" aria-hidden="true">publish</span>
                                   </IconButton>
@@ -419,7 +419,7 @@ export default function PeriodsPage() {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => confirmDeleteOrArchive(p.id, "delete")}
-                                    className="text-error"
+                                    className="text-red-800"
                                   >
                                     <span className="material-symbols-outlined text-[20px]" aria-hidden="true">delete</span>
                                   </IconButton>

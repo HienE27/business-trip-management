@@ -158,7 +158,7 @@ function SettingsContent() {
         {/* ── Email Notification Settings ──────────────────────────────── */}
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed/40 text-primary">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-800">
               <span className="material-symbols-outlined text-[18px]">mail</span>
             </div>
             <div>
@@ -214,8 +214,8 @@ function SettingsContent() {
               {emailMsg && (
                 <div className={`rounded-lg px-4 py-3 text-label-sm ${
                   emailMsg.type === "success"
-                    ? "bg-secondary-container text-on-secondary-container"
-                    : "bg-error-container text-on-error-container"
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : "bg-red-100 text-red-800 border border-red-300"
                 }`}>
                   {emailMsg.text}
                 </div>
@@ -240,7 +240,7 @@ function SettingsContent() {
         {/* ── UI Preferences ───────────────────────────────────────────── */}
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed/40 text-primary">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-800">
               <span className="material-symbols-outlined text-[18px]">palette</span>
             </div>
             <div>
@@ -308,7 +308,7 @@ function SettingsContent() {
             </div>
 
             {savingPrefs && (
-              <div className="rounded-lg px-3 py-2 text-[12px] bg-secondary-container text-on-secondary-container">
+              <div className="rounded-lg px-3 py-2 text-[12px] bg-emerald-100 text-emerald-800 border border-emerald-300">
                 Đã lưu tùy chọn hiển thị.
               </div>
             )}
@@ -325,7 +325,7 @@ function SettingsContent() {
         >
           <div className="flex items-center justify-between gap-2.5 mb-3">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-error-container/40 text-on-error-container">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-100 text-red-800 bg-red-100 text-red-800">
                 <span className="material-symbols-outlined text-[18px]">shield</span>
               </div>
               <div>
@@ -333,14 +333,14 @@ function SettingsContent() {
                 <p className="text-[11px] text-on-surface-variant">Quản lý quyền hệ thống cho từng vai trò.</p>
               </div>
             </div>
-            <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">chevron_right</span>
+            <span className="material-symbols-outlined text-on-surface-variant group-hover:text-blue-800 transition-colors">chevron_right</span>
           </div>
         </section>
 
         {/* ── Account Settings ──────────────────────────────────────────── */}
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed/40 text-primary">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-800">
               <span className="material-symbols-outlined text-[18px]">manage_accounts</span>
             </div>
             <div>
@@ -382,7 +382,7 @@ function SettingsContent() {
                   <span className="text-label-sm text-on-surface-variant">Vai trò</span>
                   <span className="text-label-md text-on-surface font-medium flex gap-1.5">
                     {(currentStaff.roles ?? []).map((r) => (
-                      <span key={r} className="inline-flex items-center px-2 py-0.5 rounded-full bg-primary-fixed text-primary text-[11px] font-semibold">
+                      <span key={r} className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
                         {roleLabel(r)}
                       </span>
                     ))}
@@ -406,7 +406,7 @@ function SettingsContent() {
                   <input
                     id="current-password"
                     type="password"
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-blue-300 focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-300"
                     value={passwordForm.current}
                     onChange={(e) => setPasswordForm((f) => ({ ...f, current: e.target.value }))}
                     required
@@ -419,7 +419,7 @@ function SettingsContent() {
                   <input
                     id="new-password"
                     type="password"
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-blue-300 focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-300"
                     value={passwordForm.next}
                     onChange={(e) => setPasswordForm((f) => ({ ...f, next: e.target.value }))}
                     required
@@ -433,7 +433,7 @@ function SettingsContent() {
                   <input
                     id="confirm-password"
                     type="password"
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-blue-300 focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-300"
                     value={passwordForm.confirm}
                     onChange={(e) => setPasswordForm((f) => ({ ...f, confirm: e.target.value }))}
                     required
@@ -445,8 +445,8 @@ function SettingsContent() {
               {passwordMsg && (
                 <div className={`rounded-lg px-4 py-3 text-label-sm ${
                   passwordMsg.type === "success"
-                    ? "bg-secondary-container text-on-secondary-container"
-                    : "bg-error-container text-on-error-container"
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : "bg-red-100 text-red-800 border border-red-300"
                 }`}>
                   {passwordMsg.text}
                 </div>
@@ -495,7 +495,7 @@ function ToggleSwitch({ id, checked, onChange, disabled, label }: {
           onChange(!checked);
         }
       }}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${checked ? "bg-primary" : "bg-surface-container-high"}`}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${checked ? "bg-blue-100" : "bg-surface-container-high"}`}
     >
       <span
         aria-hidden="true"

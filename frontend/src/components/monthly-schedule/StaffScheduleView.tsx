@@ -172,7 +172,7 @@ export function StaffScheduleView({ config }: { config: ScheduleTypeConfig }) {
           {/* Header bar với dropdown chọn kỳ (chỉ hiển thị khi có &gt;1 kỳ) */}
           {periodOptions.length > 1 && (
             <div className="flex items-center gap-2 px-4 py-2 border-b border-outline-variant bg-surface-container-low">
-              <span className="material-symbols-outlined text-primary text-[18px]">
+              <span className="material-symbols-outlined text-blue-800 text-[18px]">
                 event_note
               </span>
               <label

@@ -79,8 +79,8 @@ export function ConstraintReportTable({ periodId }: ConstraintReportTableProps) 
   }
   if (error) {
     return (
-      <div className="rounded-lg border border-error-container bg-error-container p-4">
-        <p className="font-body-sm text-body-sm text-on-error-container">{error}</p>
+      <div className="rounded-lg border border-red-300 bg-red-100 p-4">
+        <p className="font-body-sm text-body-sm text-red-800">{error}</p>
         <Button variant="secondary" size="sm" onClick={fetchReport}>Thử lại</Button>
       </div>
     );
@@ -184,7 +184,7 @@ export function ConstraintReportTable({ periodId }: ConstraintReportTableProps) 
                               key={k}
                               className={
                                 v > 0
-                                  ? "py-2 px-3 font-label-md text-label-md text-error"
+                                  ? "py-2 px-3 font-label-md text-label-md text-red-800"
                                   : "py-2 px-3 font-body-sm text-body-sm text-on-surface-variant"
                               }
                             >
@@ -220,16 +220,16 @@ function Bucket({
     <div
       className={
         tone === "error"
-          ? "rounded-lg border border-error-container bg-error-container p-3"
-          : "rounded-lg border border-primary-fixed bg-primary-fixed p-3"
+          ? "rounded-lg border border-red-300 bg-red-100 p-3"
+          : "rounded-lg border border-blue-300 bg-blue-100 p-3"
       }
     >
       <div className="flex items-center justify-between">
         <h4
           className={
             tone === "error"
-              ? "font-title-lg text-title-lg text-on-error-container"
-              : "font-title-lg text-title-lg text-on-primary-container"
+              ? "font-title-lg text-title-lg text-red-800"
+              : "font-title-lg text-title-lg text-blue-800-container"
           }
         >
           {title}
@@ -237,8 +237,8 @@ function Bucket({
         <span
           className={
             tone === "error"
-              ? "rounded-full bg-error px-3 py-1 text-[12px] font-semibold text-on-error"
-              : "rounded-full bg-primary px-3 py-1 text-[12px] font-semibold text-on-primary"
+              ? "rounded-full bg-error text-white"
+              : "rounded-full bg-blue-100 px-3 py-1 text-[12px] font-semibold text-blue-800"
           }
         >
           Tổng: {total}

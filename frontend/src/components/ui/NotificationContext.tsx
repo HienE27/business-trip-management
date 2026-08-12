@@ -59,7 +59,7 @@ function toNotificationItem(notification: Notification): NotificationItem {
     return {
       id: String(notification.id),
       icon: "warning",
-      iconColor: "bg-error/10 text-error",
+      iconColor: "bg-error/10 text-red-800",
       title: notification.title,
       detail: notification.message,
       time: formatRelativeTime(notification.createdAt),
@@ -71,7 +71,7 @@ function toNotificationItem(notification: Notification): NotificationItem {
     return {
       id: String(notification.id),
       icon: "swap_horiz",
-      iconColor: "bg-primary/10 text-primary",
+      iconColor: "bg-blue-100/10 text-blue-800",
       title: notification.title,
       detail: notification.message,
       time: formatRelativeTime(notification.createdAt),
@@ -95,7 +95,7 @@ function toNotificationItem(notification: Notification): NotificationItem {
     return {
       id: String(notification.id),
       icon: "event_available",
-      iconColor: "bg-secondary/10 text-secondary",
+      iconColor: "bg-secondary/10 text-emerald-800",
       title: notification.title,
       detail: notification.message,
       time: formatRelativeTime(notification.createdAt),

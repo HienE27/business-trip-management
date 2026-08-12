@@ -23,7 +23,7 @@ const LoginForm = dynamic(
               <div className="h-4 w-16 bg-surface-container rounded animate-pulse" />
               <div className="h-12 bg-surface-container rounded-lg" />
             </div>
-            <div className="h-10 bg-primary/50 rounded-lg animate-pulse mt-6" />
+            <div className="h-10 bg-blue-100/50 rounded-lg animate-pulse mt-6" />
           </div>
         </div>
         {/* Right — illustration skeleton */}

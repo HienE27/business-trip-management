@@ -91,8 +91,8 @@ export function HeatmapWidget({ periodId, metric = "load" }: HeatmapWidgetProps)
 
   if (error) {
     return (
-      <div className="rounded-lg border border-error-container bg-error-container p-4">
-        <p className="font-body-sm text-body-sm text-on-error-container">{error}</p>
+      <div className="rounded-lg border border-red-300 bg-red-100 p-4">
+        <p className="font-body-sm text-body-sm text-red-800">{error}</p>
         <Button variant="secondary" size="sm" onClick={fetchHeat}>Thử lại</Button>
       </div>
     );
@@ -184,10 +184,10 @@ function bucketise(max: number): Array<{ threshold: number; className: string }>
   const high = Math.max(max, 1);
   return [
     { threshold: 0, className: "bg-surface-container-high" },
-    { threshold: high * 0.25, className: "bg-primary-fixed" },
-    { threshold: high * 0.5, className: "bg-secondary-container" },
-    { threshold: high * 0.75, className: "bg-tertiary-container" },
-    { threshold: high, className: "bg-error-container" },
+    { threshold: high * 0.25, className: "bg-blue-100" },
+    { threshold: high * 0.5, className: "bg-emerald-100" },
+    { threshold: high * 0.75, className: "bg-amber-100" },
+    { threshold: high, className: "bg-red-100 text-red-800" },
   ];
 }
 

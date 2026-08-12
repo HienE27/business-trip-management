@@ -160,10 +160,10 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
         <div className="flex flex-col gap-3 p-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
           {/* Algorithm pills */}
           <div className="flex items-center gap-2 min-w-0">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-fixed">
-              <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden="true">psychology</span>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-800">
+              <span className="material-symbols-outlined text-[18px] text-blue-800" aria-hidden="true">psychology</span>
             </div>
-            <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:thin]">
+            <div className="flex flex-wrap gap-1.5">
               {(Object.keys(ALGO_CONFIG) as AlgorithmType[]).map((type) => {
                 const cfg = ALGO_CONFIG[type];
                 const sel = algorithmType === type;
@@ -175,13 +175,19 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                     disabled={runningAutoSchedule}
                     title={cfg.desc}
                     aria-pressed={sel}
-                    className={`inline-flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={`inline-flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold border transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                       sel
-                        ? "bg-primary text-on-primary border-primary"
-                        : "bg-primary-fixed text-primary border-primary/30 hover:brightness-95"
+                        ? "bg-primary text-on-primary border-primary shadow-md ring-2 ring-primary/30 scale-[1.02]"
+                        : "bg-surface-container-lowest text-on-surface-variant border-outline-variant hover:border-primary hover:text-primary hover:bg-primary-fixed hover:shadow-sm"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{cfg.icon}</span>
+                    <span
+                      className={`material-symbols-outlined text-[16px] transition-colors ${sel ? "text-on-primary" : ""}`}
+                      style={sel ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                      aria-hidden="true"
+                    >
+                      {cfg.icon}
+                    </span>
                     {cfg.label}
                   </button>
                 );
@@ -196,10 +202,10 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                 disabled={runningAutoSchedule}
                 className="sr-only"
               />
-              <div className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${(skipExisting ?? false) ? "bg-primary" : "bg-outline"} ${runningAutoSchedule ? "opacity-50" : ""}`}>
+              <div className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${(skipExisting ?? false) ? "bg-blue-100" : "bg-outline"} ${runningAutoSchedule ? "opacity-50" : ""}`}>
                 <div className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${(skipExisting ?? false) ? "translate-x-4.5" : "translate-x-0.75"}`} />
               </div>
-              <span className="text-label-sm text-primary whitespace-nowrap">
+              <span className="text-label-sm text-blue-800 whitespace-nowrap">
                 Bỏ lịch cũ
               </span>
             </label>
@@ -311,14 +317,14 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
               <div
                 role="status"
                 aria-label={`Thuật toán đã chạy: ${algoResultInfo.label}`}
-                className="flex items-center gap-3 p-4 rounded-lg border border-primary/30 bg-primary-fixed shadow-sm min-w-0 overflow-hidden"
+                className="flex items-center gap-3 p-4 rounded-lg border border-blue-30030 bg-blue-100 text-blue-800 shadow-sm min-w-0 overflow-hidden"
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-on-primary">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-800">
                   <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{algoResultInfo.icon}</span>
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-label-xs text-on-surface-variant leading-tight">Thuật toán</p>
-                  <p className="text-label-md font-bold text-primary truncate">{algoResultInfo.label}</p>
+                  <p className="text-label-md font-bold text-blue-800 truncate">{algoResultInfo.label}</p>
                 </div>
               </div>
             )}
@@ -410,19 +416,19 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
             // ponytail: warning uses tertiary for intuitive
             // tertiary/secondary/error provides clear severity levels.
             const toneStyles = {
-              ok: "bg-secondary-container/20 border-secondary/30",
-              warning: "bg-tertiary-fixed/20 border-tertiary/30",
-              critical: "bg-error-container/20 border-error/30",
+              ok: "bg-emerald-100/20 border-emerald-300",
+              warning: "bg-amber-100/20 border-amber-300",
+              critical: "bg-red-100/20 border-red-300",
             };
             const iconStyles = {
-              ok: "bg-secondary-container text-secondary",
-              warning: "bg-tertiary-fixed text-tertiary",
-              critical: "bg-error-container text-error",
+              ok: "bg-emerald-100 text-emerald-800",
+              warning: "bg-amber-100 text-amber-800",
+              critical: "bg-red-100 text-red-800",
             };
             const textStyles = {
-              ok: "text-secondary",
-              warning: "text-tertiary",
-              critical: "text-error",
+              ok: "text-emerald-800",
+              warning: "text-amber-800",
+              critical: "text-red-800",
             };
             const iconName = tone === "ok" ? "check_circle" : tone === "warning" ? "warning" : "error";
             const severityLabel = tone === "ok" ? "Đủ nhân sự" : tone === "warning" ? "Thiếu nhẹ" : "Thiếu nghiêm trọng";
@@ -505,7 +511,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                                 {new Date(d.workDate).toLocaleDateString("vi-VN", { weekday: "short", day: "numeric", month: "short" })}
                               </td>
                               <td className="px-4 py-2.5 text-label-sm text-on-surface-variant">{d.shiftTypeName}</td>
-                              <td className="px-4 py-2.5 text-label-sm text-error font-semibold text-right">
+                              <td className="px-4 py-2.5 text-label-sm text-red-800 font-semibold text-right">
                                 {d.missingCount}/{d.requiredStaffCount}
                               </td>
                             </tr>
@@ -535,7 +541,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                   <button key={m.key} type="button" onClick={() => setViewMode(m.key as "week" | "month")}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-xs font-medium transition-all cursor-pointer ${
                       viewMode === m.key 
-                        ? "bg-primary text-on-primary shadow-sm" 
+                        ? "bg-blue-100 text-blue-800 shadow-sm" 
                         : "text-on-surface-variant hover:bg-surface-container-high"
                     }`}
                     title={`Xem theo ${m.label}`}
@@ -551,8 +557,8 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                 <button type="button" onClick={() => setStaffFilterOpen(!staffFilterOpen)}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-label-xs font-medium transition-all cursor-pointer ${
                     selectedStaffIds.size > 0 
-                      ? "border-primary bg-primary-fixed/20 text-primary" 
-                      : "border-outline-variant text-on-surface-variant hover:border-primary hover:bg-surface-container-low"
+                      ? "border-blue-300 bg-blue-100 text-blue-800/20 text-blue-800" 
+                      : "border-outline-variant text-on-surface-variant hover:border-blue-300 hover:bg-surface-container-low"
                   }`}
                 >
                   <span className="material-symbols-outlined text-[14px]" aria-hidden="true">filter_list</span>
@@ -571,7 +577,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                     <div className="relative mb-2">
                       <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[14px] pointer-events-none" aria-hidden="true">search</span>
                       <input
-                        className="w-full h-8 pl-8 pr-3 rounded-lg border border-outline-variant bg-surface-container-low text-label-xs text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                        className="w-full h-8 pl-8 pr-3 rounded-lg border border-outline-variant bg-surface-container-low text-label-xs text-on-surface focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-300 transition-all"
                         placeholder="Tìm nhân sự..."
                         value={staffSearch}
                         onChange={e => setStaffSearch(e.target.value)}
@@ -599,11 +605,11 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                               type="checkbox"
                               checked={sel}
                               onChange={handleToggle}
-                              className="h-4 w-4 shrink-0 rounded border-outline text-primary cursor-pointer focus:ring-2 focus:ring-primary/30"
+                              className="h-4 w-4 shrink-0 rounded border-outline text-blue-800 cursor-pointer focus:ring-2 focus:ring-blue-300"
                             />
                             <span className="text-label-xs text-on-surface truncate flex-1">{staff.fullName}</span>
                             {previewResult && (
-                              <span className="text-[10px] font-mono font-semibold text-primary bg-primary-fixed/30 px-1.5 py-0.5 rounded tabular-nums shrink-0">
+                              <span className="text-[10px] font-mono font-semibold text-blue-800 bg-blue-100 text-blue-800/30 px-1.5 py-0.5 rounded tabular-nums shrink-0">
                                 {staffShiftCount}
                               </span>
                             )}
@@ -616,7 +622,7 @@ export const AutoSchedulePanel = memo(function AutoSchedulePanel({
                     </div>
                     {selectedStaffIds.size > 0 && (
                       <button type="button" onClick={() => setSelectedStaffIds(new Set())}
-                        className="mt-2 w-full rounded-lg border border-outline-variant px-3 py-2 text-label-xs font-medium text-primary hover:bg-surface-container-low transition-colors cursor-pointer">
+                        className="mt-2 w-full rounded-lg border border-outline-variant px-3 py-2 text-label-xs font-medium text-blue-800 hover:bg-surface-container-low transition-colors cursor-pointer">
                         Bỏ lọc
                       </button>
                     )}

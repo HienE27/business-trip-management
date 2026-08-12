@@ -69,7 +69,7 @@ export function ConflictBadge() {
       className={`
         ml-auto inline-flex items-center justify-center
         min-w-[20px] h-5 px-1.5 rounded-full
-        bg-error text-on-error text-[11px] font-bold
+        bg-error text-white text-[11px] font-bold
         leading-none
         ${pulse ? 'animate-pulse-soft' : ''}
       `}

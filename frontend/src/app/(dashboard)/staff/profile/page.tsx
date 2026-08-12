@@ -29,13 +29,13 @@ const STATUS_LABEL: Record<StatusKey, string> = {
 };
 
 const STATUS_CLASS: Record<StatusKey, string> = {
-  ACTIVE: "bg-secondary-container text-secondary",
-  ON_LEAVE: "bg-tertiary-fixed text-on-tertiary-fixed-variant",
+  ACTIVE: "bg-emerald-100 text-emerald-800",
+  ON_LEAVE: "bg-amber-100 text-amber-800 border border-amber-300",
   INACTIVE: "bg-surface-container-high text-outline",
 };
 
 const STATUS_DOT: Record<StatusKey, string> = {
-  ACTIVE: "bg-secondary",
+  ACTIVE: "bg-emerald-100",
   ON_LEAVE: "bg-tertiary",
   INACTIVE: "bg-outline",
 };
@@ -153,7 +153,7 @@ export default function StaffProfilePage() {
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
         <span className="material-symbols-outlined text-7xl text-outline">person_off</span>
         <p className="text-headline-md text-on-surface-variant">Không tìm thấy hồ sơ</p>
-        <Link href="/login" className="px-5 py-2.5 bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors font-label-md">
+        <Link href="/login" className="px-5 py-2.5 bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-100/90 transition-colors font-label-md">
           Đăng nhập lại
         </Link>
       </div>
@@ -166,7 +166,7 @@ export default function StaffProfilePage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {message && (
-        <div className="rounded-xl border border-tertiary-container bg-tertiary-container/30 px-4 py-3 text-body-sm text-on-surface flex items-center gap-2">
+        <div className="rounded-xl bg-amber-100 text-amber-800 border border-amber-300 px-4 py-3 text-body-sm text-on-surface flex items-center gap-2">
           <span className="material-symbols-outlined text-[20px]">warning</span>
           {message}
         </div>
@@ -180,12 +180,12 @@ export default function StaffProfilePage() {
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
             {/* Avatar */}
             <div className="relative shrink-0">
-              <div className="size-16 rounded-full bg-primary text-on-primary flex items-center justify-center text-2xl font-bold shadow-md ring-4 ring-primary/20">
+              <div className="size-16 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-2xl font-bold shadow-md ring-4 ring-blue-30020">
                 {getInitials(staff.fullName)}
               </div>
               <span
                 className={`absolute -bottom-0.5 -right-0.5 size-5 rounded-full border-2 border-surface-container-lowest ${
-                  staff.isActive ? "bg-secondary" : "bg-outline"
+                  staff.isActive ? "bg-emerald-100" : "bg-outline"
                 }`}
               />
             </div>
@@ -198,7 +198,7 @@ export default function StaffProfilePage() {
                 {staff.roles.map((role) => (
                   <span
                     key={role}
-                    className="px-2.5 py-1 rounded-full text-label-sm font-semibold bg-primary/10 text-primary"
+                    className="px-2.5 py-1 rounded-full text-label-sm font-semibold bg-blue-100/10 text-blue-800"
                   >
                     {ROLE_LABELS[role] ?? role}
                   </span>
@@ -216,7 +216,7 @@ export default function StaffProfilePage() {
             <button
               type="button"
               onClick={() => router.push(`/staff/${staff.id}/edit`)}
-              className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors text-label-md font-medium shadow-sm"
+              className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-100/90 transition-colors text-label-md font-medium shadow-sm"
             >
               <span className="material-symbols-outlined text-[16px]">edit</span>
               Chỉnh sửa
@@ -234,9 +234,9 @@ export default function StaffProfilePage() {
           ].map((item) => (
             <div key={item.label} className="px-4 py-3 text-center hover:bg-surface-container-low transition-colors">
               <div className="flex items-center justify-center gap-1.5 mb-1">
-                <span className="material-symbols-outlined text-[16px] text-primary">{item.icon}</span>
+                <span className="material-symbols-outlined text-[16px] text-blue-800">{item.icon}</span>
               </div>
-              <p className={`text-xl font-bold ${item.danger ? "text-error" : "text-on-surface"}`}>{item.value}</p>
+              <p className={`text-xl font-bold ${item.danger ? "text-red-800" : "text-on-surface"}`}>{item.value}</p>
               <p className="text-label-xs text-on-surface-variant mt-0.5">{item.label}</p>
             </div>
           ))}
@@ -260,7 +260,7 @@ export default function StaffProfilePage() {
                   aria-selected={activeTab === tab.key}
                   className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-label-md font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${
                     activeTab === tab.key
-                      ? "bg-surface-container-lowest text-primary border-b-2 border-primary"
+                      ? "bg-surface-container-lowest text-blue-800 border-b-2 border-primary"
                       : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50"
                   }`}
                   onClick={() => setActiveTab(tab.key as typeof activeTab)}
@@ -281,7 +281,7 @@ export default function StaffProfilePage() {
                   {/* Personal Info */}
                   <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant">
                     <h3 className="text-title-md font-semibold text-on-surface mb-4 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-[20px]">person_outline</span>
+                      <span className="material-symbols-outlined text-blue-800 text-[20px]">person_outline</span>
                       Thông tin cá nhân
                     </h3>
                     <div className="space-y-4">
@@ -292,8 +292,8 @@ export default function StaffProfilePage() {
                         { label: "Số điện thoại", value: staff.phone || "—", icon: "phone" },
                       ].map((item) => (
                         <div key={item.label} className="flex items-start gap-3">
-                          <div className="size-9 rounded-lg bg-primary-fixed flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-primary text-[18px]">{item.icon}</span>
+                          <div className="size-9 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-blue-800 text-[18px]">{item.icon}</span>
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-label-sm text-on-surface-variant">{item.label}</p>
@@ -307,7 +307,7 @@ export default function StaffProfilePage() {
                   {/* Work Info */}
                   <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant">
                     <h3 className="text-title-md font-semibold text-on-surface mb-4 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-[20px]">work_outline</span>
+                      <span className="material-symbols-outlined text-blue-800 text-[20px]">work_outline</span>
                       Thông tin công việc
                     </h3>
                     <div className="space-y-4">
@@ -318,8 +318,8 @@ export default function StaffProfilePage() {
                         { label: "Ngày tham gia", value: formatDate(staff.createdAt), icon: "calendar_today" },
                       ].map((item) => (
                         <div key={item.label} className="flex items-start gap-3">
-                          <div className="size-9 rounded-lg bg-secondary-container flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-secondary text-[18px]">{item.icon}</span>
+                          <div className="size-9 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-emerald-800 text-[18px]">{item.icon}</span>
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-label-sm text-on-surface-variant">{item.label}</p>
@@ -337,13 +337,13 @@ export default function StaffProfilePage() {
                 <div className="space-y-4 animate-fade-in">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <h3 className="text-title-md font-semibold text-on-surface flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-[20px]">calendar_month</span>
+                      <span className="material-symbols-outlined text-blue-800 text-[20px]">calendar_month</span>
                       Lịch công tác
                     </h3>
                     <div className="relative w-full sm:w-64">
                       <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">date_range</span>
                       <select
-                        className="w-full pl-9 pr-8 py-2.5 bg-surface-container-low border border-outline-variant text-label-md text-on-surface rounded-lg focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 appearance-none cursor-pointer"
+                        className="w-full pl-9 pr-8 py-2.5 bg-surface-container-low border border-outline-variant text-label-md text-on-surface rounded-lg focus:border-primary focus:outline-none focus:ring-1 focus:ring-blue-30030 appearance-none cursor-pointer"
                         value={selectedPeriodId ?? ""}
                         onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
                       >
@@ -398,10 +398,10 @@ export default function StaffProfilePage() {
                                 <td className="px-4 py-3.5">
                                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-label-sm font-medium ${
                                     s.hasConflict
-                                      ? "bg-error-container text-error"
-                                      : "bg-secondary-container text-secondary"
+                                      ? "bg-red-100 text-red-800 border border-red-300 text-red-800"
+                                      : "bg-emerald-100 text-emerald-800"
                                   }`}>
-                                    <span className={`size-2 rounded-full ${s.hasConflict ? "bg-error animate-pulse" : "bg-secondary"}`} />
+                                    <span className={`size-2 rounded-full ${s.hasConflict ? "bg-error animate-pulse" : "bg-emerald-100"}`} />
                                     {s.hasConflict ? "Xung đột" : "Hợp lệ"}
                                   </span>
                                 </td>
@@ -419,7 +419,7 @@ export default function StaffProfilePage() {
               {activeTab === "stats" && (
                 <div className="space-y-6 animate-fade-in">
                   <h3 className="text-title-md font-semibold text-on-surface flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-[20px]">bar_chart</span>
+                    <span className="material-symbols-outlined text-blue-800 text-[20px]">bar_chart</span>
                     Thống kê chi tiết
                   </h3>
 
@@ -445,7 +445,7 @@ export default function StaffProfilePage() {
                   <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-title-sm font-semibold text-on-surface flex items-center gap-2">
-                        <span className="material-symbols-outlined text-primary text-[20px]">speed</span>
+                        <span className="material-symbols-outlined text-blue-800 text-[20px]">speed</span>
                         Tải trọng tháng này
                       </h4>
                       <span className="text-label-md font-bold text-on-surface">
@@ -455,7 +455,7 @@ export default function StaffProfilePage() {
                     <div className="w-full bg-surface-container-highest rounded-full h-3 overflow-hidden">
                       <div
                         className={`h-3 rounded-full transition-all duration-500 ${
-                          isOverload ? "bg-error" : workloadPercent > 80 ? "bg-tertiary" : "bg-primary"
+                          isOverload ? "bg-error" : workloadPercent > 80 ? "bg-tertiary" : "bg-blue-100"
                         }`}
                         style={{ width: `${workloadPercent}%` }}
                       />
@@ -465,7 +465,7 @@ export default function StaffProfilePage() {
                       <span>{staff.maxShiftsPerMonth} ca</span>
                     </div>
                     {isOverload && (
-                      <div className="mt-3 flex items-center gap-2 text-error text-label-sm">
+                      <div className="mt-3 flex items-center gap-2 text-red-800 text-label-sm">
                         <span className="material-symbols-outlined text-[16px] animate-pulse">warning</span>
                         Đã vượt quá giới hạn cho phép
                       </div>
@@ -474,12 +474,12 @@ export default function StaffProfilePage() {
 
                   {/* Conflict alert */}
                   {stats.conflicts > 0 && (
-                    <div className="rounded-xl border border-error-container bg-error-container/30 p-5 flex items-start gap-4">
-                      <div className="size-10 rounded-full bg-error-container flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-error text-[20px]">warning</span>
+                    <div className="rounded-xl border bg-red-100 text-red-800 border border-red-300 bg-red-100 text-red-800 border border-red-300/30 p-5 flex items-start gap-4">
+                      <div className="size-10 rounded-full bg-red-100 text-red-800 border border-red-300 flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-red-800 text-[20px]">warning</span>
                       </div>
                       <div>
-                        <h4 className="text-title-sm font-semibold text-error">Có {stats.conflicts} xung đột lịch</h4>
+                        <h4 className="text-title-sm font-semibold text-red-800">Có {stats.conflicts} xung đột lịch</h4>
                         <p className="text-label-sm text-on-surface-variant mt-1">
                           Vui lòng liên hệ quản lý để được giải quyết
                         </p>
@@ -498,14 +498,14 @@ export default function StaffProfilePage() {
           <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-outline-variant bg-surface-container-low">
               <h3 className="text-title-sm font-semibold text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">apps</span>
+                <span className="material-symbols-outlined text-blue-800 text-[20px]">apps</span>
                 Thao tác nhanh
               </h3>
             </div>
             <div className="p-4 space-y-2">
               {[
-                { label: "Xem lịch cá nhân", icon: "calendar_month", href: "/monthly-schedule", color: "text-primary bg-primary-fixed" },
-                { label: "Yêu cầu đổi ca", icon: "swap_horiz", href: "/swap-requests", color: "text-secondary bg-secondary-container" },
+                { label: "Xem lịch cá nhân", icon: "calendar_month", href: "/monthly-schedule", color: "text-blue-800 bg-blue-100 text-blue-800" },
+                { label: "Yêu cầu đổi ca", icon: "swap_horiz", href: "/swap-requests", color: "text-emerald-800 bg-emerald-100 text-emerald-800" },
                 { label: "Đổi mật khẩu", icon: "lock", href: "/settings?tab=password", color: "text-on-surface-variant bg-surface-container-low" },
                 { label: "Cài đặt thông báo", icon: "notifications", href: "/settings?tab=notifications", color: "text-on-surface-variant bg-surface-container-low" },
               ].map((item) => (
@@ -528,7 +528,7 @@ export default function StaffProfilePage() {
           <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-outline-variant bg-surface-container-low">
               <h3 className="text-title-sm font-semibold text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">info</span>
+                <span className="material-symbols-outlined text-blue-800 text-[20px]">info</span>
                 Tóm tắt tài khoản
               </h3>
             </div>
@@ -555,7 +555,7 @@ export default function StaffProfilePage() {
           <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-outline-variant bg-surface-container-low">
               <h3 className="text-title-sm font-semibold text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">history</span>
+                <span className="material-symbols-outlined text-blue-800 text-[20px]">history</span>
                 Hoạt động gần đây
               </h3>
             </div>
@@ -576,7 +576,7 @@ export default function StaffProfilePage() {
                           <p className="text-label-sm text-on-surface-variant">{formatDate(s.workDate)}</p>
                         </div>
                         {idx === 0 && (
-                          <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-primary text-[10px] font-bold">Mới</span>
+                          <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-blue-800 text-[10px] font-bold">Mới</span>
                         )}
                       </div>
                     );

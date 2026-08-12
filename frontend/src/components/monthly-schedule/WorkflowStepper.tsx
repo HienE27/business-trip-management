@@ -23,36 +23,36 @@ const STATUS_ICON_CONFIG: Record<WorkflowStatus, { bg: string; iconColor: string
     ring: "ring-1 ring-outline-variant",
   },
   active: {
-    bg: "bg-primary",
-    iconColor: "text-on-primary",
-    ring: "ring-2 ring-primary/40",
+    bg: "bg-blue-100",
+    iconColor: "text-blue-800",
+    ring: "ring-2 ring-blue-30040",
   },
   completed: {
-    bg: "bg-secondary-container",
-    iconColor: "text-secondary",
-    ring: "ring-1 ring-secondary/20",
+    bg: "bg-emerald-100",
+    iconColor: "text-emerald-800",
+    ring: "ring-1 ring-emerald-200",
   },
   error: {
-    bg: "bg-error-container",
-    iconColor: "text-error",
-    ring: "ring-1 ring-error/20",
+    bg: "bg-red-100",
+    iconColor: "text-red-800",
+    ring: "ring-1 ring-red-200",
   },
 };
 
 /** Tailwind class cho indicator dot phụ. */
 const STATUS_DOT: Record<WorkflowStatus, string> = {
   pending: "bg-surface-variant",
-  active: "bg-primary animate-pulse",
-  completed: "bg-secondary",
-  error: "bg-error",
+  active: "bg-blue-100 animate-pulse",
+  completed: "bg-emerald-500",
+  error: "bg-red-500",
 };
 
 /** Tailwind class cho connector line giữa các bước. */
 const STATUS_LINE: Record<WorkflowStatus, string> = {
   pending: "bg-surface-variant",
-  active: "bg-primary/40",
-  completed: "bg-secondary",
-  error: "bg-error",
+  active: "bg-blue-100/40",
+  completed: "bg-emerald-500",
+  error: "bg-red-500",
 };
 
 function buildSteps(context: WorkflowContext): WorkflowStepView[] {
@@ -116,13 +116,13 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
       <div className="px-3 py-2 border-b border-outline-variant bg-surface-container-low">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-fixed">
-              <span className="material-symbols-outlined text-[14px] text-primary" aria-hidden="true">account_tree</span>
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-100">
+              <span className="material-symbols-outlined text-[14px] text-blue-800" aria-hidden="true">account_tree</span>
             </div>
             <span className="text-label-sm font-semibold text-on-surface truncate">Workflow</span>
             {errorCount > 0 && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-error-container text-[10px] font-bold text-error">
-                <span className="w-1.5 h-1.5 rounded-full bg-error animate-pulse" />
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-100 text-[10px] font-bold text-red-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                 {errorCount}
               </span>
             )}
@@ -130,7 +130,7 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
           <Badge tone={statusSummary.tone} size="sm">{statusSummary.text}</Badge>
         </div>
         <div className="mt-1.5 h-1 bg-surface-variant rounded-full overflow-hidden">
-          <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-blue-100 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
@@ -169,7 +169,7 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
                     )}
                     {/* Pulse ring for active */}
                     {isActive && (
-                      <span className="absolute inset-0 rounded-full animate-ping opacity-30 bg-primary" />
+                      <span className="absolute inset-0 rounded-full animate-ping opacity-30 bg-blue-100" />
                     )}
                     <span className={`material-symbols-outlined ${cfg.iconColor} ${isActive || isCompleted || isError ? "" : "opacity-50"}`} style={{ fontSize: "16px" }} aria-hidden="true">
                       {stepIcon}
@@ -181,12 +181,12 @@ export const WorkflowStepper = memo(function WorkflowStepper(props: WorkflowStep
                   {/* Step label */}
                   <div className="flex flex-col items-center gap-0.5">
                     <span className={`text-[10px] font-bold leading-tight text-center whitespace-nowrap transition-colors ${
-                      isActive ? "text-primary" : isError ? "text-error" : isCompleted ? "text-secondary" : "text-on-surface-variant group-hover:text-on-surface"
+                      isActive ? "text-blue-800" : isError ? "text-red-800" : isCompleted ? "text-emerald-800" : "text-on-surface-variant group-hover:text-on-surface"
                     }`}>
                       {step.title}
                     </span>
                     <span className={`text-[9px] leading-tight text-center whitespace-nowrap ${
-                      isActive ? "text-primary/70" : isError ? "text-error/70" : isCompleted ? "text-secondary/70" : "text-outline"
+                      isActive ? "text-blue-800/70" : isError ? "text-red-800/70" : isCompleted ? "text-emerald-800/70" : "text-outline"
                     }`}>
                       {step.statusLabel}
                     </span>

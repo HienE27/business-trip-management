@@ -273,7 +273,7 @@ function ReportsMonthlyContent() {
       <BackButton href="/reports" variant="full" label="Quay lại" className="mb-4" />
 
       {message && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error" role="alert">
+        <div className="rounded-lg border border-red-300 bg-red-100 text-red-800 px-4 py-3 text-sm text-red-800" role="alert">
           {message}
         </div>
       )}
@@ -281,7 +281,7 @@ function ReportsMonthlyContent() {
       {/* Period Selector */}
       <section className="flex items-center justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm flex-wrap">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-[22px] text-primary">calendar_month</span>
+          <span className="material-symbols-outlined text-[22px] text-blue-800">calendar_month</span>
           <div>
             <h2 className="text-[16px] font-semibold text-on-surface">Báo cáo kỳ lịch</h2>
             <p className="text-[12px] text-on-surface-variant">Chọn kỳ lịch để xem báo cáo tổng hợp.</p>
@@ -291,7 +291,7 @@ function ReportsMonthlyContent() {
           <label htmlFor="report-monthly-period" className="sr-only">Chọn kỳ lịch</label>
           <select
             id="report-monthly-period"
-            className="w-full appearance-none rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-[14px] text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer pr-10"
+            className="w-full appearance-none rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-[14px] text-on-surface focus:ring-1 focus:ring-blue-300 focus:border-blue-300 cursor-pointer pr-10"
             value={selectedPeriod?.id ?? ""}
             onChange={(e) => {
               const p = periods.find((x) => x.id === Number(e.target.value));
@@ -342,9 +342,9 @@ function ReportsMonthlyContent() {
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold ${
                       selectedPeriod.status === "PUBLISHED"
-                        ? "bg-secondary-container text-on-secondary-container"
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                         : selectedPeriod.status === "DRAFT"
-                        ? "bg-primary-fixed text-primary"
+                        ? "bg-blue-100 text-blue-800"
                         : "bg-surface-container-high text-outline"
                     }`}
                   >
@@ -372,7 +372,7 @@ function ReportsMonthlyContent() {
                 label: "Tổng ca trực",
                 value: checking ? "—" : totalShift,
                 icon: "event_available",
-                accent: "bg-primary-fixed text-primary",
+                accent: "bg-blue-100 text-blue-800",
               },
               {
                 label: "Nhân sự được phân",
@@ -380,7 +380,7 @@ function ReportsMonthlyContent() {
                 // stale 0 makes the report look like no staff were assigned.
                 value: checking || !scheduleLoaded ? "—" : staffCount,
                 icon: "groups",
-                accent: "bg-secondary-container text-secondary",
+                accent: "bg-emerald-100 text-emerald-800 border border-emerald-300",
               },
               {
                 label: "Tỷ lệ phủ (%)",
@@ -388,7 +388,7 @@ function ReportsMonthlyContent() {
                   ? "—"
                   : `${coverageRate}%`,
                 icon: "donut_large",
-                accent: "bg-tertiary-fixed text-tertiary",
+                accent: "bg-amber-100 text-amber-800 border border-amber-300",
               },
               {
                 label: "Trạng thái",
@@ -396,8 +396,8 @@ function ReportsMonthlyContent() {
                 icon: selectedPeriod?.status === "PUBLISHED" ? "check_circle" : "edit_note",
                 accent:
                   selectedPeriod?.status === "PUBLISHED"
-                    ? "bg-secondary-container text-secondary"
-                    : "bg-primary-fixed text-primary",
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : "bg-blue-100 text-blue-800",
               },
             ].map((kpi) => (
               <article
@@ -453,7 +453,7 @@ function ReportsMonthlyContent() {
               </div>
               <div className="mt-5 pt-4 border-t border-outline-variant flex items-center justify-between">
                 <span className="text-[14px] font-semibold text-on-surface">Tổng cộng</span>
-                <span className="text-[16px] font-bold text-primary">{totalShift} ca</span>
+                <span className="text-[16px] font-bold text-blue-800">{totalShift} ca</span>
               </div>
             </div>
           ) : null}

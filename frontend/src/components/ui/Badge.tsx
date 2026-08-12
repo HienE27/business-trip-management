@@ -11,11 +11,11 @@ export type BadgeProps = {
 };
 
 const toneClasses: Record<NonNullable<BadgeProps["tone"]>, string> = {
-  success: "bg-secondary-container text-on-secondary-container border border-secondary/20",
-  warning: "bg-tertiary-fixed text-on-tertiary-fixed-variant border border-tertiary/20",
-  error: "bg-error-container text-on-error-container border border-error/20",
-  danger: "bg-error-container text-on-error-container border border-error/20",
-  info: "bg-primary-fixed text-on-primary-fixed-variant border border-primary/20",
+  success: "bg-emerald-100 text-emerald-800 border border-emerald-300",
+  warning: "bg-amber-100 text-amber-800 border border-amber-300",
+  error: "bg-red-100 text-red-800 border border-red-300",
+  danger: "bg-red-100 text-red-800 border border-red-300",
+  info: "bg-blue-100 text-blue-800 border border-blue-300",
   neutral: "bg-surface-container-high text-on-surface-variant border border-outline/10",
 };
 
@@ -24,7 +24,7 @@ const dotColors: Record<NonNullable<BadgeProps["tone"]>, string> = {
   warning: "bg-tertiary",
   error: "bg-error animate-pulse",
   danger: "bg-error animate-pulse",
-  info: "bg-primary",
+  info: "bg-blue-100",
   neutral: "bg-outline",
 };
 

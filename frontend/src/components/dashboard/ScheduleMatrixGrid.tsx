@@ -53,7 +53,7 @@ const MatrixRowCell = memo(function MatrixRowCell({ row, staffId, staffName, onC
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onCellClick(row.date, staffId); }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 hover:bg-primary/20 text-primary"
+              className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center w-7 h-7 rounded-full bg-blue-100/10 hover:bg-blue-100/20 text-blue-800"
               title={`Thêm ca cho ${staffName} ngày ${row.dayLabel}`}
             >
               <span className="material-symbols-outlined text-[14px]">add</span>
@@ -83,7 +83,7 @@ const MatrixRowCell = memo(function MatrixRowCell({ row, staffId, staffName, onC
           <MemoizedShiftChip key={i} item={item} compact onClick={(e) => onItemClick(item, e)} />
         ))}
         {overflow > 0 && (
-          <div className="rounded border border-primary/20 bg-primary/5 px-1 py-0.5 text-[10px] font-semibold text-primary text-center">
+          <div className="rounded border border-primary/20 bg-blue-100/5 px-1 py-0.5 text-[10px] font-semibold text-blue-800 text-center">
             +{overflow} ca
           </div>
         )}
@@ -267,7 +267,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                   <th scope="col" key={staff.id}
                     className="min-w-[100px] border-b border-r border-outline-variant bg-surface-container-low px-2 py-2.5 text-center">
                     <div className="flex flex-col items-center gap-1">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-fixed text-[12px] font-bold text-primary">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-[12px] font-bold text-blue-800">
                         {staff.fullName
                           .split(" ")
                           .slice(-2)
@@ -279,7 +279,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                         {staff.fullName}
                       </span>
                       {totalShifts > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">
                           {totalShifts} ca
                         </span>
                       )}
@@ -315,7 +315,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                       <span
                         className={`text-[11px] font-medium ${
                           row.dayOfWeek === "CN"
-                            ? "text-error"
+                            ? "text-red-800"
                             : row.isWeekend
                             ? "text-tertiary"
                             : "text-on-surface-variant"
@@ -341,7 +341,7 @@ export const ScheduleMatrixGrid = memo(function ScheduleMatrixGrid({
                   {/* Row stats */}
                   <td className="border-b border-outline-variant px-2 py-2 text-center align-middle">
                     {row.rowCount > 0 ? (
-                      <span className="inline-flex h-6 min-w-[24px] items-center justify-center rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">
+                      <span className="inline-flex h-6 min-w-[24px] items-center justify-center rounded-full bg-blue-100/10 px-1.5 text-[11px] font-semibold text-blue-800">
                         {row.rowCount}
                       </span>
                     ) : (

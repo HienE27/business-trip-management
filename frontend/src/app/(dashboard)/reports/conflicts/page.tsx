@@ -105,7 +105,7 @@ function ReportsConflictsContent() {
       {/* Period selector */}
       <section className="flex items-center justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
         <div className="flex items-center gap-4">
-          <span className="material-symbols-outlined text-[22px] text-primary">warning</span>
+          <span className="material-symbols-outlined text-[22px] text-blue-800">warning</span>
           <div>
             <h2 className="text-[16px] font-semibold text-on-surface">Kiểm tra xung đột</h2>
             <p className="text-[12px] text-on-surface-variant">Chọn kỳ lịch để phân tích xung đột.</p>
@@ -115,7 +115,7 @@ function ReportsConflictsContent() {
           <label htmlFor="report-conflicts-period" className="sr-only">Chọn kỳ lịch</label>
           <select
             id="report-conflicts-period"
-            className="w-full appearance-none rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-[14px] text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer pr-10"
+            className="w-full appearance-none rounded-lg border border-outline-variant bg-surface px-3 py-2.5 text-[14px] text-on-surface focus:ring-1 focus:ring-blue-300 focus:border-blue-300 pr-10"
             value={selectedPeriod?.id ?? ""}
             onChange={(e) => {
               const p = periods.find((x) => x.id === Number(e.target.value));
@@ -134,7 +134,7 @@ function ReportsConflictsContent() {
       </section>
 
       {message && (
-        <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error" role="alert">
+        <div className="rounded-lg border border-red-300 bg-red-100 text-red-800 px-4 py-3 text-sm text-red-800" role="alert">
           {message}
         </div>
       )}
@@ -156,7 +156,7 @@ function ReportsConflictsContent() {
             <article className={`flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm ${conflictData.hasConflicts ? "border-l-4 border-l-error" : "border-l-4 border-l-secondary"}`}>
               <div className="flex justify-between items-start">
                 <p className="text-label-sm text-on-surface-variant">Tổng xung đột</p>
-                <span className={`material-symbols-outlined p-1.5 rounded-md ${conflictData.hasConflicts ? "bg-error-container text-error" : "bg-secondary-container text-secondary"} text-[18px]`}>
+                <span className={`material-symbols-outlined p-1.5 rounded-md ${conflictData.hasConflicts ? "bg-red-100 text-red-800 border border-red-300" : "bg-emerald-100 text-emerald-800 border border-emerald-300"} text-[18px]`}>
                   {conflictData.hasConflicts ? "warning" : "check_circle"}
                 </span>
               </div>
@@ -168,7 +168,7 @@ function ReportsConflictsContent() {
             <article className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm border-l-4 border-l-primary">
               <div className="flex justify-between items-start">
                 <p className="text-label-sm text-on-surface-variant">Kỳ lịch</p>
-                <span className="material-symbols-outlined p-1.5 rounded-md bg-primary-fixed text-primary text-[18px]">calendar_month</span>
+                <span className="material-symbols-outlined p-1.5 rounded-md bg-blue-100 text-blue-800 text-[18px]">calendar_month</span>
               </div>
               <p className="mt-3 text-[20px] font-bold text-on-surface">{selectedPeriod?.periodName}</p>
               <p className="mt-1 text-[12px] text-on-surface-variant">{selectedPeriod?.status}</p>
@@ -176,7 +176,7 @@ function ReportsConflictsContent() {
             <article className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm border-l-4 border-l-tertiary">
               <div className="flex justify-between items-start">
                 <p className="text-label-sm text-on-surface-variant">Nhân sự bị ảnh hưởng</p>
-                <span className="material-symbols-outlined p-1.5 rounded-md bg-tertiary-fixed text-tertiary text-[18px]">groups</span>
+                <span className="material-symbols-outlined p-1.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 text-[18px]">groups</span>
               </div>
               <p className="mt-3 text-display-lg font-bold text-on-surface">
                 {new Set(
@@ -201,9 +201,9 @@ function ReportsConflictsContent() {
 
           {/* No conflicts */}
           {!conflictData.hasConflicts && (
-            <section className="rounded-xl border border-secondary/30 bg-secondary-container/10 p-10 shadow-sm text-center">
-              <span className="material-symbols-outlined text-5xl text-secondary">check_circle</span>
-              <h3 className="mt-4 text-[18px] font-semibold text-secondary">Không phát hiện xung đột</h3>
+            <section className="rounded-xl border bg-emerald-100/10 border border-emerald-200 p-10 shadow-sm text-center">
+              <span className="material-symbols-outlined text-5xl text-emerald-800">check_circle</span>
+              <h3 className="mt-4 text-[18px] font-semibold text-emerald-800">Không phát hiện xung đột</h3>
               <p className="mt-2 text-on-surface-variant max-w-md mx-auto">
                 Kỳ lịch hiện tại không có xung đột. Có thể publish hoặc tiếp tục chỉnh sửa an toàn.
               </p>
@@ -224,7 +224,7 @@ function ReportsConflictsContent() {
                     <div key={type} className="rounded-lg border border-l-4 border-l-error bg-surface p-4">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="text-[14px] font-semibold text-on-surface">{type}</h4>
-                        <span className="rounded-full bg-error-container px-3 py-0.5 text-[12px] font-bold text-error">
+                        <span className="rounded-full bg-red-100 text-red-800 px-3 py-0.5 text-[12px] font-bold text-red-800">
                           {items.length} lịch
                         </span>
                       </div>
@@ -250,7 +250,7 @@ function ReportsConflictsContent() {
                               </p>
                             </div>
                             <div className="text-right">
-                              <span className="inline-flex items-center gap-1 rounded-full bg-error-container px-2.5 py-0.5 text-[11px] font-semibold text-error">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 text-red-800 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
                                 <span className="h-1.5 w-1.5 rounded-full bg-error" />
                                 Có xung đột
                               </span>
@@ -276,7 +276,7 @@ function ReportsConflictsContent() {
                             else next.add(type);
                             return next;
                           })}
-                          className="mt-3 w-full flex items-center justify-center gap-1.5 text-[12px] font-medium text-primary hover:bg-primary/5 rounded-md py-2 transition-colors"
+                          className="mt-3 w-full flex items-center justify-center gap-1.5 text-[12px] font-medium text-blue-800 hover:bg-blue-100/5 rounded-md py-2 transition-colors"
                         >
                           <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
                             {isExpanded ? "expand_less" : "expand_more"}
@@ -295,7 +295,7 @@ function ReportsConflictsContent() {
               {/* Recommendation */}
               <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
                 <h3 className="text-[16px] font-semibold text-on-surface mb-3 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[20px] text-primary">tips_and_updates</span>
+                  <span className="material-symbols-outlined text-[20px] text-blue-800">tips_and_updates</span>
                   Khuyến nghị
                 </h3>
                 <ul className="space-y-2.5">
@@ -305,7 +305,7 @@ function ReportsConflictsContent() {
                     "Cân đối tải trọng nhân sự nếu cùng người xuất hiện nhiều xung đột.",
                   ].map((item, i) => (
                     <li key={i} className="flex items-start gap-2.5 text-[13px] text-on-surface">
-                      <span className="material-symbols-outlined text-[16px] text-secondary shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                      <span className="material-symbols-outlined text-[16px] text-emerald-800 shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                       {item}
                     </li>
                   ))}

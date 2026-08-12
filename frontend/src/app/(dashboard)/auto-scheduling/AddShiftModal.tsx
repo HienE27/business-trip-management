@@ -60,12 +60,12 @@ export function AddShiftModal({
       <div className="space-y-4">
         <div>
           <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="shift-date">
-            Ngày làm việc <span className="text-error">*</span>
+            Ngày làm việc <span className="text-red-800">*</span>
           </label>
           <input
             id="shift-date"
             type="date"
-            className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-30020"
             value={shiftDate}
             min={selectedPeriod?.startDate ?? ""}
             max={selectedPeriod?.endDate ?? ""}
@@ -74,12 +74,12 @@ export function AddShiftModal({
         </div>
         <div>
           <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="shift-type">
-            Loại lịch <span className="text-error">*</span>
+            Loại lịch <span className="text-red-800">*</span>
           </label>
           <div className="relative">
             <select
               id="shift-type"
-              className="w-full h-10 pl-3 pr-8 border border-outline-variant bg-surface-container-low text-label-md text-on-surface appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer rounded-lg"
+              className="w-full h-10 pl-3 pr-8 border border-outline-variant bg-surface-container-low text-label-md text-on-surface appearance-none focus:outline-none focus:ring-2 focus:ring-blue-30020 focus:border-primary transition-all cursor-pointer rounded-lg"
               value={shiftTypeId}
               onChange={(e) => setShiftTypeId(e.target.value)}
             >
@@ -95,12 +95,12 @@ export function AddShiftModal({
         </div>
         <div>
           <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="shift-staff">
-            Nhân sự <span className="text-error">*</span>
+            Nhân sự <span className="text-red-800">*</span>
           </label>
           <div className="relative">
             <select
               id="shift-staff"
-              className="w-full h-10 pl-3 pr-8 border border-outline-variant bg-surface-container-low text-label-md text-on-surface appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer rounded-lg"
+              className="w-full h-10 pl-3 pr-8 border border-outline-variant bg-surface-container-low text-label-md text-on-surface appearance-none focus:outline-none focus:ring-2 focus:ring-blue-30020 focus:border-primary transition-all cursor-pointer rounded-lg"
               value={staffId}
               onChange={(e) => setStaffId(Number(e.target.value))}
             >

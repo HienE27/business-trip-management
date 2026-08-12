@@ -6,6 +6,7 @@ type CoverageInspectorProps = {
   coverageGaps: string[];
   hasCoverageGaps: boolean;
   totalCoverageGaps: number;
+  totalDaysInPeriod?: number;
 };
 
 // Material Symbols uses ligature: rendering depends on the font.
@@ -27,40 +28,54 @@ export const CoverageInspector = memo(function CoverageInspector({
   coverageGaps,
   hasCoverageGaps,
   totalCoverageGaps,
+  totalDaysInPeriod,
 }: CoverageInspectorProps) {
   const labelId = useId();
+  const totalDays = totalDaysInPeriod ?? 0;
+  const isFullCoverage = totalDaysInPeriod !== undefined && totalCoverageGaps >= totalDaysInPeriod;
+  const hasScheduledDays = hasCoverageGaps;
+  const remaining = totalDays - totalCoverageGaps;
+  const badgeLabel = `${totalCoverageGaps}/${totalDays}`;
   return (
     <section
       className="overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm"
       aria-labelledby={labelId}
     >
-      <header className="flex items-center gap-2.5 border-b border-outline-variant bg-tertiary-fixed px-4 py-3">
-        <Icon name="event_busy" className="text-tertiary" />
+      <header className="flex items-center gap-2.5 border-b border-outline-variant bg-surface-container-low px-4 py-3">
+        <Icon name="event_available" className="text-primary" />
         <div className="min-w-0 flex-1">
-          <h3 id={labelId} className="text-[15px] font-semibold leading-tight text-on-tertiary-fixed">
-            Khoảng trống phủ
+          <h3 id={labelId} className="text-[15px] font-semibold leading-tight text-on-surface">
+            Ngày có lịch trực
           </h3>
-          <p className="mt-0.5 text-[11px] leading-snug text-on-tertiary-fixed/80">
-            Thiếu nhân sự so với yêu cầu ca trực trong kỳ lịch.
+          <p className="mt-0.5 text-[11px] leading-snug text-on-surface-variant">
+            Danh sách ngày đã xếp lịch trong kỳ.
           </p>
         </div>
-        {hasCoverageGaps && (
-          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-tertiary px-2 text-[11px] font-bold leading-none text-on-tertiary">
-            {totalCoverageGaps}
+        {hasScheduledDays && !isFullCoverage && (
+          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary text-on-primary text-[11px] font-bold leading-none">
+            {badgeLabel}
           </span>
+        )}
+        {isFullCoverage && (
+          <span className="material-symbols-outlined text-[18px] text-emerald-600" aria-hidden="true">check_circle</span>
         )}
       </header>
 
       <div className="divide-y divide-outline-variant/50">
-        {!hasCoverageGaps ? (
-          <div className="flex items-center gap-2 px-4 py-5 text-[13px] leading-tight text-secondary">
-            <Icon name="check_circle" className="text-secondary" />
-            Đã đủ nhân sự cho mọi ca trực.
+        {!hasScheduledDays ? (
+          <div className="flex items-center gap-2 px-4 py-5 text-[13px] leading-tight text-on-surface-variant">
+            <Icon name="event_note" className="text-on-surface-variant" />
+            Chưa có lịch trực cho loại ca đang chọn.
+          </div>
+        ) : isFullCoverage ? (
+          <div className="flex items-center gap-2 px-4 py-5 text-[13px] leading-tight text-emerald-700">
+            <Icon name="check_circle" className="text-emerald-600" />
+            Đã phủ đủ {badgeLabel} ngày trong kỳ.
           </div>
         ) : (
           coverageGaps.slice(0, 5).map((gap, index) => (
             <div key={index} className="flex items-start gap-2.5 px-4 py-3">
-              <Icon name="help" className="mt-0.5 text-tertiary" />
+              <Icon name="event_available" className="mt-0.5 text-primary" />
               <p className="min-w-0 flex-1 text-[12px] leading-5 text-on-surface">
                 {gap}
               </p>

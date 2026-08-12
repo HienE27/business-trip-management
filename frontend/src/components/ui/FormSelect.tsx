@@ -46,7 +46,7 @@ export function FormSelect({
 
   const borderColor = error
     ? "border-error focus:border-error focus:ring-error/30 focus:shadow-sm"
-    : "border-outline-variant focus:border-primary focus:ring-primary/30 focus:shadow-sm";
+    : "border-outline-variant focus:border-primary focus:ring-blue-30030 focus:shadow-sm";
 
   return (
     <div className="flex flex-col gap-1">
@@ -56,7 +56,7 @@ export function FormSelect({
           className={`text-body-sm font-semibold text-on-surface ${hideLabel ? "sr-only" : ""}`}
         >
           {label}
-          {required && <span className="text-error ml-0.5" aria-hidden="true">*</span>}
+          {required && <span className="text-red-800 ml-0.5" aria-hidden="true">*</span>}
         </label>
       )}
 
@@ -103,7 +103,7 @@ export function FormSelect({
       </div>
 
       {error && (
-        <p id={errorId} className="flex items-center gap-1 text-label-sm text-error" role="alert">
+        <p id={errorId} className="flex items-center gap-1 text-label-sm text-red-800" role="alert">
           <span className="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
           {error}
         </p>

@@ -246,7 +246,7 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
                                 className={[
                                   "w-full h-9 appearance-none rounded-lg border pl-3 pr-8",
                                   "text-label-md text-on-surface outline-none transition-colors",
-                                  "focus:ring-1 focus:ring-primary/20 focus:border-primary",
+                                  "focus:ring-1 focus:ring-blue-300 focus:border-blue-300",
                                   isSkipped
                                     ? "border-tertiary/40 bg-tertiary/5 cursor-not-allowed opacity-70"
                                     : "border-outline-variant bg-surface-container-lowest cursor-pointer",
@@ -295,7 +295,7 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
                               </p>
                             )}
                             {currentIsCompDay && (
-                              <p className="mt-1 flex items-center gap-1 text-label-sm text-error">
+                              <p className="mt-1 flex items-center gap-1 text-label-sm text-red-800">
                                 <span
                                   aria-hidden="true"
                                   className="material-symbols-outlined text-[14px]"
@@ -317,7 +317,7 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
 
           {submitError && (
             <div
-              className="flex items-center gap-2 rounded-lg border border-error/20 bg-error-container px-4 py-2.5 text-label-sm text-on-error-container"
+              className="flex items-center gap-2 rounded-lg border border-error/20 bg-red-100 text-red-800 px-4 py-2.5 text-label-sm text-red-800"
               role="alert"
             >
               <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
@@ -351,44 +351,44 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
           {/* Dual-stat tiles */}
           {result && (
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-secondary/30 bg-secondary-container p-4">
+              <div className="rounded-xl border border-secondary/30 bg-emerald-100 text-emerald-800 p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <span
                     aria-hidden="true"
-                    className="material-symbols-outlined text-[18px] text-secondary"
+                    className="material-symbols-outlined text-[18px] text-emerald-800"
                     style={{ fontVariationSettings: "'FILL' 1" }}
                   >
                     check_circle
                   </span>
-                  <span className="text-label-sm font-medium text-on-secondary-container">
+                  <span className="text-label-sm font-medium text-amber-800">
                     Thành công
                   </span>
                 </div>
-                <p className="text-headline-md font-bold text-on-secondary-container">
+                <p className="text-headline-md font-bold text-amber-800">
                   {result.successCount}
                 </p>
-                <p className="text-label-sm text-on-secondary-container/70">
+                <p className="text-label-sm text-amber-800/70">
                   trên {result.totalRequested} yêu cầu
                 </p>
               </div>
 
-              <div className="rounded-xl border border-error/30 bg-error-container p-4">
+              <div className="rounded-xl border border-error/30 bg-red-100 text-red-800 p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <span
                     aria-hidden="true"
-                    className="material-symbols-outlined text-[18px] text-error"
+                    className="material-symbols-outlined text-[18px] text-red-800"
                     style={{ fontVariationSettings: "'FILL' 1" }}
                   >
                     error
                   </span>
-                  <span className="text-label-sm font-medium text-on-error-container">
+                  <span className="text-label-sm font-medium text-red-800">
                     Thất bại
                   </span>
                 </div>
-                <p className="text-headline-md font-bold text-on-error-container">
+                <p className="text-headline-md font-bold text-red-800">
                   {result.failureCount}
                 </p>
-                <p className="text-label-sm text-on-error-container/70">
+                <p className="text-label-sm text-red-800/70">
                   cần xem xét lại
                 </p>
               </div>
@@ -432,10 +432,10 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
                         </td>
                         <td className="py-2 px-4 text-center">
                           {r.scheduleId !== null ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container text-label-sm font-semibold">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-amber-800 text-label-sm font-semibold">
                               <span
                                 aria-hidden="true"
-                                className="material-symbols-outlined text-[14px] text-secondary"
+                                className="material-symbols-outlined text-[14px] text-emerald-800"
                                 style={{ fontVariationSettings: "'FILL' 1" }}
                               >
                                 check_circle
@@ -443,10 +443,10 @@ export const BulkScheduleModal = memo(function BulkScheduleModal({
                               OK
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error-container text-on-error-container text-label-sm font-semibold">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-red-800 text-label-sm font-semibold">
                               <span
                                 aria-hidden="true"
-                                className="material-symbols-outlined text-[14px] text-error"
+                                className="material-symbols-outlined text-[14px] text-red-800"
                                 style={{ fontVariationSettings: "'FILL' 1" }}
                               >
                                 error

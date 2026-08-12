@@ -25,8 +25,8 @@ export function DashboardHeatmapPanel({ periodId }: DashboardHeatmapPanelProps) 
     <div className="rounded-lg border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-fixed">
-            <span className="material-symbols-outlined text-[20px] text-primary" aria-hidden="true">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+            <span className="material-symbols-outlined text-[20px] text-blue-800" aria-hidden="true">
               grid_on
             </span>
           </div>
@@ -50,7 +50,7 @@ export function DashboardHeatmapPanel({ periodId }: DashboardHeatmapPanelProps) 
                 onClick={() => setMetric(opt.id)}
                 className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-label-md text-label-md transition-colors ${
                   active
-                    ? "bg-primary text-on-primary shadow-sm"
+                    ? "bg-blue-100 text-blue-800 shadow-sm"
                     : "text-on-surface-variant hover:bg-surface-container-high"
                 }`}
               >

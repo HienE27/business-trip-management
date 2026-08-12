@@ -44,7 +44,7 @@ function GlobalSearch() {
         search
       </span>
       <input
-        className="w-full h-10 pl-10 pr-4 bg-surface-container-low border border-outline-variant rounded-lg text-label-md text-on-surface focus:bg-surface-container-lowest focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant"
+        className="w-full h-10 pl-10 pr-4 bg-surface-container-low border border-outline-variant rounded-lg text-label-md text-on-surface focus:bg-surface-container-lowest focus:border-primary focus:outline-none focus:ring-1 focus:ring-blue-30020 transition-all placeholder:text-on-surface-variant"
         placeholder="Tìm kiếm lịch, nhân sự..."
         type="search"
         aria-label="Tìm kiếm toàn cục"

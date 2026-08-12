@@ -39,7 +39,7 @@ export const ALGORITHM_PRESETS: Record<PresetKey, PresetConfig> = {
     tagline: "Ưu tiên tốc độ, chất lượng chấp nhận được",
     icon: "bolt",
     color: "text-tertiary",
-    colorBg: "bg-tertiary-fixed",
+    colorBg: "bg-amber-100",
     accent: "border-tertiary",
     config: {
       ...baseConfig,

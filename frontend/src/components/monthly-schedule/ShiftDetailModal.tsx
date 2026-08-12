@@ -146,7 +146,7 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
             {vm?.shiftType}
           </span>
           {schedule.hasConflict && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-error/20 bg-error-container px-3 py-1 text-xs font-semibold text-error">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-100 text-red-800 px-3 py-1 text-xs font-semibold text-red-800">
               <span className="material-symbols-outlined text-[14px]" aria-hidden="true">warning</span>
               Có xung đột
             </span>
@@ -177,7 +177,7 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
           {/* Inline delete confirmation */}
           {canEdit && showDeleteConfirm && (
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-label-sm text-error font-medium">Xác nhận xóa?</span>
+              <span className="text-label-sm text-red-800 font-medium">Xác nhận xóa?</span>
               <Button
                 variant="danger"
                 size="sm"
@@ -202,17 +202,17 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
 
         {/* Error message */}
         {error && (
-          <div className="rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm text-error">
+          <div className="rounded-lg border border-red-300 bg-red-100 text-red-800 px-4 py-3 text-sm text-red-800">
             {error}
           </div>
         )}
 
         {/* Edit form */}
         {editing && (
-          <div className="rounded-lg border border-primary/30 bg-primary-fixed/20 p-5 space-y-4">
+          <div className="rounded-lg border border-blue-300 bg-blue-100 p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-[16px] font-semibold text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">edit</span>
+                <span className="material-symbols-outlined text-blue-800 text-[20px]">edit</span>
                 Chỉnh sửa ca trực
               </h3>
               <button
@@ -231,7 +231,7 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
                 </label>
                 <div className="relative">
                   <select
-                    className="w-full h-10 pl-3 pr-8 rounded-lg border border-outline-variant bg-surface text-body-md text-on-surface appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    className="w-full h-10 pl-3 pr-8 rounded-lg border border-outline-variant bg-surface text-body-md text-on-surface appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all"
                     value={formStaffId ?? ""}
                     onChange={(e) => setFormStaffId(Number(e.target.value))}
                   >
@@ -255,7 +255,7 @@ export const ShiftDetailModal = memo(function ShiftDetailModal({
                 </label>
                 <div className="relative">
                   <select
-                    className="w-full h-10 pl-3 pr-8 rounded-lg border border-outline-variant bg-surface text-body-md text-on-surface appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    className="w-full h-10 pl-3 pr-8 rounded-lg border border-outline-variant bg-surface text-body-md text-on-surface appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all"
                     value={formShiftTypeId ?? ""}
                     onChange={(e) => setFormShiftTypeId(e.target.value)}
                   >

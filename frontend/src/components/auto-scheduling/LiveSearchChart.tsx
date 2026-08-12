@@ -279,8 +279,8 @@ export function LiveSearchChart({ runId, bufferSize = 200 }: LiveSearchChartProp
       </div>
 
       {error && (
-        <div className="rounded-lg border border-error-container bg-error-container p-3">
-          <p className="font-body-sm text-body-sm text-on-error-container">{error}</p>
+        <div className="rounded-lg border border-red-300 bg-red-100 text-red-800 p-3">
+          <p className="font-body-sm text-body-sm text-red-800">{error}</p>
           <Button
             variant="secondary"
             size="sm"
@@ -307,9 +307,9 @@ function KPI({
   tone: "primary" | "secondary" | "tertiary" | "neutral";
 }) {
   const map = {
-    primary: "bg-primary-fixed text-primary",
-    secondary: "bg-secondary-container text-on-secondary-container",
-    tertiary: "bg-tertiary-container text-on-tertiary-container",
+    primary: "bg-blue-100 text-blue-800",
+    secondary: "bg-emerald-100 text-emerald-800",
+    tertiary: "bg-amber-100 text-amber-800",
     neutral: "bg-surface-container-highest text-on-surface-variant",
   } as const;
   return (

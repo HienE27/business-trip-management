@@ -110,7 +110,7 @@ export function CreateProfileDialog({ open, onClose, onCreated }: CreateProfileD
           {/* Name Vi */}
           <div>
             <label className="block text-label-md text-on-surface mb-1.5">
-              Tên cấu hình <span className="text-error">*</span>
+              Tên cấu hình <span className="text-red-800">*</span>
             </label>
             <input
               type="text"
@@ -157,7 +157,7 @@ export function CreateProfileDialog({ open, onClose, onCreated }: CreateProfileD
                   className={`
                     px-3 py-2 rounded-lg text-label-sm font-medium border transition-colors
                     ${form.category === cat.value
-                      ? "bg-primary text-on-primary border-primary"
+                      ? "bg-blue-100 text-blue-800 border-primary"
                       : "bg-surface-container-lowest text-on-surface border-outline-variant hover:border-primary"
                     }
                   `}
@@ -180,7 +180,7 @@ export function CreateProfileDialog({ open, onClose, onCreated }: CreateProfileD
                   className={`
                     w-10 h-10 rounded-lg border flex items-center justify-center transition-colors
                     ${form.icon === ic.value
-                      ? "bg-primary text-on-primary border-primary"
+                      ? "bg-blue-100 text-blue-800 border-primary"
                       : "bg-surface-container-lowest text-on-surface-variant border-outline-variant hover:border-primary"
                     }
                   `}
@@ -202,7 +202,7 @@ export function CreateProfileDialog({ open, onClose, onCreated }: CreateProfileD
                   className="inline-flex items-center gap-1 px-2 py-1 bg-surface-container text-label-sm text-on-surface rounded-full"
                 >
                   {tag}
-                  <button type="button" onClick={() => removeTag(tag)} className="hover:text-error">
+                  <button type="button" onClick={() => removeTag(tag)} className="hover:text-red-800">
                     <span className="material-symbols-outlined text-[14px]">close</span>
                   </button>
                 </span>

@@ -55,17 +55,17 @@ const TOAST_ICONS: Record<ToastType, string> = {
 };
 
 const TOAST_ICON_BG: Record<ToastType, string> = {
-  success: "bg-secondary-container",
-  error: "bg-error-container",
-  warning: "bg-tertiary-fixed",
-  info: "bg-primary-fixed",
+  success: "bg-emerald-100",
+  error: "bg-red-100",
+  warning: "bg-amber-100",
+  info: "bg-blue-100",
 };
 
 const TOAST_ICON_COLOR: Record<ToastType, string> = {
-  success: "text-secondary",
-  error: "text-error",
-  warning: "text-on-tertiary-fixed-variant",
-  info: "text-primary",
+  success: "text-emerald-800",
+  error: "text-red-800",
+  warning: "text-amber-800",
+  info: "text-blue-800",
 };
 
 const TOAST_DEFAULT_DURATION = 4000;

@@ -44,8 +44,8 @@ export function ChipGroupField({ metadata, value, onChange, error, disabled }: C
                 focus:outline-none focus:ring-2 focus:ring-primary/20
                 disabled:opacity-50 disabled:cursor-not-allowed
                 ${isSelected
-                  ? "bg-primary text-on-primary border-primary"
-                  : "bg-surface-container-lowest text-on-surface border-outline-variant hover:border-primary hover:bg-primary-fixed"
+                  ? "bg-blue-100 text-blue-800 border-primary"
+                  : "bg-surface-container-lowest text-on-surface border-outline-variant hover:border-primary hover:bg-blue-100"
                 }
               `}
             >
@@ -63,7 +63,7 @@ export function ChipGroupField({ metadata, value, onChange, error, disabled }: C
       )}
 
       {isInvalid && (
-        <p className="text-[12px] text-error flex items-center gap-1" role="alert">
+        <p className="text-[12px] text-red-800 flex items-center gap-1" role="alert">
           <span className="material-symbols-outlined text-[12px]">error</span>
           {error}
         </p>

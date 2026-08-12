@@ -25,9 +25,9 @@ const COVERAGE_OPTIONS: { value: CoverageFilter; label: string }[] = [
 ];
 
 function coverageTone(value: number): { bar: string; text: string } {
-  if (value >= 90) return { bar: "bg-primary", text: "text-primary" };
-  if (value >= 70) return { bar: "bg-secondary", text: "text-secondary" };
-  return { bar: "bg-error", text: "text-error" };
+  if (value >= 90) return { bar: "bg-blue-100", text: "text-blue-800" };
+  if (value >= 70) return { bar: "bg-emerald-100", text: "text-emerald-800" };
+  return { bar: "bg-error", text: "text-red-800" };
 }
 
 function formatExecTime(ms: number): string {
@@ -179,7 +179,7 @@ function MetricsRow({ metric }: { metric: AlgorithmMetrics }) {
     <tr className="hover:bg-surface-container-low transition-colors">
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary-fixed text-primary">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-800">
             <span className="material-symbols-outlined text-[14px]" aria-hidden="true">auto_mode</span>
           </span>
           <div>
@@ -267,7 +267,7 @@ function SearchInput({ value, onChange, placeholder }: { value: string; onChange
     <div className="relative flex-1 min-w-[180px]">
       <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[14px]" aria-hidden="true">search</span>
       <input
-        className="w-full h-8 pl-8 pr-3 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+        className="w-full h-8 pl-8 pr-3 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-blue-30020 transition-all"
         placeholder={placeholder}
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -280,7 +280,7 @@ function FilterSelect<T extends string>({ value, onChange, options }: { value: T
   return (
     <div className="relative">
       <select
-        className="h-8 pl-2.5 pr-7 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface appearance-none focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 cursor-pointer transition-all"
+        className="h-8 pl-2.5 pr-7 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface appearance-none focus:border-primary focus:outline-none focus:ring-1 focus:ring-blue-30020 cursor-pointer transition-all"
         value={value}
         onChange={e => onChange(e.target.value as T)}
       >

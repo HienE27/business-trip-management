@@ -94,7 +94,7 @@ export function FieldRenderer({
 
     default:
       return (
-        <div className="p-3 bg-error-container text-on-error-container text-label-sm rounded-lg">
+        <div className="p-3 bg-red-100 text-red-800 text-label-sm rounded-lg">
           <span className="material-symbols-outlined text-[16px] mr-1">error</span>
           Unknown renderType: <code>{metadata.renderType}</code>
         </div>

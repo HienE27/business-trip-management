@@ -71,8 +71,8 @@ export const ExportReportPanel = memo(function ExportReportPanel({
     <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden animate-scale-in">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-outline-variant bg-surface">
-        <div className="w-10 h-10 rounded-lg bg-primary-fixed flex items-center justify-center shrink-0">
-          <span className="material-symbols-outlined text-primary text-[20px]">download</span>
+        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+          <span className="material-symbols-outlined text-blue-800 text-[20px]">download</span>
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-title-md font-semibold text-on-surface">Xuất báo cáo</h2>
@@ -103,9 +103,9 @@ export const ExportReportPanel = memo(function ExportReportPanel({
           </div>
         ) : stats ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Trực 24/24" value={stats.L01Count ?? 0} icon="emergency" accent="bg-primary-fixed text-primary" />
-            <StatCard label="Thông tầm" value={stats.L02Count ?? 0} icon="schedule" accent="bg-secondary-container text-secondary" />
-            <StatCard label="Phòng khám DV" value={stats.L03Count ?? 0} icon="medical_services" accent="bg-tertiary-fixed text-tertiary" />
+            <StatCard label="Trực 24/24" value={stats.L01Count ?? 0} icon="emergency" accent="bg-blue-100 text-blue-800" />
+            <StatCard label="Thông tầm" value={stats.L02Count ?? 0} icon="schedule" accent="bg-emerald-100 text-emerald-800 text-emerald-800" />
+            <StatCard label="Phòng khám DV" value={stats.L03Count ?? 0} icon="medical_services" accent="bg-amber-100 text-amber-800 text-amber-800" />
             <StatCard label="Phòng khám CG" value={stats.L04Count ?? 0} icon="stethoscope" accent="bg-expert/20 text-expert" />
           </div>
         ) : null}

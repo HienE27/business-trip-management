@@ -148,11 +148,11 @@ export function WorkloadSummary({ periodId, shiftTypeId, groupBySpecialty }: Wor
 
       {/* Imbalance alert */}
       {flaggedEntries.length > 0 && (
-        <div className="flex items-start gap-3 rounded-lg border border-error/30 bg-error-container px-4 py-3 shadow-sm">
-          <span className="material-symbols-outlined text-error mt-0.5 shrink-0" aria-hidden="true">warning</span>
+        <div className="flex items-start gap-3 rounded-lg border border-red-300 bg-red-100 text-red-800 px-4 py-3 shadow-sm">
+          <span className="material-symbols-outlined text-red-800 mt-0.5 shrink-0" aria-hidden="true">warning</span>
           <div className="flex-1 min-w-0">
-            <p className="text-label-md font-semibold text-error">Phát hiện phân bổ lệch lớn</p>
-            <p className="text-label-sm text-on-error-container mt-0.5">
+            <p className="text-label-md font-semibold text-red-800">Phát hiện phân bổ lệch lớn</p>
+            <p className="text-label-sm text-red-800 mt-0.5">
               {flaggedEntries.length} nhân sự có số ca vượt quá {IMBALANCE_THRESHOLD_PCT}% so với trung bình (
               {flaggedEntries.slice(0, 3).map((e) => e.staffName).join(", ")}
               {flaggedEntries.length > 3 ? ` và ${flaggedEntries.length - 3} người khác` : ""}
@@ -176,10 +176,10 @@ export function WorkloadSummary({ periodId, shiftTypeId, groupBySpecialty }: Wor
                 </div>
                 <div className="flex-1 bg-surface-variant rounded-full h-5 overflow-hidden">
                   <div
-                    className="h-full bg-primary/80 rounded-full flex items-center justify-end pr-2 transition-all duration-300"
+                    className="h-full bg-blue-100/80 rounded-full flex items-center justify-end pr-2 transition-all duration-300"
                     style={{ width: `${pct}%` }}
                   >
-                    <span className="text-[11px] font-bold text-on-primary">{specRow.total}</span>
+                    <span className="text-[11px] font-bold text-blue-800">{specRow.total}</span>
                   </div>
                 </div>
                 <div className="w-16 text-right text-label-sm text-on-surface-variant shrink-0">
@@ -191,7 +191,7 @@ export function WorkloadSummary({ periodId, shiftTypeId, groupBySpecialty }: Wor
           // Per-staff row
           const staffRow = r as StaffRow;
           const overAvg = staffRow.total > avg * 1.3;
-          const barColor = overAvg ? "bg-error/80" : staffRow.total > avg ? "bg-tertiary/80" : "bg-primary/80";
+          const barColor = overAvg ? "bg-red-500" : staffRow.total > avg ? "bg-amber-500" : "bg-blue-500";
           return (
             <div key={staffRow.staffId} className="flex items-center gap-3">
               <div className="w-44 shrink-0 text-label-md text-on-surface truncate" title={staffRow.name}>
@@ -202,7 +202,7 @@ export function WorkloadSummary({ periodId, shiftTypeId, groupBySpecialty }: Wor
                   className={`h-full rounded-full flex items-center justify-end pr-2 transition-all duration-300 ${barColor}`}
                   style={{ width: `${pct}%` }}
                 >
-                  <span className="text-[11px] font-bold text-on-primary">{staffRow.total}</span>
+                  <span className="text-[11px] font-bold text-blue-800">{staffRow.total}</span>
                 </div>
               </div>
               <div className="w-32 text-right text-label-sm text-on-surface-variant shrink-0 truncate" title={staffRow.specialty ?? ""}>

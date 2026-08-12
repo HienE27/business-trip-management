@@ -69,7 +69,7 @@ export function ConfigRowInline({ config, onSave, onDelete }: Props) {
       <IconButton label="Sửa mô tả" variant="ghost" size="sm" onClick={() => setEditingDesc(true)} className="text-on-surface-variant">
         <span className="material-symbols-outlined text-[14px]" aria-hidden="true">edit_note</span>
       </IconButton>
-      <IconButton label="Xóa" variant="ghost" size="sm" onClick={() => setConfirmOpen(true)} className="text-error hover:bg-error-container">
+      <IconButton label="Xóa" variant="ghost" size="sm" onClick={() => setConfirmOpen(true)} className="text-red-800 hover:bg-red-100">
         <span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete</span>
       </IconButton>
       <ConfirmDialog

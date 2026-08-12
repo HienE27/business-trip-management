@@ -64,7 +64,7 @@ export default function ReportsPage() {
             className={`group relative flex flex-col rounded-xl border border-l-4 ${card.accent} bg-surface-container-lowest p-5 shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md hover:-translate-y-0.5`}
           >
             {/* Icon */}
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-fixed text-primary shadow-sm transition-transform duration-200 group-hover:scale-105">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-800 shadow-sm transition-transform duration-200 group-hover:scale-105">
               <span className="material-symbols-outlined text-[22px]" aria-hidden="true">
                 {card.icon}
               </span>
@@ -83,7 +83,7 @@ export default function ReportsPage() {
             {/* CTA Button */}
             <Link
               href={card.href}
-              className="mt-4 inline-flex w-fit items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md font-medium text-on-primary shadow-sm transition-all duration-200 hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              className="mt-4 inline-flex w-fit items-center gap-2 rounded-lg bg-blue-100 px-4 py-2 text-label-md font-medium text-blue-800 shadow-sm transition-all duration-200 hover:bg-blue-100/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-30030"
             >
               {card.cta}
               <span className="material-symbols-outlined text-[16px] transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true">

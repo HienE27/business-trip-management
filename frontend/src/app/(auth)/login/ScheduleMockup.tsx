@@ -73,7 +73,7 @@ const SHIFTS_BY_DAY: Cell[][] = [
 
 const CELL_BG: Record<CellKind, string> = {
   duty24: "bg-shift-24 text-white shadow-sm shadow-red-500/30",
-  allday: "bg-secondary text-on-secondary shadow-sm shadow-secondary/30",
+  allday: "bg-secondary text-white shadow-sm shadow-secondary/30",
   service: "bg-shift-service text-white shadow-sm shadow-tertiary/30",
   expert: "bg-shift-expert text-white shadow-sm shadow-purple-500/30",
   off: "bg-surface-container-highest",
@@ -91,7 +91,7 @@ const STAFF = [
 function StaffAvatar({ initials }: { initials: string }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-container text-label-sm font-semibold text-on-primary-container">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-800">
         {initials}
       </div>
     </div>
@@ -104,7 +104,7 @@ export const ScheduleMockup = memo(function ScheduleMockup() {
       {/* Background gradient + glow blobs */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/95 via-primary/80 to-primary/60" />
       <div className="pointer-events-none absolute -top-20 -right-20 h-72 w-72 rounded-full bg-secondary/40 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-16 h-80 w-80 rounded-full bg-primary-container/40 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -left-16 h-80 w-80 rounded-full bg-blue-100/40 blur-3xl" />
       <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_center,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:24px_24px]" />
 
       {/* Top hero text */}
@@ -179,7 +179,7 @@ export const ScheduleMockup = memo(function ScheduleMockup() {
         {/* Footer legend */}
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-outline-variant pt-2 text-label-sm text-on-surface-variant">
           <span className="inline-flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-sm bg-primary" /> 24/24
+            <span className="h-2.5 w-2.5 rounded-sm bg-blue-100" /> 24/24
           </span>
           <span className="inline-flex items-center gap-1">
             <span className="h-2.5 w-2.5 rounded-sm bg-secondary" /> Thông tầm

@@ -156,7 +156,7 @@ export const MatrixGridWrapper = memo(function MatrixGridWrapper({
           </span>
         )}
         {searchQuery && filteredStaffList.length === 0 && (
-          <span className="text-label-sm text-error shrink-0">Không tìm thấy nhân sự</span>
+          <span className="text-label-sm text-red-800 shrink-0">Không tìm thấy nhân sự</span>
         )}
       </div>
 
@@ -167,7 +167,7 @@ export const MatrixGridWrapper = memo(function MatrixGridWrapper({
           onClick={() => setShowConflictOnly((v) => !v)}
           className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-label-sm font-medium transition-all border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
             showConflictOnly
-              ? "bg-error-container text-on-error-container border-error/20"
+              ? "bg-red-100 text-red-800 border border-red-300"
               : "bg-surface-container-low text-on-surface-variant border-transparent hover:bg-surface-container-high hover:text-on-surface"
           }`}
           title="Chỉ hiện ngày có xung đột"
@@ -175,7 +175,7 @@ export const MatrixGridWrapper = memo(function MatrixGridWrapper({
           <span className="material-symbols-outlined text-[16px]">warning</span>
           Chỉ xung đột
           <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold ${
-            showConflictOnly ? "bg-error text-white" : "bg-error/20 text-error"
+            showConflictOnly ? "bg-red-500 text-white" : "bg-red-100 text-red-800"
           }`}>
             {conflictDates.size}
           </span>

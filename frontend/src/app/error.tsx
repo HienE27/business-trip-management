@@ -14,10 +14,10 @@ export default function Error({
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <div className="bg-surface-container-lowest border border-error-container rounded-xl p-8 max-w-lg w-full text-center shadow-sm">
-        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-error-container flex items-center justify-center">
+      <div className="bg-surface-container-lowest border border-red-300 rounded-xl p-8 max-w-lg w-full text-center shadow-sm">
+        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-100 text-red-800 border border-red-300 flex items-center justify-center">
           <span
-            className="material-symbols-outlined text-error text-5xl"
+            className="material-symbols-outlined text-red-800 text-5xl"
             style={{ fontVariationSettings: "'FILL' 1" }}
           >
             error
@@ -41,7 +41,7 @@ export default function Error({
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
             onClick={() => reset()}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-lg font-label-md hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-100 text-blue-800 rounded-lg font-label-md hover:bg-blue-200 transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">
               refresh
@@ -65,7 +65,7 @@ export default function Error({
             <summary className="font-label-md text-on-surface-variant cursor-pointer hover:text-on-surface">
               Chi tiết lỗi (dev only)
             </summary>
-            <pre className="mt-2 p-3 bg-surface-container-low rounded-lg text-[12px] text-error overflow-auto max-h-40 font-mono">
+            <pre className="mt-2 p-3 bg-surface-container-low rounded-lg text-[12px] text-red-800 overflow-auto max-h-40 font-mono">
               {error.message}
               {'\n\n'}
               {error.stack}

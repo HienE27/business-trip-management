@@ -175,7 +175,7 @@ export const BulkDatePickerModal = memo(function BulkDatePickerModal({
                       "flex flex-col items-center justify-center rounded-lg border py-2.5 px-1 transition-all text-center",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                       is
-                        ? "border-primary bg-primary text-on-primary shadow-sm"
+                        ? "border-primary bg-blue-100 text-blue-800 shadow-sm"
                         : "border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low",
                     ].join(" ")}
                   >
@@ -213,7 +213,7 @@ export const BulkDatePickerModal = memo(function BulkDatePickerModal({
                       "flex flex-col items-center justify-center rounded-lg border py-2.5 px-1 transition-all text-center",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                       is
-                        ? "border-tertiary bg-tertiary-container text-on-tertiary-container shadow-sm"
+                        ? "border-tertiary bg-amber-100 text-amber-800 bg-amber-100 text-amber-800 shadow-sm"
                         : "border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low",
                     ].join(" ")}
                   >

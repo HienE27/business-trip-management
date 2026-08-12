@@ -120,7 +120,7 @@ export function ForgotPasswordModal({
             autoFocus
           />
 
-          <div className="rounded-lg bg-primary-container/40 px-3 py-2 text-label-sm text-on-primary-container">
+          <div className="rounded-lg bg-blue-100-container/40 px-3 py-2 text-label-sm text-blue-800-container">
             <span className="material-symbols-outlined mr-1 inline align-middle text-[16px]">
               info
             </span>

@@ -535,7 +535,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         label: "Chuyên khoa",
         value: specialties.length,
         icon: "local_hospital",
-        accent: "bg-primary/10 text-primary",
+        accent: "bg-blue-100/10 text-blue-800",
       }
     : compensationDays.length > 0
     ? {
@@ -556,9 +556,9 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           role="alert"
           style={
             dryRunData?.canPublish
-              ? { borderColor: "var(--color-secondary)", backgroundColor: "var(--color-secondary-container)", color: "var(--color-on-secondary-container)" }
+              ? { borderColor: "#10b981", backgroundColor: "#dcfce7", color: "#166534" }
               : dryRunData?.hasConflicts || conflictData?.hasConflicts
-              ? { borderColor: "var(--color-error)", backgroundColor: "var(--color-error-container)", color: "var(--color-on-error-container)" }
+              ? { borderColor: "#ef4444", backgroundColor: "#fee2e2", color: "#991b1b" }
               : { borderColor: "var(--color-outline)", backgroundColor: "var(--color-surface-container-low)", color: "var(--color-on-surface)" }
           }
         >
@@ -611,7 +611,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
               <button
                 type="button"
                 onClick={() => setBulkPickerOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-tertiary-container px-4 py-2.5 text-label-md font-semibold text-on-tertiary-container border border-tertiary/20 hover:bg-tertiary/10 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-100 text-amber-800 border border-amber-300 font-label-md hover:bg-amber-200 transition-colors"
               >
                 <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
                   playlist_add
@@ -627,7 +627,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
                   // Open date picker so user can pick a date within the period
                   setQuickPickerOpen(true);
                 }}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-label-md font-semibold text-on-primary hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-100 px-4 py-2.5 text-label-md font-semibold text-blue-800 hover:bg-blue-100/90 transition-colors"
               >
                 <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
                   {config.ctaIcon}
@@ -663,23 +663,23 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         <section className="space-y-3">
           {/* Can publish banner */}
           {dryRunData.canPublish && (
-            <div className="rounded-xl border border-secondary/30 bg-secondary-container p-4 flex items-center gap-3">
+            <div className="rounded-xl border border-emerald-300 bg-emerald-100 text-emerald-800 p-4 flex items-center gap-3">
               <span
-                className="material-symbols-outlined text-[24px] text-secondary shrink-0"
+                className="material-symbols-outlined text-[24px] text-emerald-800 shrink-0"
                 style={{ fontVariationSettings: "'FILL' 1" }}
                 aria-hidden="true"
               >
                 check_circle
               </span>
               <div>
-                <p className="text-label-md font-semibold text-on-secondary-container">
+                <p className="text-label-md font-semibold text-emerald-800">
                   Kỳ lịch sẵn sàng công bố
                 </p>
-                <p className="text-label-sm text-on-secondary-container/80">
+                <p className="text-label-sm text-emerald-800/80">
                   Không phát hiện xung đột hay khoảng trống phủ nào.
                 </p>
               </div>
-              <span className="ml-auto shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-secondary text-on-secondary text-label-sm font-semibold">
+              <span className="ml-auto shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-secondary text-white text-label-sm font-semibold">
                 <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
                 Có thể công bố
               </span>
@@ -688,12 +688,12 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
           {/* Conflict list */}
           {dryRunData.hasConflicts && (
-            <div className="rounded-xl border border-error/30 bg-error-container overflow-hidden">
-              <div className="px-4 py-3 border-b border-error/20 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[20px] text-error" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">
+            <div className="rounded-xl border border-red-300 bg-red-100 text-red-800 overflow-hidden">
+              <div className="px-4 py-3 border-b border-red-300 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-red-800" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">
                   error
                 </span>
-                <h3 className="text-label-md font-semibold text-on-error-container">
+                <h3 className="text-label-md font-semibold text-red-800">
                   {dryRunData.conflictCount} xung đột phát hiện — chặn công bố
                 </h3>
               </div>
@@ -701,14 +701,14 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
                 {dryRunData.conflicts.map((conflict, idx) => (
                   <div key={idx} className="px-4 py-2.5 flex items-start gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-label-md font-semibold text-on-error-container">
+                      <p className="text-label-md font-semibold text-red-800">
                         {conflict.staffName}
                       </p>
-                      <p className="text-label-sm text-on-error-container/80">
+                      <p className="text-label-sm text-red-800/80">
                         {conflict.shiftTypeName} · {new Date(conflict.workDate).toLocaleDateString("vi-VN")}
                       </p>
                       {conflict.conflictReasons.length > 0 && (
-                        <p className="text-label-sm text-error mt-0.5">
+                        <p className="text-label-sm text-red-800 mt-0.5">
                           {conflict.conflictReasons.join(" · ")}
                         </p>
                       )}
@@ -721,12 +721,12 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
 
           {/* Coverage gaps */}
           {dryRunData.hasCoverageGaps && (
-            <div className="rounded-xl border border-tertiary/30 bg-tertiary-container overflow-hidden">
-              <div className="px-4 py-3 border-b border-tertiary/20 flex items-center gap-2">
+            <div className="rounded-xl border border-amber-300 bg-amber-100 text-amber-800 overflow-hidden">
+              <div className="px-4 py-3 border-b border-amber-300 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[20px] text-tertiary" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">
                   warning
                 </span>
-                <h3 className="text-label-md font-semibold text-on-tertiary-container">
+                <h3 className="text-label-md font-semibold text-amber-800">
                   {dryRunData.coverageGaps.length} khoảng trống phủ — cảnh báo
                 </h3>
               </div>
@@ -736,7 +736,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
                     <span className="material-symbols-outlined text-[16px] text-tertiary mt-0.5 shrink-0" aria-hidden="true">
                       info
                     </span>
-                    <p className="text-label-sm text-on-tertiary-container">{gap}</p>
+                    <p className="text-label-sm text-amber-800">{gap}</p>
                   </div>
                 ))}
               </div>
@@ -747,7 +747,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           {dryRunData.staffingCoverage && (
             <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
               <h3 className="text-label-md font-semibold text-on-surface mb-3 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden="true">
+                <span className="material-symbols-outlined text-[18px] text-blue-800" aria-hidden="true">
                   donut_large
                 </span>
                 Tổng quan phủ lịch
@@ -768,10 +768,10 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
                 <div>
                   <p className={`text-headline-md font-bold ${
                     dryRunData.staffingCoverage.overallCoverageRate >= 95
-                      ? "text-secondary"
+                      ? "text-emerald-800"
                       : dryRunData.staffingCoverage.overallCoverageRate >= 80
                       ? "text-tertiary"
-                      : "text-error"
+                      : "text-red-800"
                   }`}>
                     {dryRunData.staffingCoverage.overallCoverageRate}%
                   </p>
@@ -859,7 +859,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
                 ?? dryRunData?.conflictCount
                 ?? schedules.filter((s) => s.hasConflict === true).length,
             icon: "warning",
-            accent: "bg-error-container text-on-error-container",
+            accent: "bg-red-100 text-red-800",
           },
         ].filter(Boolean) as Array<{label: string; value: number; icon: string; accent: string}>).map((kpi) => (
           <div
@@ -885,7 +885,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
               onClick={() => setSelectedSpecialtyId(null)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-label-md font-medium transition-all whitespace-nowrap ${
                 selectedSpecialtyId === null
-                  ? "bg-primary text-on-primary shadow-sm"
+                  ? "bg-blue-100 text-blue-800 shadow-sm"
                   : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high border border-outline-variant"
               }`}
             >
@@ -914,8 +914,8 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
                   {count > 0 && (
                     <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
                       selectedSpecialtyId === specialty.id
-                        ? "bg-on-primary/20 text-on-primary"
-                        : "bg-primary/10 text-primary"
+                        ? "bg-on-primary/20 text-blue-800"
+                        : "bg-blue-100/10 text-blue-800"
                     }`}>
                       {count}
                     </span>
@@ -934,7 +934,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           onClick={() => setShowStats(false)}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-label-md font-semibold transition-all ${
             !showStats
-              ? "bg-primary text-on-primary shadow-sm"
+              ? "bg-blue-100 text-blue-800 shadow-sm"
               : "text-on-surface-variant hover:bg-surface-container-high"
           }`}
         >
@@ -946,7 +946,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
           onClick={() => setShowStats(true)}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-label-md font-semibold transition-all ${
             showStats
-              ? "bg-primary text-on-primary shadow-sm"
+              ? "bg-blue-100 text-blue-800 shadow-sm"
               : "text-on-surface-variant hover:bg-surface-container-high"
           }`}
         >
@@ -959,7 +959,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       {selectedPanel !== "conflicts" && (showStats ? (
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
-            <span className="material-symbols-outlined text-[22px] text-primary">bar_chart</span>
+            <span className="material-symbols-outlined text-[22px] text-blue-800">bar_chart</span>
             <h3 className="text-headline-md font-semibold text-on-surface">
               Thống kê phân bổ — {config.title}
             </h3>

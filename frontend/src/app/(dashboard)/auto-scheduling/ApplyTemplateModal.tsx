@@ -72,13 +72,13 @@ export function ApplyTemplateModal({
                     <div className="flex items-center gap-2">
                       <p className="text-label-md font-semibold text-on-surface truncate">{t.name}</p>
                       {t.templateType === "GENERATED" && (
-                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-tertiary-fixed text-tertiary text-[11px] font-bold">
+                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">
                           <span className="material-symbols-outlined text-[10px]">auto_awesome</span>
                           GENERATED
                         </span>
                       )}
                       {t.templateType === "PATTERN" && (
-                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-fixed text-primary text-[11px] font-bold">
+                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold">
                           <span className="material-symbols-outlined text-[10px]">tune</span>
                           PATTERN
                         </span>

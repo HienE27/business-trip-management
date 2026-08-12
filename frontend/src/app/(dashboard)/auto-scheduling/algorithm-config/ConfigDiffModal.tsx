@@ -24,7 +24,7 @@ export function ConfigDiffModal({ open, onClose, config, form, onApply }: Props)
       description={`${changes.length} thông số đã thay đổi`}
       size="lg"
       icon={<span className="material-symbols-outlined text-[18px]" aria-hidden="true">difference</span>}
-      iconClassName="bg-tertiary-container text-tertiary"
+      iconClassName="bg-amber-100 text-amber-800"
     >
       <div className="border border-outline-variant rounded-lg overflow-hidden max-h-80 overflow-y-auto">
         {changes.length === 0 ? (
@@ -42,15 +42,15 @@ export function ConfigDiffModal({ open, onClose, config, form, onApply }: Props)
               {changes.map(key => (
                 <tr key={key} className="hover:bg-surface-container-low transition-colors">
                   <td className="px-3 py-2.5">
-                    <code className="font-mono text-[12px] font-semibold text-primary">{key}</code>
+                    <code className="font-mono text-[12px] font-semibold text-blue-800">{key}</code>
                   </td>
                   <td className="px-3 py-2.5">
-                    <span className="inline-block px-2 py-1 rounded-md bg-error-container/30 text-error line-through font-mono text-[12px] tabular-nums">
+                    <span className="inline-block px-2 py-1 rounded-md bg-red-100 text-red-800 line-through font-mono text-[12px] tabular-nums">
                       {String(config[key])}
                     </span>
                   </td>
                   <td className="px-3 py-2.5">
-                    <span className="inline-block px-2 py-1 rounded-md bg-secondary-container/30 text-secondary font-mono text-[12px] tabular-nums font-bold">
+                    <span className="inline-block px-2 py-1 rounded-md bg-emerald-100 text-emerald-800 font-mono text-[12px] tabular-nums font-bold">
                       {String(form[key])}
                     </span>
                   </td>

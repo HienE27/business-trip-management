@@ -73,9 +73,9 @@ const STATUS_BADGE: Record<
   StaffBalanceStatus,
   { icon: string; text: string; bg: string; color: string }
 > = {
-  overloaded: { icon: "warning", text: "Quá tải", bg: "bg-error-container", color: "text-on-error-container" },
-  caution:    { icon: "horizontal_rule", text: "Vượt nhẹ", bg: "bg-tertiary-fixed", color: "text-on-tertiary-fixed-variant" },
-  balanced:   { icon: "check_circle", text: "Cân bằng", bg: "bg-secondary-container", color: "text-on-secondary-container" },
+  overloaded: { icon: "warning", text: "Quá tải", bg: "bg-red-100", color: "text-red-800" },
+  caution:    { icon: "horizontal_rule", text: "Vượt nhẹ", bg: "bg-amber-100", color: "text-amber-800" },
+  balanced:   { icon: "check_circle", text: "Cân bằng", bg: "bg-emerald-100", color: "text-emerald-800" },
 };
 
 /* ── Accessible tooltip (hover + focus) ── */
@@ -183,7 +183,7 @@ function HorizontalBarChart({ data }: { data: WorkloadChartData }) {
 
               <div className="relative flex-1 rounded-full h-8 bg-surface-container-low overflow-hidden col-span-2 sm:col-span-1">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ease-out ${isOverAvg ? "bg-chart-24" : "bg-primary"}`}
+                  className={`h-full rounded-full transition-all duration-500 ease-out ${isOverAvg ? "bg-chart-24" : "bg-blue-100"}`}
                   style={{ width: `${Math.max(pct, 3)}%` }}
                 />
                 {avgShift > 0 && (
@@ -196,7 +196,7 @@ function HorizontalBarChart({ data }: { data: WorkloadChartData }) {
               </div>
 
               <span
-                className={`text-right text-label-sm font-bold tabular-nums ${isOverAvg ? "text-error" : "text-on-surface"}`}
+                className={`text-right text-label-sm font-bold tabular-nums ${isOverAvg ? "text-red-800" : "text-on-surface"}`}
                 data-testid="balance-value"
               >
                 {staff.totalShifts}
@@ -408,7 +408,7 @@ function BalanceView({ rows, hidden }: { rows: StaffAggregate[]; hidden: number 
                 <span
                   className={`text-label-sm font-bold tabular-nums ${
                     row.status === "overloaded"
-                      ? "text-error"
+                      ? "text-red-800"
                       : row.status === "caution"
                         ? "text-tertiary"
                         : "text-on-surface"
@@ -647,7 +647,7 @@ export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: Work
               type="checkbox"
               checked={showOnlyEligible}
               onChange={(e) => setShowOnlyEligible(e.target.checked)}
-              className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary cursor-pointer"
+              className="w-4 h-4 rounded border-outline-variant text-blue-800 focus:ring-blue-300 cursor-pointer"
             />
             <span className="text-label-sm text-on-surface-variant">
               Chỉ eligible
@@ -675,7 +675,7 @@ export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: Work
               }
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-sm transition-all ${
                 viewMode === mode
-                  ? "bg-primary text-on-primary font-semibold shadow-sm"
+                  ? "bg-blue-100 text-blue-800 font-semibold shadow-sm"
                   : enabled
                     ? "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
                     : "text-outline opacity-50 cursor-not-allowed"
@@ -704,7 +704,7 @@ export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: Work
         if (nonEligibleCount === 0) return null;
         return (
           <div
-            className="flex items-start gap-3 p-4 rounded-xl bg-tertiary-container/30 border border-tertiary/30"
+            className="flex items-start gap-3 p-4 rounded-xl bg-amber-100 text-amber-800 border border-amber-300"
             role="note"
             aria-label="Giải thích phân bổ theo eligibility"
           >
@@ -751,7 +751,7 @@ export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: Work
       {/* Footer notes */}
       <div className="flex items-center gap-4 pt-2 border-t border-outline-variant flex-wrap" aria-label="Chú thích biểu đồ">
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-primary" aria-hidden="true" />
+          <span className="w-3 h-3 rounded-sm bg-blue-100" aria-hidden="true" />
           <span className="text-label-xs text-on-surface-variant">Trong ngưỡng TB</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -767,7 +767,7 @@ export function WorkloadChart({ periodId, previewSchedules, balanceLimit }: Work
             <span>
               Đang lọc: hiển thị {filteredChartData.staffWorkloadData.length}/{chartData.staffWorkloadData.length} nhân sự eligible
             </span>
-            <span className="bg-tertiary-container text-on-tertiary-container px-2 py-0.5 rounded-full font-medium">
+            <span className="bg-amber-100 text-amber-800 bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">
               Ẩn {chartData.staffWorkloadData.length - filteredChartData.staffWorkloadData.length} không eligible
             </span>
           </div>

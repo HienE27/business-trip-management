@@ -130,7 +130,7 @@ function StaffCreateContent() {
   return (
     <div className="space-y-6">
       <nav aria-label="Đường dẫn" className="flex items-center gap-2 text-label-md text-on-surface-variant">
-        <Link href="/staff" className="hover:text-primary transition-colors flex items-center gap-1">
+        <Link href="/staff" className="hover:text-blue-800 transition-colors flex items-center gap-1">
           <span className="material-symbols-outlined text-[18px]">groups</span>
           Nhân sự
         </Link>
@@ -140,14 +140,14 @@ function StaffCreateContent() {
 
       {loading ? (
         <div className="flex items-center justify-center py-24">
-          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <div className="size-8 animate-spin rounded-full border-2 border-blue-300 border-t-transparent" />
         </div>
       ) : (
         <>
           {/* Page Header */}
           <section className="flex items-center gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-container">
-              <span className="material-symbols-outlined text-[24px] text-primary">person_add</span>
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100">
+              <span className="material-symbols-outlined text-[24px] text-blue-800">person_add</span>
             </div>
             <div>
               <h1 className="text-headline-md font-semibold text-on-surface">Thêm nhân sự mới</h1>
@@ -162,7 +162,7 @@ function StaffCreateContent() {
               {/* Account Info */}
               <div className="mb-6">
                 <h2 className="text-title-md font-semibold text-on-surface flex items-center gap-2 mb-4">
-                  <span className="material-symbols-outlined text-primary text-[20px]">manage_accounts</span>
+                  <span className="material-symbols-outlined text-blue-800 text-[20px]">manage_accounts</span>
                   Thông tin tài khoản
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -204,7 +204,7 @@ function StaffCreateContent() {
               {/* Personal Info */}
               <div className="mb-6">
                 <h2 className="text-title-md font-semibold text-on-surface flex items-center gap-2 mb-4">
-                  <span className="material-symbols-outlined text-primary text-[20px]">badge</span>
+                  <span className="material-symbols-outlined text-blue-800 text-[20px]">badge</span>
                   Thông tin cá nhân
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -272,7 +272,7 @@ function StaffCreateContent() {
               {/* Work Info */}
               <div>
                 <h2 className="text-title-md font-semibold text-on-surface flex items-center gap-2 mb-4">
-                  <span className="material-symbols-outlined text-primary text-[20px]">work_outline</span>
+                  <span className="material-symbols-outlined text-blue-800 text-[20px]">work_outline</span>
                   Phân công &amp; trạng thái
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -311,8 +311,8 @@ function StaffCreateContent() {
                             key={role.value}
                             className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-label-md ${
                               checked
-                                ? "bg-primary/10 border-primary text-primary font-medium"
-                                : "bg-surface-container-low border-outline-variant text-on-surface-variant hover:border-primary/50"
+                                ? "bg-blue-100/10 border-blue-300 text-blue-800 font-medium"
+                                : "bg-surface-container-low border-outline-variant text-on-surface-variant hover:border-blue-30050"
                             }`}
                           >
                             <input
@@ -331,7 +331,7 @@ function StaffCreateContent() {
                             />
                             <span
                               className={`material-symbols-outlined text-[16px] transition-colors ${
-                                checked ? "text-primary" : "text-outline"
+                                checked ? "text-blue-800" : "text-outline"
                               }`}
                               aria-hidden="true"
                             >
@@ -343,7 +343,7 @@ function StaffCreateContent() {
                       })}
                     </div>
                     {form.roles.length === 0 && (
-                      <p className="text-label-xs text-error flex items-center gap-1">
+                      <p className="text-label-xs text-red-800 flex items-center gap-1">
                         <span className="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
                         Vui lòng chọn ít nhất một vai trò.
                       </p>
@@ -373,7 +373,7 @@ function StaffCreateContent() {
                 Hủy bỏ
               </Link>
               <button
-                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[14px] font-semibold text-on-primary shadow-sm transition-colors hover:brightness-110 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-100 px-4 py-2.5 text-[14px] font-semibold text-blue-800 shadow-sm transition-colors hover:brightness-110 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 disabled={submitting}
                 form="staff-create-form"
                 type="submit"

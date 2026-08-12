@@ -166,8 +166,8 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
             border-b border-outline-variant"
         >
           <div
-            className="w-10 h-10 rounded-lg bg-primary text-on-primary flex items-center
-              justify-center shrink-0 shadow-sm ring-1 ring-inset ring-primary/20"
+            className="w-10 h-10 rounded-lg bg-blue-100 text-blue-800 flex items-center
+              justify-center shrink-0 shadow-sm ring-1 ring-inset ring-blue-300"
           >
             <span
               aria-hidden="true"
@@ -179,7 +179,7 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h1 className="font-bold text-title-md leading-tight text-primary truncate">
+              <h1 className="font-bold text-title-md leading-tight text-blue-800 truncate">
                 Quản lý Lịch
               </h1>
               <EnvBadge />
@@ -207,7 +207,7 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
               aria-label="Tìm chức năng trong sidebar"
               className="w-full rounded-lg border border-outline-variant bg-surface
                 h-9 pl-9 pr-8 text-[13px] text-on-surface placeholder:text-outline
-                focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20
+                focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-300
                 focus:bg-surface-container-lowest transition-all"
             />
             {search && (
@@ -282,8 +282,8 @@ export function AppSidebar({ items, mobileOpen = false, onClose }: AppSidebarPro
                         <span
                           className="ml-auto inline-flex items-center justify-center
                             min-w-[20px] h-4 px-1.5 rounded-full
-                            bg-primary-fixed text-on-primary-fixed-dim text-[10px] font-bold
-                            group-hover/header:bg-primary-fixed-dim
+                            bg-amber-100 text-amber-800 text-[10px] font-bold
+                            group-hover/header:bg-blue-100-dim
                             transition-colors"
                         >
                           {group.items.length}
@@ -353,7 +353,7 @@ function SidebarLink({
         relative flex items-center gap-3 pl-4 pr-3 py-2 rounded-lg
         text-[13px] font-medium transition-all
         ${isActive
-          ? "bg-primary-fixed text-primary font-semibold border-l-2 border-primary shadow-[0_1px_2px_rgba(0,74,198,0.08)]"
+          ? "bg-blue-100 text-blue-800 font-semibold border-l-2 border-blue-300 shadow-[0_1px_2px_rgba(0,74,198,0.08)]"
           : "text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface border-l-2 border-transparent"
         }
       `}
@@ -372,7 +372,7 @@ function SidebarLink({
       <span className="truncate flex-1">{item.label}</span>
       {isConflicts ? <ConflictBadge /> : null}
       {showNotificationBadge && (
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-on-error ring-2 ring-surface shrink-0">
+        <span className="flex h-5 min-w-5 px-1 items-center justify-center rounded-full bg-error text-[10px] leading-none font-semibold text-white ring-2 ring-surface shrink-0">
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       )}
@@ -395,8 +395,8 @@ function EnvBadge() {
         inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold
         uppercase tracking-wider shrink-0 ring-1 ring-inset
         ${isProd
-          ? "bg-tertiary-container text-on-tertiary-container ring-tertiary/20"
-          : "bg-secondary-container text-secondary ring-secondary/20"
+          ? "bg-amber-100 text-amber-800 ring-tertiary/20"
+          : "bg-emerald-100 text-emerald-800 ring-secondary/20"
         }
       `}
     >

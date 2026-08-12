@@ -6,8 +6,8 @@ type ShiftDetailInfoProps = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  approved: "bg-secondary-container text-secondary border border-secondary/20",
-  pending: "bg-tertiary-fixed text-on-tertiary border border-tertiary/20",
+  approved: "bg-emerald-100 text-emerald-800 border border-emerald-300",
+  pending: "bg-amber-100 text-amber-800 border border-amber-300",
   draft: "bg-surface-container-low text-on-surface-variant border border-outline-variant",
 };
 
@@ -26,7 +26,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
             Kỳ lịch
           </span>
           <div className="flex items-center gap-2 text-label-md font-medium text-on-surface">
-            <span className="material-symbols-outlined text-[20px] text-primary">calendar_month</span>
+            <span className="material-symbols-outlined text-[20px] text-blue-800">calendar_month</span>
             <div>
               <p>{shift.periodName ?? "—"}</p>
               <p className="text-label-md font-normal text-on-surface-variant">{shift.periodRange ?? "—"}</p>
@@ -39,7 +39,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
             Chuyên khoa
           </span>
           <div className="flex items-center gap-2 text-label-md font-medium text-on-surface">
-            <span className="material-symbols-outlined text-[20px] text-primary">apartment</span>
+            <span className="material-symbols-outlined text-[20px] text-blue-800">apartment</span>
             {shift.specialtyName ?? shift.departmentFull}
           </div>
         </div>
@@ -49,7 +49,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
             Ngày trực
           </span>
           <div className="flex items-center gap-2 text-label-md font-medium text-on-surface">
-            <span className="material-symbols-outlined text-[20px] text-primary">calendar_today</span>
+            <span className="material-symbols-outlined text-[20px] text-blue-800">calendar_today</span>
             {shift.weekday}, {shift.date}
           </div>
         </div>
@@ -59,7 +59,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
             Loại ca
           </span>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center rounded bg-primary px-2.5 py-0.5 text-label-sm text-on-primary">
+            <span className="inline-flex items-center rounded bg-blue-100 px-2.5 py-0.5 text-label-sm text-blue-800">
               {shift.shiftType}
             </span>
             <span className="text-label-sm text-on-surface-variant">{shift.shiftTime}</span>
@@ -71,7 +71,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
             Nghỉ bù
           </span>
           <div className="flex items-center gap-2 text-label-md font-medium text-on-surface">
-            <span className="material-symbols-outlined text-[20px] text-primary">event_available</span>
+            <span className="material-symbols-outlined text-[20px] text-blue-800">event_available</span>
             {shift.compensationDate ?? "Không áp dụng"}
           </div>
         </div>
@@ -97,7 +97,7 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
                 {shift.roles.map((role) => (
                   <span
                     key={role}
-                    className="inline-flex items-center rounded-full bg-secondary-fixed px-3 py-1 text-label-sm text-on-secondary-fixed"
+                    className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-label-sm"
                   >
                     {role}
                   </span>
@@ -114,8 +114,8 @@ export function ShiftDetailInfo({ shift, className = "" }: ShiftDetailInfoProps)
           )}
 
           {shift.conflictReasons.length > 0 && (
-            <div className="rounded-lg border border-error-container bg-error-container/10 p-4">
-              <p className="text-label-sm font-semibold text-error">Cảnh báo xung đột</p>
+            <div className="rounded-lg border border-red-300 bg-red-100 text-red-800 p-4">
+              <p className="text-label-sm font-semibold text-red-800">Cảnh báo xung đột</p>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-label-md text-on-surface-variant">
                 {shift.conflictReasons.map((reason) => (
                   <li key={reason}>{reason}</li>

@@ -121,7 +121,7 @@ export function ImportExportDialog({
               onClick={() => setActiveTab("import")}
               className={`px-4 pb-3 text-label-md border-b-2 transition-colors ${
                 activeTab === "import"
-                  ? "border-primary text-primary"
+                  ? "border-primary text-blue-800"
                   : "border-transparent text-on-surface-variant hover:text-on-surface"
               }`}
             >
@@ -132,7 +132,7 @@ export function ImportExportDialog({
               onClick={() => setActiveTab("export")}
               className={`px-4 pb-3 text-label-md border-b-2 transition-colors ${
                 activeTab === "export"
-                  ? "border-primary text-primary"
+                  ? "border-primary text-blue-800"
                   : "border-transparent text-on-surface-variant hover:text-on-surface"
               }`}
             >
@@ -150,7 +150,7 @@ export function ImportExportDialog({
               <div
                 className={`
                   border-2 border-dashed rounded-xl p-8 text-center transition-colors
-                  ${isDragging ? "border-primary bg-primary-fixed/30" : "border-outline-variant hover:border-primary/50"}
+                  ${isDragging ? "border-primary bg-blue-100" : "border-outline-variant hover:border-primary/50"}
                 `}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -192,7 +192,7 @@ export function ImportExportDialog({
                   onChange={(e) => setImportJson(e.target.value)}
                   placeholder='{"nameVi": "Cấu hình mới", ...}'
                   rows={6}
-                  className="w-full px-3 py-2 border border-outline-variant bg-surface-container-lowest rounded-lg text-body-sm font-mono text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                  className="w-full px-3 py-2 border border-outline-variant bg-surface-container-lowest rounded-lg text-body-sm font-mono text-on-surface focus:border-blue-300 focus:ring-2 focus:ring-blue-300 resize-none"
                 />
               </div>
 
@@ -200,7 +200,7 @@ export function ImportExportDialog({
               {importJson && (
                 <div className="p-3 bg-surface-container rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-[16px] text-secondary">info</span>
+                    <span className="material-symbols-outlined text-[16px] text-emerald-800">info</span>
                     <span className="text-label-sm text-on-surface font-semibold">Preview</span>
                   </div>
                   <p className="text-[12px] text-on-surface-variant font-mono truncate">
@@ -213,7 +213,7 @@ export function ImportExportDialog({
             <div className="space-y-4">
               {!exportJson ? (
                 <div className="text-center py-8">
-                  <span className="material-symbols-outlined text-[64px] text-primary/50 mb-4 block">
+                  <span className="material-symbols-outlined text-[64px] text-blue-800/50 mb-4 block">
                     description
                   </span>
                   <p className="text-label-md text-on-surface mb-2">Xuất cấu hình "{profile?.nameVi}"</p>
@@ -233,14 +233,14 @@ export function ImportExportDialog({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="p-3 bg-secondary-container/50 border border-secondary/20 rounded-lg">
+                  <div className="p-3 bg-emerald-100 text-emerald-800 border border-secondary/20 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="material-symbols-outlined text-[16px] text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      <span className="material-symbols-outlined text-[16px] text-emerald-800" style={{ fontVariationSettings: "'FILL' 1" }}>
                         check_circle
                       </span>
-                      <span className="text-label-md text-on-secondary-container font-semibold">Xuất thành công!</span>
+                      <span className="text-label-md text-amber-800 font-semibold">Xuất thành công!</span>
                     </div>
-                    <p className="text-[12px] text-on-secondary-container">
+                    <p className="text-[12px] text-amber-800">
                       File JSON đã sẵn sàng để tải về
                     </p>
                   </div>

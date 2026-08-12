@@ -46,7 +46,7 @@ export function PeriodFormModal({
       <div className="space-y-4 py-2">
         <div>
           <label className="block font-label-md text-label-md text-on-surface mb-1.5">
-            Tên kỳ lịch <span className="text-error">*</span>
+            Tên kỳ lịch <span className="text-red-800">*</span>
           </label>
           <input
             type="text"
@@ -60,7 +60,7 @@ export function PeriodFormModal({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block font-label-md text-label-md text-on-surface mb-1.5">
-              Ngày bắt đầu <span className="text-error">*</span>
+              Ngày bắt đầu <span className="text-red-800">*</span>
             </label>
             <input
               type="date"
@@ -71,7 +71,7 @@ export function PeriodFormModal({
           </div>
           <div>
             <label className="block font-label-md text-label-md text-on-surface mb-1.5">
-              Ngày kết thúc <span className="text-error">*</span>
+              Ngày kết thúc <span className="text-red-800">*</span>
             </label>
             <input
               type="date"
@@ -82,7 +82,7 @@ export function PeriodFormModal({
           </div>
         </div>
         {formError && (
-          <div className="p-3 bg-error-container border border-error/20 rounded-lg text-on-error-container text-body-sm">
+          <div className="p-3 bg-red-100 border border-red-300 rounded-lg text-red-800 text-body-sm">
             {formError}
           </div>
         )}

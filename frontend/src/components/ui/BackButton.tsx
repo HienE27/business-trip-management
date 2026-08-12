@@ -24,7 +24,7 @@ export function BackButton({ href, label = "Quay lại", variant = "icon", class
         href={href}
         aria-label={variant === "full" ? label : undefined}
         className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-label-md font-medium
-          text-on-surface-variant hover:text-primary hover:bg-primary-fixed/30 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${className}`}
+          text-on-surface-variant hover:text-blue-800 hover:bg-blue-100 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${className}`}
       >
         <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span>
         {variant === "full" && <span>{label}</span>}
@@ -39,7 +39,7 @@ export function BackButton({ href, label = "Quay lại", variant = "icon", class
         variant="ghost"
         size="sm"
         onClick={() => router.back()}
-        className={`text-on-surface-variant hover:text-primary hover:bg-primary-fixed/30 ${className}`}
+        className={`text-on-surface-variant hover:text-blue-800 hover:bg-blue-100 ${className}`}
       >
         <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span>
       </IconButton>
@@ -52,7 +52,7 @@ export function BackButton({ href, label = "Quay lại", variant = "icon", class
       onClick={() => router.back()}
       aria-label={label}
       className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-label-md font-medium
-        text-on-surface-variant hover:text-primary hover:bg-primary-fixed/30 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${className}`}
+        text-on-surface-variant hover:text-blue-800 hover:bg-blue-100 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${className}`}
     >
       <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span>
       <span>{label}</span>

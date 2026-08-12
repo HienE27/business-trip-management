@@ -111,13 +111,13 @@ export function QuickScheduleModal({
     <Modal open={open} onClose={onClose} title="Tạo nhanh ca trực" size="md">
       {done ? (
         <div className="flex flex-col items-center gap-4 py-8">
-          <span aria-hidden="true" className="material-symbols-outlined text-[48px] text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-[48px] text-emerald-800" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
           <p className="text-title-lg text-on-surface font-semibold">Đã tạo thành công</p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           {message && (
-            <div className="rounded-lg border border-error/20 bg-error-container px-3 py-2 text-label-sm text-error">
+            <div className="rounded-lg border border-error/20 bg-red-100 text-red-800 px-3 py-2 text-label-sm text-red-800">
               {message}
             </div>
           )}
@@ -152,7 +152,7 @@ export function QuickScheduleModal({
             required
           />
           {dateOutOfRange && (
-            <div className="rounded-lg border border-error/20 bg-error-container px-3 py-2 text-label-sm text-error">
+            <div className="rounded-lg border border-error/20 bg-red-100 text-red-800 px-3 py-2 text-label-sm text-red-800">
               Ngày làm việc phải nằm trong kỳ lịch.
             </div>
           )}
@@ -265,7 +265,7 @@ export const ScheduleMatrixView = memo(function ScheduleMatrixView({
             aria-pressed={matrixViewMode === "month"}
             className={`rounded-md px-3 py-1 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               matrixViewMode === "month"
-                ? "bg-surface-container-lowest text-primary shadow-sm"
+                ? "bg-surface-container-lowest text-blue-800 shadow-sm"
                 : "text-on-surface-variant hover:text-on-surface"
             }`}
           >
@@ -277,7 +277,7 @@ export const ScheduleMatrixView = memo(function ScheduleMatrixView({
             aria-pressed={matrixViewMode === "week"}
             className={`rounded-md px-3 py-1 text-label-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               matrixViewMode === "week"
-                ? "bg-surface-container-lowest text-primary shadow-sm"
+                ? "bg-surface-container-lowest text-blue-800 shadow-sm"
                 : "text-on-surface-variant hover:text-on-surface"
             }`}
           >

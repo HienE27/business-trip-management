@@ -46,7 +46,7 @@ export function DashboardShell({
     <div className="flex min-h-screen">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-primary focus:text-on-primary focus:rounded-lg focus:font-medium focus:shadow-lg"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-blue-100 focus:text-blue-800 focus:rounded-lg focus:font-medium focus:shadow-lg"
       >
         Chuyển đến nội dung chính
       </a>

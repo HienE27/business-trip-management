@@ -25,9 +25,9 @@ export function ToggleField({ metadata, value, onChange, error, disabled }: Togg
         onClick={() => onChange(!isChecked)}
         className={`
           relative inline-block w-11 h-6 rounded-full transition-colors
-          focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-2
+          focus:outline-none focus:ring-2 focus:ring-blue-30020 focus:ring-offset-2
           disabled:opacity-50 disabled:cursor-not-allowed
-          ${isChecked ? "bg-primary" : "bg-surface-variant"}
+          ${isChecked ? "bg-blue-100" : "bg-surface-variant"}
         `}
       >
         <span
@@ -46,7 +46,7 @@ export function ToggleField({ metadata, value, onChange, error, disabled }: Togg
           <span className="text-[12px] text-on-surface-variant">{metadata.description}</span>
         )}
         {isInvalid && (
-          <p className="text-[12px] text-error flex items-center gap-1 mt-1" role="alert">
+          <p className="text-[12px] text-red-800 flex items-center gap-1 mt-1" role="alert">
             <span className="material-symbols-outlined text-[12px]">error</span>
             {error}
           </p>

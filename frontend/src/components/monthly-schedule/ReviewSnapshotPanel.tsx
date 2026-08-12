@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
 import type { Schedule } from "@/types/api";
@@ -8,32 +8,57 @@ import type { Schedule } from "@/types/api";
 export type ReviewSnapshotPanelProps = {
   focusDate: string | null;
   schedules: Schedule[];
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  onFocusDateChange: (date: string | null) => void;
 };
 
-export const ReviewSnapshotPanel = memo(function ReviewSnapshotPanel({ focusDate, schedules }: ReviewSnapshotPanelProps) {
+export const ReviewSnapshotPanel = memo(function ReviewSnapshotPanel({
+  focusDate,
+  schedules,
+  periodStart,
+  periodEnd,
+  onFocusDateChange,
+}: ReviewSnapshotPanelProps) {
   const scheduleCount = schedules.length;
-  
+
+  const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    onFocusDateChange(val || null);
+  }, [onFocusDateChange]);
+
   return (
     <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm overflow-hidden">
       {/* Header */}
       <div className="px-4 py-4 border-b border-outline-variant bg-surface-container-low">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-fixed">
-            <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden="true">event_note</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="text-title-sm font-semibold text-on-surface">Chi tiết ngày</h3>
-              {scheduleCount > 0 && (
-                <Badge tone="info" size="sm">{scheduleCount}</Badge>
-              )}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100">
+              <span className="material-symbols-outlined text-[18px] text-blue-800" aria-hidden="true">event_note</span>
             </div>
-            <p className="mt-0.5 text-label-xs text-on-surface-variant">
-              {focusDate
-                ? `Focus ${new Date(focusDate).toLocaleDateString("vi-VN", { weekday: "short", day: "numeric", month: "short" })}`
-                : "Chọn ngày trên lịch để xem chi tiết."}
-            </p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-title-sm font-semibold text-on-surface">Chi tiết ngày</h3>
+                {scheduleCount > 0 && (
+                  <Badge tone="info" size="sm">{scheduleCount}</Badge>
+                )}
+              </div>
+              <p className="mt-0.5 text-label-xs text-on-surface-variant">
+                {focusDate
+                  ? `${new Date(focusDate).toLocaleDateString("vi-VN", { weekday: "short", day: "numeric", month: "short" })}`
+                  : "Chọn ngày để xem chi tiết lịch trực."}
+              </p>
+            </div>
           </div>
+          <input
+            type="date"
+            className="h-8 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-label-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none transition-all cursor-pointer"
+            value={focusDate ?? ""}
+            min={periodStart ?? ""}
+            max={periodEnd ?? ""}
+            onChange={handleDateChange}
+            aria-label="Chọn ngày xem chi tiết"
+          />
         </div>
       </div>
 

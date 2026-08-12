@@ -33,7 +33,7 @@ type HolidayForm = {
 };
 
 const STATUS_CLASS: Record<string, string> = {
-  true: "bg-secondary-container text-on-secondary-container border border-secondary/20",
+  true: "bg-emerald-100 text-emerald-800 border border-emerald-300 border border-secondary/20",
   false: "bg-surface-container-high text-on-surface-variant border border-outline-variant",
 };
 
@@ -287,7 +287,7 @@ function HolidaysContent() {
             onChange={(e) => {
               updateURL({ year: e.target.value, page: 0 });
             }}
-            className="h-9 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none cursor-pointer"
+            className="h-9 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-md text-on-surface focus:border-blue-300 focus:ring-1 focus:ring-blue-300 focus:outline-none cursor-pointer"
           >
             <option value="all">Tất cả năm</option>
             {getYearOptions().map((y) => (
@@ -302,7 +302,7 @@ function HolidaysContent() {
             onChange={(e) => {
               updateURL({ type: e.target.value || null, page: 0 });
             }}
-            className="h-9 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none cursor-pointer"
+            className="h-9 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-label-md text-on-surface focus:border-blue-300 focus:ring-1 focus:ring-blue-300 focus:outline-none cursor-pointer"
           >
             <option value="">Tất cả</option>
             <option value="national">Ngày lễ quốc gia</option>
@@ -317,7 +317,7 @@ function HolidaysContent() {
             onChange={(e) => {
               updateURL({ inactive: e.target.checked || null, page: 0 });
             }}
-            className="h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary"
+            className="h-4 w-4 rounded border-outline-variant text-blue-800 focus:ring-blue-300"
           />
           <span className="text-label-sm text-on-surface-variant">Hiện ngưng hoạt động</span>
         </label>
@@ -400,7 +400,7 @@ function HolidaysContent() {
                               variant="ghost"
                               size="sm"
                               onClick={() => openEdit(h)}
-                              className="text-on-surface-variant hover:text-primary"
+                              className="text-on-surface-variant hover:text-blue-800"
                             >
                               <span className="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>
                             </IconButton>
@@ -411,7 +411,7 @@ function HolidaysContent() {
                               variant="ghost"
                               size="sm"
                               onClick={() => setDeleteId(h.id)}
-                              className="text-on-surface-variant hover:text-error"
+                              className="text-on-surface-variant hover:text-red-800"
                             >
                               <span className="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
                             </IconButton>
@@ -456,26 +456,26 @@ function HolidaysContent() {
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
               <div>
                 <label className="block text-label-sm text-on-surface-variant mb-1.5">
-                  Tên ngày lễ <span className="text-error">*</span>
+                  Tên ngày lễ <span className="text-red-800">*</span>
                 </label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder="VD: Giải phóng miền Nam"
-                  className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all rounded-lg"
+                  className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all rounded-lg"
                   required
                 />
               </div>
               <div>
                 <label className="block text-label-sm text-on-surface-variant mb-1.5">
-                  Ngày nghỉ <span className="text-error">*</span>
+                  Ngày nghỉ <span className="text-red-800">*</span>
                 </label>
                 <input
                   type="date"
                   value={form.holidayDate}
                   onChange={(e) => setForm((f) => ({ ...f, holidayDate: e.target.value }))}
-                  className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all rounded-lg"
+                  className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all rounded-lg"
                   required
                 />
               </div>
@@ -485,7 +485,7 @@ function HolidaysContent() {
                     type="checkbox"
                     checked={form.isNationalHoliday}
                     onChange={(e) => setForm((f) => ({ ...f, isNationalHoliday: e.target.checked }))}
-                    className="h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary"
+                    className="h-4 w-4 rounded border-outline-variant text-blue-800 focus:ring-blue-300"
                   />
                   <span className="text-label-sm text-on-surface">Ngày lễ quốc gia</span>
                 </label>
@@ -497,7 +497,7 @@ function HolidaysContent() {
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                   placeholder="Ghi chú thêm (tùy chọn)"
                   rows={2}
-                  className="w-full p-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none rounded-lg"
+                  className="w-full p-3 border border-outline-variant bg-surface-container-lowest text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all resize-none rounded-lg"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2">

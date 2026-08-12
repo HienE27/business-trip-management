@@ -28,23 +28,23 @@ const ACTION_STYLE: Record<string, {
   CREATE: {
     label: "Tạo mới",
     icon: "add_circle",
-    iconBg: "bg-secondary-container text-secondary",
-    chipBg: "bg-secondary-container text-secondary",
-    chipColor: "text-secondary",
+    iconBg: "bg-emerald-100 text-emerald-800",
+    chipBg: "bg-emerald-100 text-emerald-800",
+    chipColor: "text-emerald-800",
   },
   UPDATE: {
     label: "Cập nhật",
     icon: "edit",
-    iconBg: "bg-primary-fixed text-primary",
-    chipBg: "bg-primary-fixed text-primary",
-    chipColor: "text-primary",
+    iconBg: "bg-blue-100 text-blue-800",
+    chipBg: "bg-blue-100 text-blue-800",
+    chipColor: "text-blue-800",
   },
   DELETE: {
     label: "Xóa",
     icon: "delete",
-    iconBg: "bg-error-container text-error",
-    chipBg: "bg-error-container text-error",
-    chipColor: "text-error",
+    iconBg: "bg-red-100 text-red-800",
+    chipBg: "bg-red-100 text-red-800",
+    chipColor: "text-red-800",
   },
 };
 
@@ -262,7 +262,7 @@ function JsonDiffTable({ oldJson, newJson }: { oldJson?: string; newJson?: strin
 
   if (!changed.length && !added.length && !removed.length) {
     return (
-      <div className="flex items-center gap-2 text-[13px] text-secondary py-3">
+      <div className="flex items-center gap-2 text-[13px] text-emerald-800 py-3">
         <span className="material-symbols-outlined text-[16px]">check_circle</span>
         Không có thay đổi dữ liệu.
       </div>
@@ -279,11 +279,11 @@ function JsonDiffTable({ oldJson, newJson }: { oldJson?: string; newJson?: strin
           {changed.map((k) => (
             <div key={k} className="grid grid-cols-2 rounded-lg overflow-hidden border border-outline-variant text-[12px]">
               <div className="bg-surface-container-low border-r border-outline-variant px-3 py-2">
-                <p className="text-[10px] text-error font-medium mb-0.5 leading-none uppercase tracking-wide">{prettyKey(k)}</p>
+                <p className="text-[10px] text-red-800 font-medium mb-0.5 leading-none uppercase tracking-wide">{prettyKey(k)}</p>
                 <p className="text-on-surface font-medium leading-snug mt-0.5">{fmtVal(m1[k])}</p>
               </div>
               <div className="bg-surface-container-lowest px-3 py-2">
-                <p className="text-[10px] text-secondary font-medium mb-0.5 leading-none uppercase tracking-wide">{prettyKey(k)}</p>
+                <p className="text-[10px] text-emerald-800 font-medium mb-0.5 leading-none uppercase tracking-wide">{prettyKey(k)}</p>
                 <p className="text-on-surface font-medium leading-snug mt-0.5">{fmtVal(m2[k])}</p>
               </div>
             </div>
@@ -292,11 +292,11 @@ function JsonDiffTable({ oldJson, newJson }: { oldJson?: string; newJson?: strin
       )}
       {added.length > 0 && (
         <>
-          <p className="text-[11px] font-semibold text-secondary mt-3 mb-1.5 uppercase tracking-wide">{added.length} mới thêm</p>
+          <p className="text-[11px] font-semibold text-emerald-800 mt-3 mb-1.5 uppercase tracking-wide">{added.length} mới thêm</p>
           {added.map((k) => (
-            <div key={k} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-secondary-container border border-secondary/20 text-[12px]">
-              <span className="material-symbols-outlined text-[14px] text-secondary shrink-0">add</span>
-              <span className="text-secondary font-medium w-36 shrink-0">{prettyKey(k)}</span>
+            <div key={k} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 text-[12px]">
+              <span className="material-symbols-outlined text-[14px] text-emerald-800 shrink-0">add</span>
+              <span className="text-emerald-800 font-medium w-36 shrink-0">{prettyKey(k)}</span>
               <span className="text-on-surface font-medium">{fmtVal(m2[k])}</span>
             </div>
           ))}
@@ -304,11 +304,11 @@ function JsonDiffTable({ oldJson, newJson }: { oldJson?: string; newJson?: strin
       )}
       {removed.length > 0 && (
         <>
-          <p className="text-[11px] font-semibold text-error mt-3 mb-1.5 uppercase tracking-wide">{removed.length} đã xóa</p>
+          <p className="text-[11px] font-semibold text-red-800 mt-3 mb-1.5 uppercase tracking-wide">{removed.length} đã xóa</p>
           {removed.map((k) => (
-            <div key={k} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-error-container border border-error/20 text-[12px]">
-              <span className="material-symbols-outlined text-[14px] text-error shrink-0">remove</span>
-              <span className="text-error font-medium w-36 shrink-0">{prettyKey(k)}</span>
+            <div key={k} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-red-100 text-red-800 border border-red-300 text-[12px]">
+              <span className="material-symbols-outlined text-[14px] text-red-800 shrink-0">remove</span>
+              <span className="text-red-800 font-medium w-36 shrink-0">{prettyKey(k)}</span>
               <span className="text-on-surface font-medium">{fmtVal(m1[k])}</span>
             </div>
           ))}
@@ -437,13 +437,13 @@ function DetailModal({ record, onClose }: { record: AuditHistory; onClose: () =>
             <div className="space-y-4">
               {record.oldData && (
                 <div>
-                  <p className="text-[11px] font-semibold text-error uppercase tracking-wide mb-2">Dữ liệu cũ</p>
+                  <p className="text-[11px] font-semibold text-red-800 uppercase tracking-wide mb-2">Dữ liệu cũ</p>
                   <SyntaxHighlight json={record.oldData} />
                 </div>
               )}
               {record.newData && (
                 <div>
-                  <p className="text-[11px] font-semibold text-secondary uppercase tracking-wide mb-2">Dữ liệu mới</p>
+                  <p className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wide mb-2">Dữ liệu mới</p>
                   <SyntaxHighlight json={record.newData} />
                 </div>
               )}
@@ -852,11 +852,11 @@ useEffect(() => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12px] font-semibold text-on-surface-variant" htmlFor="del-from">Từ ngày</label>
-                  <input id="del-from" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={deleteDateFrom} onChange={(e) => setDeleteDateFrom(e.target.value)} />
+                  <input id="del-from" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all" value={deleteDateFrom} onChange={(e) => setDeleteDateFrom(e.target.value)} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12px] font-semibold text-on-surface-variant" htmlFor="del-to">Đến ngày</label>
-                  <input id="del-to" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={deleteDateTo} onChange={(e) => setDeleteDateTo(e.target.value)} />
+                  <input id="del-to" type="date" className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all" value={deleteDateTo} onChange={(e) => setDeleteDateTo(e.target.value)} />
                 </div>
               </div>
               <div className="flex gap-2 pt-1">
@@ -916,16 +916,16 @@ useEffect(() => {
             }
           }}
         >
-          <div className="bg-surface-container-lowest border border-error/40 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in">
+          <div className="bg-surface-container-lowest border border-red-300 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in">
             <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-outline-variant">
-              <div className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+              <div className="w-10 h-10 rounded-full bg-red-100 text-red-800 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-red-800" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
               </div>
               <div className="flex-1">
                 <h2 id="delete-all-title" className="text-title-lg font-semibold text-on-surface">Xóa toàn bộ nhật ký?</h2>
                 <p className="text-body-sm text-on-surface-variant mt-1">
                   Hành động này sẽ xóa vĩnh viễn{" "}
-                  <strong className="font-semibold text-error tabular-nums">
+                  <strong className="font-semibold text-red-800 tabular-nums">
                     {summary.total.toLocaleString("vi")}
                   </strong>{" "}
                   bản ghi trong toàn bộ bảng audit_history. Không thể hoàn tác.
@@ -943,11 +943,11 @@ useEffect(() => {
               </IconButton>
             </div>
             <div className="px-5 py-4 flex flex-col gap-3">
-              <div className="bg-error-container border border-error/20 rounded-lg p-3 flex items-start gap-2">
-                <span className="material-symbols-outlined text-error text-[18px] mt-0.5">info</span>
-                <p className="text-[13px] text-on-error-container leading-snug">
+              <div className="bg-red-100 text-red-800 border border-red-300 rounded-lg p-3 flex items-start gap-2">
+                <span className="material-symbols-outlined text-red-800 text-[18px] mt-0.5">info</span>
+                <p className="text-[13px] bg-red-100 text-red-800 leading-snug">
                   Để xác nhận, hãy gõ chính xác cụm từ{" "}
-                  <code className="px-1.5 py-0.5 rounded bg-error/15 text-error font-mono font-bold text-[12px]">
+                  <code className="px-1.5 py-0.5 rounded bg-red-100/15 text-red-800 font-mono font-bold text-[12px]">
                     {DELETE_ALL_CONFIRM_PHRASE}
                   </code>{" "}
                   vào ô bên dưới.
@@ -970,7 +970,7 @@ useEffect(() => {
                   disabled={deleting}
                 />
                 {deleteAllConfirmText && deleteAllConfirmText !== DELETE_ALL_CONFIRM_PHRASE && (
-                  <p className="text-[11px] text-error" role="alert">
+                  <p className="text-[11px] text-red-800" role="alert">
                     Cụm từ chưa khớp. Hãy gõ đúng: {DELETE_ALL_CONFIRM_PHRASE}
                   </p>
                 )}
@@ -1009,9 +1009,9 @@ useEffect(() => {
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {([
             { l: "Tổng sự kiện", v: summary.total, ic: "history", bg: "bg-surface-container-low" },
-            { l: "Tạo mới",      v: summary.create,  ic: "add_circle", bg: "bg-secondary-container" },
-            { l: "Cập nhật",     v: summary.update,  ic: "edit",       bg: "bg-primary-fixed" },
-            { l: "Xóa",          v: summary.delete,   ic: "delete",     bg: "bg-error-container" },
+            { l: "Tạo mới",      v: summary.create,  ic: "add_circle", bg: "bg-emerald-100 text-emerald-800" },
+            { l: "Cập nhật",     v: summary.update,  ic: "edit",       bg: "bg-blue-100 text-blue-800" },
+            { l: "Xóa",          v: summary.delete,   ic: "delete",     bg: "bg-red-100 text-red-800" },
           ] as const).map((s) => (
             <div
               className="group relative flex items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm transition-all duration-200 hover:bg-surface-container-low hover:shadow-md"
@@ -1019,9 +1019,9 @@ useEffect(() => {
             >
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${s.bg} transition-transform duration-200 group-hover:scale-105`}>
                 <span className={`material-symbols-outlined text-[20px] ${
-                  s.ic === "add_circle" ? "text-secondary" :
-                  s.ic === "edit" ? "text-primary" :
-                  s.ic === "delete" ? "text-error" : "text-on-surface-variant"
+                  s.ic === "add_circle" ? "text-emerald-800" :
+                  s.ic === "edit" ? "text-blue-800" :
+                  s.ic === "delete" ? "text-red-800" : "text-on-surface-variant"
                 }`}>{s.ic}</span>
               </div>
               <div className="min-w-0">
@@ -1042,7 +1042,7 @@ useEffect(() => {
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[16px]">search</span>
             <input
               autoComplete="off"
-              className="w-full rounded-lg border border-outline-variant bg-surface h-9 pl-9 pr-8 text-[13px] text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+              className="w-full rounded-lg border border-outline-variant bg-surface h-9 pl-9 pr-8 text-[13px] text-on-surface placeholder:text-outline focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all"
               placeholder="Người, module, ID…"
               value={search}
               onChange={(e) => onSearch(e.target.value)}
@@ -1064,7 +1064,7 @@ useEffect(() => {
           <div className="flex items-center gap-1 shrink-0">
             <button
               className={`rounded-full px-3 py-1 text-[12px] font-semibold transition-all shrink-0 ${
-                action === "" ? "bg-primary text-on-primary shadow-sm" : "bg-surface text-on-surface-variant border border-outline-variant hover:bg-surface-container-low"
+                action === "" ? "bg-blue-100 text-blue-800 shadow-sm" : "bg-surface text-on-surface-variant border border-outline-variant hover:bg-surface-container-low"
               }`}
               onClick={() => setAction("")} type="button"
             >
@@ -1119,7 +1119,7 @@ useEffect(() => {
           {selectedIds.size > 0 && (
             <>
               <div className="w-px h-5 bg-outline-variant shrink-0" />
-              <span className="text-[12px] text-primary font-semibold shrink-0">
+              <span className="text-[12px] text-blue-800 font-semibold shrink-0">
                 {selectedIds.size} đã chọn
               </span>
               <Button
@@ -1148,7 +1148,7 @@ useEffect(() => {
                 size="sm"
                 onClick={clearFilters}
                 icon={<span className="material-symbols-outlined text-[13px]" aria-hidden="true">clear</span>}
-                className="text-primary hover:bg-primary-fixed"
+                className="text-blue-800 hover:bg-blue-100 text-blue-800"
               >
                 Xóa
               </Button>
@@ -1221,7 +1221,7 @@ useEffect(() => {
                         <button
                           type="button"
                           role="menuitem"
-                          className="flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-[13px] font-semibold text-error hover:bg-error-container/40 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-[13px] font-semibold text-red-800 hover:bg-red-100 text-red-800/40 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed"
                           disabled={summary.total === 0}
                           onClick={() => {
                             setDeleteOpen(false);
@@ -1253,7 +1253,7 @@ useEffect(() => {
           </label>
           <select
             id="audit-module-filter"
-            className="appearance-none rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer pr-7 shrink-0 min-w-[140px]"
+            className="appearance-none rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:ring-2 focus:ring-blue-300 focus:border-blue-300 cursor-pointer pr-7 shrink-0 min-w-[140px]"
             value={module}
             onChange={(e) => { setModule(e.target.value); setPage(0); }}
           >
@@ -1270,7 +1270,7 @@ useEffect(() => {
                 key={o.v}
                 className={`rounded-full px-3 py-1 text-[12px] font-semibold transition-all shrink-0 ${
                   dateRange === o.v
-                    ? "bg-primary text-on-primary shadow-sm"
+                    ? "bg-blue-100 text-blue-800 shadow-sm"
                     : "bg-surface text-on-surface-variant border border-outline-variant hover:bg-surface-container-low"
                 }`}
                 onClick={() => setDateRange(o.v)} type="button"
@@ -1285,14 +1285,14 @@ useEffect(() => {
               <label htmlFor="audit-date-from" className="sr-only">Từ ngày</label>
               <input
                 id="audit-date-from"
-                className="rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:ring-2 focus:ring-blue-300 focus:border-blue-300"
                 type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }}
               />
               <span className="text-[12px] text-outline">—</span>
               <label htmlFor="audit-date-to" className="sr-only">Đến ngày</label>
               <input
                 id="audit-date-to"
-                className="rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="rounded-lg border border-outline-variant bg-surface px-2.5 h-9 text-[12px] text-on-surface focus:ring-2 focus:ring-blue-300 focus:border-blue-300"
                 type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }}
               />
             </div>
@@ -1367,7 +1367,7 @@ useEffect(() => {
                     {/* Date group header */}
                     <div
                       className={`flex items-center gap-2 px-4 py-2 border-b border-outline-variant ${
-                        today ? "bg-primary-fixed" : "bg-surface-container-low"
+                        today ? "bg-blue-100 text-blue-800" : "bg-surface-container-low"
                       }`}
                     >
                       <button
@@ -1379,14 +1379,14 @@ useEffect(() => {
                         <span className={`material-symbols-outlined text-[16px] transition-transform ${collapsed ? "" : "rotate-90"}`}>chevron_right</span>
                       </button>
 
-                      <span className={`material-symbols-outlined text-[16px] shrink-0 ${today ? "text-primary" : "text-on-surface-variant"}`}>calendar_today</span>
+                      <span className={`material-symbols-outlined text-[16px] shrink-0 ${today ? "text-blue-800" : "text-on-surface-variant"}`}>calendar_today</span>
 
-                      <span className={`text-[13px] font-semibold shrink-0 ${today ? "text-primary" : "text-on-surface"}`}>
+                      <span className={`text-[13px] font-semibold shrink-0 ${today ? "text-blue-800" : "text-on-surface"}`}>
                         {fmtDateShort(dateKey)}
                       </span>
 
                       {today && (
-                        <span className="flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-bold text-on-primary shrink-0">
+                        <span className="flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-bold text-blue-800 shrink-0">
                           <span className="w-1.5 h-1.5 rounded-full bg-on-primary shrink-0" />
                           Hôm nay
                         </span>
@@ -1402,7 +1402,7 @@ useEffect(() => {
                         collapsed
                           ? "bg-surface-container text-on-surface-variant"
                           : today
-                          ? "bg-primary-container text-on-primary-container"
+                          ? "bg-blue-100 text-blue-800"
                           : "bg-surface-container text-on-surface-variant"
                       }`}>
                         {dayRecords.length} sự kiện
@@ -1428,7 +1428,7 @@ useEffect(() => {
                           key={r.id}
                           className={`flex items-start gap-3 px-4 py-3 transition-colors border-b border-outline-variant/10 last:border-b-0 cursor-pointer group ${
                             isSelected
-                              ? "bg-primary-fixed border-l-2 border-l-primary"
+                              ? "bg-blue-100 text-blue-800 border-l-2 border-l-primary"
                               : "hover:bg-surface-container-low"
                           }`}
                           onClick={() => setSelected(r)}
@@ -1459,8 +1459,8 @@ useEffect(() => {
                               <span className="text-[11px] text-on-surface-variant shrink-0">#{r.recordId}</span>
                               {r.oldData && r.newData && (
                                 <span className="flex items-center gap-0.5 rounded bg-surface-container-low px-1.5 py-0.5 shrink-0">
-                                  <span className="material-symbols-outlined text-[11px] text-secondary">find_replace</span>
-                                  <span className="text-[10px] text-secondary font-medium">diff</span>
+                                  <span className="material-symbols-outlined text-[11px] text-emerald-800">find_replace</span>
+                                  <span className="text-[10px] text-emerald-800 font-medium">diff</span>
                                 </span>
                               )}
                             </div>
@@ -1496,7 +1496,7 @@ useEffect(() => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={(e) => { e.stopPropagation(); requestDelete(r.id, `${r.tableName} #${r.recordId}`); }}
-                                className="text-outline hover:text-error hover:bg-error-container"
+                                className="text-outline hover:text-red-800 hover:bg-red-100 text-red-800"
                               >
                                 <span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete</span>
                               </IconButton>
@@ -1518,7 +1518,7 @@ useEffect(() => {
             <div className="flex items-center gap-2 text-[12px] text-on-surface-variant">
               <span>Hiển thị</span>
               <select
-                className="appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-2 h-8 text-[12px] text-on-surface cursor-pointer pr-6 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                className="appearance-none rounded-lg border border-outline-variant bg-surface-container-lowest px-2 h-8 text-[12px] text-on-surface cursor-pointer pr-6 focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all"
                 value={pageSize}
                 onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
               >

@@ -14,10 +14,10 @@ const toneConfig: Record<NonNullable<KPICardProps["tone"]>, {
   iconText: string;
   valueColor: string;
 }> = {
-  success: { iconBg: "bg-secondary-container", iconText: "text-on-secondary-container", valueColor: "text-on-surface" },
-  warning: { iconBg: "bg-tertiary-fixed", iconText: "text-on-tertiary-fixed-variant", valueColor: "text-on-surface" },
-  error: { iconBg: "bg-error-container", iconText: "text-on-error-container", valueColor: "text-error font-bold" },
-  info: { iconBg: "bg-primary-fixed", iconText: "text-on-primary-fixed-variant", valueColor: "text-on-surface" },
+  success: { iconBg: "bg-emerald-100", iconText: "text-emerald-800", valueColor: "text-on-surface" },
+  warning: { iconBg: "bg-amber-100", iconText: "text-amber-800", valueColor: "text-on-surface" },
+  error: { iconBg: "bg-red-100", iconText: "text-red-800", valueColor: "text-red-800 font-bold" },
+  info: { iconBg: "bg-blue-100", iconText: "text-blue-800", valueColor: "text-on-surface" },
   neutral: { iconBg: "bg-surface-container-high", iconText: "text-on-surface-variant", valueColor: "text-on-surface" },
 };
 

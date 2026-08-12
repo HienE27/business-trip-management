@@ -65,11 +65,11 @@ const SHIFT_TYPE_LABELS: Record<string, string> = {
   L04: "Phòng khám chuyên gia",
 };
 
-const SHIFT_TYPE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  L01: { bg: "bg-shift-24", border: "border-shift-24", text: "text-on-shift-24" },
-  L02: { bg: "bg-shift-all-day", border: "border-shift-all-day", text: "text-on-shift-all-day" },
-  L03: { bg: "bg-shift-service", border: "border-shift-service", text: "text-on-shift-service" },
-  L04: { bg: "bg-shift-expert", border: "border-shift-expert", text: "text-on-shift-expert" },
+const SHIFT_TYPE_COLORS: Record<string, { border: string; text: string }> = {
+  L01: { border: "border-red-300", text: "text-red-800" },
+  L02: { border: "border-emerald-300", text: "text-emerald-800" },
+  L03: { border: "border-amber-300", text: "text-amber-800" },
+  L04: { border: "border-purple-300", text: "text-purple-800" },
 };
 
 interface FeasibilityReportCardProps {
@@ -102,13 +102,6 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
     }
   }, [periodId]);
 
-  // BUGFIX (M07 #feasibility-loop): keep `loading` out of the effect deps.
-  // Previously the effect listed `[periodId, checkFeasibility, loading]`, so
-  // every setLoading(true)/setLoading(false) flip recreated the interval and
-  // re-ran the initial checkFeasibility(), producing 17/65/83/26 request
-  // bursts per cycle instead of one fetch per 60s.
-  // We read the latest loading value via a ref so the interval skips re-fetch
-  // while a request is already in-flight without re-subscribing.
   const loadingRef = useRef(false);
   useEffect(() => {
     loadingRef.current = loading;
@@ -118,11 +111,9 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
     if (!periodId) return;
     void checkFeasibility();
     const onFocus = () => {
-      // refetch khi user quay lại tab — tự khắc phục state cũ sau backend restart
       if (!loadingRef.current) void checkFeasibility();
     };
     window.addEventListener("focus", onFocus);
-    // ponytail: 60s refetch khi tab visible; ceiling=interval rút gọn hoặc SWR, upgrade khi thấy stale ở ≥3 nơi
     const id = window.setInterval(() => {
       if (!document.hidden && !loadingRef.current) void checkFeasibility();
     }, 60_000);
@@ -144,7 +135,7 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
     return (
       <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined animate-spin text-primary">sync</span>
+          <span className="material-symbols-outlined animate-spin text-blue-800">sync</span>
           <span className="text-on-surface-variant text-sm">Đang kiểm tra tính khả thi...</span>
         </div>
       </div>
@@ -153,8 +144,8 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
 
   if (error) {
     return (
-      <div className="rounded-lg border border-error-container bg-error-container p-4">
-        <p className="text-on-error-container text-sm">{error}</p>
+      <div className="rounded-lg border border-red-300 p-4">
+        <p className="text-red-800 text-sm">{error}</p>
         <Button variant="ghost" size="sm" onClick={checkFeasibility} className="mt-2">
           Thử lại
         </Button>
@@ -176,12 +167,10 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-outline-variant">
         <div className="flex items-center gap-3">
-          <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-            report.feasible ? "bg-secondary-container" : "bg-error-container"
+          <div className={`flex h-10 w-10 items-center justify-center rounded-lg border ${
+            report.feasible ? "border-emerald-300 text-emerald-800" : "border-red-300 text-red-800"
           }`}>
-            <span className={`material-symbols-outlined text-[20px] ${
-              report.feasible ? "text-secondary" : "text-error"
-            }`}>
+            <span className="material-symbols-outlined text-[20px]">
               {report.feasible ? "check_circle" : "warning"}
             </span>
           </div>
@@ -201,9 +190,9 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
 
       {/* Warnings */}
       {report.warnings.length > 0 && (
-        <div className="px-4 py-3 bg-tertiary-fixed/50 border-b border-outline-variant">
+        <div className="px-4 py-3 border-b border-amber-300">
           {report.warnings.map((warning, i) => (
-            <div key={i} className="flex items-start gap-2 text-on-tertiary-fixed-variant text-sm">
+            <div key={i} className="flex items-start gap-2 text-amber-800 text-sm">
               <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">warning</span>
               <span>{warning}</span>
             </div>
@@ -216,23 +205,21 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
         <h4 className="text-label-md text-on-surface-variant mb-3">Tình trạng theo loại lịch</h4>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {Object.entries(report.availabilityByShiftType).map(([typeId, summary]) => {
-            const colors = SHIFT_TYPE_COLORS[typeId] || { bg: "bg-gray-50", border: "border-gray-500", text: "text-gray-800" };
+            const colors = SHIFT_TYPE_COLORS[typeId] || { border: "border-outline-variant", text: "text-on-surface" };
             const avgEligible = Math.round(summary.averageDailyEligible);
             const typicalRequired = avgEligible - summary.bufferMin;
             const buffer = summary.bufferMin;
             const hasBuffer = buffer > 0;
 
-            // Risk badge config
-            const riskConfig: Record<BufferRisk, { label: string; bg: string; text: string; icon: string }> = {
-              NONE: { label: "An toàn", bg: "bg-secondary-container", text: "text-on-secondary-container", icon: "check_circle" },
-              LOW: { label: "Thấp", bg: "bg-primary-fixed", text: "text-on-primary-fixed", icon: "info" },
-              MEDIUM: { label: "Trung bình", bg: "bg-tertiary-fixed", text: "text-on-tertiary-fixed", icon: "warning" },
-              HIGH: { label: "Nguy hiểm", bg: "bg-error-container", text: "text-on-error-container", icon: "error" },
+            const riskConfig: Record<BufferRisk, { label: string; text: string; icon: string; border: string }> = {
+              NONE: { label: "An toàn", text: "text-emerald-800", border: "border-emerald-300", icon: "check_circle" },
+              LOW: { label: "Thấp", text: "text-blue-800", border: "border-blue-300", icon: "info" },
+              MEDIUM: { label: "Trung bình", text: "text-amber-800", border: "border-amber-300", icon: "warning" },
+              HIGH: { label: "Nguy hiểm", text: "text-red-800", border: "border-red-300", icon: "error" },
             };
             const risk = (summary.bufferRisk as BufferRisk) || "NONE";
             const riskCfg = riskConfig[risk];
 
-            // Progress bar: eligible vs required
             const pct = summary.totalDays > 0
               ? Math.round((summary.totalDays - summary.noBufferDays) / summary.totalDays * 100)
               : 100;
@@ -240,7 +227,7 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
             return (
               <div
                 key={typeId}
-                className={`rounded-lg border ${colors.border} ${colors.bg} p-3 flex flex-col gap-2`}
+                className={`rounded-lg border ${colors.border} p-3 flex flex-col gap-2`}
               >
                 {/* Header */}
                 <div className="flex items-center justify-between">
@@ -252,7 +239,7 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
 
                 {/* Required vs Eligible */}
                 <div className="flex items-center justify-between">
-                  <span className={`text-label-sm ${colors.text} opacity-75`}>Eligible/Required:</span>
+                  <span className="text-label-sm text-on-surface-variant">Eligible/Required:</span>
                   <span className={`text-label-sm font-bold ${colors.text}`}>
                     {avgEligible}/{typicalRequired > 0 ? typicalRequired : "?"}
                   </span>
@@ -261,29 +248,31 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
                 {/* Buffer progress bar */}
                 <div>
                   <div className="flex justify-between items-center mb-1">
-                    <span className={`text-label-xs ${colors.text} opacity-75`}>Buffer dự phòng</span>
-                    <span className={`text-label-xs font-semibold ${buffer >= 1 ? "text-secondary" : buffer === 0 ? "text-error" : "text-tertiary"}`}>
+                    <span className="text-label-xs text-on-surface-variant">Buffer dự phòng</span>
+                    <span className={`text-label-xs font-semibold ${
+                      buffer >= 1 ? "text-emerald-800" : buffer === 0 ? "text-red-800" : "text-amber-800"
+                    }`}>
                       {buffer > 0 ? `+${buffer}` : buffer === 0 ? "0" : buffer}
                     </span>
                   </div>
-                  <div className={`w-full rounded-full h-2 bg-black/20`}>
+                  <div className="w-full rounded-full h-2 bg-surface-container-high">
                     <div
                       className={`h-2 rounded-full transition-all ${
-                        buffer > 0 ? "bg-secondary" : buffer === 0 ? "bg-error" : "bg-tertiary"
+                        buffer > 0 ? "bg-emerald-500" : buffer === 0 ? "bg-amber-500" : "bg-blue-500"
                       }`}
                       style={{ width: `${Math.min(100, pct)}%` }}
                       title={`${summary.noBufferDays}/${summary.totalDays} ngày không có buffer`}
                     />
                   </div>
                   {summary.noBufferDays > 0 && (
-                    <p className={`text-[10px] mt-0.5 ${colors.text} opacity-60`}>
+                    <p className="text-[10px] mt-0.5 text-on-surface-variant">
                       {summary.noBufferDays}/{summary.totalDays} ngày không có dự phòng
                     </p>
                   )}
                 </div>
 
-                {/* Risk level badge */}
-                <div className={`flex items-center justify-between px-2 py-1 rounded-md ${riskCfg.bg}`}>
+                {/* Risk level badge - chỉ viền */}
+                <div className={`flex items-center justify-between px-2 py-1 rounded-md border ${riskCfg.border}`}>
                   <div className="flex items-center gap-1.5">
                     <span className={`material-symbols-outlined text-[14px] ${riskCfg.text}`} style={{ fontVariationSettings: "'FILL' 1" }}>{riskCfg.icon}</span>
                     <span className={`text-[11px] font-semibold ${riskCfg.text}`}>Rủi ro: {riskCfg.label}</span>
@@ -293,27 +282,22 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
                 {/* Backup staff section */}
                 {summary.backups && summary.backups.length > 0 && (
                   <details className="group">
-                    <summary className={`cursor-pointer text-[11px] ${colors.text} opacity-75 hover:opacity-100 list-none flex items-center gap-1`}>
+                    <summary className={`cursor-pointer text-[11px] text-on-surface-variant hover:text-on-surface list-none flex items-center gap-1`}>
                       <span className="material-symbols-outlined text-[12px] group-open:rotate-90 transition-transform">chevron_right</span>
                       Xem {summary.backups.length} nhân sự dự phòng
                     </summary>
-                    <div className="mt-1.5 space-y-1 max-h-24 overflow-y-auto">
-                      {summary.backups.slice(0, 5).map((b) => (
-                        <div key={b.staffId} className="flex items-center justify-between bg-black/5 rounded px-2 py-1">
+                    <div className="mt-1.5 space-y-1 max-h-60 overflow-y-auto pr-1">
+                      {summary.backups.map((b) => (
+                        <div key={b.staffId} className="flex items-center justify-between bg-surface-container-low rounded px-2 py-1">
                           <div className="min-w-0">
-                            <p className={`text-[11px] font-medium truncate ${colors.text}`}>{b.staffName}</p>
-                            <p className={`text-[10px] ${colors.text} opacity-60`}>{b.specialtyName}</p>
+                            <p className={`text-[11px] font-medium truncate text-on-surface`}>{b.staffName}</p>
+                            <p className={`text-[10px] text-on-surface-variant`}>{b.specialtyName}</p>
                           </div>
-                          <span className={`text-[10px] font-semibold shrink-0 ml-1 ${b.daysAvailable > 0 ? "text-secondary" : colors.text} opacity-60`}>
+                          <span className={`text-[10px] font-semibold shrink-0 ml-1 ${b.daysAvailable > 0 ? "text-emerald-800" : "text-on-surface-variant"}`}>
                             {b.daysAvailable}d
                           </span>
                         </div>
                       ))}
-                      {summary.backups.length > 5 && (
-                        <p className={`text-[10px] text-center ${colors.text} opacity-50`}>
-                          +{summary.backups.length - 5} người khác
-                        </p>
-                      )}
                     </div>
                   </details>
                 )}
@@ -330,14 +314,14 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
             onClick={() => setExpanded(!expanded)}
             className="flex items-center justify-between w-full text-left"
           >
-            <h4 className="text-label-md text-error font-semibold">
+            <h4 className="text-label-md text-red-800 font-semibold">
               Các ngày thiếu nhân sự ({understaffedDays.length})
             </h4>
             <span className="material-symbols-outlined text-on-surface-variant text-[20px]">
               {expanded ? "expand_less" : "expand_more"}
             </span>
           </button>
-          
+
           {expanded && (
             <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
               {understaffedDays.map((day) => {
@@ -347,13 +331,13 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
                   day: "numeric",
                   month: "numeric",
                 });
-                
+
                 return (
                   <div
                     key={day.date}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-error-container/50 border border-error/20"
+                    className="flex items-start gap-3 p-3 rounded-lg border border-red-300"
                   >
-                    <span className="material-symbols-outlined text-error text-[16px] shrink-0 mt-0.5">
+                    <span className="material-symbols-outlined text-red-800 text-[16px] shrink-0 mt-0.5">
                       warning
                     </span>
                     <div className="flex-1 min-w-0">
@@ -362,7 +346,7 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
                         {Object.values(day.shiftTypes)
                           .filter((st) => st.isUnderstaffed)
                           .map((st) => {
-                            const colors = SHIFT_TYPE_COLORS[st.shiftTypeId] || { bg: "bg-gray-50", border: "border-gray-500", text: "text-gray-800" };
+                            const colors = SHIFT_TYPE_COLORS[st.shiftTypeId] || { border: "border-outline-variant", text: "text-on-surface" };
                             return (
                               <div
                                 key={st.shiftTypeId}
@@ -397,30 +381,32 @@ export const FeasibilityReportCard = memo(function FeasibilityReportCard({
               const label = labelMatch ? labelMatch[1] : null;
               const content = rec.replace(/\[[^\]]+\]\s*/g, "");
 
+              const cardBorder = isWarning
+                ? "border-red-300"
+                : isAction
+                ? "border-blue-300"
+                : "border-emerald-300";
+              const iconColor = isWarning
+                ? "text-red-800"
+                : isAction
+                ? "text-blue-800"
+                : "text-emerald-800";
+              const iconName = isWarning ? "warning" : isAction ? "bolt" : "info";
+
               return (
                 <div
                   key={i}
-                  className={`flex items-start gap-3 rounded-lg p-3 text-label-sm ${
-                    isWarning
-                      ? "bg-error-container/50 border border-error/20"
-                      : isAction
-                      ? "bg-primary-fixed/50 border border-primary/20"
-                      : "bg-surface-container-low border border-outline-variant"
-                  }`}
+                  className={`flex items-start gap-3 rounded-lg p-3 text-label-sm border ${cardBorder}`}
                 >
                   <span
-                    className={`material-symbols-outlined text-[16px] shrink-0 mt-0.5 ${
-                      isWarning ? "text-error" : isAction ? "text-primary" : "text-secondary"
-                    }`}
+                    className={`material-symbols-outlined text-[16px] shrink-0 mt-0.5 ${iconColor}`}
                     style={{ fontVariationSettings: "'FILL' 1" }}
                   >
-                    {isWarning ? "warning" : isAction ? "bolt" : "info"}
+                    {iconName}
                   </span>
                   <div className="flex-1 min-w-0">
                     {label && (
-                      <span className={`inline-block text-[10px] font-bold uppercase tracking-wide mb-0.5 ${
-                        isWarning ? "text-error" : isAction ? "text-primary" : "text-secondary"
-                      }`}>
+                      <span className={`inline-block text-[10px] font-bold uppercase tracking-wide mb-0.5 ${iconColor}`}>
                         {label}
                       </span>
                     )}

@@ -38,7 +38,7 @@ export function SuggestionsModal({ open, onClose, suggestionsData, loading }: Pr
           {/* Summary */}
           <div className="flex items-center gap-3 p-3 rounded-xl border border-outline-variant bg-surface-container-low">
             <div className="flex items-center gap-2 flex-1">
-              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${availableCount > 0 ? "bg-secondary-container text-secondary" : "bg-surface-container-high text-outline"}`}>
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${availableCount > 0 ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "bg-surface-container-high text-outline"}`}>
                 <span className="material-symbols-outlined text-[18px]">group</span>
               </div>
               <div>
@@ -47,7 +47,7 @@ export function SuggestionsModal({ open, onClose, suggestionsData, loading }: Pr
               </div>
             </div>
             <div className="flex gap-2">
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary-container text-secondary text-label-sm font-semibold border border-secondary/20">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-label-sm font-semibold border border-secondary/20">
                 <span className="material-symbols-outlined text-[12px]">check_circle</span>
                 {availableCount}
               </span>
@@ -79,7 +79,7 @@ export function SuggestionsModal({ open, onClose, suggestionsData, loading }: Pr
                 >
                   {/* Avatar */}
                   <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-bold text-sm ${
-                    s.isAvailable ? "bg-secondary-container text-secondary" : "bg-surface-container-high text-outline"
+                    s.isAvailable ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "bg-surface-container-high text-outline"
                   }`}>
                     {s.staffName.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase()}
                   </div>
@@ -89,7 +89,7 @@ export function SuggestionsModal({ open, onClose, suggestionsData, loading }: Pr
                     <div className="flex items-center gap-2">
                       <p className="text-label-md font-semibold text-on-surface truncate">{s.staffName}</p>
                       {s.isAvailable && (
-                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary-container text-secondary text-[11px] font-bold border border-secondary/20">
+                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold border border-secondary/20">
                           <span className="material-symbols-outlined text-[10px]">check_circle</span>
                           Có thể thay
                         </span>
@@ -106,7 +106,7 @@ export function SuggestionsModal({ open, onClose, suggestionsData, loading }: Pr
                       {s.conflicts.length > 0 && (
                         <>
                           <span className="text-label-xs text-outline">·</span>
-                          <span className="text-label-xs text-error font-semibold flex items-center gap-0.5">
+                          <span className="text-label-xs text-red-800 font-semibold flex items-center gap-0.5">
                             <span className="material-symbols-outlined text-[12px]">warning</span>
                             {s.conflicts.length} xung đột
                           </span>
@@ -114,7 +114,7 @@ export function SuggestionsModal({ open, onClose, suggestionsData, loading }: Pr
                       )}
                     </div>
                     {!s.isAvailable && s.reason && (
-                      <p className="text-label-xs text-error mt-1 flex items-center gap-1">
+                      <p className="text-label-xs text-red-800 mt-1 flex items-center gap-1">
                         <span className="material-symbols-outlined text-[12px]">info</span>
                         {s.reason}
                       </p>
@@ -123,7 +123,7 @@ export function SuggestionsModal({ open, onClose, suggestionsData, loading }: Pr
 
                   {/* Status badge */}
                   <span className={`shrink-0 text-label-sm font-semibold ${
-                    s.isAvailable ? "text-secondary" : "text-outline"
+                    s.isAvailable ? "text-emerald-800" : "text-outline"
                   }`}>
                     {s.isAvailable ? "Khả dụng" : "Không khả dụng"}
                   </span>

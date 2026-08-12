@@ -47,9 +47,9 @@ export class ErrorBoundary extends Component<Props, State> {
             this.props.className
           )}
         >
-          <div className="bg-surface-container-lowest border border-error-container rounded-lg p-6 max-w-md w-full text-center shadow-sm">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-error-container flex items-center justify-center">
-              <span className="material-symbols-outlined text-error text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+          <div className="bg-surface-container-lowest border border-red-300 rounded-lg p-6 max-w-md w-full text-center shadow-sm">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+              <span className="material-symbols-outlined text-red-800 text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
                 error
               </span>
             </div>
@@ -64,7 +64,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
             <button
               onClick={this.handleRetry}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-lg font-label-md hover:bg-blue-100/90 transition-colors"
             >
               <span className="material-symbols-outlined text-[18px]">
                 refresh

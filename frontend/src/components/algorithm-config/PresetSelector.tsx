@@ -276,13 +276,13 @@ export const PresetSelector = memo(function PresetSelector({
       {/* Suggestion Banner */}
       {suggestion && !activePreset && (
         <div
-          className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-primary-fixed/50 border border-primary/20 animate-slide-down cursor-pointer hover:bg-primary-fixed transition-colors"
+          className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-blue-100/50 border border-blue-300 animate-slide-down cursor-pointer hover:bg-blue-100 transition-colors"
           onClick={() => setShowSuggestion(!showSuggestion)}
         >
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">auto_awesome</span>
+            <span className="material-symbols-outlined text-blue-800 text-[20px]" aria-hidden="true">auto_awesome</span>
             <div>
-              <p className="text-label-sm font-semibold text-primary">Gợi ý: {presets[suggestion.preset]?.label}</p>
+              <p className="text-label-sm font-semibold text-blue-800">Gợi ý: {presets[suggestion.preset]?.label}</p>
               <p className="text-[11px] text-on-surface-variant">{suggestion.reasons[0]?.message}</p>
             </div>
           </div>
@@ -293,11 +293,11 @@ export const PresetSelector = memo(function PresetSelector({
                 e.stopPropagation();
                 handleApplyWithValidation(suggestion.preset, presets[suggestion.preset]);
               }}
-              className="px-3 py-1.5 rounded-lg bg-primary text-white text-[11px] font-semibold hover:bg-primary/90 transition-colors"
+              className="px-3 py-1.5 rounded-lg bg-blue-100 text-blue-800 text-[11px] font-semibold hover:bg-blue-200 transition-colors"
             >
               Áp dụng
             </button>
-            <span className="material-symbols-outlined text-primary text-[16px] transition-transform" style={{ transform: showSuggestion ? "rotate(180deg)" : "none" }}>
+            <span className="material-symbols-outlined text-blue-800 text-[16px] transition-transform" style={{ transform: showSuggestion ? "rotate(180deg)" : "none" }}>
               expand_more
             </span>
           </div>
@@ -312,14 +312,14 @@ export const PresetSelector = memo(function PresetSelector({
             {suggestion.reasons.map((r, i) => (
               <div key={i} className="flex items-center gap-2 text-[12px] text-on-surface-variant">
                 <span className={`material-symbols-outlined text-[14px] ${
-                  r.type === "speed" ? "text-tertiary" :
-                  r.type === "quality" ? "text-secondary" :
-                  r.type === "coverage" ? "text-primary" : "text-purple-500"
+                  r.type === "speed" ? "text-amber-800" :
+                  r.type === "quality" ? "text-emerald-800" :
+                  r.type === "coverage" ? "text-blue-800" : "text-purple-500"
                 }`} aria-hidden="true">
                   {r.type === "speed" ? "bolt" : r.type === "quality" ? "verified_user" : r.type === "coverage" ? "event_available" : "balance"}
                 </span>
                 <span>{r.message}</span>
-                <span className="ml-auto text-primary font-semibold">+{r.score}</span>
+                <span className="ml-auto text-blue-800 font-semibold">+{r.score}</span>
               </div>
             ))}
           </div>
@@ -350,23 +350,23 @@ export const PresetSelector = memo(function PresetSelector({
                     group relative flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary min-w-[140px]
                     ${isActive
                       ? `${preset.accent} ${preset.colorBg} shadow-sm`
-                      : "border-outline-variant bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-lowest hover:shadow-sm active:scale-[0.98]"
+                      : "border-outline-variant bg-surface-container-low hover:border-blue-30040 hover:bg-surface-container-lowest hover:shadow-sm active:scale-[0.98]"
                     }
                   `}
                 >
-                  <span className={`material-symbols-outlined text-[18px] ${isActive ? preset.color : "text-on-surface-variant group-hover:text-primary"} transition-colors`} aria-hidden="true">
+                  <span className={`material-symbols-outlined text-[18px] ${isActive ? preset.color : "text-on-surface-variant group-hover:text-blue-800"} transition-colors`} aria-hidden="true">
                     {preset.icon}
                   </span>
                   <span className={`text-label-sm font-semibold ${isActive ? preset.color : "text-on-surface"}`}>
                     {preset.label}
                   </span>
-                  {isActive && <span className="material-symbols-outlined text-primary text-[14px]" aria-hidden="true">check</span>}
+                  {isActive && <span className="material-symbols-outlined text-blue-800 text-[14px]" aria-hidden="true">check</span>}
                   {isCustom && (
                     <div className="ml-auto flex items-center gap-1">
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleExportPreset(key as PresetKey); }}
-                        className="p-1 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
+                        className="p-1 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-blue-800 transition-colors"
                         aria-label="Export preset"
                       >
                         <span className="material-symbols-outlined text-[12px]" aria-hidden="true">download</span>
@@ -374,7 +374,7 @@ export const PresetSelector = memo(function PresetSelector({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setConfirmDelete(key as PresetKey); }}
-                        className="p-1 rounded hover:bg-error-container text-on-surface-variant hover:text-error transition-colors"
+                        className="p-1 rounded hover:bg-red-100 text-red-800 text-on-surface-variant hover:text-red-800 transition-colors"
                         aria-label={`Xóa ${preset.label}`}
                       >
                         <span className="material-symbols-outlined text-[12px]" aria-hidden="true">close</span>
@@ -415,15 +415,15 @@ export const PresetSelector = memo(function PresetSelector({
 
                         {validation && validation.warnings.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-outline-variant">
-                            <p className="text-[10px] text-tertiary flex items-center gap-1">
+                            <p className="text-[10px] text-amber-800 flex items-center gap-1">
                               <span className="material-symbols-outlined text-[12px]" aria-hidden="true">warning</span>
                               {validation.warnings[0]}
                             </p>
                           </div>
                         )}
                         {validation && validation.errors.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-error/30">
-                            <p className="text-[10px] text-error flex items-center gap-1">
+                          <div className="mt-2 pt-2 border-t border-red-300">
+                            <p className="text-[10px] text-red-800 flex items-center gap-1">
                               <span className="material-symbols-outlined text-[12px]" aria-hidden="true">error</span>
                               {validation.errors[0]}
                             </p>
@@ -443,7 +443,7 @@ export const PresetSelector = memo(function PresetSelector({
               <button
                 type="button"
                 onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-lowest hover:border-primary transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary min-w-[100px]"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low hover:border-blue-30040 hover:bg-surface-container-lowest hover:border-primary transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary min-w-[100px]"
               >
                 <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">add</span>
                 <span className="text-label-sm text-on-surface-variant">Tạo mới</span>
@@ -452,7 +452,7 @@ export const PresetSelector = memo(function PresetSelector({
             <button
               type="button"
               onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-outline-variant bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-lowest transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-outline-variant bg-surface-container-low hover:border-blue-30040 hover:bg-surface-container-lowest transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               title="Import preset từ JSON"
             >
               <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">upload</span>
@@ -536,7 +536,7 @@ function CreatePresetModal({ onClose, onSave }: CreateModalProps) {
       <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-xl w-full max-w-md mx-4 animate-scale-in" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary text-[24px]" aria-hidden="true">add</span>
+            <span className="material-symbols-outlined text-blue-800 text-[24px]" aria-hidden="true">add</span>
             <h2 className="text-title-md font-semibold text-on-surface">Tạo Preset mới</h2>
           </div>
           <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-surface-container transition-colors">
@@ -552,7 +552,7 @@ function CreatePresetModal({ onClose, onSave }: CreateModalProps) {
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="VD: Preset T7-CN"
-              className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest rounded-lg text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              className="w-full h-10 px-3 border border-outline-variant bg-surface-container-lowest rounded-lg text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-blue-30020 focus:border-primary transition-all"
               autoFocus
             />
           </div>
@@ -567,8 +567,8 @@ function CreatePresetModal({ onClose, onSave }: CreateModalProps) {
                   onClick={() => setIcon(ic)}
                   className={`w-10 h-10 rounded-lg border flex items-center justify-center transition-colors ${
                     icon === ic
-                      ? "border-primary bg-primary-fixed text-primary"
-                      : "border-outline-variant hover:border-primary/40 hover:bg-surface-container"
+                      ? "border-primary bg-blue-100 text-blue-800"
+                      : "border-outline-variant hover:border-blue-30040 hover:bg-surface-container"
                   }`}
                 >
                   <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{ic}</span>
@@ -590,7 +590,7 @@ function CreatePresetModal({ onClose, onSave }: CreateModalProps) {
             type="button"
             onClick={() => onSave(name)}
             disabled={!name.trim()}
-            className="px-4 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 rounded-lg bg-blue-100 text-blue-800 text-label-sm font-semibold hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Tạo preset
           </button>
@@ -616,7 +616,7 @@ function ImportPresetModal({ json, error, onChange, onImport, onClose }: ImportM
       <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-xl w-full max-w-md mx-4 animate-scale-in" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary text-[24px]" aria-hidden="true">upload</span>
+            <span className="material-symbols-outlined text-blue-800 text-[24px]" aria-hidden="true">upload</span>
             <h2 className="text-title-md font-semibold text-on-surface">Import Preset</h2>
           </div>
           <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-surface-container transition-colors">
@@ -632,12 +632,12 @@ function ImportPresetModal({ json, error, onChange, onImport, onClose }: ImportM
               onChange={e => onChange(e.target.value)}
               placeholder='{"name": "My Preset", "config": {...}}'
               rows={6}
-              className="w-full p-3 border border-outline-variant bg-surface-container-lowest rounded-lg text-body-sm text-on-surface font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+              className="w-full p-3 border border-outline-variant bg-surface-container-lowest rounded-lg text-body-sm text-on-surface font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-30020 focus:border-primary transition-all resize-none"
             />
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-error-container text-error text-[11px]">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-100 text-red-800 text-red-800 text-[11px]">
               <span className="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
               {error}
             </div>
@@ -659,7 +659,7 @@ function ImportPresetModal({ json, error, onChange, onImport, onClose }: ImportM
             type="button"
             onClick={onImport}
             disabled={!json.trim()}
-            className="px-4 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 rounded-lg bg-blue-100 text-blue-800 text-label-sm font-semibold hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Import
           </button>
@@ -701,7 +701,7 @@ function ComparisonOverlay({ presets, compareA, compareB, currentConfig, onChang
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant sticky top-0 bg-surface-container-lowest z-10">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary text-[24px]" aria-hidden="true">compare</span>
+            <span className="material-symbols-outlined text-blue-800 text-[24px]" aria-hidden="true">compare</span>
             <h2 className="text-title-md font-semibold text-on-surface">So sánh Preset</h2>
           </div>
           <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-surface-container transition-colors">
@@ -777,7 +777,7 @@ function ComparisonOverlay({ presets, compareA, compareB, currentConfig, onChang
                           </div>
                           <div className="flex items-center gap-1">
                             <span className={`font-mono text-[13px] font-semibold ${
-                              current === valA ? "text-primary" : 
+                              current === valA ? "text-blue-800" : 
                               valA > current ? "text-emerald-500" : "text-rose-500"
                             }`}>
                               {formatValue(valA, param)}
@@ -799,7 +799,7 @@ function ComparisonOverlay({ presets, compareA, compareB, currentConfig, onChang
                           </div>
                           <div className="flex items-center gap-1">
                             <span className={`font-mono text-[13px] font-semibold ${
-                              current === valB ? "text-primary" : 
+                              current === valB ? "text-blue-800" : 
                               valB > current ? "text-emerald-500" : "text-rose-500"
                             }`}>
                               {formatValue(valB, param)}
@@ -832,7 +832,7 @@ function ComparisonOverlay({ presets, compareA, compareB, currentConfig, onChang
               Thấp hơn hiện tại
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-primary" />
+              <span className="w-3 h-3 rounded bg-blue-100" />
               Bằng hiện tại
             </span>
           </div>
@@ -884,8 +884,8 @@ function PresetHealthBar({ presetKey, currentConfig }: HealthBarProps) {
 
   return (
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] animate-fade-in ${
-      health.status === "warning" ? "bg-tertiary-container/30 text-tertiary border border-tertiary/30" :
-      "bg-error-container/30 text-error border border-error/30"
+      health.status === "warning" ? "bg-amber-100 text-amber-800/30 text-amber-800 border border-amber-300" :
+      "bg-red-100 text-red-800/30 text-red-800 border border-red-300"
     }`}>
       <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{health.status === "warning" ? "info" : "warning"}</span>
       <span>{health.message}</span>
@@ -926,8 +926,8 @@ function DeleteConfirmDialog({ presetLabel, onConfirm, onCancel }: DeleteDialogP
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in">
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-xl p-6 max-w-sm w-full mx-4 animate-scale-in">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center">
-            <span className="material-symbols-outlined text-error text-[20px]" aria-hidden="true">delete</span>
+          <div className="w-10 h-10 rounded-full bg-red-100 text-red-800 flex items-center justify-center">
+            <span className="material-symbols-outlined text-red-800 text-[20px]" aria-hidden="true">delete</span>
           </div>
           <div>
             <h3 className="text-title-sm font-semibold text-on-surface">Xóa preset?</h3>

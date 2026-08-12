@@ -11,10 +11,17 @@ type Breakdown = {
 };
 
 const COLOR_MAP: Record<string, string> = {
-  L01: "border-shift-24 bg-shift-24 text-on-shift-24",
-  L02: "border-shift-all-day bg-shift-all-day text-on-shift-all-day",
-  L03: "border-shift-service bg-shift-service text-on-shift-service",
-  L04: "border-shift-expert bg-shift-expert text-on-shift-expert",
+  L01: "border-shift-24",
+  L02: "border-shift-all-day",
+  L03: "border-shift-service",
+  L04: "border-shift-expert",
+};
+
+const ICON_BG_MAP: Record<string, string> = {
+  L01: "bg-shift-24 text-on-shift-24",
+  L02: "bg-shift-all-day text-on-shift-all-day",
+  L03: "bg-shift-service text-on-shift-service",
+  L04: "bg-shift-expert text-on-shift-expert",
 };
 
 const ICON_MAP: Record<string, string> = {
@@ -35,13 +42,14 @@ export const ShiftTypeBreakdownCard = memo(function ShiftTypeBreakdownCard({
   typeId: string;
   breakdown: Breakdown;
 }) {
-  const color = COLOR_MAP[typeId] ?? "border-outline-variant bg-surface-container-low";
+  const color = COLOR_MAP[typeId] ?? "border-outline-variant";
+  const iconBg = ICON_BG_MAP[typeId] ?? "bg-surface-container-low text-on-surface-variant";
   const icon = ICON_MAP[typeId] ?? "event";
 
   return (
-    <div className={`flex items-center gap-2 p-3 rounded-xl border ${color}`}>
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-container-low">
-        <span className="material-symbols-outlined text-[18px] text-on-surface-variant" aria-hidden="true">{icon}</span>
+    <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${color} bg-surface-container-lowest`}>
+      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+        <span className="material-symbols-outlined text-[18px]" aria-hidden="true">{icon}</span>
       </div>
       <div className="min-w-0">
         <p className="text-label-xs text-on-surface-variant truncate">{breakdown.shiftTypeName ?? typeId}</p>

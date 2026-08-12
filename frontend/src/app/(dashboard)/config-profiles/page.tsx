@@ -47,7 +47,7 @@ export default function ConfigProfilesHubPage() {
 
       <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-5">
         <div className="flex items-start gap-3">
-          <span className="material-symbols-outlined text-primary text-[20px] mt-0.5" aria-hidden="true">info</span>
+          <span className="material-symbols-outlined text-blue-800 text-[20px] mt-0.5" aria-hidden="true">info</span>
           <div className="space-y-1">
             <p className="text-body-sm font-semibold text-on-surface">Lưu ý</p>
             <p className="text-label-md text-on-surface-variant">
@@ -69,11 +69,11 @@ function ConfigLink({ href, icon, title, description }: { href: string; icon: st
       className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-5 hover:bg-surface-container-low transition-colors group flex flex-col gap-3"
     >
       <div className="flex items-center gap-3">
-        <span className="material-symbols-outlined text-primary bg-primary-fixed p-2 rounded-lg text-[22px]" aria-hidden="true">
+        <span className="material-symbols-outlined text-blue-800 bg-blue-100 text-blue-800 p-2 rounded-lg text-[22px]" aria-hidden="true">
           {icon}
         </span>
         <h3 className="text-title-md font-semibold text-on-surface">{title}</h3>
-        <span className="material-symbols-outlined text-outline ml-auto group-hover:text-primary transition-colors" aria-hidden="true">
+        <span className="material-symbols-outlined text-outline ml-auto group-hover:text-blue-800 transition-colors" aria-hidden="true">
           chevron_right
         </span>
       </div>

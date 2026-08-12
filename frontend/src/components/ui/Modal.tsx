@@ -105,7 +105,7 @@ export function Modal({ open, onClose, title, description, children, size = "md"
         <div className="px-6 py-4 border-b border-outline-variant flex items-start justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
             {icon && (
-              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconClassName ?? "bg-primary-fixed text-primary"}`}>
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconClassName ?? "bg-blue-100 text-blue-800 text-blue-800"}`}>
                 {icon}
               </div>
             )}

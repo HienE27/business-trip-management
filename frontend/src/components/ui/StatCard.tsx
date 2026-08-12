@@ -11,9 +11,9 @@ const accentConfig: Record<NonNullable<StatCardProps["accent"]>, {
   iconBg: string;
   iconText: string;
 }> = {
-  primary: { iconBg: "bg-primary-fixed", iconText: "text-on-primary-fixed-variant" },
-  secondary: { iconBg: "bg-secondary-container", iconText: "text-on-secondary-container" },
-  tertiary: { iconBg: "bg-tertiary-fixed", iconText: "text-on-tertiary-fixed-variant" },
+  primary: { iconBg: "bg-blue-100", iconText: "text-blue-800" },
+  secondary: { iconBg: "bg-emerald-100", iconText: "text-emerald-800" },
+  tertiary: { iconBg: "bg-amber-100", iconText: "text-amber-800" },
   expert: { iconBg: "bg-expert-container", iconText: "text-on-expert-container" },
 };
 

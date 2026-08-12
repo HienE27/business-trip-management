@@ -49,6 +49,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
   const [statusCounts, setStatusCounts] = useState({ total: 0, ACTIVE: 0, INACTIVE: 0 });
+  const [specialtyCounts, setSpecialtyCounts] = useState<Record<string, number>>({});
   // BUGFIX #6: debounce keyword → server-side filter (300ms)
   const [debouncedKeyword, setDebouncedKeyword] = useState("");
 
@@ -91,10 +92,26 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
     }
   }, []);
 
+  /**
+   * Aggregate counts grouped by specialty name (entire DB, no pagination).
+   * Drives the "Số nhân viên" column so each specialty row shows how many
+   * staff members currently belong to it. Keyed by name (not id) because the
+   * backend aggregates by name; specialties without staff simply show 0.
+   */
+  const fetchSpecialtyStaffCounts = useCallback(async () => {
+    try {
+      const res = await api.getStaffSpecialtyCounts();
+      setSpecialtyCounts((res?.data ?? {}) as Record<string, number>);
+    } catch {
+      setSpecialtyCounts({});
+    }
+  }, []);
+
   useEffect(() => {
     fetchSpecialties();
     fetchStatusCounts();
-  }, [fetchSpecialties, fetchStatusCounts]);
+    fetchSpecialtyStaffCounts();
+  }, [fetchSpecialties, fetchStatusCounts, fetchSpecialtyStaffCounts]);
 
   // Safety net: ensure form is closed on initial mount
   useEffect(() => {
@@ -163,7 +180,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
         toast.success(`Đã thêm chuyên khoa "${form.name}".`);
       }
       closeForm();
-      await fetchSpecialties();
+      await Promise.all([fetchSpecialties(), fetchSpecialtyStaffCounts()]);
     } catch (err) {
       toast.error(getErrorMessage(err, "Lỗi lưu chuyên khoa"));
     } finally {
@@ -182,7 +199,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
     try {
       await api.deleteSpecialty(id);
       toast.success(`Đã xóa chuyên khoa "${name}".`);
-      await fetchSpecialties();
+      await Promise.all([fetchSpecialties(), fetchSpecialtyStaffCounts()]);
     } catch (err) {
       toast.error(getErrorMessage(err, "Lỗi xóa chuyên khoa"));
     }
@@ -198,7 +215,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+          className="flex items-center gap-1 hover:text-blue-800 transition-colors cursor-pointer"
         >
           <span className="material-symbols-outlined text-[18px]">groups</span>
           Nhân sự
@@ -224,8 +241,8 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
         >
           <div className="flex items-center justify-between px-6 py-5 border-b border-outline-variant shrink-0">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-container">
-                <span className="material-symbols-outlined text-primary text-[20px]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100-container">
+                <span className="material-symbols-outlined text-blue-800 text-[20px]">
                   {editingId !== null ? "edit" : "add"}
                 </span>
               </div>
@@ -298,8 +315,8 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
       {/* Header */}
       <section className="flex flex-col justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 md:p-5 shadow-sm sm:flex-row sm:items-center">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-fixed">
-            <span className="material-symbols-outlined text-[20px] text-primary">stethoscope</span>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100">
+            <span className="material-symbols-outlined text-[20px] text-blue-800">stethoscope</span>
           </div>
           <div>
             <p className="text-label-sm text-on-surface-variant">Chuyên khoa</p>
@@ -310,7 +327,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <button
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 h-10 text-label-md font-medium text-on-primary shadow-sm transition-all duration-200 hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            className="flex items-center gap-2 rounded-lg bg-blue-100 px-4 h-10 text-label-md font-medium text-blue-800 shadow-sm transition-all duration-200 hover:bg-blue-100/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             onClick={openAddForm}
             type="button"
           >
@@ -323,8 +340,8 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
       {/* Stats */}
       <section className="grid grid-cols-3 gap-3">
         <div className="group relative flex items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm transition-all duration-200 hover:bg-surface-container-low">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-fixed transition-transform duration-200 group-hover:scale-105">
-            <span className="material-symbols-outlined text-[20px] text-primary">stethoscope</span>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 transition-transform duration-200 group-hover:scale-105">
+            <span className="material-symbols-outlined text-[20px] text-blue-800">stethoscope</span>
           </div>
           <div className="min-w-0">
             <p className="text-label-sm text-on-surface-variant">Tổng chuyên khoa</p>
@@ -332,12 +349,12 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
           </div>
         </div>
         <div className="group relative flex items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm transition-all duration-200 hover:bg-surface-container-low">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary-container transition-transform duration-200 group-hover:scale-105">
-            <span className="material-symbols-outlined text-[20px] text-secondary">check_circle</span>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 transition-transform duration-200 group-hover:scale-105">
+            <span className="material-symbols-outlined text-[20px] text-emerald-800">check_circle</span>
           </div>
           <div className="min-w-0">
             <p className="text-label-sm text-on-surface-variant">Đang hoạt động</p>
-            <p className="mt-0.5 text-headline-lg font-bold leading-none text-secondary">{activeCount}</p>
+            <p className="mt-0.5 text-headline-lg font-bold leading-none text-emerald-800">{activeCount}</p>
           </div>
         </div>
         <div className="group relative flex items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-sm transition-all duration-200 hover:bg-surface-container-low">
@@ -360,7 +377,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
           <input
             aria-label="Tìm kiếm chuyên khoa"
             autoComplete="off"
-            className="w-full rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-9 pr-3 text-body-sm text-on-surface transition-all placeholder:text-outline focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full rounded-lg border border-transparent bg-surface-container-low py-2.5 pl-9 pr-3 text-body-sm text-on-surface transition-all placeholder:text-outline focus:border-blue-300 focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-300"
             name="specialtySearch"
             onChange={(e) => { setSearchKeyword(e.target.value); setPage(0); }}
             placeholder="Tìm kiếm chuyên khoa..."
@@ -376,7 +393,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
               onClick={() => { setStatusFilter(status); setPage(0); }}
               className={`px-4 py-2 rounded-md text-label-md font-medium transition-all ${
                 statusFilter === status
-                  ? "bg-primary text-on-primary shadow-sm"
+                  ? "bg-blue-100 text-blue-800 shadow-sm"
                   : "text-on-surface-variant hover:bg-surface-container-high"
               }`}
             >
@@ -400,6 +417,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
                   <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Chuyên khoa</th>
                   <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Mô tả</th>
                   <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Ngày tạo</th>
+                  <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Số nhân viên</th>
                   <th scope="col" className="px-4 py-3 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Trạng thái</th>
                   <th scope="col" className="px-4 py-3 text-right text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">Thao tác</th>
                 </tr>
@@ -407,7 +425,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
               <tbody className="divide-y divide-outline-variant">
                 {filteredRecords.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-12 text-center text-body-sm text-on-surface-variant" colSpan={5}>
+                    <td className="px-4 py-12 text-center text-body-sm text-on-surface-variant" colSpan={6}>
                       {searchKeyword || statusFilter !== "all"
                         ? "Không tìm thấy chuyên khoa phù hợp"
                         : "Chưa có chuyên khoa nào. Nhấn \"Thêm chuyên khoa\" để bắt đầu."}
@@ -418,7 +436,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
                     <tr className="group transition-colors hover:bg-surface-container-lowest h-14" key={record.id}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-fixed font-bold text-label-sm text-primary">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 font-bold text-label-sm text-blue-800">
                             {getInitials(record.name)}
                           </div>
                           <p className="text-label-md font-semibold text-on-surface">{record.name}</p>
@@ -433,9 +451,15 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
                         {new Date(record.createdAt).toLocaleDateString("vi-VN")}
                       </td>
                       <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-300/40 bg-blue-100 px-2.5 py-1 text-label-sm font-semibold text-blue-800">
+                          <span className="material-symbols-outlined text-[14px]" aria-hidden="true">groups</span>
+                          {String(specialtyCounts[record.name] ?? 0).padStart(2, "0")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
                         {record.isActive ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary-container px-3 py-1 text-label-sm font-medium text-secondary border border-secondary/20">
-                            <span className="h-1.5 w-1.5 rounded-full bg-secondary" />
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-label-sm font-medium text-emerald-800 border border-secondary/20">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-100" />
                             Hoạt động
                           </span>
                         ) : (
@@ -448,7 +472,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
                         <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                           <button
                             aria-label={`Sửa ${record.name}`}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-blue-800 hover:bg-surface-container transition-colors"
                             onClick={() => editSpecialty(record)}
                             title="Sửa"
                             type="button"
@@ -457,7 +481,7 @@ export function SpecialtyCrudPanel({ onBack }: SpecialtyCrudPanelProps) {
                           </button>
                           <button
                             aria-label={`Xóa ${record.name}`}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-error hover:bg-error-container transition-colors"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-outline hover:text-red-800 hover:bg-red-100 text-red-800 transition-colors"
                             onClick={() => requestDelete(record.id, record.name)}
                             title="Xóa"
                             type="button"

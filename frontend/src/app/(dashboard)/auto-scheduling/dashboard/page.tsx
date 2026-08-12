@@ -108,8 +108,8 @@ function DashboardContent() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-headline-lg font-bold text-on-surface flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-fixed">
-              <span className="material-symbols-outlined text-[28px] text-primary" aria-hidden="true">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
+              <span className="material-symbols-outlined text-[28px] text-blue-800" aria-hidden="true">
                 monitoring
               </span>
             </div>
@@ -131,8 +131,8 @@ function DashboardContent() {
       {/* Period selector + role-aware note */}
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-outline-variant bg-surface-container-low">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed">
-            <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden="true">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100">
+            <span className="material-symbols-outlined text-[18px] text-blue-800" aria-hidden="true">
               calendar_month
             </span>
           </div>
@@ -152,7 +152,7 @@ function DashboardContent() {
               id="dashboard-period-select"
               value={selectedPeriodId ?? ""}
               onChange={(e) => setSelectedPeriodId(Number(e.target.value) || null)}
-              className="pl-3 pr-8 py-2.5 bg-surface-container-low rounded-lg border border-transparent focus:border-primary focus:bg-surface-container-lowest focus:ring-1 focus:ring-primary focus:outline-none font-body-sm text-body-sm text-on-surface appearance-none cursor-pointer min-w-[280px]"
+              className="pl-3 pr-8 py-2.5 bg-surface-container-low rounded-lg border border-transparent focus:border-blue-300 focus:bg-surface-container-lowest focus:ring-1 focus:ring-blue-300 focus:outline-none font-body-sm text-body-sm text-on-surface appearance-none cursor-pointer min-w-[280px]"
             >
               {periods.length === 0 ? (
                 <option value="">(đang tải…)</option>
@@ -214,7 +214,7 @@ function DashboardContent() {
       <div className="rounded-xl border border-outline-variant bg-surface-container-low px-4 py-3 font-body-sm text-body-sm text-on-surface-variant">
         Dashboard cập nhật theo kỳ đang chọn. Sau khi chạy scheduler xong, quay lại đây để xem fairness
         đã cải thiện ở pool nào. Lịch sử metric chi tiết có ở{" "}
-        <Link className="text-primary font-label-md hover:underline" href="/auto-scheduling/history">
+        <Link className="text-blue-800 font-label-md hover:underline" href="/auto-scheduling/history">
           tab History
         </Link>
         .
@@ -243,7 +243,7 @@ function KpiStrip({ latestRun, loading }: KpiStripProps) {
     return (
       <div className="rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 font-body-sm text-body-sm text-on-surface-variant">
         Kỳ này chưa có lịch sử chạy thuật toán. Hãy vào{" "}
-        <Link className="text-primary font-label-md hover:underline" href="/auto-scheduling">
+        <Link className="text-blue-800 font-label-md hover:underline" href="/auto-scheduling">
           Xếp lịch tự động
         </Link>{" "}
         để chạy lần đầu.
@@ -477,12 +477,12 @@ function KpiStripLatest({ latestRun, loading, periodId }: KpiStripLatestProps) {
                     <span
                       className={`rounded-full px-2 py-0.5 font-label-sm text-label-sm ${
                         tone === "success"
-                          ? "bg-secondary-container text-on-secondary-container"
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                           : tone === "info"
-                          ? "bg-primary-fixed text-primary"
+                          ? "bg-blue-100 text-blue-800"
                           : tone === "warning"
-                          ? "bg-tertiary-container text-on-tertiary-container"
-                          : "bg-error-container text-on-error-container"
+                          ? "bg-amber-100 text-amber-800 border border-amber-300"
+                          : "bg-red-100 text-red-800 border border-red-300"
                       }`}
                     >
                       {pct}%
@@ -500,11 +500,11 @@ function KpiStripLatest({ latestRun, loading, periodId }: KpiStripLatestProps) {
                     </span>
                   </div>
                   {s.shortfall > 0 ? (
-                    <p className="mt-1 font-body-sm text-body-sm text-error">
+                    <p className="mt-1 font-body-sm text-body-sm text-red-800">
                       Thiếu {s.shortfall} ca
                     </p>
                   ) : (
-                    <p className="mt-1 font-body-sm text-body-sm text-secondary">
+                    <p className="mt-1 font-body-sm text-body-sm text-emerald-800">
                       Đủ ca
                     </p>
                   )}
@@ -535,17 +535,17 @@ interface KpiTileProps {
 function KpiTile({ label, value, tone, icon, caption, tooltip }: KpiTileProps) {
   /** Full-tile tone backgrounds — light tints from the surface system. */
   const toneBg: Record<KpiTileProps["tone"], string> = {
-    success: "bg-secondary-container border-secondary",
-    info: "bg-primary-fixed border-primary",
-    warning: "bg-tertiary-container border-tertiary",
-    error: "bg-error-container border-error",
+    success: "bg-emerald-100 border-emerald-300",
+    info: "bg-blue-100 border-primary",
+    warning: "bg-amber-100 text-amber-800 border border-amber-300",
+    error: "bg-red-100 text-red-800 border border-red-300",
     neutral: "bg-surface-container border-outline-variant",
   };
   const toneIconBg: Record<KpiTileProps["tone"], string> = {
-    success: "bg-secondary text-on-secondary",
-    info: "bg-primary text-on-primary",
-    warning: "bg-tertiary text-on-tertiary",
-    error: "bg-error text-on-error",
+    success: "bg-emerald-100 text-emerald-800",
+    info: "bg-blue-100 text-blue-800",
+    warning: "bg-amber-100 text-amber-800",
+    error: "bg-red-100 text-red-800",
     neutral: "bg-surface-container-high text-on-surface-variant",
   };
 

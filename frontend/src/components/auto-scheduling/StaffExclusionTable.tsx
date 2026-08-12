@@ -7,28 +7,6 @@ import { Toggle } from "@/components/auto-scheduling/Toggle";
 import { getRoleLabel } from "@/lib/roleLabels";
 import type { Staff } from "@/types/api";
 
-const AVATAR_COLORS = [
-  "bg-primary-fixed text-primary",
-  "bg-secondary-container text-on-secondary-container",
-  "bg-tertiary-fixed text-on-tertiary-fixed-variant",
-  "bg-error-container text-on-error-container",
-  "bg-surface-container-high text-on-surface",
-];
-
-function getAvatarColor(id: number): string {
-  return AVATAR_COLORS[id % AVATAR_COLORS.length];
-}
-
-function getInitials(fullName: string): string {
-  return fullName
-    .split(" ")
-    .map((w) => w[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
-
 type StaffExclusionTableProps = {
   staff: Staff[];
   excludedIds: number[];
@@ -99,7 +77,7 @@ export function StaffExclusionTable({
         <div className="relative w-full sm:w-72">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]" aria-hidden="true">search</span>
           <input
-            className="h-10 w-full pl-10 pr-4 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            className="h-10 w-full pl-10 pr-4 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-blue-300 focus:ring-2 focus:ring-blue-300 transition-all"
             placeholder="Tìm theo tên, mã NV..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -110,7 +88,7 @@ export function StaffExclusionTable({
           {/* Role filter */}
           <div className="relative">
             <select
-              className="h-10 pl-3 pr-10 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface appearance-none focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer transition-all"
+              className="h-10 pl-3 pr-10 rounded-lg border border-outline-variant bg-surface-container-low text-label-sm text-on-surface appearance-none focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer transition-all"
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value as typeof filterRole)}
             >
@@ -129,7 +107,7 @@ export function StaffExclusionTable({
             aria-pressed={showOnlyExcluded}
             className={`flex items-center gap-2 h-10 px-4 rounded-lg border text-label-sm font-medium transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${
               showOnlyExcluded
-                ? "border-error bg-error-container text-error"
+                ? "border-error bg-red-100 text-red-800"
                 : "border-outline-variant bg-surface-container-low text-on-surface-variant hover:border-primary hover:bg-surface-container-lowest"
             }`}
           >
@@ -157,7 +135,7 @@ export function StaffExclusionTable({
             <button
               type="button"
               onClick={() => bulkExcludeVisible(true)}
-              className="text-label-sm font-medium text-on-surface-variant hover:text-error transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded px-1.5 py-0.5"
+              className="text-label-sm font-medium text-on-surface-variant hover:text-red-800 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded px-1.5 py-0.5"
             >
               Loại trừ tất cả ({filteredStaff.length})
             </button>
@@ -165,7 +143,7 @@ export function StaffExclusionTable({
               <button
                 type="button"
                 onClick={() => bulkExcludeVisible(false)}
-                className="text-label-sm font-medium text-on-surface-variant hover:text-secondary transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded px-1.5 py-0.5"
+                className="text-label-sm font-medium text-on-surface-variant hover:text-emerald-800 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded px-1.5 py-0.5"
               >
                 Bỏ loại trừ hiện đang chọn ({visibleExcludedCount})
               </button>
@@ -177,7 +155,7 @@ export function StaffExclusionTable({
           <button
             type="button"
             onClick={() => onExclusionsChange([])}
-            className="text-label-sm font-medium text-primary hover:underline cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded px-1.5 py-0.5"
+            className="text-label-sm font-medium text-blue-800 hover:underline cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded px-1.5 py-0.5"
           >
             Bỏ loại trừ tất cả
           </button>
@@ -198,6 +176,9 @@ export function StaffExclusionTable({
             <table className="w-full text-left" aria-label="Danh sách nhân sự tham gia xếp lịch">
               <thead>
                 <tr className="bg-surface-container-low border-b border-outline-variant">
+                  <th scope="col" className="p-4 text-label-xs font-semibold uppercase tracking-wide text-on-surface-variant w-12 text-center">
+                    STT
+                  </th>
                   <th scope="col" className="p-4 text-label-xs font-semibold uppercase tracking-wide text-on-surface-variant">
                     Nhân sự
                   </th>
@@ -210,18 +191,18 @@ export function StaffExclusionTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/30">
-                {filteredStaff.map((s) => {
+                {filteredStaff.map((s, idx) => {
                   const isExcluded = excludedIds.includes(s.id);
                   return (
                     <tr
                       key={s.id}
-                      className={`hover:bg-surface-container-low transition-colors ${isExcluded ? "bg-error-container/5" : ""}`}
+                      className={`hover:bg-surface-container-low transition-colors ${isExcluded ? "bg-red-100 text-red-800/5" : ""}`}
                     >
+                      <td className="p-4 text-center text-label-sm font-semibold text-on-surface-variant">
+                        {idx + 1}
+                      </td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${getAvatarColor(s.id)}`}>
-                            {getInitials(s.fullName)}
-                          </span>
                           <div className="min-w-0">
                             <p className="text-label-md font-medium text-on-surface truncate">{s.fullName}</p>
                             {s.staffCode && (

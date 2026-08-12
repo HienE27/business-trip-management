@@ -141,6 +141,7 @@ export default function MonthlySchedulePage() {
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState(0);
+  const [pendingExchanges, setPendingExchanges] = useState(0);
 
   const selectedPeriod = useMemo(
     () => periods.find((period) => period.id === selectedPeriodId) ?? null,
@@ -210,6 +211,7 @@ export default function MonthlySchedulePage() {
     compensationDays,
     focusDate,
     pendingLeaveRequests,
+    pendingExchanges,
   });
 
   const handlePeriodChange = useCallback((periodId: number) => {
@@ -257,6 +259,13 @@ export default function MonthlySchedulePage() {
     api.get<{ pending: number }>("/dashboard/leave-requests")
       .then((res) => setPendingLeaveRequests(res.pending ?? 0))
       .catch(() => setPendingLeaveRequests(0));
+  }, []);
+
+  // Fetch pending exchange requests count
+  useEffect(() => {
+    api.get<{ pending: number }>("/dashboard/exchange-requests")
+      .then((res) => setPendingExchanges(res.pending ?? 0))
+      .catch(() => setPendingExchanges(0));
   }, []);
 
   const handleCheckConflicts = useCallback(async () => {
@@ -464,7 +473,7 @@ export default function MonthlySchedulePage() {
           Lọc nhân sự:
         </span>
         <select
-          className="h-9 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-label-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+          className="h-9 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-label-md text-on-surface focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition-all cursor-pointer appearance-none"
           value={staffFilterId ?? ""}
           onChange={(e) => {
             const val = e.target.value;
@@ -530,9 +539,18 @@ export default function MonthlySchedulePage() {
           coverageGaps={coverageGapsByTab}
           hasCoverageGaps={coverageGapsByTab.length > 0}
           totalCoverageGaps={coverageGapsByTab.length}
+          totalDaysInPeriod={selectedPeriod
+            ? Math.ceil((new Date(selectedPeriod.endDate).getTime() - new Date(selectedPeriod.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
+            : undefined}
         />
 
-        <ReviewSnapshotPanel focusDate={focusDate} schedules={focusSchedules} />
+        <ReviewSnapshotPanel
+          focusDate={focusDate}
+          schedules={focusSchedules}
+          periodStart={selectedPeriod?.startDate}
+          periodEnd={selectedPeriod?.endDate}
+          onFocusDateChange={setFocusDate}
+        />
       </div>
 
       <QuickAddModal

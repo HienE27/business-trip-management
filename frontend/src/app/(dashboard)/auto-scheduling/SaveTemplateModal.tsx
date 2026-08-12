@@ -41,12 +41,12 @@ export function SaveTemplateModal({
       <div className="space-y-4">
         <div>
           <label className="text-label-sm text-on-surface-variant block mb-1.5" htmlFor="tmpl-name">
-            Tên mẫu lịch <span className="text-error">*</span>
+            Tên mẫu lịch <span className="text-red-800">*</span>
           </label>
           <input
             id="tmpl-name"
             type="text"
-            className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-30020"
             placeholder="VD: Mẫu lịch tháng 6/2026"
             value={templateName}
             onChange={(e) => onTemplateNameChange(e.target.value)}
@@ -58,7 +58,7 @@ export function SaveTemplateModal({
           </label>
           <textarea
             id="tmpl-desc"
-            className="w-full resize-none rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full resize-none rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-label-md text-on-surface transition-all focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-blue-30020"
             rows={2}
             placeholder="Ghi chú về mẫu lịch (VD: dùng cho tháng có ngày lễ)..."
             value={templateDesc}

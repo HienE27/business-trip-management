@@ -19,7 +19,7 @@ export function NotificationBell() {
         notifications
       </span>
       {unreadCount > 0 && (
-        <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-label-sm font-bold text-on-error">
+        <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-error text-[10px] leading-none font-semibold text-white">
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       )}
@@ -40,7 +40,7 @@ export function UserMenu() {
         className="flex h-10 items-center gap-2.5 rounded-lg px-3 transition-colors hover:bg-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
         type="button"
       >
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-[13px] font-bold text-on-primary shadow-sm">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[13px] font-bold text-blue-800 shadow-sm">
           {displayName.charAt(0).toUpperCase()}
         </div>
         <div className="hidden min-w-0 flex-col items-start lg:flex">
@@ -89,7 +89,7 @@ export function UserMenu() {
         </div>
         <div className="border-t border-outline-variant/60 py-1">
           <button
-            className="flex w-full items-center gap-3 px-4 py-2.5 text-body-sm text-error transition-colors hover:bg-error-container/30 focus-visible:outline-none focus-visible:bg-error-container/30"
+            className="flex w-full items-center gap-3 px-4 py-2.5 text-body-sm text-red-800 transition-colors hover:bg-red-100/30 focus-visible:outline-none focus-visible:bg-red-100/30"
             onClick={() => { void logout(); }}
             role="menuitem"
             type="button"

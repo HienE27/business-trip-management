@@ -37,10 +37,10 @@ const STATUS_LABEL: Record<LeaveRequest["status"], string> = {
 };
 
 const STATUS_CLASS: Record<LeaveRequest["status"], string> = {
-  PENDING: "bg-tertiary-fixed/40 text-tertiary border border-tertiary/20",
-  APPROVED: "bg-secondary-container text-on-secondary-container border border-secondary/20",
-  REJECTED: "bg-error-container text-on-error-container border border-error/20",
-  CANCELLED: "bg-surface-container-high text-on-surface-variant border border-outline-variant",
+  PENDING: "bg-amber-100 text-amber-800 border border-amber-300",
+  APPROVED: "bg-emerald-100 text-emerald-800 border border-emerald-300",
+  REJECTED: "bg-red-100 text-red-800 border border-red-300",
+  CANCELLED: "bg-gray-100 text-gray-600 border border-gray-300",
 };
 
 function getStaffDisplayName(req: LeaveRequest) {
@@ -352,7 +352,7 @@ function LeaveRequestsContent() {
 
       {/* Conflict warning */}
       {conflictWarning && (
-        <div className="rounded-lg border border-error/30 bg-error-container/40 px-4 py-3 text-sm text-error flex items-start gap-2">
+        <div className="rounded-lg border border-red-30030 bg-red-100 text-red-800/40 px-4 py-3 text-sm text-red-800 flex items-start gap-2">
           <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">warning</span>
           <span>
             Phát hiện <strong>{conflictWarning.totalConflicts} xung đột</strong> trong kỳ lịch. Vui lòng giải quyết xung đột trước khi duyệt nghỉ phép.
@@ -628,7 +628,7 @@ function LeaveRequestsContent() {
                   loading={processing}
                   onClick={handleApprove}
                   icon={!processing ? <span className="material-symbols-outlined text-[18px]" aria-hidden="true">check</span> : undefined}
-                  className="!bg-secondary !text-on-secondary hover:!opacity-90"
+                  className="!bg-emerald-100 text-emerald-800 hover:!opacity-90"
                 >
                   Duyệt
                 </Button>
@@ -651,7 +651,7 @@ function LeaveRequestsContent() {
             {isManager && (
               <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-semibold text-on-surface">
-                  Nhân sự <span className="text-error">*</span>
+                  Nhân sự <span className="text-red-800">*</span>
                 </span>
                 <select
                   className="h-10 rounded-lg border border-outline-variant bg-surface px-3 text-body-sm text-on-surface transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
@@ -673,7 +673,7 @@ function LeaveRequestsContent() {
             <div className="grid grid-cols-2 gap-4">
               <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-semibold text-on-surface">
-                  Ngày bắt đầu <span className="text-error">*</span>
+                  Ngày bắt đầu <span className="text-red-800">*</span>
                 </span>
                 <input
                   type="date"
@@ -685,7 +685,7 @@ function LeaveRequestsContent() {
               </label>
               <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-semibold text-on-surface">
-                  Ngày kết thúc <span className="text-error">*</span>
+                  Ngày kết thúc <span className="text-red-800">*</span>
                 </span>
                 <input
                   type="date"

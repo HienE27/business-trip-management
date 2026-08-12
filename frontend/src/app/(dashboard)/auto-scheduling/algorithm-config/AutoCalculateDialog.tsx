@@ -395,9 +395,9 @@ function Tooltip({ content, children }: { content: string; children: React.React
 
 function InfoCard({ title, content, icon, type }: { title: string; content: string; icon: string; type: "info" | "tip" | "warning" }) {
   const colors = {
-    info: "bg-primary-fixed text-on-primary-fixed border border-primary-fixed/30",
-    tip: "bg-secondary-container text-on-secondary-container border border-secondary-container",
-    warning: "bg-tertiary-fixed text-on-tertiary-fixed border border-tertiary-fixed/30",
+    info: "bg-blue-100 text-blue-800 border bg-red-100/20",
+    tip: "bg-emerald-100 text-emerald-800 border border-emerald-300",
+    warning: "bg-amber-100 text-amber-800 border border-amber-300",
   };
   const icons = { info: "info", tip: "lightbulb", warning: "warning" };
 
@@ -469,7 +469,7 @@ function DistributionChart({
       </div>
       <div className="mt-3 pt-3 border-t border-outline-variant flex justify-between text-[11px] text-on-surface-variant">
         <span>Tổng ca kỳ</span>
-        <span className="font-mono font-semibold text-primary">{totalShifts} ca</span>
+        <span className="font-mono font-semibold text-blue-800">{totalShifts} ca</span>
       </div>
     </div>
   );
@@ -525,7 +525,7 @@ function DiffView({
 	              const hasChange = [minDay, maxDay].some(d => d.diff !== "same");
 
 	              return (
-	                <tr key={tid} className={hasChange ? "bg-primary-fixed/20" : ""}>
+	                <tr key={tid} className={hasChange ? "bg-blue-100/20" : ""}>
 	                  <td className="py-2 px-2">
 	                    <span className={`font-mono font-bold ${meta.color}`}>{tid}</span>
 	                  </td>
@@ -533,15 +533,15 @@ function DiffView({
                     <td key={i} className="py-2 px-2 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <span className={`font-mono ${
-                          d.diff === "increase" ? "text-secondary font-bold" :
-                          d.diff === "decrease" ? "text-error font-bold" :
+                          d.diff === "increase" ? "text-emerald-800 font-bold" :
+                          d.diff === "decrease" ? "text-red-800 font-bold" :
                           "text-on-surface-variant"
                         }`}>
                           {d.new}
                         </span>
                         {d.diff !== "same" && (
                           <span className={`text-[10px] ${
-                            d.diff === "increase" ? "text-secondary" : "text-error"
+                            d.diff === "increase" ? "text-emerald-800" : "text-red-800"
                           }`}>
                             {d.diff === "increase" ? "↑" : "↓"}
                           </span>
@@ -618,12 +618,12 @@ function PresetCompareModal({
                 onClick={() => setSelected(selected === preset.id ? null : preset.id)}
                 className={`p-4 rounded-xl border-2 text-left transition-all ${
                   selected === preset.id
-                    ? "border-primary bg-primary-fixed/50"
-                    : "border-outline-variant hover:border-primary/40"
+                    ? "border-primary bg-blue-100/50"
+                    : "border-outline-variant hover:border-blue-300"
                 }`}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-[18px] text-primary">bookmark</span>
+                  <span className="material-symbols-outlined text-[18px] text-blue-800">bookmark</span>
                   <span className="font-semibold text-on-surface">{preset.name}</span>
                 </div>
                 <p className="text-[11px] text-on-surface-variant">
@@ -1058,7 +1058,7 @@ export function AutoCalculateDialog({
           {/* Header */}
           <div className="sticky top-0 bg-surface-container-lowest border-b border-outline-variant px-6 py-4 flex items-center justify-between z-10">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-fixed text-primary">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-800">
                 <span className="material-symbols-outlined text-[20px]" aria-hidden="true">calculate</span>
               </div>
               <div>
@@ -1075,7 +1075,7 @@ export function AutoCalculateDialog({
                 <button
                   onClick={() => setShowHelp(!showHelp)}
                   className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
-                    showHelp ? "bg-primary text-white" : "text-on-surface-variant hover:bg-surface-container-high"
+                    showHelp ? "bg-blue-100 text-white" : "text-on-surface-variant hover:bg-surface-container-high"
                   }`}
                 >
                   <span className="material-symbols-outlined text-[20px]" aria-hidden="true">help</span>
@@ -1152,7 +1152,7 @@ export function AutoCalculateDialog({
                 </h3>
                 <button
                   onClick={() => setShowScenarios(!showScenarios)}
-                  className="text-[11px] text-primary hover:underline"
+                  className="text-[11px] text-blue-800 hover:underline"
                 >
                   {showScenarios ? "Ẩn kịch bản" : "Hiện kịch bản"}
                 </button>
@@ -1166,8 +1166,8 @@ export function AutoCalculateDialog({
                       onClick={() => applyScenario(scenario)}
                       className={`p-4 rounded-xl border-2 text-left transition-all duration-200 hover:shadow-md ${
                         activeScenario === scenario.id
-                          ? "border-primary bg-primary-fixed/50 shadow-sm"
-                          : "border-outline-variant bg-surface-container-low hover:border-primary/40 hover:bg-surface-container-lowest"
+                          ? "border-primary bg-blue-100/50 shadow-sm"
+                          : "border-outline-variant bg-surface-container-low hover:border-blue-300 hover:bg-surface-container-lowest"
                       }`}
                     >
                       <div className="flex items-start gap-3 mb-2">
@@ -1178,7 +1178,7 @@ export function AutoCalculateDialog({
                         </div>
                         <div className="flex-1">
                           <span className={`text-label-sm font-semibold ${
-                            activeScenario === scenario.id ? "text-primary" : "text-on-surface"
+                            activeScenario === scenario.id ? "text-blue-800" : "text-on-surface"
                           }`}>
                             {scenario.name}
                           </span>
@@ -1238,18 +1238,18 @@ export function AutoCalculateDialog({
                     onClick={() => applyQuickPreset(preset)}
                     className={`p-4 rounded-xl border-2 text-left transition-all duration-200 hover:shadow-sm ${
                       activePreset === preset.id
-                        ? "border-primary bg-primary-fixed/50"
-                        : "border-outline-variant bg-surface-container-lowest hover:border-primary/40"
+                        ? "border-primary bg-blue-100/50"
+                        : "border-outline-variant bg-surface-container-lowest hover:border-blue-300"
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`material-symbols-outlined text-[18px] ${
-                        activePreset === preset.id ? "text-primary" : "text-on-surface-variant"
+                        activePreset === preset.id ? "text-blue-800" : "text-on-surface-variant"
                       }`} aria-hidden="true">
                         {preset.icon}
                       </span>
                       <span className={`text-label-sm font-semibold ${
-                        activePreset === preset.id ? "text-primary" : "text-on-surface"
+                        activePreset === preset.id ? "text-blue-800" : "text-on-surface"
                       }`}>
                         {preset.label}
                       </span>
@@ -1272,7 +1272,7 @@ export function AutoCalculateDialog({
                         onClick={() => applySavedPreset(preset)}
                         className={`px-3 py-2 rounded-lg border text-left transition-all ${
                           activePreset === preset.id
-                            ? "border-primary bg-primary-fixed/50 text-primary"
+                            ? "border-primary bg-blue-100/50 text-blue-800"
                             : "border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low text-on-surface"
                         }`}
                       >
@@ -1292,13 +1292,13 @@ export function AutoCalculateDialog({
                   <span className="material-symbols-outlined text-[16px]" aria-hidden="true">event</span>
                   Thông tin kỳ lịch
                   {changedFields.has("period") && (
-                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" title="Đã thay đổi" />
+                    <span className="w-2 h-2 rounded-full bg-blue-100 animate-pulse" title="Đã thay đổi" />
                   )}
                 </h3>
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="text-[11px] text-primary hover:underline flex items-center gap-1"
+                  className="text-[11px] text-blue-800 hover:underline flex items-center gap-1"
                 >
                   {showAdvanced ? "Ẩn tùy chỉnh" : "Tùy chỉnh"}
                   <span className={`material-symbols-outlined text-[14px] transition-transform ${showAdvanced ? "rotate-180" : ""}`} aria-hidden="true">
@@ -1311,7 +1311,7 @@ export function AutoCalculateDialog({
                   <label className="text-[11px] font-medium text-on-surface-variant mb-1 block">
                     Số ngày trong kỳ
                     <Tooltip content="Tổng số ngày cần xếp lịch. Tháng thường có 30 ngày, tháng 2 có 28-29 ngày.">
-                      <span className="ml-1 text-primary cursor-help">?</span>
+                      <span className="ml-1 text-blue-800 cursor-help">?</span>
                     </Tooltip>
                   </label>
                   <input
@@ -1320,9 +1320,9 @@ export function AutoCalculateDialog({
                     max={31}
                     value={periodDays}
                     onChange={(e) => { setPeriodDays(Math.max(7, Math.min(31, parseInt(e.target.value) || 30))); handleFieldChange("period"); }}
-                    className={`w-full h-10 px-3 rounded-lg border text-body-md focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
+                    className={`w-full h-10 px-3 rounded-lg border text-body-md focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all ${
                       changedFields.has("period")
-                        ? "border-primary bg-primary-fixed/20"
+                        ? "border-primary bg-blue-100/20"
                         : "border-outline-variant bg-surface-container-lowest"
                     }`}
                   />
@@ -1332,7 +1332,7 @@ export function AutoCalculateDialog({
                   <label className="text-[11px] font-medium text-on-surface-variant mb-1 block">
                     Số tuần trong kỳ
                     <Tooltip content="Số tuần trong kỳ lịch. Tháng thường có 4 tuần, có thể 5 tuần nếu dài.">
-                      <span className="ml-1 text-primary cursor-help">?</span>
+                      <span className="ml-1 text-blue-800 cursor-help">?</span>
                     </Tooltip>
                   </label>
                   <input
@@ -1341,9 +1341,9 @@ export function AutoCalculateDialog({
                     max={6}
                     value={periodWeeks}
                     onChange={(e) => { setPeriodWeeks(Math.max(1, Math.min(6, parseInt(e.target.value) || 4))); handleFieldChange("period"); }}
-                    className={`w-full h-10 px-3 rounded-lg border text-body-md focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
+                    className={`w-full h-10 px-3 rounded-lg border text-body-md focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all ${
                       changedFields.has("period")
-                        ? "border-primary bg-primary-fixed/20"
+                        ? "border-primary bg-blue-100/20"
                         : "border-outline-variant bg-surface-container-lowest"
                     }`}
                   />
@@ -1353,14 +1353,14 @@ export function AutoCalculateDialog({
               {!showAdvanced && (
                 <div className="flex items-center gap-4 text-[12px]">
                   <span className="flex items-center gap-1.5">
-                    <span className={`font-mono font-semibold ${changedFields.has("period") ? "text-primary" : "text-on-surface"}`}>
+                    <span className={`font-mono font-semibold ${changedFields.has("period") ? "text-blue-800" : "text-on-surface"}`}>
                       {periodDays}
                     </span>
                     <span className="text-on-surface-variant">ngày</span>
                   </span>
                   <span className="text-outline">·</span>
                   <span className="flex items-center gap-1.5">
-                    <span className={`font-mono font-semibold ${changedFields.has("period") ? "text-primary" : "text-on-surface"}`}>
+                    <span className={`font-mono font-semibold ${changedFields.has("period") ? "text-blue-800" : "text-on-surface"}`}>
                       {periodWeeks}
                     </span>
                     <span className="text-on-surface-variant">tuần</span>
@@ -1373,11 +1373,11 @@ export function AutoCalculateDialog({
             {(errors.length > 0 || warnings.length > 0) && (
               <section className={`rounded-xl border p-4 space-y-3 ${
                 errors.length > 0
-                  ? "bg-error-container/30 border-error/30"
-                  : "bg-tertiary-fixed/30 border-tertiary-fixed/30"
+                  ? "bg-red-100/30 border-red-300"
+                  : "bg-amber-100/30 border border-amber-300"
               }`}>
                 <h4 className={`text-label-sm font-semibold flex items-center gap-2 ${
-                  errors.length > 0 ? "text-error" : "text-tertiary"
+                  errors.length > 0 ? "text-red-800" : "text-amber-800"
                 }`}>
                   <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
                     {errors.length > 0 ? "error" : "warning"}
@@ -1387,15 +1387,15 @@ export function AutoCalculateDialog({
                 <div className="space-y-2">
                   {[...errors, ...warnings].map((v) => (
                     <div key={v.key} className={`flex items-start gap-3 p-2 rounded-lg ${
-                      v.type === "error" ? "bg-surface-container-low" : "bg-tertiary-fixed/20"
+                      v.type === "error" ? "bg-surface-container-low" : "bg-amber-100/20"
                     }`}>
                       <span className={`material-symbols-outlined text-[14px] shrink-0 mt-0.5 ${
-                        v.type === "error" ? "text-error" : "text-tertiary"
+                        v.type === "error" ? "text-red-800" : "text-amber-800"
                       }`} aria-hidden="true">
                         {v.type === "error" ? "close" : "info"}
                       </span>
                       <div className="flex-1">
-                        <p className={`text-[12px] ${v.type === "error" ? "text-error" : "text-on-tertiary-fixed"}`}>
+                        <p className={`text-[12px] ${v.type === "error" ? "text-red-800" : "text-amber-800"}`}>
                           {v.message}
                         </p>
                         {v.fixSuggestion && (
@@ -1457,7 +1457,7 @@ export function AutoCalculateDialog({
                 <span className="material-symbols-outlined text-[16px]" aria-hidden="true">target</span>
                 Số ca mỗi người cần trực
                 {changedFields.has("targets") && (
-                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-blue-100 animate-pulse" />
                 )}
               </h3>
               <p className="text-[12px] text-on-surface-variant mb-3">
@@ -1471,13 +1471,13 @@ export function AutoCalculateDialog({
                       <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
                         Nhân sự đủ điều kiện
                         <Tooltip content="Số người có thể được xếp trực loại ca này">
-                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
+                          <span className="ml-1 text-blue-800 cursor-help text-[10px]">?</span>
                         </Tooltip>
                       </th>
                       <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
                         Ca mỗi người/kỳ
                         <Tooltip content="Mỗi người cần trực bao nhiêu ca trong kỳ">
-                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
+                          <span className="ml-1 text-blue-800 cursor-help text-[10px]">?</span>
                         </Tooltip>
                       </th>
                       <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-right">Tổng ca</th>
@@ -1490,7 +1490,7 @@ export function AutoCalculateDialog({
                       const hasWarning = warnings.some(w => w.key.startsWith(tid));
                       const meta = SHIFT_META[tid];
                       return (
-                        <tr key={tid} className={`hover:bg-surface-container-lowest transition-colors ${hasWarning ? "bg-tertiary-fixed/20" : ""}`}>
+                        <tr key={tid} className={`hover:bg-surface-container-lowest transition-colors ${hasWarning ? "bg-amber-100/20" : ""}`}>
                           <td className="py-2 px-3">
                             <div className="flex items-center gap-2">
                               <span className={`font-mono font-bold text-[13px] ${meta.color}`}>{tid}</span>
@@ -1507,9 +1507,9 @@ export function AutoCalculateDialog({
                                 setEligible((prev) => ({ ...prev, [tid]: Math.max(1, parseInt(e.target.value) || 1) }));
                                 handleFieldChange("eligible");
                               }}
-                              className={`w-16 h-8 px-2 rounded-lg border text-label-sm text-center font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
+                              className={`w-16 h-8 px-2 rounded-lg border text-label-sm text-center font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all ${
                                 changedFields.has("eligible")
-                                  ? "border-primary bg-primary-fixed/20"
+                                  ? "border-primary bg-blue-100/20"
                                   : "border-outline-variant bg-surface-container-lowest"
                               }`}
                             />
@@ -1524,9 +1524,9 @@ export function AutoCalculateDialog({
                                 setTargets((prev) => ({ ...prev, [tid]: Math.max(0, parseInt(e.target.value) || 0) }));
                                 handleFieldChange("targets");
                               }}
-                              className={`w-16 h-8 px-2 rounded-lg border text-label-sm text-center font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
+                              className={`w-16 h-8 px-2 rounded-lg border text-label-sm text-center font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all ${
                                 changedFields.has("targets")
-                                  ? "border-primary bg-primary-fixed/20"
+                                  ? "border-primary bg-blue-100/20"
                                   : "border-outline-variant bg-surface-container-lowest"
                               }`}
                             />
@@ -1539,7 +1539,7 @@ export function AutoCalculateDialog({
                           <td className="py-2 px-3 text-right">
                             <Tooltip content={parseFloat(weeklyAvg) > 6 ? "Hơi nhiều, theo dõi kỹ" : "Bình thường"}>
                               <span className={`font-mono text-[12px] ${
-                                parseFloat(weeklyAvg) > 6 ? "text-tertiary font-bold" : "text-on-surface-variant"
+                                parseFloat(weeklyAvg) > 6 ? "text-amber-800 font-bold" : "text-on-surface-variant"
                               }`}>
                                 {weeklyAvg}
                               </span>
@@ -1548,11 +1548,11 @@ export function AutoCalculateDialog({
                         </tr>
                       );
                     })}
-                    <tr className="bg-primary-fixed/30 font-semibold">
+                    <tr className="bg-blue-100/30 font-semibold">
                       <td className="py-2 px-3 text-on-surface">Tổng cộng</td>
                       <td className="py-2 px-3 text-center font-mono tabular-nums">{totalEligible}</td>
                       <td className="py-2 px-3 text-center font-mono tabular-nums">{totalTarget}</td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-primary">{totalGenerated}</td>
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-blue-800">{totalGenerated}</td>
                       <td className="py-2 px-3"></td>
                     </tr>
                   </tbody>
@@ -1565,7 +1565,7 @@ export function AutoCalculateDialog({
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex-1 min-w-0">
                   <h3 className="text-label-md font-semibold text-on-surface flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[16px] text-primary" aria-hidden="true">diversity_3</span>
+                    <span className="material-symbols-outlined text-[16px] text-blue-800" aria-hidden="true">diversity_3</span>
                     Mở rộng chuyên khoa đủ điều kiện
                   </h3>
                   <p className="text-[12px] text-on-surface-variant mt-1">
@@ -1587,8 +1587,8 @@ export function AutoCalculateDialog({
                   />
                   <div
                     className={`w-11 h-6 rounded-full transition-colors duration-200 ${
-                      expandEligibility ? "bg-primary" : "bg-surface-variant"
-                    } peer-focus:ring-2 peer-focus:ring-primary/30`}
+                      expandEligibility ? "bg-blue-100" : "bg-surface-variant"
+                    } peer-focus:ring-2 peer-focus:ring-blue-300`}
                   />
                   <div
                     className={`absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
@@ -1601,7 +1601,7 @@ export function AutoCalculateDialog({
               {expandEligibility ? (
                 <div className="space-y-3">
                   <p className="text-[11px] text-on-surface-variant flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[14px] text-primary" aria-hidden="true">touch_app</span>
+                    <span className="material-symbols-outlined text-[14px] text-blue-800" aria-hidden="true">touch_app</span>
                     Chọn các chuyên khoa được phép gán vào L01, L02, L03. Để trống = dùng CORE.
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -1620,8 +1620,8 @@ export function AutoCalculateDialog({
                           }}
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all ${
                             selected
-                              ? "bg-primary text-on-primary border-primary shadow-sm"
-                              : "bg-surface-container-lowest text-on-surface border-outline-variant hover:border-primary hover:bg-primary-fixed/40"
+                              ? "bg-blue-100 text-blue-800 border-primary shadow-sm"
+                              : "bg-surface-container-lowest text-on-surface border-outline-variant hover:border-primary hover:bg-blue-100/40"
                           }`}
                           aria-pressed={selected}
                         >
@@ -1643,7 +1643,7 @@ export function AutoCalculateDialog({
                         <span>Dùng CORE: <span className="font-mono font-semibold">{CORE_SPECIALTIES.join(", ")}</span></span>
                       ) : (
                         <span>
-                          Đã chọn: <span className="font-mono font-semibold text-primary">{expandedSpecialties.join(", ")}</span>
+                          Đã chọn: <span className="font-mono font-semibold text-blue-800">{expandedSpecialties.join(", ")}</span>
                         </span>
                       )}
                     </div>
@@ -1653,7 +1653,7 @@ export function AutoCalculateDialog({
                         setExpandedSpecialties([...ALL_SPECIALTIES]);
                         handleFieldChange("expand");
                       }}
-                      className="text-[11px] px-2 py-1 rounded-lg text-primary hover:bg-primary-fixed transition-colors"
+                      className="text-[11px] px-2 py-1 rounded-lg text-blue-800 hover:bg-blue-100 transition-colors"
                     >
                       Chọn tất cả
                     </button>
@@ -1668,10 +1668,10 @@ export function AutoCalculateDialog({
             </section>
 
             {/* Results Preview */}
-            <section className="bg-secondary-container/20 rounded-xl p-4 border border-secondary/30">
+            <section className="bg-emerald-100/20 text-emerald-800 border border-emerald-300">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-label-md font-semibold text-on-surface flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">preview</span>
+                  <span className="material-symbols-outlined text-[16px] text-emerald-800" aria-hidden="true">preview</span>
                   Kết quả tính toán
                   {(changedFields.size > 0) && (
                     <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
@@ -1682,7 +1682,7 @@ export function AutoCalculateDialog({
                     type="button"
                     onClick={() => setShowChart(!showChart)}
                     className={`text-[11px] px-2 py-1 rounded-lg transition-colors ${
-                      showChart ? "bg-secondary-container text-secondary" : "text-on-surface-variant hover:bg-surface-container"
+                      showChart ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "text-on-surface-variant hover:bg-surface-container"
                     }`}
                   >
                     <span className="material-symbols-outlined text-[14px] align-middle mr-1" aria-hidden="true">bar_chart</span>
@@ -1692,7 +1692,7 @@ export function AutoCalculateDialog({
                     type="button"
                     onClick={() => setShowDiff(!showDiff)}
                     className={`text-[11px] px-2 py-1 rounded-lg transition-colors ${
-                      showDiff ? "bg-secondary-container text-secondary" : "text-on-surface-variant hover:bg-surface-container"
+                      showDiff ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "text-on-surface-variant hover:bg-surface-container"
                     }`}
                   >
                     <span className="material-symbols-outlined text-[14px] align-middle mr-1" aria-hidden="true">compare_arrows</span>
@@ -1716,13 +1716,13 @@ export function AutoCalculateDialog({
                       <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
                         Min/ngày
                         <Tooltip content="Ít nhất bao nhiêu ca cần xếp mỗi ngày">
-                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
+                          <span className="ml-1 text-blue-800 cursor-help text-[10px]">?</span>
                         </Tooltip>
                       </th>
                       <th className="py-2.5 px-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-center">
                         Max/ngày
                         <Tooltip content="Nhiều nhất bao nhiêu ca được phép mỗi ngày">
-                          <span className="ml-1 text-primary cursor-help text-[10px]">?</span>
+                          <span className="ml-1 text-blue-800 cursor-help text-[10px]">?</span>
                         </Tooltip>
                       </th>
                     </tr>
@@ -1741,18 +1741,18 @@ export function AutoCalculateDialog({
                               <span className={`font-mono font-bold text-[13px] ${meta.color}`}>{tid}</span>
                               <span className="text-[11px] text-on-surface-variant">{meta.subtitle}</span>
                               {isFromAI && (
-                                <span className="material-symbols-outlined text-[12px] text-secondary" aria-hidden="true">auto_awesome</span>
+                                <span className="material-symbols-outlined text-[12px] text-emerald-800" aria-hidden="true">auto_awesome</span>
                               )}
                             </div>
                           </td>
                           <td className="py-2 px-3 text-center">
                             <span className={`font-mono font-semibold tabular-nums ${
-                              isFromAI ? "text-secondary" : "text-on-surface"
+                              isFromAI ? "text-emerald-800" : "text-on-surface"
                             }`}>{minDay}</span>
                           </td>
                           <td className="py-2 px-3 text-center">
                             <span className={`font-mono font-semibold tabular-nums ${
-                              isFromAI ? "text-secondary" : "text-on-surface"
+                              isFromAI ? "text-emerald-800" : "text-on-surface"
                             }`}>{maxDay}</span>
                           </td>
                         </tr>
@@ -1763,8 +1763,8 @@ export function AutoCalculateDialog({
               </div>
 
               {recommendation && (
-                <div className="mt-3 px-3 py-2 rounded-lg bg-secondary-container/30 border border-secondary/30">
-                  <div className="flex items-center gap-2 text-[11px] text-secondary">
+                <div className="mt-3 px-3 py-2 rounded-lg bg-emerald-100/30 border border-emerald-300">
+                  <div className="flex items-center gap-2 text-[11px] text-emerald-800">
                     <span className="material-symbols-outlined text-[14px]" aria-hidden="true">auto_awesome</span>
                     <span>AI đã tối ưu các giá trị (màu xanh) dựa trên dữ liệu thực tế</span>
                   </div>
@@ -1776,10 +1776,10 @@ export function AutoCalculateDialog({
               </p>
 
               {/* AI Recommendation */}
-              <div className="mt-4 pt-3 border-t border-secondary/20">
+              <div className="mt-4 pt-3 border-t border-emerald-300">
                 <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">auto_awesome</span>
+                    <span className="material-symbols-outlined text-[16px] text-emerald-800" aria-hidden="true">auto_awesome</span>
                     <span className="text-[13px] font-semibold text-on-surface">Đề xuất từ AI</span>
                     <Tooltip content="AI sẽ phân tích dữ liệu lịch sử và đề xuất cấu hình tối ưu nhất cho bạn">
                       <span className="material-symbols-outlined text-[12px] text-on-surface-variant cursor-help">help</span>
@@ -1797,15 +1797,15 @@ export function AutoCalculateDialog({
                   </Button>
                 </div>
                 {recommendError && (
-                  <div className="text-[12px] text-error bg-error-container/30 border border-error/30 rounded-lg px-3 py-2 mb-2">
+                  <div className="text-[12px] text-red-800 bg-red-100/30 border border-red-300 rounded-lg px-3 py-2 mb-2">
                     {recommendError}
                   </div>
                 )}
                 {recommendation && (
-                  <div className="bg-surface-container-lowest rounded-lg p-3 border border-secondary/30 space-y-2">
+                  <div className="bg-surface-container-lowest rounded-lg p-3 border bg-emerald-100 border-emerald-300 space-y-2">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="text-[12px] text-on-surface-variant">Tổng ca dự kiến:</span>
-                      <span className="font-mono font-bold text-primary tabular-nums">{recommendation.totalShiftsExpected} ca</span>
+                      <span className="font-mono font-bold text-blue-800 tabular-nums">{recommendation.totalShiftsExpected} ca</span>
                     </div>
                     <p className="text-[11px] text-on-surface leading-relaxed">
                       {recommendation.rationale}
@@ -1827,7 +1827,7 @@ export function AutoCalculateDialog({
                   </span>
                 )}
                 {changedFields.size > 0 && (
-                  <span className="flex items-center gap-1 ml-3 text-secondary">
+                  <span className="flex items-center gap-1 ml-3 text-emerald-800">
                     <span className="material-symbols-outlined text-[12px]" aria-hidden="true">edit</span>
                     {changedFields.size} thay đổi
                   </span>
@@ -1871,7 +1871,7 @@ export function AutoCalculateDialog({
               value={savePresetName}
               onChange={(e) => setSavePresetName(e.target.value)}
               placeholder="VD: Cấu hình tháng 6"
-              className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-body-md focus:outline-none focus:ring-2 focus:ring-primary/20 mb-2"
+              className="w-full h-10 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-body-md focus:outline-none focus:ring-2 focus:ring-blue-300 mb-2"
             />
             <p className="text-[10px] text-on-surface-variant mb-4">Đặt tên dễ nhớ để tìm lại sau.</p>
             <div className="flex justify-end gap-2">

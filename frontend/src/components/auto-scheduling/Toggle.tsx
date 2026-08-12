@@ -22,7 +22,7 @@ export function Toggle({ checked, onChange, disabled, id, label }: ToggleProps) 
       />
       <span
         aria-hidden="true"
-        className="block w-9 h-5 bg-outline-variant rounded-full peer-checked:bg-primary-container transition-colors"
+        className="block w-9 h-5 bg-outline-variant rounded-full peer-checked:bg-blue-100-container transition-colors"
       />
       <span
         aria-hidden="true"

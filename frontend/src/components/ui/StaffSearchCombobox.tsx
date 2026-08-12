@@ -278,8 +278,8 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
 
   const triggerContent = selectedStaff ? (
     <div className="flex items-center gap-2.5 px-3 py-2 min-w-0 flex-1">
-      <div className="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center shrink-0" aria-hidden="true">
-        <span className="text-[13px] font-bold text-primary leading-none">
+      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0" aria-hidden="true">
+        <span className="text-[13px] font-bold text-blue-800 leading-none">
           {selectedStaff.fullName.split(" ").slice(-2).map((n) => n[0]).join("").toUpperCase()}
         </span>
       </div>
@@ -378,7 +378,7 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
                   onKeyDown={handleKeyDown}
                   ref={inputRef}
                   placeholder="Tìm theo tên, khoa, chức vụ…"
-                  className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low text-body-sm text-on-surface rounded-lg border border-transparent focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-outline"
+                  className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low text-body-sm text-on-surface rounded-lg border border-transparent focus:border-blue-300 focus:bg-surface-container-lowest focus:outline-none focus:ring-1 focus:ring-blue-300 transition-all placeholder:text-outline"
                   aria-label="Tìm kiếm nhân sự"
                   autoComplete="off"
                 />
@@ -486,7 +486,7 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
                   )}
                   {filtered.unavailableConflict.length > 0 && (
                     <div>
-                      <p className="px-4 pt-2 pb-1 text-label-sm text-error uppercase tracking-wide font-semibold">
+                      <p className="px-4 pt-2 pb-1 text-label-sm text-red-800 uppercase tracking-wide font-semibold">
                         Xung đột loại lịch
                       </p>
                       {filtered.unavailableConflict.map((staff) => (
@@ -526,7 +526,7 @@ export const StaffSearchCombobox = memo(function StaffSearchCombobox({
 
       {/* Error */}
       {error && (
-        <p className="flex items-center gap-1 text-label-sm text-error" role="alert">
+        <p className="flex items-center gap-1 text-label-sm text-red-800" role="alert">
           <span className="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
           {error}
         </p>
@@ -566,9 +566,9 @@ function StaffOption({
         isUnavailable
           ? "opacity-60 cursor-not-allowed"
           : isActive
-          ? "bg-primary-fixed cursor-pointer"
+          ? "bg-blue-100 cursor-pointer"
           : isSelected
-          ? "bg-primary-fixed cursor-pointer"
+          ? "bg-blue-100 cursor-pointer"
           : "hover:bg-surface-container-low cursor-pointer",
       ].join(" ")}
       onClick={onSelect}
@@ -577,7 +577,7 @@ function StaffOption({
       <div
         className={[
           "w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[12px] font-bold leading-none",
-          isUnavailable ? "bg-surface-container-high text-outline" : "bg-primary-fixed text-primary",
+          isUnavailable ? "bg-surface-container-high text-outline" : "bg-blue-100 text-blue-800",
         ].join(" ")}
         aria-hidden="true"
       >
@@ -592,7 +592,7 @@ function StaffOption({
       </div>
 
       {isSelected && !isUnavailable && (
-        <span className="material-symbols-outlined text-primary shrink-0" aria-label="Đã chọn" style={{ fontVariationSettings: "'FILL' 1" }}>
+        <span className="material-symbols-outlined text-blue-800 shrink-0" aria-label="Đã chọn" style={{ fontVariationSettings: "'FILL' 1" }}>
           check
         </span>
       )}

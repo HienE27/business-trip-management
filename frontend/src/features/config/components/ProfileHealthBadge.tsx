@@ -35,9 +35,9 @@ export function ProfileHealthBadge({
       className={`
         inline-flex items-center gap-1 font-semibold rounded-full border shrink-0
         ${config}
-        ${status === "valid" ? "bg-secondary-container text-on-secondary-container border-secondary/20" : ""}
-        ${status === "warning" ? "bg-tertiary-container text-on-tertiary-container border-tertiary/20" : ""}
-        ${status === "invalid" ? "bg-error-container text-on-error-container border-error/20" : ""}
+        ${status === "valid" ? "bg-emerald-100 text-emerald-800 border-secondary/20" : ""}
+        ${status === "warning" ? "bg-amber-100 text-amber-800 border-amber-300" : ""}
+        ${status === "invalid" ? "bg-red-100 text-red-800 border-error/20" : ""}
       `}
     >
       <span className={`material-symbols-outlined ${iconSize}`} style={{ fontVariationSettings: "'FILL' 1" }}>

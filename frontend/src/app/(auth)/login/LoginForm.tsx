@@ -96,7 +96,7 @@ export function LoginForm() {
           {/* Brand */}
           <div className="mb-8 text-center md:text-left">
             <div className="mb-5 flex items-center justify-center gap-3 md:justify-start">
-              <div className="relative flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-fixed text-on-primary shadow-lg shadow-primary/30">
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue-100 text-blue-800 shadow-lg shadow-primary/30">
                 <span
                   aria-hidden="true"
                   className="material-symbols-outlined text-2xl"
@@ -110,7 +110,7 @@ export function LoginForm() {
                 </span>
               </div>
               <div>
-                <h1 className="font-title-lg text-title-lg font-bold tracking-tight text-primary">
+                <h1 className="font-title-lg text-title-lg font-bold tracking-tight text-blue-800">
                   MedSchedule
                 </h1>
                 <p className="text-label-sm font-medium text-on-surface-variant">
@@ -130,7 +130,7 @@ export function LoginForm() {
           <form className="space-y-4" onSubmit={handleSubmit} noValidate>
             {error && (
               <div
-                className="flex items-start gap-2.5 rounded-lg border border-error/30 bg-error-container/80 px-4 py-3 text-body-sm text-on-error-container animate-in fade-in slide-in-from-top-1 duration-200"
+                className="flex items-start gap-2.5 rounded-lg border border-red-300 bg-red-100 text-red-800 px-4 py-3 text-body-sm animate-in fade-in slide-in-from-top-1 duration-200"
                 role="alert"
                 aria-live="assertive"
               >
@@ -208,7 +208,7 @@ export function LoginForm() {
               <button
                 type="button"
                 onClick={() => setForgotOpen(true)}
-                className="rounded text-label-md font-medium text-primary transition-colors hover:text-on-primary-fixed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1"
+                className="rounded text-label-md font-medium text-blue-800 transition-colors hover:text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1"
               >
                 Quên mật khẩu?
               </button>
@@ -251,11 +251,11 @@ export function LoginForm() {
             © 2026 MedSchedule — Nhóm 4 DACN
           </p>
           <div className="flex items-center justify-center gap-3 text-label-sm text-on-surface-variant md:justify-end">
-            <a className="hover:text-primary" href="#">
+            <a className="hover:text-blue-800" href="#">
               Hỗ trợ
             </a>
             <span>·</span>
-            <a className="hover:text-primary" href="#">
+            <a className="hover:text-blue-800" href="#">
               Điều khoản
             </a>
           </div>

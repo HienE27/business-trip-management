@@ -6,8 +6,8 @@ type ShiftDetailTableProps = {
 };
 
 const ROLE_BADGE_STYLES: Record<string, string> = {
-  primary: "bg-primary-fixed text-primary border border-primary/20",
-  secondary: "bg-secondary-container text-secondary border border-secondary/20",
+  primary: "bg-blue-100 text-blue-800 border border-primary/20",
+  secondary: "bg-emerald-100 text-emerald-800 border border-secondary/20",
   neutral: "bg-surface-container-high text-on-surface border border-outline-variant",
 };
 
@@ -27,10 +27,10 @@ export function ShiftDetailTable({ shift, className = "" }: ShiftDetailTableProp
       {/* Header */}
       <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
         <h2 className="text-title-lg text-on-surface flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">groups</span>
+          <span className="material-symbols-outlined text-blue-800">groups</span>
           Danh sách chi tiết nhân sự tham gia
         </h2>
-        <span className="bg-primary-fixed text-on-primary-fixed-variant px-3 py-1 rounded-full text-label-sm font-medium">
+        <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-label-sm font-medium">
           Tổng: {shift.staff.length} nhân sự
         </span>
       </div>
@@ -60,7 +60,7 @@ export function ShiftDetailTable({ shift, className = "" }: ShiftDetailTableProp
                   <div className="flex items-center gap-3">
                     <StaffAvatar initials={staff.initials} avatarColor={staff.avatarColor} />
                     <div>
-                      <p className="text-label-md text-on-surface group-hover:text-primary transition-colors">
+                      <p className="text-label-md text-on-surface group-hover:text-blue-800 transition-colors">
                         {staff.name}
                       </p>
                       <p className="text-label-md text-on-surface-variant">{staff.department}</p>

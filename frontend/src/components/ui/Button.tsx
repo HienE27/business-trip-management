@@ -10,9 +10,9 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
  * Supports forwardRef for focus management
  *
  * Design tokens:
- *   primary:   bg-primary text-on-primary
+ *   primary:   bg-blue-100 text-blue-800
  *   secondary: border-outline-variant bg-surface-container-lowest
- *   danger:    bg-error text-on-error
+ *   danger:    bg-red-100 text-red-800
  *   ghost:     bg-transparent hover:bg-surface-container-low
  */
 
@@ -29,9 +29,9 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary:   "bg-primary text-on-primary hover:opacity-90 hover:shadow-md active:scale-[0.98]",
+  primary:   "bg-blue-100 text-blue-800 hover:bg-blue-200 hover:shadow-md active:scale-[0.98]",
   secondary: "border border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low hover:shadow-sm active:scale-[0.98]",
-  danger:    "bg-error text-on-error hover:opacity-90 hover:shadow-md active:scale-[0.98]",
+  danger:    "bg-red-100 text-red-800 hover:bg-red-200 hover:shadow-md active:scale-[0.98]",
   ghost:     "bg-transparent text-on-surface hover:bg-surface-container-low hover:shadow-sm active:scale-[0.98]",
 };
 
