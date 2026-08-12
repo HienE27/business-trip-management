@@ -704,7 +704,7 @@ export function PermissionMatrixContent() {
       {searchQuery && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-outline-variant bg-surface-container-lowest text-[13px] text-on-surface-variant">
           <span className="material-symbols-outlined text-[18px]">search</span>
-          Tìm thấy {filteredGroups.reduce((acc, g) => acc + g.keys.length, 0)} quyền cho "{searchQuery}"
+          Tìm thấy {filteredGroups.reduce((acc, g) => acc + g.keys.length, 0)} quyền cho &quot;{searchQuery}&quot;
                       <button
                         type="button"
             onClick={() => setSearchQuery("")}

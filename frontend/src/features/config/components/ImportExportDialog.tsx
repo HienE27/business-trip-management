@@ -29,6 +29,13 @@ export function ImportExportDialog({
   const [importJson, setImportJson] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
 
+  const handleClose = () => {
+    setExportJson(null);
+    setImportJson("");
+    setActiveTab("import");
+    onClose();
+  };
+
   const handleExport = useCallback(async () => {
     if (!profile) return;
     setIsLoading(true);
@@ -75,13 +82,6 @@ export function ImportExportDialog({
     URL.revokeObjectURL(url);
     success("Đã tải file");
   }, [exportJson, profile, success]);
-
-  const handleClose = () => {
-    setExportJson(null);
-    setImportJson("");
-    setActiveTab("import");
-    onClose();
-  };
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -216,7 +216,7 @@ export function ImportExportDialog({
                   <span className="material-symbols-outlined text-[64px] text-blue-800/50 mb-4 block">
                     description
                   </span>
-                  <p className="text-label-md text-on-surface mb-2">Xuất cấu hình "{profile?.nameVi}"</p>
+                  <p className="text-label-md text-on-surface mb-2">Xuất cấu hình &quot;{profile?.nameVi}&quot;</p>
                   <p className="text-[12px] text-on-surface-variant mb-4">
                     File JSON sẽ chứa toàn bộ cấu hình thuật toán
                   </p>

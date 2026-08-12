@@ -52,6 +52,19 @@ export function CreateProfileDialog({ open, onClose, onCreated }: CreateProfileD
   });
   const [tagInput, setTagInput] = useState("");
 
+  const handleClose = () => {
+    setForm({
+      nameVi: "",
+      nameEn: "",
+      description: "",
+      category: "GENERAL",
+      icon: "tune",
+      tags: [],
+    });
+    setTagInput("");
+    onClose();
+  };
+
   const handleSubmit = useCallback(async () => {
     if (!form.nameVi.trim()) {
       error("Vui lòng nhập tên cấu hình");
@@ -69,20 +82,7 @@ export function CreateProfileDialog({ open, onClose, onCreated }: CreateProfileD
     } finally {
       setIsSubmitting(false);
     }
-  }, [form, success, error, onCreated]);
-
-  const handleClose = () => {
-    setForm({
-      nameVi: "",
-      nameEn: "",
-      description: "",
-      category: "GENERAL",
-      icon: "tune",
-      tags: [],
-    });
-    setTagInput("");
-    onClose();
-  };
+  }, [form, success, error, onCreated, handleClose]);
 
   const addTag = (tag: string) => {
     if (tag && !form.tags?.includes(tag)) {

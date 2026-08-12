@@ -36,12 +36,12 @@ export function LiveSearchChart({ runId, bufferSize = 200 }: LiveSearchChartProp
   const [events, setEvents] = useState<LiveSearchEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const countersRef = useRef({ accepted: 0, rejected: 0, tabu: 0, scoreImproved: 0 });
+  const [counters, setCounters] = useState({ accepted: 0, rejected: 0, tabu: 0, scoreImproved: 0 });
 
   // Reset state whenever the run id changes
   useEffect(() => {
     setEvents([]);
-    countersRef.current = { accepted: 0, rejected: 0, tabu: 0, scoreImproved: 0 };
+    setCounters({ accepted: 0, rejected: 0, tabu: 0, scoreImproved: 0 });
   }, [runId]);
 
   // Connect SSE
@@ -69,10 +69,10 @@ export function LiveSearchChart({ runId, bufferSize = 200 }: LiveSearchChartProp
     source.addEventListener("event", (ev) => {
       try {
         const parsed = JSON.parse((ev as MessageEvent).data) as LiveSearchEvent;
-        if (parsed.type === "MOVE_ACCEPTED") countersRef.current.accepted++;
-        else if (parsed.type === "MOVE_REJECTED") countersRef.current.rejected++;
-        else if (parsed.type === "TABU_HIT") countersRef.current.tabu++;
-        else if (parsed.type === "SCORE_IMPROVED") countersRef.current.scoreImproved++;
+        if (parsed.type === "MOVE_ACCEPTED") setCounters(c => ({ ...c, accepted: c.accepted + 1 }));
+        else if (parsed.type === "MOVE_REJECTED") setCounters(c => ({ ...c, rejected: c.rejected + 1 }));
+        else if (parsed.type === "TABU_HIT") setCounters(c => ({ ...c, tabu: c.tabu + 1 }));
+        else if (parsed.type === "SCORE_IMPROVED") setCounters(c => ({ ...c, scoreImproved: c.scoreImproved + 1 }));
         setEvents((prev) => {
           const next = prev.length >= bufferSize ? prev.slice(-bufferSize + 1) : prev.slice();
           next.push(parsed);
@@ -245,10 +245,9 @@ export function LiveSearchChart({ runId, bufferSize = 200 }: LiveSearchChartProp
     );
   }
 
-  const c = countersRef.current;
   const acceptedRate =
-    c.accepted + c.rejected > 0
-      ? Math.round((c.accepted / (c.accepted + c.rejected)) * 100)
+    counters.accepted + counters.rejected > 0
+      ? Math.round((counters.accepted / (counters.accepted + counters.rejected)) * 100)
       : 0;
 
   return (
@@ -272,9 +271,9 @@ export function LiveSearchChart({ runId, bufferSize = 200 }: LiveSearchChartProp
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <KPI label="Chấp nhận" value={c.accepted} tone="secondary" />
-        <KPI label="Từ chối" value={c.rejected} tone="neutral" />
-        <KPI label="Tabu hit" value={c.tabu} tone="tertiary" />
+        <KPI label="Chấp nhận" value={counters.accepted} tone="secondary" />
+        <KPI label="Từ chối" value={counters.rejected} tone="neutral" />
+        <KPI label="Tabu hit" value={counters.tabu} tone="tertiary" />
         <KPI label="Tỉ lệ chấp nhận" value={`${acceptedRate}%`} tone="primary" />
       </div>
 

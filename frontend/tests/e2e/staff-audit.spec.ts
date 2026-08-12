@@ -217,7 +217,7 @@ test.describe('Staff page real browser audit', () => {
     );
     const beforeImportCount = NETWORK_LOG.length;
     let importFileChooserOk = false;
-    let importResponseBody = '';
+    const importResponseBody = '';
     try {
       const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 5000 });
       await page.getByRole('button', { name: /Nhập Excel/ }).click();

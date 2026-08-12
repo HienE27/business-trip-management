@@ -154,7 +154,7 @@ function HolidaysContent() {
       const qs = params.toString();
       router.push(`/holidays${qs ? `?${qs}` : ""}`, { scroll: false });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [router, searchParams]
   );
   // ─────────────────────────────────────────────────────────────────────

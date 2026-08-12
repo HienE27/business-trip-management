@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { PresetKey, RuntimeConfig as PresetRuntimeConfig } from "@/components/algorithm-config/PresetSelector";
-import { PresetSelector } from "@/components/algorithm-config/PresetSelector";
+import type { PresetKey } from "@/components/algorithm-config/PresetSelector";
 import { Button } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -14,7 +13,6 @@ import { ALGORITHM_PRESETS, detectPreset } from "./presets";
 import {
   PARAM_GROUPS,
   SHIFT_TYPE_GROUPS,
-  READ_ONLY_GROUP_IDS,
   calcProgressPct,
   formatParamDisplay,
   getParamBounds,
@@ -27,7 +25,6 @@ import { BusinessRulesCard } from "./BusinessRulesCard";
 import { ConfigDiffModal } from "./ConfigDiffModal";
 import { getChangedKeys } from "./diff";
 import { mergeRuntimeAndAutoGen } from "./merge";
-import type { ShiftStatistics } from "@/types/api";
 
 type Props = { onSaved?: () => void };
 
@@ -41,12 +38,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
   const [activePreset, setActivePreset] = useState<PresetKey | null>(null);
   const [customPresets, setCustomPresets] = useState<Record<string, { label: string; tagline: string; config: Partial<RuntimeConfig> }>>({});
   const [showDiff, setShowDiff] = useState(false);
-  const [scheduleStats, setScheduleStats] = useState<{
-    totalStaff: number;
-    avgShiftsPerStaff: number;
-    coverageDays: number;
-    periodDays: number;
-  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,12 +52,12 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
 	      // not T directly — so we must read .data to get the actual config object.
 	      // `as any` is safe here because we know the runtime shape at runtime even
 	      // though the TypeScript return types are under-specified.
+	      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- api-client returns ApiResponse<T> wrapper, unwrap needed
 	      const resAny = runtimeResp as any;
 	      const data = (resAny.data ?? resAny) as RuntimeConfig;
+	      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- api-client returns ApiResponse<T> wrapper, unwrap needed
 	      const autoGenAny = autoGenResp as any;
 	      const autoGen = (autoGenAny.data ?? autoGenAny) as RuntimeConfig;
-      const summary = (dashboardRes as { summary?: { totalStaff: number } })?.summary ?? { totalStaff: 0 };
-      const shiftStats = (dashboardRes as { shiftStatistics?: ShiftStatistics })?.shiftStatistics;
 
       const merged = mergeRuntimeAndAutoGen(data, autoGen);
       // BUG-CARD-NO-PERSIST: This log is intentional for diagnosing the
@@ -87,18 +78,6 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
       }));
       setConfig(merged);
       setForm(merged);
-
-      // Calculate schedule stats for suggestion algorithm
-      if (summary && shiftStats) {
-        const totalShifts = shiftStats.L01Count + shiftStats.L02Count + shiftStats.L03Count + shiftStats.L04Count;
-        const avgShifts = summary.totalStaff > 0 ? totalShifts / summary.totalStaff : 0;
-        setScheduleStats({
-          totalStaff: summary.totalStaff,
-          avgShiftsPerStaff: Math.round(avgShifts * 10) / 10,
-          coverageDays: Math.round(avgShifts * 4), // rough estimate
-          periodDays: 30,
-        });
-      }
     } catch {
       error("Không thể tải cấu hình runtime");
     } finally {
@@ -204,9 +183,13 @@ export function RuntimeConfigEditor({ onSaved }: Props) {
         l02MaxPerDay: form.l02MaxPerDay ?? 0,
         l03MaxPerDay: form.l03MaxPerDay ?? 0,
         l04MaxPerDay: form.l04MaxPerDay ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended fields not in RuntimeConfig type
         l01MaxPerWeek: (form as any).l01MaxPerWeek ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended fields not in RuntimeConfig type
         l02MaxPerWeek: (form as any).l02MaxPerWeek ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended fields not in RuntimeConfig type
         l03MaxPerWeek: (form as any).l03MaxPerWeek ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended fields not in RuntimeConfig type
         l04MaxPerWeek: (form as any).l04MaxPerWeek ?? 0,
 	        removedShiftTypes: form.removedShiftTypes ?? [],
 	      };
@@ -486,13 +469,6 @@ type ParamGroupCardProps = {
   form: RuntimeConfig;
   editing: boolean;
   onChange: <K extends keyof RuntimeConfig>(key: K, value: RuntimeConfig[K]) => void;
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  business: "Nghiệp vụ",
-  advanced: "Nâng cao",
-  monitoring: "Theo dõi",
-  internal: "Nội bộ",
 };
 
 function ParamGroupCard({ group, form, editing, onChange }: ParamGroupCardProps) {

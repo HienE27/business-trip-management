@@ -59,13 +59,14 @@ export async function loginAsTestUser(page: Page): Promise<boolean> {
  * tests don't have to destructure it inside `beforeEach`, avoiding the
  * Playwright 1.61 / Node 22 sync-loader regression.
  */
+ 
 export async function loginAs(page: Page): Promise<boolean> {
   return loginAsTestUser(page);
 }
 
 export const test = base.extend<{ loginAs: (page: Page) => Promise<boolean> }>({
-  loginAs: async ({}, use) => {
-    await use(loginAs);
+  loginAs: async ({}, fixtureUse) => {
+    await fixtureUse(loginAs);
   },
 });
 
