@@ -16,6 +16,7 @@ import { useSchedulePeriodData } from "@/hooks/useSchedulePeriodData";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Permission } from "@/lib/permissions";
 import { useScheduleFilters } from "@/hooks/useScheduleFilters";
+import { useAuth } from "@/components/auth/AuthProvider";
 import type { DashboardData } from "@/types/api";
 
 type WorkflowStep = {
@@ -90,6 +91,14 @@ export default function DashboardPage() {
   const router = useRouter();
   const data = useSchedulePeriodData({ conflictPollMs: 60000 });
   const { canAny } = usePermissions();
+  const { user: authUser } = useAuth();
+
+  // STAFF: auto-select own staff ID on mount
+  const currentUserId = authUser?.userId;
+  const isStaffOnly = useMemo(
+    () => authUser?.roles?.every((r) => r === "STAFF") ?? false,
+    [authUser?.roles],
+  );
 
   // BUGFIX (was FE#14): Filter quick actions by what the current user is
   // actually allowed to do. STAFF users previously saw every card and only
@@ -110,7 +119,7 @@ export default function DashboardPage() {
     periods,
     selectedPeriodId,
     selectedPeriod,
-    schedules,
+    schedules: allSchedules,
     activeStaff,
     conflictData,
     compensationDays,
@@ -120,6 +129,12 @@ export default function DashboardPage() {
     refresh,
     setMessage,
   } = data;
+
+  // STAFF: Filter schedules to only show current user's schedules
+  const schedules = useMemo(() => {
+    if (!isStaffOnly || !currentUserId) return allSchedules;
+    return allSchedules.filter((s) => s.staff?.id === currentUserId);
+  }, [allSchedules, isStaffOnly, currentUserId]);
 
   // BUGFIX (was FE#4): the data race here was that a fast-firing
   // selectedPeriodId change (P1 → P2 → P3) sent three parallel GETs. If
@@ -221,6 +236,18 @@ export default function DashboardPage() {
     [activeStaff]
   );
 
+  // STAFF: Compute personal KPIs from filtered schedules
+  const personalStats = useMemo(() => {
+    if (!isStaffOnly) return null;
+    return {
+      myTotalSchedules: schedules.length,
+      myL01Count: schedules.filter((s) => s.shiftType?.id === "L01").length,
+      myL02Count: schedules.filter((s) => s.shiftType?.id === "L02").length,
+      myL03Count: schedules.filter((s) => s.shiftType?.id === "L03").length,
+      myL04Count: schedules.filter((s) => s.shiftType?.id === "L04").length,
+    };
+  }, [schedules, isStaffOnly]);
+
   return (
     <div className="max-w-[1440px] mx-auto space-y-6 w-full min-w-0 overflow-hidden">
       {/* Alert badges */}
@@ -230,8 +257,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Notification bar */}
-      {(totalConflicts > 0 || pendingExchanges > 0 || pendingLeave > 0) && (
+      {/* Notification bar - only for MANAGER/ADMIN */}
+      {!isStaffOnly && (totalConflicts > 0 || pendingExchanges > 0 || pendingLeave > 0) && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-2.5 shadow-sm">
           <span className="text-label-sm text-on-surface-variant mr-1">Cần xử lý:</span>
           {totalConflicts > 0 && (
@@ -312,36 +339,40 @@ export default function DashboardPage() {
             </span>
           )}
           <div className="ml-auto flex items-center gap-2 flex-wrap">
-            {selectedPeriodId && (
-              <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void handleExportPdf()}
-                  disabled={exporting}
-                  icon={<span className="material-symbols-outlined text-[16px]" aria-hidden="true">picture_as_pdf</span>}
-                >
+            {/* Export buttons - only for MANAGER/ADMIN */}
+          {!isStaffOnly && selectedPeriodId && (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleExportPdf()}
+                disabled={exporting}
+                icon={<span className="material-symbols-outlined text-[16px]" aria-hidden="true">picture_as_pdf</span>}
+              >
                   PDF
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void handleExport()}
-                  disabled={exporting}
-                  loading={exporting}
-                  icon={!exporting ? <span className="material-symbols-outlined text-[16px]" aria-hidden="true">download</span> : undefined}
-                >
-                  Excel
-                </Button>
-              </>
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleExport()}
+                disabled={exporting}
+                loading={exporting}
+                icon={!exporting ? <span className="material-symbols-outlined text-[16px]" aria-hidden="true">download</span> : undefined}
+              >
+                Excel
+              </Button>
+            </>
+          )}
+            {/* "Lập lịch" button - only for MANAGER/ADMIN */}
+            {!isStaffOnly && (
+              <Link
+                href="/monthly-schedule"
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-100 text-blue-800 text-label-sm font-medium hover:bg-blue-100/90 transition-colors shrink-0"
+              >
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                Lập lịch
+              </Link>
             )}
-            <Link
-              href="/monthly-schedule"
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-100 text-blue-800 text-label-sm font-medium hover:bg-blue-100/90 transition-colors shrink-0"
-            >
-              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-              Lập lịch
-            </Link>
           </div>
         </div>
       ) : null}
@@ -349,7 +380,23 @@ export default function DashboardPage() {
       {/* KPI Grid */}
       {loading ? (
         <SkeletonDashboardKPIGrid />
+      ) : isStaffOnly && personalStats ? (
+        // STAFF: Personal schedule summary
+        <div className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-4 gap-4 min-w-0">
+          <KPICard
+            label="Ca trực của tôi"
+            value={personalStats.myTotalSchedules}
+            icon="event_available"
+            tone="info"
+            helper="Trong kỳ này"
+          />
+          <KPICard label="Trực 24/24" value={personalStats.myL01Count} icon="emergency" tone="error" />
+          <KPICard label="Thông tầm" value={personalStats.myL02Count} icon="schedule" tone="success" />
+          <KPICard label="PK dịch vụ" value={personalStats.myL03Count} icon="medical_services" tone="warning" />
+          <KPICard label="PK chuyên gia" value={personalStats.myL04Count} icon="stethoscope" tone="neutral" />
+        </div>
       ) : (
+        // MANAGER/ADMIN: System-wide stats
         <div className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-4 gap-4 min-w-0">
           <KPICard
             label="Nhân sự đang hoạt động"
@@ -404,7 +451,8 @@ export default function DashboardPage() {
               Lịch kỳ {selectedPeriod.periodName}
             </h2>
             <div className="flex items-center gap-3 flex-wrap">
-              {staffList.length > 0 && (
+              {/* Hide staff filter dropdown for STAFF - they only see their own schedule */}
+              {!isStaffOnly && staffList.length > 0 && (
                 <div className="relative">
                   <select
                     className="h-8 pl-3 pr-8 bg-surface-container-low border border-outline-variant rounded-lg text-label-sm text-on-surface appearance-none cursor-pointer focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all min-w-[160px]"
@@ -425,6 +473,11 @@ export default function DashboardPage() {
                     expand_more
                   </span>
                 </div>
+              )}
+              {isStaffOnly && (
+                <span className="text-label-sm text-on-surface-variant bg-surface-container-low px-2.5 py-1 rounded-lg border border-outline-variant">
+                  Chỉ hiển thị lịch của bạn
+                </span>
               )}
               <Link
                 href="/monthly-schedule"
