@@ -111,16 +111,27 @@ export function useSchedulePeriodData(
       }
     };
 
+    // STAFF uses /schedules/me/period/{periodId}, MANAGER/ADMIN uses /schedules/period/{periodId}
+    const scheduleEndpoint = isStaffOnly
+      ? `/schedules/me/period/${periodId}`
+      : `/schedules/period/${periodId}`;
+
     const [scheduleResult, conflictResult, compDaysData] = await Promise.all([
-      fetchOne<Schedule[]>(() => api.get<Schedule[]>(`/schedules/period/${periodId}`), []),
-      fetchOne<ConflictCheckResponse | null>(
-        () => api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`),
-        null
-      ),
-      fetchOne<CompensationDay[]>(
-        () => api.get<CompensationDay[]>(`/schedules/compensation-days/${periodId}`),
-        []
-      ),
+      fetchOne<Schedule[]>(() => api.get<Schedule[]>(scheduleEndpoint), []),
+      // STAFF doesn't need conflict data on dashboard
+      isStaffOnly
+        ? Promise.resolve(null)
+        : fetchOne<ConflictCheckResponse | null>(
+            () => api.get<ConflictCheckResponse>(`/schedules/conflicts/check/${periodId}`),
+            null
+          ),
+      // STAFF doesn't need compensation days on dashboard
+      isStaffOnly
+        ? Promise.resolve([])
+        : fetchOne<CompensationDay[]>(
+            () => api.get<CompensationDay[]>(`/schedules/compensation-days/${periodId}`),
+            []
+          ),
     ]);
 
     if (!aliveRef.current) return;

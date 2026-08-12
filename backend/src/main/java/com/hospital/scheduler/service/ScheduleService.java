@@ -98,6 +98,15 @@ public class ScheduleService {
                 .collect(Collectors.toList());
     }
 
+    public List<ScheduleResponse> getSchedulesByStaffAndPeriod(Integer staffId, Integer periodId) {
+        List<Schedule> schedules = scheduleRepository.findByStaffIdAndPeriodId(staffId, periodId);
+        if (schedules.isEmpty()) return List.of();
+        Map<Integer, List<String>> conflictMap = buildConflictReasonsMap(schedules, null);
+        return schedules.stream()
+                .map(s -> toResponse(s, null, conflictMap))
+                .collect(Collectors.toList());
+    }
+
     public List<ScheduleResponse> getExpertClinicSchedules(Integer periodId, Integer specialtyId) {
         List<Schedule> schedules = scheduleRepository.findExpertClinicByPeriodAndSpecialty(periodId, specialtyId);
         if (schedules.isEmpty()) return List.of();

@@ -180,6 +180,24 @@ public class ScheduleController {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByStaff(me)));
     }
 
+    /**
+     * BUGFIX (dashboard staff): STAFF needs to see their personal schedule on dashboard
+     * filtered by period. This endpoint serves schedules for the current authenticated user
+     * within a specific period.
+     */
+    @GetMapping("/me/period/{periodId}")
+    @Operation(summary = "Lấy lịch cá nhân của currentUser theo kỳ (dành cho dashboard STAFF)")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getMyScheduleByPeriod(@PathVariable Integer periodId) {
+        Integer me = authContextService.getCurrentStaffId();
+        if (me == null) {
+            throw new com.hospital.scheduler.exception.ResourceNotFoundException(
+                "Không xác định được nhân sự hiện tại cho tài khoản này.");
+        }
+        return ResponseEntity.ok(ApiResponse.success(
+            scheduleService.getSchedulesByStaffAndPeriod(me, periodId)));
+    }
+
     @GetMapping("/expert-clinic")
     @Operation(summary = "Lấy lịch phòng khám chuyên gia theo kỳ và chuyên khoa (M05-F04)")
     // BUGFIX (was SCHEDULE-CROSS-USER): expert-clinic roster is a
