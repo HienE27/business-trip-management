@@ -17,7 +17,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { Permission } from "@/lib/permissions";
 import { useScheduleFilters } from "@/hooks/useScheduleFilters";
 import { useAuth } from "@/components/auth/AuthProvider";
-import type { DashboardData } from "@/types/api";
+import type { DashboardData, Schedule } from "@/types/api";
 
 type WorkflowStep = {
   label: string;
@@ -95,8 +95,9 @@ export default function DashboardPage() {
 
   // STAFF: auto-select own staff ID on mount
   const currentUserId = authUser?.userId;
+  // Check if user has STAFF role (use some() to handle mixed roles)
   const isStaffOnly = useMemo(
-    () => authUser?.roles?.every((r) => r === "STAFF") ?? false,
+    () => authUser?.roles?.some((r) => r === "STAFF") ?? false,
     [authUser?.roles],
   );
 
@@ -131,9 +132,16 @@ export default function DashboardPage() {
   } = data;
 
   // STAFF: Filter schedules to only show current user's schedules
-  const schedules = useMemo(() => {
-    if (!isStaffOnly || !currentUserId) return allSchedules;
-    return allSchedules.filter((s) => s.staff?.id === currentUserId);
+  // Use useEffect to handle async authUser loading
+  const [schedules, setSchedules] = useState<Schedule[]>(allSchedules);
+
+  useEffect(() => {
+    if (!isStaffOnly || !currentUserId) {
+      setSchedules(allSchedules);
+    } else {
+      const filtered = allSchedules.filter((s) => s.staff?.id === currentUserId);
+      setSchedules(filtered);
+    }
   }, [allSchedules, isStaffOnly, currentUserId]);
 
   // BUGFIX (was FE#4): the data race here was that a fast-firing

@@ -61,6 +61,19 @@ public class SchedulePeriodController {
         return ResponseEntity.ok(ApiResponse.success(periodService.getPeriodsByStatus(periodStatus)));
     }
 
+    /**
+     * BUGFIX (dashboard staff): Staff need to see published periods on dashboard
+     * to view their personal schedule, but /periods requires PERIOD_VIEW (manager-only).
+     * This endpoint serves only PUBLISHED periods so staff can access their schedule.
+     */
+    @GetMapping("/published")
+    @Operation(summary = "Lấy danh sách kỳ lịch đã công bố (STAFF có thể dùng)")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<SchedulePeriodResponse>>> getPublishedPeriods() {
+        return ResponseEntity.ok(ApiResponse.success(
+            periodService.getPeriodsByStatus(SchedulePeriod.PeriodStatus.PUBLISHED)));
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết kỳ lịch")
     @PreAuthorize("hasAuthority('" + Permissions.PERIOD_VIEW + "')")

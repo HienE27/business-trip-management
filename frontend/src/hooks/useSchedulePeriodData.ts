@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import { queryCache, invalidateEndpoint } from "@/lib/queryCache";
+import { useAuth } from "@/components/auth/AuthProvider";
 import type {
   CompensationDay,
   ConflictCheckResponse,
@@ -174,6 +175,13 @@ export function useSchedulePeriodData(
     };
   }, [selectedPeriodId, invalidateEndpoint]);
 
+  // Get auth context to determine user role
+  const { user: authUser } = useAuth();
+  const isStaffOnly = useMemo(
+    () => authUser?.roles?.some((r) => r === "STAFF") ?? false,
+    [authUser?.roles],
+  );
+
   useEffect(() => {
     let active = true;
 
@@ -181,8 +189,10 @@ export function useSchedulePeriodData(
       setLoading(true);
       setMessage(null);
       try {
+        // STAFF uses /periods/published, MANAGER/ADMIN uses /periods
+        const periodsEndpoint = isStaffOnly ? "/periods/published" : "/periods";
         const [periodData, staffData, specialtyData] = await Promise.all([
-          queryCache("/periods", () => api.get<SchedulePeriod[]>("/periods")),
+          queryCache(periodsEndpoint, () => api.get<SchedulePeriod[]>(periodsEndpoint)),
           queryCache("/staff/active", () => api.get<Staff[]>("/staff/active")),
           queryCache("/specialties", () =>
             api.get<Specialty[]>("/specialties").catch(() => [] as Specialty[])
@@ -216,7 +226,7 @@ export function useSchedulePeriodData(
     return () => {
       active = false;
     };
-  }, [autoSelectPeriod, loadPeriodData]);
+  }, [autoSelectPeriod, loadPeriodData, isStaffOnly]);
 
   const setSelectedPeriodId = useCallback(
     (id: number | null) => {
