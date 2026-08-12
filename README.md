@@ -1,45 +1,106 @@
-# Hệ thống Quản lý Lịch Công Tác
+# Hệ thống Quản lý Lịch Công Tác — MedSchedule Pro
+
+**Nhóm 4 DACN** | Giảng viên: ThS. Văn Minh Hoàng Quân
 
 Website quản lý lịch công tác cho phòng chuyên môn với 4 loại lịch (`L01`-`L04`), backend Spring Boot + MySQL và frontend Next.js.
 
+---
+
+## Mục lục
+
+- [Tổng quan](#tổng-quan)
+- [Nghiệp vụ cốt lõi](#nghiệp-vụ-cốt-lõi)
+- [Cấu trúc thư mục](#cấu-trúc-thư-mục)
+- [Cách chạy local](#cách-chạy-local)
+- [Tài khoản mặc định](#tài-khoản-mặc-định)
+- [Dữ liệu mẫu được seed](#dữ-liệu-mẫu-được-seed)
+- [Màn hình frontend](#màn-hình-frontend)
+- [API chính](#api-chính)
+- [Module M07 — Auto Scheduling](#module-m07--auto-scheduling)
+- [Test](#test)
+- [Tài liệu liên quan](#tài-liệu-liên-quan)
+- [Changelog](#changelog)
+
+---
+
 ## Tổng quan
 
-- **Backend**: Spring Boot `4.0.6`, Java `17`, Spring Security, JPA, MySQL, SpringDoc OpenAPI
-- **Frontend**: Next.js `16.2.6`, React `19`, TypeScript, Tailwind CSS `4`
-- **Database**: MySQL schema `hospital_scheduler`
-- **API base path**: `/api/v1`
-- **Swagger UI**: `http://localhost:8080/swagger-ui.html`
+| Thành phần | Công nghệ |
+|---|---|
+| **Backend** | Spring Boot `3.5.5`, Java `17`, Spring Security, JPA, MySQL |
+| **Frontend** | Next.js `16.2.6`, React `19`, TypeScript, Tailwind CSS `4` |
+| **Database** | MySQL `8.x` (schema `hospital_scheduler`) |
+| **API base path** | `/api/v1` |
+| **Swagger UI** | `http://localhost:8080/swagger-ui.html` |
+| **Package manager** | pnpm (frontend) |
+
+---
 
 ## Nghiệp vụ cốt lõi
 
-Hệ thống quản lý 4 loại lịch:
+### 4 loại lịch
 
-- `L01` — Lịch trực `24/24`
-- `L02` — Lịch thông tầm
-- `L03` — Lịch phòng khám dịch vụ
-- `L04` — Lịch phòng khám chuyên gia
+| ID | Tên | Mô tả | Overnight |
+|---|---|---|---|
+| `L01` | Lịch trực `24/24` | 7h30 ngày N → 7h30 ngày N+1, có nghỉ bù | ✅ |
+| `L02` | Lịch thông tầm | Ca ngày, không nghỉ trưa | ❌ |
+| `L03` | Lịch phòng khám dịch vụ | Ca khám dịch vụ | ❌ |
+| `L04` | Lịch phòng khám chuyên gia | Ca khám chuyên sâu | ❌ |
 
-Các ràng buộc đang được backend kiểm soát qua `ConflictDetectionService`:
+### Ràng buộc (CRITICAL)
 
-- Cùng nhân sự, cùng ngày: `L01` và `L02` không được đồng thời tồn tại
-- Cùng nhân sự, cùng ngày: `L03` và `L04` không được đồng thời tồn tại
-- Ngày nghỉ bù sau `L01` không được xếp bất kỳ lịch nào khác
+```java
+// 1. L01 vs L02: Cùng nhân sự, cùng ngày → KHÔNG ĐƯỢC
+// 2. L03 vs L04: Cùng nhân sự, cùng ngày → KHÔNG ĐƯỢC
+// 3. Compensation Day: Ngày nghỉ bù → KHÔNG ĐƯỢC xếp bất kỳ lịch nào
+```
 
-Quy tắc nghỉ bù hiện bám theo tài liệu nghiệp vụ:
+Backend kiểm soát qua `ConflictDetectionService` với 8 loại conflict:
+`DUPLICATE_SHIFT`, `L01_L02_CONFLICT`, `L03_L04_CONFLICT`, `COMPENSATION_CONFLICT`, `MAX_SHIFTS_PER_MONTH`, `BACK_TO_BACK_SHIFT`, `INVALID_SHIFT_TYPE`, `UNAUTHORIZED_SHIFT`
 
-- Trực `Thứ 2` → nghỉ bù `Thứ 3`
-- Trực `Thứ 3` → nghỉ bù `Thứ 4`
-- Trực `Thứ 4` → nghỉ bù `Thứ 5`
-- Trực `Thứ 5` → nghỉ bù `Thứ 6`
-- Trực `Thứ 6` hoặc `Thứ 7` → nghỉ bù `Thứ 3 tuần sau`
-- Trực `Chủ Nhật` → nghỉ bù `Thứ 2 tuần sau`
+### Quy tắc nghỉ bù
+
+| Trực ngày | Nghỉ bù |
+|---|---|
+| Thứ 2 (Monday) | Thứ 3 (tuần này) |
+| Thứ 3 (Tuesday) | Thứ 4 (tuần này) |
+| Thứ 4 (Wednesday) | Thứ 5 (tuần này) |
+| Thứ 5 (Thursday) | Thứ 6 (tuần này) |
+| Thứ 6 (Friday) | **Thứ 3 tuần sau** (bỏ T2, T6) |
+| Thứ 7 (Saturday) | **Thứ 3 tuần sau** (bỏ T2, T6) |
+| Chủ Nhật (Sunday) | **Thứ 2 tuần sau** |
+
+---
 
 ## Cấu trúc thư mục
 
-- `backend/` — API, business rules, seed data, export Excel/PDF
-- `frontend/` — giao diện quản trị và dashboard
-- `SPEC.md` — tài liệu nghiệp vụ và phạm vi hệ thống
-- `QuanLyLichCongTac_v5.md` — mô tả chức năng gốc theo hướng product/spec
+```
+business-trip-management/
+├── backend/                    # Spring Boot API
+│   └── src/
+│       ├── main/java/com/hospital/scheduler/
+│       │   ├── config/         # Security, OpenAPI
+│       │   ├── controller/     # REST Controllers
+│       │   ├── dto/            # Request/Response DTOs
+│       │   ├── entity/         # JPA Entities
+│       │   ├── exception/      # Custom exceptions
+│       │   ├── repository/     # JPA Repositories
+│       │   ├── service/        # Business logic
+│       │   └── util/           # Utilities
+│       └── test/               # Backend tests
+├── frontend/                   # Next.js app
+│   └── src/
+│       ├── app/                # Next.js App Router pages
+│       ├── components/         # React components
+│       ├── hooks/              # Custom React hooks
+│       ├── lib/                # Utilities, API clients
+│       └── types/              # TypeScript types
+├── SPEC.md                     # Tài liệu nghiệp vụ
+├── QuanLyLichCongTac_v5.md     # Mô tả chức năng gốc
+└── README.md                   # (file này)
+```
+
+---
 
 ## Cách chạy local
 
@@ -48,41 +109,38 @@ Quy tắc nghỉ bù hiện bám theo tài liệu nghiệp vụ:
 Cần cài sẵn:
 
 - Java `17`
-- Maven wrapper hoặc Maven compatible với Spring Boot `4`
-- Node.js mới đủ chạy Next.js `16`
+- Maven `3.9+`
+- Node.js `20+`
 - `pnpm`
 - MySQL `8.x`
 
-Tạo database:
+### 2. Tạo database
 
 ```sql
 CREATE DATABASE hospital_scheduler CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-Cấu hình mặc định hiện nằm trong `backend/src/main/resources/application.properties`:
+### 3. Cấu hình backend
 
-- DB URL: `jdbc:mysql://localhost:3306/hospital_scheduler`
-- Username: `root`
-- Password: `123456`
-- Backend port: `8080`
+File cấu hình: `backend/src/main/resources/application.properties`
 
-### 2. Chạy backend
+```properties
+spring.datasource.url=jdbc:mysql://localhost:3306/hospital_scheduler
+spring.datasource.username=root
+spring.datasource.password=123456
+server.port=8080
+```
+
+### 4. Chạy backend
 
 ```bash
 cd backend
 ./mvnw spring-boot:run
 ```
 
-Hoặc trên Windows:
+Backend chạy tại `http://localhost:8080`. Swagger UI: `http://localhost:8080/swagger-ui.html`
 
-```bash
-cd backend
-mvnw.cmd spring-boot:run
-```
-
-Backend sẽ chạy tại `http://localhost:8080`.
-
-### 3. Chạy frontend
+### 5. Chạy frontend
 
 ```bash
 cd frontend
@@ -90,203 +148,210 @@ pnpm install
 pnpm dev
 ```
 
-Frontend sẽ chạy tại `http://localhost:3000`.
+Frontend chạy tại `http://localhost:3000`.
 
-Nếu cần chỉ rõ API URL cho frontend, tạo file `.env.local` trong `frontend/`:
+**Lưu ý:** Frontend mặc định gọi API tại `http://localhost:8080/api/v1`. Nếu cần thay đổi:
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+# Tạo file .env.local trong frontend/
+echo "NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1" > frontend/.env.local
 ```
 
-Nếu không cấu hình biến này, frontend đang fallback về `http://localhost:8080/api/v1` trong code.
+---
 
-## Tài khoản seed mặc định
+## Tài khoản mặc định
 
-`DataSeeder` seed dữ liệu mẫu khi database còn trống. Tổng cộng **20 nhân sự**: 1 admin, 2 manager, 17 staff.
-
-Tài khoản có sẵn:
+`DataSeeder` seed dữ liệu khi database còn trống. **20 nhân sự**: 1 admin, 2 manager, 17 staff.
 
 | Username | Password | Role | Họ tên |
 |---|---|---|---|
-| `admin` | `admin123` | ADMIN + MANAGER | Nguyễn Văn An |
+| `admin` | `admin123` | ADMIN | Nguyễn Văn An |
 | `manager1` | `123456` | MANAGER | Trần Thị Bình |
 | `manager2` | `123456` | MANAGER | Lê Hoàng Cường |
 | `nvminh` | `123456` | STAFF | Nguyễn Văn Minh |
 | `tthuhien` | `123456` | STAFF | Trần Thu Hiền |
 | *(+ 15 staff khác)* | `123456` | STAFF | … |
 
-Danh sách đầy đủ: xem `DataSeeder.java` method `seedAdminUser()`.
+---
 
 ## Dữ liệu mẫu được seed
 
 Khi database rỗng, hệ thống tự tạo:
 
-- 4 `shift types`: `L01`, `L02`, `L03`, `L04`
-- 4 nhóm chuyên môn mẫu
-- 1 kỳ `PUBLISHED`: `Kỳ tháng 06/2026`
-- 1 kỳ `DRAFT`: `Kỳ tháng 07/2026`
-- Một số `shift requirements`
-- Một số lịch mẫu, bao gồm cả dữ liệu có conflict để test UI và rule
+- **4 shift types**: `L01`, `L02`, `L03`, `L04`
+- **4 nhóm chuyên môn** mẫu
+- **1 kỳ PUBLISHED**: `Kỳ tháng 06/2026`
+- **1 kỳ DRAFT**: `Kỳ tháng 07/2026`
+- **Shift requirements** cho các loại lịch
+- **Lịch mẫu** bao gồm cả dữ liệu có conflict để test
 
-## Màn hình frontend hiện có
+---
 
-Các route quan trọng trong `frontend/src/app`:
+## Màn hình frontend
+
+### Dashboard & Lịch
 
 | Route | Mô tả |
 |-------|-------|
-| `/login` | Đăng nhập |
-| `/dashboard` | Dashboard tổng quan |
+| `/login` | Đăng nhập (hỗ trợ demo quick-login) |
+| `/dashboard` | Dashboard tổng quan + ma trận lịch |
+| `/monthly-schedule` | Bảng lịch tháng + conflicts + coverage |
 | `/staff` | Danh sách nhân sự |
-| `/staff/create` | Tạo nhân sự |
-| `/staff/profile` | Hồ sơ cá nhân |
+| `/staff/create` | Tạo nhân sự mới |
+| `/staff/[id]` | Chi tiết hồ sơ nhân sự |
+| `/staff/profile` | Hồ sơ cá nhân đang đăng nhập |
+
+### Các module lịch (M02-M05)
+
+| Route | Mô tả |
+|-------|-------|
 | `/duty-24` | Lịch trực `L01` |
 | `/all-day` | Lịch thông tầm `L02` |
 | `/service-clinic` | Lịch phòng khám dịch vụ `L03` |
 | `/expert-clinic` | Lịch phòng khám chuyên gia `L04` |
-| `/schedule-summary` | Tổng hợp lịch + export |
-| `/monthly-schedule` | Bảng lịch tháng + conflicts + coverage |
-| `/conflict-check` | Kiểm tra xung đột |
+
+### Workflow & Phê duyệt
+
+| Route | Mô tả |
+|-------|-------|
 | `/swap-requests` | Yêu cầu đổi ca |
 | `/leave-requests` | Đơn nghỉ phép |
-| `/notifications` | Thông báo |
-| `/reports` | Báo cáo |
+
+### Báo cáo & Thống kê
+
+| Route | Mô tả |
+|-------|-------|
+| `/reports` | Trang tổng hợp báo cáo |
 | `/reports/staff` | Báo cáo theo nhân sự |
 | `/reports/monthly` | Báo cáo theo tháng |
+| `/reports/statistics` | Thống kê |
 | `/reports/conflicts` | Báo cáo xung đột |
-| `/audit-history` | Nhật ký thao tác |
-| `/auto-scheduling` | Auto scheduling (M07) |
-| `/auto-scheduling/algorithm-config` | Cấu hình thuật toán |
-| `/auto-scheduling/history` | Lịch sử chạy |
-| `/settings` | Cài đặt |
-| `/settings/roles` | **Ma trận phân quyền** (M01-F05) |
-| `/requirements` | Yêu cầu nhân sự — cấu hình số nhân sự cần thiết cho từng ngày/loại ca (M07) |
-| `/periods` | Quản lý kỳ lịch — CRUD + publish/archive |
-| `/holidays` | Quản lý ngày lễ + ngày nghỉ bù |
 
-## API chính hiện có
+### Auto Scheduling (M07)
+
+| Route | Mô tả |
+|-------|-------|
+| `/auto-scheduling` | Giao diện xếp lịch tự động |
+| `/auto-scheduling/algorithm-config` | Cấu hình thuật toán (17 params) |
+| `/auto-scheduling/history` | Lịch sử chạy auto scheduling |
+
+### Quản lý hệ thống
+
+| Route | Mô tả |
+|-------|-------|
+| `/periods` | Quản lý kỳ lịch (CRUD + publish/archive) |
+| `/holidays` | Quản lý ngày lễ + ngày nghỉ bù |
+| `/compensation-days` | Danh sách ngày nghỉ bù |
+| `/notifications` | Thông báo |
+| `/audit-history` | Nhật ký thao tác |
+| `/settings` | Cài đặt hệ thống |
+| `/settings/roles` | Ma trận phân quyền (ADMIN only) |
+
+---
+
+## API chính
 
 ### Auth
 
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/logout`
+| Method | Endpoint | Mô tả |
+|--------|----------|--------|
+| `POST` | `/api/v1/auth/login` | Đăng nhập |
+| `POST` | `/api/v1/auth/logout` | Đăng xuất |
 
-Auth hiện dùng JWT lưu trong cookie HTTP-only tên `medschedule_access_token`.
+JWT token lưu trong cookie HTTP-only tên `medschedule_access_token`.
 
 ### Schedule
 
-- `GET /api/v1/schedules/period/{periodId}`
-- `GET /api/v1/schedules/period/{periodId}/date/{date}`
-- `GET /api/v1/schedules/staff/{staffId}`
-- `GET /api/v1/schedules/conflicts/check/{periodId}`
-- `POST /api/v1/schedules`
-- `PUT /api/v1/schedules/{id}`
-- `DELETE /api/v1/schedules/{id}`
-- `GET /api/v1/schedules/replacements/{periodId}`
+| Method | Endpoint | Mô tả |
+|--------|----------|--------|
+| `GET` | `/api/v1/schedules/period/{periodId}` | Lấy lịch theo kỳ |
+| `GET` | `/api/v1/schedules/period/{periodId}/date/{date}` | Lấy lịch theo ngày |
+| `GET` | `/api/v1/schedules/staff/{staffId}` | Lấy lịch theo nhân sự |
+| `GET` | `/api/v1/schedules/conflicts/check/{periodId}` | Kiểm tra xung đột |
+| `POST` | `/api/v1/schedules` | Tạo lịch mới |
+| `PUT` | `/api/v1/schedules/{id}` | Cập nhật lịch |
+| `DELETE` | `/api/v1/schedules/{id}` | Xóa lịch |
+| `GET` | `/api/v1/schedules/replacements/{periodId}` | Danh sách thay thế |
 
 ### Period
 
-- `GET /api/v1/periods`
-- `GET /api/v1/periods/{id}`
-- `POST /api/v1/periods`
-- `PUT /api/v1/periods/{id}`
-- `POST /api/v1/periods/{id}/publish`
-- `POST /api/v1/periods/{id}/archive`
+| Method | Endpoint | Mô tả |
+|--------|----------|--------|
+| `GET` | `/api/v1/periods` | Lấy tất cả kỳ lịch |
+| `GET` | `/api/v1/periods/{id}` | Lấy kỳ lịch theo ID |
+| `POST` | `/api/v1/periods` | Tạo kỳ lịch mới |
+| `PUT` | `/api/v1/periods/{id}` | Cập nhật kỳ lịch |
+| `POST` | `/api/v1/periods/{id}/publish` | Công bố kỳ lịch |
+| `POST` | `/api/v1/periods/{id}/archive` | Lưu trữ kỳ lịch |
 
-### Dashboard / Export
+### Dashboard & Export
 
-- `GET /api/v1/dashboard`
-- `GET /api/v1/dashboard/shifts`
-- `GET /api/v1/dashboard/periods`
-- `GET /api/v1/dashboard/workload/period/{periodId}`
-- `GET /api/v1/dashboard/export/schedule/{periodId}`
-- `GET /api/v1/dashboard/export/schedule/{periodId}/pdf`
-- `GET /api/v1/dashboard/export/workload/{periodId}`
+| Method | Endpoint | Mô tả |
+|--------|----------|--------|
+| `GET` | `/api/v1/dashboard` | Dashboard data |
+| `GET` | `/api/v1/dashboard/shifts` | Lịch trực dashboard |
+| `GET` | `/api/v1/dashboard/periods` | Danh sách kỳ |
+| `GET` | `/api/v1/dashboard/workload/period/{periodId}` | Workload theo kỳ |
+| `GET` | `/api/v1/dashboard/export/schedule/{periodId}` | Export Excel lịch |
+| `GET` | `/api/v1/dashboard/export/schedule/{periodId}/pdf` | Export PDF lịch |
+| `GET` | `/api/v1/dashboard/export/workload/{periodId}` | Export Excel workload |
 
-### Auto scheduling
+### Auto Scheduling (M07)
 
-- `POST /api/v1/auto-scheduling/preview` — Xem trước lịch
-- `POST /api/v1/auto-scheduling/apply` — Áp dụng lịch
-- `POST /api/v1/auto-scheduling/save-template` — M07-F10: Lưu thành template
-- `GET /api/v1/auto-scheduling/templates` — M07-F10c: Liệt kê templates
-- `GET /api/v1/auto-scheduling/templates/{id}` — M07-F10d: Chi tiết template
-- `POST /api/v1/auto-scheduling/templates` — M07-F10b: Lưu cấu hình thuật toán thành template
-- `POST /api/v1/auto-scheduling/apply-template` — Áp dụng template
-- `GET /api/v1/auto-scheduling/metrics/period/{periodId}` — Metrics thuật toán
-- `GET /api/v1/auto-scheduling/unassigned-report` — Báo cáo ngày chưa phân công (M07-F06)
-- `GET /api/v1/auto-scheduling/suggest-replacements/{scheduleId}` — Đề xuất thay thế (M07-F08)
-- `GET /api/v1/auto-scheduling/unassigned/{periodId}` — Danh sách ngày chưa đủ nhân sự
-- `GET /api/v1/algorithm-config` — Lấy cấu hình thuật toán
-- `PUT /api/v1/algorithm-config` — Cập nhật cấu hình
-- `GET /api/v1/algorithm-config/runtime` — Lấy runtime config (greedy_coverage_threshold, balance_score_min, weekend_weight...)
-- `PUT /api/v1/algorithm-config/runtime` — Cập nhật runtime config
-- `POST /api/v1/algorithm-config/sync-descriptions` — Đồng bộ mô tả params từ code
+| Method | Endpoint | Mô tả |
+|--------|----------|--------|
+| `POST` | `/api/v1/auto-scheduling/preview` | Xem trước lịch |
+| `POST` | `/api/v1/auto-scheduling/apply` | Áp dụng lịch |
+| `GET` | `/api/v1/auto-scheduling/templates` | Liệt kê templates |
+| `GET` | `/api/v1/auto-scheduling/templates/{id}` | Chi tiết template |
+| `POST` | `/api/v1/auto-scheduling/templates` | Tạo template |
+| `POST` | `/api/v1/auto-scheduling/apply-template` | Áp dụng template |
+| `GET` | `/api/v1/auto-scheduling/unassigned/{periodId}` | Ngày chưa đủ nhân sự |
+| `GET` | `/api/v1/auto-scheduling/suggest-replacements/{scheduleId}` | Đề xuất thay thế |
+| `GET` | `/api/v1/algorithm-config` | Lấy cấu hình thuật toán |
+| `PUT` | `/api/v1/algorithm-config` | Cập nhật cấu hình |
+| `GET` | `/api/v1/algorithm-config/runtime` | Runtime config |
+| `PUT` | `/api/v1/algorithm-config/runtime` | Cập nhật runtime config |
 
 ### Roles & Permissions (M01-F05)
 
-- `GET /api/v1/roles/permissions/matrix` — full role × permission matrix (ADMIN only)
-- `POST /api/v1/roles/permissions/toggle` — grant or revoke a permission for a role
+| Method | Endpoint | Mô tả |
+|--------|----------|--------|
+| `GET` | `/api/v1/roles/permissions/matrix` | Ma trận quyền (ADMIN) |
+| `POST` | `/api/v1/roles/permissions/toggle` | Toggle permission |
 
-### Staff / exchange
+### Staff & Exchange
 
-- `GET /api/v1/staff`
-- `GET /api/v1/staff/active`
-- `GET /api/v1/staff/me`
-- `POST /api/v1/staff/import`
-- `GET /api/v1/schedule-exchanges`
-- `GET /api/v1/schedule-exchanges/pending`
-- `POST /api/v1/schedule-exchanges/requester/{requesterId}`
-- `PUT /api/v1/schedule-exchanges/{id}/approve`
-- `PUT /api/v1/schedule-exchanges/{id}/reject`
+| Method | Endpoint | Mô tả |
+|--------|----------|--------|
+| `GET` | `/api/v1/staff` | Danh sách nhân sự |
+| `GET` | `/api/v1/staff/active` | Nhân sự đang hoạt động |
+| `GET` | `/api/v1/staff/me` | Thông tin user hiện tại |
+| `POST` | `/api/v1/staff/import` | Import nhân sự (Excel) |
+| `GET` | `/api/v1/schedule-exchanges` | Danh sách đổi ca |
+| `GET` | `/api/v1/schedule-exchanges/pending` | Đổi ca chờ duyệt |
+| `POST` | `/api/v1/schedule-exchanges/requester/{requesterId}` | Tạo yêu cầu đổi ca |
+| `PUT` | `/api/v1/schedule-exchanges/{id}/approve` | Duyệt đổi ca |
+| `PUT` | `/api/v1/schedule-exchanges/{id}/reject` | Từ chối đổi ca |
 
-## Trạng thái triển khai hiện tại
+---
 
-Những phần đã thấy rõ trong code:
+## Module M07 — Auto Scheduling
 
-### Backend
-
-- CRUD lịch cơ bản cho `L01`-`L04`
-- Kiểm tra conflict theo kỳ (8 loại conflict: DUPLICATE_SHIFT, L01_L02_CONFLICT, L03_L04_CONFLICT, COMPENSATION_CONFLICT, MAX_SHIFTS_PER_MONTH, BACK_TO_BACK_SHIFT, INVALID_SHIFT_TYPE, UNAUTHORIZED_SHIFT)
-- Tự tính và trả `compensationDate` từ backend
-- `max_shifts_per_month` chỉ áp dụng cho L01 (tối đa 5 ca L01/tháng)
-- `BACK_TO_BACK_SHIFT` — từ chối tạo ca trực L01 ngay sau L01 của cùng nhân sự
-- Email alert gửi khi tạo/cập nhật schedule có conflict (qua `validateAndThrowWithEmail`)
-- Publish guard — cảnh báo coverage gaps (non-blocking warning) khi publish period
-- Thống kê L03/L04 tích hợp trong `/dashboard/workload/period/{id}`
-- Export Excel cho lịch và workload
-- Export PDF cho lịch tổng hợp nếu service PDF khả dụng trong môi trường chạy
-- Auto scheduling với các luồng preview, run, báo cáo unassigned, workload chart, metrics
-- Seed dữ liệu mẫu để demo nhanh (20 nhân sự, 2 kỳ lịch)
-- 221 backend unit + integration tests, 300 frontend unit tests
-
-### Frontend
-
-- Hiển thị ngày nghỉ bù trên bảng lịch tháng (`/monthly-schedule`), khóa thao tác trên ô nghỉ bù
-- Real-time conflict alerts qua WebSocket
-- Shift Requirement management (`/requirements`) — CRUD cấu hình nhân sự cần thiết cho từng ngày/loại ca
-- Period management (`/periods`) — CRUD kỳ lịch + publish/archive
-- Holiday management (`/holidays`) — CRUD ngày lễ + ngày nghỉ bù
-- Ma trận lịch trên Dashboard (hàng=ngày, cột=nhân sự)
-- Workflow Stepper cho Auto Scheduling
-- Ma trận phân quyền (`/settings/roles`) cho ADMIN
-- Inline quick-edit trên calendar
-- 300 frontend unit tests + Playwright E2E tests
-
-### M07 — Thuật toán Auto Scheduling
-
-Hệ thống có 3 thuật toán auto-scheduling, chạy qua `AutoSchedulingService`:
+### 3 thuật toán
 
 | Thuật toán | Mô tả |
-|---|---|
-| `GREEDY` | Mỗi ngày chọn nhân sự có ít ngày công nhất, theo từng loại lịch |
-| `ROUND_ROBIN` | Luân phiên xoay vòng theo thứ tự danh sách nhân sự |
+|------------|--------|
+| `GREEDY` | Mỗi ngày chọn nhân sự có ít ngày công nhất |
+| `ROUND_ROBIN` | Luân phiên xoay vòng theo thứ tự danh sách |
 | `BACKTRACKING` | Thử từng phương án, quay lui nếu vi phạm ràng buộc |
 
-Cấu hình thuật toán (17 params trong `algorithm_config`):
+### Cấu hình thuật toán (17 params)
 
 **Auto-generation (10 params)** — tự tạo `shift_requirement` khi mở kỳ lịch mới:
 
 | param_key | Mô tả | Mặc định |
-|---|---|
+|-----------|--------|-----------|
 | `auto_gen_enabled` | Bật/tắt auto-gen | `true` |
 | `auto_gen_l01_per_day` | Số nhân sự L01/ngày | `2` |
 | `auto_gen_l02_per_day` | Số nhân sự L02/ngày | `2` |
@@ -296,79 +361,84 @@ Cấu hình thuật toán (17 params trong `algorithm_config`):
 | `auto_gen_l02_per_week` | Số L02 tối thiểu/tuần/người | `3` |
 | `auto_gen_l03_per_week` | Số L03 tối thiểu/tuần/người | `2` |
 | `auto_gen_l04_per_week` | Số L04 tối thiểu/tuần/người | `1` |
-| `auto_gen_holiday_mode` | Xử lý ngày lễ: `SKIP`/`PARTIAL` | `SKIP` |
+| `auto_gen_holiday_mode` | Xử lý ngày lễ | `SKIP` |
 
 **Runtime algorithm (7 params)** — ảnh hưởng cách thuật toán chạy:
 
 | param_key | Mô tả | Mặc định |
-|---|---|
+|-----------|--------|-----------|
 | `max_iterations` | Số vòng lặp tối đa backtracking | `1000` |
-| `weekend_weight` | Hệ số phạt cuối tuần (T7/CN) | `2` |
+| `weekend_weight` | Hệ số phạt cuối tuần | `2` |
 | `overnight_recovery_hours` | Khoảng cách nghỉ L01-L01 | `24` |
-| `greedy_coverage_threshold` | Ngưỡng phủ lịch để Greedy dừng sớm (0.5-1.0) | `0.85` |
-| `balance_score_min` | Ngưỡng cân bằng tải — Greedy fallback sang Round Robin nếu thấp hơn (0.3-1.0) | `0.70` |
+| `greedy_coverage_threshold` | Ngưỡng phủ lịch để Greedy dừng sớm | `0.85` |
+| `balance_score_min` | Ngưỡng cân bằng tải | `0.70` |
 | `backtrack_time_limit_seconds` | Timeout backtracking (giây) | `60` |
 
-Cấu hình tại `/auto-scheduling/algorithm-config`. Runtime params đang áp dụng hiển thị ngay trên header của `/auto-scheduling`.
+Cấu hình tại `/auto-scheduling/algorithm-config`.
 
-Các điểm cần hiểu đúng khi đọc tài liệu:
+---
 
-- `SPEC.md` và `QuanLyLichCongTac_v5.md` chứa nhiều mô tả theo hướng mục tiêu sản phẩm, không phải mục nào cũng đồng nghĩa UI hiện tại đã hoàn thiện 100%
-- Một số flow giữa các module đang chưa đồng đều về UX dù backend endpoint đã có
-- Quyền trên API không hoàn toàn giống mô tả product-level; ví dụ publish/archive period đang yêu cầu `ADMIN`
+## Test
 
-## Test hiện có
-
-Backend đang có test ở các vùng chính (204 tests, 0 failures):
-
-- `backend/src/test/java/com/hospital/scheduler/service/ConflictDetectionServiceTest.java` (8 loại conflict)
-- `backend/src/test/java/com/hospital/scheduler/service/ScheduleServiceBusinessRulesTest.java`
-- `backend/src/test/java/com/hospital/scheduler/service/AutoSchedulingServiceTest.java`
-- `backend/src/test/java/com/hospital/scheduler/service/LeaveRequestServiceTest.java`
-- `backend/src/test/java/com/hospital/scheduler/service/ScheduleServiceTest.java` (max shifts L01-only, back-to-back)
-- `backend/src/test/java/com/hospital/scheduler/service/RoleServiceTest.java`
-- `frontend/src/lib/api-client.test.ts` (30 tests)
-- `frontend/tests/e2e/*.spec.ts` (Playwright E2E)
-
-Chạy test backend:
+### Backend tests
 
 ```bash
 cd backend
 ./mvnw test
 ```
 
-Chạy E2E (cần backend chạy trên port 8080 và frontend trên port 3000):
+**Các test chính:**
+- `ConflictDetectionServiceTest` — 8 loại conflict
+- `ScheduleServiceBusinessRulesTest` — Business rules
+- `AutoSchedulingServiceTest` — Thuật toán auto scheduling
+- `LeaveRequestServiceTest` — Đơn nghỉ phép
+- `RoleServiceTest` — Phân quyền
+
+### Frontend tests
 
 ```bash
 cd frontend
-pnpm playwright test
+pnpm test          # Unit tests (vitest)
+pnpm test:e2e     # E2E tests (Playwright)
 ```
+
+**Lưu ý:** E2E tests cần backend chạy trên port `8080` và frontend trên port `3000`.
+
+---
 
 ## Tài liệu liên quan
 
-- `SPEC.md` — scope nghiệp vụ và constraints
-- `QuanLyLichCongTac_v5.md` — mô tả chức năng chi tiết
-- `DEMO_WALKTHROUGH.md` — kịch bản demo đầy đủ cho bảo vệ (15-20 phút)
-- `backend/HELP.md` — hướng dẫn backend current-state
-- `frontend/README.md` — hướng dẫn frontend current-state
-- `screenshots/` — ảnh chụp màn hình phục vụ demo và báo cáo
+| File | Mô tả |
+|------|--------|
+| `SPEC.md` | Scope nghiệp vụ và constraints |
+| `QuanLyLichCongTac_v5.md` | Mô tả chức năng chi tiết |
+| `DEMO_WALKTHROUGH.md` | Kịch bản demo đầy đủ |
+| `backend/HELP.md` | Hướng dẫn backend |
+| `frontend/README.md` | Hướng dẫn frontend |
+| `screenshots/` | Ảnh chụp màn hình phục vụ demo |
+
+---
 
 ## Changelog
 
-### v1.1 (06/2026)
+### v1.1 (08/2026)
 
 **Bug Fixes:**
-- Fix API endpoint mismatch: `/schedule-periods` → `/periods` cho requirements page
-- Fix null specialty reference trong requirements page (L01/L02 không có specialty)
+- Fix API endpoint mismatch: `/schedule-periods` → `/periods`
+- Fix null specialty reference trong requirements page
 - Fix scroll-behavior warning trong browser console
+- Fix oversize notification message (>1000 chars)
+- Fix WorkflowStepper visual redesign
 
 **Features:**
 - WorkflowStepper 6 bước cho M02-M05
 - ConflictSection và ExportReportPanel đồng bộ
 - Preview + manual edit + undo cho Auto Scheduling
 - GENERATED/PATTERN template support
+- CoverageInspector full-coverage state redesign (check_circle icon)
 
 ### v1.0 (05/2026)
+
 - Initial release với 4 loại lịch (L01-L04)
 - Backend Spring Boot + MySQL
-- Frontend Next.js 16
+- Frontend Next.js
