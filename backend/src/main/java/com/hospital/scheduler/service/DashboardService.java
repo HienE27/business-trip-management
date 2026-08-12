@@ -121,14 +121,21 @@ public class DashboardService {
                 .build();
     }
 
+    /**
+     * OPTIMIZATION: Use COUNT queries instead of loading all records into memory.
+     * Counts by status directly at DB level for better performance.
+     */
     public DashboardResponse.LeaveRequestStatistics getLeaveRequestStatistics() {
-        List<LeaveRequest> all = leaveRequestRepository.findAll();
+        long total = leaveRequestRepository.count();
+        long pending = leaveRequestRepository.countByStatus(LeaveRequest.LeaveStatus.PENDING);
+        long approved = leaveRequestRepository.countByStatus(LeaveRequest.LeaveStatus.APPROVED);
+        long rejected = leaveRequestRepository.countByStatus(LeaveRequest.LeaveStatus.REJECTED);
 
         return DashboardResponse.LeaveRequestStatistics.builder()
-                .total(all.size())
-                .pending(all.stream().filter(l -> l.getStatus() == LeaveRequest.LeaveStatus.PENDING).count())
-                .approved(all.stream().filter(l -> l.getStatus() == LeaveRequest.LeaveStatus.APPROVED).count())
-                .rejected(all.stream().filter(l -> l.getStatus() == LeaveRequest.LeaveStatus.REJECTED).count())
+                .total(total)
+                .pending(pending)
+                .approved(approved)
+                .rejected(rejected)
                 .build();
     }
 
@@ -366,9 +373,8 @@ public class DashboardService {
     }
 
     /**
-     * Aggregate schedule counts for an arbitrary date range, optionally filtered
-     * by staff. Used by dashboard week and month views that aren't bound to a
-     * {@code SchedulePeriod}.
+     * OPTIMIZATION: Filter at DB level using date range instead of loading all schedules.
+     * Uses batch staff lookup to avoid N+1 for staff names.
      */
     public ScheduleAggregationResponse aggregateByDateRange(LocalDate startDate, LocalDate endDate, Integer staffId) {
         if (startDate == null || endDate == null) {
@@ -377,11 +383,13 @@ public class DashboardService {
         if (startDate.isAfter(endDate)) {
             throw new IllegalArgumentException("startDate phải trước hoặc bằng endDate");
         }
-        List<Schedule> all = scheduleRepository.findAll();
-        List<Schedule> filtered = all.stream()
-                .filter(s -> !s.getWorkDate().isBefore(startDate) && !s.getWorkDate().isAfter(endDate))
-                .filter(s -> staffId == null || staffId.equals(s.getStaff().getId()))
-                .toList();
+        // Filter at DB level instead of loading all schedules into memory
+        List<Schedule> filtered = scheduleRepository.findByDateRange(startDate, endDate);
+        if (staffId != null) {
+            filtered = filtered.stream()
+                    .filter(s -> staffId.equals(s.getStaff().getId()))
+                    .toList();
+        }
 
         Map<LocalDate, Map<String, Long>> dailyCounts = new LinkedHashMap<>();
         for (Schedule schedule : filtered) {

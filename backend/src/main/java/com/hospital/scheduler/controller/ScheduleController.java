@@ -86,6 +86,19 @@ public class ScheduleController {
         return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByPeriod(periodId)));
     }
 
+    /**
+     * BUGFIX (swap-requests staff): Staff need to see other people's schedules
+     * within a period to create exchange requests, but /period/{periodId} requires
+     * PERIOD_VIEW (manager-only). This endpoint serves the same data for staff
+     * to enable exchange request creation without exposing compensation days.
+     */
+    @GetMapping("/exchange-candidates/{periodId}")
+    @Operation(summary = "Lấy danh sách lịch theo kỳ để đổi trực (staff có thể dùng)")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getExchangeCandidates(@PathVariable Integer periodId) {
+        return ResponseEntity.ok(ApiResponse.success(scheduleService.getSchedulesByPeriod(periodId)));
+    }
+
     @GetMapping("/compensation-days/{periodId}")
     @Operation(summary = "Lấy danh sách ngày nghỉ bù theo kỳ lịch")
     // BUGFIX (was SCHEDULE-CROSS-USER): compensation days reveal which

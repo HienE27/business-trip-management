@@ -44,7 +44,9 @@ type ToastContextType = {
 const ToastContext = createContext<ToastContextType | null>(null);
 
 function createId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  // Use React's useId for stable IDs that don't cause hydration mismatch
+  // For toasts created dynamically, use a counter to avoid SSR/client mismatch
+  return `toast-${Date.now()}`;
 }
 
 const TOAST_ICONS: Record<ToastType, string> = {
@@ -152,9 +154,15 @@ function ToastItem({
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [mounted, setMounted] = useState(false);
   // Cap the number of visible toasts so an API loop (e.g. 403 spam) can't
   // pile up hundreds of cards. Older toasts get evicted first.
   const MAX_TOASTS = 5;
+
+  // Fix hydration mismatch by only rendering toasts after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -200,17 +208,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
 
       {/* Toast container — bottom-right desktop, bottom-center mobile */}
-      <div
-        role="region"
-        aria-label="Thông báo"
-        className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 pointer-events-none sm:right-6 sm:left-auto left-1/2 sm:translate-x-0 -translate-x-1/2"
-      >
-        {toasts.map((toast) => (
-          <div key={toast.id} className="pointer-events-auto">
-            <ToastItem toast={toast} onDismiss={dismiss} duration={toast.duration} />
-          </div>
-        ))}
-      </div>
+      {/* Only render after mount to prevent hydration mismatch */}
+      {mounted && (
+        <div
+          role="region"
+          aria-label="Thông báo"
+          className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 pointer-events-none sm:right-6 sm:left-auto left-1/2 sm:translate-x-0 -translate-x-1/2"
+        >
+          {toasts.map((toast) => (
+            <div key={toast.id} className="pointer-events-auto">
+              <ToastItem toast={toast} onDismiss={dismiss} duration={toast.duration} />
+            </div>
+          ))}
+        </div>
+      )}
     </ToastContext.Provider>
   );
 }

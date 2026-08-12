@@ -1,11 +1,13 @@
 package com.hospital.scheduler.service.scheduling;
 
 import com.hospital.scheduler.algorithm.scoring.StaffShiftTypeEligibility;
+import com.hospital.scheduler.config.CacheConfig;
 import com.hospital.scheduler.entity.*;
 import com.hospital.scheduler.repository.*;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -124,6 +126,7 @@ public class SchedulingFeasibilityAnalyzer {
      *   <li>Sinh warnings + recommendations</li>
      * </ol>
      */
+    @Cacheable(value = CacheConfig.FEASIBILITY_CACHE, key = "#periodId")
     @Transactional(readOnly = true)
     public FeasibilityReport analyzeFeasibility(Integer periodId) {
         // 1. Load requirements and staff

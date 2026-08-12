@@ -154,6 +154,26 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 
+    /**
+     * OPTIMIZATION: Filter schedules by date range at DB level.
+     * Includes JOIN FETCH for relationships to avoid N+1.
+     */
+    @Query("""
+            SELECT s
+            FROM Schedule s
+            JOIN FETCH s.staff st
+            LEFT JOIN FETCH st.specialty
+            LEFT JOIN FETCH st.staffRoles sr
+            LEFT JOIN FETCH sr.role
+            JOIN FETCH s.shiftType
+            JOIN FETCH s.period
+            WHERE s.workDate BETWEEN :startDate AND :endDate
+            ORDER BY s.workDate
+            """)
+    List<Schedule> findByDateRange(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
     @Query("SELECT s FROM Schedule s WHERE s.staff.id = :staffId AND s.period.id = :periodId AND s.workDate BETWEEN :startDate AND :endDate ORDER BY s.workDate")
     List<Schedule> findByStaffIdAndDateRangeAndPeriodId(
             @Param("staffId") Integer staffId,

@@ -61,7 +61,7 @@ export default function NotificationsPage() {
 }
 
 function NotificationsContent() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const userId = user?.userId ?? null;
   const { refreshCount } = useNotifications();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -131,9 +131,14 @@ function NotificationsContent() {
     }
   }, [refreshCount, userId, page, pageSize, activeTab]);
 
+  // Fetch notifications when auth is ready (user is loaded) and dependencies change
   useEffect(() => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     void fetchNotifications();
-  }, [fetchNotifications]);
+  }, [userId, page, pageSize, activeTab, fetchNotifications]);
 
   useEffect(() => {
     setPage(0);
@@ -408,7 +413,8 @@ function NotificationsContent() {
           </div>
         )}
 
-        {loading ? (
+        {/* Show skeleton when loading or when auth is still loading */}
+        {(loading || authLoading) && !notifications.length ? (
           <div className="flex flex-col gap-3" aria-busy={true} aria-live="polite">
             {Array.from({ length: 5 }).map((_, i) => (
               <div

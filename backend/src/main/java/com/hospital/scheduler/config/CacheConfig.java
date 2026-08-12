@@ -19,6 +19,7 @@ public class CacheConfig {
     public static final String PERIODS_CACHE = "periods";
     public static final String REQUIREMENTS_CACHE = "requirements";
     public static final String HOSPITAL_ELIGIBLE_SPECIALTIES_CACHE = "hospital-eligible-specialties";
+    public static final String FEASIBILITY_CACHE = "feasibility";
 
     @Bean
     public CacheManager cacheManager() {
@@ -40,5 +41,21 @@ public class CacheConfig {
                 .maximumSize(500)
                 .expireAfterWrite(5, TimeUnit.MINUTES)
                 .recordStats();
+    }
+
+    /**
+     * Feasibility analysis is expensive (full period scan) but rarely changes.
+     * Short expiry (2 min) ensures stale data auto-refreshes while avoiding
+     * redundant DB load from frontend 60s polling.
+     */
+    @Bean
+    public CaffeineCacheManager feasibilityCacheManager() {
+        CaffeineCacheManager cacheManager = new CaffeineCacheManager(CacheConfig.FEASIBILITY_CACHE);
+        cacheManager.setCaffeine(Caffeine.newBuilder()
+                .initialCapacity(20)
+                .maximumSize(50)
+                .expireAfterWrite(2, TimeUnit.MINUTES)
+                .recordStats());
+        return cacheManager;
     }
 }

@@ -315,7 +315,7 @@ export interface ScheduleExchangeResponse {
 }
 
 export interface ScheduleExchangeCreate {
-  targetStaffId: number;
+  // Note: targetStaffId is not used by backend - it's inferred from targetScheduleId
   requesterScheduleId: number;
   targetScheduleId: number;
   reason?: string;

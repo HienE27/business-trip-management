@@ -80,6 +80,12 @@ function SwapRequestsContent() {
     reason: "",
   });
 
+  // NEW: Multi-step form state for better UX
+  const [createStep, setCreateStep] = useState<"period" | "date" | "shiftType" | "schedule">("period");
+  const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedShiftTypeId, setSelectedShiftTypeId] = useState<string>("");
+
   const globalQuery = searchParams.get("q") ?? "";
   const [searchKeyword, setSearchKeyword] = useState(globalQuery);
 
@@ -154,9 +160,10 @@ function SwapRequestsContent() {
             periodIds.map((periodId) => {
               const ctrl = new AbortController();
               periodControllers.push(ctrl);
-              // api.get signature: (endpoint, params?, requestInit?). Pass {} for
-              // params so the third arg goes through as RequestInit containing signal.
-              return api.get<Schedule[]>(`/schedules/period/${periodId}`, {}, { signal: ctrl.signal });
+              // BUGFIX (swap-requests): Use /exchange-candidates/{periodId} instead of
+              // /period/{periodId} because the latter requires PERIOD_VIEW (manager-only).
+              // Staff need to see other people's schedules to create exchange requests.
+              return api.get<Schedule[]>(`/schedules/exchange-candidates/${periodId}`, {}, { signal: ctrl.signal });
             }),
           );
           if (ignoreRef.current) return;
@@ -244,12 +251,50 @@ function SwapRequestsContent() {
     [form.requesterScheduleId, mySchedules],
   );
 
+  // Computed values for multi-step form
+  // Get unique periods from mySchedules - period might be undefined, so use periodId
+  const availablePeriods = useMemo(() => {
+    const periodMap = new Map<number, { id: number; name: string }>();
+    mySchedules.forEach(s => {
+      // Use periodName if available, otherwise show "Kỳ #X"
+      const name = s.period?.periodName ?? `Kỳ #${s.periodId}`;
+      periodMap.set(s.periodId, { id: s.periodId, name });
+    });
+    return Array.from(periodMap.values()).sort((a, b) => a.id - b.id);
+  }, [mySchedules]);
+
+  const availableDates = useMemo(() => {
+    if (!selectedPeriodId) return [];
+    return mySchedules
+      .filter(s => s.periodId === selectedPeriodId)
+      .map(s => s.workDate)
+      .filter((date, index, self) => self.indexOf(date) === index)
+      .sort();
+  }, [mySchedules, selectedPeriodId]);
+
+  const availableShiftTypes = useMemo(() => {
+    if (!selectedPeriodId || !selectedDate) return [];
+    return mySchedules
+      .filter(s => s.periodId === selectedPeriodId && s.workDate === selectedDate)
+      .map(s => ({ id: s.shiftType.id, name: s.shiftType.name }))
+      .filter((item, index, self) => self.findIndex(t => t.id === item.id) === index);
+  }, [mySchedules, selectedPeriodId, selectedDate]);
+
+  const availableSchedulesForSelection = useMemo(() => {
+    if (!selectedPeriodId || !selectedDate || !selectedShiftTypeId) return [];
+    return mySchedules.filter(
+      s => s.periodId === selectedPeriodId && s.workDate === selectedDate && s.shiftType.id === selectedShiftTypeId
+    );
+  }, [mySchedules, selectedPeriodId, selectedDate, selectedShiftTypeId]);
+
+  // Candidate schedules for exchange (same period, same shift type, different staff)
   const candidateTargetSchedules = useMemo(() => {
     if (!selectedRequesterSchedule) return [];
     return allSchedules.filter(
       (schedule) =>
         schedule.periodId === selectedRequesterSchedule.periodId &&
-        schedule.id !== selectedRequesterSchedule.id,
+        schedule.shiftType.id === selectedRequesterSchedule.shiftType.id &&
+        schedule.staff.id !== selectedRequesterSchedule.staff.id,
     );
   }, [allSchedules, selectedRequesterSchedule]);
 
@@ -395,56 +440,155 @@ function SwapRequestsContent() {
               </p>
 
               <div className="space-y-2.5">
+                {/* Step 1: Select Period */}
                 <div>
-                  <label className="mb-2 block text-label-md font-medium text-on-surface" htmlFor="requesterScheduleId">
-                    Ca trực của bạn
+                  <label className="mb-2 block text-label-md font-medium text-on-surface" htmlFor="selectedPeriodId">
+                    1. Chọn kỳ lịch
                   </label>
-                  {mySchedules.length === 0 ? (
+                  {availablePeriods.length === 0 ? (
                     <div className="rounded-lg bg-amber-100 text-amber-800 border border-amber-300 px-3 py-2 text-label-md text-on-surface">
                       <span className="material-symbols-outlined text-[20px] text-tertiary align-middle mr-1">info</span>
-                      Bạn chưa có ca trực L01 nào trong kỳ đã công bố.
+                      Bạn chưa có ca trực nào trong kỳ đã công bố.
                     </div>
                   ) : (
-                  <select
-                    className="h-10 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-label-md text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary"
-                    id="requesterScheduleId"
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, requesterScheduleId: event.target.value, targetScheduleId: "" }))
-                    }
-                    value={form.requesterScheduleId}
-                  >
-                    <option value="">Chọn ca trực của bạn</option>
-                    {mySchedules.map((schedule) => (
-                      <option key={schedule.id} value={schedule.id}>
-                        {formatDate(schedule.workDate)} — {schedule.period?.periodName ?? `Kỳ #${schedule.periodId}`}
-                      </option>
-                    ))}
-                  </select>
+                    <select
+                      className="h-10 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-label-md text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary"
+                      id="selectedPeriodId"
+                      onChange={(e) => {
+                        setSelectedPeriodId(e.target.value ? Number(e.target.value) : null);
+                        setSelectedDate("");
+                        setSelectedShiftTypeId("");
+                        setForm(prev => ({ ...prev, requesterScheduleId: "" }));
+                      }}
+                      value={selectedPeriodId ?? ""}
+                    >
+                      <option value="">Chọn kỳ lịch</option>
+                      {availablePeriods.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
                   )}
                 </div>
 
+                {/* Step 2: Select Date */}
                 <div>
-                  <label className="mb-1 block text-label-md font-medium text-on-surface" htmlFor="targetScheduleId">
+                  <label className="mb-2 block text-label-md font-medium text-on-surface" htmlFor="selectedDate">
+                    2. Chọn ngày
+                  </label>
+                  {!selectedPeriodId ? (
+                    <div className="h-10 rounded-lg border border-outline-variant bg-surface px-3 flex items-center text-label-md text-on-surface-variant">
+                      Vui lòng chọn kỳ lịch trước.
+                    </div>
+                  ) : availableDates.length === 0 ? (
+                    <div className="rounded-lg bg-amber-100 text-amber-800 border border-amber-300 px-3 py-2 text-label-md text-on-surface">
+                      <span className="material-symbols-outlined text-[20px] text-tertiary align-middle mr-1">info</span>
+                      Không có ngày nào trong kỳ này.
+                    </div>
+                  ) : (
+                    <select
+                      className="h-10 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-label-md text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary"
+                      id="selectedDate"
+                      onChange={(e) => {
+                        setSelectedDate(e.target.value);
+                        setSelectedShiftTypeId("");
+                        setForm(prev => ({ ...prev, requesterScheduleId: "" }));
+                      }}
+                      value={selectedDate}
+                    >
+                      <option value="">Chọn ngày</option>
+                      {availableDates.map(d => (
+                        <option key={d} value={d}>{formatDate(d)}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Step 3: Select Shift Type */}
+                <div>
+                  <label className="mb-2 block text-label-md font-medium text-on-surface" htmlFor="selectedShiftTypeId">
+                    3. Chọn loại ca
+                  </label>
+                  {!selectedDate ? (
+                    <div className="h-10 rounded-lg border border-outline-variant bg-surface px-3 flex items-center text-label-md text-on-surface-variant">
+                      Vui lòng chọn ngày trước.
+                    </div>
+                  ) : availableShiftTypes.length === 0 ? (
+                    <div className="rounded-lg bg-amber-100 text-amber-800 border border-amber-300 px-3 py-2 text-label-md text-on-surface">
+                      <span className="material-symbols-outlined text-[20px] text-tertiary align-middle mr-1">info</span>
+                      Không có loại ca nào trong ngày này.
+                    </div>
+                  ) : (
+                    <select
+                      className="h-10 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-label-md text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary"
+                      id="selectedShiftTypeId"
+                      onChange={(e) => {
+                        setSelectedShiftTypeId(e.target.value);
+                        setForm(prev => ({ ...prev, requesterScheduleId: "" }));
+                      }}
+                      value={selectedShiftTypeId}
+                    >
+                      <option value="">Chọn loại ca</option>
+                      {availableShiftTypes.map(st => (
+                        <option key={st.id} value={st.id}>{st.name} ({st.id})</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Step 4: Select Schedule */}
+                <div>
+                  <label className="mb-2 block text-label-md font-medium text-on-surface" htmlFor="requesterScheduleId">
+                    4. Chọn ca trực của bạn
+                  </label>
+                  {!selectedShiftTypeId ? (
+                    <div className="h-10 rounded-lg border border-outline-variant bg-surface px-3 flex items-center text-label-md text-on-surface-variant">
+                      Vui lòng chọn loại ca trước.
+                    </div>
+                  ) : availableSchedulesForSelection.length === 0 ? (
+                    <div className="rounded-lg bg-amber-100 text-amber-800 border border-amber-300 px-3 py-2 text-label-md text-on-surface">
+                      <span className="material-symbols-outlined text-[20px] text-tertiary align-middle mr-1">info</span>
+                      Không có ca nào trong lựa chọn này.
+                    </div>
+                  ) : (
+                    <select
+                      className="h-10 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-label-md text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary"
+                      id="requesterScheduleId"
+                      onChange={(e) => setForm(prev => ({ ...prev, requesterScheduleId: e.target.value, targetScheduleId: "" }))}
+                      value={form.requesterScheduleId}
+                    >
+                      <option value="">Chọn ca trực của bạn</option>
+                      {availableSchedulesForSelection.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {formatDate(s.workDate)} — {s.shiftType.name} ({s.shiftType.id})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Target schedule selection */}
+                <div>
+                  <label className="mb-2 block text-label-md font-medium text-on-surface" htmlFor="targetScheduleId">
                     Ca muốn đổi cùng
                   </label>
                   {!selectedRequesterSchedule ? (
                     <div className="h-10 rounded-lg border border-outline-variant bg-surface px-3 flex items-center text-label-md text-on-surface-variant">
-                      Vui lòng chọn ca trực của bạn trước.
+                      Vui lòng hoàn thành 4 bước trên trước.
                     </div>
                   ) : candidateTargetSchedules.length === 0 ? (
                     <div className="rounded-lg bg-amber-100 text-amber-800 border border-amber-300 px-3 py-2 text-label-md text-on-surface">
                       <span className="material-symbols-outlined text-[20px] text-tertiary align-middle mr-1">info</span>
-                      Không có ca L01 nào của người khác trong cùng kỳ.
+                      Không có ca {selectedRequesterSchedule.shiftType.id} nào của người khác trong cùng kỳ.
                     </div>
                   ) : (
                     <select
                       className="h-10 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-label-md text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary"
                       id="targetScheduleId"
-                      onChange={(event) => setForm((prev) => ({ ...prev, targetScheduleId: event.target.value }))}
+                      onChange={(e) => setForm(prev => ({ ...prev, targetScheduleId: e.target.value }))}
                       value={form.targetScheduleId}
                     >
                       <option value="">Chọn ca trực của người khác</option>
-                      {candidateTargetSchedules.map((schedule) => (
+                      {candidateTargetSchedules.map(schedule => (
                         <option key={schedule.id} value={schedule.id}>
                           {schedule.staff.fullName} — {formatDate(schedule.workDate)}
                         </option>
@@ -453,6 +597,7 @@ function SwapRequestsContent() {
                   )}
                 </div>
 
+                {/* Reason */}
                 <div>
                   <label className="mb-1 block text-label-md font-medium text-on-surface" htmlFor="exchange-reason">
                     Lý do
