@@ -87,6 +87,13 @@ export function useSchedulePeriodData(
   const aliveRef = useRef(true);
   const loadPeriodDataRef = useRef<typeof loadPeriodData | null>(null);
 
+  // Get auth context to determine user role.
+  const { user: authUser } = useAuth();
+  const isStaffOnly = useMemo(
+    () => authUser?.roles?.some((r) => r === "STAFF") ?? false,
+    [authUser?.roles],
+  );
+
   const selectedPeriod = useMemo(
     () => periods.find((p) => p.id === selectedPeriodId) ?? null,
     [periods, selectedPeriodId]
@@ -97,7 +104,7 @@ export function useSchedulePeriodData(
       setSchedules([]);
       setConflictData(null);
       setCompensationDays([]);
-      return;
+      return 0;
     }
 
     if (isRefresh) setRefreshing(true);
@@ -111,10 +118,10 @@ export function useSchedulePeriodData(
       }
     };
 
-    // STAFF uses /schedules/me/period/{periodId}, MANAGER/ADMIN uses /schedules/period/{periodId}
-    const scheduleEndpoint = isStaffOnly
-      ? `/schedules/me/period/${periodId}`
-      : `/schedules/period/${periodId}`;
+    // All roles use the same endpoint — STAFF now has SCHEDULE_VIEW
+    // and STAFF_VIEW_ALL (via updated permissions), so /period/{periodId}
+    // returns the full roster and /staff/active returns all staff.
+    const scheduleEndpoint = `/schedules/period/${periodId}`;
 
     const [scheduleResult, conflictResult, compDaysData] = await Promise.all([
       fetchOne<Schedule[]>(() => api.get<Schedule[]>(scheduleEndpoint), []),
@@ -146,7 +153,8 @@ export function useSchedulePeriodData(
     setConflictData(conflictResult);
     setCompensationDays(compDaysData);
     if (isRefresh) setRefreshing(false);
-  }, []);
+    return scheduleData.length;
+  }, [isStaffOnly]);
 
   useEffect(() => {
     loadPeriodDataRef.current = loadPeriodData;
@@ -186,13 +194,6 @@ export function useSchedulePeriodData(
     };
   }, [selectedPeriodId, invalidateEndpoint]);
 
-  // Get auth context to determine user role
-  const { user: authUser } = useAuth();
-  const isStaffOnly = useMemo(
-    () => authUser?.roles?.some((r) => r === "STAFF") ?? false,
-    [authUser?.roles],
-  );
-
   useEffect(() => {
     let active = true;
 
@@ -200,7 +201,7 @@ export function useSchedulePeriodData(
       setLoading(true);
       setMessage(null);
       try {
-        // STAFF uses /periods/published, MANAGER/ADMIN uses /periods
+        // All roles use the same endpoints now.
         const periodsEndpoint = isStaffOnly ? "/periods/published" : "/periods";
         const [periodData, staffData, specialtyData] = await Promise.all([
           queryCache(periodsEndpoint, () => api.get<SchedulePeriod[]>(periodsEndpoint)),
@@ -217,13 +218,39 @@ export function useSchedulePeriodData(
         setSpecialties(specialtyData ?? []);
 
         if (autoSelectPeriod) {
+          // Prefer DRAFT or PUBLISHED; otherwise the first one.
           const preferred =
             periodData?.find((p) => p.status === "DRAFT" || p.status === "PUBLISHED") ??
             periodData?.[0] ??
             null;
-          const nextPeriodId = preferred?.id ?? null;
-          setSelectedPeriodIdState(nextPeriodId);
-          await loadPeriodData(nextPeriodId, false);
+          const candidates = preferred
+            ? [
+                preferred,
+                ...periodData!.filter((p) => p.id !== preferred.id),
+              ]
+            : [];
+          // Pick the first period that returns at least one schedule.
+          // For STAFF this matters because /periods/published can include
+          // brand-new test periods (e.g. "B2 Test Period") with zero rows —
+          // falling back here avoids the "kỳ lịch tồn tại nhưng trống"
+          // dead-end state. Bounded to 3 attempts so we don't N+1 every
+          // period on a fresh DB.
+          let picked: SchedulePeriod | null = null;
+          for (const period of candidates.slice(0, 3)) {
+            const count = await loadPeriodData(period.id, false);
+            if (!aliveRef.current) return;
+            if ((count ?? 0) > 0) {
+              picked = period;
+              setSelectedPeriodIdState(period.id);
+              break;
+            }
+          }
+          if (!picked) {
+            // Either empty across the board or we gave up searching — pin
+            // the originally preferred period so the UI still has a
+            // selectedPeriod and the dropdown is in sync.
+            setSelectedPeriodIdState(preferred?.id ?? null);
+          }
         }
       } catch (error) {
         if (!active) return;
@@ -260,7 +287,6 @@ export function useSchedulePeriodData(
       ]);
 
       if (!aliveRef.current) return;
-
       if (periodData) setPeriods(periodData);
 
       if (periodId) {
@@ -283,10 +309,10 @@ export function useSchedulePeriodData(
   }, [selectedPeriodId]);
 
   useEffect(() => {
-    if (!conflictPollMs || conflictPollMs <= 0 || !selectedPeriodId) return;
+    if (!selectedPeriodId || conflictPollMs <= 0) return;
     const ignoreRef = { current: false };
     const interval = setInterval(async () => {
-      if (ignoreRef.current) return;
+      if (ignoreRef.current || !selectedPeriodId) return;
       try {
         const data = await api.get<ConflictCheckResponse>(
           `/schedules/conflicts/check/${selectedPeriodId}`

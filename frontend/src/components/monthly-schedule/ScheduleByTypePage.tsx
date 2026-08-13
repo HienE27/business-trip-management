@@ -140,7 +140,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
       ] = [
         hasPeriodAccess ? api.get<SchedulePeriod[]>("/periods") : null,
         hasStaffAccess ? api.get<Staff[]>("/staff/active") : null,
-        api.get<LeaveRequest[]>("/leave-requests/status/approved"),
+        api.get<LeaveRequest[]>("/leave-requests/approved"),
         isExpertMode ? api.get<Specialty[]>("/specialties/active") : null,
       ];
       const [periodData, staffData, leaveData, specialtyData] = await Promise.all(requests);
@@ -391,7 +391,7 @@ export function ScheduleByTypePage({ config }: ScheduleByTypePageProps) {
         ] = [
           hasPeriodAccess ? api.get<SchedulePeriod[]>("/periods") : null,
           hasStaffAccess ? api.get<Staff[]>("/staff/active") : null,
-          api.get<LeaveRequest[]>("/leave-requests/status/approved"),
+          api.get<LeaveRequest[]>("/leave-requests/approved"),
           isExpertMode ? api.get<Specialty[]>("/specialties/active") : null,
         ];
         const [periodData, staffData, leaveData, specialtyData] = await Promise.all(requests);

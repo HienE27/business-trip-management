@@ -239,10 +239,28 @@ export default function DashboardPage() {
     return new Date().getMonth();
   }, [selectedPeriod]);
 
-  const staffList = useMemo(
-    () => activeStaff.map((s) => ({ id: s.id, fullName: s.fullName })),
-    [activeStaff]
-  );
+  const staffList = useMemo(() => {
+    // MANAGER/ADMIN: full active staff list from /staff/active.
+    // STAFF: skip /staff/active (403), so we surface the staff entries
+    // that actually appear in their schedule rows. This is enough to
+    // render the matrix — at most one row for the logged-in STAFF,
+    // but the matrix still shows their L01..L04 cells correctly.
+    if (!isStaffOnly) {
+      return activeStaff.map((s) => ({ id: s.id, fullName: s.fullName }));
+    }
+    const seen = new Map<number, { id: number; fullName: string }>();
+    for (const s of schedules) {
+      const id = s.staff?.id;
+      if (id == null) continue;
+      if (!seen.has(id)) {
+        seen.set(id, {
+          id,
+          fullName: s.staff.fullName,
+        });
+      }
+    }
+    return Array.from(seen.values());
+  }, [activeStaff, schedules, isStaffOnly]);
 
   // STAFF: Compute personal KPIs from filtered schedules
   const personalStats = useMemo(() => {

@@ -139,6 +139,22 @@ public class DashboardService {
                 .build();
     }
 
+    public Map<String, Long> getExchangeRequestCounts() {
+        long total = exchangeRepository.count();
+        long pending = exchangeRepository.countByStatus(ScheduleExchange.ExchangeStatus.PENDING);
+        long approved = exchangeRepository.countByStatus(ScheduleExchange.ExchangeStatus.APPROVED);
+        long rejected = exchangeRepository.countByStatus(ScheduleExchange.ExchangeStatus.REJECTED);
+        long cancelled = exchangeRepository.countByStatus(ScheduleExchange.ExchangeStatus.CANCELLED);
+
+        Map<String, Long> counts = new LinkedHashMap<>();
+        counts.put("total", total);
+        counts.put("pending", pending);
+        counts.put("approved", approved);
+        counts.put("rejected", rejected);
+        counts.put("cancelled", cancelled);
+        return counts;
+    }
+
     public List<DashboardResponse.StaffWorkloadStatistics> getStaffWorkloadByPeriod(Integer periodId) {
         List<Schedule> schedules = scheduleRepository.findByPeriodId(periodId);
         return buildWorkloadStatistics(schedules, /*includeAllStaff=*/ false);

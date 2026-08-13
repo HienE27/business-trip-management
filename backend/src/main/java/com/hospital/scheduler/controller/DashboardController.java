@@ -57,6 +57,13 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getLeaveRequestStatistics()));
     }
 
+    @GetMapping("/exchange-requests")
+    @Operation(summary = "Lấy số yêu cầu đổi ca đang chờ duyệt")
+    @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_VIEW + "')")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> getExchangeRequestCounts() {
+        return ResponseEntity.ok(ApiResponse.success(dashboardService.getExchangeRequestCounts()));
+    }
+
     @GetMapping("/workload/period/{periodId}")
     @Operation(summary = "Lấy thống kê workload nhân sự theo kỳ")
     @PreAuthorize("hasAuthority('" + Permissions.DASHBOARD_AGGREGATE + "')")

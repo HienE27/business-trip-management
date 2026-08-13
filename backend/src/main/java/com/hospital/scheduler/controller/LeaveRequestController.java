@@ -96,6 +96,14 @@ public class LeaveRequestController {
         return ResponseEntity.ok(ApiResponse.success(leaveRequestService.getPendingRequests()));
     }
 
+    @GetMapping("/approved")
+    @Operation(summary = "Lấy danh sách yêu cầu nghỉ phép đã duyệt (dùng cho hiển thị lịch)")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<LeaveRequestResponse>>> getApprovedRequests() {
+        return ResponseEntity.ok(ApiResponse.success(
+                leaveRequestService.getLeaveRequestsByStatus(LeaveRequest.LeaveStatus.APPROVED)));
+    }
+
     @GetMapping("/status/{status}")
     @Operation(summary = "Lấy yêu cầu theo trạng thái")
     // BUGFIX (was LEAVE-CROSS-USER): filtered-by-status org listing.

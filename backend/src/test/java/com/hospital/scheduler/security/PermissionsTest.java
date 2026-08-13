@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>MANAGER ⊆ ALL and STAFF ⊆ MANAGER.</li>
  *   <li>MANAGER không có quyền chỉ-dành-cho-ADMIN (định nghĩa trong {@link #managerReservedForAdmin()}).</li>
  *   <li>STAFF không có quyền chỉ-dành-cho-MANAGER/ADMIN.</li>
- *   <li>STAFF không có STAFF_VIEW_ALL (chỉ xem chính mình).</li>
+ *   <li>STAFF có STAFF_VIEW_ALL (xem lịch toàn phòng tại M06-F01/F02).</li>
  *   <li>MANAGER có STAFF_VIEW_ALL.</li>
  * </ul>
  */
@@ -104,13 +104,11 @@ class PermissionsTest {
     }
 
     @Test
-    void staffCannotSeeFullStaffDirectory() {
-        // Tài liệu M01-F05: "Nhân viên (xem lịch cá nhân)".
-        // STAFF không được xem danh sách nhân sự toàn phòng.
-        assertFalse(Permissions.staffPermissions().contains(Permissions.STAFF_VIEW_ALL),
-                "STAFF must not have STAFF_VIEW_ALL");
-        assertFalse(Permissions.staffPermissions().contains(Permissions.STAFF_VIEW),
-                "STAFF must not have the legacy STAFF_VIEW alias (only SELF is allowed)");
+    void staffCanSeeFullStaffDirectory() {
+        // M06-F01/F02: nhân viên được phép xem lịch toàn phòng (read-only).
+        // Cần STAFF_VIEW_ALL để hiển thị cột nhân sự trên bảng lịch tháng.
+        assertTrue(Permissions.staffPermissions().contains(Permissions.STAFF_VIEW_ALL),
+                "STAFF must have STAFF_VIEW_ALL to see the staff directory and full schedule");
         assertTrue(Permissions.staffPermissions().contains(Permissions.STAFF_VIEW_SELF),
                 "STAFF must have STAFF_VIEW_SELF to view their own profile");
     }

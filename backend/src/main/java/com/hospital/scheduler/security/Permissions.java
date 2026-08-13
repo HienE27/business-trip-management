@@ -281,17 +281,29 @@ public final class Permissions {
     }
 
     /**
-     * Permissions granted to STAFF (Nhân viên) — self-service only.
+     * Permissions granted to STAFF (Nhân viên) — read-only whole-department view.
      *
-     * <p>Theo tài liệu {@code QuanLyLichCongTac_v5.md} mục M01-F05: "Nhân viên
-     * (xem lịch cá nhân)". Mở rộng hợp lý cho phép nhân viên tự đăng ký nghỉ
-     * phép, gửi yêu cầu đổi ca, xem thông báo và xem ngày lễ để biết lịch nghỉ.
+     * <p>Theo M06-F01/M06-F02, nhân viên được phép xem lịch toàn phòng
+     * (read-only). Để hiển thị bảng lịch với tất cả nhân sự, STAFF cần:
+     * <ul>
+     *   <li>{@code SCHEDULE_VIEW} — xem lịch toàn phòng (endpoint
+     *       {@code /schedules/period/{id}} không giới hạn staffId)</li>
+     *   <li>{@code STAFF_VIEW_ALL} — lấy danh sách nhân sự để hiển thị
+     *       cột trên bảng lịch tháng</li>
+     * </ul>
+     *
+     * <p>Mở rộng hợp lý: tự đăng ký nghỉ phép, gửi yêu cầu đổi ca,
+     * xem thông báo và ngày lễ.
      */
     public static Set<String> staffPermissions() {
         return Set.of(
                 DASHBOARD_VIEW,
                 STAFF_VIEW_SELF,
+                // M06-F01/F02: xem lịch toàn phòng (read-only)
+                STAFF_VIEW_ALL,
                 SCHEDULE_VIEW,
+                // Xem kỳ lịch + lấy lịch theo kỳ (endpoint /schedules/period/{id})
+                PERIOD_VIEW,
                 HOLIDAY_VIEW,
                 LEAVE_VIEW,
                 LEAVE_CREATE,

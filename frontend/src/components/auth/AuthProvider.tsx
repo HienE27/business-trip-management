@@ -124,35 +124,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   const refreshUser = useCallback(async () => {
-    const currentStaff = await api.get<Staff>("/staff/me");
-    // Preserve the permissions we already have in state — they came from the
-    // JWT issued at login and the /staff/me endpoint doesn't carry them.
-    setUser((prev) => {
-      const nextUser = toAuthUser(currentStaff, prev?.permissions ?? []);
-      persistAuthUser(nextUser);
-      return nextUser;
-    });
-  }, []);
+    try {
+      const currentStaff = await api.get<Staff>("/staff/me");
+      // Preserve the permissions we already have in state — they came from the
+      // JWT issued at login and the /staff/me endpoint doesn't carry them.
+      setUser((prev) => {
+        const nextUser = toAuthUser(currentStaff, prev?.permissions ?? []);
+        persistAuthUser(nextUser);
+        return nextUser;
+      });
+    } catch (error) {
+      // BUGFIX (was DEAD-USER-AUTH): if /staff/me returns 401 the token
+      // is dead — clear local auth so the next render doesn't treat the
+      // user as signed in with permissions: []. Re-throw so the caller
+      // (typically login()) can handle the redirect. Other errors
+      // (network, 5xx) are re-thrown unchanged so the caller's existing
+      // error-handling path keeps working.
+      if (isUnauthorizedError(error)) {
+        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+        window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+        persistAuthUser(null);
+        setUser(null);
+        setToken(null);
+        router.replace("/login");
+      }
+      throw error;
+    }
+  }, [router]);
 
   useEffect(() => {
     let active = true;
 
     const bootstrapAuth = async () => {
       setMounted(true);
+
+      // BUGFIX (was DEAD-USER-AUTH): previously the bootstrap called
+      // setUser(JSON.parse(savedUser)) immediately on every page load so
+      // the UI rendered with whatever was in localStorage — even when
+      // `medschedule.token` was missing/expired/invalid (e.g. after admin
+      // toggled a permission that bumped `permVer`, or after a tab was
+      // closed for longer than the access-token TTL). Downstream pages
+      // then mounted with `permissions: []` and every API call returned
+      // 403 because no Authorization header was attached (or the token
+      // was rejected by PermissionInvalidationFilter).
+      //
+      // Fix: gate `isAuthenticated` on BOTH a valid saved user AND a
+      // successful /staff/me round-trip. While /staff/me is in flight we
+      // keep isLoading=true so children render the loading skeleton. If
+      // /staff/me fails with 401, we drop the dead user and bounce to
+      // /login instead of leaving the UI mounted in a no-permission state.
+      const storedToken = window.localStorage.getItem(TOKEN_STORAGE_KEY);
       const savedUser = window.localStorage.getItem(AUTH_STORAGE_KEY);
-      if (savedUser) {
-        try {
-          setUser(JSON.parse(savedUser) as AuthUser);
-        } catch {
-          persistAuthUser(null);
-        }
+      const hadSavedSession = Boolean(storedToken && savedUser);
+
+      if (!hadSavedSession) {
+        // Nothing to restore — finish bootstrap immediately so the
+        // RouteGuard can redirect unauthenticated users to /login.
+        if (active) setIsLoading(false);
+        return;
       }
 
-      // Refresh user data from server, but don't block UI
-      // user already sees the app with localStorage data.
-      // On 401 (token expired/invalid), clear auth and bounce to /login
-      // so the user re-authenticates instead of hammering the API with a
-      // stale token and spamming the console.
+      // Hydrate the cached user *only* so the AppSidebar/Header can show
+      // the right avatar and role chip during the loading window. We do
+      // NOT expose this hydrated user as `isAuthenticated` until /staff/me
+      // confirms the token is still valid.
+      try {
+        if (savedUser) {
+          setUser(JSON.parse(savedUser) as AuthUser);
+        }
+      } catch {
+        persistAuthUser(null);
+      }
+
+      // Refresh user data from server. On 401 (token expired/invalid),
+      // clear auth and bounce to /login so the user re-authenticates
+      // instead of hammering the API with a stale token and spamming 403.
       try {
         const currentStaff = await api.get<Staff>("/staff/me");
         if (!active) return;
@@ -174,7 +220,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isUnauthorizedError(error)) {
           // Token definitively invalid — clear everything so the next page
           // load treats the user as anonymous instead of carrying around a
-          // dead token that 401s every request.
+          // dead token that 401s every request. This is the critical branch
+          // that prevents the "MANAGER 403 on /staff/active" symptom: a
+          // stale user with no token gets dropped, not kept.
           window.localStorage.removeItem(TOKEN_STORAGE_KEY);
           window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
           persistAuthUser(null);
@@ -192,19 +240,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // We do NOT auto-logout (the user may have valid data cached and
           // a retry might succeed); we just record the staleness so the
           // UI can offer a manual "Thử lại" path.
-          // The persistAuthUser() call remains — keep the cached user so
-          // the role/permissions stay populated for navigation, but tag
-          // the session as stale via window.sessionStorage so other
-          // components can react.
           try {
             window.sessionStorage.setItem("medschedule.session.stale", "1");
           } catch {
             /* sessionStorage unavailable — fall through */
           }
-          // Re-throw the error is unnecessary; the finally{} below still
-          // flips isLoading off so the UI renders. Surface to console for
-          // ops debugging but don't pollute the user-facing toast queue.
-           
           console.warn("[AuthProvider] /staff/me returned 5xx during bootstrap:", error);
         }
         // For non-401 / non-5xx (network drop, CORS, etc.), keep localStorage
@@ -304,7 +344,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       token,
       user,
-      isAuthenticated: Boolean(mounted && user),
+      // BUGFIX (was DEAD-USER-AUTH): `isAuthenticated` now requires BOTH a
+      // hydrated user AND a present access token. Previously a stale user
+      // with permissions: [] (no token attached) was enough for the UI to
+      // think the caller was signed in, which surfaced downstream as a
+      // 403 storm on every guarded endpoint — most visibly
+      // `api/v1/staff/active` returning 403 for a real MANAGER after their
+      // session had been wiped server-side.
+      isAuthenticated: Boolean(mounted && user && token),
       isLoading: !mounted || isLoading,
       login,
       logout,

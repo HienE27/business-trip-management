@@ -180,10 +180,14 @@ export const RoleDefaultPermissions: Record<string, Permission[]> = {
     Permission.APP_CONFIG_VIEW,
   ],
   STAFF: [
-    // ── Nhân viên: xem lịch cá nhân + tự đăng ký ──────────
+    // ── Nhân viên: xem lịch toàn phòng (read-only) + tự đăng ký ──
+    // M06-F01/F02: xem lịch toàn phòng → STAFF_VIEW_ALL + SCHEDULE_VIEW
     Permission.DASHBOARD_VIEW,
     Permission.STAFF_VIEW_SELF,
+    Permission.STAFF_VIEW_ALL,
     Permission.SCHEDULE_VIEW,
+    // M06-F01/F02: xem kỳ lịch + lịch theo kỳ
+    Permission.PERIOD_VIEW,
     Permission.HOLIDAY_VIEW,
     Permission.LEAVE_VIEW,
     Permission.LEAVE_CREATE,

@@ -19,6 +19,17 @@ vi.mock("next/navigation", () => ({
 
 const mockedApi = vi.mocked(api);
 
+// Mock AuthProvider so the hook can read role-specific endpoints.
+// Default = STAFF (matches most realistic dashboard scenarios in tests).
+// Override per-test by reassigning `mockedAuthUser`.
+let mockedAuthUser: { roles?: string[]; userId?: number } | null = {
+  roles: ["STAFF"],
+  userId: 4,
+};
+vi.mock("@/components/auth/AuthProvider", () => ({
+  useAuth: () => ({ user: mockedAuthUser }),
+}));
+
 const fakePeriod: SchedulePeriod = {
   id: 1,
   periodName: "Tháng 6/2026",
@@ -69,9 +80,12 @@ describe("useSchedulePeriodData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedPathname = "/dashboard";
+    // Default to STAFF — most realistic dashboard scenario.
+    mockedAuthUser = { roles: ["STAFF"], userId: 4 };
   });
 
   it("tự fetch periods, staff, specialties khi mount", async () => {
+    mockedAuthUser = { roles: ["MANAGER"], userId: 2 };
     mockedApi.get.mockImplementation((url: string) => {
       if (url === "/periods") return Promise.resolve([fakePeriod]);
       if (url === "/staff/active") return Promise.resolve([fakeStaff]);
@@ -96,6 +110,7 @@ describe("useSchedulePeriodData", () => {
   });
 
   it("tự chọn period DRAFT đầu tiên khi autoSelectPeriod = true (default)", async () => {
+    mockedAuthUser = { roles: ["MANAGER"], userId: 2 };
     mockedApi.get.mockImplementation((url: string) => {
       if (url === "/periods") return Promise.resolve([fakePeriod]);
       if (url === "/staff/active") return Promise.resolve([]);
@@ -114,6 +129,7 @@ describe("useSchedulePeriodData", () => {
   });
 
   it("không tự chọn period khi autoSelectPeriod = false", async () => {
+    mockedAuthUser = { roles: ["MANAGER"], userId: 2 };
     mockedApi.get.mockImplementation((url: string) => {
       if (url === "/periods") return Promise.resolve([fakePeriod]);
       if (url === "/staff/active") return Promise.resolve([]);
@@ -131,6 +147,7 @@ describe("useSchedulePeriodData", () => {
   });
 
   it("setSelectedPeriodId trigger reload period-specific data", async () => {
+    mockedAuthUser = { roles: ["MANAGER"], userId: 2 };
     let callCount = 0;
     mockedApi.get.mockImplementation((url: string) => {
       if (url === "/periods") {
@@ -180,6 +197,7 @@ describe("useSchedulePeriodData", () => {
   });
 
   it("không poll conflict khi conflictPollMs = 0 (default)", async () => {
+    mockedAuthUser = { roles: ["MANAGER"], userId: 2 };
     mockedApi.get.mockImplementation((url: string) => {
       if (url === "/periods") return Promise.resolve([fakePeriod]);
       if (url === "/staff/active") return Promise.resolve([]);
@@ -208,8 +226,88 @@ describe("useSchedulePeriodData", () => {
     expect(after).toBe(before);
   });
 
+  describe("role-aware bootstrap", () => {
+    it("STAFF dùng /periods/published và bỏ qua /staff/active (endpoint bị 403 với STAFF)", async () => {
+      mockedAuthUser = { roles: ["STAFF"], userId: 4 };
+      const calledEndpoints: string[] = [];
+      mockedApi.get.mockImplementation((url: string) => {
+        calledEndpoints.push(url);
+        if (url === "/periods/published") return Promise.resolve([fakePeriod]);
+        // /staff/active would 403 for STAFF — it MUST NOT be called.
+        if (url === "/staff/active") return Promise.reject(new Error("403 STAFF"));
+        if (url === "/specialties") return Promise.resolve([]);
+        if (url.startsWith("/schedules/me/period/")) return Promise.resolve([fakeSchedule]);
+        return Promise.resolve([]);
+      });
+
+      const { result } = renderHook(() => useSchedulePeriodData());
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(calledEndpoints).toContain("/periods/published");
+      expect(calledEndpoints).not.toContain("/staff/active");
+      expect(result.current.periods).toEqual([fakePeriod]);
+      expect(result.current.activeStaff).toEqual([]); // STAFF has no list
+      expect(result.current.schedules).toEqual([fakeSchedule]);
+    });
+
+    it("STAFF: skip period có 0 schedules, pick period tiếp theo có data", async () => {
+      mockedAuthUser = { roles: ["STAFF"], userId: 4 };
+      const periods: SchedulePeriod[] = [
+        { ...fakePeriod, id: 17, periodName: "B2 Test Period", status: "PUBLISHED" },
+        { ...fakePeriod, id: 3, periodName: "Tháng 10/2026", status: "PUBLISHED" },
+        { ...fakePeriod, id: 2, periodName: "Tháng 7/2026", status: "PUBLISHED" },
+      ];
+      mockedApi.get.mockImplementation((url: string) => {
+        if (url === "/periods/published") return Promise.resolve(periods);
+        if (url === "/specialties") return Promise.resolve([]);
+        // Period 17 returns 0 schedules, period 3 returns real rows.
+        if (url.startsWith("/schedules/me/period/17")) return Promise.resolve([]);
+        if (url.startsWith("/schedules/me/period/3")) return Promise.resolve([fakeSchedule]);
+        if (url.startsWith("/schedules/me/period/")) return Promise.resolve([]);
+        return Promise.resolve([]);
+      });
+
+      const { result } = renderHook(() => useSchedulePeriodData());
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      // Should land on period 3, not 17 — because 17 has no rows.
+      expect(result.current.selectedPeriodId).toBe(3);
+      expect(result.current.schedules).toEqual([fakeSchedule]);
+    });
+
+    it("MANAGER/ADMIN gọi /periods và /staff/active đầy đủ", async () => {
+      mockedAuthUser = { roles: ["MANAGER"], userId: 2 };
+      const calledEndpoints: string[] = [];
+      mockedApi.get.mockImplementation((url: string) => {
+        calledEndpoints.push(url);
+        if (url === "/periods") return Promise.resolve([fakePeriod]);
+        if (url === "/staff/active") return Promise.resolve([fakeStaff]);
+        if (url === "/specialties") return Promise.resolve([]);
+        if (url.startsWith("/schedules/period/")) return Promise.resolve([fakeSchedule]);
+        return Promise.resolve([]);
+      });
+
+      const { result } = renderHook(() => useSchedulePeriodData());
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(calledEndpoints).toContain("/periods");
+      expect(calledEndpoints).toContain("/staff/active");
+      expect(result.current.activeStaff).toEqual([fakeStaff]);
+    });
+  });
+
   describe("banner / message", () => {
     it("clear message sạch khi pathname đổi", async () => {
+      mockedAuthUser = { roles: ["MANAGER"], userId: 2 };
       mockedApi.get.mockImplementation((url: string) => {
         if (url === "/periods") return Promise.resolve([fakePeriod]);
         if (url === "/staff/active") return Promise.resolve([]);
@@ -239,6 +337,7 @@ describe("useSchedulePeriodData", () => {
     });
 
     it("auto-dismiss message sau 5s", async () => {
+      mockedAuthUser = { roles: ["MANAGER"], userId: 2 };
       vi.useFakeTimers();
       try {
         mockedApi.get.mockImplementation((url: string) => {
